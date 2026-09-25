@@ -381,6 +381,58 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   @doc """
+  Left offset of a step's Gantt bar as a percentage of the job window,
+  or `nil` when the step or window can't place it. The value is
+  formatted as a CSS length so the template can pass it straight into
+  `style=`.
+  """
+  def step_bar_offset_percent(step, %{min: min, max: max}) when max > min do
+    case step_epoch_ms(step.started_at) do
+      nil ->
+        nil
+
+      started ->
+        started
+        |> Kernel.-(min)
+        |> Kernel./(max - min)
+        |> clamp_unit()
+        |> format_bar_percent()
+    end
+  end
+
+  def step_bar_offset_percent(_, _), do: nil
+
+  @doc """
+  Width of a step's Gantt bar as a percentage of the job window. A
+  zero-length step still returns `"0%"` so the template can fall back
+  to a min-width tick — otherwise a 0s "Set up job" row would render
+  nothing at all.
+  """
+  def step_bar_width_percent(step, %{min: min, max: max}) when max > min do
+    with started when not is_nil(started) <- step_epoch_ms(step.started_at),
+         completed when not is_nil(completed) <- step_epoch_ms(step.completed_at) do
+      completed
+      |> Kernel.-(started)
+      |> max(0)
+      |> Kernel./(max - min)
+      |> clamp_unit()
+      |> format_bar_percent()
+    else
+      _ -> nil
+    end
+  end
+
+  def step_bar_width_percent(_, _), do: nil
+
+  defp clamp_unit(value) when is_float(value) or is_integer(value) do
+    value |> max(0.0) |> min(1.0)
+  end
+
+  defp format_bar_percent(value) do
+    "#{Float.round(value * 100, 2)}%"
+  end
+
+  @doc """
   The step window associated with build or test insights.
 
   `run_windows` maps a build run's id to the wall-clock window taken from its

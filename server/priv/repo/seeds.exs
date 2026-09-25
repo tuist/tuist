@@ -3949,30 +3949,53 @@ runner_job_step_names = [
   "Complete job"
 ]
 
+# Weight each step's share of the wall-clock. The dominant "Run tests"
+# step (weight 55) is what makes the Gantt bar on the Steps card
+# visually meaningful — spreading time evenly would render eight
+# identical bars, which hides where the job is actually spending its
+# time.
+runner_job_step_weights = [1, 12, 2, 8, 15, 25, 55, 2]
+
 build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_at, conclusion ->
   names = runner_job_step_names
+  weights = runner_job_step_weights
   step_count = length(names)
   total_seconds = max(DateTime.diff(completed_at, started_at, :second), step_count)
-  per_step = max(div(total_seconds, step_count), 1)
+  weight_total = Enum.sum(weights)
   outcome_index = if conclusion == "success", do: nil, else: step_count - 2
 
-  names
-  |> Enum.with_index()
-  |> Enum.map(fn {name, index} ->
-    step_started = DateTime.add(started_at, index * per_step, :second)
-    step_completed = DateTime.add(step_started, per_step, :second)
+  {rows, _elapsed} =
+    names
+    |> Enum.zip(weights)
+    |> Enum.with_index()
+    |> Enum.map_reduce(0, fn {{name, weight}, index}, elapsed ->
+      raw = div(total_seconds * weight, weight_total)
 
-    %{
-      workflow_job_id: workflow_job_id,
-      account_id: account_id,
-      number: index + 1,
-      name: name,
-      status: "completed",
-      conclusion: if(index == outcome_index, do: conclusion, else: "success"),
-      started_at: step_started,
-      completed_at: step_completed
-    }
-  end)
+      duration =
+        cond do
+          index == step_count - 1 -> max(total_seconds - elapsed, 0)
+          raw == 0 -> 1
+          true -> raw
+        end
+
+      step_started = DateTime.add(started_at, elapsed, :second)
+      step_completed = DateTime.add(step_started, duration, :second)
+
+      row = %{
+        workflow_job_id: workflow_job_id,
+        account_id: account_id,
+        number: index + 1,
+        name: name,
+        status: "completed",
+        conclusion: if(index == outcome_index, do: conclusion, else: "success"),
+        started_at: step_started,
+        completed_at: step_completed
+      }
+
+      {row, elapsed + duration}
+    end)
+
+  rows
 end
 
 # Builds a runner's machine-metrics trace across the job's runtime,
