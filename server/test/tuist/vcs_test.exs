@@ -97,7 +97,7 @@ defmodule Tuist.VCSTest do
         ci_project_handle: "tuist/tuist"
       }
 
-      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/pipelines/github/tuist/tuist/12345"
+      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/jobs/github/tuist/tuist/12345"
     end
 
     test "returns Buildkite builds URL for buildkite provider" do
@@ -346,7 +346,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Test modules | Commit |
+        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | - | - | 0 | #{commit_link} |
         | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 80 % | 1/3 | #{commit_link} |
@@ -641,7 +641,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -696,7 +696,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -863,7 +863,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: body
                                          } ->
         assert String.starts_with?(body, "### 🛠️ Tuist Run Report 🛠️")
@@ -1562,7 +1562,7 @@ defmodule Tuist.VCSTest do
 
         ##### Xcode
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 1 | #{commit_link} |
 
@@ -1633,7 +1633,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 | #{commit_link} |
 
@@ -1756,7 +1756,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 | #{commit_link} |
 
@@ -1994,7 +1994,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
@@ -2103,7 +2103,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
@@ -2365,7 +2365,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
@@ -2509,7 +2509,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
@@ -2687,6 +2687,24 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "pull_request_number_from_git_ref/1" do
+    test "returns the pull request number of a pull request ref" do
+      assert VCS.pull_request_number_from_git_ref("refs/pull/23958/merge") == 23_958
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7/head") == 7
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7") == 7
+    end
+
+    test "returns nil for refs that are not pull request refs" do
+      assert VCS.pull_request_number_from_git_ref("refs/heads/main") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/tags/v1.0.0") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/12abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/0/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("") == nil
+      assert VCS.pull_request_number_from_git_ref(nil) == nil
+    end
+  end
+
   describe "create_comment/1" do
     setup do
       stub(Environment, :github_app_configured?, fn -> true end)
@@ -2705,7 +2723,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:ok, %Comment{id: 1, client_id: "client_id"}}
@@ -2838,7 +2856,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:error, :forbidden}

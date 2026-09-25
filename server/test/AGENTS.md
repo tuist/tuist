@@ -32,6 +32,13 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
 
+- Linux cache-volume tests cover tenant/node scoping, private PR reads, trusted
+  publication, success gating, retries, generation invalidation, usage analytics
+  and retention. Lifecycle tests use the real database row locks and queries.
+  Storage coverage includes account totals, missing measurements, size-change
+  history, retry deduplication, deletion acknowledgements and cascading retention.
+  Controller coverage must distinguish orphan deletion instructions from the
+  final `forget` acknowledgement for an authenticated deleted-state report.
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
 
 - Stable cache hostname regressions cover environment collisions, distinct AWS metro tags, private exclusion, all-region readiness, stale generations/timestamps, account opt-in, flag withdrawal, demotion, and drain intent. Staging and production require the same account/global `kura_stable_hostname` opt-in for both intent and hand-out; canary enables automatically. Do not reintroduce server environment rollout toggles or account allowlists. Readiness must survive a reader's empty process-local cache through the shared PostgreSQL projection, and archival/cold return must clear that projection. Controller tests separately exercise gateway/provider publication gates and withdrawal through failures and restart.

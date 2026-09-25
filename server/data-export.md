@@ -89,7 +89,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - **Workflow_job lifecycle rows** (Postgres `runner_workflow_jobs`): the control-plane twin of the ClickHouse `runner_jobs` view — one row per workflow_job, mutated in place through guarded status transitions (`queued → claimed → running → completed | cancelled`, with claim releases moving rows back to `queued`). Columns: `workflow_job_id` (GitHub's job id, PK), `account_id`, `fleet_name`, `status`, `conclusion`, the dispatch-candidate metadata carried from the webhook (`platform`, `vcpus`, `memory_gb`, `repository`, `workflow_run_id`, `workflow_name`, `run_attempt`, `job_name`, `head_branch`, `head_sha`, `requested_dispatch_label`), lifecycle timestamps (`enqueued_at`, `claimed_at`, `started_at`, `completed_at`), binding (`pod_name`, `runner_name`, `executed_workflow_job_id`), the downloadable-archive marker (`log_archived_at`), `provider` (`github` for a job that arrived on a GitHub `workflow_job` webhook, `buildkite` for one reserved off Buildkite's Agent Stacks API; the columns above carry the Buildkite equivalents for such a row — `repository` holds the pipeline slug, `workflow_run_id` the build number, `workflow_name` the pipeline, `job_name` the step key), `inserted_at`, and `updated_at`. Same job metadata the ClickHouse `runner_jobs` entry below describes, held in Postgres so dispatch-path state transitions are transactional; rows are deleted with their account.
 - **Workflow_job transition outbox** (Postgres `runner_workflow_job_transition_events`): short-lived outbox rows created in the same transaction as a `runner_workflow_jobs` status transition and deleted once a batch flusher replays them into ClickHouse `runner_jobs`. Columns: `id` (PK), `workflow_job_id`, `account_id`, `payload` (the ClickHouse row snapshot — the same fields as the lifecycle row above), and `inserted_at`. Transient replication state only; steady-state size is bounded by flusher lag (minutes), and rows cascade-delete with their account so no payload outlives it.
 - **Buildkite cluster connections** (Postgres `runner_buildkite_installations`): one row per account that has connected a Buildkite cluster so its jobs can run on Tuist Runners. Columns: `id` (PK), `account_id`, `organization_slug` (the customer's Buildkite organization), `stack_key` (the identifier Tuist presents to Buildkite's Agent Stacks API, derived from the account so two accounts cannot reserve into each other's jobs), `agent_token` (**a customer credential** — the Buildkite cluster agent token, encrypted at rest with the same Cloak vault used for GitHub App secrets, and never returned to the UI once stored), `enabled`, `last_polled_at`, `last_error` / `last_error_at` (the most recent poll failure, shown on the settings page so a revoked token is visible to the customer), `inserted_at`, and `updated_at`. Deleted when the customer disconnects the cluster and cascade-deleted with the account. A data export must redact `agent_token` rather than emit it.
-- **Buildkite job identity mapping** (Postgres `runner_buildkite_jobs`): maps a Buildkite job UUID onto the 64-bit `workflow_job_id` the rest of the runners subsystem is keyed on, so Buildkite jobs flow through the same claim, session, log, and billing tables as GitHub's without widening those keys. Columns: `job_uuid` (Buildkite's job id, PK), `workflow_job_id` (the surrogate, drawn from a dedicated sequence whose range is disjoint from GitHub's job ids), `account_id`, `organization_slug`, `pipeline_slug`, `build_uuid`, `build_number`, `queue_key` (the Buildkite queue the job was taken from, which is also the Tuist runner profile it resolved to), `reserved_until` (when Tuist's Agent Stacks reservation on the job lapses), `inserted_at`, and `updated_at`. Customer build metadata (pipeline, build, branch coordinates); no credentials or build content. Rows cascade-delete with their account.
+- **Buildkite job identity mapping** (Postgres `runner_buildkite_jobs`): maps a Buildkite job UUID onto the 64-bit `workflow_job_id` the rest of the runners subsystem is keyed on, so Buildkite jobs flow through the same claim, session, log, and billing tables as GitHub's without widening those keys. Columns: `job_uuid` (Buildkite's job id, PK), `workflow_job_id` (the surrogate, drawn from a dedicated sequence whose range is disjoint from GitHub's job ids), `account_id`, `organization_slug`, `pipeline_slug`, `build_uuid`, `build_number`, `queue_key` (the Buildkite queue the job was taken from, which is also the Tuist runner profile it resolved to), `reserved_until` (when Tuist's Agent Stacks reservation on the job lapses), `cache_volume_identity` (the verified cache provider, organization UUID, pipeline UUID plus repository-URL digest, and save permission captured before job acquisition; no environment, commands or credentials), `inserted_at`, and `updated_at`. Customer build metadata (pipeline, build, branch coordinates); no credentials or build content. Rows cascade-delete with their account.
 - **GitLab runner connections** (Postgres `runner_gitlab_connections`): one per account and GitLab instance URL. Stores `account_id`, public HTTPS instance `url`, encrypted `runner_token`, `enabled`, `last_polled_at`, `last_error`, and timestamps. The runner token is a reusable credential: redact it in exports. Disconnect disables acquisition immediately and deletes the connection after waiting assignments settle; running jobs use their own credentials. Account deletion cascades to connections.
 - **GitLab job assignments** (Postgres `runner_gitlab_jobs`): `workflow_job_id` is a surrogate in a range disjoint from GitHub and Buildkite; `url` and `job_id` identify the upstream job, with `project_path`, `pipeline_id`, `account_id`, optional `connection_id`, a non-secret `routing_error` for assignments rejected before dispatch, and timestamps. Rejected assignments retain their payload until GitLab acknowledges failure, with the same twelve-hour cleanup limit. The encrypted `payload` temporarily contains the GitLab execution response, including the job token, repository credential, CI variables (potentially secrets), scripts and artifact/dependency configuration. Never include `payload` in exports; export identity metadata only. It is cleared on completion, cancellation or failed provisioning, with a twelve-hour maximum retention enforced by the poll worker's cleanup pass. Job identity metadata remains for runner history and is cascade-deleted with its account. Partial indexes contain only assignments with non-null payloads, supporting cleanup and polling without indexing the full job history. Connection deletion nulls its foreign key so running jobs can finish. The existing `runner_workflow_jobs` row uses `provider = gitlab`, with the repository path, pipeline ID, job name and ref in the shared lifecycle fields.
 - **Runner billing sessions** (Postgres `runner_sessions`): append-only record of every runner Pod we provisioned, keyed off the Pod lifecycle rather than the workflow_job's GitHub-reported runtime. Columns: `id` (PK), `account_id`, `workflow_job_id` (the job the Pod was claimed/minted for), `executed_workflow_job_id` (the job GitHub actually ran on this Pod's runner, learned from the `workflow_job.in_progress` / `completed` webhook; NULL until GitHub proves execution — its absence is how we identify a runner that was never handed work — and may differ from `workflow_job_id`. This is the durable binding that outlives the Pod, and it is what attributes runner machine metrics to the job that actually ran), `fleet_name`, selected runner resources (`platform`, `vcpus`, `memory_gb`; NULL on historical rows created before resource-aware billing), `billing_multiplier` (the machine factor in basis points, relative to its own platform's baseline machine, frozen when the session opened so a later rate-card change cannot reprice usage that already happened; NULL on rows created before compute-unit metering, which fall back to the current catalog), `job_started_at` / `job_ended_at` (GitHub's own execution window for the workflow job, recorded from the `workflow_job.completed` webhook; this is the billable window, since the Pod's own `started_at` / `ended_at` also cover VM boot before the job and teardown after it. NULL when no completion webhook evidenced execution, in which case the session bills nothing), `pod_name`, `runner_name`, `repository` (denormalized `owner/name` handle from the workflow_job for billing-page scope filters), `workflow_name` (denormalized for the same), `started_at` (claim-win — proxy for Pod creation), `ended_at` (normally set by the runners-controller via `POST /api/internal/runners/pods/stopped` when it observes the Pod's container terminate; NULL while still in flight. When that report is missed, `Tuist.Runners.Workers.PodReconciliationWorker` closes the row once the Pod is confirmed absent from a complete cluster read. It prefers the workflow_job's terminal `completed_at` from ClickHouse `runner_jobs` — the runner's real end — bounded as `GREATEST(started_at, LEAST(completed_at, now, started_at + 6h))`; when the job never reached a terminal state it falls back to `LEAST(now, started_at + 6h)`, the same bound the billing query already clamps an open session to. Either way the estimate never bills more than the open row would have). Drives metered-compute invoicing via `Tuist.Runners.Billing`. A job that is dispatched again after a retry opens another session row, so the customer is billed for every Pod they actually held.
@@ -348,3 +348,75 @@ are still exported.
 The archive contains everything needed to understand the account's complete data footprint within Tuist.
 
 - **Pending Bazel profiles** (`bazel_profile_uploads`, PostgreSQL): One bounded gzip body (at most 32 MiB), state (`pending`, `processed`, `rejected`, or `failed`), rejection reason, project/invocation identifiers and timestamps per invocation. A job on the bounded Bazel artifact processor queue parses and sanitizes the raw profile; the request process only validates the envelope and digest. Raw bytes, which may include command lines, paths and credentials, are deleted after successful processing or terminal validation rejection, or exhausted processing retries. A new upload may replace a rejected or failed body and clear its error for another processing attempt; pending or processed duplicates leave the row unchanged. The existing batched daily Bazel ingestion cleanup removes staging/status rows older than 90 days. Export by `project_id`, including pending bodies and their invocation IDs.
+
+## Linux runner cache volumes (opt-in)
+
+- **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
+  provider, provider instance, immutable scope ID, optional numeric repository/project ID,
+  repository or pipeline display name, user-chosen key, architecture,
+  execution UID, generation, published head use UUID,
+  last use, logical deletion and creation/update timestamps. Identity is unique
+  per account/provider/instance/scope/key/architecture/UID. GitHub uses github.com
+  and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
+  SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
+  project ID. Digests encode identity, not anonymization. Kept until account deletion.
+- **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
+  foreign key, invalidation generation, parent use UUID, shared HEAD base/published
+  generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
+  node name, publication permission, lifecycle status, warm/cold result, logical
+  filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
+  physical-deletion and creation/update timestamps. Export via the volume's
+  account ID. Daily cleanup removes history 90 days after acknowledged physical
+  deletion; unacknowledged resources remain tracked.
+- **Size history** (`runner_cache_volume_measurements`, PostgreSQL): append-only
+  observations linked to a use, containing logical filesystem used/capacity
+  bytes, server observation timestamp and a deletion acknowledgement flag.
+  The first report and changes in size or capacity create entries; identical
+  heartbeat reports do not. Unknown measurements remain null. Acknowledged
+  removal records zero retained bytes and capacity, without rewriting earlier
+  observations. Export by joining measurements to uses and account-owned
+  volumes. Entries cascade with usage cleanup 90 days after acknowledged
+  deletion and with account deletion. These observations support storage
+  visibility; they are not a billing ledger or measurements of unique physical
+  allocation. Observation time is report receipt time, not the exact time data
+  was written, and changes before reporting cannot be reconstructed.
+- **Cache contents** (host-local images and object storage): private sparse ext4
+  images in `images/<use UUID>.img`, immutable reflink masters under
+  `masters/<scope>/<HEAD generation>-<content SHA-256>.img`, and gzip-compressed
+  images under `runner-volume-masters/<account ID>/linux-<scope>/<image SHA-1>-<content SHA-256>.image`
+  in the existing account object storage. The scope hashes volume UUID and clear
+  generation. Contents include anything workflows write, such as dependencies,
+  package metadata and inadvertently cached credentials. Logical filesystem usage
+  is not unique physical usage because reflinks share blocks and host replicas are
+  evictable; dashboard measurements are not an inventory of every host replica.
+- **Host journal and scratch** (`cacheVolumes.hostPath`, default
+  `/var/lib/tuist-runner-cache`): `state/<use UUID>.json` records account ID, opaque
+  scope, parent/use UUIDs, base generation, digests, pod identity, state, permission,
+  execution UID and measurements. Master `.json` sidecars retain their source
+  identity for validating eviction against the server. `pods/<pod UID>/<scope>`
+  exposes the private mounted image. Arbitrary scratch files may exist beneath
+  the pod subtree. Tokens and presigned URLs are not persisted in these records.
+
+Export joins volumes, uses and measurements by account ID and includes the
+account's `runner-volume-masters` prefix and local image/master/journal/scratch
+files. Use a fenced, detached image for a consistent export. Accepted remote
+images are compressed; decompress into a sparse file before inspection. Already
+evicted disposable cache content cannot be recovered.
+
+After seven days without a confirmed job mount, central invalidation advances the
+clear generation, removes the HEAD and schedules its remote object for the shared
+presigned-URL TTL cleanup grace. Failed uploads are registered for the same orphan
+reclamation used by macOS. Local replicas are evicted on HEAD invalidation,
+supersession, seven days of local inactivity, or disk pressure. An offline host
+may retain a replica until it returns; that is not evidence of completed erasure.
+Active job images survive until both the pod and kubelet directory are absent.
+Private-branch deletion acknowledgements retain usage history for 90 days; local
+master replicas and remote objects have separate reclamation lifecycles.
+
+Account deletion cascades metadata and reuses the existing account-wide
+`runner-volume-masters/<account ID>/` object-prefix cleanup. Online agents delete
+orphaned branches after fencing and discard masters whose source identity no
+longer resolves. For immediate erasure, capture source identities before deleting
+the account, fence jobs, remove all affected local masters/images/scratch/journals,
+reclaim the object prefix and verify all hosts, including offline hosts. See the
+[runbook](../infra/runners-controller/cache-volumes.md) for storage and recovery.

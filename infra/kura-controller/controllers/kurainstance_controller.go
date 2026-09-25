@@ -584,10 +584,15 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// that is still serving, so it does not get the same treatment: re-template
 	// the StatefulSet without disturbing what it runs, then replace the volumes
 	// one replica at a time behind the standby. Requeue between replicas so each
-	// rebuilt pod is serving again before the next is taken.
+	// rebuilt pod is serving again before the next is taken. The StatefulSet is
+	// held on OnDelete meanwhile, so its template keeps following the instance
+	// without a rolling update restarting the replica that is still serving.
 	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
+		if err := r.reconcileStatefulSetDuringResize(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
 	}
 
@@ -616,6 +621,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.replacePendingPodsForStorageDecrease(ctx, instance); err != nil {
@@ -3380,8 +3388,7 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 		}
 		return err
 	}
-	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
-		(sts.Spec.UpdateStrategy.RollingUpdate != nil && sts.Spec.UpdateStrategy.RollingUpdate.Partition != nil && *sts.Spec.UpdateStrategy.RollingUpdate.Partition > 0) {
+	if rolloutPausedByOperator(sts) {
 		return nil
 	}
 	// Do not bypass an incident pause or replace pods from an old template
@@ -3867,15 +3874,22 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	observedImage := instance.Status.ObservedImage
 	observedGeneration := sts.Status.ObservedGeneration >= sts.Generation
 	revisionsMatch := sts.Status.UpdateRevision != "" && sts.Status.CurrentRevision == sts.Status.UpdateRevision
+	// Kubernetes advances currentRevision only for RollingUpdate. Under OnDelete,
+	// manually replaced pods can all be ready on updateRevision while currentRevision
+	// still names the original template. Require the complete replica set to be updated.
+	revisionReady := revisionsMatch
+	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+		revisionReady = sts.Status.UpdateRevision != "" && sts.Status.Replicas == replicas && updatedReplicas == replicas
+	}
 
-	if observedGeneration && revisionsMatch && readyReplicas >= replicas && updatedReplicas >= replicas {
+	if observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
 		observedImage = instance.Spec.Image
 
 		return rolloutState{
 			phase:         "Ready",
 			observedImage: observedImage,
 			readyReplicas: readyReplicas,
-			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.CurrentRevision),
+			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.UpdateRevision),
 		}
 	}
 

@@ -8,6 +8,11 @@ Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
 
+The runners-controller release publishes both the controller and cache-volume
+agent under the same version. Its release tag requires both images to exist;
+managed production selects that agent version and provisions host cache storage
+through Helm, without a separate human kubectl elevation.
+
 ## Community notifications
 
 `workflows/community-notifications.yml` sends new community issues and PRs to
@@ -23,3 +28,16 @@ documented in `COMMUNITY_NOTIFICATIONS.md`.
   PR head or merge ref. Keep contributor text in plain-text Slack blocks.
 - Validate changes with `node --test scripts/community-notifications.test.cjs`
   from this directory and `actionlint workflows/community-notifications.yml`.
+
+Cache-volume distribution recovery uses the original immutable source commit from
+a partial release; finish that version before dispatching a release of newer main
+changes. Never substitute new contents beneath an existing distribution tag.
+
+## Tuist Elixir package
+
+`tuist-ex.yml` runs separate compilation, documentation, test, formatting,
+and package jobs. Compilation covers the minimum and current supported Elixir
+versions. The workflow is reused by `tuist-ex-release.yml` before publication.
+Releases run only from `main`, serialize publishing, and use the shared
+`release:check` registry with the `tuist-ex@` tag prefix. The existing
+`HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.

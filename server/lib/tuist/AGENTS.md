@@ -135,3 +135,15 @@ This directory contains the core business logic and domain modules for the serve
   existing CR intent. Endpoint resolution reuses the managed-server projection
   and reads the account flag once. Custom URLs are appended only after stable
   hand-out, preserving the absent-instance provisioning and fallback paths.
+
+- `Runners.CacheVolumes` owns Linux snapshot identities, publication generations
+  and user-visible usage history. Authorize against the actual executed runner
+  job and GitHub App metadata. PRs read private clones; only successful trusted
+  default-branch jobs publish. Deletion locks the same volume row
+  as publication and increment the generation. Allocation admission and report
+  validation, measurement updates, and lifecycle decisions remain inside their
+  caller's transaction and locks when extracted into private helpers. Browser reads/mutations are
+  account-scoped. Agents acknowledge physical deletion separately; do not treat
+  invalidation as erasure. See
+  [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
+  Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).

@@ -72,6 +72,11 @@ defmodule Tuist.Runners.VolumeHeads do
   def valid_volume_name?(name) when is_binary(name), do: Regex.match?(~r/\Arepo-[0-9a-f]{16}\z/, name)
   def valid_volume_name?(_name), do: false
 
+  # Storage names are broader than dispatch labels. Custom volumes remain
+  # Linux-only; macOS volume_owner_for_sa still accepts only built-in names.
+  def valid_storage_volume_name?("linux-" <> scope), do: Regex.match?(~r/\A[0-9a-f]{64}\z/, scope)
+  def valid_storage_volume_name?(name), do: valid_volume_name?(name)
+
   @doc """
   Fast-forwards `account_id`'s HEAD to `tree_digest` published from `node_name`,
   but ONLY when `base_generation` is still the current HEAD generation — a
@@ -248,6 +253,10 @@ defmodule Tuist.Runners.VolumeHeads do
   end
 
   def get_head(_account_id, _volume_name), do: nil
+
+  def delete_head(account_id, volume_name) do
+    Repo.delete_all(from(h in VolumeHead, where: h.account_id == ^account_id and h.volume_name == ^volume_name))
+  end
 
   @doc """
   Whether a promote built on `base_generation` could still win the fast-forward —

@@ -343,6 +343,7 @@ defmodule Tuist.Docs.Sidebar do
                 ]
               },
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
+              %Item{label: "Cache volumes", slug: "/en/guides/features/runners/cache-volumes"},
               %Item{
                 label: "Docker",
                 slug: "/en/guides/features/runners/docker",

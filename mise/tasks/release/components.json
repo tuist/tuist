@@ -1,6 +1,14 @@
 {
   "components": [
     {
+      "name": "tuist-ex",
+      "tag_prefix": "tuist-ex@",
+      "tag_regex": "^tuist-ex@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "tuist_ex/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["tuist_ex/**/*"]
+    },
+    {
       "name": "cli",
       "tag_prefix": "",
       "tag_regex": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
@@ -121,6 +129,18 @@
       "cliff_config": "skills/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["skills/**/*"]
+    },
+    {
+      "name": "cache-volume",
+      "tag_prefix": "cache-volume@",
+      "tag_regex": "^cache-volume@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "ci/cache-volume/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/cache-volume/**/*",
+        "ci/cache-volume/**/*",
+        ".github/workflows/cache-volume-action.yml"
+      ]
     },
     {
       "name": "noora",

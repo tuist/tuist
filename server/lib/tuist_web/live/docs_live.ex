@@ -7,6 +7,7 @@ defmodule TuistWeb.DocsLive do
 
   alias Tuist.Docs
   alias Tuist.Docs.Paths
+  alias Tuist.Docs.Redirects
   alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
@@ -40,10 +41,10 @@ defmodule TuistWeb.DocsLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _url, socket) do
+  def handle_params(params, url, socket) do
     case socket.assigns.live_action do
       :overview -> handle_overview(socket)
-      :show -> handle_show(params, socket)
+      :show -> handle_show(params, url, socket)
     end
   end
 
@@ -75,12 +76,12 @@ defmodule TuistWeb.DocsLive do
      ])}
   end
 
-  defp handle_show(params, socket) do
+  defp handle_show(params, url, socket) do
     path = build_path(params, socket.assigns.locale)
 
     case Docs.get_page(path) do
       nil ->
-        raise NotFoundError, dgettext("errors", "Page not found")
+        redirect_or_not_found(socket, path, url)
 
       page ->
         head_title =
@@ -125,6 +126,19 @@ defmodule TuistWeb.DocsLive do
            StructuredMarkup.get_documentation_structured_data(page.title, page.description, public_path),
            StructuredMarkup.get_breadcrumbs_structured_data(docs_breadcrumbs(page.title, locale, public_path))
          ])}
+    end
+  end
+
+  # LegacyRedirectsPlug only sees HTTP requests, so live navigations and
+  # reconnects (e.g. a tab left open across a docs reorganization) must apply
+  # the same redirects here instead of raising a 404.
+  defp redirect_or_not_found(socket, path, url) do
+    query_string = URI.parse(url).query || ""
+
+    case Redirects.resolve(Paths.public_path_from_slug(path), query_string) do
+      {:ok, "http" <> _ = external_url} -> {:noreply, redirect(socket, external: external_url)}
+      {:ok, to} -> {:noreply, push_navigate(socket, to: to, replace: true)}
+      :none -> raise NotFoundError, dgettext("errors", "Page not found")
     end
   end
 

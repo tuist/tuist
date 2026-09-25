@@ -1149,6 +1149,12 @@ runnersController:
 # virtio-fs.
 runnersFleetLinux:
   enabled: true
+  # Staging validation of local custom cache volumes (PR #13488).
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    image:
+      tag: sha-a1c278970fe8
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux

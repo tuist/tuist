@@ -44,7 +44,7 @@ defmodule Atlas.MCP.Prompts.GenerateEnterpriseContractTest do
       assert text =~ "Hosted vs Self-hosted"
       assert text =~ "MSA edits"
       assert text =~ "current request override pasted conversation context"
-      assert text =~ "embedded resource"
+      assert text =~ "signed `download_url`"
     end
 
     test "falls back to a 'could not resolve' note when the account is unknown" do

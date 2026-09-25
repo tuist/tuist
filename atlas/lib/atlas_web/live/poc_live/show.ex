@@ -263,14 +263,14 @@ defmodule AtlasWeb.POCLive.Show do
         </div>
       </div>
 
-      <.card :if={@public_url} icon="link" title="Public brief">
+      <.card :if={@public_url} icon="link_icon" title="Public brief">
         <.card_section>
           <p>Share this signed URL with the customer:</p>
           <p><a href={@public_url} target="_blank" rel="noopener noreferrer">{@public_url}</a></p>
         </.card_section>
       </.card>
 
-      <.card :if={@access_requests != []} icon="user_check" title="Access requests">
+      <.card :if={@access_requests != []} icon="users" title="Access requests">
         <.card_section>
           <p>
             Approve or deny customers requesting to open the public brief. Slack buttons post the same actions to the operator channel when it is configured.
@@ -310,7 +310,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="target" title="Overview">
+      <.card icon="checkup_list" title="Overview">
         <.card_section>
           <p><strong>Status:</strong> {humanize(@poc.status)}</p>
           <p><strong>Hosting:</strong> {humanize(@poc.hosting)}</p>
@@ -320,69 +320,77 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="clipboard" title="Context">
+      <.card icon="file_text" title="Context">
         <.card_section>
           <.form
             for={@context_form}
             id="poc-context-form"
             phx-submit="save_context"
           >
-            <div data-part="number-field">
-              <label for="context-developer-count">Developer count</label>
-              <input
-                type="number"
-                min="0"
-                id="context-developer-count"
-                name="context[developer_count]"
-                value={@context_form[:developer_count].value}
-              />
-            </div>
+            <.text_input
+              id="context-developer-count"
+              field={@context_form[:developer_count]}
+              input_type="number"
+              min={0}
+              label="Developer count"
+              show_suffix={false}
+            />
             <div data-part="select-field">
               <span>CI solution</span>
-              <select name="context[ci_solution]" id="context-ci-solution">
-                <option value="">Unknown</option>
-                <option
+              <.select
+                id="context-ci-solution"
+                name={@context_form[:ci_solution].name}
+                value={to_string(@context_form[:ci_solution].value)}
+                label="Unknown"
+              >
+                <:item
                   :for={value <- Context.ci_solutions()}
                   value={value}
-                  selected={@context_form[:ci_solution].value == value}
-                >
-                  {humanize(value)}
-                </option>
-              </select>
+                  label={humanize(value)}
+                />
+              </.select>
             </div>
             <div data-part="select-field">
               <span>Git forge</span>
-              <select name="context[git_forge]" id="context-git-forge">
-                <option value="">Unknown</option>
-                <option
+              <.select
+                id="context-git-forge"
+                name={@context_form[:git_forge].name}
+                value={to_string(@context_form[:git_forge].value)}
+                label="Unknown"
+              >
+                <:item
                   :for={value <- Context.git_forges()}
                   value={value}
-                  selected={@context_form[:git_forge].value == value}
-                >
-                  {humanize(value)}
-                </option>
-              </select>
+                  label={humanize(value)}
+                />
+              </.select>
             </div>
             <div data-part="select-field">
               <span>Primary language</span>
-              <select name="context[primary_language]" id="context-primary-language">
-                <option value="">Unknown</option>
-                <option
+              <.select
+                id="context-primary-language"
+                name={@context_form[:primary_language].name}
+                value={to_string(@context_form[:primary_language].value)}
+                label="Unknown"
+              >
+                <:item
                   :for={value <- Context.primary_languages()}
                   value={value}
-                  selected={@context_form[:primary_language].value == value}
-                >
-                  {humanize(value)}
-                </option>
-              </select>
+                  label={humanize(value)}
+                />
+              </.select>
             </div>
             <div data-part="select-field">
               <span>Monorepo</span>
-              <select name="context[monorepo]" id="context-monorepo">
-                <option value="">Unknown</option>
-                <option value="true" selected={@context_form[:monorepo].value == true}>Yes</option>
-                <option value="false" selected={@context_form[:monorepo].value == false}>No</option>
-              </select>
+              <.select
+                id="context-monorepo"
+                name={@context_form[:monorepo].name}
+                value={to_string(@context_form[:monorepo].value)}
+                label="Unknown"
+              >
+                <:item value="true" label="Yes" />
+                <:item value="false" label="No" />
+              </.select>
             </div>
             <.text_area
               field={@context_form[:notes]}
@@ -397,7 +405,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="list" title="Scope">
+      <.card icon="list_tree" title="Scope">
         <.card_section>
           <ul :if={@poc.scope_features != []}>
             <li :for={scope <- @poc.scope_features}>
@@ -415,12 +423,13 @@ defmodule AtlasWeb.POCLive.Show do
           <form :if={@can_manage? and @available_features != []} phx-submit="add_scope_feature">
             <div data-part="select-field">
               <span>Add feature</span>
-              <select name="feature_interest_id" id="scope-feature-select">
-                <option value="">Select…</option>
-                <option :for={feature <- @available_features} value={feature.id}>
-                  {feature.title}
-                </option>
-              </select>
+              <.select id="scope-feature-select" name="feature_interest_id" label="Select feature">
+                <:item
+                  :for={feature <- @available_features}
+                  value={feature.id}
+                  label={feature.title}
+                />
+              </.select>
             </div>
             <div data-part="form-actions">
               <.button label="Add to scope" type="submit" variant="secondary" size="small" />
@@ -429,7 +438,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="calendar" title="Timeline">
+      <.card icon="calendar_week" title="Timeline">
         <.card_section>
           <ul :if={@poc.timeline_entries != []}>
             <li :for={entry <- @poc.timeline_entries}>
@@ -453,27 +462,28 @@ defmodule AtlasWeb.POCLive.Show do
             id="poc-timeline-form"
             phx-submit="add_timeline_entry"
           >
-            <div data-part="date-field">
-              <label for="timeline-occurred-on">Date</label>
-              <input
-                type="date"
-                id="timeline-occurred-on"
-                name="timeline_entry[occurred_on]"
-                value={@timeline_form[:occurred_on].value}
-              />
-            </div>
+            <.text_input
+              id="timeline-occurred-on"
+              field={@timeline_form[:occurred_on]}
+              input_type="date"
+              label="Date"
+              show_suffix={false}
+            />
             <.text_input field={@timeline_form[:title]} label="Title" />
             <div data-part="select-field">
               <span>Kind</span>
-              <select name="timeline_entry[kind]" id="timeline-kind">
-                <option
+              <.select
+                id="timeline-kind"
+                name={@timeline_form[:kind].name}
+                value={to_string(@timeline_form[:kind].value)}
+                label="Select kind"
+              >
+                <:item
                   :for={kind <- TimelineEntry.kinds()}
                   value={kind}
-                  selected={@timeline_form[:kind].value == kind}
-                >
-                  {humanize(kind)}
-                </option>
-              </select>
+                  label={humanize(kind)}
+                />
+              </.select>
             </div>
             <.text_area field={@timeline_form[:body]} label="Details" rows={3} max_length={8000} />
             <div data-part="form-actions">

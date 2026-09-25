@@ -19,6 +19,9 @@ This node covers Helm assets under `infra/helm/`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Embedded object storage uses the same digest-pinned `ghcr.io/coollabsio/minio` community image for the server and bundled `mc` initializer because the upstream Quay images no longer allow anonymous pulls. Keep both image pins aligned and validate changes with `helm:k3s-smoke`; managed environments use external storage.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
+  release binaries and imports it into the disposable cluster. Existing-context
+  runs must preload that image; the smoke values never pull it from a registry.
 - Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
@@ -61,3 +64,20 @@ This node covers Helm assets under `infra/helm/`.
   validation. Select `kura-spec95-e2e` and the temporary `kura-spec95-health`
   fixture through FunWithFlags actor gates before deploying the removal of the
   old staging environment allowlist if those fixtures must remain active.
+
+- Linux cache volumes require a bounded reflink filesystem. The
+  node agent uses local loop-mounted images and the existing macOS object-storage
+  infrastructure; no Ceph Secret or pool values remain. Managed production opts
+  into idempotent host provisioning through a privileged init container; other
+  installs can supply a pre-provisioned filesystem. The init container enters the
+  host mount namespace and installs the persistent systemd mount before agent
+  readiness. It never reformats existing images or replaces another mount.
+  See `../runners-controller/cache-volumes.md`.
+- Staging custom-volume smoke validation uses the preallocated XFS mount at
+  `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
+  the root partition is too small for the default 200 GB backing file. Keep
+  its agent image pinned to a tested commit and retain the mount while any
+  private branches are live. Production enables provisioning and resolves the
+  agent image from the matching controller release through normal deployment.
+  Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
+  production rendering exercises the cache-volume agent's shared-tag fallback.

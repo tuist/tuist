@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -6,6 +5,7 @@ import Path
 import struct TSCUtility.Version
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 import TuistSupport
 import TuistUserInputReader
 import XcodeGraph

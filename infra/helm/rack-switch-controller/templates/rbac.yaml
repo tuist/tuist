@@ -1,0 +1,69 @@
+{{- $watch := include "rack-switch-controller.watchNamespace" . }}
+# In the rack's namespace: read the RackSwitches, write their status, and
+# record events on them. Events land in the namespace of the object they are
+# about, which is this one, not the controller's.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rack-switch-controller
+  namespace: {{ $watch }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["tuist.dev"]
+    resources: [rackswitches]
+    verbs: [get, list, watch]
+  - apiGroups: ["tuist.dev"]
+    resources: [rackswitches/status]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rack-switch-controller
+  namespace: {{ $watch }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: rack-switch-controller
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: rack-switch-controller
+  apiGroup: rbac.authorization.k8s.io
+---
+# In its own namespace: the leader-election Lease and the events it records.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rack-switch-controller-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rack-switch-controller-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: rack-switch-controller
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: rack-switch-controller-leader-election
+  apiGroup: rbac.authorization.k8s.io

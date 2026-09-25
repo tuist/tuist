@@ -40,13 +40,20 @@ enforces.
 Nothing about it is public. The Tailscale operator gives its Service a tailnet
 device, `omada`, and the switches reach that through the rack's edge node, which
 translates their traffic onto its own tailnet address
-(`mise run rack:edge-path`, see
+(the rack-edge DaemonSet, see
 [`rack-switch-fleet/AGENTS.md`](../../rack-switch-fleet/AGENTS.md)). L2
 discovery does not cross into the cluster, so a switch is told where the
 controller is with `controller inform-url` and the controller's tailnet IP
 (`mise run rack:omada inform <device>`); switches have no resolver for MagicDNS
 names. DHCP option 138 is the equivalent for a factory switch, and `rack:ztp`
 serves the segment that would carry it.
+
+Its HTTPS certificate comes from a CA of its own, which cert-manager keeps in
+this namespace (`templates/tls.yaml`), for the Service's names and the tailnet
+name in `tls.extraDNSNames`. The rack switch controller verifies against that
+CA (the `ca.crt` of `omada-controller-tls`). The controller reads the
+certificate when it starts, so a renewal, a month before the five years are
+up, takes effect at its next restart.
 
 ## What it costs to run
 
@@ -69,6 +76,16 @@ The admin account and the Open API client are created in the controller's own
 first-boot wizard, at `https://omada.<tailnet>.ts.net:8043`, so no
 ExternalSecret can seed them. Store the admin login in 1Password, and the API
 client as the item `management.controller.credential_item` in the site
-definition names ("omada staging open api"), with `client_id` and
-`client_secret` fields; `rack:omada` reads it from there. The API client needs
+definition names ("omada staging open api"), with `client-id` and
+`client-secret` fields; `rack:omada` reads it from there. The API client needs
 the Administrator role over the site the switches are adopted into.
+
+After the wizard, `mise run rack:omada controller --create-device-account` sets
+what the switches depend on from the site definition, and is safe to re-run:
+the address the controller tells switches to connect back to (its tailnet IP;
+it starts unset), SSH on for the site's switches (it starts off, and adoption
+applies it), and the site's device account, which adoption puts on every
+switch in place of its own login. The account comes from the 1Password item
+`management.controller.device_account_item` names; the flag creates it with a
+generated password the first time. Skip the wizard's device step: adoption
+goes through `rack:omada adopt`, which runs the same settings first.
