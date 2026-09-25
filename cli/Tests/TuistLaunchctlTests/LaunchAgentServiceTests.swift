@@ -843,7 +843,7 @@ struct LaunchAgentServiceTests {
         let subject = service(launchedAt: Date().addingTimeInterval(1))
 
         var environmentVariables = Self.environmentVariables
-        environmentVariables["TUIST_CAS_PROXY_DEVELOPER_DIR"] = "/Applications/Xcode-27.0.app/Contents/Developer"
+        environmentVariables["DEVELOPER_DIR"] = "/Applications/Xcode-27.0.app/Contents/Developer"
         #expect(await !subject.isLaunchAgentCurrent(
             label: "tuist.test",
             plistFileName: "tuist.test.plist",
