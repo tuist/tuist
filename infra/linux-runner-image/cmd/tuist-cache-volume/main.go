@@ -34,8 +34,8 @@ func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex
 func main() {
 	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
 		var err error
-		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
-			err = mountWorker()
+		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "mirror")) {
+			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
 			err = serveMounts(os.Args[2], os.Args[3])
 		} else {

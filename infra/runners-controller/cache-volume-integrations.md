@@ -66,11 +66,11 @@ A vendorable include works on self-managed GitLab too; a GitLab.com-only Catalog
 component would not, because [components require the same instance](https://docs.gitlab.com/ci/components/).
 
 Buildkite native commands and GitLab shell jobs are the supported initial paths.
-Docker child containers require explicit mapping of
-`/home/runner/work/_tuist_cache` to the same absolute path, alongside the checkout,
-because attached directories are symlinks. Automatic Docker-plugin wiring is
-not included. Validate those mounts and execution UID separately; GitHub's
-container smoke does not prove other container integrations.
+Volumes under the work directory are also mounted at the same path in the dind
+broker's namespace, where dockerd resolves `-v` paths, so Docker-plugin and
+`docker run` children that bind the checkout see them without extra mappings.
+Paths outside the work directory stay visible to native commands only.
+`cache-volume-docker-e2e.sh` covers native, `container:` and child containers.
 
 ## Identity and trust
 

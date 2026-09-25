@@ -11,12 +11,18 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
+
+type mountMessage struct {
+	Source string `json:"source"`
+	Mirror string `json:"mirror,omitempty"`
+}
 
 // The broker lives in the already privileged DinD sidecar inside the job's
 // Kata VM. Passing descriptors avoids PID namespace assumptions and path races;
@@ -38,7 +44,15 @@ func bindDirectory(socket, source, target string) error {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-	data, _ := json.Marshal(source)
+	// dockerd resolves `docker run -v` paths in the broker's namespace. Targets in
+	// the shared work directory are mirrored there so child containers see them.
+	message := mountMessage{Source: source}
+	if resolved, err := filepath.EvalSymlinks(target); err == nil {
+		if rel, err := filepath.Rel(filepath.Dir(socket), resolved); err == nil && filepath.IsLocal(rel) {
+			message.Mirror = rel
+		}
+	}
+	data, _ := json.Marshal(message)
 	if _, _, err = conn.WriteMsgUnix(data, unix.UnixRights(int(ns.Fd()), fd), nil); err != nil {
 		return err
 	}
@@ -62,6 +76,11 @@ func serveMounts(socket, root string) error {
 		return err
 	}
 	defer sourceRoot.Close()
+	workRoot, err := os.OpenRoot(filepath.Dir(socket))
+	if err != nil {
+		return err
+	}
+	defer workRoot.Close()
 	listener, err := net.ListenUnix("unixpacket", &net.UnixAddr{Name: socket, Net: "unixpacket"})
 	if err != nil {
 		return err
@@ -81,7 +100,7 @@ func serveMounts(socket, root string) error {
 			go func() {
 				defer func() { <-slots; conn.Close() }()
 				_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-				if err := mountRequest(conn, sourceRoot); err != nil {
+				if err := mountRequest(conn, sourceRoot, workRoot); err != nil {
 					_, _ = conn.Write([]byte(err.Error()))
 				} else {
 					_, _ = conn.Write([]byte("ok"))
@@ -94,7 +113,7 @@ func serveMounts(socket, root string) error {
 	}
 }
 
-func mountRequest(conn *net.UnixConn, root *os.Root) error {
+func mountRequest(conn *net.UnixConn, root, work *os.Root) error {
 	data, control := make([]byte, 4096), make([]byte, unix.CmsgSpace(8*4))
 	n, oobn, flags, _, err := conn.ReadMsgUnix(data, control)
 	if err != nil {
@@ -123,10 +142,11 @@ func mountRequest(conn *net.UnixConn, root *os.Root) error {
 	if flags&(unix.MSG_TRUNC|unix.MSG_CTRUNC) != 0 || len(fds) != 2 {
 		return errors.New("expected mount namespace and target directory descriptors")
 	}
-	var source string
-	if err = json.Unmarshal(data[:n], &source); err != nil {
+	var request mountMessage
+	if err = json.Unmarshal(data[:n], &request); err != nil {
 		return errors.New("invalid mount request")
 	}
+	source := request.Source
 	parts := strings.Split(source, "/")
 	if len(parts) != 2 || !directoryPattern.MatchString(parts[0]) || (parts[1] != "data" && !directoryPattern.MatchString(parts[1])) {
 		return errors.New("invalid volume source")
@@ -155,21 +175,76 @@ func mountRequest(conn *net.UnixConn, root *os.Root) error {
 	}
 	targetCopy := os.NewFile(uintptr(targetFD), "target")
 	defer targetCopy.Close()
+	files := []*os.File{directory, targetCopy, ns}
+	if request.Mirror != "" {
+		mirror, err := mirrorTarget(work, request.Mirror, fds[1])
+		if err != nil {
+			return err
+		}
+		defer mirror.Close()
+		files = append(files, mirror)
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, executable, "mount-worker")
-	cmd.ExtraFiles = []*os.File{directory, targetCopy, ns}
+	args := []string{"mount-worker"}
+	if len(files) == 4 {
+		args = append(args, "mirror")
+	}
+	cmd := exec.CommandContext(ctx, executable, args...)
+	cmd.ExtraFiles = files
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("mount worker: %s (%w)", strings.TrimSpace(string(output)), err)
 	}
 	return nil
 }
 
-func mountWorker() error {
+// mirrorTarget opens the client's target as the broker sees it. os.Root keeps
+// resolution inside the work directory, and the inode check proves both
+// namespaces name the same directory before anything is mounted.
+func mirrorTarget(work *os.Root, path string, target int) (*os.File, error) {
+	if !filepath.IsLocal(path) || filepath.Clean(path) != path || strings.Split(path, "/")[0] == "_tuist_cache" {
+		return nil, errors.New("invalid mirror path")
+	}
+	mirror, err := work.OpenFile(path, os.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
+	}
+	var want, got unix.Stat_t
+	if err = unix.Fstat(target, &want); err == nil {
+		err = unix.Fstat(int(mirror.Fd()), &got)
+	}
+	if err == nil && (want.Dev != got.Dev || want.Ino != got.Ino) {
+		err = errors.New("mirror path is not the cache target")
+	}
+	if err != nil {
+		mirror.Close()
+		return nil, err
+	}
+	return mirror, nil
+}
+
+func emptyDirectory(fd int) error {
+	dir, err := unix.Openat(fd, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open mount target: %w", err)
+	}
+	target := os.NewFile(uintptr(dir), "target")
+	defer target.Close()
+	entries, err := target.Readdirnames(1)
+	if len(entries) != 0 {
+		return errors.New("cache target is no longer empty")
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
+}
+
+func mountWorker(mirror bool) error {
 	runtime.LockOSThread()
 	// This subprocess exits immediately afterward: never return its switched
 	// thread to Go's thread pool or switch the long-lived broker's namespace.
@@ -184,20 +259,23 @@ func mountWorker() error {
 		return fmt.Errorf("clone mount tree: %w", err)
 	}
 	defer unix.Close(tree)
+	if mirror {
+		mirrorTree, err := unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH)
+		if err != nil {
+			return fmt.Errorf("clone mirror tree: %w", err)
+		}
+		defer unix.Close(mirrorTree)
+		if err := emptyDirectory(6); err != nil {
+			return err
+		}
+		if err := unix.MoveMount(mirrorTree, "", 6, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
+			return fmt.Errorf("attach mirror tree: %w", err)
+		}
+	}
 	if err := unix.Setns(5, unix.CLONE_NEWNS); err != nil {
 		return fmt.Errorf("enter mount namespace: %w", err)
 	}
-	fd, err := unix.Openat(4, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return fmt.Errorf("open mount target: %w", err)
-	}
-	target := os.NewFile(uintptr(fd), "target")
-	entries, err := target.Readdirnames(1)
-	target.Close()
-	if len(entries) != 0 {
-		return errors.New("cache target is no longer empty")
-	}
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err := emptyDirectory(4); err != nil {
 		return err
 	}
 	if err := unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
