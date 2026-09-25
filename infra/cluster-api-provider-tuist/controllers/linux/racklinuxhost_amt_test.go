@@ -191,7 +191,7 @@ func TestRackAMTWaitsForTheHostToBeOnline(t *testing.T) {
 func TestRackAMTLooksAtAnActivatedHostOnlyNowAndThen(t *testing.T) {
 	host := amtEdge()
 	observed := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
-	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "192.168.50.112", ObservedAt: &observed}
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "192.168.50.112", MEBxPasswordSet: true, ObservedAt: &observed}
 	h := newAMTHarness(t, host, provisioningSecret())
 	h.runner.reply = func(_, _ string) string {
 		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
@@ -221,7 +221,7 @@ func TestAMTScriptParses(t *testing.T) {
 	if err != nil {
 		t.Skip("no bash")
 	}
-	for name, activation := range map[string]*amtActivation{
+	for name, activation := range map[string]*amtRun{
 		"observe":  nil,
 		"activate": {Password: "Aa1!" + strings.Repeat("x", 20), PFX: "UEZY", PFXPassword: "it's"},
 	} {
@@ -275,7 +275,7 @@ func TestRackAMTLooksAgainSoonForTheAddressOfAFreshlyActivatedAMT(t *testing.T) 
 // rpc's own transport to AMT has hung for good before, so the script bounds it
 // and reports the timeout as the activation's failure.
 func TestAMTScriptBoundsRPC(t *testing.T) {
-	script := renderAMTScript(&amtActivation{Password: "Aa1!xxxxxxxxxxxxxxxxxxxx", PFX: "UEZY", PFXPassword: "pw"})
+	script := renderAMTScript(&amtRun{Password: "Aa1!xxxxxxxxxxxxxxxxxxxx", PFX: "UEZY", PFXPassword: "pw"})
 	for _, want := range []string{
 		`timeout 120 "$rpc" amtinfo --json --ver --mode --lan`,
 		`timeout --kill-after=10 300 "$rpc" activate "$@" --skipIPRenew --json`,
@@ -308,5 +308,133 @@ func TestRackAMTUpgradesAHostInClientControlMode(t *testing.T) {
 	}
 	if got.Status.AMT.ControlMode != "admin" || got.Status.AMT.ActivationError != "" || !conditions.IsTrue(got, AMTActivatedCondition) {
 		t.Fatalf("status %+v", got.Status.AMT)
+	}
+}
+
+func adminEdge(address string, mebxSet bool) *infrav1.RackLinuxHost {
+	host := amtEdge()
+	observed := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: address, MEBxPasswordSet: mebxSet, ObservedAt: &observed}
+	return host
+}
+
+func (h *installHarness) amtSecretData(t *testing.T) map[string][]byte {
+	t.Helper()
+	secret := &corev1.Secret{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge-amt"}, secret); err != nil {
+		t.Fatal(err)
+	}
+	return secret.Data
+}
+
+// MEBx still has its factory password after the activation; the operator
+// replaces it with one it generates and keeps beside AMT's.
+func TestRackAMTSetsTheMEBxPasswordOfAnActivatedHost(t *testing.T) {
+	h := newAMTHarness(t, adminEdge("192.168.50.112", false), provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- mebx\n{\"status\":\"success\"}\n--- mebx exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	data := h.amtSecretData(t)
+	mebx := string(data["mebx-password"])
+	if !validAMTPassword(mebx) || string(data["password"]) != "Stored-Pa55!" {
+		t.Fatalf("secret %v, want a MEBx password beside the kept AMT password", data)
+	}
+	runs := h.amtRuns()
+	if len(runs) != 1 || !strings.Contains(runs[0].script, "mebx_password="+shellSingleQuote(mebx)) ||
+		!strings.Contains(runs[0].script, "provisioning_cert=''") {
+		t.Fatalf("runs %d, want one carrying the MEBx password and no certificate", len(runs))
+	}
+	amt := got.Status.AMT
+	if !amt.MEBxPasswordSet || amt.LastConfiguration == nil || amt.ConfigurationError != "" {
+		t.Fatalf("status %+v", amt)
+	}
+
+	h.now = h.now.Add(10 * time.Minute)
+	h.reconcile(t, "ber1-edge")
+	if n := len(h.amtRuns()); n != 1 {
+		t.Fatalf("configured again (%d runs)", n)
+	}
+}
+
+// A host declaring a static AMT address has AMT moved to it.
+func TestRackAMTGivesAMTItsStaticAddress(t *testing.T) {
+	host := adminEdge("192.168.50.112", true)
+	host.Spec.AMT.Address, host.Spec.AMT.Gateway = "192.168.50.21/24", "192.168.50.1"
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- wired\n{\"status\":\"success\"}\n--- wired exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.21")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	runs := h.amtRuns()
+	if len(runs) != 1 {
+		t.Fatalf("runs %d", len(runs))
+	}
+	for _, want := range []string{"static_address='192.168.50.21'", "static_mask='255.255.255.0'", "static_gateway='192.168.50.1'", "mebx_password=''"} {
+		if !strings.Contains(runs[0].script, want) {
+			t.Fatalf("the run lacks %q", want)
+		}
+	}
+	if got.Status.AMT.Address != "192.168.50.21" || got.Status.AMT.ConfigurationError != "" {
+		t.Fatalf("status %+v", got.Status.AMT)
+	}
+}
+
+func TestRackAMTBacksOffAFailedConfiguration(t *testing.T) {
+	h := newAMTHarness(t, adminEdge("192.168.50.112", false), provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- mebx\n{\"error\":\"SetMEBXPasswordFailed\"}\n--- mebx exit 1\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+	if got.Status.AMT.MEBxPasswordSet || !strings.Contains(got.Status.AMT.ConfigurationError, "SetMEBXPasswordFailed") {
+		t.Fatalf("status %+v", got.Status.AMT)
+	}
+	if !conditions.IsTrue(got, AMTActivatedCondition) {
+		t.Fatal("a failed configuration took AMTActivated down")
+	}
+
+	h.now = h.now.Add(30 * time.Minute)
+	h.reconcile(t, "ber1-edge")
+	if n := len(h.amtRuns()); n != 1 {
+		t.Fatalf("tried again after 30 minutes (%d runs)", n)
+	}
+	h.now = h.now.Add(31 * time.Minute)
+	h.reconcile(t, "ber1-edge")
+	if n := len(h.amtRuns()); n != 2 {
+		t.Fatalf("did not try again after the backoff (%d runs)", n)
+	}
+}
+
+// Reading AMT's state keeps what the operator recorded of it.
+func TestRackAMTKeepsTheLastPowerActionAcrossReads(t *testing.T) {
+	host := adminEdge("192.168.50.112", true)
+	host.Status.AMT.ObservedAt = &metav1.Time{Time: installEpoch.Add(-2 * time.Hour)}
+	host.Status.AMT.LastPowerAction = &infrav1.RackLinuxHostAMTPowerAction{Action: "cycle", At: metav1.NewTime(installEpoch.Add(-time.Hour)), Via: "ber1-edge-b"}
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	if len(h.amtRuns()) != 1 || got.Status.AMT.LastPowerAction == nil || got.Status.AMT.LastPowerAction.Via != "ber1-edge-b" {
+		t.Fatalf("status %+v", got.Status.AMT)
+	}
+}
+
+func TestRackAMTRefusesAGatewayOutsideTheAddress(t *testing.T) {
+	host := adminEdge("192.168.50.112", true)
+	host.Spec.AMT.Address, host.Spec.AMT.Gateway = "192.168.50.21/24", "192.168.0.1"
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+
+	got := h.reconcile(t, "ber1-edge")
+
+	if c := conditions.Get(got, AMTActivatedCondition); len(h.amtRuns()) != 0 || c == nil || c.Reason != "InvalidAddress" {
+		t.Fatalf("runs %d condition %+v", len(h.amtRuns()), c)
 	}
 }

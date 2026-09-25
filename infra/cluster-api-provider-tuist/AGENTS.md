@@ -731,17 +731,28 @@ left in client control mode is upgraded on the next attempt. `rpc` is a 3.0
 prerelease: 2.x's transport to AMT without Intel's LMS daemon hangs on the
 MS-01. Each `rpc` run is bounded by `timeout`.
 
+Activated AMT is then configured, in the same run or the next: MEBx's factory
+password is replaced with one generated and kept as `mebx-password` in the
+`<host>-amt` Secret (`status.amt.mebxPasswordSet`), and a host declaring
+`spec.amt.address` (with its prefix length) and `spec.amt.gateway` has AMT moved
+to that static address, so AMT keeps one address whatever happens to the host.
+Staging puts the edges' AMT on the provisioning segment outside its DHCP range.
+A failed configuration is recorded in `status.amt.configurationError` and
+retried after an hour; it does not take `AMTActivated` down.
+
 **`tuist.dev/amt-power` powers a host through AMT** (`racklinuxhost_amt_power.go`):
 `on`, `off` (hard), `cycle` (hard power cycle) or `reset`. The operator makes
 the change once, records it in `status.amt.lastPowerAction` and removes the
-annotation. AMT answers on the management segment, which only the edges are on,
-so the operator opens an SSH session to a connected edge of the host's site
-(another edge first, the host itself last) and sends WS-MAN with digest
-authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
+annotation. AMT answers on the management segment, where only the active edge
+(the one holding the site's floating addresses) has an address, so the operator
+tries the connected edges of the host's site (other edges first, the host itself
+last), takes the first whose `ip route get` puts AMT's address on a link of its
+own, and sends WS-MAN with digest authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
 It needs AMT activated and the host's `<host>-amt` Secret, not the host itself:
-a host that is off the tailnet is powered too. A power cycle boots the disk:
-the installed Ubuntu is first in `BootOrder`, ahead of the install stick, which
-the firmware reaches only when the disk no longer boots.
+a host that is off the tailnet is powered too. The converge keeps the install
+stick first in `BootOrder` (the installed Ubuntu takes the front for itself), so
+a power cycle boots the stick's installer, which installs a published install
+or hands the machine straight back to its disk.
 
 ```bash
 kubectl patch rlh <host> --type merge -p '{"spec":{"amt":{"activate":true}}}'

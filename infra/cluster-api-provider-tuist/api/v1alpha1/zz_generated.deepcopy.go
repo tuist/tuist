@@ -1180,6 +1180,10 @@ func (in *RackLinuxHostAMTStatus) DeepCopyInto(out *RackLinuxHostAMTStatus) {
 		in, out := &in.LastActivation, &out.LastActivation
 		*out = (*in).DeepCopy()
 	}
+	if in.LastConfiguration != nil {
+		in, out := &in.LastConfiguration, &out.LastConfiguration
+		*out = (*in).DeepCopy()
+	}
 	if in.LastPowerAction != nil {
 		in, out := &in.LastPowerAction, &out.LastPowerAction
 		*out = new(RackLinuxHostAMTPowerAction)
