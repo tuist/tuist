@@ -690,6 +690,7 @@ func main() {
 	}
 	if err := (&linux.RackLinuxHostReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
 		Tailnet:            rackTailnet,
