@@ -61,8 +61,13 @@ func bindDirectory(socket, source, target string) error {
 	if err != nil {
 		return err
 	}
-	if string(response[:n]) != "ok" {
-		return fmt.Errorf("cache bind mount failed: %s", response[:n])
+	reply := string(response[:n])
+	if warning, ok := strings.CutPrefix(reply, "ok: "); ok {
+		fmt.Fprintf(os.Stderr, "::warning::Cache volume attached, but Docker containers started later will not see %s: %s\n", target, warning)
+		return nil
+	}
+	if reply != "ok" {
+		return fmt.Errorf("cache bind mount failed: %s", reply)
 	}
 	return nil
 }
@@ -100,11 +105,7 @@ func serveMounts(socket, root string) error {
 			go func() {
 				defer func() { <-slots; conn.Close() }()
 				_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-				if err := mountRequest(conn, sourceRoot, workRoot); err != nil {
-					_, _ = conn.Write([]byte(err.Error()))
-				} else {
-					_, _ = conn.Write([]byte("ok"))
-				}
+				_, _ = conn.Write([]byte(mountReply(mountRequest(conn, sourceRoot, workRoot))))
 			}()
 		default:
 			_, _ = conn.Write([]byte("mount helper busy"))
@@ -113,15 +114,27 @@ func serveMounts(socket, root string) error {
 	}
 }
 
-func mountRequest(conn *net.UnixConn, root, work *os.Root) error {
+func mountReply(warning string, err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	if warning != "" {
+		return "ok: " + warning
+	}
+	return "ok"
+}
+
+// mountRequest returns a warning when the job's mount succeeded but the mirror
+// for Docker children could not be created; the mirror is never required.
+func mountRequest(conn *net.UnixConn, root, work *os.Root) (string, error) {
 	data, control := make([]byte, 4096), make([]byte, unix.CmsgSpace(8*4))
 	n, oobn, flags, _, err := conn.ReadMsgUnix(data, control)
 	if err != nil {
-		return err
+		return "", err
 	}
 	messages, err := unix.ParseSocketControlMessage(control[:oobn])
 	if err != nil {
-		return err
+		return "", err
 	}
 	var fds []int
 	defer func() {
@@ -132,7 +145,7 @@ func mountRequest(conn *net.UnixConn, root, work *os.Root) error {
 	for _, message := range messages {
 		rights, err := unix.ParseUnixRights(&message)
 		if err != nil {
-			return err
+			return "", err
 		}
 		for _, fd := range rights {
 			unix.CloseOnExec(fd)
@@ -140,66 +153,67 @@ func mountRequest(conn *net.UnixConn, root, work *os.Root) error {
 		fds = append(fds, rights...)
 	}
 	if flags&(unix.MSG_TRUNC|unix.MSG_CTRUNC) != 0 || len(fds) != 2 {
-		return errors.New("expected mount namespace and target directory descriptors")
+		return "", errors.New("expected mount namespace and target directory descriptors")
 	}
 	var request mountMessage
 	if err = json.Unmarshal(data[:n], &request); err != nil {
-		return errors.New("invalid mount request")
+		return "", errors.New("invalid mount request")
 	}
 	source := request.Source
 	parts := strings.Split(source, "/")
 	if len(parts) != 2 || !directoryPattern.MatchString(parts[0]) || (parts[1] != "data" && !directoryPattern.MatchString(parts[1])) {
-		return errors.New("invalid volume source")
+		return "", errors.New("invalid volume source")
 	}
 	// os.Root bounds all resolution to this pod's UID-scoped cache subtree.
 	directory, err := root.OpenFile(source, os.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW, 0)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer directory.Close()
 	kind, err := unix.IoctlRetInt(fds[0], unix.NS_GET_NSTYPE)
 	if err != nil || kind != unix.CLONE_NEWNS {
-		return errors.New("invalid mount namespace descriptor")
+		return "", errors.New("invalid mount namespace descriptor")
 	}
 	// The files supplied to ExtraFiles must stay open until the worker exits.
 	// Duplicate them so ownership remains with the request's descriptor cleanup.
 	nsFD, err := unix.FcntlInt(uintptr(fds[0]), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
-		return err
+		return "", err
 	}
 	ns := os.NewFile(uintptr(nsFD), "namespace")
 	defer ns.Close()
 	targetFD, err := unix.FcntlInt(uintptr(fds[1]), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
-		return err
+		return "", err
 	}
 	targetCopy := os.NewFile(uintptr(targetFD), "target")
 	defer targetCopy.Close()
-	files := []*os.File{directory, targetCopy, ns}
+	files, args, warning := []*os.File{directory, targetCopy, ns}, []string{"mount-worker"}, ""
 	if request.Mirror != "" {
-		mirror, err := mirrorTarget(work, request.Mirror, fds[1])
-		if err != nil {
-			return err
+		if mirror, err := mirrorTarget(work, request.Mirror, fds[1]); err != nil {
+			warning = err.Error()
+		} else {
+			defer mirror.Close()
+			files, args = append(files, mirror), append(args, "mirror")
 		}
-		defer mirror.Close()
-		files = append(files, mirror)
 	}
 	executable, err := os.Executable()
 	if err != nil {
-		return err
+		return "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	args := []string{"mount-worker"}
-	if len(files) == 4 {
-		args = append(args, "mirror")
-	}
 	cmd := exec.CommandContext(ctx, executable, args...)
 	cmd.ExtraFiles = files
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("mount worker: %s (%w)", strings.TrimSpace(string(output)), err)
+	output, err := cmd.CombinedOutput()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == mirrorSkippedExit {
+		return strings.TrimSpace(string(output)), nil
 	}
-	return nil
+	if err != nil {
+		return "", fmt.Errorf("mount worker: %s (%w)", strings.TrimSpace(string(output)), err)
+	}
+	return warning, nil
 }
 
 // mirrorTarget opens the client's target as the broker sees it. os.Root keeps
@@ -259,18 +273,18 @@ func mountWorker(mirror bool) error {
 		return fmt.Errorf("clone mount tree: %w", err)
 	}
 	defer unix.Close(tree)
+	// The job's mount comes first: the mirror only exists alongside it, so a
+	// failed attach never leaves a mount behind in the broker's namespace.
+	mirrorTree, broker := -1, -1
 	if mirror {
-		mirrorTree, err := unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH)
-		if err != nil {
-			return fmt.Errorf("clone mirror tree: %w", err)
+		if mirrorTree, err = unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH); err != nil {
+			return fmt.Errorf("clone mount tree: %w", err)
 		}
 		defer unix.Close(mirrorTree)
-		if err := emptyDirectory(6); err != nil {
+		if broker, err = unix.Open("/proc/self/ns/mnt", unix.O_RDONLY|unix.O_CLOEXEC, 0); err != nil {
 			return err
 		}
-		if err := unix.MoveMount(mirrorTree, "", 6, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
-			return fmt.Errorf("attach mirror tree: %w", err)
-		}
+		defer unix.Close(broker)
 	}
 	if err := unix.Setns(5, unix.CLONE_NEWNS); err != nil {
 		return fmt.Errorf("enter mount namespace: %w", err)
@@ -280,6 +294,18 @@ func mountWorker(mirror bool) error {
 	}
 	if err := unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
 		return fmt.Errorf("attach mount tree: %w", err)
+	}
+	if !mirror {
+		return nil
+	}
+	if err := unix.Setns(broker, unix.CLONE_NEWNS); err != nil {
+		return fmt.Errorf("%w: %v", errMirrorSkipped, err)
+	}
+	if err := emptyDirectory(6); err != nil {
+		return fmt.Errorf("%w: %v", errMirrorSkipped, err)
+	}
+	if err := unix.MoveMount(mirrorTree, "", 6, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
+		return fmt.Errorf("%w: %v", errMirrorSkipped, err)
 	}
 	return nil
 }

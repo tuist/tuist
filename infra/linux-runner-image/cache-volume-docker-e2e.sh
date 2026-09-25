@@ -14,20 +14,21 @@ cleanup() {
 }
 trap cleanup EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
+wait_for() {
+  for _ in $(seq 1 60); do "${@:2}" >/dev/null 2>&1 && return; sleep 1; done
+  fail "$1 did not start"
+}
 
 docker volume create "$p-work" >/dev/null
 docker volume create "$p-cache" >/dev/null
 scope=$(docker run --rm alpine sh -c 'printf scope | sha256sum | cut -d" " -f1')
 docker run --rm -v "$p-cache:/c" -v "$p-work:/w" alpine sh -c \
-  "mkdir -p /c/$scope/data /w/native /w/job && echo warm > /c/$scope/data/warm && printf lease > /c/$scope/.tuist-volume && chmod -R 777 /c /w"
+  "mkdir -p /c/$scope/data /w/native /w/job /w/covered && echo warm > /c/$scope/data/warm && printf lease > /c/$scope/.tuist-volume && chmod -R 777 /c /w"
 
 docker run -d --name "$p-dind" --privileged \
   -v "$p-work:$work" -v "$p-cache:$work/_tuist_cache" -v "$client:/ext/tuist-cache-volume:ro" \
   docker:dind sh -c "(/ext/tuist-cache-volume mount-server $work/.tuist-cache-mount.sock $work/_tuist_cache &); exec dockerd --host=unix:///var/run/docker.sock" >/dev/null
-for _ in $(seq 1 60); do
-  docker exec "$p-dind" sh -c "test -S $work/.tuist-cache-mount.sock && docker info" >/dev/null 2>&1 && break
-  sleep 1
-done
+wait_for "broker and dockerd" docker exec "$p-dind" sh -c "test -S $work/.tuist-cache-mount.sock && docker info"
 docker exec "$p-dind" docker pull -q alpine >/dev/null
 
 agent='import http.server,json
@@ -41,7 +42,7 @@ docker run -d --name "$p-runner" --network "container:$p-dind" --user 1001:1001 
   -e TUIST_CACHE_VOLUME_URL=http://127.0.0.1:8090 \
   -v "$p-work:$work" -v "$p-cache:$work/_tuist_cache" -v "$client:/ext/tuist-cache-volume:ro" \
   python:3.12-alpine python3 -c "$agent" >/dev/null
-sleep 2
+wait_for "cache agent" docker exec "$p-runner" nc -z 127.0.0.1 8090
 
 child() { docker exec "$p-dind" docker run --rm -v "$work/$1:/workspace" -w /workspace alpine sh -c "$2"; }
 volume_has() { docker exec "$p-dind" test -f "$work/_tuist_cache/$scope/data/$1"; }
@@ -61,5 +62,13 @@ docker exec "$p-dind" docker run --rm --network host -e TUIST_CACHE_VOLUME_URL=h
   sh -c '/__e/tuist-cache-volume --key deps --path deps && test -f deps/warm && touch deps/job-container'
 child job 'test -f deps/job-container && touch deps/job-child' || fail "docker child did not see the job container's volume"
 volume_has job-child || fail "docker child write did not reach the volume"
+
+# A container: job whose own volume covers the target still attaches; only the
+# copy for Docker children is skipped, with a warning.
+docker exec "$p-dind" docker volume create "$p-job" >/dev/null
+docker exec "$p-dind" docker run --rm --network host -e TUIST_CACHE_VOLUME_URL=http://127.0.0.1:8090 \
+  -v "$work:/__w" -v "$p-job:/__w/covered/deps" -v /ext/tuist-cache-volume:/__e/tuist-cache-volume:ro -w /__w/covered alpine \
+  sh -c '/__e/tuist-cache-volume --key deps --path deps 2>&1 | tee /dev/stderr | grep -q "will not see" && test -f deps/warm' ||
+  fail "a job-owned mount under the work directory blocked the attach"
 
 echo "Cache volumes reach Docker child containers"

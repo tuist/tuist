@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -18,6 +19,9 @@ func TestMain(m *testing.M) {
 	if len(os.Args) >= 2 && os.Args[1] == "mount-worker" {
 		if err := mountWorker(len(os.Args) == 3 && os.Args[2] == "mirror"); err != nil {
 			os.Stderr.WriteString(err.Error())
+			if errors.Is(err, errMirrorSkipped) {
+				os.Exit(mirrorSkippedExit)
+			}
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -70,11 +74,7 @@ func testMountServer(t *testing.T, root string) string {
 			if err != nil {
 				return
 			}
-			if err := mountRequest(conn, source, work); err != nil {
-				conn.Write([]byte(err.Error()))
-			} else {
-				conn.Write([]byte("ok"))
-			}
+			conn.Write([]byte(mountReply(mountRequest(conn, source, work))))
 			conn.Close()
 		}
 	}()
@@ -230,8 +230,8 @@ func TestBindIntoUnprivilegedSeparatePIDAndMountNamespace(t *testing.T) {
 
 func TestMirrorRejectsPathsOutsideTheTarget(t *testing.T) {
 	dir := t.TempDir()
-	for _, path := range []string{"target", "other", "_tuist_cache/scope", "../escape", "/abs", "target/../other"} {
-		if err := os.MkdirAll(filepath.Join(dir, path), 0755); err != nil && !filepath.IsAbs(path) {
+	for _, path := range []string{"target", "other", "_tuist_cache/scope"} {
+		if err := os.MkdirAll(filepath.Join(dir, path), 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -296,5 +296,43 @@ func TestMirrorMakesTheMountVisibleToDockerd(t *testing.T) {
 	}
 	if data, err := os.ReadFile(filepath.Join(root, source, "from-child")); err != nil || string(data) != "child" {
 		t.Fatalf("broker-side writes did not reach the volume: %v", err)
+	}
+}
+
+func TestMirrorMismatchStillAttachesTheJobMount(t *testing.T) {
+	if os.Getenv("TUIST_TEST_BIND_MOUNTS") != "1" {
+		t.Skip("requires privileged Linux test container")
+	}
+	root := t.TempDir()
+	source := digest("scope") + "/data"
+	if err := os.MkdirAll(filepath.Join(root, source), 0755); err != nil {
+		t.Fatal(err)
+	}
+	socket := testMountServer(t, root)
+	target := filepath.Join(filepath.Dir(socket), "repo", "deps")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Like a `container:` job whose own volume covers the target: the client
+	// sees a different directory than the broker does at the same path.
+	cmd := exec.Command("unshare", "--mount", "--pid", "--fork", "--mount-proc", "sh", "-c",
+		`mount -t tmpfs none "$3" && exec setpriv --bounding-set=-sys_admin "$0" test-bind "$1" "$2" "$3"`,
+		executable, socket, source, target)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("job mount failed because of the mirror: %s %v", output, err)
+	}
+	if !strings.Contains(string(output), "will not see") {
+		t.Fatalf("missing mirror warning: %s", output)
+	}
+	if data, err := os.ReadFile(filepath.Join(root, source, "from-container")); err != nil || string(data) != "retained" {
+		t.Fatalf("job writes did not reach the volume: %v", err)
+	}
+	if entries, err := os.ReadDir(target); err != nil || len(entries) != 0 {
+		t.Fatalf("broker namespace must keep its own empty directory: %v %v", entries, err)
 	}
 }

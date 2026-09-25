@@ -69,7 +69,9 @@ Buildkite native commands and GitLab shell jobs are the supported initial paths.
 Volumes under the work directory are also mounted at the same path in the dind
 broker's namespace, where dockerd resolves `-v` paths, so Docker-plugin and
 `docker run` children that bind the checkout see them without extra mappings.
-Paths outside the work directory stay visible to native commands only.
+Paths outside the work directory stay visible to native commands only. The
+mirror is best-effort after the job's own mount; if it cannot be created the
+client warns instead of failing the attach.
 `cache-volume-docker-e2e.sh` covers native, `container:` and child containers.
 
 ## Identity and trust
