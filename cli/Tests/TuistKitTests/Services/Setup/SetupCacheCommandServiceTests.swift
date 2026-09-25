@@ -781,6 +781,35 @@ struct SetupCacheCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_warnsWithTheServerMessageWhenTheAccountRefusesTheCaller() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let alertController = AlertController()
+        let message = "You are logged in as 'stranger', which is not a member of 'tuist', so you can't access its remote cache."
+        cacheURLStore.reset()
+        given(cacheURLStore)
+            .getCacheURL(for: .any, accountHandle: .value("tuist"))
+            .willThrow(CacheURLStoreError.forbidden(message))
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil)
+        }
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any
+            )
+            .called(1)
+        #expect(alertController.warnings().map(\.message).map { $0.plain() } == [message])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
     func setupCache_resolvesTheRemoteCacheBeforeStartingTheProxy() async throws {
         // Given
         let environment = try #require(Environment.mocked)

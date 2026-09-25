@@ -4,6 +4,7 @@ defmodule TuistWeb.API.CacheController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
   alias Tuist.API.Pipeline
   alias Tuist.Authorization
   alias Tuist.Billing
@@ -111,17 +112,35 @@ defmodule TuistWeb.API.CacheController do
   @kura_minimum_cli_version Version.parse!("4.209.0-canary.23")
   @kura_minimum_gradle_plugin_version Version.parse!("0.15.0")
 
+  # The first CLI version that falls back to the local cache when this endpoint
+  # refuses the account, rather than failing the cache proxy or `tuist bazel
+  # setup`. Earlier versions get an empty endpoint list instead.
+  @forbidden_minimum_cli_version Version.parse!("4.211.0")
+
   # Answers where the cache is, not whether the caller may use it. Clients hold
   # the answer for up to an hour, so a plan that lapses inside that window would
   # never be reported here; the refusal belongs on the token exchange, and
   # finally on the cache node itself.
+  #
+  # Membership is the exception: a caller that cannot read the account's cache
+  # at all is refused, so the client can say which account it is logged in as.
   def endpoints(conn, params) do
     technology = technology(conn)
+    account_handle = params[:account_handle]
+    authorized_account_handle = authorized_account_handle(account_handle, conn)
 
+    if is_binary(account_handle) and is_nil(authorized_account_handle) and handles_forbidden_endpoints?(conn) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: forbidden_endpoints_message(conn, account_handle)})
+    else
+      render_endpoints(conn, authorized_account_handle, technology)
+    end
+  end
+
+  defp render_endpoints(conn, account_handle, technology) do
     %{endpoints: endpoints, provisioning: provisioning} =
-      params[:account_handle]
-      |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology, RemoteIp.attributed_origin(conn))
+      Accounts.get_cache_resolution_for_handle(account_handle, technology, RemoteIp.attributed_origin(conn))
 
     # `no-cache` while provisioning: `:kura` clients poll this endpoint until the
     # instance serves, and an HTTP cache honoring the max-age would answer every
@@ -159,6 +178,26 @@ defmodule TuistWeb.API.CacheController do
 
       true ->
         false
+    end
+  end
+
+  defp handles_forbidden_endpoints?(conn) do
+    cond do
+      Headers.get_cli_version_string(conn) == "x.y.z" -> true
+      cli_version = Headers.get_cli_version(conn) -> Version.compare(cli_version, @forbidden_minimum_cli_version) != :lt
+      true -> false
+    end
+  end
+
+  defp forbidden_endpoints_message(conn, account_handle) do
+    case Authentication.authenticated_subject(conn) do
+      %User{} = user ->
+        user_account_name = Accounts.get_account_from_user(user).name
+
+        "You are logged in as '#{user_account_name}', which is not a member of '#{account_handle}', so you can't access its remote cache. Log in with an account that has access to '#{account_handle}', or ask one of its admins to invite you."
+
+      _ ->
+        "The credentials in use cannot access the remote cache of '#{account_handle}'."
     end
   end
 
