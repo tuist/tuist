@@ -44,6 +44,15 @@ enum NetrcOrigin: Equatable, Sendable {
 struct NetrcSource: Sendable {
     let origin: NetrcOrigin
     let machines: [NetrcMachine]
+    /// Whether git reads this same source for itself. Only `~/.netrc` qualifies: curl is
+    /// never pointed at another path, and `SWIFTPM_NETRC_DATA` has no on-disk form at all.
+    let isGitVisible: Bool
+
+    init(origin: NetrcOrigin, machines: [NetrcMachine], isGitVisible: Bool = false) {
+        self.origin = origin
+        self.machines = machines
+        self.isGitVisible = isGitVisible
+    }
 }
 
 /// The netrc credentials a resolution runs with, read and parsed once up front so
@@ -120,7 +129,11 @@ struct Netrc: Sendable {
         } else if let home = environment["HOME"] {
             let path = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
             if let content = try? await contents(of: path) {
-                sources.append(NetrcSource(origin: .file, machines: NetrcParser.machines(in: content)))
+                sources.append(
+                    NetrcSource(
+                        origin: .file, machines: NetrcParser.machines(in: content), isGitVisible: true
+                    )
+                )
             }
         }
         return Netrc(configuration: configuration, sources: sources)
@@ -132,6 +145,12 @@ struct Netrc: Sendable {
 
     func credential(for url: URL, from origin: NetrcOrigin) -> RegistryCredential? {
         credential(for: url, in: sources.filter { $0.origin == origin })
+    }
+
+    /// The credential git would find for itself, which is the subset that makes injecting
+    /// one unnecessary.
+    func gitVisibleCredential(for url: URL) -> RegistryCredential? {
+        credential(for: url, in: sources.filter(\.isGitVisible))
     }
 
     private func credential(for url: URL, in sources: [NetrcSource]) -> RegistryCredential? {
