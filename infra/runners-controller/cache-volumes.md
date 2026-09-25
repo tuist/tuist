@@ -3,8 +3,11 @@
 Linux custom volumes use the same storage model as the automatic macOS cache:
 persistent local masters, private copy-on-write branches, immutable object-storage
 images, and generation-checked publication. No Ceph cluster, credentials, RBD
-images or network block devices are required. Custom key/path volumes remain
-Linux-only; the existing automatic macOS repository cache is unchanged.
+images or network block devices are required.
+
+This runbook covers the Linux backend. macOS custom volumes use the shared
+lifecycle with an [APFS backend](../tart-kubelet/custom-cache-volumes.md);
+the existing automatic macOS repository cache remains unchanged.
 
 The feature is disabled by default for self-hosted installs. Staging is enabled
 for the validation below. The managed production overlay enables it through the
@@ -63,7 +66,7 @@ Linux storage names are `linux-<hash of volume UUID and clear generation>`;
 macOS dispatch names still accept only `tuist-cache` and repository names. A Linux
 custom volume cannot be selected as a macOS cache by widening storage validation.
 
-The filesystem-specific implementation lives in `internal/cachevolumes/local.go`:
+The filesystem-specific implementation lives in `../runner-cache/local.go`:
 
 - A dedicated XFS filesystem with reflinks (or another validated reflink-capable
   filesystem) holds immutable masters and sparse, 20 decimal GB ext4 images.

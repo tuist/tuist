@@ -383,7 +383,10 @@ type Config struct {
 	// golden clones need. Sized at provisioning as what the disk leaves
 	// after golden images, the max concurrent pod clones, and OS headroom.
 	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
-	RunnerCacheVolumeGiB int
+	RunnerCacheVolumeGiB      int
+	CustomCacheURL            string
+	CustomCacheNamespace      string
+	CustomCacheServiceAccount string
 
 	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
 	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
@@ -1081,6 +1084,9 @@ func renderLaunchdPlist(cfg Config) string {
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		if cfg.CustomCacheURL != "" {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
+		}
 		if cfg.CacheVolumeMasterCapGiB > 0 {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
 		}

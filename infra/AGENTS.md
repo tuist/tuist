@@ -284,3 +284,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   Host preparation and agent readiness precede volume attachment; runner scheduling
   only prefers ready hosts so ordinary jobs remain available. See
   [workflow setup and rollout](runners-controller/cache-volumes.md).
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

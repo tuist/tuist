@@ -48,7 +48,7 @@ if [[ ! -x /__e/tuist-cache-volume ]]; then
   status=0
   attach > "$fixture/error" 2>&1 || status=$?
   [[ "$status" != 0 ]]
-  grep -q 'requires a Tuist Linux runner' "$fixture/error"
+  grep -q 'requires a Tuist Linux or macOS runner' "$fixture/error"
   echo 'ok: missing client explains the runner requirement'
 else
   echo 'skip: container client is installed'

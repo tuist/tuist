@@ -167,7 +167,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
       key: volume.key,
       repository: volume.repository,
       provider: volume.provider,
-      platform: "linux",
+      platform: volume.platform,
       architecture: volume.architecture,
       last_used_at: iso(volume.last_used_at),
       used_bytes: used,

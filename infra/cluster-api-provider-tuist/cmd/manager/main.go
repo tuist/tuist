@@ -96,6 +96,9 @@ func main() {
 		runnerCacheVolumeGiB         int
 		cacheVolumeMasterCapGiB      int
 		cacheVolumeCASGiB            int
+		customCacheURL               string
+		customCacheNamespace         string
+		customCacheSA                string
 		tartKubeletMaxUpdateAttempts int
 		terminalRetryAfter           time.Duration
 		bootstrapRebootAfter         int
@@ -252,6 +255,9 @@ func main() {
 			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
+	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
+	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
+	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
 	flag.IntVar(&cacheVolumeMasterCapGiB, "cache-volume-master-cap-gib", 0,
 		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
 			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
@@ -471,19 +477,22 @@ func main() {
 		// Load-bearing, not cosmetic: an OAuth-minted credential carries
 		// no default tag, so a host config pushed without these cannot
 		// join the tailnet at all.
-		TailscaleTags:           parseCommaList(tailscaleTagsRaw),
-		TailscaleAcceptRoutes:   tailscaleAcceptRoutes,
-		VMKuraEgressCIDR:        vmKuraEgressCIDR,
-		VMClusterDNSIP:          vmClusterDNSIP,
-		VMCachePNCIDR:           vmCachePNCIDR,
-		SSHIngressAllowCIDRs:    parseCommaList(sshIngressAllowRaw),
-		HostCPU:                 tartKubeletHostCPU,
-		HostMemoryMB:            tartKubeletHostMemory,
-		MaxPods:                 tartKubeletMaxPods,
-		RunnerCacheVolumeGiB:    runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB: cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:       cacheVolumeCASGiB,
-		VNCRelayPort:            vncRelayPort,
+		TailscaleTags:             parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes:     tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:          vmKuraEgressCIDR,
+		VMClusterDNSIP:            vmClusterDNSIP,
+		VMCachePNCIDR:             vmCachePNCIDR,
+		SSHIngressAllowCIDRs:      parseCommaList(sshIngressAllowRaw),
+		HostCPU:                   tartKubeletHostCPU,
+		HostMemoryMB:              tartKubeletHostMemory,
+		MaxPods:                   tartKubeletMaxPods,
+		RunnerCacheVolumeGiB:      runnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB:   cacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:         cacheVolumeCASGiB,
+		CustomCacheURL:            customCacheURL,
+		CustomCacheNamespace:      customCacheNamespace,
+		CustomCacheServiceAccount: customCacheSA,
+		VNCRelayPort:              vncRelayPort,
 	}
 	hostConfigHash := bootstrap.HostConfigHash(fleetConfig)
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)

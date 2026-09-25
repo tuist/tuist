@@ -8,6 +8,7 @@ on:
       - infra/macos-host-bootstrap/**
       - infra/macos-log-shipper/**
       - infra/tart-kubelet/**
+      - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
@@ -17,6 +18,7 @@ on:
       - infra/macos-host-bootstrap/**
       - infra/macos-log-shipper/**
       - infra/tart-kubelet/**
+      - infra/runner-cache/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml

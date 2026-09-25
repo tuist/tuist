@@ -2111,6 +2111,8 @@ macosFleet:
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
 runnersFleet:
+  customCacheVolumes:
+    enabled: false
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
   # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a

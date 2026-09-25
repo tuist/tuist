@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 # Keep the binary under the checkout: runner and DinD share the work directory.
 scratch=$(mktemp -d "$PWD/.cache-volume-test.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
-GOOS=linux go test -c -o "$scratch/volume.test" ./internal/cachevolumes
+GOOS=linux go test -c -o "$scratch/volume.test" ../runner-cache
 docker run --rm --privileged -v "$scratch/volume.test:/volume.test:ro" -v "$PWD/scripts:/scripts:ro" ubuntu:24.04 bash -ceu '
   apt-get update -qq
   apt-get install -y -qq xfsprogs e2fsprogs util-linux >/tmp/install.log

@@ -301,7 +301,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 			return err
 		}
 	}
-	if slot.State == "active" {
+	if slot.State == "active" || slot.State == "sealed" {
 		if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 			slot.SizeBytes, slot.CapacityBytes = &used, &capacity
 		}

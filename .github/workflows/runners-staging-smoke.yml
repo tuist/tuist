@@ -25,6 +25,10 @@ name: Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
+      custom_cache_apfs:
+        description: Run the candidate custom cache APFS tests inside a staging Mac VM
+        type: boolean
+        default: false
       hold_seconds:
         description: >-
           Seconds to hold the runner busy before finishing. Defaults to 0,
@@ -126,3 +130,17 @@ jobs:
           cat /tmp/up 2>/dev/null || true; echo
           [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
           echo "Runner reached the Kura runner-cache over the PN."
+
+  custom-cache-apfs:
+    if: github.repository == 'tuist/tuist' && inputs.custom_cache_apfs
+    runs-on: tuist-staging-macos
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+      - name: Exercise real APFS and custom cache lifecycle
+        run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume

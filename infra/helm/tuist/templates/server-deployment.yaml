@@ -242,9 +242,11 @@ spec:
             # availability is gated by the `:runners` feature flag and
             # has no chart-level setting.
             - name: TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE
-              value: {{ .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+              value: {{ include "tuist.runnerCacheVolumesNamespace" . | quote }}
             - name: TUIST_RUNNER_CACHE_VOLUMES_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") | quote }}
+            - name: TUIST_RUNNER_MACOS_CACHE_VOLUMES
+              value: {{ .Values.runnersFleet.customCacheVolumes.enabled | quote }}
             - name: TUIST_RUNNER_LINUX_CACHE_VOLUMES
               value: {{ .Values.runnersFleetLinux.cacheVolumes.enabled | quote }}
             - name: TUIST_RUNNERS_NAMESPACE
