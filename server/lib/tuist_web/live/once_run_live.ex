@@ -16,6 +16,7 @@ defmodule TuistWeb.OnceRunLive do
   alias Tuist.Utilities.DateFormatter
 
   @page_size 50
+  @refresh_interval_ms 1_000
 
   def mount(%{"once_run_id" => run_id}, _session, socket) do
     project = socket.assigns.selected_project
@@ -42,7 +43,8 @@ defmodule TuistWeb.OnceRunLive do
            cache_detail_metrics: OnceEvents.cache_detail_metrics(run),
            cache_events: [],
            cache_current_page: 1,
-           cache_total_pages: 1
+           cache_total_pages: 1,
+           refresh_scheduled?: false
          )}
     end
   end
@@ -81,6 +83,12 @@ defmodule TuistWeb.OnceRunLive do
      |> load_actions()
      |> load_cache()}
   end
+
+  # Actions are only ever a hit or a miss. Offering Stored and Reused on that
+  # view left the list unfiltered while every row still read as a match, so
+  # each view offers only the outcomes it can actually narrow by.
+  defp cache_outcomes_for_view("actions"), do: ~w(hit miss)
+  defp cache_outcomes_for_view(_content_objects), do: ~w(hit stored reused)
 
   # Query strings are user input, so every value that reaches a query has to
   # come back out of a fixed allowlist or fall back to the default.
@@ -129,15 +137,44 @@ defmodule TuistWeb.OnceRunLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
+  # The run topic also carries `:test_case_ingested` and `:test_suite_ingested`,
+  # and a `once test` run reaches this page too, so a narrow match crash-looped
+  # the LiveView on the first streamed case.
+  #
+  # Reloading on every broadcast also meant the run, the actions page and count
+  # and the whole cache tab were re-queried per event, with system samples
+  # arriving every second. Refreshes coalesce to one a second, the way
+  # `OnceTestRunLive` already does.
   def handle_info({event, _}, socket)
-      when event in [:action_ingested, :run_updated, :cache_event_ingested, :system_sampled] do
+      when event in [
+             :action_ingested,
+             :run_updated,
+             :cache_event_ingested,
+             :system_sampled,
+             :test_case_ingested,
+             :test_suite_ingested
+           ] do
+    schedule_refresh(socket)
+  end
+
+  def handle_info(:refresh, socket) do
     run = OnceEvents.get_run(socket.assigns.selected_project.id, socket.assigns.run.run_id)
 
     {:noreply,
      socket
      |> assign(:run, run || socket.assigns.run)
+     |> assign(:refresh_scheduled?, false)
      |> load_actions()
      |> load_cache()}
+  end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  defp schedule_refresh(%{assigns: %{refresh_scheduled?: true}} = socket), do: {:noreply, socket}
+
+  defp schedule_refresh(socket) do
+    Process.send_after(self(), :refresh, @refresh_interval_ms)
+    {:noreply, assign(socket, :refresh_scheduled?, true)}
   end
 
   def render(assigns) do
@@ -664,7 +701,7 @@ defmodule TuistWeb.OnceRunLive do
             >
               <:icon><.icon name="filter" /></:icon>
               <.dropdown_item
-                :for={outcome <- ~w(hit miss stored reused)}
+                :for={outcome <- cache_outcomes_for_view(@selected_cache_view)}
                 value={outcome}
                 label={cache_outcome_display_name(outcome)}
                 phx-click="filter_cache_outcome"
@@ -743,7 +780,17 @@ defmodule TuistWeb.OnceRunLive do
             current_page={@cache_current_page}
             number_of_pages={@cache_total_pages}
             page_patch={
-              fn page -> cache_page_patch(@path, @selected_cache_view, @cache_search, page) end
+              fn page ->
+                cache_page_patch(
+                  @path,
+                  @selected_cache_view,
+                  @cache_search,
+                  page,
+                  @cache_outcome,
+                  @cache_sort_by,
+                  @cache_sort_order
+                )
+              end
             }
             data-part="cache-pagination"
           />
@@ -968,11 +1015,14 @@ defmodule TuistWeb.OnceRunLive do
     end
   end
 
-  defp cache_page_patch(path, view, search, page) do
+  defp cache_page_patch(path, view, search, page, outcome, sort_by, sort_order) do
     query =
       URI.encode_query(%{
         "cache_view" => view,
         "cache_search" => search,
+        "cache_outcome" => outcome || "",
+        "cache_sort_by" => sort_by || "",
+        "cache_sort_order" => sort_order || "",
         "cache_page" => Integer.to_string(page)
       })
 

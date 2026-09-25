@@ -168,15 +168,21 @@ defmodule TuistWeb.OnceTestsLive do
   end
 
   defp recent_bundle(project_id, opts) do
+    # Descending, so page 1 is the most recent runs. Ascending returned the
+    # OLDEST page, which meant a project with more runs than this limit in the
+    # period showed the start of the window under "Recent Test Runs".
     {runs, _meta} =
       Analytics.list_invocations(
         project_id,
-        %{page: 1, page_size: @recent_run_limit, order_by: [:finished_at], order_directions: [:asc]},
+        %{page: 1, page_size: @recent_run_limit, order_by: [:finished_at], order_directions: [:desc]},
         opts
       )
 
+    # The chart reads left to right in time, so it takes them oldest first.
     chart_data =
-      Enum.map(runs, fn run ->
+      runs
+      |> Enum.reverse()
+      |> Enum.map(fn run ->
         color =
           case run.status do
             "success" -> "var:noora-chart-primary"

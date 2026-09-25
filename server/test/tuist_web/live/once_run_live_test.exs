@@ -51,6 +51,10 @@ defmodule TuistWeb.OnceRunLiveTest do
     assert has_element?(view, "#once-actions-table tbody tr:first-child", "compiler-1")
 
     action(run, 61)
+
+    # Broadcasts coalesce to one refresh a second, so the update is driven
+    # here rather than waiting on the timer.
+    send(view.pid, :refresh)
     assert row_count(view) == 31
 
     view |> form("#once-actions-search-form", %{search: "missing"}) |> render_change()

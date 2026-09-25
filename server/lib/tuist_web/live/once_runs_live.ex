@@ -475,9 +475,9 @@ defmodule TuistWeb.OnceRunsLive do
             period={@analytics_period}
             value_format="fn:formatMilliseconds"
             url_fn={
-              fn point ->
-                ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{point.id}"
-              end
+              # Same destination the table rows use, otherwise a point on the
+              # Test Runs tab opened the build detail page.
+              fn point -> invocation_detail_path(assigns, point.id) end
             }
             truncation_title={
               dgettext(
