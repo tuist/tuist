@@ -7,6 +7,7 @@ setup() {
   export STATE="$BATS_TEST_TMPDIR/state" SEEDS="$BATS_TEST_TMPDIR/seeds" NETBOOT="$BATS_TEST_TMPDIR/netboot"
   mkdir -p "$SEEDS" "$NETBOOT"
   echo ipxe >"$NETBOOT/snponly.efi"
+  echo shim >"$NETBOOT/snponly-shim.efi"
   RACK_BOOT_SOURCE_ONLY=1
   # shellcheck source=/dev/null
   source "$ROOT/infra/helm/tuist/files/rack-boot.sh"
@@ -87,7 +88,7 @@ publish() {
   [ -z "$(ls "$STATE/http/hosts" | grep -Ev "^(38-05-25-3a-de-d3|aa-bb-cc-dd-ee-ff)")" ]
 }
 
-@test "prepare verifies the ISO, serves its kernel over HTTP and iPXE over TFTP" {
+@test "prepare verifies the ISO, serves its kernel and shim over HTTP and the signed iPXE over TFTP" {
   bin="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$bin"
   cat >"$bin/curl" <<'EOF'
@@ -120,6 +121,8 @@ EOF
   [ "$status" -eq 0 ]
   [ "$(cat "$STATE/http/ubuntu/vmlinuz")" = "extracted casper/vmlinuz" ]
   [ "$(cat "$STATE/http/ubuntu/initrd")" = "extracted casper/initrd" ]
+  [ "$(cat "$STATE/http/ubuntu/shimx64.efi")" = "extracted EFI/boot/bootx64.efi" ]
+  [ "$(cat "$STATE/tftp/snponly-shim.efi")" = shim ]
   [ "$(cat "$STATE/tftp/snponly.efi")" = ipxe ]
   grep -qx 'chain http://192.168.50.1:8480/hosts/${mac:hexhyp}.ipxe || chain http://192.168.50.1:8480/hosts/${uuid}.ipxe || exit 1' "$STATE/tftp/boot.ipxe"
   [ ! -e "$STATE/tftp/grub" ]
