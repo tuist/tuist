@@ -271,3 +271,144 @@ func TestOSUpdateInstallPassesThePasswordOnStdinOnly(t *testing.T) {
 		}
 	}
 }
+
+// Captured from ber1-proto-01 on macOS 27.0 (26A428).
+const fullInstallerListGoldenGate = "Finding available software\n" +
+	"Software Update found the following full installers:\n" +
+	"* Title: macOS 27 Golden Gate, Version: 27.0, Size: 17969056KiB, Build: 26A428, Deferred: NO\n" +
+	"* Title: macOS Tahoe, Version: 26.7, Size: 17951133KiB, Build: 25G229, Deferred: NO\n" +
+	"* Title: macOS Tahoe, Version: 26.6.2, Size: 17953734KiB, Build: 25G83, Deferred: NO\n" +
+	"* Title: macOS Sequoia, Version: 15.8, Size: 15296950KiB, Build: 24H23, Deferred: NO\n"
+
+func TestParseFullInstallerList(t *testing.T) {
+	got := ParseFullInstallerList(fullInstallerListGoldenGate)
+	want := []OSInstaller{
+		{Title: "macOS 27 Golden Gate", Version: "27.0", Build: "26A428"},
+		{Title: "macOS Tahoe", Version: "26.7", Build: "25G229"},
+		{Title: "macOS Tahoe", Version: "26.6.2", Build: "25G83"},
+		{Title: "macOS Sequoia", Version: "15.8", Build: "24H23"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ParseFullInstallerList:\n got %#v\nwant %#v", got, want)
+	}
+	if app := got[0].App(); app != "/Applications/Install macOS 27 Golden Gate.app" {
+		t.Errorf("App() = %q", app)
+	}
+}
+
+func TestParseIORegSerial(t *testing.T) {
+	got, err := ParseIORegSerial("+-o Macmini9,1  <class IOPlatformExpertDevice>\n    {\n      \"IOPlatformSerialNumber\" = \"C07FC05JQ6NY\"\n    }\n")
+	if err != nil || got != "C07FC05JQ6NY" {
+		t.Fatalf("ParseIORegSerial = %q, %v", got, err)
+	}
+	if _, err := ParseIORegSerial("nothing here"); err == nil {
+		t.Error("expected an error without a serial")
+	}
+}
+
+// fakeSudo installs a sudo that records its argv and stdin, and returns the environment that puts it first on PATH.
+func fakeSudo(t *testing.T) (env []string, argv, stdin string) {
+	t.Helper()
+	bin := t.TempDir()
+	argv = filepath.Join(bin, "argv")
+	stdin = filepath.Join(bin, "stdin")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$FAKE_SUDO_ARGV\"\ncat > \"$FAKE_SUDO_STDIN\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "FAKE_SUDO_ARGV=" + argv, "FAKE_SUDO_STDIN=" + stdin}, argv, stdin
+}
+
+// passthroughSudo installs a sudo that runs its command as the current user.
+func passthroughSudo(t *testing.T) []string {
+	t.Helper()
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte("#!/bin/sh\n[ \"$1\" = -n ] && shift\nexec \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return []string{"PATH=" + bin + ":" + os.Getenv("PATH")}
+}
+
+func TestOSUpdateEraseReadsThePasswordFromStdinOnly(t *testing.T) {
+	const password = "s3cr3t-volume-owner"
+	installer := OSInstaller{Title: "macOS 27 Golden Gate", Version: "27.0", Build: "26A428"}
+	for _, shell := range loginShells(t) {
+		root := t.TempDir()
+		env, argv, stdin := fakeSudo(t)
+		script := renderOSUpdateEraseScript(root, "u1", installer, "tuist")
+		runScript(t, shell, script, password+"\n", env...)
+		if got := waitForExit(t, shell, root, "u1", OSUpdateJobErase); got.ExitCode != 0 {
+			t.Fatalf("%s: erase job %#v", shell, got)
+		}
+		gotArgv, _ := os.ReadFile(argv)
+		gotStdin, _ := os.ReadFile(stdin)
+		want := "-n /Applications/Install macOS 27 Golden Gate.app/Contents/Resources/startosinstall --eraseinstall --agreetolicense --forcequitapps --newvolumename Macintosh HD --user tuist --stdinpass\n"
+		if string(gotArgv) != want {
+			t.Errorf("%s: sudo argv = %q, want %q", shell, gotArgv, want)
+		}
+		if strings.Contains(string(gotArgv), password) || strings.Contains(script, password) {
+			t.Errorf("%s: the password reached a command line", shell)
+		}
+		if string(gotStdin) != password+"\n" {
+			t.Errorf("%s: startosinstall stdin = %q, want the password", shell, gotStdin)
+		}
+	}
+}
+
+func TestOSUpdateFetchesTheFullInstallerForTheTarget(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		root := t.TempDir()
+		env, argv, _ := fakeSudo(t)
+		runScript(t, shell, renderOSUpdateFetchInstallerScript(root, "u1", "27.0"), "", env...)
+		waitForExit(t, shell, root, "u1", OSUpdateJobDownload)
+		gotArgv, _ := os.ReadFile(argv)
+		if want := "-n softwareupdate --fetch-full-installer --full-installer-version 27.0\n"; string(gotArgv) != want {
+			t.Errorf("%s: sudo argv = %q, want %q", shell, gotArgv, want)
+		}
+	}
+}
+
+func TestTailscaleStateRestoresOnlyOnAHostWithoutOne(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		env := passthroughSudo(t)
+		path := filepath.Join(t.TempDir(), "lib", "tailscale", "tailscaled.state")
+		runScript(t, shell, renderTailscaleStateRestoreScript(path), `{"_machinekey":"old"}`, env...)
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != `{"_machinekey":"old"}` {
+			t.Fatalf("%s: restored %q, %v", shell, got, err)
+		}
+		if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {
+			t.Errorf("%s: state mode %v, want 0600", shell, info.Mode().Perm())
+		}
+
+		runScript(t, shell, renderTailscaleStateRestoreScript(path), `{"_machinekey":"other"}`, env...)
+		if got, _ := os.ReadFile(path); string(got) != `{"_machinekey":"old"}` {
+			t.Errorf("%s: overwrote the state of a host already on the tailnet: %q", shell, got)
+		}
+	}
+}
+
+func TestTailscaleStateReadIsEmptyWithoutAState(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		env := passthroughSudo(t)
+		path := filepath.Join(t.TempDir(), "tailscaled.state")
+		read := func() string {
+			cmd := exec.Command(shell, "-c", renderTailscaleStateReadScript(path))
+			cmd.Env = append(os.Environ(), env...)
+			out, err := cmd.Output()
+			if err != nil {
+				t.Fatalf("%s: %v", shell, err)
+			}
+			return string(out)
+		}
+		if got := read(); got != "" {
+			t.Errorf("%s: read %q from a host without a state", shell, got)
+		}
+		if err := os.WriteFile(path, []byte(`{"_machinekey":"k"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := read(); got != `{"_machinekey":"k"}` {
+			t.Errorf("%s: read %q", shell, got)
+		}
+	}
+}

@@ -677,7 +677,7 @@ each in the same patch as the change itself, so an operator's own cordon or
 `skip-remediation` is left alone.
 
 **Refused without touching the host**, with the annotation cleared: a target in
-another release family (that is an erase), a downgrade, a version Software
+another release family (see "Reinstalling a rack host"), a downgrade, a version Software
 Update does not offer, a host that is not bootstrapped or holds a terminal
 drift failure, and an SSH user with no secure token (`NoSecureToken`). A host
 already on the target succeeds at once, unless an earlier update left its
@@ -718,6 +718,46 @@ Nothing in the cluster reports a host's macOS version outside
 A host's version only changes this way while its Machine holds it. An unclaimed
 host has neither the update policy nor the values-rendered SSH guard entries,
 so claim it and let it converge before updating it.
+
+### Reinstalling a rack host
+
+A move to another release family (27.0 from 26.x) is an erase and a fresh
+install, one annotation on the host's machine:
+
+```bash
+kubectl annotate rasm <machine> tuist.dev/os-reinstall=27.0
+```
+
+It can also reinstall the version the host already runs, or an older one, as
+long as `softwareupdate --list-full-installers` offers it. It wipes the host:
+the host comes back without its Tart images and cache volume, so its first job
+pulls the runner image again.
+
+It shares `status.osUpdate` with the in-place update, with `reinstall: true`,
+and replaces `Installing` with four phases:
+
+| Phase | What happens |
+|---|---|
+| `Preparing`, `Draining` | As for an update, and the RackHost must record a `serial` |
+| `Downloading` | `softwareupdate --fetch-full-installer`, about 18 GB and 20 minutes on the prototype |
+| `Erasing` | Keeps tailscaled's state in the Machine's bootstrap Secret, then runs `startosinstall --eraseinstall`. The host restarts into the installer and comes back through automated enrollment, about 13 minutes on the prototype. Ends when the host answers with a new SSH host key |
+| `Enrolling` | Dials without the pinned host key until the fleet key is accepted. Pins the new key only once the host reports the RackHost's `serial` and the target version, then marks the Machine not bootstrapped |
+| `Bootstrapping` | The Machine bootstraps the host again. Restoring tailscaled's state brings it back as the same tailnet device, so its egress Service, metrics and VNC relay keep working; the kept state is dropped once bootstrap succeeds |
+| `Restarting` | Only when the SSH user has no secure token yet: one restart, after which the auto-login grants it |
+| `Converging`, `Succeeded` | As for an update |
+
+Cancel by removing the annotation before `Erasing`.
+
+| Reason | Node |
+|---|---|
+| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost`, `EraseFailed` (exited before restarting) | Uncordoned: the host is unchanged |
+| `EraseTimedOut`, `NotErased`, `EnrollTimedOut`, `HostIdentityMismatch`, `VersionMismatch`, `BootstrapTimedOut`, `RestartTimedOut`, `NoSecureToken`, `ConvergeFailed`, `ConvergeTimedOut`, `HostReleased` | Stays cordoned for a human |
+
+`HostIdentityMismatch` means a host with another serial answers at the
+RackHost's address after the erase; the key is not pinned and nothing else
+touches that host. A reinstall that failed after the host came back on the
+target is finished with `tuist.dev/os-update=<target>`, which converges and
+uncordons without erasing again.
 
 ## Module layout
 

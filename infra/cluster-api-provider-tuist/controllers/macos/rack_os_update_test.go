@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
@@ -26,18 +28,30 @@ const (
 
 type fakeInstall struct{ label, user, password string }
 
+type fakeErase struct{ app, user, password string }
+
 type fakeOSUpdateHost struct {
 	unreachable bool
-	dials       int
-	version     string
-	bootTime    int64
-	updates     []bootstrap.OSUpdate
-	jobs        map[string]bootstrap.OSUpdateJob
-	jobsID      string
-	console     string
-	noToken     bool
-	downloads   []string
-	installs    []fakeInstall
+	// enrolling refuses the fleet key, as a freshly installed host does until
+	// automated enrollment has installed it.
+	enrolling      bool
+	hostKey        string
+	serial         string
+	installers     []bootstrap.OSInstaller
+	fetches        []string
+	erases         []fakeErase
+	restarts       int
+	tailscaleState []byte
+	dials          int
+	version        string
+	bootTime       int64
+	updates        []bootstrap.OSUpdate
+	jobs           map[string]bootstrap.OSUpdateJob
+	jobsID         string
+	console        string
+	noToken        bool
+	downloads      []string
+	installs       []fakeInstall
 }
 
 func newFakeOSUpdateHost() *fakeOSUpdateHost {
@@ -49,12 +63,17 @@ func newFakeOSUpdateHost() *fakeOSUpdateHost {
 			{Label: osUpdateTestLabel, Title: "macOS Tahoe 26.7", Version: "26.7"},
 			{Label: "macOS 27-26A428", Title: "macOS 27", Version: "27"},
 		},
+		serial: "C07FC05JQ6NY",
+		installers: []bootstrap.OSInstaller{
+			{Title: "macOS 27 Golden Gate", Version: "27.0", Build: "26A428"},
+			{Title: "macOS Tahoe", Version: "26.7", Build: "25G229"},
+		},
 		jobs:    map[string]bootstrap.OSUpdateJob{},
 		console: "tuist",
 	}
 }
 
-func (f *fakeOSUpdateHost) Fingerprint() string                         { return "" }
+func (f *fakeOSUpdateHost) Fingerprint() string                         { return f.hostKey }
 func (f *fakeOSUpdateHost) Version(context.Context) (string, error)     { return f.version, nil }
 func (f *fakeOSUpdateHost) BootTime(context.Context) (int64, error)     { return f.bootTime, nil }
 func (f *fakeOSUpdateHost) ConsoleUser(context.Context) (string, error) { return f.console, nil }
@@ -93,6 +112,38 @@ func (f *fakeOSUpdateHost) Job(_ context.Context, id, job string) (bootstrap.OSU
 		return state, nil
 	}
 	return bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobAbsent}, nil
+}
+
+func (f *fakeOSUpdateHost) Serial(context.Context) (string, error) { return f.serial, nil }
+func (f *fakeOSUpdateHost) ListFullInstallers(context.Context) ([]bootstrap.OSInstaller, error) {
+	return f.installers, nil
+}
+func (f *fakeOSUpdateHost) TailscaleState(context.Context) ([]byte, error) {
+	return f.tailscaleState, nil
+}
+func (f *fakeOSUpdateHost) Restart(context.Context) error { f.restarts++; return nil }
+
+func (f *fakeOSUpdateHost) StartFetchInstaller(_ context.Context, id, version string) error {
+	f.fetches = append(f.fetches, version)
+	f.start(id, bootstrap.OSUpdateJobDownload)
+	return nil
+}
+
+func (f *fakeOSUpdateHost) StartErase(_ context.Context, id string, installer bootstrap.OSInstaller, user, password string) error {
+	f.erases = append(f.erases, fakeErase{installer.App(), user, password})
+	f.start(id, bootstrap.OSUpdateJobErase)
+	return nil
+}
+
+// reinstalled is the erase finishing: the host restarts on a fresh install of
+// version with a new host key, and none of the old host's jobs, tailnet state
+// or secure token.
+func (f *fakeOSUpdateHost) reinstalled(version, hostKey string) {
+	f.version, f.hostKey = version, hostKey
+	f.bootTime += 1000
+	f.jobs, f.jobsID = map[string]bootstrap.OSUpdateJob{}, ""
+	f.tailscaleState = nil
+	f.noToken = true
 }
 
 // leftover places a job an earlier update left on the host.
@@ -161,10 +212,15 @@ func newOSUpdateFixture(t *testing.T, machine *infrav1.RackAppleSiliconMachine, 
 	rack := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = osUpdateTestMachine })
 	r := newRackReconciler(t, append([]runtime.Object{rack, machine}, objs...)...)
 	fake := newFakeOSUpdateHost()
-	r.osUpdateDial = func(string, string, []byte, string) (osUpdateHost, error) {
+	r.osUpdateDial = func(_, _ string, _ []byte, knownFingerprint string) (osUpdateHost, error) {
 		fake.dials++
-		if fake.unreachable {
+		switch {
+		case fake.unreachable:
 			return nil, errors.New("dial tcp 192.168.0.41:22: connect: connection refused")
+		case knownFingerprint != "" && knownFingerprint != fake.hostKey:
+			return nil, fmt.Errorf("ssh: handshake failed: %w: expected %s, got %s", bootstrap.ErrHostKeyMismatch, knownFingerprint, fake.hostKey)
+		case fake.enrolling:
+			return nil, errors.New("ssh: handshake failed: ssh: unable to authenticate")
 		}
 		return fake, nil
 	}
@@ -178,9 +234,26 @@ func newOSUpdateFixture(t *testing.T, machine *infrav1.RackAppleSiliconMachine, 
 
 func (f *osUpdateFixture) step() {
 	f.t.Helper()
-	if _, err := f.r.reconcileOSUpdate(context.Background(), f.oc); err != nil {
+	f.stepResult()
+}
+
+// stepResult reconciles once, reading the pinned host key the way every
+// reconcile does.
+func (f *osUpdateFixture) stepResult() ctrl.Result {
+	f.t.Helper()
+	creds, err := f.r.CredentialsManager.GetMachineBootstrap(context.Background(), osUpdateTestMachine)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.oc.knownFingerprint = ""
+	if creds != nil {
+		f.oc.knownFingerprint = creds.HostFingerprint
+	}
+	result, err := f.r.reconcileOSUpdate(context.Background(), f.oc)
+	if err != nil {
 		f.t.Fatalf("reconcileOSUpdate: %v", err)
 	}
+	return result
 }
 
 // stepLosingStatus runs a reconcile whose status write never lands, as when the
@@ -673,6 +746,295 @@ func TestOSUpdateIgnoresJobsAnEarlierUpdateLeftOnTheHost(t *testing.T) {
 	f.step()
 	if len(f.host.installs) != 1 {
 		t.Fatal("took an earlier update's install for this one's")
+	}
+}
+
+func reinstallingMachine(target string, mutate ...func(*infrav1.RackAppleSiliconMachine)) *infrav1.RackAppleSiliconMachine {
+	return updatingMachine(target, append([]func(*infrav1.RackAppleSiliconMachine){func(m *infrav1.RackAppleSiliconMachine) {
+		m.Annotations = map[string]string{OSReinstallAnnotation: target}
+	}}, mutate...)...)
+}
+
+// newReinstallFixture is a host on 26.7 pinned to its current key, on the
+// tailnet, asked to reinstall onto 27.0.
+func newReinstallFixture(t *testing.T, objs ...runtime.Object) *osUpdateFixture {
+	t.Helper()
+	f := newOSUpdateFixture(t, reinstallingMachine("27.0"), append([]runtime.Object{ownerMachine(), updatingNode()}, objs...)...)
+	f.host.version, f.host.hostKey = "26.7", "SHA256:old"
+	f.host.tailscaleState = []byte(`{"_machinekey":"ber1-0"}`)
+	if err := f.r.CredentialsManager.SetMachineHostFingerprint(context.Background(), osUpdateTestMachine, "SHA256:old"); err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func (f *osUpdateFixture) machineCreds() (pinned string, tailscaleState []byte) {
+	f.t.Helper()
+	creds, err := f.r.CredentialsManager.GetMachineBootstrap(context.Background(), osUpdateTestMachine)
+	if err != nil || creds == nil {
+		f.t.Fatalf("machine bootstrap secret: %v", err)
+	}
+	return creds.HostFingerprint, creds.TailscaleState
+}
+
+// driveToErasing runs a reinstall through an empty drain and the installer download until the erase is running.
+func (f *osUpdateFixture) driveToErasing() {
+	f.t.Helper()
+	f.stepUntil(OSUpdatePhaseDownloading)
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "")
+	f.stepUntil(OSUpdatePhaseErasing)
+	f.step()
+	f.wantPhase(OSUpdatePhaseErasing)
+	if len(f.host.erases) != 1 {
+		f.t.Fatalf("erases = %d, want 1", len(f.host.erases))
+	}
+}
+
+func TestOSUpdateReinstallRunsTheWholeWave(t *testing.T) {
+	f := newReinstallFixture(t)
+
+	f.step()
+	f.wantPhase(OSUpdatePhaseDraining)
+	if st := f.status(); !st.Reinstall || st.Label != "macOS 27 Golden Gate" || st.RackHost != "mini-01" || st.FromVersion != "26.7" {
+		t.Fatalf("status = %+v", st)
+	}
+	if !f.cordoned() || !f.cordonMarked() {
+		t.Fatal("the Node was not cordoned, as the update's, before anything else")
+	}
+
+	f.step()
+	f.wantPhase(OSUpdatePhaseDownloading)
+	if len(f.host.fetches) != 1 || f.host.fetches[0] != "27.0" || len(f.host.downloads) != 0 {
+		t.Fatalf("fetches = %v, in-place downloads = %v", f.host.fetches, f.host.downloads)
+	}
+
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "Install finished successfully")
+	f.oc.machine.Status.HostConfigHash = "converged-before-the-reinstall"
+	f.step()
+	f.wantPhase(OSUpdatePhaseErasing)
+	if len(f.host.erases) != 0 {
+		t.Fatal("the erase started before its boot time was written to the status")
+	}
+	if !f.remediationSkipped() || f.status().BootTimeBefore != 100 || f.oc.machine.Status.HostConfigHash != "" {
+		t.Fatalf("before the erase: skipRemediation=%t bootTimeBefore=%d hash=%q", f.remediationSkipped(), f.status().BootTimeBefore, f.oc.machine.Status.HostConfigHash)
+	}
+
+	f.step()
+	want := fakeErase{"/Applications/Install macOS 27 Golden Gate.app", "tuist", "hunter2"}
+	if len(f.host.erases) != 1 || f.host.erases[0] != want {
+		t.Fatalf("erases = %+v, want %+v", f.host.erases, want)
+	}
+	if _, kept := f.machineCreds(); string(kept) != `{"_machinekey":"ber1-0"}` {
+		t.Fatalf("tailnet state kept for the reinstall = %q", kept)
+	}
+	f.step()
+	if len(f.host.erases) != 1 {
+		t.Fatal("started the running erase again")
+	}
+
+	f.host.reinstalled("27.0", "SHA256:new")
+	f.host.enrolling = true
+	f.step()
+	f.wantPhase(OSUpdatePhaseEnrolling)
+	f.step()
+	f.wantPhase(OSUpdatePhaseEnrolling)
+	if pinned, _ := f.machineCreds(); pinned != "SHA256:old" {
+		t.Fatalf("pinned %q before the host could be checked", pinned)
+	}
+
+	f.host.enrolling = false
+	f.step()
+	f.wantPhase(OSUpdatePhaseBootstrapping)
+	if pinned, _ := f.machineCreds(); pinned != "SHA256:new" {
+		t.Fatalf("pinned = %q, want the reinstalled host's key", pinned)
+	}
+	if conditions.IsTrue(f.oc.machine, BootstrappedCondition) {
+		t.Fatal("the reinstalled host still reads as bootstrapped")
+	}
+	if result := f.stepResult(); !result.IsZero() {
+		t.Fatalf("result = %+v, want zero so the reconcile goes on to bootstrap the host", result)
+	}
+	f.wantPhase(OSUpdatePhaseBootstrapping)
+
+	conditions.MarkTrue(f.oc.machine, BootstrappedCondition)
+	f.step()
+	f.wantPhase(OSUpdatePhaseRestarting)
+	if f.status().BootTimeBefore != 1100 {
+		t.Fatalf("boot time before the restart = %d", f.status().BootTimeBefore)
+	}
+	f.step()
+	if f.host.restarts != 1 {
+		t.Fatalf("restarts = %d", f.host.restarts)
+	}
+	f.host.bootTime, f.host.noToken = 1200, false
+	f.step()
+	f.wantPhase(OSUpdatePhaseConverging)
+	if !f.cordoned() {
+		t.Fatal("uncordoned before the host converged")
+	}
+
+	f.converged()
+	f.step()
+	f.wantPhase(OSUpdatePhaseSucceeded)
+	if f.cordoned() || f.cordonMarked() || f.remediationSkipped() || f.annotated() || f.reinstallAnnotated() {
+		t.Fatal("the reinstall did not hand the Node and the Machine back")
+	}
+	if msg := f.status().Message; msg != "erased the host and installed macOS 27.0 over 26.7" {
+		t.Fatalf("message = %q", msg)
+	}
+}
+
+func (f *osUpdateFixture) reinstallAnnotated() bool {
+	_, ok := f.oc.machine.Annotations[OSReinstallAnnotation]
+	return ok
+}
+
+func TestOSUpdateReinstallSkipsTheRestartWhenTheTokenIsThere(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.reinstalled("27.0", "SHA256:new")
+	f.stepUntil(OSUpdatePhaseBootstrapping)
+	conditions.MarkTrue(f.oc.machine, BootstrappedCondition)
+	f.host.noToken = false
+	f.step()
+	f.wantPhase(OSUpdatePhaseConverging)
+	if f.host.restarts != 0 {
+		t.Fatal("restarted a host whose user already has a secure token")
+	}
+}
+
+func TestOSUpdateReinstallNeverTrustsAHostWithAnotherSerial(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.reinstalled("27.0", "SHA256:impostor")
+	f.host.serial = "C02XL0GZJGH5"
+	f.stepUntil(OSUpdatePhaseEnrolling)
+	f.step()
+	f.wantFailed("HostIdentityMismatch")
+	if pinned, _ := f.machineCreds(); pinned != "SHA256:old" {
+		t.Fatalf("pinned %q from a host that is not the RackHost", pinned)
+	}
+	if !f.cordoned() {
+		t.Fatal("a Node whose host could not be verified went back into service")
+	}
+}
+
+func TestOSUpdateReinstallFailsOnAnotherVersion(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.reinstalled("26.7", "SHA256:new")
+	f.stepUntil(OSUpdatePhaseEnrolling)
+	f.step()
+	f.wantFailed("VersionMismatch")
+	if !f.cordoned() {
+		t.Fatal("a host on an unexpected version went back into service")
+	}
+}
+
+func TestOSUpdateReinstallThatRestartsUnerasedKeepsTheNodeCordoned(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.bootTime = 200
+	f.step()
+	f.wantFailed("NotErased")
+	if !f.cordoned() || f.remediationSkipped() {
+		t.Fatal("an unexplained restart must stay cordoned and go back to the health check")
+	}
+}
+
+func TestOSUpdateFailedEraseHandsTheHostBack(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.exit(bootstrap.OSUpdateJobErase, 1, "Error: could not validate sizes")
+	f.step()
+	f.wantFailed("EraseFailed")
+	if f.cordoned() || f.remediationSkipped() {
+		t.Fatal("a host the erase never touched was not handed back")
+	}
+	if _, kept := f.machineCreds(); kept != nil {
+		t.Fatal("kept the tailnet state of a host that is still on the tailnet")
+	}
+}
+
+func TestOSUpdateReinstallRefusesAHostWithoutASerial(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.oc.host.Spec.Serial = ""
+	f.step()
+	f.wantFailed("NoSerial")
+	if f.host.dials != 0 || f.cordoned() {
+		t.Fatal("started a reinstall whose new host key could not be verified")
+	}
+}
+
+func TestOSUpdateReinstallRefusesAVersionWithoutAFullInstaller(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.oc.machine.Annotations[OSReinstallAnnotation] = "27.1"
+	f.step()
+	f.wantFailed("NotOffered")
+	if msg := f.status().Message; !strings.Contains(msg, "offered: 27.0, 26.7") {
+		t.Fatalf("message %q should list the full installers on offer", msg)
+	}
+	if f.cordoned() {
+		t.Fatal("cordoned for a reinstall that cannot happen")
+	}
+}
+
+func TestOSUpdateInPlaceRefusalPointsAtTheReinstall(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("27.0"), ownerMachine(), updatingNode())
+	f.host.version = "26.7"
+	f.step()
+	f.wantFailed("ReleaseFamilyMove")
+	if msg := f.status().Message; !strings.Contains(msg, OSReinstallAnnotation+"=27.0") {
+		t.Fatalf("message %q should name the reinstall annotation", msg)
+	}
+}
+
+func TestOSUpdateRefusesBothRequestsAtOnce(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.oc.machine.Annotations[OSUpdateAnnotation] = "26.8"
+	f.step()
+	f.wantFailed("ConflictingRequests")
+	if f.annotated() || f.reinstallAnnotated() || f.host.dials != 0 {
+		t.Fatal("acted on, or kept, conflicting requests")
+	}
+}
+
+func TestOSUpdateFailsWhenTheMachineLetsGoOfItsHost(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.reinstalled("27.0", "SHA256:new")
+	f.stepUntil(OSUpdatePhaseBootstrapping)
+	f.oc.host = rackHost("mini-02", func(h *infrav1.RackHost) { h.Status.ClaimedBy = osUpdateTestMachine })
+	f.step()
+	f.wantFailed("HostReleased")
+}
+
+func TestErasingHostIsNotPushedByTheDriftLoop(t *testing.T) {
+	machine := reinstallingMachine("27.0", func(m *infrav1.RackAppleSiliconMachine) {
+		m.Status.HostConfigHash = "stale"
+		m.Status.OSUpdate = &infrav1.OSUpdateStatus{
+			ID:             "u1",
+			Reinstall:      true,
+			RackHost:       "mini-01",
+			Target:         "27.0",
+			Label:          "macOS 27 Golden Gate",
+			Phase:          OSUpdatePhaseErasing,
+			PhaseStartedAt: &metav1.Time{Time: time.Now()},
+			BootTimeBefore: 100,
+		}
+	})
+	f := newOSUpdateFixture(t, machine, ownerMachine(), updatingNode(), fleetSecret())
+	f.host.unreachable = true
+
+	result, err := f.r.reconcileNormal(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("reconcileNormal: %v", err)
+	}
+	if result.RequeueAfter != osUpdatePollInterval {
+		t.Fatalf("result = %+v, want a poll of the erase", result)
+	}
+	if machine.Status.HostConfigHash != "stale" || machine.Status.TartKubeletUpdateAttempts != 0 {
+		t.Fatal("the drift loop tried to push a host that is being erased")
 	}
 }
 

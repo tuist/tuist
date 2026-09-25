@@ -153,7 +153,19 @@ type OSUpdateStatus struct {
 	// +optional
 	Target string `json:"target,omitempty"`
 
-	// Label is the softwareupdate label resolved for Target.
+	// Reinstall is set when the host is erased and Target installed from the
+	// full installer, as the tuist.dev/os-reinstall annotation asks, rather
+	// than updated in place.
+	// +optional
+	Reinstall bool `json:"reinstall,omitempty"`
+
+	// RackHost is the host the update started on. The update fails if the
+	// Machine lets go of it.
+	// +optional
+	RackHost string `json:"rackHost,omitempty"`
+
+	// Label is the softwareupdate label resolved for Target, or for a
+	// reinstall the title of its full installer.
 	// +optional
 	Label string `json:"label,omitempty"`
 
@@ -162,7 +174,9 @@ type OSUpdateStatus struct {
 	FromVersion string `json:"fromVersion,omitempty"`
 
 	// Phase is one of Preparing, Draining, Downloading, Installing, Converging,
-	// Succeeded or Failed.
+	// Succeeded or Failed. A reinstall replaces Installing with Erasing,
+	// Enrolling, Bootstrapping and, when the SSH user has no secure token yet,
+	// Restarting.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 
@@ -184,7 +198,8 @@ type OSUpdateStatus struct {
 	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 
 	// BootTimeBefore is the host's boot time (Unix seconds), recorded before the
-	// install starts, so the reboot is detected by the boot time moving.
+	// install, erase or restart starts, so the reboot is detected by the boot
+	// time moving.
 	// +optional
 	BootTimeBefore int64 `json:"bootTimeBefore,omitempty"`
 }

@@ -18,7 +18,21 @@ var osUpdateIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 const (
 	OSUpdateJobDownload = "download"
 	OSUpdateJobInstall  = "install"
+	OSUpdateJobErase    = "erase"
 )
+
+// OSInstaller is one entry of `softwareupdate --list-full-installers`.
+type OSInstaller struct {
+	Title   string
+	Version string
+	Build   string
+}
+
+// App is where `softwareupdate --fetch-full-installer` puts the installer: its
+// title names the app, "macOS 27 Golden Gate" as "Install macOS 27 Golden Gate.app".
+func (i OSInstaller) App() string {
+	return "/Applications/Install " + i.Title + ".app"
+}
 
 // OSUpdate is one entry of `softwareupdate --list`.
 type OSUpdate struct {
@@ -57,7 +71,29 @@ var (
 	kernBootTimeSeconds  = regexp.MustCompile(`sec\s*=\s*(\d+)`)
 	osUpdateJobStateLine = regexp.MustCompile(`^(absent|running|exited|lost)(?:\s+(-?\d+))?$`)
 	secureTokenStatus    = regexp.MustCompile(`Secure token is (ENABLED|DISABLED)`)
+	fullInstallerEntry   = regexp.MustCompile(`^\*\s*Title:\s*(.+?),\s*Version:\s*([^,]+?)\s*,.*\bBuild:\s*([^,\s]+)`)
+	ioregSerialNumber    = regexp.MustCompile(`"IOPlatformSerialNumber"\s*=\s*"([^"]+)"`)
 )
+
+// ParseFullInstallerList parses `softwareupdate --list-full-installers` output.
+func ParseFullInstallerList(out string) []OSInstaller {
+	var installers []OSInstaller
+	for _, line := range strings.Split(out, "\n") {
+		if m := fullInstallerEntry.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
+			installers = append(installers, OSInstaller{Title: m[1], Version: m[2], Build: m[3]})
+		}
+	}
+	return installers
+}
+
+// ParseIORegSerial reads the hardware serial from `ioreg -rd1 -c IOPlatformExpertDevice`.
+func ParseIORegSerial(out string) (string, error) {
+	m := ioregSerialNumber.FindStringSubmatch(out)
+	if m == nil {
+		return "", fmt.Errorf("no IOPlatformSerialNumber in %q", strings.TrimSpace(out))
+	}
+	return m[1], nil
+}
 
 // ParseSecureTokenStatus reads `sysadminctl -secureTokenStatus`, which reports on stderr and exits 0 even for an unknown user.
 func ParseSecureTokenStatus(out string) (bool, error) {
@@ -138,6 +174,32 @@ func renderOSUpdateInstallScript(root, id, label, user string) string {
 	return renderOSUpdateJobScript(root, id, OSUpdateJobInstall, "IFS= read -r pw\n",
 		`printf '%s\n' "$pw" | sudo -n softwareupdate --install `+shellQuote(label)+
 			" --restart --user "+shellQuote(user)+" --stdinpass")
+}
+
+func renderOSUpdateFetchInstallerScript(root, id, version string) string {
+	return renderOSUpdateJobScript(root, id, OSUpdateJobDownload, "",
+		"sudo -n softwareupdate --fetch-full-installer --full-installer-version "+shellQuote(version))
+}
+
+// renderOSUpdateEraseScript erases the startup volume and installs from the
+// installer app. Like the install, it reads the volume owner's password from
+// stdin, so it never appears in a process's arguments.
+func renderOSUpdateEraseScript(root, id string, installer OSInstaller, user string) string {
+	return renderOSUpdateJobScript(root, id, OSUpdateJobErase, "IFS= read -r pw\n",
+		`printf '%s\n' "$pw" | sudo -n `+shellQuote(installer.App()+"/Contents/Resources/startosinstall")+
+			" --eraseinstall --agreetolicense --forcequitapps --newvolumename 'Macintosh HD' --user "+shellQuote(user)+" --stdinpass")
+}
+
+// osRestartScript checks sudo while the session can still report a failure,
+// then restarts the host detached from it, so the command returns before sshd
+// goes down.
+const osRestartScript = `set -eu
+sudo -n true
+( trap '' HUP; sleep 2; sudo -n shutdown -r now ) </dev/null >/dev/null 2>&1 &
+`
+
+func renderTailscaleStateReadScript(path string) string {
+	return fmt.Sprintf("if sudo -n test -s %[1]s; then sudo -n cat %[1]s; fi\n", shellQuote(path))
 }
 
 func renderOSUpdateJobStateScript(root, id, job string) string {
@@ -224,6 +286,52 @@ func (s *OSUpdateSession) StartInstall(ctx context.Context, id, label, user, pas
 		return err
 	}
 	return RunCommandWithStdin(ctx, s.client, renderOSUpdateInstallScript(osUpdateRoot, id, label, user), strings.NewReader(password+"\n"))
+}
+
+func (s *OSUpdateSession) ListFullInstallers(ctx context.Context) ([]OSInstaller, error) {
+	out, err := RunCommandOutput(ctx, s.client, "softwareupdate --list-full-installers 2>&1", nil)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFullInstallerList(out), nil
+}
+
+func (s *OSUpdateSession) StartFetchInstaller(ctx context.Context, id, version string) error {
+	if err := checkOSUpdateID(id); err != nil {
+		return err
+	}
+	return RunCommand(ctx, s.client, renderOSUpdateFetchInstallerScript(osUpdateRoot, id, version))
+}
+
+func (s *OSUpdateSession) StartErase(ctx context.Context, id string, installer OSInstaller, user, password string) error {
+	if err := checkOSUpdateID(id); err != nil {
+		return err
+	}
+	return RunCommandWithStdin(ctx, s.client, renderOSUpdateEraseScript(osUpdateRoot, id, installer, user), strings.NewReader(password+"\n"))
+}
+
+func (s *OSUpdateSession) Serial(ctx context.Context) (string, error) {
+	out, err := RunCommandOutput(ctx, s.client, "ioreg -rd1 -c IOPlatformExpertDevice", nil)
+	if err != nil {
+		return "", err
+	}
+	return ParseIORegSerial(out)
+}
+
+func (s *OSUpdateSession) Restart(ctx context.Context) error {
+	return RunCommand(ctx, s.client, osRestartScript)
+}
+
+// TailscaleState is tailscaled's state file, or nil on a host that has none.
+func (s *OSUpdateSession) TailscaleState(ctx context.Context) ([]byte, error) {
+	out, err := RunCommandOutput(ctx, s.client, renderTailscaleStateReadScript(tailscaleStatePath), nil)
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
+	return []byte(out), nil
 }
 
 // Job reports the named job of the update with this ID; another update's job reads as absent.

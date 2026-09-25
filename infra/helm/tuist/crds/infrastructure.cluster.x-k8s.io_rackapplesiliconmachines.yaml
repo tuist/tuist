@@ -309,7 +309,8 @@ spec:
                     bootTimeBefore:
                       description: |-
                         BootTimeBefore is the host's boot time (Unix seconds), recorded before the
-                        install starts, so the reboot is detected by the boot time moving.
+                        install, erase or restart starts, so the reboot is detected by the boot
+                        time moving.
                       format: int64
                       type: integer
                     completedAt:
@@ -325,7 +326,9 @@ spec:
                         update left.
                       type: string
                     label:
-                      description: Label is the softwareupdate label resolved for Target.
+                      description: |-
+                        Label is the softwareupdate label resolved for Target, or for a
+                        reinstall the title of its full installer.
                       type: string
                     message:
                       description: Message describes what the update is doing or why it stopped.
@@ -333,14 +336,27 @@ spec:
                     phase:
                       description: |-
                         Phase is one of Preparing, Draining, Downloading, Installing, Converging,
-                        Succeeded or Failed.
+                        Succeeded or Failed. A reinstall replaces Installing with Erasing,
+                        Enrolling, Bootstrapping and, when the SSH user has no secure token yet,
+                        Restarting.
                       type: string
                     phaseStartedAt:
                       format: date-time
                       type: string
+                    rackHost:
+                      description: |-
+                        RackHost is the host the update started on. The update fails if the
+                        Machine lets go of it.
+                      type: string
                     reason:
                       description: Reason is a machine-readable cause when Phase is Failed.
                       type: string
+                    reinstall:
+                      description: |-
+                        Reinstall is set when the host is erased and Target installed from the
+                        full installer, as the tuist.dev/os-reinstall annotation asks, rather
+                        than updated in place.
+                      type: boolean
                     startedAt:
                       format: date-time
                       type: string

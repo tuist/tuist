@@ -137,6 +137,12 @@ type Config struct {
 	// the credential hasn't been provisioned yet.
 	TailscaleAuthKey string
 
+	// TailscaleState is tailscaled's state file, restored before the daemon starts
+	// on a host that has none. A rack host erased and installed again carries it
+	// over, so it rejoins the tailnet as the device it was instead of as a new one
+	// that gets a suffixed name next to the old record.
+	TailscaleState []byte
+
 	// TailscaleTags are the Tailscale ACL tags advertised on this
 	// node at `tailscale up` time. Drives which ACL groups can dial
 	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
@@ -662,6 +668,7 @@ type PerHost struct {
 	ProviderID           string
 	Kubeconfig           string
 	TailscaleAuthKey     string
+	TailscaleState       []byte
 	VNCRelayHost         string
 	VMCachePNVLAN        uint32
 	KnownHostFingerprint string
@@ -687,6 +694,7 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.ProviderID = p.ProviderID
 	c.Kubeconfig = p.Kubeconfig
 	c.TailscaleAuthKey = p.TailscaleAuthKey
+	c.TailscaleState = p.TailscaleState
 	c.VNCRelayHost = p.VNCRelayHost
 	c.VMCachePNVLAN = p.VMCachePNVLAN
 	c.KnownHostFingerprint = p.KnownHostFingerprint
@@ -2164,8 +2172,31 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	if err := RunCommandWithStdin(ctx, client, keyScript, strings.NewReader(cfg.TailscaleAuthKey)); err != nil {
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
+	if len(cfg.TailscaleState) > 0 {
+		if err := RunCommandWithStdin(ctx, client, renderTailscaleStateRestoreScript(tailscaleStatePath), bytes.NewReader(cfg.TailscaleState)); err != nil {
+			return fmt.Errorf("restore tailscale state: %w", err)
+		}
+	}
 
 	return RunCommandWithStdin(ctx, client, renderTailscaleScript(cfg), bytes.NewReader(cfg.TailscaleBinaries))
+}
+
+// tailscaleStatePath is where the launchd job renderTailscaleScript writes
+// points tailscaled's --state.
+const tailscaleStatePath = "/var/lib/tailscale/tailscaled.state"
+
+// renderTailscaleStateRestoreScript writes the state from stdin only when the
+// host has none, so a host that is already on the tailnet keeps its own.
+func renderTailscaleStateRestoreScript(path string) string {
+	return fmt.Sprintf(`set -eu
+if sudo test -s %[1]s; then
+  cat >/dev/null
+  exit 0
+fi
+sudo mkdir -p "$(dirname %[1]s)"
+sudo tee %[1]s >/dev/null
+sudo chmod 0600 %[1]s
+`, shellQuote(path))
 }
 
 // validateTailscaleCredential rejects a config the host could only fail on.
