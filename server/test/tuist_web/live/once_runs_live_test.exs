@@ -127,6 +127,11 @@ defmodule TuistWeb.OnceRunsLiveTest do
     {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/build-runs")
     render_async(view, 2_000)
 
+    # Run status reads Passed/Failed, the words Xcode's listings use, not
+    # Succeeded/Failed.
+    assert render(view) =~ "Passed"
+    refute render(view) =~ "Succeeded"
+
     assert row_count(view) == 3
     assert has_element?(view, "#once-invocations-filter-dropdown")
 

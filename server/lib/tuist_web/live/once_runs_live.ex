@@ -760,7 +760,7 @@ defmodule TuistWeb.OnceRunsLive do
               >
                 <.status_badge_cell
                   :if={invocation.status == "success"}
-                  label={dgettext("dashboard_projects", "Succeeded")}
+                  label={dgettext("dashboard_builds", "Passed")}
                   status="success"
                 />
                 <.status_badge_cell
@@ -1215,7 +1215,7 @@ defmodule TuistWeb.OnceRunsLive do
         type: :option,
         options: ["success", "failure"],
         options_display_names: %{
-          "success" => dgettext("dashboard_projects", "Succeeded"),
+          "success" => dgettext("dashboard_builds", "Passed"),
           "failure" => dgettext("dashboard_projects", "Failed")
         },
         operator: :==,

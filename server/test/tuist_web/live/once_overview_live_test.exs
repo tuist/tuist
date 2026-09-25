@@ -88,6 +88,11 @@ defmodule TuistWeb.OnceOverviewLiveTest do
     assert order == ["Analytics", "Tests", "Builds"]
 
     html = render(view)
+    # Terminology follows the Xcode overview: the same metric is called
+    # "Cache effectiveness" there, not "Cache hit rate".
+    assert html =~ "Cache effectiveness"
+    refute html =~ "Action cache hit rate"
+
     assert html =~ "Passed builds"
     assert html =~ "Failed builds"
     assert html =~ "Passed runs"

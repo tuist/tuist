@@ -149,11 +149,11 @@ defmodule TuistWeb.OnceOverviewLive do
             <.widget
               id="once-cache-hit-rate"
               loading={!@cache_summary.ok?}
-              title={dgettext("dashboard_projects", "Cache hit rate")}
+              title={dgettext("dashboard_projects", "Cache effectiveness")}
               description={
                 dgettext(
                   "dashboard_projects",
-                  "The share of action-cache lookups served from Tuist's remote cache."
+                  "The share of cacheable actions resolved from cache rather than being rerun."
                 )
               }
               value={
@@ -219,7 +219,7 @@ defmodule TuistWeb.OnceOverviewLive do
             <div data-part="effectiveness-chart">
               <div data-part="legends">
                 <.legend
-                  title={dgettext("dashboard_projects", "Action cache hit rate")}
+                  title={dgettext("dashboard_projects", "Cache effectiveness")}
                   value={
                     if @cache_summary.ok? and @cache_summary.result.hit_rate,
                       do: "#{@cache_summary.result.hit_rate}%"
@@ -265,7 +265,7 @@ defmodule TuistWeb.OnceOverviewLive do
                       @cache_hit_rate_analytics.result.dates
                       |> Enum.zip(@cache_hit_rate_analytics.result.hit_rate_values)
                       |> Enum.map(&Tuple.to_list/1),
-                    name: dgettext("dashboard_projects", "Action cache hit rate"),
+                    name: dgettext("dashboard_projects", "Cache effectiveness"),
                     type: "line",
                     smooth: 0.1,
                     symbol: "none"
