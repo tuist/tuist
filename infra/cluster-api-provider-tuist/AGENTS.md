@@ -51,6 +51,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `RackLinuxMachine` (+ `…Template`) | One rack Linux node: node labels, taints, `adoptPool`, `fleetName`. No host identity. |
 | `RackLinuxHost` | One x86 Linux machine we own: pool, role, site, the tailnet tags its install joins it with, and the MAC it netboots from. Status carries its current tailnet device and a published install. |
+| `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, the `bootMAC` to declare (its i226-LM), the edge that heard it, and the host that declares it, if any. The operator keeps it; nothing else writes it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
@@ -654,6 +655,16 @@ step a host is on. The same controller scales the MachineDeployment labelled
 `tuist.dev/rack-pool=<pool>` up to the number of the pool's hosts on the
 tailnet, not counting hosts being deleted, and never down, so the chart can
 declare a host before it is installed.
+
+**Machines nobody declared announce themselves** (`racklinux_discovery.go`).
+While nothing is published for it, a machine's install stick posts its SMBIOS
+UUID, serial, product and NICs to the boot server's `cgi-bin/announce`
+(`files/rack-boot.sh`), which keeps each under its UUID in
+`/var/lib/tuist-rack-boot/announced` for a day. Once a minute the discovery
+reads every connected edge's announcements over SSH, the same way the
+reinstall reaches a host, and keeps one `RackLinuxCandidate` per machine with
+the newest announcement. It marks a candidate with the `RackLinuxHost` whose
+`bootMAC` is one of its NICs and drops one no edge has heard from for a week.
 
 **A box is its `bootMAC`** (`racklinuxhost_takeover.go`). Hosts declaring the
 same MAC are one box under several names, and the one created last is what the

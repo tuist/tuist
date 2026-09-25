@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
@@ -426,39 +427,45 @@ func randomPassword(n int) (string, error) {
 // install stick or else its network entry, on the next boot only, then reboots
 // it.
 func (r *RackLinuxHostReconciler) bootInstallerOnce(ctx context.Context, host *infrav1.RackLinuxHost) error {
-	egress := r.egress()
-	if err := egress.ensure(ctx, r.Client, host); err != nil {
-		return fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
-	}
-	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, r.Install.FleetName)
-	if err != nil {
-		return err
-	}
-	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
-	known := ""
-	if creds, err := r.CredentialsManager.GetMachineBootstrap(ctx, pinKey); err != nil {
-		return fmt.Errorf("read the host key pin: %w", err)
-	} else if creds != nil {
-		known = creds.HostFingerprint
-	}
-	hk := bootstrap.NewHostKeyState(known)
-	defer func() {
-		if observed := hk.Observed(); observed != "" && observed != known {
-			if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, pinKey, observed); err != nil {
-				log.FromContext(ctx).Error(err, "persist the host key pin", "host", host.Name)
-			}
-		}
-	}()
-	run := r.RunScript
-	if run == nil {
-		run = runRackScriptOverSSH
-	}
-	out, err := run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key,
-		renderBootInstallerOnceScript(host.Spec.BootMAC), rackBootInstallerTimeout, hk)
+	out, err := runOnRackHost(ctx, r.Client, r.CredentialsManager, r.Install.FleetName, r.egress(), r.RunScript,
+		host, renderBootInstallerOnceScript(host.Spec.BootMAC), rackBootInstallerTimeout)
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(out))
 	}
 	return nil
+}
+
+// runOnRackHost runs script as root on a connected rack Linux host, over SSH
+// with the fleet's key through the host's egress Service, holding the host to
+// the key its current device first presented.
+func runOnRackHost(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress, run RunRackScript,
+	host *infrav1.RackLinuxHost, script string, timeout time.Duration) (string, error) {
+	if err := egress.ensure(ctx, c, host); err != nil {
+		return "", fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
+	}
+	key, err := creds.ReadFleetSSHKey(ctx, fleet)
+	if err != nil {
+		return "", err
+	}
+	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
+	known := ""
+	if pin, err := creds.GetMachineBootstrap(ctx, pinKey); err != nil {
+		return "", fmt.Errorf("read the host key pin: %w", err)
+	} else if pin != nil {
+		known = pin.HostFingerprint
+	}
+	hk := bootstrap.NewHostKeyState(known)
+	defer func() {
+		if observed := hk.Observed(); observed != "" && observed != known {
+			if err := creds.SetMachineHostFingerprint(ctx, pinKey, observed); err != nil {
+				log.FromContext(ctx).Error(err, "persist the host key pin", "host", host.Name)
+			}
+		}
+	}()
+	if run == nil {
+		run = runRackScriptOverSSH
+	}
+	return run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, script, timeout, hk)
 }
 
 // renderBootInstallerOnceScript sets BootNext to the host's installer and

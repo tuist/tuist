@@ -65,6 +65,20 @@ find it.
   its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
   it and reboots. A host without one netboots instead.
 
+**Declaring a new box** needs no one to read its label. Racked with its stick
+and powered on, it finds nothing published and announces itself to the boot
+server once a minute, and the operator lists it:
+
+```
+kubectl get rlc -o wide
+```
+
+A `RackLinuxCandidate` is named after the machine's SMBIOS UUID and shows its
+serial, product and `BOOTMAC`, its i226-LM. Declaring the box is adding it to
+`rackLinuxFleet.hosts` with that `bootMAC`; the operator then publishes its
+install, and the stick, still waiting, installs it. A candidate that a host
+already declares shows the host under `DECLAREDAS`.
+
 ## Netboot
 
 For a host with a `bootMAC` that is not on the tailnet, or that carries

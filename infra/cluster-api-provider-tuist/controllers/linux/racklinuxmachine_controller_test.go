@@ -46,10 +46,15 @@ type scriptRun struct {
 type fakeRunner struct {
 	runs    []scriptRun
 	results []error
+	// reply, when set, is what a script prints on the host it runs on.
+	reply func(host, script string) string
 }
 
 func (f *fakeRunner) run(_ context.Context, _, host string, _ []byte, script string, _ time.Duration, hk *bootstrap.HostKeyState) (string, error) {
 	f.runs = append(f.runs, scriptRun{host: host, script: script, pinned: hk.Observed()})
+	if f.reply != nil {
+		return f.reply(host, script), nil
+	}
 	var err error
 	if len(f.results) > 0 {
 		err = f.results[0]

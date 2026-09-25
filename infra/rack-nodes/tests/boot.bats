@@ -10,7 +10,7 @@ setup() {
   RACK_BOOT_SOURCE_ONLY=1
   # shellcheck source=/dev/null
   source "$ROOT/infra/helm/tuist/files/rack-boot.sh"
-  set +eu
+  set +u
 }
 
 publish() {
@@ -100,4 +100,72 @@ EOF
   run prepare
   [ "$status" -eq 0 ]
   [ "$(wc -l <"$BATS_TEST_TMPDIR/downloads")" -eq 2 ]
+}
+
+# A machine whose stick finds no install published announces itself, so the
+# operator can list it as a candidate host instead of someone reading its MAC.
+announce() {
+  local body="$1" method="${2:-POST}"
+  printf '%s' "$body" | env REQUEST_METHOD="$method" CONTENT_LENGTH="${#body}" REMOTE_ADDR=192.168.50.144 \
+    "$STATE/http/cgi-bin/announce"
+}
+
+ms01='uuid=44312e80-1dc6-11f1-853e-8f903547d200
+serial=MD148LS139QQMQE00070
+product=Micro Computer (HK) Tech Limited Venus Series
+nic=38:05:25:38:b5:b5 igc 0x125b
+nic=38:05:25:38:b5:b4 igc 0x125c
+nic=38:05:25:38:b5:b2 i40e 0x1572'
+
+@test "the boot server records a machine's announcement under its UUID" {
+  lay_out_announce
+  [ -x "$STATE/http/cgi-bin/announce" ]
+  run announce "$ms01"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Status: 200"* ]]
+  recorded="$STATE/announced/44312e80-1dc6-11f1-853e-8f903547d200"
+  [ "$(grep -c '^nic=' "$recorded")" = 3 ]
+  grep -qx 'serial=MD148LS139QQMQE00070' "$recorded"
+  grep -qx 'from=192.168.50.144' "$recorded"
+  grep -qE '^seen=[0-9]+$' "$recorded"
+}
+
+@test "an announcement that is not exactly the expected lines is refused" {
+  lay_out_announce
+  for bad in \
+    "$(printf '%s\nnic=38:05:25:38:b5:b5 igc 0x125b; rm -rf /\n' "$ms01")" \
+    "$(printf 'uuid=../../etc/passwd\nnic=38:05:25:38:b5:b5 igc 0x125b\n')" \
+    "$(printf 'serial=only\n')" \
+    "$(printf '%s\n%s\n' "$ms01" "uuid=00000000-0000-0000-0000-000000000000")" \
+    "$(printf '%s\nhostname=evil\n' "$ms01")"; do
+    run announce "$bad"
+    [[ "$output" == "Status: 400"* ]]
+  done
+  run announce "$ms01" GET
+  [[ "$output" == "Status: 405"* ]]
+  run announce "$(printf '%s\nproduct=%05000d\n' "$ms01" 0)"
+  [[ "$output" == "Status: 413"* ]]
+  [ -z "$(ls "$STATE/announced")" ]
+}
+
+@test "the boot server keeps at most 256 machines, and refreshes one it knows" {
+  lay_out_announce
+  for i in $(seq 1 256); do : >"$STATE/announced/$(printf '00000000-0000-0000-0000-%012d' "$i")"; done
+  run announce "$ms01"
+  [[ "$output" == "Status: 429"* ]]
+  rm "$STATE/announced/00000000-0000-0000-0000-000000000001"
+  run announce "$ms01"
+  [[ "$output" == "Status: 200"* ]]
+  run announce "$ms01"
+  [[ "$output" == "Status: 200"* ]]
+}
+
+@test "announcements older than a day are dropped" {
+  lay_out_announce
+  announce "$ms01" >/dev/null
+  : >"$STATE/announced/00000000-0000-0000-0000-000000000001"
+  touch -t 202601010000 "$STATE/announced/00000000-0000-0000-0000-000000000001"
+  prune_announcements
+  [ -f "$STATE/announced/44312e80-1dc6-11f1-853e-8f903547d200" ]
+  [ ! -e "$STATE/announced/00000000-0000-0000-0000-000000000001" ]
 }

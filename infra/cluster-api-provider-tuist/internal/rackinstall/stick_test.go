@@ -19,7 +19,7 @@ func TestUserDataCarriesItsInstallID(t *testing.T) {
 }
 
 type stickFakes struct {
-	bin, curlLog, seed, autoinstall, console string
+	bin, curlLog, seed, autoinstall, console, sys, announced string
 }
 
 // newStickFakes stands in for the live installer: two NICs, a boot server
@@ -34,7 +34,10 @@ func newStickFakes(t *testing.T, failures int) stickFakes {
 		seed:        filepath.Join(dir, "user-data"),
 		autoinstall: filepath.Join(dir, "autoinstall.yaml"),
 		console:     filepath.Join(dir, "console"),
+		sys:         filepath.Join(dir, "sys"),
+		announced:   filepath.Join(dir, "announced"),
 	}
+	writeFakeSys(t, f.sys)
 	published, err := UserData(edgeSeed())
 	if err != nil {
 		t.Fatal(err)
@@ -51,10 +54,14 @@ func newStickFakes(t *testing.T, failures int) stickFakes {
 2: enp2s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 58:47:CA:7A:1B:2C brd ff:ff:ff:ff:ff:ff
 3: enp89s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 38:05:25:38:b5:b5 brd ff:ff:ff:ff:ff:ff
 OUT`,
-		"curl": `out= url=
+		"curl": `out= url= data=
 while [ $# -gt 0 ]; do
-  case "$1" in -o) out="$2"; shift 2 ;; http*) url="$1"; shift ;; *) shift ;; esac
+  case "$1" in -o) out="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; http*) url="$1"; shift ;; *) shift ;; esac
 done
+if [ "$url" = http://192.168.50.1:8480/cgi-bin/announce ] && [ "$data" = @- ]; then
+  { cat; echo ---; } >>"` + f.announced + `"
+  exit 0
+fi
 echo "$url" >>"` + f.curlLog + `"
 asked=$(grep -c 38-05-25-38-b5-b5 "` + f.curlLog + `")
 case "$url" in
@@ -80,7 +87,7 @@ func (f stickFakes) run(t *testing.T) string {
 	if err != nil {
 		t.Skip("no sh")
 	}
-	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console})
+	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys})
 	cmd := exec.Command(sh, "-c", script)
 	cmd.Env = append(os.Environ(), "PATH="+f.bin+":"+os.Getenv("PATH"))
 	out, err := cmd.CombinedOutput()
@@ -207,5 +214,68 @@ func TestStickNetworkConfigBringsUpEveryWiredPort(t *testing.T) {
 	}
 	if StickMetaData() != "instance-id: tuist-install-stick\n" {
 		t.Errorf("meta-data %q", StickMetaData())
+	}
+}
+
+// writeFakeSys lays out the sysfs an MS-01's installer reads: its SMBIOS
+// identity, an SFP+ port, the i226-LM and the loopback, which has no device.
+func writeFakeSys(t *testing.T, sys string) {
+	t.Helper()
+	files := map[string]string{
+		"class/dmi/id/product_uuid":           "44312E80-1DC6-11F1-853E-8F903547D200\n",
+		"class/dmi/id/product_serial":         "MD148LS139QQMQE00070\n",
+		"class/dmi/id/sys_vendor":             "Micro Computer (HK) Tech Limited\n",
+		"class/dmi/id/product_name":           "Venus Series\n",
+		"class/net/enp2s0f0np0/address":       "58:47:ca:7a:1b:2c\n",
+		"class/net/enp2s0f0np0/device/device": "0x1572\n",
+		"class/net/enp89s0/address":           "38:05:25:38:b5:b5\n",
+		"class/net/enp89s0/device/device":     "0x125b\n",
+		"class/net/lo/address":                "00:00:00:00:00:00\n",
+		"bus/pci/drivers/i40e/.keep":          "",
+		"bus/pci/drivers/igc/.keep":           "",
+	}
+	for name, content := range files {
+		path := filepath.Join(sys, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for nic, driver := range map[string]string{"enp2s0f0np0": "i40e", "enp89s0": "igc"} {
+		if err := os.Symlink(filepath.Join(sys, "bus/pci/drivers", driver), filepath.Join(sys, "class/net", nic, "device/driver")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A machine the boot server has nothing for announces its identity and NICs,
+// so the operator can list it for someone to declare.
+func TestStickAnnouncesAMachineWithNothingPublished(t *testing.T) {
+	f := newStickFakes(t, 3)
+	f.run(t)
+	got, err := os.ReadFile(f.announced)
+	if err != nil {
+		t.Fatalf("no announcement: %v", err)
+	}
+	want := `uuid=44312e80-1dc6-11f1-853e-8f903547d200
+serial=MD148LS139QQMQE00070
+product=Micro Computer (HK) Tech Limited Venus Series
+nic=58:47:ca:7a:1b:2c i40e 0x1572
+nic=38:05:25:38:b5:b5 igc 0x125b
+---
+`
+	if string(got) != want {
+		t.Fatalf("announced:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// A machine with an install published for it has nothing to announce.
+func TestStickDoesNotAnnounceAMachineItInstalls(t *testing.T) {
+	f := newStickFakes(t, 0)
+	f.run(t)
+	if _, err := os.Stat(f.announced); err == nil {
+		t.Fatal("announced a machine with an install published")
 	}
 }
