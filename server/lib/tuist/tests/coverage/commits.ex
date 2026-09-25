@@ -517,6 +517,85 @@ defmodule Tuist.Tests.Coverage.Commits do
     Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(measured, ancestor) end)
   end
 
+  @doc """
+  As `nearest_measured_ancestor/3`, among the commits that measured at least
+  one of `schemes`: what a commit's runs of those schemes read the files
+  they did not build from. The walk is bounded the same way.
+  """
+  def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
+
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes) do
+    measured =
+      from(c in CoverageCommit,
+        where:
+          c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^sha and
+            fragment("? && ?", c.schemes, type(^schemes, {:array, :string}))
+      )
+
+    nearest =
+      case first_parent_distance_in(measured, repository_id, sha) do
+        nil ->
+          nil
+
+        distance ->
+          ancestors = repository_id |> GitHistory.ancestors(sha, max_depth: distance) |> Enum.reject(&(elem(&1, 1) == 0))
+          found = shas_in(measured, Enum.map(ancestors, &elem(&1, 0)))
+          Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(found, ancestor) end)
+      end
+
+    nearest || GitHistory.nearest_ancestor(repository_id, sha, Repo.all(select(measured, [c], c.git_commit_sha)))
+  end
+
+  defp first_parent_distance_in(measured, repository_id, sha) do
+    {unowned, owned} = repository_id |> GitHistory.first_parents_to_segment(sha) |> Enum.split_with(&is_nil(&1.ref_id))
+    found = shas_in(measured, Enum.map(unowned, & &1.sha))
+
+    case Enum.find(unowned, &MapSet.member?(found, &1.sha)) do
+      %{depth: depth} ->
+        depth
+
+      nil ->
+        with [%{depth: depth, ref_id: ref_id, position: position}] <- owned,
+             distance when is_integer(distance) <- segments_distance_in(measured, ref_id, position, 0) do
+          depth + distance
+        else
+          _ -> nil
+        end
+    end
+  end
+
+  defp segments_distance_in(_measured, nil, _position, _distance), do: nil
+
+  defp segments_distance_in(measured, ref_id, position, distance) do
+    nearest =
+      measured
+      |> where([c], c.ref_id == ^ref_id and c.position <= ^position)
+      |> order_by([c], desc: c.position)
+      |> limit(1)
+      |> select([c], c.position)
+      |> Repo.one()
+
+    case nearest do
+      nil ->
+        case GitHistory.get_ref(ref_id) do
+          %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
+            segments_distance_in(measured, parent_id, fork, distance + position - fork)
+
+          _ ->
+            nil
+        end
+
+      found ->
+        distance + position - found
+    end
+  end
+
+  defp shas_in(_measured, []), do: MapSet.new()
+
+  defp shas_in(measured, shas) do
+    measured |> where([c], c.git_commit_sha in ^shas) |> select([c], c.git_commit_sha) |> Repo.all() |> MapSet.new()
+  end
+
   defp measured_among(_project_id, []), do: MapSet.new()
 
   defp measured_among(project_id, shas) do

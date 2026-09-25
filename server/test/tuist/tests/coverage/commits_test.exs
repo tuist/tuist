@@ -419,7 +419,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       %{repository_id: repository_id}
     end
 
-    defp measure(project, repository_id, shas) do
+    defp measure(project, repository_id, shas, schemes \\ []) do
       for sha <- shas do
         {ref_id, position} = GitHistory.position(repository_id, sha) || {nil, nil}
 
@@ -432,7 +432,8 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
           committed_at: ~U[2026-09-01 00:00:00.000000Z],
           ran_at: ~U[2026-09-01 00:00:00.000000Z],
           covered_lines: 1,
-          executable_lines: 1
+          executable_lines: 1,
+          schemes: schemes
         })
       end
     end
@@ -479,6 +480,31 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       measure(project, repository_id, ["f1"])
 
       assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f1", 3}
+    end
+
+    test "keeps to the commits that measured one of the schemes when given them", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      measure(project, repository_id, ["a"], ["App"])
+      measure(project, repository_id, ["f2"], ["Kit"])
+
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f2", 2}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App", "Other"]) == {"a", 4}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "x", ["App"]) == {"a", 5}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["Kit"]) == {"f2", 2}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["Other"]) == nil
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", []) == nil
+    end
+
+    test "walks the whole ancestry when no first parent measured the schemes", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      measure(project, repository_id, ["a", "c"], ["Kit"])
+      measure(project, repository_id, ["f1"], ["App"])
+
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App"]) == {"f1", 3}
     end
   end
 end

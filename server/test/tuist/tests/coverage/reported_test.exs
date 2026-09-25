@@ -51,6 +51,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       ],
       %{
         git_commit_sha: "base",
+        scheme: Keyword.get(opts, :scheme, "App"),
         test_modules:
           modules([
             test_case("testAdd()", "MathTests"),
@@ -662,6 +663,64 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, gap_files_count: 1} =
              Reported.compute(project, "head")
+  end
+
+  # base → kit → tip: the base ran App, kit only Kit, and at the tip a
+  # selective App run compiled part of what the base did.
+  defp scheme_split_runs(project, account, base_scheme) do
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("kit", ["base"], 2),
+      CoverageFixtures.commit("tip", ["kit"], 3)
+    ])
+
+    base_run(project, account, scheme: base_scheme)
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Unused.swift", [0, 0])], %{
+      git_commit_sha: "base",
+      scheme: base_scheme
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Kit.swift", [1, 0], targets: ["Kit"])], %{
+      git_commit_sha: "kit",
+      scheme: "Kit"
+    })
+
+    CoverageFixtures.seed_listing(account, "tip", [
+      "Sources/Math.swift",
+      "Sources/Text.swift",
+      "Sources/Unused.swift",
+      "Sources/Kit.swift",
+      "Tests/AppTests.swift"
+    ])
+
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 0], is_test: true)],
+      %{
+        git_commit_sha: "tip",
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        enumerated_tests: @tests
+      }
+    )
+  end
+
+  test "reads the unbuilt files from the nearest ancestor that measured the commit's schemes", %{
+    project: project,
+    account: account
+  } do
+    scheme_split_runs(project, account, "App")
+
+    # Unused.swift is only in the base's App run: nothing carried touches it.
+    assert %{kind: "reported", covered_lines: 5, executable_lines: 9, gap_files_count: 0} =
+             Reported.compute(project, "tip")
+  end
+
+  test "a selective commit no ancestor measured the schemes of is partial", %{project: project, account: account} do
+    scheme_split_runs(project, account, "AppAll")
+
+    assert %{kind: "partial", carried_tests_count: 1, gap_files_count: 1} = Reported.compute(project, "tip")
   end
 
   test "a selective commit joins the trend with its reported coverage, and stays out of it with a gap", %{
