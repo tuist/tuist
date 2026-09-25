@@ -885,7 +885,7 @@ rackLinuxFleet:
     enabled: true
     address: 192.168.50.1
     image:
-      tag: sha-0c8b663d8559
+      tag: sha-dd8116022b37
 
 macosFleet:
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
