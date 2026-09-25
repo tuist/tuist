@@ -44,12 +44,56 @@ prepare() {
   bsdtar -xOf "$iso" casper/vmlinuz > "$http/ubuntu/vmlinuz"
   bsdtar -xOf "$iso" casper/initrd > "$http/ubuntu/initrd"
   cp "$NETBOOT/snponly.efi" "$tftp/"
+  lay_out_announce
   # iPXE asks for the host's script by the MAC it booted from; a host with none
   # returns to its firmware's next boot entry.
   cat > "$tftp/boot.ipxe" <<IPXE
 #!ipxe
 chain http://$BOOT_ADDRESS:$HTTP_PORT/hosts/\${mac:hexhyp}.ipxe || exit 1
 IPXE
+}
+
+# Lays out cgi-bin/announce, where a machine whose install stick finds nothing
+# published for it posts its SMBIOS identity and NICs. Each announcement is
+# kept under its UUID in $STATE/announced for a day, and the operator reads
+# them over SSH to list the machine as a candidate host. Only the exact lines
+# the stick sends are accepted, at most 4096 bytes, for at most 256 machines.
+lay_out_announce() {
+  mkdir -p "$http/cgi-bin" "$STATE/announced"
+  cat >"$http/cgi-bin/announce" <<CGI
+#!/bin/sh
+dir='$STATE/announced'
+CGI
+  cat >>"$http/cgi-bin/announce" <<'CGI'
+reply() { printf 'Status: %s\r\nContent-Type: text/plain\r\n\r\n%s\n' "$1" "$2"; exit 0; }
+[ "$REQUEST_METHOD" = POST ] || reply "405 Method Not Allowed" "post an announcement"
+case "${CONTENT_LENGTH:-}" in ''|*[!0-9]*) reply "400 Bad Request" "no content length" ;; esac
+[ "$CONTENT_LENGTH" -le 4096 ] || reply "413 Payload Too Large" "at most 4096 bytes"
+body=$(head -c "$CONTENT_LENGTH" | grep -v '^$')
+if printf '%s\n' "$body" | grep -Evxq 'uuid=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|serial=[A-Za-z0-9._-]{1,64}|product=[ -~]{1,64}|nic=([0-9a-f]{2}:){5}[0-9a-f]{2} [a-z0-9_]{1,16} 0x[0-9a-f]{4}'; then
+  reply "400 Bad Request" "unexpected line"
+fi
+[ "$(printf '%s\n' "$body" | grep -c '^uuid=')" = 1 ] || reply "400 Bad Request" "exactly one uuid"
+nics=$(printf '%s\n' "$body" | grep -c '^nic=')
+[ "$nics" -ge 1 ] && [ "$nics" -le 16 ] || reply "400 Bad Request" "one to 16 NICs"
+uuid=$(printf '%s\n' "$body" | sed -n 's/^uuid=//p')
+if [ ! -e "$dir/$uuid" ] && [ "$(ls "$dir" | wc -l)" -ge 256 ]; then
+  reply "429 Too Many Requests" "too many machines announced"
+fi
+tmp=$(mktemp "$dir/.in.XXXXXX") || reply "500 Internal Server Error" "cannot record"
+{
+  printf '%s\n' "$body"
+  case "$REMOTE_ADDR" in *[!0-9.]*|'') ;; *) printf 'from=%s\n' "$REMOTE_ADDR" ;; esac
+  printf 'seen=%s\n' "$(date +%s)"
+} >"$tmp"
+mv "$tmp" "$dir/$uuid"
+reply "200 OK" "recorded"
+CGI
+  chmod 755 "$http/cgi-bin/announce"
+}
+
+prune_announcements() {
+  find "$STATE/announced" -type f -mmin +1440 -exec rm -f {} + 2>/dev/null || true
 }
 
 # Mirrors the Secret into the served tree. Files are copied rather than linked,
@@ -99,6 +143,7 @@ serve() {
   trap 'kill "$tftp_pid" "$http_pid" 2>/dev/null' EXIT INT TERM
   while kill -0 "$tftp_pid" 2>/dev/null && kill -0 "$http_pid" 2>/dev/null; do
     sync_seeds
+    prune_announcements
     sleep 5
   done
   log "a server exited" >&2

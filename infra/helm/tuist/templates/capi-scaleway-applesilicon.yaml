@@ -55,6 +55,7 @@ rules:
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxmachinetemplates
+      - racklinuxcandidates
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -83,6 +84,8 @@ rules:
       - racklinuxhosts/finalizers
       - racklinuxmachines/status
       - racklinuxmachines/finalizers
+      # What the rack discovery heard from each machine a stick announced.
+      - racklinuxcandidates/status
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]

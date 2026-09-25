@@ -12,7 +12,7 @@ const StickMarker = "tuist-install-stick"
 var stickServerPattern = regexp.MustCompile(`^http://[A-Za-z0-9.-]+(:[0-9]+)?$`)
 
 type stickPaths struct {
-	Seed, Autoinstall, Console string
+	Seed, Autoinstall, Console, Sys string
 }
 
 // StickUserData renders the seed of a site's install stick, which carries no
@@ -25,7 +25,7 @@ func StickUserData(server string) (string, error) {
 	if !stickServerPattern.MatchString(server) {
 		return "", fmt.Errorf("%q is not the boot server's http:// address", server)
 	}
-	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console"})
+	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console", Sys: "/sys"})
 	return "#cloud-config\nautoinstall:\n  version: 1\n  early-commands:\n    - |\n" + indent(script, "      ") +
 		"    - |\n" + indent(keepStick, "      "), nil
 }
@@ -60,10 +60,26 @@ ethernets:
 
 // stickScript is the stick's early-command. The installer reads
 // /autoinstall.yaml again once its early-commands have run, so copying the
-// published seed there makes it the install.
+// published seed there makes it the install. While nothing is published, it
+// announces the machine's SMBIOS identity and NICs to the boot server once a
+// minute.
 func stickScript(server string, p stickPaths) string {
 	return `server='` + server + `'
 say() { echo "tuist: $*" >>` + p.Console + `; }
+announce() {
+  dmi=` + p.Sys + `/class/dmi/id
+  {
+    printf 'uuid=%s\n' "$(tr 'A-F' 'a-f' <"$dmi/product_uuid")"
+    serial=$(tr -cd 'A-Za-z0-9._-' <"$dmi/product_serial" | head -c 64)
+    [ -z "$serial" ] || printf 'serial=%s\n' "$serial"
+    product=$(cat "$dmi/sys_vendor" "$dmi/product_name" 2>/dev/null | tr '\n' ' ' | tr -cd ' -~' | sed 's/ *$//' | head -c 64)
+    [ -z "$product" ] || printf 'product=%s\n' "$product"
+    for nic in ` + p.Sys + `/class/net/*; do
+      [ -e "$nic/device/driver" ] || continue
+      printf 'nic=%s %s %s\n' "$(cat "$nic/address")" "$(basename "$(readlink "$nic/device/driver")")" "$(cat "$nic/device/device")"
+    done
+  } 2>/dev/null | curl -fsS --max-time 10 --data-binary @- "$server/cgi-bin/announce" >/dev/null 2>&1 || true
+}
 waited=0
 while :; do
   for mac in $(ip -o link show | awk '{for (i = 1; i < NF; i++) if ($i == "link/ether") print $(i + 1)}'); do
@@ -83,6 +99,7 @@ while :; do
 		"no install is published for this machine"), "    ") + `  fi
   if [ $((waited % 60)) -eq 0 ]; then
     say "waiting for $server to publish an install for this machine"
+    announce
   fi
   sleep 10
   waited=$((waited + 10))
