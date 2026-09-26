@@ -528,7 +528,9 @@ STUB
     [[ "$output" == *"| ber1-tor-b | 26 | ber1-edge-b | sfp28-1 | dac | data | installed |"* ]]
     [[ "$output" == *"| ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | installed |"* ]]
     [[ "$output" == *"| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | installed |"* ]]
-    [[ "$output" == *"| ber1-ats-2 |  | ber1-edge-b | psu | power | power | planned |"* ]]
+    [[ "$output" == *"| ber1-pdu-b |  | ber1-edge-b | psu | power | power | installed |"* ]]
+    [[ "$output" == *"| ber1-ats-2 |  | ber1-pdu-b | inlet | power | power | installed |"* ]]
+    [[ "$output" == *"| ber1-pdu-b |  | ber1-tor-b | psu | power | power | installed |"* ]]
     [[ "$output" == *"| ber1-tor-a | 32 | ber1-tor-b |  | dac | isl | installed |"* ]]
     [ "$(diff <(printf '%s\n' "$output") "$FLEET_ROOT/cables/ber1.md")" = "" ]
     # a cable not in yet on an installed node is planned on its own
@@ -539,11 +541,54 @@ STUB
     [[ "$output" == *"| ber1-mgmt | 2 | ber1-edge-b | i226-lm | copper | management | installed |"* ]]
 }
 
-@test "the two edges hang off different transfer switches" {
-    run jq -r '[.nodes[] | select(.role == "edge") | .ats] | map(select(. != null)) | "\(length) \(unique | length)"' "$SITE_FILE"
+@test "every node and switch resolves to one transfer switch, and the pairs to different ones" {
+    run fleet_check_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    run jq -r '
+        ([.nodes[] | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+        [.nodes[], .devices[] | select(.role == "edge" or .role == "tor") |
+          {role, ats: (.ats // $pdus[.pdu])}] | group_by(.role) | map(map(.ats) | unique | length) | join(" ")' "$SITE_FILE"
     [ "$output" = "2 2" ]
-    run jq -r '[.nodes[] | select(.role == "edge") | .ats as $a | $a] - [.nodes[] | select(.role == "power" and .hardware == "eats16n") | .name] | length' "$SITE_FILE"
-    [ "$output" = "0" ]
+}
+
+@test "a pair on one transfer switch is rejected, whichever PDU it goes through" {
+    local site="$BATS_TEST_TMPDIR/pair.json"
+    jq '(.devices[] | select(.name == "ber1-tor-b")) |= (del(.pdu) + {ats: "ber1-ats-1"})' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-tor-b and ber1-tor-a both resolve to ber1-ats-1"* ]]
+    jq '(.nodes[] | select(.name == "ber1-store-b")) |= (del(.pdu) + {ats: "ber1-ats-1"})' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-store-a and ber1-store-b both resolve to ber1-ats-1"* ]]
+}
+
+@test "a cord goes into one power device, and a PDU hangs off a transfer switch" {
+    local site="$BATS_TEST_TMPDIR/cord.json"
+    jq '(.nodes[] | select(.name == "ber1-edge-b")).ats = "ber1-ats-3"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-edge-b: names both ats and pdu"* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.ats)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-pdu-b: a PDU is fed by a transfer switch"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-2")).pdu = "ber1-pdu-a"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-ats-2: a transfer switch takes the facility feeds"* ]]
+    jq '(.nodes[] | select(.name == "ber1-kvm-a")).ats = "ber1-pdu-b"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-kvm-a: ats ber1-pdu-b is not a transfer switch"* ]]
+}
+
+@test "two power appliances cannot share a management address" {
+    local site="$BATS_TEST_TMPDIR/address.json"
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")).mgmt_address = "192.168.0.16"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-pdu-a and ber1-pdu-b share management address 192.168.0.16"* ]]
 }
 
 @test "the things on the management switch that are not machines are modelled" {
@@ -661,13 +706,13 @@ mini_site() {
 
 # --- the power appliances ----------------------------------------------------
 
-@test "the power gear is Eaton, three transfer switches and two PDUs, all planned" {
+@test "the power gear is Eaton, three transfer switches and two PDUs, of which the prep bay runs two and one" {
     run jq -r '[.nodes[] | select(.hardware == "eats16n")] | length' "$SITE_FILE"
     [ "$output" = "3" ]
     run jq -r '[.nodes[] | select(.hardware == "evmafc20a")] | length' "$SITE_FILE"
     [ "$output" = "2" ]
-    run jq -r '[.nodes[] | select(.role == "power") | select(.status != "planned")] | length' "$SITE_FILE"
-    [ "$output" = "0" ]
+    run jq -r '[.nodes[] | select(.role == "power" and .status == "installed") | .name] | join(" ")' "$SITE_FILE"
+    [ "$output" = "ber1-ats-1 ber1-ats-2 ber1-pdu-b" ]
 }
 
 @test "the PDU records the protocol a power driver should target" {

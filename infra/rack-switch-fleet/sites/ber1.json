@@ -110,7 +110,8 @@
             32
           ]
         }
-      ]
+      ],
+      "pdu": "ber1-pdu-b"
     },
     {
       "name": "ber1-tor-a",
@@ -154,7 +155,8 @@
             32
           ]
         }
-      ]
+      ],
+      "ats": "ber1-ats-1"
     },
     {
       "name": "ber1-mgmt",
@@ -168,7 +170,8 @@
       "ports": {},
       "mac": "a8:29:48:fe:b4:be",
       "behind_edge": true,
-      "adopted": true
+      "adopted": true,
+      "ats": "ber1-ats-1"
     }
   ],
   "node_roles": {
@@ -252,12 +255,13 @@
         }
       ],
       "status": "planned",
-      "hardware": "ms-01"
+      "hardware": "ms-01",
+      "ats": "ber1-ats-1"
     },
     {
       "name": "ber1-edge-b",
       "role": "edge",
-      "note": "The second edge, standby to ber1-edge-a, on the other ATS chain. Dual-homed like it: the ToR A DAC is the one bought for ber1-store-b, lent until that node arrives in November, when a replacement has to come with it.",
+      "note": "The second edge, standby to ber1-edge-a, on chain B through ber1-pdu-b, so the two edges never share a transfer switch. Dual-homed like it: the ToR A DAC is the one bought for ber1-store-b, lent until that node arrives in November, when a replacement has to come with it.",
       "links": [
         {
           "switch": "ber1-tor-b",
@@ -290,7 +294,7 @@
       ],
       "status": "installed",
       "hardware": "ms-01",
-      "ats": "ber1-ats-2"
+      "pdu": "ber1-pdu-b"
     },
     {
       "name": "ber1-store-b",
@@ -313,7 +317,8 @@
           "purpose": "management"
         }
       ],
-      "hardware": "ms-01"
+      "hardware": "ms-01",
+      "pdu": "ber1-pdu-b"
     },
     {
       "name": "ber1-kvm-a",
@@ -329,7 +334,8 @@
           "nic": "mgmt",
           "purpose": "management"
         }
-      ]
+      ],
+      "ats": "ber1-ats-1"
     },
     {
       "name": "ber1-kvm-b",
@@ -345,50 +351,53 @@
           "nic": "mgmt",
           "purpose": "management"
         }
-      ]
+      ],
+      "ats": "ber1-ats-1"
     },
     {
       "name": "ber1-ats-1",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
-      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "status": "installed",
+      "note": "The critical layer: ber1-mgmt, ber1-tor-a, ber1-edge-a, ber1-store-a and the KVMs, straight off its own outlets. Prefers feed A. It carries every one-of-a-kind thing the rest of the rack is recovered through, so nothing that churns is plugged into it.",
       "links": [
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 41,
           "media": "copper",
           "nic": "netpack",
           "purpose": "management"
         }
-      ]
+      ],
+      "mgmt_address": "192.168.0.14"
     },
     {
       "name": "ber1-ats-2",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
-      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "status": "installed",
+      "note": "Chain B: its C19 output feeds ber1-pdu-b and nothing else. Prefers feed B.",
       "links": [
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 42,
           "media": "copper",
           "nic": "netpack",
           "purpose": "management"
         }
-      ]
+      ],
+      "mgmt_address": "192.168.0.15"
     },
     {
       "name": "ber1-ats-3",
       "role": "power",
       "hardware": "eats16n",
       "status": "planned",
-      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A. Bought and boxed; chain A exists only at the colo.",
       "links": [
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 43,
           "media": "copper",
           "nic": "netpack",
           "purpose": "management"
@@ -400,32 +409,35 @@
       "role": "power",
       "hardware": "evmafc20a",
       "status": "planned",
-      "note": "Eaton Rack PDU G4. Feeds the A side, and carries an RS485 sensor chain on its USB port.",
+      "note": "Eaton Rack PDU G4 on chain A. Carries the chain A minis and the RS485 sensor chain on its USB port. The second PDU, ordered 2026-09-24.",
       "links": [
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 44,
           "media": "copper",
           "nic": "netpack",
           "purpose": "management"
         }
-      ]
+      ],
+      "ats": "ber1-ats-3"
     },
     {
       "name": "ber1-pdu-b",
       "role": "power",
       "hardware": "evmafc20a",
-      "status": "planned",
-      "note": "Eaton Rack PDU G4. Feeds the B side.",
+      "status": "installed",
+      "note": "Eaton Rack PDU G4 on chain B. Carries ber1-tor-b, ber1-edge-b, ber1-store-b and the minis cabled to ToR B, so a mini and its ToR always lose power together.",
       "links": [
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 45,
           "media": "copper",
           "nic": "netpack",
           "purpose": "management"
         }
-      ]
+      ],
+      "ats": "ber1-ats-2",
+      "mgmt_address": "192.168.0.16"
     },
     {
       "name": "ber1-env-inlet",
@@ -492,9 +504,9 @@
     "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it.",
     "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it.",
     "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
-    "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs, one Mindfactory order not yet placed, so every power appliance is planned. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
+    "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs. One ATS is the critical layer and powers its loads directly; each of the other two feeds one PDU, and that pair is a chain. A node names the device its cord goes into, `ats` or `pdu`, never both, and a PDU names its ATS, so every node resolves to exactly one transfer switch. A mini and its ToR must resolve to the same one: chain A minis on ToR A, chain B minis on ToR B. Crossed, any one ATS failure takes the whole fleet, half losing power and the other half its switch. The paired nodes (edges, storage, ToRs) resolve to different ones. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
     "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links.",
-    "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT."
+    "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT. On ber1-mgmt, ports 41-45 are the power appliances: ber1-ats-1 to ber1-ats-3 on 41-43, ber1-pdu-a on 44 and ber1-pdu-b on 45."
   },
   "kubernetes": {
     "namespace": "tuist-staging"

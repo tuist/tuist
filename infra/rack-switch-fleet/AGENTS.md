@@ -392,8 +392,9 @@ ToR B. That is redundancy that looks like an untidiness, so a later edit moving
 them onto one switch would remove it without appearing to remove anything; the
 tests fail if the two storage nodes ever share a ToR. Mac minis follow the same
 rule for the same reason: one NIC each, split A/B the way the power feeds are.
-The two edges are split the same way on power: each names its transfer switch in
-`ats`, and the tests fail if they ever share one.
+The pairs are split the same way on power: the two edges, the two storage nodes
+and the two ToRs each resolve to different transfer switches, and the tests fail
+if a pair ever shares one (see the power section below).
 
 A node carries a `status`. `ber1-store-b` is `planned`: it is the one x86 node
 not yet bought, arriving November, and in the prep bay it is the empty slot in
@@ -411,11 +412,33 @@ row in review.
 waiting for a port and the ones belonging to a planned node.
 
 The power gear is Eaton throughout: three EATS16N transfer switches and two
-EVMAFC20A PDUs, one order not yet placed, so every power node is `planned`. The
-earlier APC choice was superseded when a single vendor across ATS and PDU turned
-out to be the stronger argument. Both are managed, so both keep a link to
-`ber1-mgmt`; the PDU also speaks a REST API, which is what a power driver should
-target, and that is recorded on the hardware rather than left to memory.
+EVMAFC20A PDUs. The earlier APC choice was superseded when a single vendor across
+ATS and PDU turned out to be the stronger argument. Both are managed, so both
+keep a link to `ber1-mgmt` (ports 41-45) and a static `mgmt_address`; the PDU
+also speaks a REST API, which is what a power driver should target, and that is
+recorded on the hardware rather than left to memory.
+
+Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. `ber1-ats-1` is
+the critical layer and powers its loads from its own outlets: `ber1-mgmt`,
+`ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs, the one-of-a-kind
+things everything else is recovered through. The other two each feed one PDU,
+and that ATS-plus-PDU pair is a chain: `ber1-ats-2` -> `ber1-pdu-b` (chain B)
+and `ber1-ats-3` -> `ber1-pdu-a` (chain A). A node or switch names the device its
+cord goes into, `ats` or `pdu` and never both, and a PDU names its ATS, so every
+load resolves to exactly one transfer switch, the unit of failure.
+`fleet_check_power` enforces that shape and that the edges, the storage pair
+and the ToRs each resolve to two different ATSes. The cable schedule shows each
+hop as its own row.
+
+The prep bay runs `ber1-ats-1`, `ber1-ats-2` and `ber1-pdu-b`, which is the
+critical layer plus one chain: enough to fail a chain and watch the rest of the
+rack report it. `ber1-ats-3` and `ber1-pdu-a` are `planned` until the colo.
+
+Keep more loads off the critical ATS over time rather than adding to it: gear
+bought with two power supplies goes one cord to each chain's PDU and needs no
+ATS at all, which leaves the critical layer with only what can never be
+dual-corded (JetKVMs, the shepherd, the jig, and `ber1-mgmt` while it has one
+supply).
 
 ### Outlets are not modelled here, because they already are somewhere else
 
@@ -436,9 +459,12 @@ disagree.
 Two things follow. `internal/power` ships only a `shelly` driver, a prototype
 stand-in, so the rack's Eaton PDUs have none yet and a wedged mini in the colo
 has no remote recovery at all until they do. And whoever extends the chart side
-should carry the A/B property across: a mini's outlet and its ToR should not
-both land on the same side, or the split that the storage pair and the power
-feeds already keep is quietly undone for compute.
+should carry the A/B property across: a mini's outlet and its ToR must land on
+the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
+its switch lose power together. Crossed, any one ATS failure takes the whole
+fleet: half the minis lose power and the other half lose their ToR. This file
+records which chain a node is on (`ats`/`pdu`), but not the outlet, which stays
+the RackHost's.
 
 ### The seam between two inventories, and how it is joined
 
