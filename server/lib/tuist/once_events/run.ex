@@ -13,6 +13,7 @@ defmodule Tuist.OnceEvents.Run do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "once_runs" do
     field :run_id, :string
+    field :acked_seq, :integer, default: 0
     field :project_id, :integer
 
     field :kind, :string, default: "build"

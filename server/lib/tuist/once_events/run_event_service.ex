@@ -19,7 +19,6 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Once.Events.V1.ServerCapabilities
   alias Tuist.Environment
   alias Tuist.OnceEvents
-  alias Tuist.OnceEvents.AckStore
   alias Tuist.OnceEvents.Projector
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -95,14 +94,14 @@ defmodule Tuist.OnceEvents.RunEventService do
     # below lands on that sequence and lets the client retire the lost
     # range. Either way the ack never regresses below what we already
     # hold, which the client treats as a fatal protocol violation.
-    stored_seq = AckStore.acked_seq(project.id, batch.run_id)
+    stored_seq = OnceEvents.acked_seq(project.id, batch.run_id)
     batch_last_seq = batch.seq_from + length(batch.events) - 1
 
     case project_events(batch, project) do
       :ok ->
         highest_seq = max(stored_seq, batch_last_seq)
 
-        AckStore.observe(project.id, batch.run_id, highest_seq)
+        OnceEvents.observe_acked_seq(project.id, batch.run_id, highest_seq)
 
         ack(batch, project, :ACK_DISPOSITION_ACCEPTED, highest_seq)
 
@@ -164,7 +163,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   def get_run_ack(req, stream) do
     project = require_project!(stream)
 
-    acked_seq = AckStore.acked_seq(project.id, req.run_id)
+    acked_seq = OnceEvents.acked_seq(project.id, req.run_id)
 
     %RunEventAck{
       run_id: req.run_id,

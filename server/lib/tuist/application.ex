@@ -357,7 +357,6 @@ defmodule Tuist.Application do
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
           Tuist.Kura.Origins,
-          Tuist.OnceEvents.AckStore,
           TuistCommon.GitHub.RateLimit,
           TuistWeb.Telemetry
         ] ++
