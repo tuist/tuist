@@ -255,6 +255,11 @@ image build runs a login-shell smoke check as the runner user.
 `tuist-cache-volume` is wrapped by `.github/actions/cache-volume` with key/path
 inputs. It asks the local agent for a private snapshot clone; workflow OIDC is
 not needed. The server binds the actual executed job through the runner session.
+Acquisition has a 30-second HTTP deadline. On failure it creates ordinary
+job-local directories and reports `cache-hit=false`; it must never schedule a
+late bind mount after returning cold. The host has a shorter, cancellable restore
+budget. Mount errors after acquisition still fail visibly.
+
 The static client is on PATH and copied to `externals/tuist-cache-volume` so
 container jobs can use `/__e/tuist-cache-volume`. The job-start hook passes the
 endpoint and pod identity through GITHUB_ENV. Runner and DinD share only their
