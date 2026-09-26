@@ -731,32 +731,53 @@ pins, and its key in `<fleet>-console`, and drops the finalizer. A step that
 fails keeps the finalizer and is retried. The host's AMT Secret stays: it
 belongs to the box, whose AMT keeps the password.
 
-**The kubelet's identity is `system:node:<hostname>`, not an operator-minted
-ServiceAccount.** The converge script exits 42 when the kubelet has no valid
-client certificate; the reconciler then deletes a stale Node of that name (only
-one with this host's providerID, or none), mints a one-hour kubeadm bootstrap
-token labelled `tuist.dev/bootstrap-node`, runs the script again with a
-bootstrap kubeconfig, and deletes the token once the kubelet holds its
-certificate. kubeadm's bindings approve the CSR and later rotations. The labels
-(`node.cluster.x-k8s.io/instance-type=rack`, `cilium.io/no-schedule=true`, the
-role's), the taints, the providerID (`rack-linux://<site>/<host UUID>`) and the local
-CNI (`10.254.254.0/24`) are all in place before the kubelet first starts.
+**A node's configuration is data, and a node agent applies it**
+(`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
+reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
+configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
+the management port's networkd file, `/etc/tuist/kubernetes-api`), the exact
+kubelet release the control plane runs and the hostname, into the
+`RackLinuxMachine`'s `status.nodeConfig`, hashed. `rack-node` applies one: it
+writes only files whose content or mode differs, loads modules and sysctls,
+installs containerd with its default configuration on the systemd cgroup
+driver, installs exactly the named kubelet from pkgs.k8s.io and never
+downgrades it, sets the hostname, restarts containerd or the kubelet when
+their files changed, when they are not running, or when the host has not
+finished applying this configuration (`/var/lib/tuist/rack-converge.hash`),
+and leaves a host kubeadm joined alone. Its result is structured
+(`changed`, `restarted`, `applied`, `needsBootstrap`, `foreignJoin`), not an exit
+code.
 
-**One script does the join, the drift repair and the upgrades**
-(`rack_linux_converge.go`). It writes only files whose content differs, restarts
-containerd or the kubelet when their configuration changed, when they are not
-running, or when the host has not finished a converge of this configuration
-(`/var/lib/tuist/rack-converge.hash`), and installs exactly the kubelet release
-the control plane runs, never downgrading. It writes the API server the kubelet
-uses to `/etc/tuist/kubernetes-api` for the pods on the node that talk to it. It exits 43 on a host kubeadm joined.
-The reconciler converges when the rendered configuration's hash changes (an
-operator image, a control plane patch release, a new tailnet address), on a new
-tailnet device, every five minutes while the Node is NotReady, and hourly
-regardless; failures back off from one minute to thirty. A control plane on a
-minor other than the operator's `KubernetesMinor` holds converges
-(`ConvergeHeld`) until the operator renders for it. Before any converge it
-refuses while `kube-system/cilium` would schedule onto a node carrying
+The operator runs it over SSH (`rack-node apply`, the request on stdin and the
+result on stdout, the binary uploaded under `/usr/local/lib/tuist/` by its
+digest when the host lacks it) to join a host, for a new tailnet device, a
+rename, and a Node NotReady for five minutes. Once a node is joined, the node
+agent, the chart's `<fleet>-node-agent` DaemonSet running `rack-node agent`
+privileged in the host's PID namespace on every rack Linux node, keeps it: it
+finds its machine from its Node's providerID, applies the published
+configuration within 30 s of a change and every five minutes otherwise, and
+reports in `status.agent` (`appliedHash`, `appliedAt`, what it changed,
+restarted, or why it failed). While the agent is live (it reported within 15
+minutes, without an error), the operator leaves the node to it; a new
+configuration it has not applied three minutes after publishing, or no live
+agent, is applied over SSH, and without an agent every hour too. The two
+never overlap on a host (`flock` on `/run/tuist-rack-node.lock`). A control
+plane on a minor other than the operator's `KubernetesMinor` holds converges
+(`ConvergeHeld`) until the operator renders for it. Before any converge over
+SSH it refuses while `kube-system/cilium` would schedule onto a node carrying
 `cilium.io/no-schedule=true`.
+
+**The kubelet's identity is `system:node:<hostname>`, not an operator-minted
+ServiceAccount.** When `rack-node apply` reports `needsBootstrap` (the kubelet
+has no client certificate valid for ten more minutes), the reconciler deletes a
+stale Node of that name (only one with this host's providerID, or none), mints
+a one-hour kubeadm bootstrap token labelled `tuist.dev/bootstrap-node`, applies
+again with a bootstrap kubeconfig in the request (never in the published
+configuration), and deletes the token once the kubelet holds its certificate.
+kubeadm's bindings approve the CSR and later rotations. The labels
+(`node.cluster.x-k8s.io/instance-type=rack`, `cilium.io/no-schedule=true`, the
+role's), the taints, the providerID (`rack-linux://<site>/<host UUID>`) and the
+local CNI (`10.254.254.0/24`) are all in place before the kubelet first starts.
 
 **AMT is activated on the hardware the fleet lists** (`racklinuxhost_amt.go`).
 A host whose model (`status.hardware.product`) is one of
@@ -950,11 +971,13 @@ infra/cluster-api-provider-tuist/
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
 │   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
 ├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-node/  # applies a rack node's configuration: over SSH, and as its node agent
 ├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
 ├── config/
 │   └── rbac/       # ClusterRole for the manager

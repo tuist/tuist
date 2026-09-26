@@ -40,6 +40,7 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("listen on %s: %w", tftpAddr, err)
 	}
 	tftpServer := tftp.NewServer(s.TFTPRead, nil)
+	tftpServer.SetHook(tftpLog{s})
 	go func() {
 		err := tftpServer.Serve(tftpConn)
 		if err == nil {
@@ -99,4 +100,15 @@ func (s *Server) servePeers(ctx context.Context) {
 
 func newHTTPServer(h http.Handler) *http.Server {
 	return &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: time.Minute}
+}
+
+// tftpLog logs each TFTP transfer, which is how a netboot's first steps show.
+type tftpLog struct{ s *Server }
+
+func (l tftpLog) OnSuccess(stats tftp.TransferStats) {
+	l.s.log.Info("served over TFTP", "file", stats.Filename, "to", stats.RemoteAddr.String(), "duration", stats.Duration.String())
+}
+
+func (l tftpLog) OnFailure(stats tftp.TransferStats, err error) {
+	l.s.log.Info("a TFTP transfer failed", "file", stats.Filename, "to", stats.RemoteAddr.String(), "error", err.Error())
 }

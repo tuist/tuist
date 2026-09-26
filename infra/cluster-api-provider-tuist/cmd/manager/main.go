@@ -315,6 +315,9 @@ func main() {
 		"The CAPI Cluster the RackLinuxHost controller makes each rack Linux host a Machine of. Empty makes none.")
 	flag.StringVar(&rackLinuxBootstrapSecretName, "rack-linux-bootstrap-secret-name", "",
 		"The Secret each rack Linux Machine names as its bootstrap data; the host joins itself, so it only has to exist.")
+	var rackNodeBinaryPath string
+	flag.StringVar(&rackNodeBinaryPath, "rack-node-binary", "/opt/rack-node/rack-node-linux-amd64",
+		"The rack-node binary (linux/amd64) the operator runs on a rack Linux host over SSH to join it.")
 	flag.Func("rack-linux-authorized-key",
 		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
 		func(v string) error {
@@ -753,6 +756,7 @@ func main() {
 		EgressNamespace:     egressNamespace,
 		EgressProxyGroup:    egressProxyGroup,
 		EgressProxyTags:     egressProxyTags,
+		NodeBinary:          readRackNodeBinary(rackNodeBinaryPath, rackLinuxFleetName),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")
 		os.Exit(1)
@@ -1066,4 +1070,19 @@ func controlPlaneVersion(cfg *rest.Config) func(context.Context) (string, error)
 		version, readAt = info.GitVersion, time.Now()
 		return version, nil
 	}
+}
+
+// readRackNodeBinary reads the rack-node binary a rack Linux fleet joins its
+// hosts with. Without a fleet, or without the binary, it is nil, and a join
+// reports that it has none.
+func readRackNodeBinary(path, fleet string) []byte {
+	if fleet == "" || path == "" {
+		return nil
+	}
+	binary, err := os.ReadFile(path)
+	if err != nil {
+		setupLog.Error(err, "read the rack-node binary; rack Linux hosts cannot be joined", "path", path)
+		return nil
+	}
+	return binary
 }

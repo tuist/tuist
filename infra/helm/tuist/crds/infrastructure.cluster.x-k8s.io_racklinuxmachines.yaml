@@ -33,6 +33,9 @@ spec:
         - jsonPath: .status.lastConvergeTime
           name: LastConverge
           type: date
+        - jsonPath: .status.agent.appliedAt
+          name: Agent
+          type: date
         - jsonPath: .spec.providerID
           name: ProviderID
           priority: 1
@@ -97,6 +100,35 @@ spec:
                       - type
                     type: object
                   type: array
+                agent:
+                  description: |-
+                    Agent is what the host's node agent last did. The agent writes it, and
+                    nothing else.
+                  properties:
+                    appliedAt:
+                      description: |-
+                        AppliedAt is when it last applied the configuration, whether or not
+                        anything changed.
+                      format: date-time
+                      type: string
+                    appliedHash:
+                      description: AppliedHash is the configuration the agent last applied in full.
+                      type: string
+                    changed:
+                      description: |-
+                        Changed and Restarted are what its last apply that changed anything
+                        changed and restarted.
+                      items:
+                        type: string
+                      type: array
+                    error:
+                      description: Error is why its last apply failed.
+                      type: string
+                    restarted:
+                      items:
+                        type: string
+                      type: array
+                  type: object
                 conditions:
                   description: Conditions provide observations of the operational state of a Cluster API resource.
                   items:
@@ -148,7 +180,7 @@ spec:
                 hostConfigHash:
                   description: |-
                     HostConfigHash fingerprints the configuration last converged onto the
-                    host.
+                    host over SSH.
                   type: string
                 lastConvergeAttemptTime:
                   description: LastConvergeAttemptTime is when a converge was last attempted.
@@ -156,6 +188,114 @@ spec:
                   type: string
                 lastConvergeTime:
                   description: LastConvergeTime is when the host last converged successfully.
+                  format: date-time
+                  type: string
+                nodeConfig:
+                  description: |-
+                    NodeConfig is the configuration the host runs as a node, which its
+                    node agent keeps applied.
+                  properties:
+                    absent:
+                      description: Absent are paths removed when they exist.
+                      items:
+                        description: |-
+                          RackNodeFile is one file on a rack node. Group names what a change to it
+                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
+                          re-executed), containerd or kubelet (restarted), or none.
+                        properties:
+                          content:
+                            type: string
+                          group:
+                            type: string
+                          mode:
+                            type: string
+                          path:
+                            type: string
+                        required:
+                          - path
+                        type: object
+                      type: array
+                    containerd:
+                      description: |-
+                        Containerd is installed, and its configuration is its default with the
+                        systemd cgroup driver.
+                      properties:
+                        configPath:
+                          type: string
+                      required:
+                        - configPath
+                      type: object
+                    files:
+                      description: Files are written, in order, when their content or mode differs.
+                      items:
+                        description: |-
+                          RackNodeFile is one file on a rack node. Group names what a change to it
+                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
+                          re-executed), containerd or kubelet (restarted), or none.
+                        properties:
+                          content:
+                            type: string
+                          group:
+                            type: string
+                          mode:
+                            type: string
+                          path:
+                            type: string
+                        required:
+                          - path
+                        type: object
+                      type: array
+                    hash:
+                      description: |-
+                        Hash fingerprints the configuration. The node records the one it last
+                        applied, and restarts containerd and the kubelet when it changes.
+                      type: string
+                    hostname:
+                      description: Hostname is the host's OS hostname, its Node's name.
+                      type: string
+                    kubelet:
+                      description: Kubelet is the exact kubelet release installed, never downgraded.
+                      properties:
+                        channel:
+                          description: Channel is the pkgs.k8s.io minor channel, such as v1.34.
+                          type: string
+                        version:
+                          description: Version is the release, without the `v`.
+                          type: string
+                      required:
+                        - channel
+                        - version
+                      type: object
+                    modules:
+                      description: Modules are loaded once the files are written.
+                      items:
+                        type: string
+                      type: array
+                    sysctl:
+                      description: Sysctl files are applied once the files are written.
+                      items:
+                        description: |-
+                          RackNodeSysctl is a sysctl file applied with `sysctl -p`. An optional one
+                          may hold keys the kernel lacks.
+                        properties:
+                          optional:
+                            type: boolean
+                          path:
+                            type: string
+                        required:
+                          - path
+                        type: object
+                      type: array
+                  required:
+                    - containerd
+                    - hash
+                    - hostname
+                    - kubelet
+                  type: object
+                nodeConfigTime:
+                  description: |-
+                    NodeConfigTime is when NodeConfig last changed. A node agent that has
+                    not applied it a few minutes later leaves it to a converge over SSH.
                   format: date-time
                   type: string
                 nodeName:

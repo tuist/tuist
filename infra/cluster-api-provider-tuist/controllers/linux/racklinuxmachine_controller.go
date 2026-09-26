@@ -2,13 +2,11 @@ package linux
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ssh"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +30,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/racknode"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -50,6 +49,10 @@ const (
 	rackNotReadyConvergeAfter   = 5 * time.Minute
 	rackConvergeTimeout         = 15 * time.Minute
 	rackLeaveTimeout            = time.Minute
+	// A node agent that reported within rackAgentStale is live; a live one is
+	// given rackAgentGrace to apply a new configuration before SSH does.
+	rackAgentStale = 15 * time.Minute
+	rackAgentGrace = 3 * time.Minute
 )
 
 var controlPlaneVersionPattern = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)`)
@@ -58,30 +61,15 @@ var controlPlaneVersionPattern = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)`)
 type RunRackScript func(ctx context.Context, user, host string, privateKey []byte, script string, timeout time.Duration, hk *bootstrap.HostKeyState) (string, error)
 
 func runRackScriptOverSSH(ctx context.Context, user, host string, privateKey []byte, script string, timeout time.Duration, hk *bootstrap.HostKeyState) (string, error) {
-	out, err := runOverSSH(ctx, user, host, privateKey, "sudo -n bash -s", script, timeout, hk)
-	var exitErr *ssh.ExitError
-	if errors.As(err, &exitErr) {
-		return out, &scriptExitError{status: exitErr.ExitStatus(), err: err}
-	}
-	return out, err
+	return runOverSSH(ctx, user, host, privateKey, "sudo -n bash -s", script, timeout, hk)
 }
-
-// scriptExitError is a script that ran and exited non-zero.
-type scriptExitError struct {
-	status int
-	err    error
-}
-
-func (e *scriptExitError) Error() string { return e.err.Error() }
-
-func (e *scriptExitError) Unwrap() error { return e.err }
 
 // RackLinuxMachineReconciler makes the RackLinuxHost a machine is named after
-// a node: it dials the host over the tailnet and runs the converge script on
-// it, on the first run with a one-hour
-// bootstrap token so the kubelet gets its own system:node certificate, and
-// afterwards whenever the rendered configuration or the host's tailnet device
-// changes, while its Node is NotReady, and on ConvergeInterval.
+// a node. It renders the node configuration into the machine's status, where
+// the host's node agent keeps it applied, and applies it itself over the
+// tailnet (rack-node apply over SSH) to join the host, with a one-hour
+// bootstrap token so the kubelet gets its own system:node certificate, while
+// its Node is not Ready, and when no live agent applied a new configuration.
 type RackLinuxMachineReconciler struct {
 	client.Client
 	APIReader          client.Reader
@@ -111,7 +99,12 @@ type RackLinuxMachineReconciler struct {
 
 	ConvergeInterval time.Duration
 
-	// RunScript is overridden in tests.
+	// NodeBinary is the rack-node binary (linux/amd64) a converge runs on the
+	// host.
+	NodeBinary []byte
+
+	// ApplyNode and RunScript are overridden in tests.
+	ApplyNode ApplyRackNode
 	RunScript RunRackScript
 }
 
@@ -219,9 +212,13 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
-	desired := rackConfigHash(opts)
+	cfg := rackNodeConfig(opts)
+	if machine.Status.NodeConfig == nil || machine.Status.NodeConfig.Hash != cfg.Hash {
+		published := metav1.Now()
+		machine.Status.NodeConfig, machine.Status.NodeConfigTime = &cfg, &published
+	}
 	renamed := machine.Status.NodeName != "" && machine.Status.NodeName != nodeName
-	due, wait := r.convergeDue(machine, host, node, desired)
+	due, wait := r.convergeDue(machine, host, node, cfg.Hash)
 	if !due && !renamed {
 		return ctrl.Result{RequeueAfter: wait}, nil
 	}
@@ -231,7 +228,7 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 		}
 		opts.Rejoin = true
 	}
-	if err := r.converge(ctx, machine, host, node, opts, desired); err != nil {
+	if err := r.converge(ctx, machine, host, node, opts, cfg); err != nil {
 		machine.Status.ConvergeFailures++
 		conditions.MarkFalse(machine, HostConvergedCondition, "ConvergeFailed", clusterv1.ConditionSeverityWarning, "%v", err)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ConvergeFailed", "%s: %v", nodeName, err)
@@ -284,8 +281,11 @@ func (r *RackLinuxMachineReconciler) observeNode(machine *infrav1.RackLinuxMachi
 	}
 }
 
-// convergeDue reports whether to converge now and, when not, how long until
-// the next check.
+// convergeDue reports whether to converge over SSH now and, when not, how long
+// until the next check. A host whose node agent keeps the configuration
+// applied is left to it: SSH joins a host, reaches one whose Node is not
+// Ready, and applies what a live agent has not applied a few minutes after it
+// was published.
 func (r *RackLinuxMachineReconciler) convergeDue(machine *infrav1.RackLinuxMachine, host *infrav1.RackLinuxHost, node *corev1.Node, desired string) (bool, time.Duration) {
 	now := time.Now()
 	if machine.Status.TailnetDeviceID != host.Status.Tailnet.DeviceID {
@@ -298,7 +298,7 @@ func (r *RackLinuxMachineReconciler) convergeDue(machine *infrav1.RackLinuxMachi
 		}
 		return true, 0
 	}
-	if machine.Status.HostConfigHash != desired || machine.Status.LastConvergeTime == nil {
+	if machine.Status.LastConvergeTime == nil {
 		return true, 0
 	}
 	since := now.Sub(machine.Status.LastConvergeTime.Time)
@@ -307,6 +307,19 @@ func (r *RackLinuxMachineReconciler) convergeDue(machine *infrav1.RackLinuxMachi
 			return true, 0
 		}
 		return false, rackNotReadyConvergeAfter - since
+	}
+	agent := machine.Status.Agent
+	live := agent != nil && agent.Error == "" && agent.AppliedAt != nil && now.Sub(agent.AppliedAt.Time) < rackAgentStale
+	if live && agent.AppliedHash == desired {
+		return false, rackAgentStale
+	}
+	if machine.Status.HostConfigHash != desired {
+		if live && machine.Status.NodeConfigTime != nil {
+			if wait := machine.Status.NodeConfigTime.Add(rackAgentGrace).Sub(now); wait > 0 {
+				return false, wait
+			}
+		}
+		return true, 0
 	}
 	interval := r.ConvergeInterval
 	if interval <= 0 {
@@ -398,15 +411,16 @@ func readClusterInfo(ctx context.Context, reader client.Reader) (string, []byte,
 	return "", nil, fmt.Errorf("kube-public/cluster-info carries no cluster CA")
 }
 
-// converge runs the converge script on the host, minting a bootstrap token
-// and running it again when the kubelet has no identity.
+// converge applies the node configuration on the host over SSH (rack-node
+// apply), minting a bootstrap token and applying it again when the kubelet has
+// no identity.
 func (r *RackLinuxMachineReconciler) converge(
 	ctx context.Context,
 	machine *infrav1.RackLinuxMachine,
 	host *infrav1.RackLinuxHost,
 	node *corev1.Node,
 	opts rackConvergeOptions,
-	desired string,
+	cfg infrav1.RackNodeConfig,
 ) error {
 	logger := log.FromContext(ctx)
 	now := metav1.Now()
@@ -448,17 +462,20 @@ func (r *RackLinuxMachineReconciler) converge(
 
 	user := firstNonEmpty(host.Spec.SSHUser, "tuist")
 	target := r.egress().dialTarget(host)
-	run := r.RunScript
-	if run == nil {
-		run = runRackScriptOverSSH
+	apply := r.ApplyNode
+	if apply == nil {
+		apply = applyRackNodeOverSSH(r.NodeBinary)
 	}
 
-	out, err := run(ctx, user, target, key, renderRackConvergeScript(opts), rackConvergeTimeout, hk)
-	switch exitStatus(err) {
-	case 0:
-	case rackConvergeForeignJoin:
+	req := racknode.Request{Config: cfg, Rejoin: opts.Rejoin}
+	res, err := apply(ctx, user, target, key, hk, req)
+	if err != nil {
+		return err
+	}
+	switch {
+	case res.ForeignJoin:
 		return fmt.Errorf("%s was joined by kubeadm; reinstall it from a stick written by rack:write-install-usb", host.Spec.Hostname)
-	case rackConvergeNeedsBootstrap:
+	case res.NeedsBootstrap:
 		if node != nil {
 			if node.Spec.ProviderID != "" && node.Spec.ProviderID != opts.ProviderID {
 				return fmt.Errorf("node %s belongs to %s, not %s; refusing to replace it", node.Name, node.Spec.ProviderID, opts.ProviderID)
@@ -478,47 +495,34 @@ func (r *RackLinuxMachineReconciler) converge(
 				logger.Error(err, "delete the bootstrap token; it expires within the hour", "token", secretName)
 			}
 		}()
-		opts.BootstrapToken = token
-		out, err = run(ctx, user, target, key, renderRackConvergeScript(opts), rackConvergeTimeout, hk)
-		if err != nil {
+		req.Bootstrap = rackBootstrapKubeconfig(opts.APIServerURL, opts.ClusterCAPEM, token)
+		if res, err = apply(ctx, user, target, key, hk, req); err != nil {
 			return err
 		}
+		if res.Applied != cfg.Hash {
+			return fmt.Errorf("%s did not join: the node configuration was not applied", host.Spec.Hostname)
+		}
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Joined", "%s joined the cluster as Node %s", host.Spec.Hostname, opts.NodeName)
-	default:
-		return err
 	}
 
-	summary := convergeSummary(out)
-	if !strings.Contains(summary, "changed=none restarted=none") {
+	summary := fmt.Sprintf("changed=%s restarted=%s", listOrNone(res.Changed), listOrNone(res.Restarted))
+	if len(res.Changed) > 0 || len(res.Restarted) > 0 {
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Converged", "%s: %s", host.Spec.Hostname, summary)
 	}
 	logger.Info("converged rack host", "host", host.Name, "summary", summary)
 
-	machine.Status.HostConfigHash = desired
+	machine.Status.HostConfigHash = cfg.Hash
 	machine.Status.LastConvergeTime = &now
 	machine.Status.ConvergeFailures = 0
 	conditions.MarkTrue(machine, HostConvergedCondition)
 	return nil
 }
 
-func exitStatus(err error) int {
-	if err == nil {
-		return 0
+func listOrNone(items []string) string {
+	if len(items) == 0 {
+		return "none"
 	}
-	var exitErr *scriptExitError
-	if errors.As(err, &exitErr) {
-		return exitErr.status
-	}
-	return -1
-}
-
-func convergeSummary(out string) string {
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		if strings.HasPrefix(line, "tuist-converge: changed=") {
-			return strings.TrimPrefix(line, "tuist-converge: ")
-		}
-	}
-	return "no summary"
+	return strings.Join(items, ",")
 }
 
 // checkCiliumExcludesRackNodes refuses to converge while the cluster's Cilium
