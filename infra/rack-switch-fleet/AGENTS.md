@@ -905,10 +905,15 @@ service range (`10.128.0.0/12`) and the VRRP link.
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
 
-A host's SSH guard admits only the sources its RackHost lists, so moving a
-host onto the segment starts with the edges' addresses in that list, pushed
-over the path the host is still on, before its port changes VLAN and its
-address changes.
+Moving a host that is already on another network onto the segment: its SSH
+guard admits only the sources its RackHost lists, and the RackHost changes
+only with a deploy. So the edges and switches go first, then the host's link,
+then the deploy with its new address and the edges' addresses. The first push
+to the new address is dropped by the old guard; the operator falls back to the
+host's own tailnet identity, and that push admits the edges (measured moving
+`ber1-proto-01` on 2026-09-26). Bounce the host's link (`ifconfig en0 down`,
+then `up`) rather than only asking DHCP again: a Mac whose link stays up keeps
+the previous network's IPv6 address and resolvers, and resolves nothing.
 
 ## Apply is a confirmed commit
 
