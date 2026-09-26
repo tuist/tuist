@@ -111,6 +111,7 @@ type RackLinuxMachineReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxmachines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxmachines/finalizers,verbs=update
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines/status,verbs=get;update;patch
 
 func (r *RackLinuxMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	machine := &infrav1.RackLinuxMachine{}
@@ -240,24 +241,36 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 
 // retireRenamedNode deletes the Node the host joined under before its hostname
 // changed, when it is still this machine's, so the host joins again under the
-// new name.
+// new name, and has the owning Machine forget it: CAPI records a Machine's
+// Node once, and drains and deletes that one when the Machine goes, so it
+// would otherwise never drain the Node the host joins as next.
 func (r *RackLinuxMachineReconciler) retireRenamedNode(ctx context.Context, machine *infrav1.RackLinuxMachine, host *infrav1.RackLinuxHost) error {
+	name := machine.Status.NodeName
 	old := &corev1.Node{}
-	err := r.Get(ctx, types.NamespacedName{Name: machine.Status.NodeName}, old)
+	err := r.Get(ctx, types.NamespacedName{Name: name}, old)
 	switch {
 	case apierrors.IsNotFound(err):
-		return nil
 	case err != nil:
 		return err
-	}
-	if old.Spec.ProviderID != "" && old.Spec.ProviderID != rackLinuxProviderID(host) {
+	case old.Spec.ProviderID != "" && old.Spec.ProviderID != rackLinuxProviderID(host):
 		return nil
+	default:
+		if err := r.Delete(ctx, old); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete Node %s, which %s joined under before its rename: %w", name, host.Spec.Hostname, err)
+		}
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "RenamedNodeDeleted",
+			"Deleted Node %s: the host is now %s and joins again under that name", name, host.Spec.Hostname)
 	}
-	if err := r.Delete(ctx, old); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete Node %s, which %s joined under before its rename: %w", old.Name, host.Spec.Hostname, err)
+
+	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	if err != nil || owner == nil || owner.Status.NodeRef == nil || owner.Status.NodeRef.Name != name {
+		return err
 	}
-	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "RenamedNodeDeleted",
-		"Deleted Node %s: the host is now %s and joins again under that name", old.Name, host.Spec.Hostname)
+	orig := owner.DeepCopy()
+	owner.Status.NodeRef = nil
+	if err := r.Status().Patch(ctx, owner, client.MergeFrom(orig)); err != nil {
+		return fmt.Errorf("have Machine %s forget Node %s, which %s joined under before its rename: %w", owner.Name, name, host.Spec.Hostname, err)
+	}
 	return nil
 }
 
