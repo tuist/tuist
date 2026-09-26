@@ -134,11 +134,11 @@
               />
             </:col>
             <:col :let={branch} label={dgettext("dashboard_tests", "Status")}>
-              <.badge_cell
-                style="light-fill"
+              <.tooltip_badge_cell
+                id={"coverage-ref-status-#{branch.git_commit_sha}"}
                 color={ref_status_color(branch)}
                 label={ref_status_label(branch)}
-                title={head_status_title(branch)}
+                description={head_status_title(branch)}
               />
             </:col>
             <:col :let={branch} label={dgettext("dashboard_tests", "Measured")}>

@@ -361,19 +361,19 @@
               <.text_cell :if={not row.measured} label="—" />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
-              <.badge_cell
+              <.tooltip_badge_cell
                 :if={@subject.kind == :pull_request}
-                style="light-fill"
+                id={"coverage-commit-status-#{row.git_commit_sha}"}
                 color={ref_status_color(row)}
                 label={ref_status_label(row)}
-                title={head_status_title(row)}
+                description={head_status_title(row)}
               />
-              <.badge_cell
+              <.tooltip_badge_cell
                 :if={@subject.kind != :pull_request}
-                style="light-fill"
+                id={"coverage-commit-status-#{row.git_commit_sha}"}
                 color={completeness_color(row)}
                 label={completeness_label(row)}
-                title={completeness_title(row)}
+                description={completeness_title(row)}
               />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
@@ -419,38 +419,40 @@
       data-part="runs-card"
     >
       <.card_section :if={@run_rows != []} data-part="runs-section">
-        <.table
-          id="coverage-runs-table"
-          rows={@run_rows}
-          row_navigate={
-            fn run ->
-              url(
-                ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
-              )
-            end
-          }
-        >
-          <:col :let={run} label={scheme_label(@selected_project)}>
-            <.text_cell label={run.scheme} />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Run")}>
-            <.run_kind_cell partial={run.partial} />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
-          </:col>
-        </.table>
-        <.pagination
-          :if={@runs_meta && (@runs_meta.has_next_page? or @runs_meta.has_previous_page?)}
-          uri={@uri}
-          has_previous_page={@runs_meta.has_previous_page?}
-          has_next_page={@runs_meta.has_next_page?}
-          start_cursor={@runs_meta.start_cursor}
-          end_cursor={@runs_meta.end_cursor}
-        />
+        <div data-part="runs-table">
+          <.table
+            id="coverage-runs-table"
+            rows={@run_rows}
+            row_navigate={
+              fn run ->
+                url(
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                )
+              end
+            }
+          >
+            <:col :let={run} label={scheme_label(@selected_project)}>
+              <.text_cell label={run.scheme} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Run")}>
+              <.run_kind_cell id={"coverage-run-kind-#{run.test_run_id}"} partial={run.partial} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
+              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
+            </:col>
+          </.table>
+          <.pagination
+            :if={@runs_meta && (@runs_meta.has_next_page? or @runs_meta.has_previous_page?)}
+            uri={@uri}
+            has_previous_page={@runs_meta.has_previous_page?}
+            has_next_page={@runs_meta.has_next_page?}
+            start_cursor={@runs_meta.start_cursor}
+            end_cursor={@runs_meta.end_cursor}
+          />
+        </div>
       </.card_section>
       <.coverage_empty
         :if={@run_rows == []}

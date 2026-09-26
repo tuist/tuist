@@ -126,14 +126,22 @@ defmodule TuistWeb.Coverage.Components do
     """
   end
 
+  attr :id, :string, required: true
   attr :partial, :boolean, default: nil
 
   @doc "Whether a run measured every test (Full) or selective testing left some out (Partial); nil for no run."
   def run_kind_cell(assigns) do
     ~H"""
-    <.badge_cell
+    <.tooltip_badge_cell
       :if={not is_nil(@partial)}
-      title={
+      id={@id}
+      label={
+        if @partial,
+          do: dgettext("dashboard_tests", "Partial"),
+          else: dgettext("dashboard_tests", "Full")
+      }
+      color={if @partial, do: "warning", else: "success"}
+      description={
         if @partial,
           do:
             dgettext(
@@ -146,15 +154,32 @@ defmodule TuistWeb.Coverage.Components do
               "Every test of the run's scheme ran, so it measured the scheme in full."
             )
       }
-      style="light-fill"
-      color={if @partial, do: "warning", else: "success"}
-      label={
-        if @partial,
-          do: dgettext("dashboard_tests", "Partial"),
-          else: dgettext("dashboard_tests", "Full")
-      }
     />
     <.text_cell :if={is_nil(@partial)} label="—" />
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :color, :string, required: true
+  attr :description, :string, required: true
+
+  @doc """
+  A table's badge cell with a tooltip that says what the badge means, titled
+  by the badge. The tooltip wraps the badge only, not the cell, so it opens
+  over the badge and right against it.
+  """
+  def tooltip_badge_cell(assigns) do
+    ~H"""
+    <div data-part="cell" data-type="badge">
+      <.tooltip id={@id} size="large" title={@label} description={@description}>
+        <:trigger :let={attrs}>
+          <span {attrs} tabindex="0">
+            <.badge label={@label} color={@color} style="light-fill" size="large" />
+          </span>
+        </:trigger>
+      </.tooltip>
+    </div>
     """
   end
 
@@ -177,18 +202,57 @@ defmodule TuistWeb.Coverage.Components do
           color={if scheme in @commit.partial_schemes, do: "warning", else: "neutral"}
           label={if scheme in @commit.partial_schemes, do: "#{scheme} · P", else: scheme}
         />
-        <.badge
+        <.tooltip
           :if={@folded != []}
-          style="light-fill"
+          id={"coverage-schemes-#{@commit.git_commit_sha}"}
           size="large"
-          color={
-            if Enum.any?(@folded, &(&1 in @commit.partial_schemes)), do: "warning", else: "neutral"
-          }
-          label={"+#{length(@folded)}"}
-          title={Enum.join(@folded, ", ")}
-        />
+          title={dgettext("dashboard_tests", "Schemes")}
+          description={Enum.join(@folded, ", ")}
+        >
+          <:trigger :let={attrs}>
+            <span {attrs} tabindex="0">
+              <.badge
+                style="light-fill"
+                size="large"
+                color={
+                  if Enum.any?(@folded, &(&1 in @commit.partial_schemes)),
+                    do: "warning",
+                    else: "neutral"
+                }
+                label={"+#{length(@folded)}"}
+              />
+            </span>
+          </:trigger>
+        </.tooltip>
       </div>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :ranges, :list, default: nil
+
+  # Line ranges shown briefly, with every range in a tooltip once they do not
+  # all fit (`full_line_ranges/1`).
+  defp line_ranges(assigns) do
+    assigns = assign(assigns, :full, full_line_ranges(assigns.ranges))
+
+    ~H"""
+    <span :if={is_nil(@ranges)}>{dgettext("dashboard_tests", "Unavailable")}</span>
+    <span :if={@ranges == []}>{dgettext("dashboard_tests", "None")}</span>
+    <span :if={@ranges not in [nil, []] and is_nil(@full)}>{brief_line_ranges(@ranges)}</span>
+    <.tooltip
+      :if={@full}
+      id={@id}
+      size="large"
+      title={@title}
+      description={@full}
+    >
+      <:trigger :let={attrs}>
+        <span {attrs} tabindex="0">{brief_line_ranges(@ranges)}</span>
+      </:trigger>
+    </.tooltip>
     """
   end
 
@@ -488,21 +552,22 @@ defmodule TuistWeb.Coverage.Components do
           </div>
           <div>
             <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
-            <dd id="coverage-file-uncovered-lines" title={full_line_ranges(@file.uncovered_ranges)}>
-              {case @file.uncovered_ranges do
-                nil -> dgettext("dashboard_tests", "Unavailable")
-                [] -> dgettext("dashboard_tests", "None")
-                ranges -> brief_line_ranges(ranges)
-              end}
+            <dd id="coverage-file-uncovered-lines">
+              <.line_ranges
+                id="coverage-file-uncovered-lines-tooltip"
+                title={dgettext("dashboard_tests", "Uncovered lines")}
+                ranges={@file.uncovered_ranges}
+              />
             </dd>
           </div>
           <div :if={Map.get(@file, :carried_lines, []) != []}>
             <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
-            <dd
-              id="coverage-file-carried-lines"
-              title={full_line_ranges(Coverage.Evidence.line_ranges(@file.carried_lines))}
-            >
-              {brief_line_ranges(Coverage.Evidence.line_ranges(@file.carried_lines))}
+            <dd id="coverage-file-carried-lines">
+              <.line_ranges
+                id="coverage-file-carried-lines-tooltip"
+                title={dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}
+                ranges={Coverage.Evidence.line_ranges(@file.carried_lines)}
+              />
             </dd>
           </div>
           <div :if={Map.get(@file, :git_blob_id, "") not in [nil, ""]}>
