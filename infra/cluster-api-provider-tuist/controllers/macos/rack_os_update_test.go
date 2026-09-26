@@ -166,7 +166,7 @@ func updatingMachine(target string, mutate ...func(*infrav1.RackAppleSiliconMach
 			Name:       osUpdateTestOwner,
 			UID:        "owner-uid",
 		}}
-		m.Status.RackHost = "mini-01"
+		m.Spec.Host = "mini-01"
 		conditions.MarkTrue(m, BootstrappedCondition)
 	}}, mutate...)...)
 }
@@ -209,7 +209,7 @@ type osUpdateFixture struct {
 
 func newOSUpdateFixture(t *testing.T, machine *infrav1.RackAppleSiliconMachine, objs ...runtime.Object) *osUpdateFixture {
 	t.Helper()
-	rack := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = osUpdateTestMachine })
+	rack := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.Machine = osUpdateTestMachine })
 	r := newRackReconciler(t, append([]runtime.Object{rack, machine}, objs...)...)
 	fake := newFakeOSUpdateHost()
 	r.osUpdateDial = func(_, _ string, _ []byte, knownFingerprint string) (osUpdateHost, error) {
@@ -1004,7 +1004,7 @@ func TestOSUpdateFailsWhenTheMachineLetsGoOfItsHost(t *testing.T) {
 	f.driveToErasing()
 	f.host.reinstalled("27.0", "SHA256:new")
 	f.stepUntil(OSUpdatePhaseBootstrapping)
-	f.oc.host = rackHost("mini-02", func(h *infrav1.RackHost) { h.Status.ClaimedBy = osUpdateTestMachine })
+	f.oc.host = rackHost("mini-02", func(h *infrav1.RackHost) { h.Status.Machine = osUpdateTestMachine })
 	f.step()
 	f.wantFailed("HostReleased")
 }

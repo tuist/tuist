@@ -31,10 +31,11 @@ func newRackHostReconciler(t *testing.T, driver power.Driver, objs ...runtime.Ob
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackHost{}, &infrav1.RackAppleSiliconMachine{}).
+		WithStatusSubresource(&infrav1.RackHost{}, &infrav1.RackAppleSiliconMachine{}, &clusterv1.Machine{}).
 		Build()
 	r := &RackHostReconciler{
 		Client:           c,
+		Scheme:           scheme,
 		Recorder:         fakeRecorder(),
 		SecretsNamespace: testNamespace,
 		PowerCycleSettle: time.Millisecond,
@@ -170,38 +171,6 @@ func TestMissingPowerSecretIsSurfacedNotIgnored(t *testing.T) {
 	}
 }
 
-// --- orphan reclaim ---------------------------------------------------------
-
-// A claim whose machine is gone strands a physical box: nothing else releases
-// it, and in a rack sized to demand that is capacity a scale-up will wait on
-// forever while the machine sits idle in front of someone.
-func TestOrphanedClaimIsReleased(t *testing.T) {
-	host := rackHost("mini-01", func(h *infrav1.RackHost) {
-		h.Status.ClaimedBy = "ber1-0"
-		h.Status.ClaimedAt = &metav1.Time{Time: time.Now()}
-	})
-	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
-
-	reconcileHost(t, r, "mini-01")
-
-	got := readHost(t, r, "mini-01")
-	if got.Status.ClaimedBy != "" || got.Status.ClaimedAt != nil {
-		t.Fatalf("orphaned claim survived: %+v", got.Status)
-	}
-}
-
-func TestLiveClaimIsLeftAlone(t *testing.T) {
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	machine := rackMachine("ber1-0")
-	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host, machine)
-
-	reconcileHost(t, r, "mini-01")
-
-	if got := readHost(t, r, "mini-01"); got.Status.ClaimedBy != "ber1-0" {
-		t.Fatal("released a claim whose machine still exists; two machines could then hold one box")
-	}
-}
-
 // --- operator power actions -------------------------------------------------
 
 func TestPowerActionRunsAndClearsItsAnnotation(t *testing.T) {
@@ -275,7 +244,7 @@ func TestPowerCutIsRefusedForAServingNode(t *testing.T) {
 	for _, action := range []string{"off", "cycle"} {
 		t.Run(action, func(t *testing.T) {
 			host := rackHost("mini-01", func(h *infrav1.RackHost) {
-				h.Status.ClaimedBy = "ber1-0"
+				h.Status.Machine = "ber1-0"
 				h.Annotations = map[string]string{PowerActionAnnotation: action}
 			})
 			driver := &stubPowerDriver{on: true}
@@ -297,7 +266,7 @@ func TestPowerCutIsRefusedForAServingNode(t *testing.T) {
 // friction on the action that recovers a host someone switched off.
 func TestPowerOnIsAllowedForAServingNode(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) {
-		h.Status.ClaimedBy = "ber1-0"
+		h.Status.Machine = "ber1-0"
 		h.Annotations = map[string]string{PowerActionAnnotation: "on"}
 	})
 	driver := &stubPowerDriver{}
@@ -323,7 +292,7 @@ func TestPowerCutIsAllowedWhenTheNodeIsNotServing(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			host := rackHost("mini-01", func(h *infrav1.RackHost) {
-				h.Status.ClaimedBy = "ber1-0"
+				h.Status.Machine = "ber1-0"
 				h.Annotations = map[string]string{PowerActionAnnotation: "cycle"}
 			})
 			driver := &stubPowerDriver{on: true}
@@ -341,7 +310,7 @@ func TestPowerCutIsAllowedWhenTheNodeIsNotServing(t *testing.T) {
 
 func TestForcedPowerCutOverridesTheServingGuard(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) {
-		h.Status.ClaimedBy = "ber1-0"
+		h.Status.Machine = "ber1-0"
 		h.Annotations = map[string]string{
 			PowerActionAnnotation:      "cycle",
 			PowerActionForceAnnotation: "true",
@@ -365,12 +334,12 @@ func TestForcedPowerCutOverridesTheServingGuard(t *testing.T) {
 
 // --- watch mapping ----------------------------------------------------------
 
-func TestRackHostForStaticMachineMapsOnlyBoundMachines(t *testing.T) {
-	bound := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Status.RackHost = "mini-01" })
-	if reqs := rackHostForStaticMachine(context.Background(), bound); len(reqs) != 1 || reqs[0].Name != "mini-01" {
-		t.Fatalf("bound machine mapped to %v, want mini-01", reqs)
+func TestRackHostForRackMachineMapsToTheHostItNames(t *testing.T) {
+	if reqs := rackHostForRackMachine(context.Background(), rackMachine("ber1-0")); len(reqs) != 1 || reqs[0].Name != "mini-01" {
+		t.Fatalf("machine mapped to %v, want mini-01", reqs)
 	}
-	if reqs := rackHostForStaticMachine(context.Background(), rackMachine("ber1-1")); len(reqs) != 0 {
+	hostless := rackMachine("ber1-1", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.Host = "" })
+	if reqs := rackHostForRackMachine(context.Background(), hostless); len(reqs) != 0 {
 		t.Fatalf("hostless machine mapped to %v, want nothing", reqs)
 	}
 }
@@ -410,7 +379,7 @@ func (d *credentialRecordingDriver) Set(_ context.Context, o power.Outlet, _ boo
 
 // --- quarantine expiry ------------------------------------------------------
 
-// A quarantine that never expires is a physical box removed from the pool that
+// A quarantine that never expires is a physical box out of the fleet that
 // nobody present can put back: clearing it needs write access to
 // rackhosts/status, which the operator's ClusterRole has and a human reaching
 // the cluster through the kubectl gateway does not. Discovered the hard way on
@@ -428,7 +397,7 @@ func TestQuarantineExpiresAfterTheCooldown(t *testing.T) {
 
 	got := readHost(t, r, "mini-01")
 	if got.Status.Quarantined {
-		t.Fatal("still quarantined past the cooldown; the host is stranded out of the pool")
+		t.Fatal("still quarantined past the cooldown; the host is never bootstrapped again")
 	}
 	if got.Status.QuarantineReason != "" || got.Status.QuarantinedAt != nil {
 		t.Fatalf("quarantine bookkeeping survived the release: %+v", got.Status)
@@ -482,22 +451,5 @@ func TestNegativeCooldownMakesQuarantinePermanent(t *testing.T) {
 
 	if !readHost(t, r, "mini-01").Status.Quarantined {
 		t.Fatal("expiry ran despite being disabled")
-	}
-}
-
-// An expired quarantine must actually let a machine claim the host again;
-// clearing the flag is only half of it.
-func TestExpiredQuarantineMakesTheHostClaimableAgain(t *testing.T) {
-	host := rackHost("mini-01", func(h *infrav1.RackHost) {
-		h.Status.Quarantined = true
-		h.Status.QuarantinedAt = &metav1.Time{Time: time.Now().Add(-31 * time.Minute)}
-	})
-	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
-	reconcileHost(t, r, "mini-01")
-
-	released := readHost(t, r, "mini-01")
-	candidates, _ := selectClaimableHosts([]infrav1.RackHost{*released}, testPool, "ber1-0")
-	if len(candidates) != 1 {
-		t.Fatalf("released host is still not claimable: %d candidates", len(candidates))
 	}
 }
