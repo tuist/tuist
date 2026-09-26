@@ -249,6 +249,7 @@ func (s *Server) serveScript(w http.ResponseWriter, r *http.Request) {
 		ok = false
 	}
 	if !ok {
+		s.log.Info("no install for a netboot", "as", name, "to", r.RemoteAddr)
 		http.NotFound(w, r)
 		return
 	}

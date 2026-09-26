@@ -160,6 +160,150 @@ spec:
       remoteRef:
         key: "{{ .Values.rackLinuxFleet.amt.provisioningExternalSecret.item }}/pfx-password"
 {{- end }}
+{{- $agentName := printf "%s-node-agent" $fleetName }}
+---
+# The rack node agent (cmd/rack-node in the operator's image), on each rack
+# Linux node: it keeps the configuration the operator renders into the node's
+# RackLinuxMachine status applied, and reports there what it did. It runs
+# privileged in the host's PID namespace, and changes the host through the
+# host's own nsenter.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $agentName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-node-agent
+---
+# It reads its Node for the machine it belongs to.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $agentName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-node-agent
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $agentName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-node-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $agentName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $agentName }}
+    namespace: {{ .Release.Namespace }}
+---
+# It reads its RackLinuxMachine's configuration and reports on its status.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $agentName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-node-agent
+rules:
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [racklinuxmachines]
+    verbs: [get]
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [racklinuxmachines/status]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $agentName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-node-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $agentName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $agentName }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $agentName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-node-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rack-node-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rack-node-agent
+    spec:
+      serviceAccountName: {{ $agentName }}
+      hostPID: true
+      # On the node's own network, so a broken local CNI does not keep the
+      # agent from repairing it.
+      hostNetwork: true
+      dnsPolicy: Default
+      enableServiceLinks: false
+      nodeSelector:
+        node.cluster.x-k8s.io/instance-type: rack
+        kubernetes.io/os: linux
+      tolerations:
+        - operator: Exists
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: agent
+          image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
+          command: [/opt/rack-node/rack-node-linux-amd64, agent]
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsNonRoot: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: kubernetes-api
+              mountPath: /etc/tuist/kubernetes-api
+              readOnly: true
+      volumes:
+        # The API server the node's kubelet uses: a rack node reaches no
+        # Service address.
+        - name: kubernetes-api
+          hostPath:
+            path: /etc/tuist/kubernetes-api
+            type: File
 {{- if .Values.rackLinuxFleet.boot.enabled }}
 {{- $boot := .Values.rackLinuxFleet.boot }}
 {{- $bootSite := required "rackLinuxFleet.boot runs on the site's edge node; set rackLinuxFleet.site or boot.site" (coalesce $boot.site .Values.rackLinuxFleet.site) }}
