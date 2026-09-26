@@ -19,6 +19,7 @@ package podagent
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +83,13 @@ type Collector struct {
 	// cold-pulls). Zero falls back to defaultMinGoldensKept.
 	MinGoldensKept int
 
+	// MaxIdleGoldens caps how many golden bases no Pod on this Node
+	// references are kept within GoldenRetention, most recently used first.
+	// Each golden holds a whole macOS + Xcode image (~65 GiB), and a host
+	// that ran several Xcode pools in a day otherwise keeps all of them
+	// until the retention lapses. Zero falls back to defaultMaxIdleGoldens.
+	MaxIdleGoldens int
+
 	// Now is overridable in tests; defaults to time.Now.
 	Now func() time.Time
 
@@ -117,6 +125,10 @@ const defaultGoldenReclaimFreeFloor = 15.0
 // defaultMinGoldensKept never lets the disk-pressure reclaim strand a host
 // with zero warm bases.
 const defaultMinGoldensKept = 1
+
+// defaultMaxIdleGoldens keeps one idle golden next to the ones in use, so
+// a host alternating between two Xcode pools clones warm for both.
+const defaultMaxIdleGoldens = 1
 
 // Start blocks until ctx is cancelled. Conforms to manager.Runnable.
 func (c *Collector) Start(ctx context.Context) error {
@@ -186,27 +198,43 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 	}
 
 	var droppedClones, droppedImages, droppedGoldens int
+
+	// Goldens go first: which cached OCI images stay depends on which
+	// goldens do.
+	keptGoldens := map[string]struct{}{}
+	var idleGoldens []string
+	for _, vm := range vms {
+		if vm.Source != "local" || !isGoldenVMName(vm.Name) {
+			continue
+		}
+		// Golden bases survive the no-Pod recycle gap (and idle troughs)
+		// so recycles clone from them instead of re-pulling.
+		if c.keepGolden(vm.Name, expected, now, retention, aggressive) {
+			keptGoldens[vm.Name] = struct{}{}
+			if _, referenced := expected.vms[vm.Name]; !referenced {
+				idleGoldens = append(idleGoldens, vm.Name)
+			}
+			continue
+		}
+		if c.reapGolden(ctx, vm.Name) {
+			droppedGoldens++
+		} else {
+			keptGoldens[vm.Name] = struct{}{}
+		}
+	}
+	for _, name := range c.idleGoldensOverCap(idleGoldens) {
+		if c.reapGolden(ctx, name) {
+			delete(keptGoldens, name)
+			droppedGoldens++
+		}
+	}
+
 	for _, vm := range vms {
 		switch vm.Source {
 		case "local":
-			// Golden bases survive the no-Pod recycle gap (and idle
-			// troughs) so recycles clone from them instead of re-pulling.
 			// A non-golden local VM with no backing Pod is an orphan
-			// clone, reaped immediately as before.
+			// clone, reaped immediately.
 			if isGoldenVMName(vm.Name) {
-				if c.keepGolden(vm.Name, expected, now, retention, aggressive) {
-					continue
-				}
-				if c.live(ctx, vm.Name) {
-					logger.Info("spared golden base: a tart run process is live", "name", vm.Name)
-					continue
-				}
-				if err := c.Tart.Delete(ctx, vm.Name); err != nil {
-					logger.Error(err, "delete stale golden base", "name", vm.Name)
-					continue
-				}
-				c.forgetGolden(vm.Name)
-				droppedGoldens++
 				continue
 			}
 			if _, want := expected.vms[vm.Name]; want {
@@ -223,15 +251,11 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			_ = c.Tart.CleanupVMUserData(vm.Name)
 			droppedClones++
 		case "OCI":
-			// Keep a cached image whose repository a Pod still references.
-			// Pods name images by tag and Tart lists them by digest, so the
-			// match is on the repository the two share — without it the GC
-			// reaped the live runner image every pass. Under aggressive
-			// (disk-pressure) reclaim, reap it anyway: the OCI cache is
-			// reconstructible by re-pull, so an actual out-of-disk provision
-			// must win over keeping it warm (mirrors the golden policy, and
-			// bounds the superseded-digest tail a referenced repo accrues).
-			if _, want := expected.imageRepos[ociRepository(vm.Name)]; want && !aggressive {
+			// Under aggressive (disk-pressure) reclaim every cached image
+			// goes: the OCI cache is reconstructible by re-pull, so an
+			// actual out-of-disk provision must win over keeping it warm
+			// (mirrors the golden policy).
+			if !aggressive && keepImage(vm.Name, expected, keptGoldens) {
 				continue
 			}
 			if err := c.Tart.Delete(ctx, vm.Name); err != nil {
@@ -435,6 +459,65 @@ func (c *Collector) forgetGolden(name string) {
 	c.goldenSeenMu.Unlock()
 }
 
+// reapGolden deletes a golden base unless a `tart run` process is live
+// for it, reporting whether it went.
+func (c *Collector) reapGolden(ctx context.Context, name string) bool {
+	logger := log.FromContext(ctx).WithName("gc")
+	if c.live(ctx, name) {
+		logger.Info("spared golden base: a tart run process is live", "name", name)
+		return false
+	}
+	if err := c.Tart.Delete(ctx, name); err != nil {
+		logger.Error(err, "delete stale golden base", "name", name)
+		return false
+	}
+	c.forgetGolden(name)
+	return true
+}
+
+// idleGoldensOverCap returns the idle goldens beyond MaxIdleGoldens, the
+// least recently used first to go.
+func (c *Collector) idleGoldensOverCap(idle []string) []string {
+	limit := c.MaxIdleGoldens
+	if limit <= 0 {
+		limit = defaultMaxIdleGoldens
+	}
+	if len(idle) <= limit {
+		return nil
+	}
+	c.goldenSeenMu.Lock()
+	seen := make(map[string]time.Time, len(idle))
+	for _, name := range idle {
+		seen[name] = c.goldenSeen[name]
+	}
+	c.goldenSeenMu.Unlock()
+	sorted := slices.Clone(idle)
+	slices.SortStableFunc(sorted, func(a, b string) int { return seen[b].Compare(seen[a]) })
+	return sorted[limit:]
+}
+
+// keepImage decides whether a normal pass keeps a cached OCI image. Tart
+// lists a pulled image twice, under the tag a Pod requested and under the
+// digest that tag resolves to; deleting the tag drops the digest with it
+// once no other tag points there. A tag stays while a Pod here requests it
+// or its golden is kept, so an evicted golden's image goes with it instead
+// of holding the same blocks. The listing doesn't say which tags point at a
+// digest, so a digest stays while its repository is in use and leaves with
+// its last tag.
+func keepImage(name string, expected *expectedSet, keptGoldens map[string]struct{}) bool {
+	if _, requested := expected.images[name]; requested {
+		return true
+	}
+	if _, used := expected.imageRepos[ociRepository(name)]; !used {
+		return false
+	}
+	if strings.Contains(name, "@") {
+		return true
+	}
+	_, kept := keptGoldens[goldenVMName(name)]
+	return kept
+}
+
 func (c *Collector) now() time.Time {
 	if c.Now != nil {
 		return c.Now()
@@ -489,6 +572,9 @@ type expectedSet struct {
 	// it on every pass, forcing the next golden materialization into a
 	// full multi-GB re-pull instead of a clonefile from the warm cache.
 	imageRepos map[string]struct{}
+	// images holds every referenced Pod image exactly as requested, which
+	// is also how `tart list` names the tag entry of a pulled image.
+	images map[string]struct{}
 }
 
 func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
@@ -499,6 +585,7 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 	out := &expectedSet{
 		vms:        map[string]struct{}{},
 		imageRepos: map[string]struct{}{},
+		images:     map[string]struct{}{},
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -512,6 +599,7 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		}
 		out.vms[VMNameForPod(pod)] = struct{}{}
 		out.imageRepos[ociRepository(pod.Spec.Containers[0].Image)] = struct{}{}
+		out.images[pod.Spec.Containers[0].Image] = struct{}{}
 		// Keep the golden base this image clones from. Without this the
 		// "local" GC branch would see the golden VM, find no Pod named
 		// after it, and reap it as an orphan clone — forcing the next

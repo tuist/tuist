@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -398,6 +399,130 @@ fi
 		c.RunOnce(context.Background())
 		if got := read(t); len(got) != 0 {
 			t.Fatalf("reaped goldens despite ample free space; deletes=%v", got)
+		}
+	})
+}
+
+// A host that runs several Xcode pools in a day would otherwise keep every
+// pool's golden (~65 GiB each) for a whole GoldenRetention. The cap keeps
+// the goldens its Pods use plus the most recently used idle one, and takes
+// the tag of every evicted golden's image with it so the blocks go too.
+func TestRunOnceCapsIdleGoldens(t *testing.T) {
+	const node = "mini-1"
+	const repo = "ghcr.io/tuist/tuist-runner"
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	inUse := repo + ":macos-26-6-0.17.0"
+	recent := repo + ":macos-27-0-0.17.0"
+	older := repo + ":macos-26-3-0.17.0"
+	oldest := repo + ":macos-26-0-1-0.17.0"
+	digest := repo + "@sha256:" + strings.Repeat("a", 64)
+
+	newCollector := func(t *testing.T, running func(string) bool) (*Collector, func(t *testing.T) []string) {
+		t.Helper()
+		dir := t.TempDir()
+		entries := filepath.Join(dir, "entries.txt")
+		var lines []string
+		for _, image := range []string{inUse, recent, older, oldest} {
+			lines = append(lines, "local "+goldenVMName(image), "OCI "+image)
+		}
+		lines = append(lines, "OCI "+digest)
+		if err := os.WriteFile(entries, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		deletes := filepath.Join(dir, "deletes.txt")
+		bin := filepath.Join(dir, "faketart")
+		body := fmt.Sprintf(`#!/bin/sh
+ENTRIES=%q
+DELETES=%q
+if [ "$1" = "list" ]; then
+  printf '['
+  first=1
+  while read -r src name; do
+    if [ "$first" -eq 0 ]; then printf ','; fi
+    printf '{"Name":"%%s","Source":"%%s","State":"stopped","CPU":4,"Memory":8192,"Size":65}' "$name" "$src"
+    first=0
+  done < "$ENTRIES"
+  printf ']'
+elif [ "$1" = "delete" ]; then
+  grep -v " $2\$" "$ENTRIES" > "$ENTRIES.new"; mv "$ENTRIES.new" "$ENTRIES"
+  printf '%%s\n' "$2" >> "$DELETES"
+fi
+`, entries, deletes)
+		if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		scheme := runtime.NewScheme()
+		if err := corev1.AddToScheme(scheme); err != nil {
+			t.Fatalf("add core scheme: %v", err)
+		}
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner"},
+			Spec: corev1.PodSpec{
+				NodeName:   node,
+				Containers: []corev1.Container{{Name: "runner", Image: inUse}},
+			},
+		}
+		k := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(pod).
+			WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
+				return []string{o.(*corev1.Pod).Spec.NodeName}
+			}).Build()
+		c := &Collector{
+			K8s:             k,
+			Tart:            &tart.Client{Binary: bin},
+			NodeName:        node,
+			GoldenRetention: 24 * time.Hour,
+			HostDiskFree:    func() (float64, error) { return 50, nil },
+			Now:             func() time.Time { return now },
+			IsRunning:       func(_ context.Context, name string) (bool, error) { return running(name), nil },
+			goldenSeen: map[string]time.Time{
+				goldenVMName(recent): now.Add(-1 * time.Hour),
+				goldenVMName(older):  now.Add(-2 * time.Hour),
+				goldenVMName(oldest): now.Add(-3 * time.Hour),
+			},
+		}
+		read := func(t *testing.T) []string {
+			t.Helper()
+			b, err := os.ReadFile(deletes)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			return strings.Fields(string(b))
+		}
+		return c, read
+	}
+
+	t.Run("keeps the most recently used idle golden and drops the rest with their images", func(t *testing.T) {
+		c, read := newCollector(t, func(string) bool { return false })
+		c.RunOnce(context.Background())
+		got := read(t)
+		want := []string{goldenVMName(older), goldenVMName(oldest), older, oldest}
+		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
+			t.Fatalf("deletes = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("a raised cap keeps more idle goldens", func(t *testing.T) {
+		c, read := newCollector(t, func(string) bool { return false })
+		c.MaxIdleGoldens = 2
+		c.RunOnce(context.Background())
+		got := read(t)
+		want := []string{goldenVMName(oldest), oldest}
+		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
+			t.Fatalf("deletes = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("an idle golden over the cap with a live tart run keeps its image", func(t *testing.T) {
+		c, read := newCollector(t, func(name string) bool { return name == goldenVMName(oldest) })
+		c.RunOnce(context.Background())
+		got := read(t)
+		want := []string{goldenVMName(older), older}
+		if !slices.Equal(slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))) {
+			t.Fatalf("deletes = %v, want %v", got, want)
 		}
 	})
 }
