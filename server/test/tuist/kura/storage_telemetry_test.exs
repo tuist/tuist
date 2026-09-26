@@ -256,7 +256,40 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       assert second.median_shed_age_seconds == 1_800
     end
 
-    test "ignores non-capacity evictions and unattributable accounts" do
+    test "pressure blocks retention sizing without counting pressure bytes as turnover" do
+      account_id = System.unique_integer([:positive]) + 1_000_000
+
+      insert_eviction_rows([
+        eviction_row(account_id, "pressure-#{account_id}", ~N[2026-08-20 10:00:00], 60, 120,
+          reason: "disk_pressure",
+          bytes: 512
+        ),
+        eviction_row(account_id, "capacity-#{account_id}", ~N[2026-08-20 11:00:00], 3_600, 7_200, bytes: 1024),
+        eviction_row(account_id, "pressure-only-#{account_id}", ~N[2026-08-21 10:00:00], 60, 120,
+          reason: "disk_pressure",
+          bytes: 512
+        )
+      ])
+
+      aggregates =
+        [~D[2026-08-20], ~D[2026-08-21]]
+        |> StorageTelemetry.eviction_day_aggregates()
+        |> for_account(account_id)
+
+      by_date = Map.new(aggregates, &{&1.date, &1})
+      assert by_date[~D[2026-08-20]].eviction_count == 2
+      assert by_date[~D[2026-08-20]].evicted_bytes == 1024
+      assert by_date[~D[2026-08-21]].eviction_count == 1
+      assert by_date[~D[2026-08-21]].evicted_bytes == 0
+
+      for row <- aggregates do
+        assert row.min_shed_age_seconds == nil
+        assert row.median_shed_age_seconds == nil
+        assert row.median_ring_span_seconds == nil
+      end
+    end
+
+    test "ignores unrelated eviction reasons and unattributable accounts" do
       account_id = System.unique_integer([:positive]) + 1_000_000
 
       insert_eviction_rows([
@@ -317,7 +350,7 @@ defmodule Tuist.Kura.StorageTelemetryTest do
       segment_created_at: NaiveDateTime.add(evicted_at, -span_seconds),
       newest_content_at: NaiveDateTime.add(evicted_at, -shed_age_seconds),
       artifact_count: 10,
-      bytes: 536_870_912,
+      bytes: Map.get(attrs, :bytes, 536_870_912),
       inserted_at: Map.get(attrs, :inserted_at, evicted_at)
     }
   end

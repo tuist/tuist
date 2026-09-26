@@ -367,6 +367,9 @@ async fn initialize_and_serve(
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_segment_promotion_task(state.clone());
+    spawn_supervised("segment_reclamation", state.clone(), |state| async move {
+        state.store.run_segment_reclamation_worker().await;
+    });
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart, and prove mesh-membership
