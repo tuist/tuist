@@ -278,10 +278,9 @@ build {
 
   # Sanity check: every tool a downstream image (runner-image,
   # xcresult-processor) or customer workflow expects has to be
-  # reachable from admin's login shell. /Users/runner is a symlink
-  # to /Users/admin in macos-tahoe-base, so the runner user the
-  # runner-image build creates will see the same .zprofile and
-  # resolve the same tools.
+  # reachable from admin's login shell. The runner-image build
+  # renames this account to `runner`, so jobs see the same .zprofile
+  # and resolve the same tools.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
