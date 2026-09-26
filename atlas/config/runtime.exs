@@ -485,12 +485,6 @@ case System.get_env("MCP_PROXY_SERVERS") do
             # cannot reach here by saying nothing — which is what lets this
             # stand on its own without also enumerating the tools by name.
             read_only: true,
-            # Operator grants are minted per human at ops.tuist.dev and elevate
-            # a session past the user's own memberships, so they travel per
-            # request from each user's stored grant rather than from config.
-            # Only read-tier grants are forwarded, so the credential — not this
-            # list of tools — is what bounds the request upstream.
-            operator_grant_header: "x-tuist-operator-grant",
             # Atlas' ServiceAccount token, so the Tuist server knows the call
             # came through Atlas' audit log and lets operators read any
             # account without a grant.
@@ -704,10 +698,6 @@ clickhouse_enabled? =
 # read-only database access. Atlas authenticates with a projected ServiceAccount
 # token (audience `tuist-server`) read from `token_path`; the file is absent in
 # dev/test, so the tools report the database as unreachable there.
-# Where operators justify access to a customer account. Atlas sends them here
-# with a return destination that receives the minted grant.
-config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL") || "https://ops.tuist.dev/grants/new"
-
 config :atlas, :tuist_server,
   base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
   token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"

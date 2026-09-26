@@ -366,15 +366,10 @@ defmodule Tuist.MCP.Tool do
     end
   end
 
-  # A caller refused for want of an operator grant cannot act on that without
-  # knowing which account to request one for, and a tool call names a record
-  # rather than an account. Naming the owner here is what lets a client turn
-  # the refusal into a next step instead of a dead end.
-  #
-  # The shape is a contract, not prose: `Tuist.MCP.ToolTest` pins it, and
-  # Atlas parses it to build a pre-filled access request. Change the wording
-  # and that client stops recognising it — it fails closed, to a refusal with
-  # no link, but it does fail.
+  # A tool call names a record rather than an account, so a refused caller
+  # would otherwise not know whose access they lack. Naming the owner turns the
+  # refusal into something they can act on, such as asking that account for
+  # access.
   #
   # This tells a caller who cannot read the record which account owns it. They
   # are an authenticated Tuist user, and the handle is the name they would ask
