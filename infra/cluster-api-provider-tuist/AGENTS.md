@@ -1074,8 +1074,10 @@ kubectl annotate rasm <machine> tuist.dev/os-reinstall=27.0
 
 It can also reinstall the version the host already runs, or an older one, as
 long as `softwareupdate --list-full-installers` offers it. It wipes the host:
-the host comes back without its Tart images and cache volume, so its first job
-pulls the runner image again.
+the host comes back without its Tart images and cache volume, so a warm runner
+pulls the runner image again as soon as the host is back in service. An update
+started before that pull finishes waits for it in `Draining`, because the
+retired runner's Pod only goes once Tart has the image.
 
 It shares `status.osUpdate` with the in-place update, with `reinstall: true`,
 and replaces `Installing` with four phases:
@@ -1083,8 +1085,8 @@ and replaces `Installing` with four phases:
 | Phase | What happens |
 |---|---|
 | `Preparing`, `Draining` | As for an update, and the RackHost must record a `serial` |
-| `Downloading` | `softwareupdate --fetch-full-installer`, about 18 GB and 20 minutes on the prototype |
-| `Erasing` | Keeps tailscaled's state in the Machine's bootstrap Secret, then runs `startosinstall --eraseinstall`. The host restarts into the installer and comes back through automated enrollment, about 13 minutes on the prototype. Ends when the host answers with a new SSH host key |
+| `Downloading` | `softwareupdate --fetch-full-installer`, about 18 GB and 9 minutes on the prototype |
+| `Erasing` | Keeps tailscaled's state in the Machine's bootstrap Secret, then runs `startosinstall --eraseinstall`. The host restarts into the installer and comes back through automated enrollment, about 14 minutes on the prototype. Ends when the host answers with a new SSH host key |
 | `Enrolling` | Dials without the pinned host key until the fleet key is accepted. Pins the new key only once the host reports the RackHost's `serial` and the target version, then marks the Machine not bootstrapped |
 | `Bootstrapping` | The Machine bootstraps the host again. Restoring tailscaled's state brings it back as the same tailnet device, so its egress Service, metrics and VNC relay keep working; the kept state is dropped once bootstrap succeeds |
 | `Restarting` | Only when the SSH user has no secure token yet: one restart, after which the auto-login grants it |
