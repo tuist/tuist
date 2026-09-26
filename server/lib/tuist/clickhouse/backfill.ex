@@ -65,7 +65,7 @@ defmodule Tuist.ClickHouse.Backfill do
   when the backfill starts would copy rows the dual write had already
   delivered, and no bound at all would leave the rows written between the two
   steps on the source alone. Tables with no time column cannot be bounded this
-  way, and are copied whole; see `chunks_for/3` for why that is safe for the
+  way, and are copied whole; see `chunks_for/4` for why that is safe for the
   few tables it applies to.
 
   ## How a table is divided
@@ -77,8 +77,11 @@ defmodule Tuist.ClickHouse.Backfill do
   chunks cannot claim the same row and a resumed run cannot skip one.
 
   A month holding more rows than one chunk should is sliced into equal spans
-  of time; see `slices/2`. And a table listed in `Tables.history_days/1` is
-  copied only over that many days before the cutoff, sliced the same way.
+  of time; see `slices/2`. A slice the destination already holds rows in is
+  sliced finer again, because filling its gaps costs memory on the source in
+  proportion to it; see `slices/3`. And a table listed in
+  `Tables.history_days/1` is copied only over that many days before the
+  cutoff, sliced the same way.
   """
 
   import Ecto.Query
@@ -177,19 +180,24 @@ defmodule Tuist.ClickHouse.Backfill do
   @verify_interval_ms to_timeout(second: 15)
 
   # The most rows one chunk may hold before it is sliced, about fifteen to
-  # twenty minutes of copying at the rate production sustained. Two things
-  # set it, and neither is the time limit.
-  #
-  # A chunk that fails part-way is repaired by copying only what the
-  # destination lacks, which holds a hash per destination row for that chunk
-  # in memory. Past a few hundred million rows that no longer fits under
-  # `max_memory_usage`, and a chunk too large to repair is one that can only
-  # be redone by hand.
-  #
-  # And on the tables that are not ordered by time, every chunk reads the
-  # whole table on the source whatever its size, so smaller is not free
-  # either. This keeps `build_files` to a handful of such reads.
+  # twenty minutes of copying at the rate production sustained. On the tables
+  # that are not ordered by time every chunk reads the whole table on the
+  # source whatever its size, so smaller is not free, and this keeps
+  # `build_files` to a handful of such reads.
   @max_chunk_rows 300_000_000
+
+  # The most rows one chunk may hold when the destination already holds some
+  # of them, which is far fewer.
+  #
+  # Such a chunk is filled by copying only what the destination lacks, and
+  # that ships a hash of every destination row in it to the source for a
+  # `GLOBAL NOT IN`, whose set the source holds in memory. The chunks it
+  # meets are ones that are almost entirely present: a month re-checked after
+  # the cutoff moved, or a slice a failed copy had half filled. Production's
+  # September of `gradle_tasks` ran Cloud out of its 8 GiB for one such set,
+  # and four more failed the same way or timed out waiting for Cloud to build
+  # it. At this size the set stays around 2 GiB.
+  @max_gap_fill_rows 20_000_000
 
   @doc """
   Copies every table the destination has, oldest chunk first.
@@ -284,7 +292,7 @@ defmodule Tuist.ClickHouse.Backfill do
             {table, %{copied: 0, skipped: 0, failed: 0}}
 
           column ->
-            chunks = column |> window_chunks(windows) |> Enum.flat_map(&sized(source, table, &1))
+            chunks = column |> window_chunks(windows) |> Enum.flat_map(&sized(source, target, table, &1))
             {table, copy_chunks(source, target, table, chunks)}
         end
       end)
@@ -302,7 +310,7 @@ defmodule Tuist.ClickHouse.Backfill do
   end
 
   defp backfill_table(source, target, table, cutoff) do
-    chunks = chunks_for(source, table, cutoff)
+    chunks = chunks_for(source, target, table, cutoff)
     Logger.info("#{table}: #{length(chunks)} chunk(s)")
     copy_chunks(source, target, table, chunks)
   end
@@ -365,7 +373,7 @@ defmodule Tuist.ClickHouse.Backfill do
   # that no materialized view feeds and nothing has written to since July.
   # A new table with no time column would not be covered by either argument,
   # which is what the log line is for.
-  defp chunks_for(source, table, cutoff) do
+  defp chunks_for(source, target, table, cutoff) do
     case time_column(source, table) do
       nil ->
         Logger.info("#{table}: no time column, copying whole")
@@ -375,7 +383,7 @@ defmodule Tuist.ClickHouse.Backfill do
       column ->
         column
         |> time_chunks(source, table, cutoff)
-        |> Enum.flat_map(&sized(source, table, &1))
+        |> Enum.flat_map(&sized(source, target, table, &1))
     end
   end
 
@@ -395,8 +403,28 @@ defmodule Tuist.ClickHouse.Backfill do
 
   # A chunk already copied keeps its shape, so a run after this one skips it
   # rather than re-slicing it into keys the ledger has never seen.
-  defp sized(source, table, chunk) do
-    if chunk_done?(table, chunk), do: [chunk], else: slices(chunk, count(source, table, chunk))
+  #
+  # The finer cut for a gap-fill is made one level down, inside the slices
+  # the size limit makes, for the same reason. Those come from the source's
+  # count and so are the same on every run; a half-filled month keeps the
+  # key of the slice that finished and only the other is cut finer. Cutting
+  # the month itself finer would re-open the half that was already done.
+  defp sized(source, target, table, chunk) do
+    if chunk_done?(table, chunk) do
+      [chunk]
+    else
+      rows = count(source, table, chunk)
+      pieces = slices(chunk, rows)
+      rows_per_piece = div(rows, length(pieces))
+
+      Enum.flat_map(pieces, fn piece ->
+        if not chunk_done?(table, piece) and count(target, table, piece) > 0 do
+          slices(piece, rows_per_piece, @max_gap_fill_rows)
+        else
+          [piece]
+        end
+      end)
+    end
   end
 
   @doc """
@@ -409,8 +437,14 @@ defmodule Tuist.ClickHouse.Backfill do
   Equal spans of time rather than of rows, so a busy slice can run over the
   limit; it bounds the typical chunk, not every one.
   """
-  def slices({:range, column, from, to} = chunk, rows) do
-    count = div(rows + @max_chunk_rows - 1, @max_chunk_rows)
+  def slices(chunk, rows), do: slices(chunk, rows, @max_chunk_rows)
+
+  @doc """
+  Like `slices/2`, against `limit` rows per slice rather than the per-chunk
+  limit: the gap-fill's, when the destination already holds rows in it.
+  """
+  def slices({:range, column, from, to} = chunk, rows, limit) do
+    count = div(rows + limit - 1, limit)
 
     if count <= 1 do
       [chunk]

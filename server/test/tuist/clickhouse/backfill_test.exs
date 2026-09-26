@@ -302,6 +302,30 @@ defmodule Tuist.ClickHouse.BackfillTest do
     end
   end
 
+  describe "slices/3" do
+    test "cuts a chunk to the limit it is given, still covering it exactly" do
+      # The gap-fill's limit, for a chunk the destination already holds rows
+      # in: a month of `gradle_tasks` in one piece ran Cloud out of 8 GiB.
+      from = ~U[2026-09-01 00:00:00Z]
+      to = ~U[2026-09-25 14:00:00Z]
+      slices = Backfill.slices({:range, "inserted_at", from, to}, 80_000_000, 20_000_000)
+
+      assert length(slices) == 4
+      assert {:range, "inserted_at", ^from, _} = List.first(slices)
+      assert {:range, "inserted_at", _, ^to} = List.last(slices)
+
+      slices
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.each(fn [{_, _, _, first_end}, {_, _, second_start, _}] -> assert first_end == second_start end)
+    end
+
+    test "is the per-chunk limit when none is given" do
+      chunk = {:range, "inserted_at", ~U[2026-09-01 00:00:00Z], ~U[2026-09-25 14:00:00Z]}
+
+      assert Backfill.slices(chunk, 80_000_000) == [chunk]
+    end
+  end
+
   describe "statement_options/0" do
     test "lets the server give up first and never sends a statement twice" do
       options = Backfill.statement_options()
