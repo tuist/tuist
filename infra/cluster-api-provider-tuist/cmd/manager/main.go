@@ -281,9 +281,16 @@ func main() {
 			"Set to 0 to disable the cap (not recommended for production).")
 	var rackHostQuarantineRetryAfter time.Duration
 	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
-		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
+		"How long a RackHost's bootstrap is held off after bootstrap exhaustion. "+
 			"0 uses the controller default (30m); a negative value makes a quarantine permanent, "+
 			"which strands the host unless something can write rackhosts/status.")
+	var rackHostFleetName, rackHostClusterName, rackHostBootstrapSecretName string
+	flag.StringVar(&rackHostFleetName, "rackhost-fleet-name", "",
+		"The rack Mac fleet each RackHost's machine joins: its <fleet>-ssh Secret, the prefix of its Machines' names and their tuist.dev/fleet label.")
+	flag.StringVar(&rackHostClusterName, "rackhost-cluster-name", "",
+		"The CAPI Cluster the RackHost controller makes each rack Mac host a Machine of. Empty, or no --rackhost-fleet-name, makes none.")
+	flag.StringVar(&rackHostBootstrapSecretName, "rackhost-bootstrap-secret-name", "",
+		"The Secret each rack Mac Machine names as its bootstrap data; the operator bootstraps the host, so it only has to exist.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -599,18 +606,23 @@ func main() {
 	}
 
 	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
-	// inventory of physical hosts, and the machine kind that claims from it.
-	//
-	// Both are registered unconditionally, unlike the provider-backed kinds
-	// that stay dormant until an env wires credentials. They need none: the
-	// pool is Kubernetes objects, and with no RackHost declared they simply
-	// have nothing to reconcile. Gating them on a flag would only add a way for
-	// an env to have inventory that nothing acts on.
+	// physical hosts, each of which keeps its own Machine, and the machine
+	// kind that bootstraps the host. Both are registered unconditionally: with
+	// no RackHost declared they have nothing to reconcile.
+	var rackHostMachines *macos.RackMachines
+	if rackHostFleetName != "" && rackHostClusterName != "" && rackHostBootstrapSecretName != "" {
+		rackHostMachines = &macos.RackMachines{
+			ClusterName:     rackHostClusterName,
+			BootstrapSecret: rackHostBootstrapSecretName,
+			FleetName:       rackHostFleetName,
+		}
+	}
 	powerRegistry := power.NewRegistry()
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		Recorder:             mgr.GetEventRecorderFor("rackhost-controller"),
+		Machines:             rackHostMachines,
 		Power:                powerRegistry,
 		SecretsNamespace:     secretsNamespace,
 		QuarantineRetryAfter: rackHostQuarantineRetryAfter,

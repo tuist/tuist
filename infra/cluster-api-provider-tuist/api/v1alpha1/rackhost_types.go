@@ -10,34 +10,11 @@ import (
 // operate: the BER1 colo programme's hardware, as opposed to capacity ordered
 // from a provider API.
 //
-// It exists because every other machine kind in this provider gets its pool
-// from somewhere else: Scaleway's server list filtered by a name prefix, OVH's
-// by a displayName prefix, Dedibox's by a tag. Hardware we own has no such API,
-// so the pool has to be a Kubernetes object. That is the whole of this CR's
-// job: it is inventory, not a workload, and nothing here is read by anything
-// running on the host.
-//
-// Keeping it separate from RackAppleSiliconMachine is what makes a
-// MachineDeployment work at all. The alternative, address and outlet inline on
-// each Machine, forces one MachineDeployment per box (a Machine is cloned from
-// a template, so every clone would carry the same address), and worse, a
-// MachineHealthCheck remediation would then recreate the Machine onto the SAME
-// broken host forever. A pool is what lets remediation land somewhere else.
+// A host is its own node. The RackHost controller keeps one CAPI Machine and
+// the RackAppleSiliconMachine it owns for each host, named `<fleet>-<host>`,
+// with the host as their controller owner. A box upgrades in place, so there
+// is no MachineDeployment and no pool of hosts to claim from.
 type RackHostSpec struct {
-	// Pool is the claim marker: a RackAppleSiliconMachine claims a free
-	// RackHost whose pool equals its own `spec.adoptPool`. It is the direct
-	// analog of the Scaleway kind's name prefix, OVH's displayName prefix and
-	// Dedibox's adopt tag, and like them it is the ENVIRONMENT BOUNDARY:
-	// staging and production RackHosts can coexist in one inventory as long as
-	// their pools differ.
-	//
-	// Optional in the schema, required by the controller (which refuses to
-	// claim an unpooled host and says so on the Machine). A required field
-	// here would break a Helm rollback to a revision predating it: the
-	// rollback patch strips the field and the apiserver rejects the object.
-	// +optional
-	Pool string `json:"pool,omitempty"`
-
 	// Serial is the Mac's hardware serial (e.g. `C07FC05JQ6NY`). This is the
 	// host's durable identity: it survives a hostname change, a DFU restore
 	// and a re-cabling, it is what Apple Business Manager and the MDM know the
@@ -89,32 +66,58 @@ type RackHostSpec struct {
 	// Location is where the box physically is. Nothing in the reconcile path
 	// reads rack/shelf/positionU: they exist so that a human handed an
 	// alerting node name can walk to it, but `site` IS load-bearing: it names
-	// the rack site and composes the providerID, so the controller refuses to
-	// claim a host without one.
+	// the rack site and composes the providerID, so the machine controller
+	// does not bootstrap a host without one.
 	// +optional
 	Location RackHostLocation `json:"location,omitempty"`
 
 	// Power names the outlet this host is plugged into. Cycling it is the
 	// fleet's remote reboot: Apple silicon minis power on when mains is
 	// applied, and every fleet host runs `pmset autorestart 1`, so an outlet
-	// cycle is a full reboot with no console.
-	//
-	// It is not decoration. The Scaleway kind recovers a host that fails
-	// bootstrap by calling the provider's reboot API and, failing that, by
-	// releasing the host so a DIFFERENT mini gets claimed. Neither exists for
-	// hardware we own (releasing just re-claims the same box) so the outlet
-	// is the only repair this kind has short of quarantining the host and
-	// paging a human.
+	// cycle is a full reboot with no console. It is the only repair a host
+	// that fails bootstrap has short of being quarantined and paging a human.
 	// +optional
 	Power *PowerOutletRef `json:"power,omitempty"`
 
-	// Unclaimable takes a host out of the claim pool without deleting its
-	// inventory record: bench work, an RMA, a box being re-imaged. An already
-	// claimed host is NOT released by setting this: it stops the next claim,
-	// it does not evict the current one, the same shape as
-	// `Node.spec.unschedulable`.
+	// Machine sizes the node the host runs as. The controller copies it onto
+	// the host's RackAppleSiliconMachine, and a change reaches the host
+	// through the host-config drift loop.
 	// +optional
-	Unclaimable bool `json:"unclaimable,omitempty"`
+	Machine RackHostMachine `json:"machine,omitempty"`
+
+	// Parked keeps the host declared with no Machine: bench work, an RMA, a
+	// box that is off. Parking a host deletes its Machine and its Node without
+	// draining it, so drain the Node first; unparking it makes a new Machine,
+	// which bootstraps the host again.
+	// +optional
+	Parked bool `json:"parked,omitempty"`
+}
+
+// RackHostMachine is the sizing the host's RackAppleSiliconMachine carries.
+// Each field falls back to the operator's global default when unset.
+type RackHostMachine struct {
+	// HostCPU is the CPU-core count advertised on the Node.
+	// +optional
+	HostCPU int `json:"hostCPU,omitempty"`
+
+	// HostMemoryMB is the memory advertised on the Node: the box's RAM minus
+	// the ~2 GB Virtualization.framework reserves for the host.
+	// +optional
+	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
+
+	// GuestCapacity is how many Tart guests the host is expected to run.
+	// +optional
+	GuestCapacity int `json:"guestCapacity,omitempty"`
+
+	// MaxPods is the Pod ceiling tart-kubelet advertises.
+	// +optional
+	MaxPods int `json:"maxPods,omitempty"`
+
+	// RunnerCacheVolumeGiB is the quota of the host's runner-cache volume. An
+	// explicit 0 disables cache volumes on the host; unset inherits the
+	// operator's default.
+	// +optional
+	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
 }
 
 // RackHostLocation is the physical position of a host.
@@ -170,18 +173,12 @@ type PowerOutletRef struct {
 
 // RackHostStatus is the observed state of one physical host.
 type RackHostStatus struct {
-	// ClaimedBy is the name of the RackAppleSiliconMachine currently holding
-	// this host, empty when free. The claim is a status write guarded by the
-	// apiserver's resourceVersion check, which makes it strictly safer than
-	// the rename-is-the-claim trick the Scaleway kind uses: two reconciles
-	// racing for the last free host cannot both win, and the loser sees a
-	// conflict rather than a silently double-claimed box.
+	// Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
+	// make this host a node, and of the Node they register. It is
+	// `<fleet>-<host>`, or the name of a Machine the controller adopted
+	// because its providerID is this host's.
 	// +optional
-	ClaimedBy string `json:"claimedBy,omitempty"`
-
-	// ClaimedAt is when the current claim was taken.
-	// +optional
-	ClaimedAt *metav1.Time `json:"claimedAt,omitempty"`
+	Machine string `json:"machine,omitempty"`
 
 	// Power is the last observed outlet state: On, Off, or Unknown when the
 	// host has no outlet configured or the driver could not reach it.
@@ -197,18 +194,10 @@ type RackHostStatus struct {
 	// +optional
 	LastPowerActionTime *metav1.Time `json:"lastPowerActionTime,omitempty"`
 
-	// Quarantined excludes the host from the claim pool after the machine
-	// controller gave up bootstrapping it. Unlike the Scaleway kind, whose
-	// bootstrap-exhaustion path releases the host so a different mini gets
-	// claimed, releasing hardware we own would hand the same broken box
-	// straight back to the next reconcile, and the Machine would loop on it
-	// forever. Quarantine is what turns that loop into one bad host and a
-	// Machine free to land elsewhere.
-	//
-	// Deliberately controller-set and operator-cleared (`kubectl patch
-	// --subresource=status`), mirroring how a terminal Machine failure is
-	// cleared: nothing recomputes it, so a box stays out until a human says
-	// it was fixed.
+	// Quarantined holds off bootstrapping the host after the machine
+	// controller exhausted its bootstrap attempts on it. It is
+	// controller-set and expires after the operator's
+	// `--rackhost-quarantine-retry-after`, when bootstrap starts over.
 	// +optional
 	Quarantined bool `json:"quarantined,omitempty"`
 
@@ -217,21 +206,9 @@ type RackHostStatus struct {
 	QuarantineReason string `json:"quarantineReason,omitempty"`
 
 	// QuarantinedAt is when the quarantine was applied, and it is what lets the
-	// quarantine expire.
-	//
-	// An expiry is not a convenience. Clearing this field needs write access to
-	// rackhosts/status, which the operator's own ClusterRole has and a human
-	// reaching the cluster through the kubectl gateway does not, so a quarantine
-	// with no expiry is a physical box removed from the pool that nobody present
-	// can put back. It is also usually wrong to keep: most exhaustions are a
-	// verdict on the CONFIG that was being pushed, not on the hardware, and the
-	// fix ships in the next operator image while the host stays excluded from
-	// the fleet it was meant to rejoin.
-	//
-	// The shape is deliberately the same as the drift loop's terminal-failure
-	// cooldown (see HostAgentStatus.LastUpdateFailureTime): a persistently bad
-	// host still costs one bootstrap budget per interval rather than one per
-	// reconcile, so the ladder keeps doing its job.
+	// quarantine expire. Clearing a quarantine by hand needs write access to
+	// rackhosts/status, which a human reaching the cluster through the kubectl
+	// gateway does not have.
 	// +optional
 	QuarantinedAt *metav1.Time `json:"quarantinedAt,omitempty"`
 
@@ -243,11 +220,11 @@ type RackHostStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=rackhosts,scope=Namespaced,categories=cluster-api,shortName=rh
-// +kubebuilder:printcolumn:name="Pool",type=string,JSONPath=".spec.pool"
 // +kubebuilder:printcolumn:name="Address",type=string,JSONPath=".spec.address"
-// +kubebuilder:printcolumn:name="ClaimedBy",type=string,JSONPath=".status.claimedBy"
+// +kubebuilder:printcolumn:name="Machine",type=string,JSONPath=".status.machine"
 // +kubebuilder:printcolumn:name="Power",type=string,JSONPath=".status.power"
 // +kubebuilder:printcolumn:name="Quarantined",type=boolean,JSONPath=".status.quarantined"
+// +kubebuilder:printcolumn:name="Parked",type=boolean,JSONPath=".spec.parked"
 // +kubebuilder:printcolumn:name="Serial",type=string,priority=1,JSONPath=".spec.serial"
 // +kubebuilder:printcolumn:name="Site",type=string,priority=1,JSONPath=".spec.location.site"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -281,15 +258,4 @@ func (h *RackHost) GetConditions() clusterv1.Conditions {
 
 func (h *RackHost) SetConditions(c clusterv1.Conditions) {
 	h.Status.Conditions = c
-}
-
-// Claimable reports whether this host may be claimed by the named machine.
-// A host already claimed by that same machine is claimable, which is what
-// makes the claim step idempotent across a reconcile that crashed between the
-// RackHost status write and the Machine status write.
-func (h *RackHost) Claimable(machineName string) bool {
-	if h.Status.ClaimedBy != "" {
-		return h.Status.ClaimedBy == machineName
-	}
-	return !h.Spec.Unclaimable && !h.Status.Quarantined && h.DeletionTimestamp.IsZero()
 }
