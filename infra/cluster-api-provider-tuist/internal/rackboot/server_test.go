@@ -180,7 +180,7 @@ func TestTheSeedGoesOnlyToTheHostsNICsAndThenOnlyToTheFirstThatAsked(t *testing.
 	}
 	boot := h.host(t).Status.Boot
 	if boot == nil || boot.KeyID != keyID || boot.ServedTo != otherNIC || boot.ServedAddress != "192.168.50.102" ||
-		boot.ServedAt == nil || boot.ServableAt == nil || boot.Server != "ber1-edge-b" {
+		boot.ServedAt == nil {
 		t.Fatalf("status.boot %+v", boot)
 	}
 
@@ -208,26 +208,75 @@ func TestTheSeedOfAnInstallTheHostNoLongerCarriesIsNotHandedOut(t *testing.T) {
 	}
 }
 
-func TestAnInstallIsReportedServableOnlyByTheEdgeHoldingTheAddress(t *testing.T) {
+// peer is another edge's boot server of the same site, over the same API.
+func (h *harness) peer(node string, holds func() bool) *Server {
+	cfg := h.s.cfg
+	cfg.Node = node
+	s := NewServer(cfg, h.c, h.c, logr.Discard())
+	s.Now = h.s.Now
+	s.Holds = holds
+	return s
+}
+
+func servers(boot *infrav1.RackLinuxHostBootStatus) map[string]bool {
+	out := map[string]bool{}
+	if boot != nil {
+		for _, s := range boot.Servers {
+			out[s.Node] = s.HoldsAddress
+		}
+	}
+	return out
+}
+
+// Every edge's boot server reports the installs it holds, holding the
+// provisioning address or not: the operator reboots an edge into its install
+// only once another edge, which takes the address over, holds it.
+func TestEveryReadyBootServerReportsTheInstallsItHolds(t *testing.T) {
 	h := newHarness(t, publishedHost(keyID))
 	h.s.SetInstalls(bootSecretData(keyID))
 	h.s.ready.Store(true)
 
 	h.s.Acknowledge(context.Background())
-	if boot := h.host(t).Status.Boot; boot != nil {
-		t.Fatalf("an edge not holding the provisioning address reported %+v", boot)
-	}
-
-	h.holds = true
-	h.s.Acknowledge(context.Background())
 	host := h.host(t)
-	if boot := host.Status.Boot; boot == nil || boot.KeyID != keyID || boot.ServableAt == nil || boot.ServedTo != "" {
-		t.Fatalf("status.boot %+v", boot)
+	if got := servers(host.Status.Boot); host.Status.Boot.KeyID != keyID || len(got) != 1 || got["ber1-edge-b"] {
+		t.Fatalf("status.boot %+v, want ber1-edge-b's report, not holding the address", host.Status.Boot)
 	}
 	version := host.ResourceVersion
 	h.s.Acknowledge(context.Background())
 	if h.host(t).ResourceVersion != version {
-		t.Fatal("reported the same install servable twice")
+		t.Fatal("reported the same install twice")
+	}
+
+	h.holds = true
+	h.s.Acknowledge(context.Background())
+	if got := servers(h.host(t).Status.Boot); len(got) != 1 || !got["ber1-edge-b"] {
+		t.Fatalf("servers %v, want ber1-edge-b reported again once it holds the address", got)
+	}
+
+	peer := h.peer("ber1-edge-a", func() bool { return false })
+	peer.SetInstalls(bootSecretData(keyID))
+	peer.ready.Store(true)
+	peer.Acknowledge(context.Background())
+	boot := h.host(t).Status.Boot
+	if got := servers(boot); len(got) != 2 || !got["ber1-edge-b"] || got["ber1-edge-a"] || boot.ServedTo != "" {
+		t.Fatalf("status.boot %+v, want both edges' reports", boot)
+	}
+}
+
+func TestAHandOutKeepsTheBootServersReports(t *testing.T) {
+	h := newHarness(t, publishedHost(keyID), announcedCandidate())
+	h.s.SetInstalls(bootSecretData(keyID))
+	h.s.ready.Store(true)
+	h.holds = true
+	h.s.Acknowledge(context.Background())
+	h.neighbors["192.168.50.104"] = bootMAC
+
+	if rec := h.get(t, "/hosts/38-05-25-38-b5-b5/user-data", "192.168.50.104"); rec.Code != http.StatusOK {
+		t.Fatalf("%d %q", rec.Code, rec.Body.String())
+	}
+	boot := h.host(t).Status.Boot
+	if got := servers(boot); len(got) != 1 || !got["ber1-edge-b"] || boot.ServedTo != bootMAC {
+		t.Fatalf("status.boot %+v", boot)
 	}
 }
 

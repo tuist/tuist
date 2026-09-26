@@ -326,13 +326,6 @@ spec:
                     keyID:
                       description: KeyID is the join key of the install it reports on.
                       type: string
-                    servableAt:
-                      description: |-
-                        ServableAt is when a boot server holding the site's provisioning address
-                        first held the install, ready to serve it. The operator reboots a host
-                        into its install only after.
-                      format: date-time
-                      type: string
                     servedAddress:
                       type: string
                     servedAt:
@@ -345,9 +338,38 @@ spec:
                         ServedAddress the address that asked. The boot server hands the seed to
                         no other MAC.
                       type: string
-                    server:
-                      description: Server is the edge whose boot server reported last.
-                      type: string
+                    servers:
+                      description: |-
+                        Servers are the boot servers holding the install with the installer
+                        ready to serve it. The operator reboots a host into its install only
+                        once the boot server that answers its netboot is among them: the one
+                        holding the site's provisioning address, or, for an edge, every other
+                        edge of its site, since the edge's own goes down with it.
+                      items:
+                        description: |-
+                          RackLinuxHostBootServer is one boot server holding a host's install, ready
+                          to serve it.
+                        properties:
+                          at:
+                            description: At is when it reported.
+                            format: date-time
+                            type: string
+                          holdsAddress:
+                            description: |-
+                              HoldsAddress is whether the edge held the site's provisioning address
+                              when it reported.
+                            type: boolean
+                          node:
+                            description: Node is the edge the boot server runs on.
+                            type: string
+                        required:
+                          - at
+                          - node
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - node
+                      x-kubernetes-list-type: map
                   required:
                     - keyID
                   type: object

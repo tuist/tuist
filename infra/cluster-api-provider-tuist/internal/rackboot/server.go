@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -99,8 +100,10 @@ type Server struct {
 	installs map[string]Install
 	byUUID   map[string]string
 
-	// seedMu serializes seed hand-outs and acknowledgements, and guards acked;
-	// candMu serializes announcements.
+	// seedMu serializes seed hand-outs and acknowledgements, and guards acked,
+	// the installs reported by join key, each with whether this edge held the
+	// provisioning address when it reported it; candMu serializes
+	// announcements.
 	seedMu sync.Mutex
 	acked  map[string]bool
 	candMu sync.Mutex
@@ -344,12 +347,9 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 			return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("the seed went to %s", boot.ServedTo)}
 		}
 		now := metav1.NewTime(s.now())
-		next := &infrav1.RackLinuxHostBootStatus{
-			KeyID: inst.KeyID, Server: s.cfg.Node, ServableAt: &now,
-			ServedTo: mac, ServedAddress: ip.String(), ServedAt: &now,
-		}
-		if boot != nil && boot.KeyID == inst.KeyID && boot.ServableAt != nil {
-			next.ServableAt = boot.ServableAt
+		next := &infrav1.RackLinuxHostBootStatus{KeyID: inst.KeyID, ServedTo: mac, ServedAddress: ip.String(), ServedAt: &now}
+		if boot != nil && boot.KeyID == inst.KeyID {
+			next.Servers = boot.Servers
 		}
 		orig := host.DeepCopy()
 		host.Status.Boot = next
@@ -358,7 +358,6 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 			continue
 		}
 		if err == nil {
-			s.acked[inst.KeyID] = true
 			s.log.Info("handed out an install's seed", "install", inst.KeyID, "host", inst.UUID, "mac", mac, "address", ip.String())
 		}
 		return err
@@ -424,28 +423,31 @@ func (s *Server) serveAnnounce(w http.ResponseWriter, r *http.Request) {
 }
 
 // Acknowledge reports, on each host whose install this boot server holds,
-// that the install is servable, once the ISO is ready and while this edge
-// holds the provisioning address: the operator reboots a host into its
-// install only after.
+// that it can serve the install, once the ISO is ready, and again once this
+// edge holds the provisioning address: the operator reboots a host into its
+// install only after the boot server answering its netboot did.
 func (s *Server) Acknowledge(ctx context.Context) {
-	if !s.ready.Load() || !s.Holds() {
+	if !s.ready.Load() {
 		return
 	}
+	holds := s.Holds()
 	installs := s.allInstalls()
 	s.seedMu.Lock()
 	defer s.seedMu.Unlock()
 	current := map[string]bool{}
 	for _, inst := range installs {
 		current[inst.KeyID] = true
-		if s.acked[inst.KeyID] {
+		if held, ok := s.acked[inst.KeyID]; ok && (held || !holds) {
 			continue
 		}
-		done, err := s.acknowledge(ctx, inst)
+		done, err := s.acknowledge(ctx, inst, holds)
 		if err != nil {
 			s.log.Error(err, "report an install servable", "install", inst.KeyID, "host", inst.UUID)
 			continue
 		}
-		s.acked[inst.KeyID] = done
+		if done {
+			s.acked[inst.KeyID] = holds
+		}
 	}
 	for key := range s.acked {
 		if !current[key] {
@@ -454,7 +456,7 @@ func (s *Server) Acknowledge(ctx context.Context) {
 	}
 }
 
-func (s *Server) acknowledge(ctx context.Context, inst Install) (bool, error) {
+func (s *Server) acknowledge(ctx context.Context, inst Install, holds bool) (bool, error) {
 	host := &infrav1.RackLinuxHost{}
 	if err := s.api.Get(ctx, types.NamespacedName{Namespace: s.cfg.Namespace, Name: inst.UUID}, host); err != nil {
 		return false, client.IgnoreNotFound(err)
@@ -462,19 +464,27 @@ func (s *Server) acknowledge(ctx context.Context, inst Install) (bool, error) {
 	if host.Status.Install == nil || host.Status.Install.KeyID != inst.KeyID {
 		return false, nil
 	}
-	if boot := host.Status.Boot; boot != nil && boot.KeyID == inst.KeyID && boot.ServableAt != nil {
-		return true, nil
+	next := &infrav1.RackLinuxHostBootStatus{KeyID: inst.KeyID}
+	if boot := host.Status.Boot; boot != nil && boot.KeyID == inst.KeyID {
+		next = boot.DeepCopy()
 	}
-	now := metav1.NewTime(s.now())
+	i := slices.IndexFunc(next.Servers, func(b infrav1.RackLinuxHostBootServer) bool { return b.Node == s.cfg.Node })
+	switch {
+	case i >= 0 && (next.Servers[i].HoldsAddress || !holds):
+		return true, nil
+	case i >= 0:
+		next.Servers = slices.Delete(next.Servers, i, i+1)
+	}
+	next.Servers = append(next.Servers, infrav1.RackLinuxHostBootServer{Node: s.cfg.Node, HoldsAddress: holds, At: metav1.NewTime(s.now())})
 	orig := host.DeepCopy()
-	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: inst.KeyID, Server: s.cfg.Node, ServableAt: &now}
+	host.Status.Boot = next
 	if err := s.client.Status().Patch(ctx, host, client.MergeFromWithOptions(orig, client.MergeFromWithOptimisticLock{})); err != nil {
 		if apierrors.IsConflict(err) {
 			return false, nil
 		}
 		return false, err
 	}
-	s.log.Info("holding an install, ready to serve it", "install", inst.KeyID, "host", inst.UUID, "mac", colonMAC(inst.MAC))
+	s.log.Info("holding an install, ready to serve it", "install", inst.KeyID, "host", inst.UUID, "mac", colonMAC(inst.MAC), "holdingAddress", holds)
 	return true, nil
 }
 

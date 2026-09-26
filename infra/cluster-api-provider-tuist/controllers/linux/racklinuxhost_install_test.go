@@ -153,6 +153,13 @@ func (h *installHarness) boot(t *testing.T) map[string][]byte {
 // holding the site's provisioning address does.
 func (h *installHarness) servable(t *testing.T, name string) {
 	t.Helper()
+	h.reportedBy(t, name, "ber1-edge-b", true)
+}
+
+// reportedBy reports the host's published install servable by node's boot
+// server.
+func (h *installHarness) reportedBy(t *testing.T, name, node string, holdsAddress bool) {
+	t.Helper()
 	host := &infrav1.RackLinuxHost{}
 	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: name}, host); err != nil {
 		t.Fatal(err)
@@ -160,8 +167,10 @@ func (h *installHarness) servable(t *testing.T, name string) {
 	if host.Status.Install == nil {
 		t.Fatal("no install is published")
 	}
-	at := metav1.NewTime(h.now)
-	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID, Server: "ber1-edge-b", ServableAt: &at}
+	if host.Status.Boot == nil || host.Status.Boot.KeyID != host.Status.Install.KeyID {
+		host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID}
+	}
+	host.Status.Boot.Servers = append(host.Status.Boot.Servers, infrav1.RackLinuxHostBootServer{Node: node, HoldsAddress: holdsAddress, At: metav1.NewTime(h.now)})
 	if err := h.c.Status().Update(context.Background(), host); err != nil {
 		t.Fatal(err)
 	}
@@ -692,7 +701,7 @@ func TestRackInstallRebootsAHostOnlyOnceTheBootServerServesItsInstall(t *testing
 		t.Fatal(err)
 	}
 	at := metav1.NewTime(installEpoch)
-	stale.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kEARLIERCNTRL", ServableAt: &at}
+	stale.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kEARLIERCNTRL", Servers: []infrav1.RackLinuxHostBootServer{{Node: "ber1-edge-b", HoldsAddress: true, At: at}}}
 	if err := h.c.Status().Update(context.Background(), stale); err != nil {
 		t.Fatal(err)
 	}
@@ -704,10 +713,52 @@ func TestRackInstallRebootsAHostOnlyOnceTheBootServerServesItsInstall(t *testing
 		t.Fatalf("Installed %+v", c)
 	}
 
+	h.reportedBy(t, svcUUID, "ber1-edge-a", false)
+	h.reconcile(t, svcUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the host on the report of a boot server not holding the provisioning address")
+	}
+
 	h.servable(t, svcUUID)
 	got = h.reconcile(t, svcUUID)
 	if len(h.runner.runs) != 1 || got.Status.Install.TriggeredAt == nil {
 		t.Fatalf("runs %d install %+v, want the host rebooted into its install", len(h.runner.runs), got.Status.Install)
+	}
+}
+
+// An edge's own boot server goes down with it, and another edge takes the
+// provisioning address over, so the edge is rebooted into its install only
+// once every other edge of its site holds it.
+func TestRackInstallRebootsAnEdgeOnlyOnceTheOtherEdgesHoldItsInstall(t *testing.T) {
+	h := newInstallHarness(t, reinstallingEdge(),
+		otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true),
+		otherEdge("ber1-edge-c", rackTestNamespace, "ber1", "edge", true))
+	h.api.devices = []tailnet.Device{edgeDevice("old", "ber1-edge", "2026-09-01T00:00:00Z", true, "100.64.0.7")}
+	h.reconcile(t, edgeUUID)
+
+	h.reportedBy(t, edgeUUID, "ber1-edge", true)
+	got := h.reconcile(t, edgeUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the edge on its own boot server's report")
+	}
+	c := conditions.Get(got, InstalledCondition)
+	if c == nil || c.Reason != "WaitingForBootServer" || !strings.Contains(c.Message, "ber1-edge-b, ber1-edge-c") {
+		t.Fatalf("Installed %+v", c)
+	}
+
+	h.reportedBy(t, edgeUUID, "ber1-edge-b", false)
+	got = h.reconcile(t, edgeUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the edge before ber1-edge-c, which may take the address over, held its install")
+	}
+	if c := conditions.Get(got, InstalledCondition); c == nil || strings.Contains(c.Message, "ber1-edge-b") || !strings.Contains(c.Message, "ber1-edge-c") {
+		t.Fatalf("Installed %+v", c)
+	}
+
+	h.reportedBy(t, edgeUUID, "ber1-edge-c", false)
+	got = h.reconcile(t, edgeUUID)
+	if len(h.runner.runs) != 1 || got.Status.Install.TriggeredAt == nil {
+		t.Fatalf("runs %d install %+v, want the edge rebooted into its install", len(h.runner.runs), got.Status.Install)
 	}
 }
 
@@ -736,7 +787,7 @@ func TestRackInstallRenewsAJoinKeyOnlyWhileNoHostHasIt(t *testing.T) {
 
 	served := withInstall(svcHost(), "kOLDCNTRL", "", offered, nil)
 	at := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
-	served.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kOLDCNTRL", ServableAt: &at, ServedTo: svcMAC, ServedAt: &at}
+	served.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kOLDCNTRL", ServedTo: svcMAC, ServedAt: &at}
 	h = newInstallHarness(t, served, publishedBoot("kOLDCNTRL"))
 	if host := h.reconcile(t, svcUUID); len(h.api.minted) != 0 || host.Status.Install.KeyID != "kOLDCNTRL" {
 		t.Fatalf("minted %v, install %+v; a key a host fetched is kept", h.api.minted, host.Status.Install)

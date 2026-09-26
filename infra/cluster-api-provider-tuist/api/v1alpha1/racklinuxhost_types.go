@@ -230,22 +230,22 @@ type RackLinuxHostInstallStatus struct {
 	TriggeredAt *metav1.Time `json:"triggeredAt,omitempty"`
 }
 
-// RackLinuxHostBootStatus is what a site's boot server reports about the
+// RackLinuxHostBootStatus is what a site's boot servers report about the
 // install published for a host. It describes the install with KeyID, and is
 // stale once another is published.
 type RackLinuxHostBootStatus struct {
 	// KeyID is the join key of the install it reports on.
 	KeyID string `json:"keyID"`
 
-	// Server is the edge whose boot server reported last.
+	// Servers are the boot servers holding the install with the installer
+	// ready to serve it. The operator reboots a host into its install only
+	// once the boot server that answers its netboot is among them: the one
+	// holding the site's provisioning address, or, for an edge, every other
+	// edge of its site, since the edge's own goes down with it.
 	// +optional
-	Server string `json:"server,omitempty"`
-
-	// ServableAt is when a boot server holding the site's provisioning address
-	// first held the install, ready to serve it. The operator reboots a host
-	// into its install only after.
-	// +optional
-	ServableAt *metav1.Time `json:"servableAt,omitempty"`
+	// +listType=map
+	// +listMapKey=node
+	Servers []RackLinuxHostBootServer `json:"servers,omitempty"`
 
 	// ServedTo is the MAC the install's seed was handed out to, and
 	// ServedAddress the address that asked. The boot server hands the seed to
@@ -259,6 +259,21 @@ type RackLinuxHostBootStatus struct {
 	// ServedAt is when the seed was first handed out.
 	// +optional
 	ServedAt *metav1.Time `json:"servedAt,omitempty"`
+}
+
+// RackLinuxHostBootServer is one boot server holding a host's install, ready
+// to serve it.
+type RackLinuxHostBootServer struct {
+	// Node is the edge the boot server runs on.
+	Node string `json:"node"`
+
+	// HoldsAddress is whether the edge held the site's provisioning address
+	// when it reported.
+	// +optional
+	HoldsAddress bool `json:"holdsAddress,omitempty"`
+
+	// At is when it reported.
+	At metav1.Time `json:"at"`
 }
 
 // RackLinuxHostPowerStatus is a host's power state as AMT reports it.
