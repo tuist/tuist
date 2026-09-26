@@ -318,13 +318,6 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 	if !ok {
 		return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not a neighbor on the boot server's segment", ip)}
 	}
-	nics, err := s.hostNICs(ctx, inst)
-	if err != nil {
-		return err
-	}
-	if !nics[mac] {
-		return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not one of the host's NICs", mac)}
-	}
 
 	s.seedMu.Lock()
 	defer s.seedMu.Unlock()
@@ -338,6 +331,9 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 		}
 		if host.Status.Install == nil || host.Status.Install.KeyID != inst.KeyID {
 			return errNotHandedOut{http.StatusServiceUnavailable, "the host's install changed; ask again"}
+		}
+		if !hostNICs(host, inst)[mac] {
+			return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not one of the host's NICs", mac)}
 		}
 		boot := host.Status.Boot
 		if boot != nil && boot.KeyID == inst.KeyID && boot.ServedTo != "" {
@@ -366,21 +362,17 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 }
 
 // hostNICs are the MACs of the machine an install is for: its boot MAC, and
-// every NIC it announced.
-func (s *Server) hostNICs(ctx context.Context, inst Install) (map[string]bool, error) {
+// the NICs its host took from what the machine first announced. What the
+// machine's candidate lists is not trusted: anyone on the segment can
+// announce.
+func hostNICs(host *infrav1.RackLinuxHost, inst Install) map[string]bool {
 	nics := map[string]bool{colonMAC(inst.MAC): true}
-	cand := &infrav1.RackLinuxCandidate{}
-	err := s.client.Get(ctx, types.NamespacedName{Namespace: s.cfg.Namespace, Name: inst.UUID}, cand)
-	switch {
-	case apierrors.IsNotFound(err):
-	case err != nil:
-		return nil, err
-	default:
-		for _, n := range cand.Status.NICs {
+	if hw := host.Status.Hardware; hw != nil {
+		for _, n := range hw.NICs {
 			nics[strings.ToLower(n.MAC)] = true
 		}
 	}
-	return nics, nil
+	return nics
 }
 
 func (s *Server) serveUbuntu(w http.ResponseWriter, r *http.Request) {
@@ -414,6 +406,8 @@ func (s *Server) serveAnnounce(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errTooManyCandidates):
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
+	case errors.As(err, new(errConflictingAnnouncement)):
+		http.Error(w, err.Error(), http.StatusConflict)
 	case err != nil:
 		s.log.Error(err, "record an announcement", "uuid", a.UUID)
 		http.Error(w, "cannot record the announcement", http.StatusServiceUnavailable)

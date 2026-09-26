@@ -102,7 +102,9 @@ func BootMAC(nics []infrav1.RackLinuxCandidateNIC) string {
 }
 
 // recordCandidate keeps a machine's announcement on the RackLinuxCandidate
-// named after its UUID, leaving what the operator marks on it.
+// named after its UUID, leaving what the operator marks on it. What it
+// announced first is kept: anyone on the segment can announce, so one that
+// differs from it is kept only as the candidate's conflict, and refused.
 func (s *Server) recordCandidate(ctx context.Context, a Announcement, from net.IP) error {
 	cand := &infrav1.RackLinuxCandidate{}
 	err := s.client.Get(ctx, types.NamespacedName{Namespace: s.cfg.Namespace, Name: a.UUID}, cand)
@@ -128,6 +130,11 @@ func (s *Server) recordCandidate(ctx context.Context, a Announcement, from net.I
 	if v4 := from.To4(); v4 != nil {
 		address = v4.String()
 	}
+	if cand.Status.UUID != "" {
+		if reason := identityDiffers(cand.Status, a); reason != "" {
+			return s.recordConflict(ctx, cand, reason, address, now)
+		}
+	}
 	want := infrav1.RackLinuxCandidateStatus{
 		UUID:       a.UUID,
 		Serial:     a.Serial,
@@ -140,9 +147,12 @@ func (s *Server) recordCandidate(ctx context.Context, a Announcement, from net.I
 		FirstSeen:  cand.Status.FirstSeen,
 		LastSeen:   cand.Status.LastSeen,
 		DeclaredAs: cand.Status.DeclaredAs,
+		Conflict:   cand.Status.Conflict,
 	}
 	if want.FirstSeen == nil {
 		want.FirstSeen = &metav1.Time{Time: now}
+	} else {
+		want.NICs, want.BootMAC = cand.Status.NICs, cand.Status.BootMAC
 	}
 	if sameAnnouncement(cand.Status, want) && cand.Status.LastSeen != nil && now.Sub(cand.Status.LastSeen.Time) < candidateRefresh {
 		return nil
@@ -164,4 +174,51 @@ func sameAnnouncement(a, b infrav1.RackLinuxCandidateStatus) bool {
 		}
 	}
 	return true
+}
+
+// identityDiffers says how an announcement differs from what the machine
+// first announced, empty when it does not: its serial, its product and its
+// NICs, in any order.
+func identityDiffers(first infrav1.RackLinuxCandidateStatus, a Announcement) string {
+	switch {
+	case a.Serial != first.Serial:
+		return fmt.Sprintf("serial %q, not %q", a.Serial, first.Serial)
+	case a.Product != first.Product:
+		return fmt.Sprintf("product %q, not %q", a.Product, first.Product)
+	}
+	known := map[infrav1.RackLinuxCandidateNIC]bool{}
+	for _, n := range first.NICs {
+		known[n] = true
+	}
+	for _, n := range a.NICs {
+		if !known[n] {
+			return fmt.Sprintf("NIC %s (%s %s), which it did not announce first", n.MAC, n.Driver, n.PCIDevice)
+		}
+	}
+	if len(a.NICs) != len(first.NICs) {
+		return fmt.Sprintf("%d NICs, not %d", len(a.NICs), len(first.NICs))
+	}
+	return ""
+}
+
+// recordConflict keeps an announcement that differs from what the machine
+// first announced on the candidate's conflict, and nothing else of it.
+func (s *Server) recordConflict(ctx context.Context, cand *infrav1.RackLinuxCandidate, reason, address string, now time.Time) error {
+	s.log.Info("refused an announcement that differs from what the machine first announced", "uuid", cand.Name, "from", address, "reason", reason)
+	if c := cand.Status.Conflict; c == nil || c.Reason != reason || c.Address != address || now.Sub(c.At.Time) >= candidateRefresh {
+		orig := cand.DeepCopy()
+		cand.Status.Conflict = &infrav1.RackLinuxCandidateConflict{Reason: reason, Address: address, SeenBy: s.cfg.Node, At: metav1.NewTime(now)}
+		if err := s.client.Status().Patch(ctx, cand, client.MergeFrom(orig)); err != nil {
+			return err
+		}
+	}
+	return errConflictingAnnouncement{reason}
+}
+
+// errConflictingAnnouncement is an announcement that differs from what the
+// machine first announced.
+type errConflictingAnnouncement struct{ reason string }
+
+func (e errConflictingAnnouncement) Error() string {
+	return "this differs from what the machine first announced: " + e.reason
 }

@@ -423,8 +423,34 @@ spec:
                     type: object
                   type: array
                 hardware:
-                  description: Hardware is what the machine announced about itself.
+                  description: |-
+                    Hardware is what the machine announced about itself, taken once from its
+                    RackLinuxCandidate and kept.
                   properties:
+                    bootMAC:
+                      type: string
+                    nics:
+                      description: NICs are the machine's network ports, and BootMAC its management port.
+                      items:
+                        description: RackLinuxCandidateNIC is one network port a machine announced.
+                        properties:
+                          driver:
+                            description: Driver is the Linux driver bound to the port, such as igc or i40e.
+                            type: string
+                          mac:
+                            description: MAC is the port's MAC address.
+                            type: string
+                          pciDevice:
+                            description: PCIDevice is the port's PCI device ID, such as 0x125b for an i226-LM.
+                            type: string
+                        required:
+                          - mac
+                        type: object
+                      type: array
+                    pinnedAt:
+                      description: PinnedAt is when the host took it from its RackLinuxCandidate.
+                      format: date-time
+                      type: string
                     product:
                       description: Product is the machine's SMBIOS vendor and product name.
                       type: string

@@ -69,11 +69,17 @@ func newHarness(t *testing.T, objs ...client.Object) *harness {
 }
 
 func publishedHost(key string) *infrav1.RackLinuxHost {
+	pinned := metav1.NewTime(testNow.Add(-time.Hour))
 	return &infrav1.RackLinuxHost{
 		ObjectMeta: metav1.ObjectMeta{Name: hostUUID, Namespace: testNamespace},
 		Spec:       infrav1.RackLinuxHostSpec{Hostname: "ber1-edge-a", Role: "edge"},
 		Status: infrav1.RackLinuxHostStatus{
 			BootMAC: bootMAC,
+			Hardware: &infrav1.RackLinuxHostHardware{
+				NICs:     []infrav1.RackLinuxCandidateNIC{{MAC: bootMAC, Driver: "igc", PCIDevice: "0x125b"}, {MAC: otherNIC, Driver: "igc", PCIDevice: "0x125c"}},
+				BootMAC:  bootMAC,
+				PinnedAt: &pinned,
+			},
 			Install: &infrav1.RackLinuxHostInstallStatus{KeyID: key, BootMAC: bootMAC},
 		},
 	}
@@ -158,7 +164,7 @@ func TestAHostsBootScriptIsServedByItsMACAndItsUUID(t *testing.T) {
 }
 
 func TestTheSeedGoesOnlyToTheHostsNICsAndThenOnlyToTheFirstThatAsked(t *testing.T) {
-	h := newHarness(t, publishedHost(keyID), announcedCandidate())
+	h := newHarness(t, publishedHost(keyID))
 	h.s.SetInstalls(bootSecretData(keyID))
 	h.neighbors["192.168.50.102"] = otherNIC
 	h.neighbors["192.168.50.103"] = strangerMAC
@@ -196,7 +202,7 @@ func TestTheSeedGoesOnlyToTheHostsNICsAndThenOnlyToTheFirstThatAsked(t *testing.
 }
 
 func TestTheSeedOfAnInstallTheHostNoLongerCarriesIsNotHandedOut(t *testing.T) {
-	h := newHarness(t, publishedHost("kNewer1"), announcedCandidate())
+	h := newHarness(t, publishedHost("kNewer1"))
 	h.s.SetInstalls(bootSecretData(keyID))
 	h.neighbors["192.168.50.104"] = bootMAC
 
@@ -264,7 +270,7 @@ func TestEveryReadyBootServerReportsTheInstallsItHolds(t *testing.T) {
 }
 
 func TestAHandOutKeepsTheBootServersReports(t *testing.T) {
-	h := newHarness(t, publishedHost(keyID), announcedCandidate())
+	h := newHarness(t, publishedHost(keyID))
 	h.s.SetInstalls(bootSecretData(keyID))
 	h.s.ready.Store(true)
 	h.holds = true
@@ -333,6 +339,65 @@ func TestAnAnnouncementListsTheMachineAsACandidate(t *testing.T) {
 	if cand.Status.DeclaredAs != "ber1-edge-a" || !cand.Status.FirstSeen.Time.Equal(testNow) ||
 		!cand.Status.LastSeen.Time.Equal(testNow.Add(10*time.Minute)) || cand.Status.Address != "192.168.50.121" {
 		t.Fatalf("status after a second announcement %+v", cand.Status)
+	}
+}
+
+// Anyone on the segment can announce, so an announcement under a machine's
+// UUID that does not match what it first announced changes nothing but the
+// candidate's conflict, and gets a stranger's MAC no seed.
+func TestAnAnnouncementCannotChangeWhatAMachineFirstAnnounced(t *testing.T) {
+	h := newHarness(t, publishedHost(keyID))
+	h.s.SetInstalls(bootSecretData(keyID))
+	if rec := h.announce(t, announcement, "192.168.50.120"); rec.Code != http.StatusOK {
+		t.Fatalf("%d %q", rec.Code, rec.Body.String())
+	}
+
+	h.s.Now = func() time.Time { return testNow.Add(time.Minute) }
+	for name, forged := range map[string]string{
+		"a stranger's NIC added": announcement + "nic=" + strangerMAC + " igc 0x125b\n",
+		"a NIC swapped":          strings.Replace(announcement, "38:05:25:38:b5:b4", strangerMAC, 1),
+		"another serial":         strings.Replace(announcement, "serial=PW1234", "serial=PW9999", 1),
+	} {
+		if rec := h.announce(t, forged, "192.168.50.103"); rec.Code != http.StatusConflict {
+			t.Fatalf("%s: %d, want 409", name, rec.Code)
+		}
+		cand := &infrav1.RackLinuxCandidate{}
+		if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: hostUUID}, cand); err != nil {
+			t.Fatal(err)
+		}
+		st := cand.Status
+		if len(st.NICs) != 3 || st.BootMAC != bootMAC || st.Serial != "PW1234" || st.Address != "192.168.50.120" || !st.LastSeen.Time.Equal(testNow) {
+			t.Fatalf("%s: changed what the machine announced: %+v", name, st)
+		}
+		if c := st.Conflict; c == nil || c.Address != "192.168.50.103" || c.SeenBy != "ber1-edge-b" || c.Reason == "" {
+			t.Fatalf("%s: conflict %+v", name, c)
+		}
+	}
+
+	h.neighbors["192.168.50.103"] = strangerMAC
+	if rec := h.get(t, "/hosts/38-05-25-38-b5-b5/user-data", "192.168.50.103"); rec.Code != http.StatusForbidden {
+		t.Fatalf("the forged announcement's MAC got the seed: %d", rec.Code)
+	}
+
+	h.s.Now = func() time.Time { return testNow.Add(10 * time.Minute) }
+	reordered := "uuid=" + hostUUID + "\nserial=PW1234\nproduct=Micro Computer (HK) Tech Limited Venus Series\n" +
+		"nic=58:47:ca:70:00:01 i40e 0x1572\nnic=38:05:25:38:b5:b5 igc 0x125b\nnic=38:05:25:38:b5:b4 igc 0x125c\n"
+	if rec := h.announce(t, reordered, "192.168.50.121"); rec.Code != http.StatusOK {
+		t.Fatalf("the machine announcing itself again, NICs in another order: %d", rec.Code)
+	}
+}
+
+// The seed goes only to the NICs the host took from its candidate, whatever
+// the candidate lists since.
+func TestTheSeedGoesOnlyToTheNICsPinnedOnTheHost(t *testing.T) {
+	tampered := announcedCandidate()
+	tampered.Status.NICs = append(tampered.Status.NICs, infrav1.RackLinuxCandidateNIC{MAC: strangerMAC, Driver: "igc", PCIDevice: "0x125b"})
+	h := newHarness(t, publishedHost(keyID), tampered)
+	h.s.SetInstalls(bootSecretData(keyID))
+	h.neighbors["192.168.50.103"] = strangerMAC
+
+	if rec := h.get(t, "/hosts/38-05-25-38-b5-b5/user-data", "192.168.50.103"); rec.Code != http.StatusForbidden {
+		t.Fatalf("a MAC only the candidate lists got the seed: %d", rec.Code)
 	}
 }
 

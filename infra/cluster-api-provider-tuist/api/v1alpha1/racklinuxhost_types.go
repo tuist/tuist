@@ -130,7 +130,8 @@ type RackLinuxHostStatus struct {
 	// +optional
 	BootMAC string `json:"bootMAC,omitempty"`
 
-	// Hardware is what the machine announced about itself.
+	// Hardware is what the machine announced about itself, taken once from its
+	// RackLinuxCandidate and kept.
 	// +optional
 	Hardware *RackLinuxHostHardware `json:"hardware,omitempty"`
 
@@ -166,7 +167,10 @@ type RackLinuxHostStatus struct {
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
-// RackLinuxHostHardware is what a machine announced about itself.
+// RackLinuxHostHardware is what a machine announced about itself. The boot
+// server hands a host's seed only to one of its NICs. To take it again, as
+// after replacing a NIC, delete the host's RackLinuxCandidate and its
+// status.hardware, and boot its install stick.
 type RackLinuxHostHardware struct {
 	// Product is the machine's SMBIOS vendor and product name.
 	// +optional
@@ -175,6 +179,16 @@ type RackLinuxHostHardware struct {
 	// Serial is the machine's SMBIOS serial number.
 	// +optional
 	Serial string `json:"serial,omitempty"`
+
+	// NICs are the machine's network ports, and BootMAC its management port.
+	// +optional
+	NICs []RackLinuxCandidateNIC `json:"nics,omitempty"`
+	// +optional
+	BootMAC string `json:"bootMAC,omitempty"`
+
+	// PinnedAt is when the host took it from its RackLinuxCandidate.
+	// +optional
+	PinnedAt *metav1.Time `json:"pinnedAt,omitempty"`
 }
 
 // RackLinuxHostProvisioningStatus is where a host is in its life.

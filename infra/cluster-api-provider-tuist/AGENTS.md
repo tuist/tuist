@@ -646,7 +646,12 @@ host controller pins its host key for that device before recording the device,
 so the machine reconciler's first dial is held to the key the operator
 generated rather than trusting the first one it sees. The boot MAC is `spec.bootMAC`, or the management port the
 machine announced (its `RackLinuxCandidate`, below), in `status.bootMAC`; a
-host with neither is `Registering` until its stick announces it. The fleet
+host with neither is `Registering` until its stick announces it. The host takes
+what the machine announced once, into `status.hardware` (product, serial, NICs,
+boot MAC, `pinnedAt`), and never again: a candidate changed since moves
+nothing, and one with a `status.conflict` gives nothing (`HardwarePinned`
+False, `CandidateConflict`). To take it again, as after replacing a NIC, delete
+the candidate and the host's `status.hardware`, and boot the stick. The fleet
 key's public half and `--rack-linux-authorized-key` are authorized, and the
 console password is minted once per host into `<fleet>-console`. The host
 controller reads each host through the manager's uncached `APIReader`: CAPI's
@@ -654,8 +659,11 @@ patch helper writes conditions before the rest of the status, and a reconcile
 that read the host from the cache in between would mint a second key. A host's
 installer is its install stick, which fetches the seed for its MAC from the boot
 server (`rackinstall.StickUserData`), or a netboot. A host is rebooted into an install
-only once the boot server holding the site's provisioning address reported it
-servable in `status.boot` (`WaitingForBootServer` until then). A reinstall of a
+only once the boot server answering its netboot reported it servable in
+`status.boot.servers` (`WaitingForBootServer` until then): the one holding the
+site's provisioning address, or, for an `edge`, every other connected edge of
+its site, since the edge's own boot server goes down with it and another takes
+the address over. A reinstall of a
 connected host sets `BootNext` over SSH and reboots it, once: to a boot entry the script creates for a USB disk carrying
 `nocloud/tuist-install-stick`, or else to the PXE entry for the MAC; one of a
 host off the tailnet power-cycles it through AMT into its network boot (below).
@@ -683,14 +691,17 @@ checksum into `/var/lib/tuist-rack-boot` on the node, from another edge over
 the edges' link (`vrrp0`, where each offers its verified ISO and nothing else)
 before the internet, verified, and the rest extracted from it. A rack node
 reaches no Service address, so it reads the API server from
-`/etc/tuist/kubernetes-api`, which the converge writes. The edge holding the
-address reports each install it holds servable in the host's `status.boot`,
-keyed by the install's join key, and the operator writes nothing there.
+`/etc/tuist/kubernetes-api`, which the converge writes. Once its ISO is ready,
+each edge's boot server reports each install it holds servable in the host's
+`status.boot.servers`, with whether it holds the address, and again once it
+takes the address over; the list is keyed by the install's join key, and the
+operator writes nothing there.
 
 **An install's seed goes to its host once.** The seed carries the join key and
 the host key, so the boot server hands `user-data` only to a machine on its
 segment whose MAC, read from the kernel's neighbor table for the address that
-asked, is the host's boot MAC or one of the NICs it announced; it records that
+asked, is the host's boot MAC or one of the NICs in its `status.hardware`, never
+what its candidate lists now; it records that
 MAC in `status.boot.servedTo` before answering, and from then on hands the seed
 to that MAC alone. It checks the host's `status.install` first, so a superseded
 install is not handed out from a stale Secret. A seed that could not be
@@ -700,7 +711,10 @@ recorded is not handed out. The rest of an install is not secret.
 machine's install stick posts its SMBIOS UUID, serial, product and NICs to the
 boot server's `cgi-bin/announce`, which accepts only those lines, at most 4096
 bytes, and keeps a `RackLinuxCandidate` per machine, named after its UUID, with
-the boot MAC it names (its i226-LM), for at most 256 machines. Its Role creates
+the boot MAC it names (its i226-LM), for at most 256 machines. Anyone on the
+segment can announce, so what a machine announced first is kept: an
+announcement under its UUID with another serial, product or set of NICs is
+refused with HTTP 409 and kept only as the candidate's `status.conflict`. Its Role creates
 candidates and patches their status; it reads and patches hosts' status for
 `status.boot` and nothing else of them. The operator (`racklinux_candidates.go`)
 marks each candidate with the hostname of the `RackLinuxHost` named after its
@@ -709,14 +723,16 @@ declared one stays, since its host takes its boot MAC and model
 (`status.hardware`) from it.
 
 Not yet done: the boot server trusts a MAC, which a machine on the segment can
-spoof. Attesting the host through its TPM before handing the seed out would
-close that.
+spoof, and the first announcement under a UUID, which a machine that announces
+before the real one can fake.
 
 **A rename is a new `spec.hostname`.** The host keeps its UUID, its Machine and
 its providerID. The host controller finds the host's recorded device although
 its OS hostname is still the old one, and renames it; the machine reconciler
-deletes the Node the host joined under (only one with the host's providerID)
-and converges with the rejoin: the new OS hostname, the kubelet's identity
+deletes the Node the host joined under (only one with the host's providerID),
+clears the owning Machine's `status.nodeRef`, since CAPI records a Machine's
+Node once and drains and deletes that one when the Machine goes, and converges
+with the rejoin: the new OS hostname, the kubelet's identity
 dropped, and a bootstrap token for the new name. `status.nodeName` on the
 `RackLinuxMachine` records the name it joined under. An edge's rename also
 needs the site definition's edge entries (`infra/rack-switch-fleet`) renamed.

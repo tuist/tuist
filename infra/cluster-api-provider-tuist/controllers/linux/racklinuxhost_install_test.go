@@ -644,6 +644,71 @@ func TestRackInstallPublishesUnderTheBootMACTheMachineAnnounced(t *testing.T) {
 	}
 }
 
+func announcedSvc() *infrav1.RackLinuxCandidate {
+	return &infrav1.RackLinuxCandidate{
+		ObjectMeta: metav1.ObjectMeta{Name: svcUUID, Namespace: rackTestNamespace},
+		Status: infrav1.RackLinuxCandidateStatus{
+			UUID: svcUUID, BootMAC: svcMAC, Product: "Micro Computer (HK) Tech Limited Venus Series", Serial: "MD148LS139QQMQE00070",
+			NICs: []infrav1.RackLinuxCandidateNIC{{MAC: svcMAC, Driver: "igc", PCIDevice: "0x125b"}, {MAC: "38:05:25:38:b5:b4", Driver: "igc", PCIDevice: "0x125c"}},
+		},
+	}
+}
+
+// A host takes its hardware from its candidate once, and keeps it: a candidate
+// changed since moves neither its boot MAC nor the NICs its seed goes to.
+func TestRackLinuxHostKeepsTheHardwareItFirstTook(t *testing.T) {
+	host := svcHost()
+	host.Spec.BootMAC = ""
+	h := newInstallHarness(t, host, announcedSvc())
+
+	got := h.reconcile(t, svcUUID)
+	hw := got.Status.Hardware
+	if hw == nil || len(hw.NICs) != 2 || hw.BootMAC != svcMAC || hw.PinnedAt == nil || got.Status.BootMAC != svcMAC {
+		t.Fatalf("hardware %+v bootMAC %q", hw, got.Status.BootMAC)
+	}
+	if !conditions.IsTrue(got, HardwarePinnedCondition) {
+		t.Fatalf("HardwarePinned %+v", conditions.Get(got, HardwarePinnedCondition))
+	}
+
+	cand := &infrav1.RackLinuxCandidate{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: svcUUID}, cand); err != nil {
+		t.Fatal(err)
+	}
+	cand.Status.BootMAC = "02:00:00:00:00:01"
+	cand.Status.NICs = []infrav1.RackLinuxCandidateNIC{{MAC: "02:00:00:00:00:01", Driver: "igc", PCIDevice: "0x125b"}}
+	cand.Status.Serial = "FORGED"
+	if err := h.c.Update(context.Background(), cand); err != nil {
+		t.Fatal(err)
+	}
+	h.now = h.now.Add(time.Minute)
+	got = h.reconcile(t, svcUUID)
+	if got.Status.BootMAC != svcMAC || got.Status.Install == nil || got.Status.Install.BootMAC != svcMAC {
+		t.Fatalf("bootMAC %q install %+v, want the pinned boot MAC", got.Status.BootMAC, got.Status.Install)
+	}
+	if hw := got.Status.Hardware; len(hw.NICs) != 2 || hw.Serial != "MD148LS139QQMQE00070" || !hw.PinnedAt.Time.Equal(installEpoch) {
+		t.Fatalf("hardware %+v, want what the host first took", hw)
+	}
+}
+
+// Another announcement under a machine's UUID leaves its candidate with a
+// conflict, and a host takes nothing from such a candidate.
+func TestRackLinuxHostTakesNoHardwareFromAConflictedCandidate(t *testing.T) {
+	host := svcHost()
+	host.Spec.BootMAC = ""
+	conflicted := announcedSvc()
+	conflicted.Status.Conflict = &infrav1.RackLinuxCandidateConflict{Reason: "NIC 02:00:00:00:00:01 (igc 0x125b), which it did not announce first", Address: "192.168.50.103", SeenBy: "ber1-edge-b", At: metav1.NewTime(installEpoch)}
+	h := newInstallHarness(t, host, conflicted)
+
+	got := h.reconcile(t, svcUUID)
+	if got.Status.Hardware != nil || got.Status.BootMAC != "" || got.Status.Install != nil || len(h.api.minted) != 0 {
+		t.Fatalf("hardware %+v bootMAC %q install %+v", got.Status.Hardware, got.Status.BootMAC, got.Status.Install)
+	}
+	c := conditions.Get(got, HardwarePinnedCondition)
+	if c == nil || c.Status != corev1.ConditionFalse || c.Reason != "CandidateConflict" || !strings.Contains(c.Message, "192.168.50.103") {
+		t.Fatalf("HardwarePinned %+v", c)
+	}
+}
+
 func TestRackInstallKeepsTheConsolePasswordAcrossInstalls(t *testing.T) {
 	h := newInstallHarness(t, svcHost(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: rackTestFleet + "-console", Namespace: rackTestNamespace},
