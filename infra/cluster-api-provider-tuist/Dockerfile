@@ -1,7 +1,11 @@
 # CAPI infrastructure provider for Scaleway Apple Silicon Mac minis.
 #
 # Owns lifecycle: order/release Mac minis from Scaleway, SSH-bootstrap
-# each into a real cluster Node by installing `tart-kubelet`. Several
+# each into a real cluster Node by installing `tart-kubelet`. The image also
+# carries the rack boot server (cmd/rack-boot) and the signed iPXE it serves,
+# which the tuist chart runs on a rack's edge nodes, and the rack node agent
+# (cmd/rack-node, always linux/amd64), which the operator runs on a rack Linux
+# host over SSH and the chart runs on each rack node. Several
 # darwin/arm64 artifacts ride the linux operator image:
 #   - the manager itself (linux/<arch>),
 #   - the tart-kubelet binary the operator uploads to each Mac mini at
@@ -70,7 +74,9 @@ ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     export GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 && \
-    go build -ldflags="-s -w" -o /out/manager ./cmd/manager
+    go build -ldflags="-s -w" -o /out/manager ./cmd/manager && \
+    go build -ldflags="-s -w" -o /out/rack-boot ./cmd/rack-boot && \
+    GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/rack-node-linux-amd64 ./cmd/rack-node
 
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
@@ -186,9 +192,30 @@ RUN curl -fsSL \
     && mv node_exporter node_exporter-darwin-arm64
 
 
+FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS netboot-fetcher
+
+# iPXE on the firmware's network driver (snponly), which then fetches
+# everything else over HTTP, in the iPXE project's Secure Boot build: the
+# firmware's PXE loads snponly-shim.efi, a shim signed by Microsoft's UEFI CA,
+# and it loads snponly.efi, signed by the iPXE project's CA, which it trusts.
+# The rack boot server (cmd/rack-boot) serves both over TFTP.
+ARG IPXE_VERSION=2.0.0
+ARG IPXE_SHA256=01a526d4cc791fc30362259c609d6c506cc64a7bdff51b9a5eb788354e17eee1
+RUN apk add --no-cache curl \
+ && curl -fsSL -o /tmp/ipxeboot.tar.gz "https://github.com/ipxe/ipxe/releases/download/v${IPXE_VERSION}/ipxeboot.tar.gz" \
+ && echo "${IPXE_SHA256}  /tmp/ipxeboot.tar.gz" | sha256sum -c - \
+ && mkdir -p /tmp/ipxe /out \
+ && tar -xzf /tmp/ipxeboot.tar.gz -C /tmp/ipxe \
+ && cp -L /tmp/ipxe/ipxeboot/x86_64-sb/snponly-shim.efi /tmp/ipxe/ipxeboot/x86_64-sb/snponly.efi /out/ \
+ && test -s /out/snponly-shim.efi && test -s /out/snponly.efi
+
+
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
+COPY --from=manager-builder /out/rack-boot /usr/local/bin/rack-boot
+COPY --from=manager-builder /out/rack-node-linux-amd64 /opt/rack-node/rack-node-linux-amd64
+COPY --from=netboot-fetcher /out/ /opt/rack-netboot/
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
