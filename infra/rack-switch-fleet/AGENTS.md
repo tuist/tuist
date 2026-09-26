@@ -262,8 +262,9 @@ configuration differed from the render only in hostname and DHCP. An earlier
 `ten-gigabitEthernet` guess for 49 to 52 would have put four interfaces it does
 not have into its zero-touch configuration.
 
-Network settings beyond the management VLAN are optional and nothing in BER1
-uses them yet; each form was read off `ber1-tor-b` after the controller wrote it:
+Network settings beyond the management VLAN are optional; each form was read
+off `ber1-tor-b` after the controller wrote it, except a machine's untagged port
+(see "The machines segment"):
 
 - `vlans`, at the site: `[{id, name}]`. A port carries every site VLAN tagged
   unless it names its own, which is what the controller does with a port on its
@@ -445,9 +446,10 @@ node that keeps its own copy of a serial. Two records of an outlet is two
 chances to disagree, and this side is the one nothing would notice had gone
 stale, because the controller acts on the other.
 
-So when the first mini is racked it gets a node here for its cable and its ToR,
-pointing at its `RackHost` for everything else. Not a second description of the
-machine.
+So a racked mini has a node here for its cable, its ToR port and the MAC its
+address is reserved against, pointing at its `RackHost` for everything else,
+its address included. Not a second description of the machine. `ber1-proto-01`
+is the first.
 
 ## The switches as Kubernetes objects
 
@@ -718,9 +720,9 @@ files no longer match it:
   whichever is master holds every floating address. Today those are the edge
   address on the switch port (`management.edge.address`, the switches'
   gateway) without its prefix route, the provisioning address, and a host route
-  to each switch marked `behind_edge`. The site declares the machines' gateway
-  (`management.edge.machines`) and the Cogent /31 (`management.edge.wan`)
-  empty until the data center has them; set, they float the same way, so the
+  to each switch marked `behind_edge`, and the machines' gateway, as a /32 (see
+  "The machines segment" below). The Cogent /31 (`management.edge.wan`) is
+  empty until the data center has it; set, it floats the same way, so the
   standby holds no WAN address until it takes over. The first member is
   preferred and takes the addresses back a minute after it returns, and an edge
   whose switch port has no link never becomes master. An advert counts only
@@ -731,10 +733,13 @@ files no longer match it:
   both edges restart, each ignores the other and both hold the addresses.
 - `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
-  so VRRP survives losing either ToR, with this edge's own VRRP address, and
-  two nft tables. One translates every switch's management address, and the
-  provisioning range, into tailscale0 and clamps the MSS of what it forwards;
-  the other addresses DHCP replies to each known switch's MAC. It runs at pod
+  so VRRP survives losing either ToR, with this edge's own VRRP address, the
+  machines VLAN as a second bond (`machines0`) with this edge's own address on
+  it, and three nft tables. One translates every switch's management address,
+  and the provisioning range, into tailscale0, clamps the MSS of what it
+  forwards, and translates the provisioning range and the machines onto the
+  uplinks; one addresses DHCP replies to each known switch's MAC; one keeps
+  the machines away from everything but the internet. It runs at pod
   start and again every five minutes, with the pod's node name picking its
   VRRP address, and refuses a port that carries the node's default route. What
   it installs stays in the kernel when the pod goes; the floating addresses go
@@ -745,6 +750,11 @@ files no longer match it:
   switch behind the edge gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
+  Each machine on the machines segment gets its reservation there too, from
+  both edges.
+- `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
+  through the node's own tailscaled: `tailscale set --advertise-routes` with a
+  /32 per machine on the machines segment, the same on both edges.
 - With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
   range also gets iPXE's Secure Boot shim (`snponly-shim.efi`, which loads
   `snponly.efi`, with the name kept in the packet's file field), and iPXE its
@@ -758,16 +768,19 @@ files no longer match it:
 
 The VLANs the edges talk over are `carried_by: edges` in the site's `vlans`:
 the switches tag them only on the ports facing an edge's data links and on the
-ISL, and declare them only where a port carries them. `management.edge.vrrp`
+ISL, and declare them only where a port carries them. That is the VRRP VLAN and
+the machines VLAN. `management.edge.vrrp`
 names the VLAN, its prefix and the members, in order of preference, and every
 edge of the site has to be a member. The WAN-DMZ VLAN joins them the same way
 once it has an ID.
 
 The pod uses host networking, with NET_ADMIN (and NET_RAW for keepalived and
 dnsmasq, and NET_BIND_SERVICE for dnsmasq) rather than privileged. The kernel
-loads the bonding and VLAN modules on the first `ip link add`. Its image
-(`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only dnsmasq,
-iproute2, nftables and keepalived. The rack's boot server runs from the
+loads the bonding and VLAN modules on the first `ip link add`. The `routes`
+container has no capability at all: it reaches the node's tailscaled through
+its socket, mounted from `/run/tailscale`, and tailscaled trusts a root caller.
+Its image (`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only
+dnsmasq, iproute2, nftables, keepalived and the tailscale CLI. The rack's boot server runs from the
 operator's image instead, which carries iPXE's Secure Boot build.
 
 An edge node is declared in `rackLinuxFleet.hosts` of the tuist chart's values
@@ -797,9 +810,9 @@ cluster's Cilium agent stays off that label. The site definition names the node
 the fleet commands jump through (`management.edge.ssh`), and the addresses the
 edges share (`.interface`, `.address`).
 
-Both edges are to advertise the same Tailscale subnet routes once the data
-center's networks exist, so the tailnet fails over between them too. Nothing
-advertises a route today: at home the management prefix is the house network.
+Both edges advertise the same Tailscale subnet routes, the machines' /32s, so
+the tailnet fails over between them too. The management prefix is never
+advertised: at home it is the house network.
 
 **Reading the pod's logs.** `kubectl logs` and `exec` reach the edges' kubelets
 through a proxy Pod per node (see "Logs and exec" in
@@ -833,6 +846,54 @@ kubectl label node ber1-edge-a tuist.dev/rack-edge=ber1
 ```
 
 The provisioning address stays on the port while the pod is away.
+
+## The machines segment
+
+The Mac minis sit on a VLAN of their own behind the edges,
+`management.edge.machines`: the VLAN (10 in BER1), its gateway with the
+segment's prefix (`10.10.0.1/24`), each edge's own address on it (`members`,
+`.2` and `.3`), and the resolvers its DHCP hands out (`dns`, public ones, since
+nothing on the edges is open to the machines). The prefix stays clear of the
+clusters' pod range (`192.168.0.0/16`, which also holds Tart's VM network), the
+service range (`10.128.0.0/12`) and the VRRP link.
+
+- **The switches.** A node whose role has `segment: machines` in `node_roles`
+  (the runners) is a machine. Its ToR port carries the machines VLAN untagged,
+  as its native VLAN, and nothing tagged, so a machine never sees the
+  management VLAN. The VLAN is `carried_by: edges`: tagged only on the edges'
+  ports and the ISL, and never on the router uplink. The controller writes the
+  port's native VLAN through the Open API; its configuration-text form
+  (`switchport general allowed vlan 10 untagged`, `switchport pvid 10`,
+  `no switchport general allowed vlan 1`) has not been read off a switch yet.
+- **Addresses.** A machine's address is its `RackHost`'s
+  (`rackFleet.hosts[].address` in the tuist chart's values), reserved in the
+  edges' DHCP against the MAC recorded on its link here (`links[].mac`, lower
+  case). The render reads the values for it, and refuses a machine without a
+  MAC, without a RackHost, or with an address outside the segment or already
+  taken by the gateway, an edge or another machine. Both edges answer: each
+  holds an address of its own on the segment, and with reservations and no
+  pool the two answers are the same answer.
+- **The gateway** floats with the other addresses, as a /32 beside each edge's
+  own /24, so giving it up never takes the edge's own address with it. The
+  machines reach the internet through it, translated onto the uplinks.
+  Everything else the edges hold is closed to them: the management segment,
+  the provisioning range, the VRRP link, the switches' port, the tailnet, and
+  of the edge itself everything but DHCP and ping. A runner executes customer
+  build code. Nothing separates one machine from another on the segment.
+- **The tailnet** reaches each machine at its address, a /32 both edges
+  advertise and `infra/tailscale/acls.json` auto-approves for
+  `tag:tuist-rack-edge` inside the segment. An edge forwards those connections
+  with SNAT from its own address on the segment, the first there whose prefix
+  holds the machine's, so they arrive from one of the edges' own addresses,
+  which is what `rackFleet.sshIngressAllowCIDRs` lists. A /32 per machine
+  rather than the prefix, for the reason the ACL file gives: under its
+  catch-all grant, whatever is advertised is reachable from every device on
+  the tailnet.
+
+A host's SSH guard admits only the sources its RackHost lists, so moving a
+host onto the segment starts with the edges' addresses in that list, pushed
+over the path the host is still on, before its port changes VLAN and its
+address changes.
 
 ## Apply is a confirmed commit
 

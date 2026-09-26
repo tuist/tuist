@@ -15,7 +15,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
   credentialItem: ber1-tor-a switch admin
-  configRevision: de31fa1bc5a339f8
+  configRevision: f6fa2e43bd4ad818
   config:
     hostname: ber1-tor-a
     managementVlan: 1
@@ -25,6 +25,8 @@ spec:
     lldp: true
     snmp: false
     vlans:
+      - id: 10
+        name: machines
       - id: 4000
         name: edge-vrrp
     lags: []
@@ -154,12 +156,14 @@ spec:
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
+          - 10
           - 4000
       - port: 26
         description: ""
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
+          - 10
           - 4000
       - port: 27
         description: ""
@@ -191,6 +195,7 @@ spec:
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
+          - 10
           - 4000
   ports:
     - port: 24

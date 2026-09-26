@@ -14,7 +14,8 @@
 # switch side without its prefix route, for the reason infra/tailscale/acls.json
 # gives: at home the management prefix is the house network, which must not
 # become a route every device on the tailnet can use, nor one the edge node
-# reaches through this port. Nothing here advertises anything.
+# reaches through this port. The only routes the edges advertise are the
+# machines' own addresses on the machines segment, one /32 each.
 #
 # The switches advertise a TCP MSS for a 1500-byte link, tailscale0 carries
 # 1280, and full-size segments coming back from the controller vanish inside
@@ -49,7 +50,86 @@ fleet_edge_check() {
     echo "error: management.edge.netboot serves the provisioning range, and the site has none" >&2
     return 1
   fi
-  fleet_edge_check_vrrp "$site_file"
+  fleet_edge_check_vrrp "$site_file" || return 1
+  fleet_edge_check_machines "$site_file"
+}
+
+fleet_is_ipv4() { [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] && (( BASH_REMATCH[1] < 256 && BASH_REMATCH[2] < 256 && BASH_REMATCH[3] < 256 && BASH_REMATCH[4] < 256 )); }
+
+# Whether an address is inside a prefix: 10.10.0.101 is in 10.10.0.1/24.
+fleet_in_network() { [ "$(fleet_network "$1/${2#*/}")" = "$(fleet_network "$2")" ]; }
+
+# The machines on the site's machines segment, one per line: node, the MAC of
+# its data link, and its address, which is its RackHost's. A machine is a node
+# whose role is on the segment; one still planned is left out until it is
+# racked.
+fleet_edge_machines() {
+  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" hosts
+  hosts="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || hosts=''
+  [ -n "$hosts" ] || hosts='{}'
+  jq -r --argjson hosts "$hosts" '
+    ([(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]) as $roles |
+    .nodes[]? | select((.role as $r | $roles | index($r)) and .status != "planned") |
+    [.name, ([.links[] | select(.purpose == "data") | .mac // empty] | first // ""),
+     ($hosts[.rack_host // ""] // "")] | join("\t")
+  ' "$site_file"
+}
+
+# The segment the site's runners sit on, behind the edges. Each edge has an
+# address of its own on it, and the master also holds the gateway. Every
+# machine on it has a RackHost, a MAC to reserve its address against, and an
+# address inside the segment that no edge uses.
+fleet_edge_check_machines() {
+  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" gateway bad="" node address mac
+  [ -n "$(jq -r '.management.edge.machines.vlan // empty' "$site_file")" ] || return 0
+  gateway="$(jq -r '.management.edge.machines.gateway // empty' "$site_file")"
+  if ! [[ "$gateway" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${gateway%/*}"; then
+    echo "error: management.edge.machines.gateway '$gateway' is not an address with its prefix length" >&2
+    return 1
+  fi
+  local -a used=("${gateway%/*}")
+  bad="$(jq -r '
+    ([.nodes[]? | select(.role == "edge") | .name] | sort) as $edges |
+    ([.management.edge.machines.members[]?.node] | sort) as $members |
+    (if $members != $edges
+     then "management.edge.machines.members are \($members | join(", ")), but the site'"'"'s edges are \($edges | join(", "))" else empty end),
+    (.nodes[]? | select(.rack_host == null and (.role as $r | $roles | index($r))) |
+      "\(.name) is on the machines segment and names no RackHost")
+  ' --argjson roles "$(jq '[(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]' "$site_file")" "$site_file")"
+  while IFS=$'\t' read -r node address; do
+    [ -n "$node" ] || continue
+    if ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$gateway"; then
+      bad="${bad:+$bad$'\n'}$node's machines address $address is not in $gateway"
+    elif [[ " ${used[*]} " == *" $address "* ]]; then
+      bad="${bad:+$bad$'\n'}$node's machines address $address is already the gateway's or another edge's"
+    fi
+    used+=("$address")
+  done < <(jq -r '.management.edge.machines.members[]? | "\(.node)\t\(.address)"' "$site_file")
+  for address in $(jq -r '.management.edge.machines.dns[]?' "$site_file"); do
+    fleet_is_ipv4 "$address" || bad="${bad:+$bad$'\n'}machines DNS server $address is not an address"
+  done
+  local -a macs=()
+  while IFS=$'\t' read -r node mac address; do
+    [ -n "$node" ] || continue
+    if ! [[ "$mac" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]]; then
+      bad="${bad:+$bad$'\n'}$node has no MAC on its data link, in lower case, to reserve its address against"
+    fi
+    if [ -z "$address" ]; then
+      bad="${bad:+$bad$'\n'}$node's RackHost has no address in $(basename "$values")"
+    elif ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$gateway"; then
+      bad="${bad:+$bad$'\n'}$node's address $address is not in the machines segment $gateway"
+    elif [[ " ${used[*]} " == *" $address "* ]]; then
+      bad="${bad:+$bad$'\n'}$node's address $address is already the gateway's, an edge's or another machine's"
+    fi
+    [[ " ${macs[*]} " == *" $mac "* ]] && bad="${bad:+$bad$'\n'}$node shares its MAC with another machine"
+    used+=("$address")
+    macs+=("$mac")
+  done < <(fleet_edge_machines "$site_file" "$values")
+  if [ -n "$bad" ]; then
+    echo "error: the machines segment is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
 }
 
 # The edges share the site's floating addresses through keepalived, which
@@ -84,7 +164,7 @@ fleet_edge_check_vrrp() {
       elif ([.links[] | select(.purpose == "data") | $hw[$n.hardware // ""].interfaces[.nic].os_name // empty] | length) == 0
       then "\(.name): its hardware names no interface for its data links" else empty end),
     (($e.machines // {}), ($e.wan // {}) | select(.vlan != null) |
-      if ($edge_vlans | index(.vlan)) == null then "VLAN \(.vlan) floats an edge address but is not carried_by the edges" else empty end),
+      .vlan as $v | if ($edge_vlans | index($v)) == null then "VLAN \($v) floats an edge address but is not carried_by the edges" else empty end),
     (if ($e.machines.gateway // null) != null and ($e.machines.vlan // null) == null
      then "management.edge.machines has a gateway but no vlan" else empty end),
     (if ($e.wan.address // null) != null and ($e.wan.vlan // null) == null
@@ -158,15 +238,20 @@ SCRIPT
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
-  local node address uplink_names vrrp_length machines_vlan wan_vlan
+  local node address uplink_names vrrp_length machines_vlan machines_gateway machines wan_vlan
   vrrp_length="$(jq -r '.management.edge.vrrp.prefix' "$site_file" | cut -d/ -f2)"
   machines_vlan="$(jq -r '.management.edge.machines.vlan // empty' "$site_file")"
+  machines_gateway="$(jq -r '.management.edge.machines.gateway // empty' "$site_file")"
   wan_vlan="$(jq -r '.management.edge.wan.vlan // empty' "$site_file")"
   cat <<'SCRIPT'
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
 SCRIPT
   while IFS=$'\t' read -r node address _ uplink_names; do
-    printf '  %s) vrrp_address=%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$uplink_names"
+    machines=""
+    if [ -n "$machines_vlan" ]; then
+      machines=" machines_address=$(jq -r --arg n "$node" '.management.edge.machines.members[] | select(.node == $n) | .address' "$site_file")/${machines_gateway#*/}"
+    fi
+    printf '  %s) vrrp_address=%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$uplink_names"
   done < <(fleet_edge_members "$site_file")
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
@@ -190,7 +275,16 @@ SCRIPT
   cat <<'SCRIPT'
 ip addr replace "$vrrp_address" dev vrrp0
 SCRIPT
-  [ -n "$machines_vlan" ] && echo "edge_vlan_bond machines0 $machines_vlan"
+  # An edge's own address on the machines segment is the source of every
+  # tailnet connection it routes to a machine: it is the first address there
+  # whose prefix holds the machine's, so either edge can route to the machines
+  # whichever of them is master. The gateway beside it is keepalived's, a /32,
+  # so giving the gateway up never takes this address with it.
+  if [ -n "$machines_vlan" ]; then
+    echo "edge_vlan_bond machines0 $machines_vlan"
+    # shellcheck disable=SC2016  # expanded by the rendered script, per edge
+    echo 'ip addr replace "$machines_address" dev machines0'
+  fi
   [ -n "$wan_vlan" ] && echo "edge_vlan_bond wan0 $wan_vlan"
   # The floating addresses, and the routes that use them as their source, are
   # keepalived's, on whichever edge holds them. On the switch port they are
@@ -209,6 +303,12 @@ SCRIPT
   local uplinks=""
   if [ "$netboot" = true ]; then
     uplinks="    oifname != { \"tailscale0\", \"$interface\" } ip saddr $(fleet_network "$provisioning") masquerade"
+  fi
+  # The machines reach the internet through their gateway, translated onto the
+  # uplinks the same way.
+  if [ -n "$machines_vlan" ]; then
+    [ -n "$uplinks" ] && uplinks+=$'\n'
+    uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\" } ip saddr $(fleet_network "$machines_gateway") masquerade"
   fi
   # The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
   # ignores broadcast replies, so the netdev table addresses each known
@@ -240,7 +340,41 @@ SCRIPT
   cat <<'SCRIPT'
   }
 }
-NFT
+SCRIPT
+  [ -n "$machines_vlan" ] && fleet_edge_machines_filter "$site_file"
+  echo NFT
+}
+
+# What a machine may reach through an edge: the internet, and its own replies.
+# A runner executes customer build code, so the management segment, the
+# provisioning range, the edges' VRRP link, the switches' port and the tailnet
+# are all closed to it, and of the edge itself only DHCP and ping are open. A
+# machine on the tailnet reaches it through its own client, not through an
+# edge.
+fleet_edge_machines_filter() {
+  local site_file="$1" interface closed
+  interface="$(jq -r '.management.edge.interface' "$site_file")"
+  # Each as its network: nft refuses a prefix with host bits set.
+  closed="$(jq -r '.management.prefix, (.management.edge.provisioning // empty), .management.edge.vrrp.prefix' "$site_file" |
+    while read -r prefix; do fleet_network "$prefix"; done | paste -sd, - | sed 's/,/, /g')"
+  cat <<SCRIPT
+table inet tuist_rack_machines
+delete table inet tuist_rack_machines
+table inet tuist_rack_machines {
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "machines0" ct state established,related accept
+    iifname "machines0" oifname { "tailscale0", "vrrp0", "$interface" } drop
+    iifname "machines0" ip daddr { $closed } drop
+  }
+  chain input {
+    type filter hook input priority filter;
+    iifname "machines0" ct state established,related accept
+    iifname "machines0" udp dport 67 accept
+    iifname "machines0" icmp type echo-request accept
+    iifname "machines0" drop
+  }
+}
 SCRIPT
 }
 
@@ -290,10 +424,30 @@ CONF
     echo "dhcp-range=set:provisioning,${provisioning_net%.*/*}.100,${provisioning_net%.*/*}.150,$(fleet_prefix_mask "${provisioning#*/}"),1h"
     echo "dhcp-option=tag:provisioning,option:router,${provisioning%/*}"
   fi
-  [ -n "$controller" ] && echo "dhcp-option=138,$controller"
-  # Option 15 for every machine on the segment: AMT activates in admin control
-  # mode only when it is a suffix of its provisioning certificate's name.
-  [ -n "$domain" ] && echo "dhcp-option=option:domain-name,$domain"
+  # Each machine on the machines segment gets its RackHost's address against
+  # the MAC of its link, the floating gateway as its router, and public
+  # resolvers. Both edges answer, unlike on the switches' port: each holds an
+  # address of its own in the segment, and with only reservations and no pool
+  # the two answers are the same answer, from whichever edge is up.
+  local machines_gateway node mac address
+  machines_gateway="$(jq -r '.management.edge.machines.gateway // empty' "$site_file")"
+  if [ -n "$(jq -r '.management.edge.machines.vlan // empty' "$site_file")" ]; then
+    echo "interface=machines0"
+    echo "dhcp-range=set:machines,$(fleet_network "$machines_gateway" | cut -d/ -f1),static,$(fleet_prefix_mask "${machines_gateway#*/}"),infinite"
+    echo "dhcp-option=tag:machines,option:router,${machines_gateway%/*}"
+    local dns
+    dns="$(jq -r '[.management.edge.machines.dns[]?] | join(",")' "$site_file")"
+    [ -n "$dns" ] && echo "dhcp-option=tag:machines,option:dns-server,$dns"
+    while IFS=$'\t' read -r node mac address; do
+      [ -n "$node" ] && echo "dhcp-host=$mac,$address,$node,infinite"
+    done < <(fleet_edge_machines "$site_file")
+  fi
+  # The controller's address is for the switches, not the machines.
+  [ -n "$controller" ] && echo "dhcp-option=tag:!machines,138,$controller"
+  # Option 15 for every machine on the switches' side: AMT activates in admin
+  # control mode only when it is a suffix of its provisioning certificate's
+  # name.
+  [ -n "$domain" ] && echo "dhcp-option=tag:!machines,option:domain-name,$domain"
   if [ "$(jq -r '.management.edge.netboot // false' "$site_file")" = true ]; then
     # x86-64 UEFI firmware (client architectures 7 and 9) netboots iPXE from
     # the rack's boot server on the provisioning address, through the shim of
@@ -376,7 +530,7 @@ CONF
     $edge_address/$length dev $interface noprefixroute
 CONF
   [ -n "$provisioning" ] && printf '    %s dev %s\n' "$provisioning" "$interface"
-  [ -n "$machines_gateway" ] && printf '    %s dev machines0\n' "$machines_gateway"
+  [ -n "$machines_gateway" ] && printf '    %s/32 dev machines0\n' "${machines_gateway%/*}"
   [ -n "$wan_address" ] && printf '    %s dev wan0\n' "$wan_address"
   printf '  }\n'
   local -a behind
@@ -388,4 +542,24 @@ CONF
     printf '  }\n'
   fi
   printf '}\n'
+}
+
+# The machines' addresses as the tailnet routes both edges advertise, through
+# the node's own tailscaled, so the tailnet fails over between the edges the
+# way the gateway does. A /32 per machine rather than the segment's prefix, so
+# the tailnet reaches the machines the site has and nothing else on the
+# segment: not the edges' own addresses, not one nothing is reserved at. A site
+# with no machines advertises nothing, which also withdraws what an edge
+# advertised before.
+fleet_edge_routes() {
+  local site_file="$1" routes=""
+  fleet_edge_check "$site_file" || return 1
+  if [ -n "$(jq -r '.management.edge.machines.vlan // empty' "$site_file")" ]; then
+    routes="$(fleet_edge_machines "$site_file" | awk -F'\t' '$3 != "" {print $3 "/32"}' | paste -sd, -)"
+  fi
+  cat <<SCRIPT
+#!/bin/sh
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+exec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes=$routes
+SCRIPT
 }

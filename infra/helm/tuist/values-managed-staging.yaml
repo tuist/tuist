@@ -788,25 +788,21 @@ rackFleet:
   # prototype declared while it is offline; remove it, and clear the host's
   # status.quarantined, once the box answers SSH again.
   replicas: 0
-  # FORCED (no service node): the subnet router is an operator laptop on the
-  # same home LAN, and this is its address there. The rack's service nodes
-  # replace it, one entry each. It needs a DHCP reservation for the same reason
-  # the host's address does: if it changes, the host's SSH guard drops the
-  # router again until this is updated.
+  # The edges' own addresses on the machines segment
+  # (infra/rack-switch-fleet/sites/ber1.json, management.edge.machines). An
+  # edge routes the tailnet's connections to a host with SNAT, from its own
+  # address there, so these are the sources every dial arrives from, one per
+  # edge because either can carry it.
   sshIngressAllowCIDRs:
-    - 192.168.0.223/32
+    - 10.10.0.2/32
+    - 10.10.0.3/32
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
-      # FORCED (no switch, no VLANs): a home LAN address, advertised to the
-      # tailnet as a /32 because the catch-all grant in
-      # infra/tailscale/acls.json is still there and a wider prefix would
-      # expose the whole house. The rack puts
-      # minis on their own VLAN behind the ToR switch and advertises that prefix
-      # once, which removes the per-host ACL edit this address costs today. See
-      # "Two prerequisites before a real rack replaces the prototype" in
-      # infra/cluster-api-provider-tuist/AGENTS.md.
-      address: 192.168.0.41
+      # Its reservation on the machines segment, which the edges' DHCP hands it
+      # against the MAC recorded in the site definition, and which both edges
+      # advertise to the tailnet as a /32.
+      address: 10.10.0.101
       # FORCED (no rack): no shelf or positionU. In the rack these carry the
       # physical location a hands-on tech needs to find the box.
       rack: proto

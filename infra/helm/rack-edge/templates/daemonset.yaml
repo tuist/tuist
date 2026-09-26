@@ -127,6 +127,27 @@ spec:
               readOnly: true
             - name: leases
               mountPath: /var/lib/misc
+        # The machines' addresses, advertised to the tailnet by both edges
+        # through the node's own tailscaled, so the tailnet fails over between
+        # them. tailscaled trusts its socket's caller by uid, and this runs as
+        # root, so it needs no capability.
+        - name: routes
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, 'while :; do sh /etc/rack-edge/tailnet-routes.sh; sleep {{ .Values.reapplySeconds }}; done']
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/rack-edge
+              readOnly: true
+            - name: tailscale
+              mountPath: /run/tailscale
+              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -140,3 +161,7 @@ spec:
           hostPath:
             path: /var/lib/misc
             type: DirectoryOrCreate
+        - name: tailscale
+          hostPath:
+            path: /run/tailscale
+            type: Directory
