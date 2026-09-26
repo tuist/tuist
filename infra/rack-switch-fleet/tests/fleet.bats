@@ -2455,19 +2455,34 @@ STUB
 
 @test "every machine gets its RackHost's address against the MAC of its link, from either edge" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_dhcp "$SITE_FILE"
+    run fleet_edge_machines_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *$'\ninterface=machines0\n'* ]]
     [[ "$output" == *"dhcp-range=set:machines,10.10.0.0,static,255.255.255.0,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:machines,option:router,10.10.0.1"* ]]
     [[ "$output" == *"dhcp-option=tag:machines,option:dns-server,1.1.1.1,8.8.8.8"* ]]
     [[ "$output" == *"dhcp-host=14:98:77:3a:99:2c,10.10.0.101,ber1-proto-01,infinite"* ]]
+    # both edges answer, so neither NAKs a request the machine sent the other
+    [[ "$output" != *"dhcp-authoritative"* ]]
+    # its own process and lease file, one interface each, so both share port 67
+    [ "$(grep -c '^interface=' <<<"$output")" -eq 1 ]
+    [[ "$output" == *"dhcp-leasefile=/var/lib/misc/tuist-rack-machines.leases"* ]]
+    run fleet_edge_dhcp "$SITE_FILE"
+    [[ "$output" == *"dhcp-authoritative"* ]]
+    [[ "$output" != *"machines"* ]]
+    [ "$(grep -c '^interface=' <<<"$output")" -eq 1 ]
     # the address is the RackHost's, never a copy in the site definition
     values="$BATS_TEST_TMPDIR/values.yaml"
     yq '(.rackFleet.hosts[] | select(.name == "ber1-proto-01")).address = "10.10.0.150"' "$FLEET_RACK_VALUES" > "$values"
-    FLEET_RACK_VALUES="$values" run fleet_edge_dhcp "$SITE_FILE"
+    FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-host=14:98:77:3a:99:2c,10.10.0.150,ber1-proto-01,infinite"* ]]
+    # a site without the segment serves nothing there
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    run fleet_edge_machines_dhcp "$BATS_TEST_TMPDIR/nomachines.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"interface="* ]]
+    [[ "$output" != *"dhcp-range"* ]]
 }
 
 @test "the edges advertise each machine's address to the tailnet, and nothing else" {
@@ -3144,8 +3159,7 @@ STUB
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:known,option:router,192.168.0.10"* ]]
     [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150,255.255.255.0,1h"* ]]
-    # the machines get no controller address
-    [[ "$output" == *"dhcp-option=tag:!machines,138,$(jq -r '.management.controller.address' "$SITE_FILE")"* ]]
+    [[ "$output" == *"dhcp-option=138,$(jq -r '.management.controller.address' "$SITE_FILE")"* ]]
     # and the ToRs, which share the management segment, are not served here
     [[ "$output" != *"dhcp-host=d4:d6:df"* ]]
 }
@@ -3337,7 +3351,7 @@ STUB
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
     # DHCP option 15, which AMT checks against its provisioning certificate
-    [[ "$output" == *$'\ndhcp-option=tag:!machines,option:domain-name,rack.tuist.dev\n'* ]]
+    [[ "$output" == *$'\ndhcp-option=option:domain-name,rack.tuist.dev\n'* ]]
     site="$BATS_TEST_TMPDIR/nodomain.json"
     jq 'del(.management.edge.domain)' "$SITE_FILE" > "$site"
     run fleet_edge_dhcp "$site"

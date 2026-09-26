@@ -750,8 +750,10 @@ files no longer match it:
   switch behind the edge gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
-  Each machine on the machines segment gets its reservation there too, from
-  both edges.
+- `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
+  is not authoritative, since both edges answer there (see "The machines
+  segment" below). Each serves one interface, which is what lets the two share
+  port 67.
 - `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
   /32 per machine on the machines segment, the same on both edges.
@@ -872,7 +874,11 @@ service range (`10.128.0.0/12`) and the VRRP link.
   MAC, without a RackHost, or with an address outside the segment or already
   taken by the gateway, an edge or another machine. Both edges answer: each
   holds an address of its own on the segment, and with reservations and no
-  pool the two answers are the same answer.
+  pool the two answers are the same answer. Neither is authoritative, which is
+  why the segment has a dnsmasq of its own: an authoritative server NAKs a
+  request addressed to the other edge ("wrong server-ID"), which ber1-proto-01
+  got on its first lease, and whichever reply lands first decides whether the
+  machine keeps its address.
 - **The gateway** floats with the other addresses, as a /32 beside each edge's
   own /24, so giving it up never takes the edge's own address with it. The
   machines reach the internet through it, translated onto the uplinks.

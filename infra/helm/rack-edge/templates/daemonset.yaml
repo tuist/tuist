@@ -127,6 +127,25 @@ spec:
               readOnly: true
             - name: leases
               mountPath: /var/lib/misc
+        # The machines segment's DHCP, a dnsmasq of its own because it must not
+        # be authoritative: both edges answer there.
+        - name: dhcp-machines
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [dnsmasq, --no-daemon, --conf-file=/etc/rack-edge/dnsmasq-machines.conf]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [NET_BIND_SERVICE, NET_ADMIN, NET_RAW]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/rack-edge
+              readOnly: true
+            - name: leases
+              mountPath: /var/lib/misc
         # The machines' addresses, advertised to the tailnet by both edges
         # through the node's own tailscaled, so the tailnet fails over between
         # them. tailscaled trusts its socket's caller by uid, and this runs as
