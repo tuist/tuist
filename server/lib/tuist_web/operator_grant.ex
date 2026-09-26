@@ -48,6 +48,7 @@ defmodule TuistWeb.OperatorGrant do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.AtlasWorkloadIdentity
   alias Tuist.Environment
   alias Tuist.Projects.Project
 
@@ -63,6 +64,14 @@ defmodule TuistWeb.OperatorGrant do
   # validation). Anything else is rejected before the handle is resolved.
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
   @grant_header "x-tuist-operator-grant"
+  @atlas_identity_header "x-tuist-atlas-identity"
+
+  @doc """
+  Request headers that carry live credentials: an operator grant, and Atlas'
+  ServiceAccount token (which also authenticates the internal Atlas API). Keep
+  them out of anything that records request headers.
+  """
+  def credential_headers, do: [@grant_header, @atlas_identity_header]
 
   # --- verification ------------------------------------------------------
 
@@ -362,6 +371,68 @@ defmodule TuistWeb.OperatorGrant do
         |> json(%{error: "operator_grant_rejected"})
         |> halt()
     end
+  end
+
+  @doc """
+  Plug for the MCP pipeline: lets a Tuist operator read any account when the
+  request comes through Atlas.
+
+  Atlas proxies MCP calls with the operator's own OAuth token and adds its
+  projected ServiceAccount token in the `x-tuist-atlas-identity` header. Atlas
+  records every proxied call in its audit log, so a verified header is what
+  makes grant-free reads acceptable; the same operator calling `/mcp` directly
+  keeps needing a grant. Reads only: `Tuist.MCP.Authorization` consults
+  `:atlas_operator` for `:read` actions and nothing else.
+
+  Trust model: the header proves the caller holds Atlas' credential, not that
+  this particular request went through Atlas or produced an audit record there.
+  Atlas is a trusted credential holder, and the token also authenticates the
+  internal Atlas API, so it has to be protected as such. Use outside the proxy
+  is detected by reconciling the `atlas_operator_*` log fields set here and in
+  `Tuist.MCP.Authorization` against Atlas' audit log (`infra/log-review.md`).
+
+  A header that fails verification rejects the request, as a rejected grant
+  does. A verifier that is not configured is not the caller's fault, so the
+  request continues without the elevation.
+  """
+  def accept_atlas_identity_header(conn, _opts) do
+    case get_req_header(conn, @atlas_identity_header) do
+      [token | _] when is_binary(token) and token != "" -> attach_atlas_operator(conn, token)
+      _ -> conn
+    end
+  end
+
+  defp attach_atlas_operator(conn, token) do
+    case AtlasWorkloadIdentity.verify(token) do
+      {:ok, _principal} ->
+        case operator_from_conn(conn) do
+          %User{} = user -> if Accounts.tuist_operator?(user), do: attach_atlas_operator_user(conn, user), else: conn
+          nil -> conn
+        end
+
+      {:error, reason} when reason in [:not_configured, :invalid_jwks] ->
+        Logger.error("atlas identity header ignored: workload identity verifier unavailable",
+          reason: inspect(reason)
+        )
+
+        conn
+
+      {:error, reason} ->
+        Logger.warning("atlas identity header rejected", reason: inspect(reason))
+
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "atlas_identity_rejected"})
+        |> halt()
+    end
+  end
+
+  # Server-side trace of operator access through Atlas, independent of Atlas'
+  # own audit log. `Tuist.MCP.Authorization` adds the account when a read
+  # actually uses it.
+  defp attach_atlas_operator_user(conn, %User{email: email} = user) do
+    Logger.metadata(atlas_operator_email: email)
+    assign(conn, :atlas_operator, user)
   end
 
   # An OAuth access token authenticates as the account it was issued for, so the

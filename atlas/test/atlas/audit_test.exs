@@ -1,9 +1,12 @@
 defmodule Atlas.AuditTest do
   use Atlas.DataCase, async: true
+  use Mimic
 
   alias Atlas.Accounts
   alias Atlas.Audit
   alias Atlas.Audit.Activity
+  alias Atlas.MCP.Proxy
+  alias Atlas.MCP.Server
   alias Atlas.Repo
   alias Atlas.Users.User
   alias Atlas.UUIDv7
@@ -31,6 +34,33 @@ defmodule Atlas.AuditTest do
     assert activity.target_label == "Audit Account"
     assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
     assert activity.metadata["changed"]["name"] == "Audit Account"
+  end
+
+  # Operators read customer accounts through proxied Tuist tools without a
+  # grant, so this row is the record of what they looked at.
+  test "records proxied tool calls with the caller and arguments" do
+    user = insert_user!(%{email: "operator@tuist.dev", name: "Operator"})
+    conn = %{assigns: %{current_user: user}}
+    arguments = %{"account_handle" => "acme", "project_handle" => "app"}
+
+    expect(Proxy, :call_hoisted_tool, fn ^conn, "tuist__get_project", ^arguments ->
+      {:ok, %{"content" => [%{"type" => "text", "text" => "ok"}]}}
+    end)
+
+    Server.handle_message(conn, %{
+      "jsonrpc" => "2.0",
+      "id" => 1,
+      "method" => "tools/call",
+      "params" => %{"name" => "tuist__get_project", "arguments" => arguments}
+    })
+
+    activity = Repo.get_by!(Activity, action: "mcp.tool_called")
+
+    assert activity.actor_id == user.id
+    assert activity.interface == "mcp"
+    assert activity.target_id == "tuist__get_project"
+    assert activity.metadata["arguments"] == arguments
+    assert activity.metadata["status"] == "ok"
   end
 
   test "normalizes string-keyed attrs and serializes dashboard paths" do

@@ -2036,11 +2036,11 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  Issuer expected in Atlas' projected ServiceAccount tokens.
+  Issuer expected in Atlas' projected ServiceAccount tokens. No default: like
+  the pinned JWKS, it has to be configured for Atlas tokens to verify at all.
   """
-  def atlas_token_issuer do
-    System.get_env("TUIST_ATLAS_TOKEN_ISSUER") ||
-      get([:atlas, :token_issuer], secrets(), default_value: "https://kubernetes.default.svc.cluster.local")
+  def atlas_token_issuer(secrets \\ secrets()) do
+    System.get_env("TUIST_ATLAS_TOKEN_ISSUER") || get([:atlas, :token_issuer], secrets)
   end
 
   @doc """
