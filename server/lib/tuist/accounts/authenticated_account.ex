@@ -11,6 +11,8 @@ defmodule Tuist.Accounts.AuthenticatedAccount do
   - `created_by_account_id` - The ID of the account that created this token
   - `issued_by` - The user who authorized the token (set for OAuth tokens to enable cross-org access)
   - `agent_registration_id` - The auth.md registration that issued the token
+  - `withheld_scopes` - Write scopes withheld by OIDC scope rules, keyed by scope with the ids of
+    the projects (for `project:*` scopes) or account (for `account:*` scopes) they are withheld for
   """
   @enforce_keys [:account, :scopes]
   defstruct [
@@ -21,6 +23,7 @@ defmodule Tuist.Accounts.AuthenticatedAccount do
     :token_id,
     :created_by_account_id,
     :issued_by,
-    :agent_registration_id
+    :agent_registration_id,
+    withheld_scopes: %{}
   ]
 end

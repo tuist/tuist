@@ -79,6 +79,7 @@ This directory contains the core business logic and domain modules for the serve
 - MCP: `server/lib/tuist/mcp/AGENTS.md`
 - Namespace: `server/lib/tuist/namespace/AGENTS.md`
 - Oauth: `server/lib/tuist/oauth/AGENTS.md`
+- OIDC: `server/lib/tuist/oidc/AGENTS.md`
 - Ops: `server/lib/tuist/ops/AGENTS.md`
 - Projects: `server/lib/tuist/projects/AGENTS.md`
 - Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`

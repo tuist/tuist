@@ -9,6 +9,7 @@ defmodule TuistWeb.CacheLiveTest do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.SelfHostedClients
+  alias Tuist.OIDC.ScopeRules
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -225,8 +226,44 @@ defmodule TuistWeb.CacheLiveTest do
 
     html = render_click(lv, "revoke_self_hosted_client", %{"id" => client.id})
 
-    refute html =~ "production"
+    refute html =~ "revoke-credential-modal-#{client.id}"
     assert SelfHostedClients.list_self_hosted_clients(account) == []
+  end
+
+  test "warns when projects of the account recently used CircleCI OIDC tokens", %{conn: conn, account: account} do
+    stub_non_hosted_deployment()
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+    project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture(account_id: account.id)
+    :ok = Tuist.OIDC.ProjectProviders.record_exchange([project], :circleci)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert has_element?(lv, "[data-part=oidc-provider-alert]", "CircleCI runs lose write access when a rule applies")
+  end
+
+  test "saves and removes the account-wide cache OIDC rule", %{conn: conn, account: account} do
+    stub_non_hosted_deployment()
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert has_element?(lv, "#account-oidc-scope-rules-account-cache-write", "Any")
+
+    lv
+    |> form("#account-oidc-scope-rules-account-cache-write-form", %{
+      "scope" => "account:cache:write",
+      "refs" => "refs/heads/main",
+      "job_workflow_refs" => "",
+      "environments" => ""
+    })
+    |> render_submit()
+
+    assert [%{scope: "account:cache:write", refs: ["refs/heads/main"]}] = ScopeRules.list_account_rules(account)
+    assert has_element?(lv, "#account-oidc-scope-rules-account-cache-write", "refs/heads/main")
+
+    render_click(lv, "delete_oidc_rule", %{"scope" => "account:cache:write"})
+
+    assert [] = ScopeRules.list_account_rules(account)
   end
 
   defp stub_non_hosted_deployment do
