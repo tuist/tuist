@@ -3,6 +3,9 @@ package rackboot
 import (
 	"bufio"
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -16,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackseed"
 )
 
 const (
@@ -40,16 +44,22 @@ var (
 	errTooManyCandidates = errors.New("too many machines announced")
 )
 
+// maxEKBytes bounds an announced endorsement key; an RSA-4096 key in PKIX DER
+// is about 550 bytes.
+const maxEKBytes = 1024
+
 // Announcement is what a machine's install stick posts while nothing is
 // published for it.
 type Announcement struct {
 	UUID, Serial, Product string
 	NICs                  []infrav1.RackLinuxCandidateNIC
+	// EK is its TPM's RSA endorsement key, base64 PKIX DER.
+	EK string
 }
 
 // ParseAnnouncement accepts only the lines an install stick sends: one uuid=,
-// at most one serial= and product=, and one to 16 nic= lines of a MAC, its
-// driver and its PCI device ID.
+// at most one serial=, product= and ek=, its TPM's RSA endorsement key, and
+// one to 16 nic= lines of a MAC, its driver and its PCI device ID.
 func ParseAnnouncement(body string) (Announcement, error) {
 	var a Announcement
 	scanner := bufio.NewScanner(strings.NewReader(body))
@@ -66,6 +76,12 @@ func ParseAnnouncement(body string) (Announcement, error) {
 			a.Serial = value
 		case key == "product" && a.Product == "" && announcedProduct.MatchString(value):
 			a.Product = value
+		case key == "ek" && a.EK == "":
+			ek, err := parseEK(value)
+			if err != nil {
+				return Announcement{}, err
+			}
+			a.EK = ek
 		case key == "nic" && announcedNIC.MatchString(value):
 			m := announcedNIC.FindStringSubmatch(value)
 			a.NICs = append(a.NICs, infrav1.RackLinuxCandidateNIC{MAC: m[1], Driver: m[2], PCIDevice: m[3]})
@@ -80,6 +96,23 @@ func ParseAnnouncement(body string) (Announcement, error) {
 		return Announcement{}, fmt.Errorf("%d NICs, not one to %d", len(a.NICs), maxNICs)
 	}
 	return a, nil
+}
+
+// parseEK reads an announced endorsement key: an RSA public key, base64 PKIX
+// DER.
+func parseEK(value string) (string, error) {
+	der, err := base64.StdEncoding.DecodeString(value)
+	if err != nil || len(der) > maxEKBytes {
+		return "", fmt.Errorf("ek= is not a base64 key of at most %d bytes", maxEKBytes)
+	}
+	key, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return "", fmt.Errorf("ek= is not a PKIX public key: %w", err)
+	}
+	if _, ok := key.(*rsa.PublicKey); !ok {
+		return "", errors.New("ek= is not an RSA key")
+	}
+	return base64.StdEncoding.EncodeToString(der), nil
 }
 
 // BootMAC is the machine's i226-LM, the MS-01's port on the management switch
@@ -148,6 +181,11 @@ func (s *Server) recordCandidate(ctx context.Context, a Announcement, from net.I
 		LastSeen:   cand.Status.LastSeen,
 		DeclaredAs: cand.Status.DeclaredAs,
 		Conflict:   cand.Status.Conflict,
+		EK:         a.EK,
+	}
+	if want.EK != "" {
+		der, _ := base64.StdEncoding.DecodeString(want.EK)
+		want.EKFingerprint = rackseed.Fingerprint(der)
 	}
 	if want.FirstSeen == nil {
 		want.FirstSeen = &metav1.Time{Time: now}
@@ -164,7 +202,7 @@ func (s *Server) recordCandidate(ctx context.Context, a Announcement, from net.I
 }
 
 func sameAnnouncement(a, b infrav1.RackLinuxCandidateStatus) bool {
-	if a.UUID != b.UUID || a.Serial != b.Serial || a.Product != b.Product || a.BootMAC != b.BootMAC ||
+	if a.UUID != b.UUID || a.Serial != b.Serial || a.Product != b.Product || a.BootMAC != b.BootMAC || a.EK != b.EK ||
 		a.Site != b.Site || a.SeenBy != b.SeenBy || a.Address != b.Address || len(a.NICs) != len(b.NICs) {
 		return false
 	}
@@ -177,14 +215,16 @@ func sameAnnouncement(a, b infrav1.RackLinuxCandidateStatus) bool {
 }
 
 // identityDiffers says how an announcement differs from what the machine
-// first announced, empty when it does not: its serial, its product and its
-// NICs, in any order.
+// first announced, empty when it does not: its serial, its product, its TPM's
+// endorsement key and its NICs, in any order.
 func identityDiffers(first infrav1.RackLinuxCandidateStatus, a Announcement) string {
 	switch {
 	case a.Serial != first.Serial:
 		return fmt.Sprintf("serial %q, not %q", a.Serial, first.Serial)
 	case a.Product != first.Product:
 		return fmt.Sprintf("product %q, not %q", a.Product, first.Product)
+	case a.EK != first.EK:
+		return fmt.Sprintf("TPM %s, not %s", ekShown(a.EK), ekShown(first.EK))
 	}
 	known := map[infrav1.RackLinuxCandidateNIC]bool{}
 	for _, n := range first.NICs {
@@ -199,6 +239,14 @@ func identityDiffers(first infrav1.RackLinuxCandidateStatus, a Announcement) str
 		return fmt.Sprintf("%d NICs, not %d", len(a.NICs), len(first.NICs))
 	}
 	return ""
+}
+
+func ekShown(ek string) string {
+	if ek == "" {
+		return "none"
+	}
+	der, _ := base64.StdEncoding.DecodeString(ek)
+	return rackseed.Fingerprint(der)
 }
 
 // recordConflict keeps an announcement that differs from what the machine

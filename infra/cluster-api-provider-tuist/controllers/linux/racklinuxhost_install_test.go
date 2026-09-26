@@ -106,6 +106,7 @@ func newInstallHarness(t *testing.T, objs ...runtime.Object) *installHarness {
 		EgressNamespace:  "tailscale-operator",
 		EgressProxyGroup: "macmini-egress",
 		RunScript:        h.runner.run,
+		ReadHostEK:       func(context.Context, *infrav1.RackLinuxHost) ([]byte, error) { return harnessEK, nil },
 		Now:              func() time.Time { return h.now },
 	}
 	return h

@@ -135,6 +135,11 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Hardware *RackLinuxHostHardware `json:"hardware,omitempty"`
 
+	// TPM is the machine's TPM, pinned once. The boot server seals the host's
+	// seed to it, and hands it to nothing that cannot open it.
+	// +optional
+	TPM *RackLinuxHostTPM `json:"tpm,omitempty"`
+
 	// Provisioning is where the host is in its life: registering,
 	// provisioning an install, provisioned, or deprovisioning.
 	// +optional
@@ -190,6 +195,29 @@ type RackLinuxHostHardware struct {
 	// +optional
 	PinnedAt *metav1.Time `json:"pinnedAt,omitempty"`
 }
+
+// RackLinuxHostTPM is a host's TPM, by its endorsement key: from the machine's
+// first announcement, or read from the running host over SSH. To pin another,
+// as after replacing the board, delete the host's status.tpm.
+type RackLinuxHostTPM struct {
+	// EK is the TPM's RSA endorsement key, base64 PKIX DER, and Fingerprint
+	// its SHA-256.
+	EK string `json:"ek"`
+	// +optional
+	Fingerprint string `json:"fingerprint,omitempty"`
+
+	// Source is where it was pinned from: Announcement or Host.
+	Source string `json:"source"`
+
+	// PinnedAt is when.
+	PinnedAt metav1.Time `json:"pinnedAt"`
+}
+
+// Where a host's TPM was pinned from.
+const (
+	RackLinuxHostTPMFromAnnouncement = "Announcement"
+	RackLinuxHostTPMFromHost         = "Host"
+)
 
 // RackLinuxHostProvisioningStatus is where a host is in its life.
 type RackLinuxHostProvisioningStatus struct {
@@ -273,6 +301,11 @@ type RackLinuxHostBootStatus struct {
 	// ServedAt is when the seed was first handed out.
 	// +optional
 	ServedAt *metav1.Time `json:"servedAt,omitempty"`
+
+	// Attested is whether the seed went out sealed to the host's pinned TPM,
+	// rather than to the MAC that asked.
+	// +optional
+	Attested bool `json:"attested,omitempty"`
 }
 
 // RackLinuxHostBootServer is one boot server holding a host's install, ready
@@ -421,6 +454,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:printcolumn:name="Device",type=string,priority=1,JSONPath=".status.tailnet.deviceID"
 // +kubebuilder:printcolumn:name="Install",type=string,priority=1,JSONPath=".status.install.keyID"
 // +kubebuilder:printcolumn:name="AMT",type=string,priority=1,JSONPath=".status.amt.controlMode"
+// +kubebuilder:printcolumn:name="TPM",type=string,priority=1,JSONPath=".status.tpm.fingerprint"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackLinuxHost is one x86 Linux machine in a rack we operate.

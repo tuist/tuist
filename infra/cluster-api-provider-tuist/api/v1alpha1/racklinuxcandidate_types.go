@@ -45,6 +45,13 @@ type RackLinuxCandidateStatus struct {
 	// +optional
 	BootMAC string `json:"bootMAC,omitempty"`
 
+	// EK is its TPM's RSA endorsement key, base64 PKIX DER, and
+	// EKFingerprint the key's SHA-256.
+	// +optional
+	EK string `json:"ek,omitempty"`
+	// +optional
+	EKFingerprint string `json:"ekFingerprint,omitempty"`
+
 	// Site is the site of the edge whose boot server heard it.
 	// +optional
 	Site string `json:"site,omitempty"`

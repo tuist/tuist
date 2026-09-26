@@ -3,6 +3,7 @@ package rackboot
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
@@ -403,13 +404,16 @@ func TestTheSeedGoesOnlyToTheNICsPinnedOnTheHost(t *testing.T) {
 
 func TestAnAnnouncementThatIsNotExactlyTheExpectedLinesIsRefused(t *testing.T) {
 	for name, body := range map[string]string{
-		"no uuid":       "nic=38:05:25:38:b5:b5 igc 0x125b\n",
-		"two uuids":     "uuid=" + hostUUID + "\nuuid=" + hostUUID + "\nnic=38:05:25:38:b5:b5 igc 0x125b\n",
-		"no NIC":        "uuid=" + hostUUID + "\n",
-		"unknown line":  announcement + "shell=$(reboot)\n",
-		"upper UUID":    "uuid=" + strings.ToUpper(hostUUID) + "\nnic=38:05:25:38:b5:b5 igc 0x125b\n",
-		"odd serial":    "uuid=" + hostUUID + "\nserial=a b\nnic=38:05:25:38:b5:b5 igc 0x125b\n",
-		"too many NICs": "uuid=" + hostUUID + "\n" + strings.Repeat("nic=38:05:25:38:b5:b5 igc 0x125b\n", 17),
+		"no uuid":          "nic=38:05:25:38:b5:b5 igc 0x125b\n",
+		"two uuids":        "uuid=" + hostUUID + "\nuuid=" + hostUUID + "\nnic=38:05:25:38:b5:b5 igc 0x125b\n",
+		"no NIC":           "uuid=" + hostUUID + "\n",
+		"unknown line":     announcement + "shell=$(reboot)\n",
+		"upper UUID":       "uuid=" + strings.ToUpper(hostUUID) + "\nnic=38:05:25:38:b5:b5 igc 0x125b\n",
+		"odd serial":       "uuid=" + hostUUID + "\nserial=a b\nnic=38:05:25:38:b5:b5 igc 0x125b\n",
+		"too many NICs":    "uuid=" + hostUUID + "\n" + strings.Repeat("nic=38:05:25:38:b5:b5 igc 0x125b\n", 17),
+		"an EK not base64": announcement + "ek=not base64\n",
+		"an EK not a key":  announcement + "ek=" + base64.StdEncoding.EncodeToString([]byte("not a key")) + "\n",
+		"two EKs":          announcement + "ek=" + testEK + "\nek=" + testEK + "\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)

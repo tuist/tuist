@@ -130,6 +130,9 @@ func (r *RackLinuxHostReconciler) observeHardware(ctx context.Context, host *inf
 			}
 			r.Recorder.Eventf(host, corev1.EventTypeNormal, "HardwarePinned",
 				"Took %s's hardware from what it announced: serial %q, boot MAC %s, %d NICs", host.Spec.Hostname, candidate.Status.Serial, candidate.Status.BootMAC, len(candidate.Status.NICs))
+			if host.Status.TPM == nil && candidate.Status.EK != "" {
+				host.Status.TPM = pinnedTPM(candidate.Status.EK, pinned.Time)
+			}
 		}
 	}
 	if hw := host.Status.Hardware; hw != nil && hw.PinnedAt != nil {

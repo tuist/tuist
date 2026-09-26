@@ -51,7 +51,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
-| `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, the `bootMAC` to declare (its i226-LM), the edge that heard it, and the host that declares it, if any. The operator keeps it; nothing else writes it. |
+| `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
@@ -697,24 +697,42 @@ each edge's boot server reports each install it holds servable in the host's
 takes the address over; the list is keyed by the install's join key, and the
 operator writes nothing there.
 
-**An install's seed goes to its host once.** The seed carries the join key and
-the host key, so the boot server hands `user-data` only to a machine on its
-segment whose MAC, read from the kernel's neighbor table for the address that
-asked, is the host's boot MAC or one of the NICs in its `status.hardware`, never
-what its candidate lists now; it records that
-MAC in `status.boot.servedTo` before answering, and from then on hands the seed
-to that MAC alone. It checks the host's `status.install` first, so a superseded
-install is not handed out from a stale Secret. A seed that could not be
-recorded is not handed out. The rest of an install is not secret.
+**An install's seed goes only to its host** (`internal/rackseed`). The seed
+carries the join key and the host key. For a host whose TPM is pinned
+(`status.tpm`), the boot server seals it to that TPM: a machine asks with
+`rack-node seed`, which posts to `/hosts/<mac>/seed` and, when the boot server
+answers 401, attests with an attestation key its TPM makes; the boot server
+checks that key is a TPM's restricted key, and encrypts the seed under a secret
+it wraps with credential activation to the pinned endorsement key and that
+attestation key, which only that TPM can unwrap. Anyone may ask, since nothing
+else can open the answer. A plain `GET` of `user-data` for such a host, as a
+netboot's cloud-init makes, gets the install stick's loader, which asks with
+`rack-node seed` (fetched from `/tools/rack-node`). A host with no pinned TPM
+gets its seed, over either path, only on its segment on a MAC, read from the
+kernel's neighbor table for the address that asked, that is its boot MAC or one
+of the NICs in its `status.hardware`, never what its candidate lists now, and
+after the first only on that MAC. The first hand-out is recorded in
+`status.boot` (`servedTo`, `servedAt`, `attested`) before it happens, and one
+that could not be recorded is not made. It checks the host's `status.install`
+first, so a superseded install is not handed out from a stale Secret. The rest
+of an install is not secret.
+
+**A host's TPM is pinned once** (`racklinuxhost_tpm.go`): from the endorsement
+key the machine's first announcement carried, when the host takes its hardware
+from its candidate, or else, once the host runs its own install, read with
+`rack-node ek` over SSH, which holds the host to the host key the operator gave
+the install. `TPMPinned` says which; a read that fails is tried again an hour
+later. Pinning another, as after replacing a board, is deleting `status.tpm`.
 
 **Machines announce themselves.** While nothing is published for it, a
-machine's install stick posts its SMBIOS UUID, serial, product and NICs to the
-boot server's `cgi-bin/announce`, which accepts only those lines, at most 4096
+machine's install stick posts its SMBIOS UUID, serial, product, NICs and TPM
+endorsement key (`rack-node ek`) to the boot server's `cgi-bin/announce`, which accepts only those lines, at most 4096
 bytes, and keeps a `RackLinuxCandidate` per machine, named after its UUID, with
 the boot MAC it names (its i226-LM), for at most 256 machines. Anyone on the
 segment can announce, so what a machine announced first is kept: an
-announcement under its UUID with another serial, product or set of NICs is
-refused with HTTP 409 and kept only as the candidate's `status.conflict`. Its Role creates
+announcement under its UUID with another serial, product, endorsement key or
+set of NICs, or one that adds an endorsement key the first lacked, is refused
+with HTTP 409 and kept only as the candidate's `status.conflict`. Its Role creates
 candidates and patches their status; it reads and patches hosts' status for
 `status.boot` and nothing else of them. The operator (`racklinux_candidates.go`)
 marks each candidate with the hostname of the `RackLinuxHost` named after its
@@ -722,9 +740,14 @@ UUID, and drops an undeclared one no boot server has heard from for a week; a
 declared one stays, since its host takes its boot MAC and model
 (`status.hardware`) from it.
 
-Not yet done: the boot server trusts a MAC, which a machine on the segment can
-spoof, and the first announcement under a UUID, which a machine that announces
-before the real one can fake.
+Not yet done: a host with no pinned TPM gets its seed on a MAC, which a machine
+on the segment can spoof. The first announcement under a UUID is trusted, so a
+machine that announces before the real one can stand in for it; checking the
+endorsement key's certificate against the TPM vendor's CA would limit that to
+real TPMs. The loader, rack-node and the netboot chain come over plain HTTP on
+the segment, so a machine that can answer for the provisioning address can run
+code on the real host, which its TPM then serves; sealing the seed to the
+host's measured boot (a PCR policy) would close that.
 
 **A rename is a new `spec.hostname`.** The host keeps its UUID, its Machine and
 its providerID. The host controller finds the host's recorded device although
@@ -988,12 +1011,13 @@ infra/cluster-api-provider-tuist/
 │   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
 │   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
 │   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
+│   ├── rackseed/     # a rack host's seed, sealed to its pinned TPM; rackseedtest is a TPM in software
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
 ├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
-├── cmd/rack-node/  # applies a rack node's configuration: over SSH, and as its node agent
+├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
 ├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
 ├── config/
 │   └── rbac/       # ClusterRole for the manager

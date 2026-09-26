@@ -398,7 +398,7 @@ func renewDue(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallSta
 		return true
 	}
 	boot := host.Status.Boot
-	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedTo != ""
+	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedAt != nil
 	return !handedOut && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
 }
 

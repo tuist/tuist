@@ -59,6 +59,10 @@ spec:
           name: AMT
           priority: 1
           type: string
+        - jsonPath: .status.tpm.fingerprint
+          name: TPM
+          priority: 1
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -323,6 +327,11 @@ spec:
                     Boot is what the site's boot server reports about the published install.
                     The boot server writes it, and nothing else.
                   properties:
+                    attested:
+                      description: |-
+                        Attested is whether the seed went out sealed to the host's pinned TPM,
+                        rather than to the MAC that asked.
+                      type: boolean
                     keyID:
                       description: KeyID is the join key of the install it reports on.
                       type: string
@@ -562,6 +571,30 @@ spec:
                     name:
                       description: Name is the device's MagicDNS name.
                       type: string
+                  type: object
+                tpm:
+                  description: |-
+                    TPM is the machine's TPM, pinned once. The boot server seals the host's
+                    seed to it, and hands it to nothing that cannot open it.
+                  properties:
+                    ek:
+                      description: |-
+                        EK is the TPM's RSA endorsement key, base64 PKIX DER, and Fingerprint
+                        its SHA-256.
+                      type: string
+                    fingerprint:
+                      type: string
+                    pinnedAt:
+                      description: PinnedAt is when.
+                      format: date-time
+                      type: string
+                    source:
+                      description: 'Source is where it was pinned from: Announcement or Host.'
+                      type: string
+                  required:
+                    - ek
+                    - pinnedAt
+                    - source
                   type: object
               type: object
           type: object

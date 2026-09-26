@@ -720,6 +720,7 @@ func main() {
 	if rackLinuxClusterName != "" && rackLinuxBootstrapSecretName != "" {
 		rackMachines = &linux.RackMachines{ClusterName: rackLinuxClusterName, BootstrapSecret: rackLinuxBootstrapSecretName}
 	}
+	rackNodeBinary := readRackNodeBinary(rackNodeBinaryPath, rackLinuxFleetName)
 	if err := (&linux.RackLinuxHostReconciler{
 		Client:             mgr.GetClient(),
 		APIReader:          mgr.GetAPIReader(),
@@ -732,6 +733,7 @@ func main() {
 		CredentialsManager: credsManager,
 		EgressNamespace:    egressNamespace,
 		EgressProxyGroup:   egressProxyGroup,
+		NodeBinary:         rackNodeBinary,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxHostReconciler")
 		os.Exit(1)
@@ -756,7 +758,7 @@ func main() {
 		EgressNamespace:     egressNamespace,
 		EgressProxyGroup:    egressProxyGroup,
 		EgressProxyTags:     egressProxyTags,
-		NodeBinary:          readRackNodeBinary(rackNodeBinaryPath, rackLinuxFleetName),
+		NodeBinary:          rackNodeBinary,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")
 		os.Exit(1)

@@ -3,6 +3,8 @@ package rackboot
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackseed"
 )
 
 // The signed iPXE the firmware loads over TFTP: iPXE's Secure Boot shim,
@@ -53,6 +57,8 @@ type Config struct {
 	// once. NetbootDir holds the signed iPXE.
 	StateDir   string
 	NetbootDir string
+	// NodeBinary is the rack-node binary an install stick runs.
+	NodeBinary string
 
 	// Namespace holds the boot Secret, SecretName, and the fleet's hosts and
 	// candidates.
@@ -231,6 +237,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /hosts/{script}", s.serveScript)
 	mux.HandleFunc("GET /hosts/{mac}/{file}", s.serveSeed)
 	mux.HandleFunc("GET /ubuntu/{file}", s.serveUbuntu)
+	mux.HandleFunc("POST /hosts/{mac}/seed", s.serveSeedRequest)
+	mux.HandleFunc("GET /tools/rack-node", s.serveNodeBinary)
 	mux.HandleFunc("POST /cgi-bin/announce", s.serveAnnounce)
 	return mux
 }
@@ -287,37 +295,84 @@ type errNotHandedOut struct {
 
 func (e errNotHandedOut) Error() string { return e.reason }
 
-// serveUserData hands an install's seed, which carries its join key, only to a
-// machine on the boot server's segment whose MAC is one of the host's NICs,
-// and once it was handed to one, only to that one again.
+// serveUserData serves a plain request for an install's seed, which carries
+// its join key and host key: for a host whose TPM is pinned, the install
+// stick's loader, which asks for the seed through the TPM; for any other, the
+// seed, only to one of the host's NICs.
 func (s *Server) serveUserData(w http.ResponseWriter, r *http.Request, inst Install) {
+	host := &infrav1.RackLinuxHost{}
+	if err := s.api.Get(r.Context(), types.NamespacedName{Namespace: s.cfg.Namespace, Name: inst.UUID}, host); err != nil {
+		if apierrors.IsNotFound(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "cannot read the host; ask again", http.StatusServiceUnavailable)
+		return
+	}
+	if host.Status.TPM != nil {
+		loader, err := rackinstall.StickUserData(s.cfg.httpBase())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.log.Info("served the loader for a host whose TPM is pinned", "install", inst.KeyID, "mac", colonMAC(inst.MAC), "to", r.RemoteAddr)
+		_, _ = io.WriteString(w, loader)
+		return
+	}
+	answer, ok := s.answerSeed(w, r, inst, nil)
+	if ok {
+		_, _ = w.Write(answer.Seed)
+	}
+}
+
+// serveSeedRequest answers a machine's rackseed.Request for an install's seed.
+func (s *Server) serveSeedRequest(w http.ResponseWriter, r *http.Request) {
+	inst, ok := s.install(strings.ToLower(r.PathValue("mac")))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	var req rackseed.Request
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil {
+		http.Error(w, "cannot read the request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	answer, ok := s.answerSeed(w, r, inst, &req)
+	if !ok {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(answer)
+}
+
+func (s *Server) answerSeed(w http.ResponseWriter, r *http.Request, inst Install, req *rackseed.Request) (rackseed.Answer, bool) {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	ip := net.ParseIP(host)
-	err := s.handOut(r.Context(), inst, ip)
+	answer, err := s.seedFor(r.Context(), inst, net.ParseIP(host), req)
 	var refused errNotHandedOut
 	switch {
 	case errors.As(err, &refused):
 		s.log.Info("refused an install's seed", "install", inst.KeyID, "mac", colonMAC(inst.MAC), "to", r.RemoteAddr, "reason", refused.reason)
 		http.Error(w, refused.reason, refused.status)
-		return
+		return rackseed.Answer{}, false
 	case err != nil:
 		s.log.Error(err, "record an install's seed as handed out", "install", inst.KeyID)
 		http.Error(w, "cannot record the seed as handed out; ask again", http.StatusServiceUnavailable)
-		return
+		return rackseed.Answer{}, false
 	}
-	_, _ = w.Write(inst.UserData)
+	return answer, true
 }
 
-// handOut decides whether the machine at ip gets the install's seed, and
-// records the first hand-out in its host's status.boot before it happens.
-func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
+// seedFor decides what the machine at ip asking for an install's seed gets,
+// and records the first hand-out in its host's status.boot before it happens.
+// A host whose TPM is pinned gets its seed only sealed to that TPM, to whoever
+// asks with its attestation, since nothing else can open it. Any other gets
+// its seed as it is, only on one of its NICs, and after the first, only on
+// that one.
+func (s *Server) seedFor(ctx context.Context, inst Install, ip net.IP, req *rackseed.Request) (rackseed.Answer, error) {
 	if ip == nil {
-		return errNotHandedOut{http.StatusForbidden, "no address"}
+		return rackseed.Answer{}, errNotHandedOut{http.StatusForbidden, "no address"}
 	}
-	mac, ok := s.Neighbors(ip)
-	if !ok {
-		return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not a neighbor on the boot server's segment", ip)}
-	}
+	mac, neighbor := s.Neighbors(ip)
 
 	s.seedMu.Lock()
 	defer s.seedMu.Unlock()
@@ -325,26 +380,54 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 		host := &infrav1.RackLinuxHost{}
 		if err := s.api.Get(ctx, types.NamespacedName{Namespace: s.cfg.Namespace, Name: inst.UUID}, host); err != nil {
 			if apierrors.IsNotFound(err) {
-				return errNotHandedOut{http.StatusNotFound, "the host is gone"}
+				return rackseed.Answer{}, errNotHandedOut{http.StatusNotFound, "the host is gone"}
 			}
-			return err
+			return rackseed.Answer{}, err
 		}
 		if host.Status.Install == nil || host.Status.Install.KeyID != inst.KeyID {
-			return errNotHandedOut{http.StatusServiceUnavailable, "the host's install changed; ask again"}
-		}
-		if !hostNICs(host, inst)[mac] {
-			return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not one of the host's NICs", mac)}
+			return rackseed.Answer{}, errNotHandedOut{http.StatusServiceUnavailable, "the host's install changed; ask again"}
 		}
 		boot := host.Status.Boot
-		if boot != nil && boot.KeyID == inst.KeyID && boot.ServedTo != "" {
-			if boot.ServedTo == mac {
-				return nil
-			}
-			return errNotHandedOut{http.StatusForbidden, fmt.Sprintf("the seed went to %s", boot.ServedTo)}
+		if boot == nil || boot.KeyID != inst.KeyID {
+			boot = nil
 		}
+
+		var answer rackseed.Answer
+		if tpm := host.Status.TPM; tpm != nil {
+			if req == nil || req.AK == nil {
+				return rackseed.Answer{}, errNotHandedOut{http.StatusUnauthorized, rackseed.ErrNotAttested.Error()}
+			}
+			pinned, err := base64.StdEncoding.DecodeString(tpm.EK)
+			if err != nil {
+				return rackseed.Answer{}, fmt.Errorf("read the host's pinned endorsement key: %w", err)
+			}
+			sealed, err := rackseed.Seal(pinned, *req, inst.UserData)
+			if err != nil {
+				return rackseed.Answer{}, errNotHandedOut{http.StatusForbidden, err.Error()}
+			}
+			answer = rackseed.Answer{Sealed: sealed}
+			if boot != nil && boot.ServedAt != nil {
+				return answer, nil
+			}
+		} else {
+			switch {
+			case !neighbor:
+				return rackseed.Answer{}, errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not a neighbor on the boot server's segment", ip)}
+			case !hostNICs(host, inst)[mac]:
+				return rackseed.Answer{}, errNotHandedOut{http.StatusForbidden, fmt.Sprintf("%s is not one of the host's NICs", mac)}
+			}
+			answer = rackseed.Answer{Seed: inst.UserData}
+			if boot != nil && boot.ServedTo != "" {
+				if boot.ServedTo == mac {
+					return answer, nil
+				}
+				return rackseed.Answer{}, errNotHandedOut{http.StatusForbidden, fmt.Sprintf("the seed went to %s", boot.ServedTo)}
+			}
+		}
+
 		now := metav1.NewTime(s.now())
-		next := &infrav1.RackLinuxHostBootStatus{KeyID: inst.KeyID, ServedTo: mac, ServedAddress: ip.String(), ServedAt: &now}
-		if boot != nil && boot.KeyID == inst.KeyID {
+		next := &infrav1.RackLinuxHostBootStatus{KeyID: inst.KeyID, ServedTo: mac, ServedAddress: ip.String(), ServedAt: &now, Attested: answer.Sealed != nil}
+		if boot != nil {
 			next.Servers = boot.Servers
 		}
 		orig := host.DeepCopy()
@@ -353,12 +436,23 @@ func (s *Server) handOut(ctx context.Context, inst Install, ip net.IP) error {
 		if apierrors.IsConflict(err) {
 			continue
 		}
-		if err == nil {
-			s.log.Info("handed out an install's seed", "install", inst.KeyID, "host", inst.UUID, "mac", mac, "address", ip.String())
+		if err != nil {
+			return rackseed.Answer{}, err
 		}
-		return err
+		s.log.Info("handed out an install's seed", "install", inst.KeyID, "host", inst.UUID, "mac", mac, "address", ip.String(), "attested", next.Attested)
+		return answer, nil
 	}
-	return fmt.Errorf("the host kept changing while recording the hand-out")
+	return rackseed.Answer{}, fmt.Errorf("the host kept changing while recording the hand-out")
+}
+
+// serveNodeBinary serves the rack-node binary an install stick asks for its
+// seed with.
+func (s *Server) serveNodeBinary(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.NodeBinary == "" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, s.cfg.NodeBinary)
 }
 
 // hostNICs are the MACs of the machine an install is for: its boot MAC, and

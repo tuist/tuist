@@ -53,9 +53,13 @@ an env and carries no credential:
 mise run rack:write-install-usb /dev/disk4 --any-host
 ```
 
-Its installer takes DHCP on every wired port, asks the boot server for
-`hosts/<mac>/user-data` for each of its NICs, and installs the first it gets:
-the seed a netboot reads (below). With nothing published it boots a rack
+Its installer takes DHCP on every wired port, fetches `rack-node` from the boot
+server (`/tools/rack-node`), asks with `rack-node seed` for the seed published
+under each of its NICs, attesting with the machine's TPM when the host's is
+pinned, and installs the first it gets: the seed a netboot reads (below). A
+stick written before its installer asked through `rack-node` gets only the
+loader for a host whose TPM is pinned, installs nothing, and needs writing
+again. With nothing published it boots a rack
 install already on the disks as soon as the boot server says so (a 404 for
 every NIC), or after five minutes of not reaching the boot server; a machine
 without one waits and announces itself (below). The MS-01's firmware keeps a
@@ -94,7 +98,8 @@ UUID, a hostname and a role to `rackLinuxFleet.hosts`:
 ```
 
 The host takes its boot MAC, model and NICs from the candidate once
-(`status.hardware`), its AMT is activated
+(`status.hardware`), and its TPM (`status.tpm`) when the stick announced one;
+an installed host's TPM is read over SSH otherwise. Its AMT is activated
 when its model is one of `rackLinuxFleet.amt.products`, and AMT gets an address
 from `amt.addressRange`. The operator then publishes its install, and the
 stick, still waiting, installs it. A candidate that a host declares shows the
@@ -127,11 +132,13 @@ every other edge of the site. The chain a netbooting host goes through:
    boots them through Ubuntu's shim from the ISO (iPXE's `shim` command), which
    verifies the kernel under Secure Boot; the kernel downloads the ISO into
    memory (`url=`), keeps its DHCP on the NIC that netbooted (`BOOTIF`), and
-   reads the seed from `/hosts/<mac>/`. The boot server hands `user-data`, which
-   carries the join key and the host key, only to one of the MACs the host took
-   (`status.hardware`), as
-   its neighbor table shows the address that asked, and after the first to
-   that MAC alone (`status.boot.servedTo`).
+   reads the seed from `/hosts/<mac>/`. The seed carries the join key and the
+   host key. For a host whose TPM is pinned (`status.tpm`), `user-data` is the
+   install stick's loader, which asks for the seed with `rack-node seed`, and
+   the boot server seals it to that TPM (`status.boot.attested`). For any
+   other, the boot server hands `user-data` only to one of the MACs the host
+   took (`status.hardware`), as its neighbor table shows the address that
+   asked, and after the first to that MAC alone (`status.boot.servedTo`).
 4. The install is the same as a stick's: Ubuntu with network configuration for
    the SFP+ uplinks only, the fleet key, the operator's host key in place of
    the ones the package generated (cloud-init told not to replace it), and a

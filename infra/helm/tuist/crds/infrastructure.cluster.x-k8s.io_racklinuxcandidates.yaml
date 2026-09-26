@@ -120,6 +120,13 @@ spec:
                 declaredAs:
                   description: DeclaredAs is the hostname of the RackLinuxHost named after its UUID.
                   type: string
+                ek:
+                  description: |-
+                    EK is its TPM's RSA endorsement key, base64 PKIX DER, and
+                    EKFingerprint the key's SHA-256.
+                  type: string
+                ekFingerprint:
+                  type: string
                 firstSeen:
                   description: FirstSeen and LastSeen bound its announcements.
                   format: date-time
