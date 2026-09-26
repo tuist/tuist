@@ -1,7 +1,8 @@
 defmodule Tuist.Builds.BuildMachineMetric do
   @moduledoc """
   Schema for machine metrics collected during builds.
-  Used for both Xcode builds (via build_run_id) and Gradle builds (via gradle_build_id).
+  Used for Xcode builds (via `build_run_id`), Gradle builds (via
+  `gradle_build_id`), and Mix compile builds (via `mix_build_id`).
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -10,6 +11,7 @@ defmodule Tuist.Builds.BuildMachineMetric do
   schema "build_machine_metrics" do
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
+    field :mix_build_id, Ch, type: "Nullable(UUID)"
     field :timestamp, Ch, type: "Float64"
     field :offset_ms, Ch, type: "Nullable(Float64)"
     field :cpu_usage_percent, Ch, type: "Float32"

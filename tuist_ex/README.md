@@ -1,26 +1,30 @@
 # Tuist for Elixir
 
-This package provides `mix tuist.login`, which authenticates with Tuist and saves
-the session in the same credential file used by the Tuist command line tool and
-Gradle plugin. Build instrumentation and test reporting are planned separately.
+This package provides `mix tuist.login` for authentication and `mix tuist.test`
+for ExUnit analytics, both writing to the same Tuist server the command line
+tool and Gradle plugin use. Compile analytics land in a separate follow-up
+package release.
 
-## Configure the server
+## Configure the server and project
 
-You can share the Tuist server address with your team in `mix.exs`:
+You can share the Tuist server address and the project handle with your team
+in `mix.exs`:
 
 ```elixir
 def project do
   [
     app: :my_app,
-    tuist: [url: "https://tuist.example.com"]
+    tuist: [
+      url: "https://tuist.example.com",
+      project: "your-account/your-project"
+    ]
   ]
 end
 ```
 
-`TUIST_URL` overrides that address, as it does in the Tuist command line tool.
-You can also pass `--url` when `TUIST_URL` is unset. The default is
-`https://tuist.dev`. [URL](https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL)
-means Uniform Resource Locator.
+`TUIST_URL` and `TUIST_PROJECT` override those values, as they do in the Tuist
+command line tool. `--url` and `--project` are also accepted when the env
+overrides are unset. The default URL is `https://tuist.dev`.
 
 ## Log in
 
@@ -41,6 +45,72 @@ them atomically with access restricted to the current user. Refreshes take a
 lock at the Tuist command line tool's lock path and reread the file before
 exchanging the refresh token, so parallel processes do not refresh the same
 token twice.
+
+## Run tests with analytics
+
+```sh
+mix tuist.test
+mix tuist.test --project your-account/your-project
+mix tuist.test -- --trace     # forwards --trace to mix test
+```
+
+`mix tuist.test` installs an ExUnit formatter alongside the default one and
+runs `mix test`. When the suite finishes, it POSTs a summary of the run,
+each module, each suite (from `describe` blocks), and each test case,
+including failure messages and source locations, to the Tuist server. Test
+timings are converted from microseconds to milliseconds. Everything after
+`--` is forwarded to `mix test` verbatim.
+
+Elixir, [OTP](https://www.erlang.org/doc/system/otp), `Mix` environment, the
+current git ref, and any recognised continuous integration provider metadata
+travel with the payload so a dashboard can group runs by branch, commit, and
+CI run.
+
+Analytics submission never changes the exit code of `mix test`. If a request
+fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
+reuses the credentials from `mix tuist.login`, or the `TUIST_TOKEN` environment
+variable if set.
+
+## Tag runs with custom metadata
+
+Every submitted run can carry customer-supplied tags (labels for filtering)
+and values (key/value pairs). Sources merge with the environment last:
+
+```elixir
+def project do
+  [
+    app: :my_app,
+    tuist: [
+      url: "https://tuist.example.com",
+      project: "your-account/your-project",
+      tags: ["nightly"],
+      values: %{"team" => "platform"}
+    ]
+  ]
+end
+```
+
+`TUIST_TAGS` (comma-separated) and `TUIST_VALUES` (`key=value` pairs,
+comma-separated) override the mix.exs config. The Tuist dashboards use
+those labels to group and filter runs across ecosystems.
+
+## Compile with analytics
+
+```sh
+mix tuist.compile
+mix tuist.compile -- --force
+```
+
+`mix tuist.compile` wraps `mix compile`, attaches an after-compiler hook to
+the Elixir and `.app` compilers, and submits a build record to your Tuist
+dashboard when the compile finishes. The record carries duration and status,
+each warning and error as a distinct diagnostic (file, module, message,
+line, and column), plus the same environment metadata (Elixir and
+[Open Telecom Platform](https://www.erlang.org/doc/system/otp) versions, Mix
+environment, git ref, and continuous integration provider) that
+`mix tuist.test` submits. Everything after `--` is forwarded to
+`mix compile`. Submission failures never change the exit code of
+`mix compile`.
 
 ## Development
 

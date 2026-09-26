@@ -850,6 +850,10 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
+        scope "/mix" do
+          post "/builds", MixController, :create_build
+        end
+
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
@@ -1435,6 +1439,7 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
+      live "/builds/mix-builds/:build_id", MixBuildLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download

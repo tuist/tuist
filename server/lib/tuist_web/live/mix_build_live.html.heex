@@ -1,0 +1,268 @@
+<div id="mix-build-run">
+  <.button
+    label={dgettext("dashboard_builds", "Builds")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"
+    }
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={@run.status == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
+        </div>
+        <div :if={@run.status == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
+        </div>
+        <h1 data-part="label">
+          {if(@run.elixir_version == "",
+            do: dgettext("dashboard_builds", "mix compile"),
+            else: "mix compile · Elixir #{@run.elixir_version}"
+          )}
+        </h1>
+        <.run_tags tags={@run.custom_tags || []} />
+      </div>
+    </div>
+    <div data-part="actions">
+      <.button
+        :if={@run.ci_run_id != ""}
+        label={dgettext("dashboard_builds", "CI Run")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
+    </div>
+  </div>
+  <.card
+    title={dgettext("dashboard_builds", "Build Details")}
+    icon="chart_arcs"
+    data-part="build-details"
+  >
+    <.card_section data-part="build-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+            <span data-part="command-label">
+              mix compile
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+            <.badge
+              :if={@run.status == "success"}
+              label={dgettext("dashboard_builds", "Passed")}
+              color="success"
+              style="fill"
+              size="large"
+            />
+            <.badge
+              :if={@run.status == "failure"}
+              label={dgettext("dashboard_builds", "Failed")}
+              color="destructive"
+              style="fill"
+              size="large"
+            />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
+            <.build_ran_by_badge_cell build={@run} />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
+            <span data-part="label">
+              <.history />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration_ms)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.format_with_timezone(
+                @run.inserted_at,
+                @user_timezone
+              )}
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
+            <span data-part="label">
+              <.git_branch />
+              {if(@run.git_branch == "",
+                do: dgettext("dashboard_builds", "None"),
+                else: @run.git_branch
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Elixir version")}</div>
+            <span data-part="label">
+              {if(@run.elixir_version == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: @run.elixir_version
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "OTP version")}</div>
+            <span data-part="label">
+              {if(@run.otp_version == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: @run.otp_version
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_builds", "Mix environment")}</div>
+            <span data-part="label">
+              {if(@run.mix_env == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: @run.mix_env
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
+        <span data-part="custom-metadata-label">
+          {dgettext("dashboard_builds", "Custom metadata")}
+        </span>
+        <.table
+          id="custom-metadata-table"
+          rows={Map.to_list(@run.custom_values)}
+          row_key={fn {key, _value} -> key end}
+        >
+          <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
+            <.text_cell label={key} />
+          </:col>
+          <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
+            <a
+              :if={url?(value)}
+              href={value}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-part="custom-metadata-link"
+            >
+              {value}
+            </a>
+            <.text_cell :if={not url?(value)} label={value} />
+          </:col>
+        </.table>
+      </div>
+    </.card_section>
+  </.card>
+  <.card
+    :if={@errors != [] or @warnings != []}
+    title={dgettext("dashboard_builds", "Errors and Warnings")}
+    icon="alert_triangle"
+    data-part="errors-and-warnings-card"
+  >
+    <.card_section :if={@errors != []} data-part="errors-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_builds", "Errors")}
+        </span>
+        <span data-part="dot">
+          {dgettext("dashboard_builds", "•")}
+        </span>
+        <span data-part="count">
+          {length(@errors)}
+        </span>
+      </div>
+      <.table id="mix-errors-table" rows={@errors} row_key={& &1.id}>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "File")}>
+          <.text_cell
+            label={
+              if diagnostic.file == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: diagnostic.file
+            }
+          />
+        </:col>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Line")}>
+          <.text_cell
+            label={
+              if is_number(diagnostic.line),
+                do: to_string(diagnostic.line),
+                else: "-"
+            }
+          />
+        </:col>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Module")}>
+          <.text_cell
+            label={
+              if diagnostic.module == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: diagnostic.module
+            }
+          />
+        </:col>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Message")}>
+          <.text_cell label={diagnostic.message} />
+        </:col>
+      </.table>
+    </.card_section>
+    <.card_section :if={@warnings != []} data-part="warnings-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_builds", "Warnings")}
+        </span>
+        <span data-part="dot">
+          {dgettext("dashboard_builds", "•")}
+        </span>
+        <span data-part="count">
+          {length(@warnings)}
+        </span>
+      </div>
+      <.table id="mix-warnings-table" rows={@warnings} row_key={& &1.id}>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "File")}>
+          <.text_cell
+            label={
+              if diagnostic.file == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: diagnostic.file
+            }
+          />
+        </:col>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Line")}>
+          <.text_cell
+            label={
+              if is_number(diagnostic.line),
+                do: to_string(diagnostic.line),
+                else: "-"
+            }
+          />
+        </:col>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Module")}>
+          <.text_cell
+            label={
+              if diagnostic.module == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: diagnostic.module
+            }
+          />
+        </:col>
+        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Message")}>
+          <.text_cell label={diagnostic.message} />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+</div>

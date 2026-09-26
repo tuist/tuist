@@ -22,5 +22,5 @@ defmodule TuistEx.MixProject do
     ]
   end
 
-  def application, do: [extra_applications: [:inets, :ssl, :public_key, :crypto]]
+  def application, do: [extra_applications: [:inets, :ssl, :public_key, :crypto, :os_mon]]
 end

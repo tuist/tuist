@@ -331,6 +331,56 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "creates a test run with the elixir build system and accepts contract_version", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert attrs.build_system == "mix"
+        assert attrs.duration == 4200
+        assert attrs.is_ci == true
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           build_system: "mix",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            contract_version: "0.1",
+            build_system: "mix",
+            duration: 4200,
+            is_ci: true,
+            status: "success",
+            test_modules: [
+              %{
+                name: "GreeterTest",
+                status: "success",
+                duration: 4200,
+                test_suites: [],
+                test_cases: [
+                  %{name: "test greets the world", status: "success", duration: 42}
+                ]
+              }
+            ]
+          }
+        )
+
+      assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
+    end
+
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
