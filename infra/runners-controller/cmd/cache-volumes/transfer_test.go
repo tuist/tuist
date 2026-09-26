@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
 )
@@ -70,5 +73,50 @@ func TestPublicationPreflightChecksumAndRetry(t *testing.T) {
 	}
 	if puts != 1 || publishes != 1 {
 		t.Fatal("retried or doomed image uploaded", puts, publishes)
+	}
+}
+
+func TestDownloadDeadlineCancelsMetadataAndObjectRequests(t *testing.T) {
+	for _, phase := range []string{"metadata", "object"} {
+		t.Run(phase, func(t *testing.T) {
+			cancelled := make(chan struct{})
+			object := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+				close(cancelled)
+			}))
+			defer object.Close()
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				io.Copy(io.Discard, r.Body)
+				if phase == "metadata" {
+					<-r.Context().Done()
+					close(cancelled)
+					return
+				}
+				json.NewEncoder(w).Encode(map[string]any{"generation": 1, "download_url": object.URL})
+			}))
+			defer upstream.Close()
+			dir := t.TempDir()
+			token := filepath.Join(dir, "token")
+			if err := os.WriteFile(token, []byte("trusted"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			transfer := imageTransfer{URL: upstream.URL, TokenPath: token, Client: upstream.Client(), MaxBytes: 1024}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+			defer cancel()
+			err := transfer.Download(ctx, cachevolumes.Slot{Identity: cachevolumes.Identity{BaseGeneration: 1}}, filepath.Join(dir, "image"))
+			if err == nil || ctx.Err() == nil {
+				t.Fatal("download ignored deadline", err)
+			}
+			select {
+			case <-cancelled:
+			case <-time.After(time.Second):
+				t.Fatal("upstream request still running")
+			}
+			if _, err := os.Stat(filepath.Join(dir, "image")); !os.IsNotExist(err) {
+				t.Fatal("left partial download", err)
+			}
+		})
 	}
 }

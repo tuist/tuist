@@ -19,6 +19,10 @@ HEAD publication protocol as the macOS cache. See [runbook](../../cache-volumes.
   kernel error as healthy. Verified images may retry failed uploads.
 - Publish synchronously: detach, compress, preflight, upload, fast-forward, then
   install the accepted master. Failed/rejected uploads never become masters.
+- Acquisition uses the request context with a 25-second host budget and a
+  30-second client timeout. Propagate cancellation through downloads, expansion,
+  commands and shared-master/admission waits. Incomplete restores remain allocated
+  and cannot publish; reclaim only after the existing writer fences pass.
 - Local masters use generation/digest filenames; checksummed downloads are
   restored sparsely, with bounds on compressed and expanded input.
 - Require reflinks with no byte-copy fallback. Use actual filesystem free space

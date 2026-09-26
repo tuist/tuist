@@ -21,7 +21,7 @@ var ErrPoisoned = errors.New("cache image failed write-back verification")
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
 type ImageTransfer interface {
-	Download(Slot, string) error
+	Download(context.Context, Slot, string) error
 	Publish(Slot, string, string, string) (int64, error)
 }
 
@@ -39,11 +39,14 @@ type LocalImages struct {
 	MeasureFS    func(string) (int64, int64, error)
 	FreeBytes    func(string) (uint64, error)
 	locks        sync.Map
-	admission    sync.Mutex
+	admission    contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	return b.commandContext(context.Background(), name, args...)
+}
+func (b *LocalImages) commandContext(ctx context.Context, name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	run := b.Run
 	if run == nil {
@@ -58,10 +61,16 @@ func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
 	return out, nil
 }
 func (b *LocalImages) lock(scope string) func() {
-	v, _ := b.locks.LoadOrStore(scope, &sync.Mutex{})
-	mu := v.(*sync.Mutex)
-	mu.Lock()
-	return mu.Unlock
+	unlock, _ := b.lockContext(context.Background(), scope)
+	return unlock
+}
+func (b *LocalImages) lockContext(ctx context.Context, scope string) (func(), error) {
+	v, _ := b.locks.LoadOrStore(scope, &contextMutex{})
+	mu := v.(*contextMutex)
+	if err := mu.LockContext(ctx); err != nil {
+		return nil, err
+	}
+	return mu.Unlock, nil
 }
 func (b *LocalImages) image(slot Slot) string { return filepath.Join(b.Root, "images", slot.ID+".img") }
 func (b *LocalImages) master(slot Slot) string {
@@ -136,8 +145,10 @@ func (b *LocalImages) Probe() error {
 
 // Reflinks share physical extents, so admission uses filesystem free space,
 // exactly like the APFS manager, rather than summing logical image sizes.
-func (b *LocalImages) reserve() error {
-	b.admission.Lock()
+func (b *LocalImages) reserve(ctx context.Context) error {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return err
+	}
 	defer b.admission.Unlock()
 	if b.FreeBytes == nil {
 		return errors.New("missing filesystem admission")
@@ -166,7 +177,10 @@ func (b *LocalImages) reserve() error {
 		if free >= b.MinFreeBytes && time.Since(info.ModTime()) < 7*24*time.Hour {
 			continue
 		}
-		unlock := b.lock(filepath.Base(filepath.Dir(path)))
+		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
+		if err != nil {
+			return err
+		}
 		err = os.Remove(path)
 		_ = os.Remove(path + ".json")
 		unlock()
@@ -183,10 +197,10 @@ func (b *LocalImages) reserve() error {
 	}
 	return nil
 }
-func (b *LocalImages) Attach(slot Slot, path string) error {
+func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) error {
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err = b.reserve(); err != nil {
+		if err = b.reserve(ctx); err != nil {
 			return err
 		}
 		tmp := image + ".tmp"
@@ -195,13 +209,16 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 			if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(slot.ContentDigest) {
 				return errors.New("invalid master digest")
 			}
-			unlock := b.lock(slot.Scope)
+			unlock, lockErr := b.lockContext(ctx, slot.Scope)
+			if lockErr != nil {
+				return lockErr
+			}
 			master := b.master(slot)
 			if _, err = os.Stat(master); os.IsNotExist(err) {
 				if err = os.MkdirAll(filepath.Dir(master), 0700); err == nil {
 					download := master + ".tmp"
 					_ = os.Remove(download)
-					err = b.Transfer.Download(slot, download)
+					err = b.Transfer.Download(ctx, slot, download)
 					if err == nil {
 						err = durableRename(download, master)
 						if err == nil {
@@ -212,7 +229,7 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 				}
 			}
 			if err == nil {
-				err = b.clone(master, tmp)
+				_, err = b.commandContext(ctx, "cp", "--reflink=always", "--", master, tmp)
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
@@ -227,7 +244,7 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 				}
 			}
 			if err == nil {
-				_, err = b.command("mkfs.ext4", "-F", "-m", "0", tmp)
+				_, err = b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp)
 			}
 		}
 		if err != nil {
@@ -240,12 +257,12 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 	} else if err != nil {
 		return err
 	}
-	device, err := b.device(image)
+	device, err := b.deviceContext(ctx, image)
 	if err != nil {
 		return err
 	}
 	if device == "" {
-		out, e := b.command("losetup", "--find", "--show", "--nooverlap", image)
+		out, e := b.commandContext(ctx, "losetup", "--find", "--show", "--nooverlap", image)
 		if e != nil {
 			return e
 		}
@@ -254,7 +271,13 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 	if !loopDevice.MatchString(device) {
 		return errors.New("invalid loop device")
 	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
 	if err = b.Mount(device, path); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	return writeMarker(slot, path)
@@ -263,6 +286,9 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 var loopDevice = regexp.MustCompile(`^/dev/loop[0-9]+$`)
 
 func (b *LocalImages) device(image string) (string, error) {
+	return b.deviceContext(context.Background(), image)
+}
+func (b *LocalImages) deviceContext(ctx context.Context, image string) (string, error) {
 	if _, err := os.Stat(image); os.IsNotExist(err) {
 		return "", nil
 	} else if err != nil {
@@ -270,7 +296,7 @@ func (b *LocalImages) device(image string) (string, error) {
 	}
 	// --associated compares the backing inode/device, surviving agent mount
 	// namespace changes where the same file has a different path spelling.
-	out, err := b.command("losetup", "--json", "--list", "--associated", image, "--output", "NAME")
+	out, err := b.commandContext(ctx, "losetup", "--json", "--list", "--associated", image, "--output", "NAME")
 	if err != nil {
 		return "", err
 	}

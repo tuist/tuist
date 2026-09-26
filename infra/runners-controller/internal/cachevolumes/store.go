@@ -3,6 +3,7 @@
 package cachevolumes
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +44,7 @@ type Slot struct {
 // Backend owns storage operations and must make every operation restart-safe.
 // Seal and Delete may run only once both teardown fences have passed.
 type Backend interface {
-	Attach(Slot, string) error
+	Attach(context.Context, Slot, string) error
 	Measure(Slot, string) (int64, int64, error)
 	Seal(Slot, string) error
 	Delete(Slot, string) error
@@ -176,7 +177,7 @@ func (s *Store) lock(id string) func() {
 		s.mu.Unlock()
 	}
 }
-func (s *Store) Acquire(identity Identity, pod, uid string) (bool, error) {
+func (s *Store) Acquire(ctx context.Context, identity Identity, pod, uid string) (bool, error) {
 	if !valid(identity, pod, uid) {
 		return false, errors.New("invalid identity")
 	}
@@ -191,7 +192,7 @@ func (s *Store) Acquire(identity Identity, pod, uid string) (bool, error) {
 	if slot.State == "active" {
 		return slot.Warm, nil
 	}
-	return s.attach(slot)
+	return s.attach(ctx, slot)
 }
 func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 	slots, err := s.slots()
@@ -231,12 +232,18 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 	}
 	return slot, nil
 }
-func (s *Store) attach(slot Slot) (bool, error) {
+func (s *Store) attach(ctx context.Context, slot Slot) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	start := time.Now()
 	if err := s.root.MkdirAll("pods/"+slot.PodUID+"/"+slot.Scope, 0755); err != nil {
 		return false, err
 	}
-	if err := s.backend.Attach(slot, s.activePath(slot)); err != nil {
+	if err := s.backend.Attach(ctx, slot, s.activePath(slot)); err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
 		return false, err
 	}
 	slot.State = "active"
@@ -244,7 +251,18 @@ func (s *Store) attach(slot Slot) (bool, error) {
 	if used, capacity, err := s.backend.Measure(slot, s.activePath(slot)); err == nil {
 		slot.SizeBytes, slot.CapacityBytes = &used, &capacity
 	}
-	return slot.Warm, s.save(slot)
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if err := s.save(slot); err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		// A slow journal fsync must not make an expired restoration publishable.
+		slot.State = "allocated"
+		return false, errors.Join(err, s.save(slot))
+	}
+	return slot.Warm, nil
 }
 
 // Reporter returns hold/wait, seal, keep, delete, or forget. A remote delete

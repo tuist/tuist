@@ -64,7 +64,7 @@ func main() {
 	}
 }
 func attach(key string, targets []string) error {
-	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if info, err := os.Stat("/__w/_tuist_cache"); err == nil && info.IsDir() {
 		root = "/__w/_tuist_cache"

@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestColdFallbackPreservesExistingContent(t *testing.T) {
@@ -190,5 +192,44 @@ func TestMountFailureNeverReportsCacheHit(t *testing.T) {
 	}
 	if data, err := os.ReadFile(output); err != nil || len(data) != 0 {
 		t.Fatalf("failed mount reported success: %s %v", data, err)
+	}
+}
+
+func TestAcquireDeadlineContinuesWithWritableColdDirectory(t *testing.T) {
+	cancelled := make(chan struct{})
+	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		<-r.Context().Done()
+		close(cancelled)
+	}))
+	defer broker.Close()
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	output := filepath.Join(root, "output")
+	t.Setenv("TUIST_CACHE_VOLUME_URL", broker.URL)
+	if err := os.WriteFile(output, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GITHUB_OUTPUT", output)
+	client := broker.Client()
+	client.Timeout = 20 * time.Millisecond
+	if err := attachWithMounter("key", []string{target}, filepath.Join(root, "cache"), client, func(string, string, string) error { t.Fatal("mounted after timeout"); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("host request not cancelled")
+	}
+	if err := os.WriteFile(filepath.Join(target, "cold-build"), []byte("ok"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(target)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal(info, err)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil || string(data) != "cache-hit=false\n" {
+		t.Fatal(string(data), err)
 	}
 }

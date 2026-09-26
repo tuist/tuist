@@ -3,6 +3,7 @@
 package cachevolumes
 
 import (
+	"context"
 	"errors"
 	"golang.org/x/sys/unix"
 	"os"
@@ -16,13 +17,13 @@ type diskTransfer struct {
 	generation       int64
 }
 
-func (d *diskTransfer) Download(slot Slot, path string) error {
+func (d *diskTransfer) Download(ctx context.Context, slot Slot, path string) error {
 	f, err := os.Open(d.archive)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return RestoreImage(f, path, slot.ContentDigest, 1_000_000_000)
+	return RestoreImage(ctx, f, path, slot.ContentDigest, 1_000_000_000)
 }
 func (d *diskTransfer) Publish(_ Slot, path, _, content string) (int64, error) {
 	in, err := os.ReadFile(path)
@@ -62,7 +63,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	mount := filepath.Join(root, "mount-a")
 	os.Mkdir(mount, 0700)
 	t.Cleanup(func() { firstHost.Delete(slot, mount) })
-	if err := firstHost.Attach(slot, mount); err != nil {
+	if err := firstHost.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("successful job"), 0644); err != nil {
@@ -81,7 +82,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	warmMount := filepath.Join(root, "mount-b")
 	os.Mkdir(warmMount, 0700)
 	t.Cleanup(func() { firstHost.Delete(warm, warmMount) })
-	if err := firstHost.Attach(warm, warmMount); err != nil {
+	if err := firstHost.Attach(context.Background(), warm, warmMount); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(filepath.Join(warmMount, "payload")); err != nil || string(data) != "successful job" {
@@ -96,7 +97,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	otherMount := filepath.Join(root, "mount-c")
 	os.Mkdir(otherMount, 0700)
 	t.Cleanup(func() { otherHost.Delete(other, otherMount) })
-	if err := otherHost.Attach(other, otherMount); err != nil {
+	if err := otherHost.Attach(context.Background(), other, otherMount); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(filepath.Join(otherMount, "payload")); err != nil || string(data) != "successful job" {
@@ -135,7 +136,7 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Delete(slot, mount)
-	if err := b.Attach(slot, mount); err != nil {
+	if err := b.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("saved contents"), 0600); err != nil {
@@ -153,7 +154,7 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Delete(warm, warmMount)
-	if err := b.Attach(warm, warmMount); err != nil {
+	if err := b.Attach(context.Background(), warm, warmMount); err != nil {
 		t.Fatal(err)
 	}
 	fillerPath := filepath.Join(root, "filler")
@@ -196,7 +197,7 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 	}
 	// Restore the accepted image independently and verify the prior good bytes.
 	restored := filepath.Join(root, "restored.img")
-	if err := remote.Download(warm, restored); err != nil {
+	if err := remote.Download(context.Background(), warm, restored); err != nil {
 		t.Fatal(err)
 	}
 	out, err := exec.Command("debugfs", "-R", "cat payload", restored).Output()
