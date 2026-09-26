@@ -174,7 +174,7 @@ host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
 Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
 stays on. Then it netboots whenever its disk does not boot.
 
-**The stick is the permanent route, not a bootstrap crutch.** The MS-01 ships
+**The stick is the MS-01's route, a workaround for its firmware.** The MS-01 ships
 with its network stack off, and nothing but a person in Setup turns it on:
 AMT can override the next boot but not change a Setup setting, and writing the
 firmware's Setup variables from the OS means poking an undocumented AMI
@@ -184,7 +184,10 @@ person racking it. A stick boots with the firmware's defaults, Secure Boot
 included, so a factory box needs no one in Setup: it announces itself,
 installs once declared, and is reinstalled through `BootNext` to the stick.
 Netboot, with its one Setup visit, is what AMT's recovery of a box that no
-longer boots needs; a box without it is recovered by booting its stick.
+longer boots needs; a box without it is recovered by booting its stick. Every
+box needs its stick left plugged in, so the next machine model should be
+something like an ASRock Rack board, whose BMC sets the boot order and firmware
+settings and mounts an installer out of band, and which netboots with no stick.
 
 **A box whose disk already boots something** boots that first; pick the stick,
 or the i226-LM's network entry, from the boot menu (F7 on the MS-01) once.
