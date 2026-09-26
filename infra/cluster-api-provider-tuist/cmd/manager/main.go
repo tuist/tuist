@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -670,6 +671,20 @@ func main() {
 		}
 	}
 	powerRegistry := power.NewRegistry()
+	// Logs out of the PDU sessions on shutdown: an Eaton card allows one
+	// session per account, and a stale one refuses the next leader's login.
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		<-ctx.Done()
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := powerRegistry.Close(closeCtx); err != nil {
+			setupLog.Error(err, "log out of PDU sessions")
+		}
+		return nil
+	})); err != nil {
+		setupLog.Error(err, "add power session cleanup")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -678,6 +693,8 @@ func main() {
 		Power:                powerRegistry,
 		SecretsNamespace:     secretsNamespace,
 		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
+		EgressNamespace:      egressNamespace,
+		EgressProxyGroup:     egressProxyGroup,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackHostReconciler")
 		os.Exit(1)

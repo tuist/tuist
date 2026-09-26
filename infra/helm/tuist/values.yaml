@@ -1658,9 +1658,11 @@ rackFleet:
   #     shelf: s3
   #     positionU: 12
   #     power:                  # the fleet's remote reboot: Apple silicon boots
-  #       driver: shelly        # on power-apply and every host runs
-  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
-  #       outlet: "0"           # cold boot with nobody at a console.
+  #       driver: eaton         # on power-apply and every host runs
+  #       host: https://192.168.0.16 # `pmset autorestart 1`, so an outlet
+  #       outlet: "1"           # cycle is a cold boot with nobody at a
+  #                             # console. eaton outlets are 1-based; shelly
+  #                             # channels start at "0".
   #       credentialsSecret: "" # optional; omit for an unauthenticated plug
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
@@ -1709,6 +1711,9 @@ rackFleet:
     fields:
       username: username
       password: password
+      # The 1Password field holding the card's certificate SHA-256, which the
+      # eaton driver pins. Empty leaves it out of the Secret.
+      tlsFingerprint: ""
 
 # Rack-owned x86 Linux machines (the BER1 edge, services and storage nodes).
 # `hosts` is inventory, one RackLinuxHost each; each role present among them

@@ -2,7 +2,6 @@ package macos
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -113,6 +112,12 @@ type RackHostReconciler struct {
 	// operator's own namespace, same as every other Secret it reads).
 	SecretsNamespace string
 
+	// EgressNamespace and EgressProxyGroup, when both set, put an egress
+	// Service in front of each PDU address (`pdu-<address>`), which the power
+	// paths dial in place of the address. Empty dials the PDU directly.
+	EgressNamespace  string
+	EgressProxyGroup string
+
 	// PowerCycleSettle overrides how long a cycle holds the outlet down. Zero
 	// means defaultPowerCycleSettle. Not an operator-facing knob (no flag and
 	// no chart value reach it): it exists so the recovery ladder is testable
@@ -179,7 +184,7 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	if getErr := r.Get(ctx, req.NamespacedName, host); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
 			forgetRackHostMetrics(req.Name)
-			return ctrl.Result{}, nil
+			return ctrl.Result{}, reconcilePDUEgressServices(ctx, r.Client, r.egressConfig())
 		}
 		return ctrl.Result{}, getErr
 	}
@@ -208,6 +213,11 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	machineResult, machineErr := r.reconcileMachine(ctx, host)
 	if machineErr != nil {
 		logger.Error(machineErr, "keep the host's Machine; will retry")
+	}
+
+	if egressErr := reconcilePDUEgressServices(ctx, r.Client, r.egressConfig()); egressErr != nil {
+		logger.Error(egressErr, "keep the PDU egress Services; will retry")
+		r.Recorder.Eventf(host, corev1.EventTypeWarning, "PowerEgressFailed", "%v", egressErr)
 	}
 
 	if actionErr := r.runRequestedPowerAction(ctx, host); actionErr != nil {
@@ -346,34 +356,16 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 	conditions.MarkTrue(host, PowerReachableCondition)
 }
 
-// outletFor resolves the driver and the fully-populated outlet, reading the
-// endpoint's credentials when the host names a Secret.
 func (r *RackHostReconciler) outletFor(ctx context.Context, host *infrav1.RackHost) (power.Driver, power.Outlet, error) {
-	if host.Spec.Power == nil {
-		return nil, power.Outlet{}, fmt.Errorf("host has no power outlet configured; it cannot be rebooted remotely")
-	}
-	if r.Power == nil {
-		return nil, power.Outlet{}, fmt.Errorf("no power drivers wired into this operator build")
-	}
-	driver, err := r.Power.Get(host.Spec.Power.Driver)
-	if err != nil {
-		return nil, power.Outlet{}, err
-	}
+	return rackHostOutlet(ctx, r.Client, r.Power, r.SecretsNamespace, r.egressConfig(), host)
+}
 
-	outlet := power.Outlet{
-		Driver: host.Spec.Power.Driver,
-		Host:   host.Spec.Power.Host,
-		Outlet: host.Spec.Power.Outlet,
+func (r *RackHostReconciler) egressConfig() egressConfig {
+	return egressConfig{
+		Namespace:  r.EgressNamespace,
+		ProxyGroup: r.EgressProxyGroup,
+		ManagedBy:  operatorName,
 	}
-	if ref := host.Spec.Power.CredentialsSecretRef; ref != nil && ref.Name != "" {
-		secret := &corev1.Secret{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: r.SecretsNamespace, Name: ref.Name}, secret); err != nil {
-			return nil, power.Outlet{}, fmt.Errorf("read power credentials %s/%s: %w", r.SecretsNamespace, ref.Name, err)
-		}
-		outlet.Username = string(secret.Data["username"])
-		outlet.Password = string(secret.Data["password"])
-	}
-	return driver, outlet, nil
 }
 
 func recordRackHostMetrics(host *infrav1.RackHost) {

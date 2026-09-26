@@ -42,12 +42,14 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
+    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade
     oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
   }
   chain forward {
     type filter hook forward priority mangle;
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
+    oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.15,192.168.0.16 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
   }
 }
 table netdev tuist_rack_dhcp

@@ -358,6 +358,17 @@
 			"ip":  ["tcp:22"],
 		},
 
+		// Staging cluster → ber1-pdu-b's REST API, which the operator switches
+		// the rack Macs' outlets through (RackHost `power`, eaton driver),
+		// through the macmini-egress ProxyGroup. The PDU sits on the rack's
+		// management LAN; the edge holding the management address advertises
+		// it as a /32 and forwards to it with SNAT. HTTPS only.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["192.168.0.16/32"],
+			"ip":  ["tcp:443"],
+		},
+
 		// Staging cluster → the BER1 rack's Linux nodes. SSH: the operator
 		// joins each one over its own tailnet address and keeps it converged
 		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
@@ -519,11 +530,13 @@
 	// rendered from the rack's inventory (infra/rack-switch-fleet), so
 	// racking a mini changes their routes and hand approval would be a step
 	// per mini per edge. Scoped to the segment, the tag can put nothing else
-	// into the tailnet's routing table.
+	// into the tailnet's routing table. On the management LAN, only
+	// ber1-pdu-b's address is approved.
 	"autoApprovers": {
 		"routes": {
-			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
-			"10.10.0.0/24":  ["tag:tuist-rack-edge"],
+			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
+			"10.10.0.0/24":    ["tag:tuist-rack-edge"],
+			"192.168.0.16/32": ["tag:tuist-rack-edge"],
 		},
 	},
 

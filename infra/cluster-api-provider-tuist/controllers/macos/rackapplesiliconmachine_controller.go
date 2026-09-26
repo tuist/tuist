@@ -598,28 +598,9 @@ func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, 
 }
 
 func (r *RackAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context, host *infrav1.RackHost) error {
-	if host.Spec.Power == nil {
-		return fmt.Errorf("host %s has no power outlet configured", host.Name)
-	}
-	if r.Power == nil {
-		return fmt.Errorf("no power drivers wired into this operator build")
-	}
-	driver, err := r.Power.Get(host.Spec.Power.Driver)
+	driver, outlet, err := rackHostOutlet(ctx, r.Client, r.Power, r.SecretsNamespace, r.egressConfig(), host)
 	if err != nil {
-		return err
-	}
-	outlet := power.Outlet{
-		Driver: host.Spec.Power.Driver,
-		Host:   host.Spec.Power.Host,
-		Outlet: host.Spec.Power.Outlet,
-	}
-	if ref := host.Spec.Power.CredentialsSecretRef; ref != nil && ref.Name != "" {
-		secret := &corev1.Secret{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: r.SecretsNamespace, Name: ref.Name}, secret); err != nil {
-			return fmt.Errorf("read power credentials %s/%s: %w", r.SecretsNamespace, ref.Name, err)
-		}
-		outlet.Username = string(secret.Data["username"])
-		outlet.Password = string(secret.Data["password"])
+		return fmt.Errorf("host %s: %w", host.Name, err)
 	}
 	return power.Cycle(ctx, driver, outlet, r.powerCycleSettle())
 }

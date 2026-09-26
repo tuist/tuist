@@ -753,7 +753,7 @@ ovhFleets:
 #
 # Every remaining difference from the rack is marked FORCED and names the
 # physical fact that causes it: a refurb M1 with 16 GB and a 256 GB disk, not
-# racked and with no PDU. None of them is a preference, and none should be
+# racked. None of them is a preference, and none should be
 # copied into the rack's values.
 rackFleet:
   enabled: true
@@ -776,24 +776,15 @@ rackFleet:
       # FORCED (no rack): no shelf or positionU. In the rack these carry the
       # physical location a hands-on tech needs to find the box.
       rack: proto
-      # FORCED (no PDU): no `power` block at all. The Shelly plug has not been
-      # delivered, so this host has no outlet: PowerReachable reports False with
-      # PowerNotConfigured, the bootstrap-failure ladder skips its reboot tier
-      # and escalates straight to quarantine, and `tuist.dev/power-action` is
-      # refused. That is correct behaviour for a box nobody can power-cycle
-      # remotely, and it is visible rather than silent, which is the point.
-      #
-      # The rack does not use a Shelly. A Shelly is a home and office prototype
-      # stand-in; the rack runs per-outlet-switched PDUs on the management VLAN,
-      # with their own driver, one credential Secret per PDU shared by every
-      # host plugged into it.
-      #
-      # KNOWN GAP for whoever adds the first `power` block: the controller dials
-      # `power.host` directly from its Pod, with no egress Service in front of
-      # it, unlike the host's SSH address. A Pod has no route to a subnet-routed
-      # address, so a PDU on a LAN or a management VLAN is unreachable the same
-      # way the minis were, and it surfaces as a connection error on
-      # PowerReachable rather than as anything naming a route.
+      # Outlet 1 of ber1-pdu-b on the management LAN. The controller dials it
+      # through the egress Service pdu-192-168-0-16, and the tailnet reaches it
+      # through whichever edge holds the management address, as a /32 that
+      # edge advertises (infra/rack-switch-fleet, "Power devices on the tailnet").
+      power:
+        driver: eaton
+        host: https://192.168.0.16
+        outlet: "1"
+        credentialsSecret: ber1-pdu
   machine:
     # FORCED (M1, 16 GB): a refurb M1 bought to prove the plumbing. The rack is
     # leased M5 Pro minis at 18 cores / 64 GB / 2 TB, so every number in this
@@ -819,6 +810,14 @@ rackFleet:
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
+  # The controller's own account on ber1-pdu-b: the card allows one session
+  # per account, so a person signed in with it would lock the controller out.
+  powerExternalSecret:
+    enabled: true
+    item: BER1_PDU
+    secretName: ber1-pdu
+    fields:
+      tlsFingerprint: tlsFingerprint
 
 rackLinuxFleet:
   enabled: true

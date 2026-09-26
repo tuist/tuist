@@ -456,9 +456,11 @@ one. That matters more than a gap would: an acknowledged gap eventually gets
 filled, and filling this one would leave two places to look and two chances to
 disagree.
 
-Two things follow. `internal/power` ships only a `shelly` driver, a prototype
-stand-in, so the rack's Eaton PDUs have none yet and a wedged mini in the colo
-has no remote recovery at all until they do. And whoever extends the chart side
+Two things follow. `internal/power` drives the Eaton PDUs with its `eaton`
+driver, over their REST API with the card's certificate pinned (see "Power
+drivers" in the provider's AGENTS.md); `ber1-proto-01` is on outlet 1 of
+`ber1-pdu-b`. The operator reaches a PDU through the edges: see "The edge
+nodes" below. And whoever extends the chart side
 should carry the A/B property across: a mini's outlet and its ToR must land on
 the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
 its switch lose power together. Crossed, any one ATS failure takes the whole
@@ -754,8 +756,9 @@ files no longer match it:
   VRRP instance, unicast to the other edge over `management.edge.vrrp`, and
   whichever is master holds every floating address. Today those are the edge
   address on the switch port (`management.edge.address`, the switches'
-  gateway) without its prefix route, the provisioning address, and a host route
-  to each switch marked `behind_edge`, and the machines' gateway, as a /32 (see
+  gateway) without its prefix route, the provisioning address, a host route
+  to each switch marked `behind_edge` and to each installed power device whose
+  management link is on one, and the machines' gateway, as a /32 (see
   "The machines segment" below). The Cogent /31 (`management.edge.wan`) is
   empty until the data center has it; set, it floats the same way, so the
   standby holds no WAN address until it takes over. The first member is
@@ -791,7 +794,9 @@ files no longer match it:
   port 67.
 - `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
-  /32 per machine on the machines segment, the same on both edges.
+  /32 per machine on the machines segment, the same on both edges, and on the
+  edge holding the edge address, a /32 per power device behind the edge (see
+  "Power devices on the tailnet" below).
 - With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
   range also gets iPXE's Secure Boot shim (`snponly-shim.efi`, which loads
   `snponly.efi`, with the name kept in the packet's file field), and iPXE its
@@ -869,6 +874,36 @@ Alloy receiver at its tailnet name. Each line carries the time the receiver got
 it, so lines the collector catches up on after an outage are stamped late;
 dnsmasq's own time is at the start of each line. On the node itself:
 `sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
+
+### Power devices on the tailnet
+
+The operator switches the minis' outlets through the PDUs' REST API, from a
+cluster Pod, through the egress ProxyGroup, so each installed power node with
+a `mgmt_address` whose management link is on a switch behind the edge (today
+`ber1-ats-1`, `ber1-ats-2` and `ber1-pdu-b`, on `ber1-mgmt`) is a /32 on the
+tailnet too. Three things make that path work, all rendered from the site:
+
+- **Only the master advertises them.** `ber1-mgmt` is reached only through the
+  edges' switch ports, and only the master holds the edge address there and
+  the host routes to the devices behind it; the standby's route to the
+  management prefix leads to the house network. `tailnet-routes.sh` adds the
+  power /32s only when the node holds the edge address on the switch port, so
+  after a failover they follow the master on the script's next run, within
+  five minutes.
+- **The master translates what it forwards to them.** A power device's
+  gateway is not an edge (at home it is the house router), so its reply to a
+  tailnet address would leave on the wrong network. `mgmt-path.sh` masquerades
+  connections from `tailscale0` to them on the switch port, so they arrive
+  from the edge address, which is on-link for the device. Tailscale's own
+  subnet-route SNAT (`--snat-subnet-routes`, on by default on Linux, and the
+  edges join with the default) would do the same; the rule keeps the path
+  independent of how the node joined. Their replies into the tailnet are MSS
+  clamped like the switches'.
+- **The tailnet approves and grants only what the operator uses.**
+  `infra/tailscale/acls.json` auto-approves `192.168.0.16/32` (`ber1-pdu-b`)
+  for `tag:tuist-rack-edge` and grants the staging cluster `tcp:443` to it.
+  The transfer switches' /32s are advertised but not approved, so they stay
+  off the tailnet until something needs them.
 
 ### Auto Install on the edge node
 

@@ -336,8 +336,8 @@ mode behind it:
 - **Reboot is a PDU outlet.** Apple silicon powers on when mains is applied and
   every fleet host runs `pmset autorestart 1`, so cutting and restoring an
   outlet is a cold boot with nobody at a console. `internal/power` holds the
-  drivers, and the only one shipped today is `shelly`, which is scoped to home
-  and office prototypes: a colo rack's switched PDUs get their own driver.
+  drivers: `eaton` for the rack's Eaton Rack PDU G4s, and `shelly`, which is
+  scoped to home and office prototypes (see "Power drivers" below).
   `power.Cycle` drives off/settle/on itself rather than using a
   device's native cycle verb, because the settle interval is the one parameter
   that matters and no two devices agree on it. It verifies the outlet actually
@@ -451,6 +451,56 @@ inside the machines segment's prefix. They are rendered from the rack's
 inventory, so racking a mini changes them, and hand approval would be a step per
 mini per edge; scoped to the segment, the tag can put nothing else into the
 tailnet's routing table.
+
+### Power drivers
+
+`RackHost.spec.power` names a driver, an endpoint, an outlet and a credentials
+Secret (`username`, `password`, and `tlsFingerprint` for `eaton`). The
+RackHost controller (`observePower`, `tuist.dev/power-action`) and the machine
+controller's bootstrap-recovery cycle resolve it through the same
+`rackHostOutlet`, so both read the same keys and dial the same way.
+
+- **`eaton`**: the rack's Eaton Rack PDU G4 (EVMAFC20A, network card GNM),
+  over its REST API (`/rest/mbdetnrs/2.0`). Outlets are 1-based, so the CRD's
+  `"0"` default is refused, by the CRD's validation and by the driver. A bare
+  host is HTTPS. The card's certificate is self-signed, so it is pinned by the
+  SHA-256 of the leaf certificate from the Secret's `tlsFingerprint` (hex,
+  colons allowed); HTTPS without one is refused with the command that reads
+  it: `openssl s_client -connect <pdu>:443 </dev/null | openssl x509 -noout
+  -fingerprint -sha256`. `Set` reads the outlet first, does nothing when it is
+  already in the requested state, refuses an outlet whose
+  `specifications.switchable` is false, and returns once the outlet reads the
+  new state (10 s at most).
+- **One session per account.** The card allows one session per user, so the
+  driver keeps one bearer token per PDU, serialises every call to that PDU,
+  and logs in again only when the card rejects the token. A login refused with
+  `ConcurentSession` means someone else holds the account's session: give the
+  controller a PDU account of its own, which no person signs in to the web UI
+  with. The manager logs out on shutdown so the next leader is not refused;
+  a crashed operator's session holds the account until the card's hour of
+  inactivity ends it.
+- **`shelly`**: Shelly Gen2 RPC with a Gen1 fallback, plain HTTP by default,
+  for home and office prototypes only.
+
+**The cluster reaches a PDU through an egress Service too.** A PDU sits on the
+rack's management LAN, which a Pod has no route to. With
+`--tailscale-egress-proxy-group` and `--tailscale-egress-namespace` set, the
+RackHost controller keeps one ExternalName Service per PDU address,
+`pdu-<address with dashes>` in the egress namespace, annotated
+`tailscale.com/tailnet-ip` with the address and exposing the port the drivers
+use (443 for HTTPS, 80 for HTTP, or the port in `power.host`). Both power paths
+dial that Service's DNS name in place of the address and keep `power.host` as
+the PDU's identity, which keys its session; the TLS pin makes the name the
+certificate is presented under irrelevant. One Service per PDU, not per host:
+the controller computes the set from every RackHost on each reconcile, deletes
+the ones no host names any more, and so keeps a PDU's Service while any host
+is plugged into it. An endpoint named by a hostname rather than an address, or
+a cluster without the egress configured, is dialled directly.
+
+The rest of the path is outside this repository's Go code: the edge holding
+the management address advertises the PDU as a /32 and forwards to it with
+SNAT (`infra/rack-switch-fleet`, "The edge nodes"), and
+`infra/tailscale/acls.json` grants `tcp:443` to it and auto-approves the route.
 
 ### Before the machines segment is advertised as one prefix
 
@@ -1004,6 +1054,7 @@ infra/cluster-api-provider-tuist/
 │   │   ├── scalewayapplesiliconmachine_controller.go
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
 │   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
+│   │   ├── rackhost_power.go        # a host's outlet, and the PDU egress Services
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
@@ -1023,7 +1074,7 @@ infra/cluster-api-provider-tuist/
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
-│   ├── power/        # PDU / smart-plug drivers (the rack's remote reboot)
+│   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot)
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
 │   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
