@@ -405,7 +405,13 @@ defmodule Tuist.ClickHouse.Parity do
     end
   end
 
-  defp ttl(endpoint, table) do
+  @doc """
+  A table's row TTL expression, or `nil` when it has none this can use.
+
+  Shared with `Tuist.ClickHouse.Backfill`, whose checks leave out the same
+  soon-to-expire rows parity does.
+  """
+  def ttl(endpoint, table) do
     %{rows: rows} =
       endpoint.repo.query!(
         "SELECT engine_full FROM system.tables WHERE database = {database:String} AND name = {table:String}",

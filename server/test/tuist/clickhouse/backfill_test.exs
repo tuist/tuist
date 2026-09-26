@@ -225,6 +225,48 @@ defmodule Tuist.ClickHouse.BackfillTest do
       assert settings[:max_insert_threads] > 1
       assert settings[:parallel_view_processing] == 1
     end
+
+    test "makes parts slowly enough for the destination's merges to keep up" do
+      # 65,536-row blocks on eight threads took `build_steps` to 7,962 parts
+      # in a partition, and TOO_MANY_PARTS then rejected the mirror's writes
+      # into it as well as the copy's.
+      settings = Backfill.copy_settings()
+
+      assert settings[:min_insert_block_size_rows] >= 262_144
+      assert settings[:min_insert_block_size_bytes] >= 128 * 1024 * 1024
+      assert settings[:max_insert_threads] <= 4
+    end
+  end
+
+  describe "outcome/2" do
+    test "counts a chunk as done only when the destination holds exactly what the source does" do
+      assert Backfill.outcome(1_000, 1_000) == :done
+    end
+
+    test "fails a chunk whose copy reported success but stored nothing" do
+      # What production recorded as done 155 times.
+      assert {:failed, message} = Backfill.outcome(392_479_987, 0)
+      assert message =~ "0 of the source's 392479987 rows"
+    end
+
+    test "fails a chunk that is short, and one that holds more than the source" do
+      assert {:failed, _} = Backfill.outcome(1_000, 999)
+      assert {:failed, _} = Backfill.outcome(1_000, 1_001)
+    end
+  end
+
+  describe "window_chunks/2" do
+    test "covers each window with one chunk bounded exactly by it" do
+      windows = [
+        {~U[2026-09-25 08:00:00Z], ~U[2026-09-25 14:00:00Z]},
+        {~U[2026-09-26 00:00:00Z], ~U[2026-09-26 04:00:00Z]}
+      ]
+
+      assert Backfill.window_chunks("inserted_at", windows) == [
+               {:range, "inserted_at", ~U[2026-09-25 08:00:00Z], ~U[2026-09-25 14:00:00Z]},
+               {:range, "inserted_at", ~U[2026-09-26 00:00:00Z], ~U[2026-09-26 04:00:00Z]}
+             ]
+    end
   end
 
   describe "slices/2" do
