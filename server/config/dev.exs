@@ -83,7 +83,12 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/app", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{
+      # Noora's JS depends on @zag-js/* packages that live in the sibling
+      # noora package's node_modules; include that directory so esbuild
+      # resolves them without requiring the caller to symlink or duplicate.
+      "NODE_PATH" => "#{deps_path}:#{noora_source_path}/node_modules:#{node_modules_path}"
+    }
   ],
   marketing: [
     args: [
