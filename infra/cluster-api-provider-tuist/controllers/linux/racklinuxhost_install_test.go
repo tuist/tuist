@@ -106,6 +106,7 @@ func newInstallHarness(t *testing.T, objs ...runtime.Object) *installHarness {
 		EgressNamespace:  "tailscale-operator",
 		EgressProxyGroup: "macmini-egress",
 		RunScript:        h.runner.run,
+		ReadHostEK:       func(context.Context, *infrav1.RackLinuxHost) ([]byte, error) { return harnessEK, nil },
 		Now:              func() time.Time { return h.now },
 	}
 	return h
@@ -153,6 +154,13 @@ func (h *installHarness) boot(t *testing.T) map[string][]byte {
 // holding the site's provisioning address does.
 func (h *installHarness) servable(t *testing.T, name string) {
 	t.Helper()
+	h.reportedBy(t, name, "ber1-edge-b", true)
+}
+
+// reportedBy reports the host's published install servable by node's boot
+// server.
+func (h *installHarness) reportedBy(t *testing.T, name, node string, holdsAddress bool) {
+	t.Helper()
 	host := &infrav1.RackLinuxHost{}
 	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: name}, host); err != nil {
 		t.Fatal(err)
@@ -160,8 +168,10 @@ func (h *installHarness) servable(t *testing.T, name string) {
 	if host.Status.Install == nil {
 		t.Fatal("no install is published")
 	}
-	at := metav1.NewTime(h.now)
-	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID, Server: "ber1-edge-b", ServableAt: &at}
+	if host.Status.Boot == nil || host.Status.Boot.KeyID != host.Status.Install.KeyID {
+		host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID}
+	}
+	host.Status.Boot.Servers = append(host.Status.Boot.Servers, infrav1.RackLinuxHostBootServer{Node: node, HoldsAddress: holdsAddress, At: metav1.NewTime(h.now)})
 	if err := h.c.Status().Update(context.Background(), host); err != nil {
 		t.Fatal(err)
 	}
@@ -635,6 +645,71 @@ func TestRackInstallPublishesUnderTheBootMACTheMachineAnnounced(t *testing.T) {
 	}
 }
 
+func announcedSvc() *infrav1.RackLinuxCandidate {
+	return &infrav1.RackLinuxCandidate{
+		ObjectMeta: metav1.ObjectMeta{Name: svcUUID, Namespace: rackTestNamespace},
+		Status: infrav1.RackLinuxCandidateStatus{
+			UUID: svcUUID, BootMAC: svcMAC, Product: "Micro Computer (HK) Tech Limited Venus Series", Serial: "MD148LS139QQMQE00070",
+			NICs: []infrav1.RackLinuxCandidateNIC{{MAC: svcMAC, Driver: "igc", PCIDevice: "0x125b"}, {MAC: "38:05:25:38:b5:b4", Driver: "igc", PCIDevice: "0x125c"}},
+		},
+	}
+}
+
+// A host takes its hardware from its candidate once, and keeps it: a candidate
+// changed since moves neither its boot MAC nor the NICs its seed goes to.
+func TestRackLinuxHostKeepsTheHardwareItFirstTook(t *testing.T) {
+	host := svcHost()
+	host.Spec.BootMAC = ""
+	h := newInstallHarness(t, host, announcedSvc())
+
+	got := h.reconcile(t, svcUUID)
+	hw := got.Status.Hardware
+	if hw == nil || len(hw.NICs) != 2 || hw.BootMAC != svcMAC || hw.PinnedAt == nil || got.Status.BootMAC != svcMAC {
+		t.Fatalf("hardware %+v bootMAC %q", hw, got.Status.BootMAC)
+	}
+	if !conditions.IsTrue(got, HardwarePinnedCondition) {
+		t.Fatalf("HardwarePinned %+v", conditions.Get(got, HardwarePinnedCondition))
+	}
+
+	cand := &infrav1.RackLinuxCandidate{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: svcUUID}, cand); err != nil {
+		t.Fatal(err)
+	}
+	cand.Status.BootMAC = "02:00:00:00:00:01"
+	cand.Status.NICs = []infrav1.RackLinuxCandidateNIC{{MAC: "02:00:00:00:00:01", Driver: "igc", PCIDevice: "0x125b"}}
+	cand.Status.Serial = "FORGED"
+	if err := h.c.Update(context.Background(), cand); err != nil {
+		t.Fatal(err)
+	}
+	h.now = h.now.Add(time.Minute)
+	got = h.reconcile(t, svcUUID)
+	if got.Status.BootMAC != svcMAC || got.Status.Install == nil || got.Status.Install.BootMAC != svcMAC {
+		t.Fatalf("bootMAC %q install %+v, want the pinned boot MAC", got.Status.BootMAC, got.Status.Install)
+	}
+	if hw := got.Status.Hardware; len(hw.NICs) != 2 || hw.Serial != "MD148LS139QQMQE00070" || !hw.PinnedAt.Time.Equal(installEpoch) {
+		t.Fatalf("hardware %+v, want what the host first took", hw)
+	}
+}
+
+// Another announcement under a machine's UUID leaves its candidate with a
+// conflict, and a host takes nothing from such a candidate.
+func TestRackLinuxHostTakesNoHardwareFromAConflictedCandidate(t *testing.T) {
+	host := svcHost()
+	host.Spec.BootMAC = ""
+	conflicted := announcedSvc()
+	conflicted.Status.Conflict = &infrav1.RackLinuxCandidateConflict{Reason: "NIC 02:00:00:00:00:01 (igc 0x125b), which it did not announce first", Address: "192.168.50.103", SeenBy: "ber1-edge-b", At: metav1.NewTime(installEpoch)}
+	h := newInstallHarness(t, host, conflicted)
+
+	got := h.reconcile(t, svcUUID)
+	if got.Status.Hardware != nil || got.Status.BootMAC != "" || got.Status.Install != nil || len(h.api.minted) != 0 {
+		t.Fatalf("hardware %+v bootMAC %q install %+v", got.Status.Hardware, got.Status.BootMAC, got.Status.Install)
+	}
+	c := conditions.Get(got, HardwarePinnedCondition)
+	if c == nil || c.Status != corev1.ConditionFalse || c.Reason != "CandidateConflict" || !strings.Contains(c.Message, "192.168.50.103") {
+		t.Fatalf("HardwarePinned %+v", c)
+	}
+}
+
 func TestRackInstallKeepsTheConsolePasswordAcrossInstalls(t *testing.T) {
 	h := newInstallHarness(t, svcHost(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: rackTestFleet + "-console", Namespace: rackTestNamespace},
@@ -692,7 +767,7 @@ func TestRackInstallRebootsAHostOnlyOnceTheBootServerServesItsInstall(t *testing
 		t.Fatal(err)
 	}
 	at := metav1.NewTime(installEpoch)
-	stale.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kEARLIERCNTRL", ServableAt: &at}
+	stale.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kEARLIERCNTRL", Servers: []infrav1.RackLinuxHostBootServer{{Node: "ber1-edge-b", HoldsAddress: true, At: at}}}
 	if err := h.c.Status().Update(context.Background(), stale); err != nil {
 		t.Fatal(err)
 	}
@@ -704,10 +779,52 @@ func TestRackInstallRebootsAHostOnlyOnceTheBootServerServesItsInstall(t *testing
 		t.Fatalf("Installed %+v", c)
 	}
 
+	h.reportedBy(t, svcUUID, "ber1-edge-a", false)
+	h.reconcile(t, svcUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the host on the report of a boot server not holding the provisioning address")
+	}
+
 	h.servable(t, svcUUID)
 	got = h.reconcile(t, svcUUID)
 	if len(h.runner.runs) != 1 || got.Status.Install.TriggeredAt == nil {
 		t.Fatalf("runs %d install %+v, want the host rebooted into its install", len(h.runner.runs), got.Status.Install)
+	}
+}
+
+// An edge's own boot server goes down with it, and another edge takes the
+// provisioning address over, so the edge is rebooted into its install only
+// once every other edge of its site holds it.
+func TestRackInstallRebootsAnEdgeOnlyOnceTheOtherEdgesHoldItsInstall(t *testing.T) {
+	h := newInstallHarness(t, reinstallingEdge(),
+		otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true),
+		otherEdge("ber1-edge-c", rackTestNamespace, "ber1", "edge", true))
+	h.api.devices = []tailnet.Device{edgeDevice("old", "ber1-edge", "2026-09-01T00:00:00Z", true, "100.64.0.7")}
+	h.reconcile(t, edgeUUID)
+
+	h.reportedBy(t, edgeUUID, "ber1-edge", true)
+	got := h.reconcile(t, edgeUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the edge on its own boot server's report")
+	}
+	c := conditions.Get(got, InstalledCondition)
+	if c == nil || c.Reason != "WaitingForBootServer" || !strings.Contains(c.Message, "ber1-edge-b, ber1-edge-c") {
+		t.Fatalf("Installed %+v", c)
+	}
+
+	h.reportedBy(t, edgeUUID, "ber1-edge-b", false)
+	got = h.reconcile(t, edgeUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the edge before ber1-edge-c, which may take the address over, held its install")
+	}
+	if c := conditions.Get(got, InstalledCondition); c == nil || strings.Contains(c.Message, "ber1-edge-b") || !strings.Contains(c.Message, "ber1-edge-c") {
+		t.Fatalf("Installed %+v", c)
+	}
+
+	h.reportedBy(t, edgeUUID, "ber1-edge-c", false)
+	got = h.reconcile(t, edgeUUID)
+	if len(h.runner.runs) != 1 || got.Status.Install.TriggeredAt == nil {
+		t.Fatalf("runs %d install %+v, want the edge rebooted into its install", len(h.runner.runs), got.Status.Install)
 	}
 }
 
@@ -736,7 +853,7 @@ func TestRackInstallRenewsAJoinKeyOnlyWhileNoHostHasIt(t *testing.T) {
 
 	served := withInstall(svcHost(), "kOLDCNTRL", "", offered, nil)
 	at := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
-	served.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kOLDCNTRL", ServableAt: &at, ServedTo: svcMAC, ServedAt: &at}
+	served.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kOLDCNTRL", ServedTo: svcMAC, ServedAt: &at}
 	h = newInstallHarness(t, served, publishedBoot("kOLDCNTRL"))
 	if host := h.reconcile(t, svcUUID); len(h.api.minted) != 0 || host.Status.Install.KeyID != "kOLDCNTRL" {
 		t.Fatalf("minted %v, install %+v; a key a host fetched is kept", h.api.minted, host.Status.Install)

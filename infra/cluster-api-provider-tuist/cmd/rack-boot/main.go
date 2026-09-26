@@ -44,6 +44,7 @@ func run() error {
 	flag.StringVar(&cfg.ISOSHA256, "iso-sha256", "", "the ISO's SHA-256")
 	flag.StringVar(&cfg.StateDir, "state-dir", "/var/lib/tuist-rack-boot", "a directory kept on the node, which holds the ISO")
 	flag.StringVar(&cfg.NetbootDir, "netboot-dir", "/opt/rack-netboot", "the signed iPXE")
+	flag.StringVar(&cfg.NodeBinary, "node-binary", "/opt/rack-node/rack-node-linux-amd64", "the rack-node binary an install stick asks for its seed with")
 	flag.StringVar(&cfg.Namespace, "namespace", os.Getenv("POD_NAMESPACE"), "the fleet's namespace")
 	flag.StringVar(&cfg.SecretName, "secret", "", "the boot Secret the operator publishes installs to")
 	flag.StringVar(&cfg.Site, "site", "", "the site this boot server serves")

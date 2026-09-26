@@ -53,9 +53,13 @@ an env and carries no credential:
 mise run rack:write-install-usb /dev/disk4 --any-host
 ```
 
-Its installer takes DHCP on every wired port, asks the boot server for
-`hosts/<mac>/user-data` for each of its NICs, and installs the first it gets:
-the seed a netboot reads (below). With nothing published it boots a rack
+Its installer takes DHCP on every wired port, fetches `rack-node` from the boot
+server (`/tools/rack-node`), asks with `rack-node seed` for the seed published
+under each of its NICs, attesting with the machine's TPM when the host's is
+pinned, and installs the first it gets: the seed a netboot reads (below). A
+stick written before its installer asked through `rack-node` gets only the
+loader for a host whose TPM is pinned, installs nothing, and needs writing
+again. With nothing published it boots a rack
 install already on the disks as soon as the boot server says so (a 404 for
 every NIC), or after five minutes of not reaching the boot server; a machine
 without one waits and announces itself (below). The MS-01's firmware keeps a
@@ -93,11 +97,15 @@ UUID, a hostname and a role to `rackLinuxFleet.hosts`:
   role: edge
 ```
 
-The host takes its boot MAC and model from the candidate, its AMT is activated
+The host takes its boot MAC, model and NICs from the candidate once
+(`status.hardware`), and its TPM (`status.tpm`) when the stick announced one;
+an installed host's TPM is read over SSH otherwise. Its AMT is activated
 when its model is one of `rackLinuxFleet.amt.products`, and AMT gets an address
 from `amt.addressRange`. The operator then publishes its install, and the
 stick, still waiting, installs it. A candidate that a host declares shows the
-hostname under `DECLAREDAS`, and stays.
+hostname under `DECLAREDAS`, and stays. What a machine announced first is
+kept: an announcement under its UUID that differs is refused and shows under
+`CONFLICT`, and a host takes nothing from a candidate with one.
 
 ## Netboot
 
@@ -106,9 +114,10 @@ above the generation it was installed for, the host controller mints a join key
 and an SSH host key and writes three files under the boot MAC to the
 `<fleet>-boot` Secret: the autoinstall `user-data` and `meta-data`, and an iPXE
 script, with the host's UUID and the join key's ID beside them. The boot server
-watches the Secret, and the edge holding the provisioning address reports the
-install servable on the host's `status.boot`; the operator reboots a running
-host into it only then. The chain a netbooting host goes through:
+watches the Secret, and each edge's boot server reports the install servable
+on the host's `status.boot.servers`; the operator reboots a running host into
+it only once the edge holding the provisioning address did, or, for an edge,
+every other edge of the site. The chain a netbooting host goes through:
 
 1. The firmware's PXE asks the active edge's dnsmasq for an address and gets one
    in the provisioning range, with iPXE's Secure Boot shim (`snponly-shim.efi`)
@@ -123,10 +132,13 @@ host into it only then. The chain a netbooting host goes through:
    boots them through Ubuntu's shim from the ISO (iPXE's `shim` command), which
    verifies the kernel under Secure Boot; the kernel downloads the ISO into
    memory (`url=`), keeps its DHCP on the NIC that netbooted (`BOOTIF`), and
-   reads the seed from `/hosts/<mac>/`. The boot server hands `user-data`, which
-   carries the join key and the host key, only to one of the host's MACs, as
-   its neighbor table shows the address that asked, and after the first to
-   that MAC alone (`status.boot.servedTo`).
+   reads the seed from `/hosts/<mac>/`. The seed carries the join key and the
+   host key. For a host whose TPM is pinned (`status.tpm`), `user-data` is the
+   install stick's loader, which asks for the seed with `rack-node seed`, and
+   the boot server seals it to that TPM (`status.boot.attested`). For any
+   other, the boot server hands `user-data` only to one of the MACs the host
+   took (`status.hardware`), as its neighbor table shows the address that
+   asked, and after the first to that MAC alone (`status.boot.servedTo`).
 4. The install is the same as a stick's: Ubuntu with network configuration for
    the SFP+ uplinks only, the fleet key, the operator's host key in place of
    the ones the package generated (cloud-init told not to replace it), and a
@@ -189,8 +201,8 @@ People patch through the kubectl gateway's `tuist-fleet-unwedge` role
 (`infra/helm/pomerium`), standing in staging and on a write elevation in
 production.
 
-The operator publishes the install, waits for the boot server holding the
-site's provisioning address to report it servable (`status.boot`), then sets `BootNext` to the host's install stick, or without one to its
+The operator publishes the install, waits for the boot server answering the
+host's netboot to report it servable (`status.boot.servers`), then sets `BootNext` to the host's install stick, or without one to its
 PXE entry for its boot MAC, over SSH and reboots it. It does this once: a host
 that comes back on its old install reports `Installed` False with
 `ReinstallDidNotBoot` after half an hour, and raising the generation again tries

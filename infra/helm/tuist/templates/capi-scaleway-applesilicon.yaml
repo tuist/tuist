@@ -98,6 +98,11 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines]
     verbs: [get, list, watch, create, update, patch, delete]
+  # A rack Linux host's rename has its Machine forget the Node it joined
+  # under before, so CAPI records, drains and deletes the one it joins as.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines/status]
+    verbs: [get, update, patch]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so

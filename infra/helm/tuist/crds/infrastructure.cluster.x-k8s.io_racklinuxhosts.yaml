@@ -59,6 +59,10 @@ spec:
           name: AMT
           priority: 1
           type: string
+        - jsonPath: .status.tpm.fingerprint
+          name: TPM
+          priority: 1
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -323,15 +327,13 @@ spec:
                     Boot is what the site's boot server reports about the published install.
                     The boot server writes it, and nothing else.
                   properties:
+                    attested:
+                      description: |-
+                        Attested is whether the seed went out sealed to the host's pinned TPM,
+                        rather than to the MAC that asked.
+                      type: boolean
                     keyID:
                       description: KeyID is the join key of the install it reports on.
-                      type: string
-                    servableAt:
-                      description: |-
-                        ServableAt is when a boot server holding the site's provisioning address
-                        first held the install, ready to serve it. The operator reboots a host
-                        into its install only after.
-                      format: date-time
                       type: string
                     servedAddress:
                       type: string
@@ -345,9 +347,38 @@ spec:
                         ServedAddress the address that asked. The boot server hands the seed to
                         no other MAC.
                       type: string
-                    server:
-                      description: Server is the edge whose boot server reported last.
-                      type: string
+                    servers:
+                      description: |-
+                        Servers are the boot servers holding the install with the installer
+                        ready to serve it. The operator reboots a host into its install only
+                        once the boot server that answers its netboot is among them: the one
+                        holding the site's provisioning address, or, for an edge, every other
+                        edge of its site, since the edge's own goes down with it.
+                      items:
+                        description: |-
+                          RackLinuxHostBootServer is one boot server holding a host's install, ready
+                          to serve it.
+                        properties:
+                          at:
+                            description: At is when it reported.
+                            format: date-time
+                            type: string
+                          holdsAddress:
+                            description: |-
+                              HoldsAddress is whether the edge held the site's provisioning address
+                              when it reported.
+                            type: boolean
+                          node:
+                            description: Node is the edge the boot server runs on.
+                            type: string
+                        required:
+                          - at
+                          - node
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - node
+                      x-kubernetes-list-type: map
                   required:
                     - keyID
                   type: object
@@ -401,8 +432,34 @@ spec:
                     type: object
                   type: array
                 hardware:
-                  description: Hardware is what the machine announced about itself.
+                  description: |-
+                    Hardware is what the machine announced about itself, taken once from its
+                    RackLinuxCandidate and kept.
                   properties:
+                    bootMAC:
+                      type: string
+                    nics:
+                      description: NICs are the machine's network ports, and BootMAC its management port.
+                      items:
+                        description: RackLinuxCandidateNIC is one network port a machine announced.
+                        properties:
+                          driver:
+                            description: Driver is the Linux driver bound to the port, such as igc or i40e.
+                            type: string
+                          mac:
+                            description: MAC is the port's MAC address.
+                            type: string
+                          pciDevice:
+                            description: PCIDevice is the port's PCI device ID, such as 0x125b for an i226-LM.
+                            type: string
+                        required:
+                          - mac
+                        type: object
+                      type: array
+                    pinnedAt:
+                      description: PinnedAt is when the host took it from its RackLinuxCandidate.
+                      format: date-time
+                      type: string
                     product:
                       description: Product is the machine's SMBIOS vendor and product name.
                       type: string
@@ -514,6 +571,30 @@ spec:
                     name:
                       description: Name is the device's MagicDNS name.
                       type: string
+                  type: object
+                tpm:
+                  description: |-
+                    TPM is the machine's TPM, pinned once. The boot server seals the host's
+                    seed to it, and hands it to nothing that cannot open it.
+                  properties:
+                    ek:
+                      description: |-
+                        EK is the TPM's RSA endorsement key, base64 PKIX DER, and Fingerprint
+                        its SHA-256.
+                      type: string
+                    fingerprint:
+                      type: string
+                    pinnedAt:
+                      description: PinnedAt is when.
+                      format: date-time
+                      type: string
+                    source:
+                      description: 'Source is where it was pinned from: Announcement or Host.'
+                      type: string
+                  required:
+                    - ek
+                    - pinnedAt
+                    - source
                   type: object
               type: object
           type: object

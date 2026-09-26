@@ -130,9 +130,15 @@ type RackLinuxHostStatus struct {
 	// +optional
 	BootMAC string `json:"bootMAC,omitempty"`
 
-	// Hardware is what the machine announced about itself.
+	// Hardware is what the machine announced about itself, taken once from its
+	// RackLinuxCandidate and kept.
 	// +optional
 	Hardware *RackLinuxHostHardware `json:"hardware,omitempty"`
+
+	// TPM is the machine's TPM, pinned once. The boot server seals the host's
+	// seed to it, and hands it to nothing that cannot open it.
+	// +optional
+	TPM *RackLinuxHostTPM `json:"tpm,omitempty"`
 
 	// Provisioning is where the host is in its life: registering,
 	// provisioning an install, provisioned, or deprovisioning.
@@ -166,7 +172,10 @@ type RackLinuxHostStatus struct {
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
-// RackLinuxHostHardware is what a machine announced about itself.
+// RackLinuxHostHardware is what a machine announced about itself. The boot
+// server hands a host's seed only to one of its NICs. To take it again, as
+// after replacing a NIC, delete the host's RackLinuxCandidate and its
+// status.hardware, and boot its install stick.
 type RackLinuxHostHardware struct {
 	// Product is the machine's SMBIOS vendor and product name.
 	// +optional
@@ -175,7 +184,40 @@ type RackLinuxHostHardware struct {
 	// Serial is the machine's SMBIOS serial number.
 	// +optional
 	Serial string `json:"serial,omitempty"`
+
+	// NICs are the machine's network ports, and BootMAC its management port.
+	// +optional
+	NICs []RackLinuxCandidateNIC `json:"nics,omitempty"`
+	// +optional
+	BootMAC string `json:"bootMAC,omitempty"`
+
+	// PinnedAt is when the host took it from its RackLinuxCandidate.
+	// +optional
+	PinnedAt *metav1.Time `json:"pinnedAt,omitempty"`
 }
+
+// RackLinuxHostTPM is a host's TPM, by its endorsement key: from the machine's
+// first announcement, or read from the running host over SSH. To pin another,
+// as after replacing the board, delete the host's status.tpm.
+type RackLinuxHostTPM struct {
+	// EK is the TPM's RSA endorsement key, base64 PKIX DER, and Fingerprint
+	// its SHA-256.
+	EK string `json:"ek"`
+	// +optional
+	Fingerprint string `json:"fingerprint,omitempty"`
+
+	// Source is where it was pinned from: Announcement or Host.
+	Source string `json:"source"`
+
+	// PinnedAt is when.
+	PinnedAt metav1.Time `json:"pinnedAt"`
+}
+
+// Where a host's TPM was pinned from.
+const (
+	RackLinuxHostTPMFromAnnouncement = "Announcement"
+	RackLinuxHostTPMFromHost         = "Host"
+)
 
 // RackLinuxHostProvisioningStatus is where a host is in its life.
 type RackLinuxHostProvisioningStatus struct {
@@ -230,22 +272,22 @@ type RackLinuxHostInstallStatus struct {
 	TriggeredAt *metav1.Time `json:"triggeredAt,omitempty"`
 }
 
-// RackLinuxHostBootStatus is what a site's boot server reports about the
+// RackLinuxHostBootStatus is what a site's boot servers report about the
 // install published for a host. It describes the install with KeyID, and is
 // stale once another is published.
 type RackLinuxHostBootStatus struct {
 	// KeyID is the join key of the install it reports on.
 	KeyID string `json:"keyID"`
 
-	// Server is the edge whose boot server reported last.
+	// Servers are the boot servers holding the install with the installer
+	// ready to serve it. The operator reboots a host into its install only
+	// once the boot server that answers its netboot is among them: the one
+	// holding the site's provisioning address, or, for an edge, every other
+	// edge of its site, since the edge's own goes down with it.
 	// +optional
-	Server string `json:"server,omitempty"`
-
-	// ServableAt is when a boot server holding the site's provisioning address
-	// first held the install, ready to serve it. The operator reboots a host
-	// into its install only after.
-	// +optional
-	ServableAt *metav1.Time `json:"servableAt,omitempty"`
+	// +listType=map
+	// +listMapKey=node
+	Servers []RackLinuxHostBootServer `json:"servers,omitempty"`
 
 	// ServedTo is the MAC the install's seed was handed out to, and
 	// ServedAddress the address that asked. The boot server hands the seed to
@@ -259,6 +301,26 @@ type RackLinuxHostBootStatus struct {
 	// ServedAt is when the seed was first handed out.
 	// +optional
 	ServedAt *metav1.Time `json:"servedAt,omitempty"`
+
+	// Attested is whether the seed went out sealed to the host's pinned TPM,
+	// rather than to the MAC that asked.
+	// +optional
+	Attested bool `json:"attested,omitempty"`
+}
+
+// RackLinuxHostBootServer is one boot server holding a host's install, ready
+// to serve it.
+type RackLinuxHostBootServer struct {
+	// Node is the edge the boot server runs on.
+	Node string `json:"node"`
+
+	// HoldsAddress is whether the edge held the site's provisioning address
+	// when it reported.
+	// +optional
+	HoldsAddress bool `json:"holdsAddress,omitempty"`
+
+	// At is when it reported.
+	At metav1.Time `json:"at"`
 }
 
 // RackLinuxHostPowerStatus is a host's power state as AMT reports it.
@@ -392,6 +454,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:printcolumn:name="Device",type=string,priority=1,JSONPath=".status.tailnet.deviceID"
 // +kubebuilder:printcolumn:name="Install",type=string,priority=1,JSONPath=".status.install.keyID"
 // +kubebuilder:printcolumn:name="AMT",type=string,priority=1,JSONPath=".status.amt.controlMode"
+// +kubebuilder:printcolumn:name="TPM",type=string,priority=1,JSONPath=".status.tpm.fingerprint"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackLinuxHost is one x86 Linux machine in a rack we operate.
