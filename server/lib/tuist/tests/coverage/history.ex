@@ -484,90 +484,134 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   The branches with a measured commit in the period, the most recently
-  measured first: one row per branch with its newest measured commit, that
-  commit's totals, and the pull request its runs reported, if any
-  (`pull_request_number`, 0 without one). A pull request whose runs never
+  measured first: one row per branch with its newest measured commit in the
+  period, that commit's totals, and the pull request its runs reported, if
+  any (`pull_request_number`, 0 without one). A pull request whose runs never
   named a branch is listed under its number.
 
-  `search` narrows by branch name or pull request number, `page` and
-  `page_size` paginate (20 by default).
+  `search` narrows by branch name or pull request number. Pages are read from
+  a cursor (`after`, `before`, as `commit_cursor_page/3` takes them) of
+  `page_size` rows (20 by default), newest first.
+
+  A commit is listed when no newer commit of its branch was measured by the
+  period's end, so a page walks the commits newest first and stops once it is
+  full: what it costs follows the page, not how many commits the period
+  holds.
   """
   def refs(%Project{} = project, opts \\ []) do
-    {page, opts} = Keyword.pop(opts, :page, 1)
-    {page_size, opts} = Keyword.pop(opts, :page_size, 20)
-    {search, opts} = Keyword.pop(opts, :search)
+    size = Keyword.get(opts, :page_size, 20)
+    cursor = opts |> cursor() |> cursor_time()
+    read = fn refine -> project.id |> refs_query(opts) |> refine.() |> Repo.all() end
 
-    query = refs_query(project.id, search, opts)
-    total = Repo.one(from(r in subquery(query), select: count())) || 0
-    total_pages = max(1, ceil(total / page_size))
-    page = page |> max(1) |> min(total_pages)
+    {rows, more?} =
+      read_page(cursor, size, fn
+        {:older, key}, limit -> read.(&(&1 |> ref_older_than(key) |> newest_first() |> limit(^limit)))
+        {:newer, key}, limit -> read.(&(&1 |> ref_newer_than(key) |> oldest_first() |> limit(^limit)))
+        nil, limit -> read.(&(&1 |> newest_first() |> limit(^limit)))
+      end)
 
-    rows =
-      from(r in subquery(query), order_by: [desc: r.ran_at], limit: ^page_size, offset: ^((page - 1) * page_size))
-      |> Repo.all()
-      |> Enum.map(&with_coverage/1)
+    {newest, oldest} = bounds(rows, &{&1.ran_at, &1.git_commit_sha})
+    any? = fn refine -> read.(&(&1 |> refine.() |> exclude(:select) |> select([c], 1) |> limit(1))) != [] end
 
-    %{refs: rows, page: page, page_size: page_size, total_pages: total_pages, total_count: total}
+    %{
+      refs: Enum.map(rows, &with_coverage/1),
+      has_next_page?: older_page?(cursor, more?, fn -> not is_nil(oldest) and any?.(&ref_older_than(&1, oldest)) end),
+      has_previous_page?: newer_page?(cursor, more?, fn -> not is_nil(newest) and any?.(&ref_newer_than(&1, newest)) end),
+      start_cursor: newest && time_cursor(newest),
+      end_cursor: oldest && time_cursor(oldest)
+    }
   end
 
-  # The newest measured commit of every branch and pull request the period
-  # ran: a commit is filed under the branch its newest run named, or, when
-  # none did, under its pull request's number.
-  defp refs_query(project_id, search, opts) do
-    latest =
-      ran_in(
-        from(c in CoverageCommit,
-          where: c.project_id == ^project_id and c.executable_lines > 0,
-          where: c.git_branch != "" or c.pull_request_number > 0,
-          distinct:
-            fragment(
-              "CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END",
-              c.git_branch,
-              c.git_branch,
-              c.pull_request_number
-            ),
-          order_by: [desc: c.ran_at],
-          select: %{
-            name:
-              fragment(
-                "CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END",
-                c.git_branch,
-                c.git_branch,
-                c.pull_request_number
-              ),
-            git_branch: c.git_branch,
-            pull_request_number: c.pull_request_number,
-            base_branch: c.base_branch,
-            git_commit_sha: c.git_commit_sha,
-            ran_at: c.ran_at,
-            covered_lines: c.covered_lines,
-            executable_lines: c.executable_lines,
-            schemes: c.schemes,
-            partial_schemes: c.partial_schemes,
-            complete: c.complete,
-            completeness: c.completeness,
-            reported_kind: c.reported_kind,
-            reported_covered_lines: c.reported_covered_lines,
-            reported_executable_lines: c.reported_executable_lines
-          }
-        ),
-        opts
+  # A commit is filed under the branch its newest run named, or, when none
+  # did, under its pull request's number, and stands for it when no newer
+  # commit of that branch or pull request was measured by the period's end.
+  # Each commit the walk passes costs one probe of the branch's commits
+  # (`(project_id, git_branch, ran_at)`), and the walk stops with the page.
+  defp refs_query(project_id, opts) do
+    from(c in CoverageCommit,
+      as: :commit,
+      where: c.project_id == ^project_id and c.executable_lines > 0,
+      where: c.git_branch != "" or c.pull_request_number > 0,
+      select: %{
+        name:
+          fragment("CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END", c.git_branch, c.git_branch, c.pull_request_number),
+        git_branch: c.git_branch,
+        pull_request_number: c.pull_request_number,
+        base_branch: c.base_branch,
+        git_commit_sha: c.git_commit_sha,
+        ran_at: c.ran_at,
+        covered_lines: c.covered_lines,
+        executable_lines: c.executable_lines,
+        schemes: c.schemes,
+        partial_schemes: c.partial_schemes,
+        complete: c.complete,
+        completeness: c.completeness,
+        reported_kind: c.reported_kind,
+        reported_covered_lines: c.reported_covered_lines,
+        reported_executable_lines: c.reported_executable_lines
+      }
+    )
+    |> newest_of_ref(Keyword.get(opts, :until))
+    |> ran_in(opts)
+    |> search_refs(Keyword.get(opts, :search))
+  end
+
+  defp newest_of_ref(query, until) do
+    newer_on_branch =
+      from(n in CoverageCommit,
+        where:
+          n.project_id == parent_as(:commit).project_id and n.git_branch == parent_as(:commit).git_branch and
+            n.executable_lines > 0,
+        select: 1
       )
 
-    # A branch is searched by its name and by the number of the pull request
-    # it was pushed for: the reader remembers one or the other.
-    case search do
-      blank when blank in [nil, ""] ->
-        latest
+    newer_in_pull_request =
+      from(n in CoverageCommit,
+        where:
+          n.project_id == parent_as(:commit).project_id and n.git_branch == "" and
+            n.pull_request_number == parent_as(:commit).pull_request_number and n.pull_request_number > 0 and
+            n.executable_lines > 0,
+        select: 1
+      )
 
-      search ->
-        pattern = "%" <> String.replace(search, ~w(\\ % _), &("\\" <> &1)) <> "%"
-
-        from(r in subquery(latest),
-          where: ilike(r.name, ^pattern) or ilike(fragment("'#' || ?::text", r.pull_request_number), ^pattern)
-        )
-    end
+    query
+    |> where([c], c.git_branch == "" or not exists(newer_than_commit(newer_on_branch, until)))
+    |> where([c], c.git_branch != "" or not exists(newer_than_commit(newer_in_pull_request, until)))
   end
+
+  # Newer than the listed commit, ties broken by SHA as the pages order them;
+  # the leading `>=` is what the index range is read from.
+  defp newer_than_commit(query, until) do
+    query =
+      where(
+        query,
+        [n],
+        n.ran_at >= parent_as(:commit).ran_at and
+          (n.ran_at > parent_as(:commit).ran_at or n.git_commit_sha > parent_as(:commit).git_commit_sha)
+      )
+
+    if until, do: where(query, [n], n.ran_at <= ^utc(until)), else: query
+  end
+
+  # A branch is searched by its name and by the number of the pull request
+  # it was pushed for: the reader remembers one or the other.
+  defp search_refs(query, search) when search in [nil, ""], do: query
+
+  defp search_refs(query, search) do
+    pattern = "%" <> String.replace(search, ~w(\\ % _), &("\\" <> &1)) <> "%"
+
+    where(
+      query,
+      [c],
+      ilike(c.git_branch, ^pattern) or
+        (c.pull_request_number > 0 and ilike(fragment("'#' || ?::text", c.pull_request_number), ^pattern))
+    )
+  end
+
+  # The cursor comparisons with their `<=`/`>=` bound spelled out, so the walk
+  # starts at the cursor in `(project_id, ran_at)` instead of reaching it.
+  defp ref_older_than(query, {at, _sha} = key), do: query |> where([c], c.ran_at <= ^at) |> older_than(key)
+  defp ref_newer_than(query, {at, _sha} = key), do: query |> where([c], c.ran_at >= ^at) |> newer_than(key)
 
   @doc """
   The commits of one pull request that gathered coverage, newest first,

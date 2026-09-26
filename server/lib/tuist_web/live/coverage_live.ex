@@ -86,11 +86,11 @@ defmodule TuistWeb.CoverageLive do
         Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> Query.drop(query, "page"))}
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> drop_branches_cursor(query))}
   end
 
   def handle_event("search-branches", %{"search" => search}, socket) do
-    query = socket.assigns.uri.query |> Query.put("branches-search", search) |> Query.drop("branches-page")
+    query = socket.assigns.uri.query |> Query.put("branches-search", search) |> drop_branches_cursor()
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
   end
 
@@ -135,7 +135,8 @@ defmodule TuistWeb.CoverageLive do
     })
   end
 
-  # The branches and pull requests measured in the period, newest first.
+  # The branches and pull requests measured in the period, newest first, a
+  # page at a time from a cursor.
   defp assign_branches(%{assigns: %{selected_project: project}} = socket, query) do
     search = query["branches-search"] || ""
 
@@ -144,7 +145,8 @@ defmodule TuistWeb.CoverageLive do
         project,
         Keyword.merge(period_opts(socket),
           search: search,
-          page: Query.bounded_page(query["branches-page"]),
+          after: query["after"],
+          before: query["before"],
           page_size: @branches_page_size
         )
       )
@@ -152,8 +154,11 @@ defmodule TuistWeb.CoverageLive do
     socket
     |> assign(:branches_search, search)
     |> assign(:branch_rows, Enum.map(page.refs, &Map.put(&1, :id, "ref-" <> &1.name)))
-    |> assign(:branches_meta, %{current_page: page.page, total_pages: page.total_pages})
+    |> assign(:branches_meta, Map.take(page, [:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]))
   end
+
+  # A cursor names a row of one listing; another period or search starts over.
+  defp drop_branches_cursor(query), do: query |> Query.drop("after") |> Query.drop("before")
 
   # The period's parameters, so the default branch's page opens on the period
   # shown here.
