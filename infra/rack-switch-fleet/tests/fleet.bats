@@ -2386,9 +2386,13 @@ STUB
   switchport pvid 10
   no switchport general allowed vlan 1
 #'* ]]
-    [ "$(awk '/^interface /{port = $3} /allowed vlan 10 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/32 " ]
+    # tagged exactly where the edges' VRRP VLAN is: their ports and the ISL
+    tagged_on() { awk -v v="$1" '/^interface /{port = $2 " " $3} $0 ~ "allowed vlan " v " tagged" {printf "%s, ", port}'; }
+    [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
+    [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
     run fleet_render "$SITE_FILE" ber1-tor-a
-    [ "$(awk '/^interface /{port = $3} /allowed vlan 10 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/32 " ]
+    [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
+    [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
     [[ "$output" != *"untagged"* ]]
     run fleet_render "$SITE_FILE" ber1-mgmt
     [[ "$output" != *"vlan 10"* ]]
