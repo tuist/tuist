@@ -188,15 +188,56 @@ var cacheVolumePromoteTotal = prometheus.NewCounterVec(
 )
 
 // cacheVolumeConvergedTotal counts background fast-forwards of this host's
-// master to the account's HEAD — a host that was behind pulling the latest
-// master after a job started (off the job-start path), so the next job on it
-// starts fresher. A high rate relative to materialize means hosts are
+// master to the volume's HEAD — a host that was behind pulling the latest
+// master off every job's critical path, so the next job on it starts fresher. A high rate relative to materialize means hosts are
 // frequently stale (jobs spread thin across hosts, or the cache churns fast).
 var cacheVolumeConvergedTotal = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_converged_total",
-		Help: "Materialize-time master fast-forwards to the account's HEAD.",
+		Help: "Background master fast-forwards to the volume's HEAD.",
 	},
+)
+
+// cacheVolumeConvergeTotal counts the converge worker's attempts by what queued
+// them and how they ended. source is "job" (a job for the volume ran here and
+// relayed its HEAD) or "prefetch" (the server listed it for this host's fleet).
+// result is "converged", "current" (nothing to adopt), "recent" (a resident
+// master close enough to the HEAD is left in place), "yielded" (a job landed
+// and the download paused), "too_large" (larger than the volume can keep),
+// "no_room" (no space without evicting what it may not), "unverifiable" (the
+// object does not reproduce the HEAD's digest), "expired" (queued past its
+// download URL) or "failed".
+var cacheVolumeConvergeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_total",
+		Help: "Converge worker attempts, by what queued them and how they ended.",
+	},
+	[]string{"source", "result"},
+)
+
+// cacheVolumeConvergeBytesTotal counts bytes the converge worker received, by
+// what queued the download, whether or not it ended in an install. It is the
+// host's share of master egress, including what yields, displacement and
+// failed verification threw away.
+var cacheVolumeConvergeBytesTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_bytes_total",
+		Help: "Bytes the converge worker downloaded, by what queued the download.",
+	},
+	[]string{"source"},
+)
+
+// cacheVolumeConvergeSeconds is how long an installed convergence took from its
+// last start to install: transfer, verification and install. Beside the bytes
+// it tells a host limited by its link from one limited by idle time (many
+// yields) or by stalls (many attempts in the converged log line).
+var cacheVolumeConvergeSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_converge_seconds",
+		Help:    "Seconds from the last start of an installed convergence to its install.",
+		Buckets: []float64{10, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200},
+	},
+	[]string{"source"},
 )
 
 // cacheVolumeResidentCount is the number of resident master images on this
@@ -343,6 +384,9 @@ func init() {
 		cacheVolumeMaterializeTotal,
 		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
+		cacheVolumeConvergeTotal,
+		cacheVolumeConvergeBytesTotal,
+		cacheVolumeConvergeSeconds,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -429,10 +473,27 @@ func RecordVolumeMaterialized(source MaterializeSource) {
 	cacheVolumeMaterializeTotal.WithLabelValues(string(source)).Inc()
 }
 
-// RecordVolumeConverged increments the count of materialize-time master
-// fast-forwards to the account's HEAD.
+// RecordVolumeConverged increments the count of background master
+// fast-forwards to the volume's HEAD.
 func RecordVolumeConverged() {
 	cacheVolumeConvergedTotal.Inc()
+}
+
+// RecordVolumeConverge counts one converge worker attempt.
+func RecordVolumeConverge(source convergeSource, result string) {
+	cacheVolumeConvergeTotal.WithLabelValues(string(source), result).Inc()
+}
+
+// RecordVolumeConvergeBytes counts bytes a convergence downloaded.
+func RecordVolumeConvergeBytes(source convergeSource, bytes int64) {
+	if bytes > 0 {
+		cacheVolumeConvergeBytesTotal.WithLabelValues(string(source)).Add(float64(bytes))
+	}
+}
+
+// RecordVolumeConvergeSeconds records how long an installed convergence took.
+func RecordVolumeConvergeSeconds(source convergeSource, seconds float64) {
+	cacheVolumeConvergeSeconds.WithLabelValues(string(source)).Observe(seconds)
 }
 
 // RecordVolumeResident publishes the resident master count and root free

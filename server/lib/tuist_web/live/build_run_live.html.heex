@@ -91,6 +91,11 @@
         >
           <:icon_left><.download /></:icon_left>
         </.button>
+        <.pull_request_button
+          project={@run.project}
+          git_ref={@run.git_ref}
+          disabled={@run.status == "processing"}
+        />
         <.button
           :if={@run.status == "processing"}
           label={dgettext("dashboard_builds", "CI Run")}

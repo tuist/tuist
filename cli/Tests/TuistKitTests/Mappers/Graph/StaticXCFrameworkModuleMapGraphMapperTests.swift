@@ -558,7 +558,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                     path: projectPath,
                     targets: [
                         .test(
-                            name: "App"
+                            name: "App",
+                            destinations: [.iPhone, .mac]
                         ),
                     ]
                 ),
@@ -585,9 +586,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         name: "App",
+                        destinations: [.iPhone, .mac],
                         settings: .test(
                             base: [
-                                "HEADER_SEARCH_PATHS": [
+                                "HEADER_SEARCH_PATHS[sdk=macosx*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/macos-arm64/Headers\"",
                                 ],
                             ]

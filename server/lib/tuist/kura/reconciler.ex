@@ -63,6 +63,7 @@ defmodule Tuist.Kura.Reconciler do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.RunnerCache
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.AwaitActivationWorker
   alias Tuist.Repo
 
@@ -99,6 +100,7 @@ defmodule Tuist.Kura.Reconciler do
       # path this tick, and an instance that just reached its inactivity window
       # unpublishes its endpoint before anything else observes it.
       Lifecycle.reconcile()
+      StableEndpoint.reconcile()
       reconcile_retired_region_servers()
       reconcile_destroying_servers()
       reconcile_moving_out_servers()

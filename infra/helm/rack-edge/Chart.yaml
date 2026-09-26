@@ -4,8 +4,7 @@ description: >
   What a rack's edge node runs for the switches behind it: the path from their
   management addresses into the tailnet, where the Omada controller lives, and
   DHCP naming that controller, which is what makes a factory switch zero touch.
-  One pod per rack, on the node rack:edge-join labelled for the site, with
-  host networking. The files it runs are rendered from the site definition by
+  One pod per rack, on the rack's edge node, with host networking. The files it runs are rendered from the site definition by
   `mise run rack:fleet render` into sites/<site>/. See
   infra/rack-switch-fleet/AGENTS.md.
 

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+plugin_config=${BUILDKITE_PLUGIN_CONFIGURATION:-}
+# Parse data as JSON, never shell code. Validate every entry before attaching any.
+config=$(jq -ce '
+  select(type == "object" and (keys == ["volumes"])) |
+  select(.volumes | type == "array" and length > 0 and length <= 8) |
+  select(all(.volumes[];
+    type == "object" and (keys == ["key", "path"]) and
+    all(.[]; type == "string" and length > 0 and (test("[\u0000-\u001f]") | not))))
+' <<< "$plugin_config") || {
+  echo "Tuist cache volumes: expected one to eight key/path pairs." >&2
+  exit 1
+}
+command -v tuist-cache-volume >/dev/null || {
+  echo "Tuist cache volumes require a Tuist Linux runner." >&2
+  exit 1
+}
+count=$(jq '.volumes | length' <<< "$config")
+for ((index = 0; index < count; index++)); do
+  key=$(jq -r --argjson index "$index" '.volumes[$index].key' <<< "$config")
+  path=$(jq -r --argjson index "$index" '.volumes[$index].path' <<< "$config")
+  tuist-cache-volume --key "$key" --path "$path"
+done

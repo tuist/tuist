@@ -188,7 +188,8 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
 
-    /// Returns package products reachable through the target's static dependency chain.
+    /// Returns the package products a static target needs built to compile: the ones reachable through its static
+    /// dependency chain, including through the xcframeworks of targets replaced with cached binaries.
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.
     ///   - name: Name of the target.

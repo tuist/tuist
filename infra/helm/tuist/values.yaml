@@ -174,6 +174,16 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  stableDNS:
+    enabled: false
+    hostedZoneId: ""
+    ownerId: ""
+    secretName: kura-cache-dns
+    drain: 3720s
+    externalSecret:
+      enabled: false
+      storeName: onepassword
+      item: ""
   # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
   # changes the pod template and rolls these instances. No RBAC grant needed.
   # Requires a Kura runtime image with built-in connectivity telemetry.
@@ -1600,25 +1610,12 @@ vultrFleets: {}
 # Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
 # colo programme), as opposed to capacity ordered from a provider API.
 #
-# Two things are declared here and they are different in kind. `hosts` is
-# physical INVENTORY: one entry per box, each rendering a RackHost the fleet's
-# Machines claim from. Everything under `machine` is WORKLOAD shape, cloned onto
-# every Machine by the MachineTemplate. Keeping them apart is what lets one
-# replica count scale the rack; see templates/rack-fleet.yaml.
+# `hosts` is the rack's physical inventory: one entry per box, each rendering a
+# RackHost, for which the operator keeps a Machine that makes it a node. `machine`
+# sizes every host's node. See templates/rack-fleet.yaml.
 rackFleet:
   enabled: false
   name: ""             # default: <release>-rack-fleet
-
-  # The claim marker AND the environment boundary. A Machine claims a free
-  # RackHost whose pool matches, so staging and production inventory can coexist
-  # as long as their pools differ. Required when enabled.
-  pool: ""
-
-  # Machine count. Defaults to the number of declared hosts: a Machine with
-  # nowhere to land sits on NoAvailableHost forever, which leaves the
-  # MachineDeployment permanently below spec. Set it lower to stage a rack one
-  # box at a time.
-  replicas: null
 
   # Default rack site for hosts that don't name their own. Load-bearing: it
   # composes the providerID, so it must be stable for the life of a host.
@@ -1640,9 +1637,11 @@ rackFleet:
 
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
-  # history. Nothing here is workload config: see `machine` below for that.
+  # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
+  # RackHosts.
   #
-  #   - name: ber1-proto-01     # RackHost object name; also the Node name's box
+  #   - name: ber1-proto-01     # RackHost object name; its Node is
+  #                             # <fleet>-<name>
   #     serial: C07FC05JQ6NY    # durable identity (ABM/MDM know it by this)
   #     address: 192.168.0.41   # what the operator SSHes to, normally the
   #                             # in-rack LAN address reached over a tailnet
@@ -1663,12 +1662,13 @@ rackFleet:
   #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
   #       outlet: "0"           # cold boot with nobody at a console.
   #       credentialsSecret: "" # optional; omit for an unauthenticated plug
-  #     unclaimable: false      # takes a box out of the pool (bench work, RMA)
-  #                             # without deleting its inventory record
+  #     parked: false           # keeps the box declared with no Machine (bench
+  #                             # work, an RMA, a box that is off); parking a
+  #                             # host deletes its Node undrained
   hosts: []
 
-  # Workload shape, cloned onto every Machine. Each field falls back to the
-  # operator's global default when unset.
+  # Each host's node sizing. Each field falls back to the operator's global
+  # default when unset.
   machine:
     hostCPU: null            # cores advertised on the Node
     hostMemoryMB: null       # RAM advertised, minus the ~2 GB
@@ -1709,6 +1709,100 @@ rackFleet:
     fields:
       username: username
       password: password
+
+# Rack-owned x86 Linux machines (the BER1 edge, services and storage nodes).
+# `hosts` is inventory, one RackLinuxHost each; each role present among them
+# gets a MachineDeployment claiming from `<pool>-<role>`, with that role's node
+# labels and taints from `roles`. A host joins the tailnet from its install
+# stick (mise run rack:write-install-usb) and the operator joins it to the
+# cluster from there.
+rackLinuxFleet:
+  enabled: false
+  name: ""             # default: <release>-rack-linux
+  site: ""             # default site; composes the providerID
+  sshUser: tuist
+  # The tags a host's tailnet device carries, unless the host sets its own.
+  tailnetTags: []
+
+  # The rack's fleet key item (`private-key`, `public-key`).
+  sshExternalSecret:
+    enabled: false
+    item: ""
+
+  # A Tailscale OAuth client (`client-id`, `client-secret`) with the Auth Keys
+  # and Devices Core scopes, restricted to the hosts' tailnet tags.
+  tailscale:
+    externalSecret:
+      enabled: false
+      item: ""
+
+  #   edge:
+  #     tailnetTags: [tag:tuist-rack-edge]   # its hosts' tags, unless a host sets its own
+  #     nodeLabels:
+  #       tuist.dev/rack-edge: ber1
+  #     nodeTaints:
+  #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+  roles: {}
+
+  # One entry per box, by the SMBIOS UUID its install stick announced
+  # (`kubectl get rlc`). The rest is optional:
+  #   - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
+  #     hostname: ber1-edge-a    # OS, tailnet and Node name; changing it rejoins
+  #     role: edge               # edge | services | storage
+  #     site: ber1               # default: rackLinuxFleet.site
+  #     tailnetTags: [tag:tuist-rack-edge]   # default: its role's, else rackLinuxFleet.tailnetTags
+  #     bootMAC: 38:05:25:38:b5:b5   # default: the management port it announced
+  #     rack: r1
+  #     positionU: 10
+  #     online: true             # false powers it off through AMT
+  #     reinstallGeneration: 1   # raise it to reinstall the host
+  #     amt:
+  #       activate: false        # default: amt.products decides
+  #       address: 192.168.50.21/24   # default: one from amt.addressRange
+  #       gateway: 192.168.50.1  # default: amt.gateway
+  hosts: []
+
+  # Intel AMT. The operator activates, in admin control mode, the AMT of each
+  # host whose hardware model is in `products` (its SMBIOS vendor and product
+  # name, as `kubectl get rlc -o wide` shows it) unless the host sets
+  # amt.activate, with the provisioning certificate (`pfx`, a base64 PKCS#12
+  # carrying the chain to its root, and `pfx-password`), and keeps the admin
+  # password it sets in the Secret `<host UUID>-amt`. The certificate's domain
+  # must match the DHCP domain the site's edge hands out
+  # (management.edge.domain). Activated AMT gets a static address from
+  # `addressRange` unless the host sets amt.address.
+  amt:
+    provisioningExternalSecret:
+      enabled: false
+      item: ""
+    products: []
+    addressRange: ""   # a CIDR on the management segment, outside its DHCP range
+    gateway: ""        # the segment's gateway with its prefix length, e.g. 192.168.50.1/24
+
+  # People's SSH keys every netbooted install authorizes beside the fleet key.
+  authorizedKeys: []
+
+  # The rack's boot server (cmd/rack-boot, from the operator's image), on each
+  # edge node of the site. The operator publishes an install for each host that
+  # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
+  # the host installs itself when it netboots or boots its stick. The site
+  # definition's management.edge.netboot points the edge node's DHCP here.
+  boot:
+    enabled: false
+    site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
+    # The site's provisioning address (management.edge.provisioning), which the
+    # rack-edge pod puts on the edge node's switch port.
+    address: ""
+    httpPort: 8480
+    iso:
+      url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso
+      sha256: 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 512Mi
 
 macosFleet:
   enabled: false
@@ -1993,6 +2087,12 @@ macosFleet:
     # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
     # actual value.
     magicDNSSuffix: ""
+    # Tags for a proxy the Tailscale operator runs for one Service
+    # outside the ProxyGroup (a rack Linux host's kubelet proxy): the
+    # cluster's own `tag:tuist-k8s-<env>`, the only tag the
+    # operator's credential mints. Required when enabled; per-env
+    # overlays set it.
+    proxyTags: ""
   # Runner-cache carve-out in the Mac minis' VM egress firewall
   # (infra/macos-host-bootstrap installVMEgressFirewall). By default
   # Tart VMs are blocked from all RFC1918 destinations; these knobs
@@ -2448,6 +2548,19 @@ runnersFleet:
 #      the operator-provisioned host count can accommodate; Pending
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
+  # Opt-in; hostPath MUST be a dedicated reflink-capable filesystem separate from kubelet.
+  cacheVolumes:
+    enabled: false
+    hostPath: /var/lib/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40 # Includes room for a private image and its publication archive.
+    volumeGB: 20
+    provisioning:
+      enabled: false
+      sizeGB: 200
+    image:
+      repository: ghcr.io/tuist/tuist-runner-cache-volumes
+      tag: "" # Defaults to the matching runnersController.image.tag release.
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and
@@ -3322,9 +3435,12 @@ clickhouse:
         cpu: "2"
         memory: 8Gi
       limits:
-        # Well under the node's allocatable: ClickHouse sizes its own caches
-        # and query budgets from the cgroup limit, and the rest of the box is
-        # more useful as page cache than as headroom it will try to fill.
+        # A conservative default for a node whose size the chart does not
+        # know. ClickHouse sizes its caches and its server-wide memory ceiling
+        # (90% of this) from the cgroup limit. On cgroup v2 the page cache its
+        # reads fill is charged to the same cgroup, so memory left above this
+        # limit does not become cache for ClickHouse; on a node dedicated to it,
+        # raise this toward the node's allocatable.
         memory: 32Gi
     # Reachability for writers that are not on the pod network. The macOS
     # fleet's xcresult-processor runs in a Tart VM with a tailnet address, not
@@ -3530,13 +3646,15 @@ objectStorage:
         field: secret_access_key
   embedded:
     provider: minio
+    # The upstream Quay images are no longer public. Pin the community build
+    # (including its bundled mc client) to the multi-architecture image digest.
     image:
-      repository: quay.io/minio/minio
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     mcImage:
-      repository: quay.io/minio/mc
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     rootUser: minio
     rootPassword: minio1234

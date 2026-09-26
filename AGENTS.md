@@ -30,6 +30,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
 - `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `infra/egress-tree-agent/` - Go DaemonSet enforcing kura per-tenant egress floors/ceilings and the node box cap via a shared per-node HTB tree (tcx BPF veth trampoline that keeps Cilium's datapath applied to shaped traffic). Consumes the `tuist.dev/egress-class` pod annotation rendered by the kura-controller. See `infra/egress-tree-agent/AGENTS.md`.
+- `infra/rack-nodes/` - Install sticks for the BER1 rack's x86 Linux machines: unattended Ubuntu that joins the tailnet on first boot, after which the CAPI provider's `RackLinuxMachine` joins it to the cluster. See `infra/rack-nodes/AGENTS.md`.
 - `infra/rack-switch-controller/` - Go controller that adopts `RackSwitch` objects marked `managedBy: controller` into the Omada SDN controller and writes their configuration through its Open API, one switch at a time in the site's apply order. Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
@@ -38,6 +39,10 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/cnpg/` - CloudNativePG bootstrap SQL for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`. See `infra/cnpg/README.md`.
 - `tuist-ops/` - Internal ops Phoenix app: Slack-driven JIT elevation bot (`/webhooks/slack/*`) plus the impersonation policy endpoint (`/api/v1/policy`) called by the kubectl gateway. Single-replica deploy in the production cluster, decoupled from `server/`. See `tuist-ops/AGENTS.md`.
 - `kube-impersonator/` - Tiny Go sidecar deployed alongside Pomerium in each env's `pomerium` namespace. Reads `X-Pomerium-Claim-Email` per kubectl request, calls `tuist-ops/api/v1/policy` over the tailnet to resolve the right `Impersonate-User` + `Impersonate-Group(s)`, attaches the pod SA bearer, reverse-proxies to the apiserver. Fails closed if the policy call fails. See `kube-impersonator/AGENTS.md`.
+
+- `.github/actions/cache-volume/` - Source and release package for the standalone cache volume action; see `.github/actions/cache-volume/AGENTS.md`.
+
+- `ci/cache-volume/` - Buildkite plugin and GitLab cache-volume template; see `ci/cache-volume/AGENTS.md`.
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
@@ -298,6 +303,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
 - Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Hosted Kura follows `main` too: canary and production pin the newest `kura@X.Y.0-canary.N` in the deployed commit, which the cascade publishes by calling `kura-release.yml` when `kura/` changed. Fresh staging deploys still build the Kura runtime from the deployed commit. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
 - Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
 

@@ -157,6 +157,16 @@ defmodule Atlas.MailboxTest do
       assert {[%{subject: "Contract renewal"}], _metadata} = Mailbox.list_outbox(query: "renewal")
     end
 
+    test "lists the CC addresses of a direct email and finds it by one" do
+      delivery = insert_delivery!(%{cc_emails: ["cto@acme.example", "ops@acme.example"]})
+      insert_delivery!()
+
+      assert {[entry], %{total_count: 1}} = Mailbox.list_outbox(query: "ops@acme")
+      assert entry.id == delivery.id
+      assert entry.to_emails == [delivery.recipient_email]
+      assert entry.cc_emails == ["cto@acme.example", "ops@acme.example"]
+    end
+
     test "names the account a direct email was sent for" do
       account = insert_account!()
       insert_delivery!(%{metadata: %{"account_id" => account.id, "body_markdown" => "Hello."}})
@@ -178,6 +188,12 @@ defmodule Atlas.MailboxTest do
                Mailbox.get_sent_email(delivery.id)
 
       assert id == delivery.id
+    end
+
+    test "loads the CC addresses of a direct email" do
+      delivery = insert_delivery!(%{cc_emails: ["cto@acme.example"]})
+
+      assert %{cc_emails: ["cto@acme.example"]} = Mailbox.get_sent_email(delivery.id)
     end
 
     test "loads a broadcast delivery with the broadcast body and audience" do

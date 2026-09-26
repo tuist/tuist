@@ -86,8 +86,16 @@
 //                            Omada controller on the tailnet,
 //                            translated to its own address
 //                            (infra/helm/rack-edge).
-//                            Joined by an admin opening the login
-//                            URL, not by a key: one box, once.
+//                            Joins from its install stick with a
+//                            single-use key minted from the
+//                            TAILSCALE_RACK_NODES OAuth client,
+//                            whose tags must own this tag.
+//   tag:tuist-rack-node      A rack's other Linux nodes (services,
+//                            storage). They join from a netboot
+//                            install with a single-use key the
+//                            operator mints from the same OAuth
+//                            client, whose tag:tuist-rack-edge
+//                            owns this tag.
 
 {
 	// Human access groups for the Kubernetes API server proxy.
@@ -126,6 +134,7 @@
 		"tag:tuist-macmini-canary":    ["autogroup:admin"],
 		"tag:tuist-macmini-production":["autogroup:admin"],
 		"tag:tuist-rack-edge":         ["autogroup:admin"],
+		"tag:tuist-rack-node":         ["autogroup:admin", "tag:tuist-rack-edge"],
 	},
 
 	"grants": [
@@ -297,15 +306,15 @@
 			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
 		},
 
-		// Staging cluster → the BER1 rack's host LAN, on SSH only.
+		// Staging cluster → the BER1 rack's Mac minis, on SSH only.
 		//
 		// This is the FIRST-DIAL path for rack-owned Mac minis
 		// (RackAppleSiliconMachine). A rented mini has a public IP the
 		// operator can reach before anything is installed on it; a mini in a
 		// rack we own does not, and it is not on the tailnet yet either: 
 		// bootstrap is what puts it there. So the operator reaches it at its
-		// LAN address, through a subnet router in the rack that advertises
-		// that prefix.
+		// address on the rack's machines segment, which both of the rack's
+		// edges advertise (infra/helm/rack-edge).
 		//
 		// Routing it separately from the host's OWN tailnet identity is
 		// deliberate, not incidental. Bootstrap stops and replaces tailscaled
@@ -321,23 +330,21 @@
 		// per-machine egress Service once the host has joined the tailnet, the
 		// same as for a rented one.
 		//
-		// A /32 PER HOST, never the rack's whole prefix, and that is load-bearing
-		// while the catch-all grant at the top of this list still exists. A
-		// catch-all of `*->*` subsumes the narrowing below, so what an advertised
-		// route actually exposes today is every address in it, on every port, to
-		// every device on the tailnet: three clusters' nodes, the rented Mac mini
-		// fleet, ops laptops, and every Tart runner VM that holds a tailnet
-		// identity. For the BER1 prototype the router is a machine on a HOME
-		// network, so a /24 there would hand CI runner VMs the router admin page
-		// and every personal device in the house. A /32 bounds that to the one
-		// lab box we are about to give cluster credentials to anyway.
+		// A /32 PER HOST, never the machines segment's whole prefix, and that is
+		// load-bearing while the catch-all grant at the top of this list still
+		// exists. A catch-all of `*->*` subsumes the narrowing below, so what an
+		// advertised route actually exposes today is every address in it, on
+		// every port, to every device on the tailnet: three clusters' nodes, the
+		// rented Mac mini fleet, ops laptops, and every Tart runner VM that holds
+		// a tailnet identity. The edges advertise one /32 per mini for the same
+		// reason, so the segment's other addresses, the edges' own among them,
+		// are not routed at all.
 		//
-		// The cost is that the address is now load-bearing in two places: this
-		// grant and the RackHost's `spec.address`. Give the host a DHCP
-		// reservation; a lease change needs both updated and the route
-		// re-advertised.
+		// The cost is that a mini's address is load-bearing here as well as in
+		// its RackHost's `spec.address`, from which the edges render its DHCP
+		// reservation and its route.
 		//
-		// Widen to the rack's real prefix only once the catch-all above is gone
+		// Widen to the segment's prefix only once the catch-all above is gone
 		// and this file is the thing that actually decides reachability. That
 		// removal is a PREREQUISITE for the BER1 rack, not a follow-up: a rack
 		// advertised as one prefix under the catch-all gives every device on the
@@ -347,16 +354,27 @@
 		// (Talos node access, ops laptops) rather than rewriting them.
 		{
 			"src": ["tag:tuist-k8s-staging"],
-			"dst": ["192.168.0.41/32"],
+			"dst": ["10.10.0.101/32"],
 			"ip":  ["tcp:22"],
+		},
+
+		// Staging cluster → the BER1 rack's Linux nodes. SSH: the operator
+		// joins each one over its own tailnet address and keeps it converged
+		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
+		// API server reaches each node's kubelet (logs, exec, port-forward)
+		// through the node's own kubelet proxy Pod, which the operator runs.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
+			"ip":  ["tcp:22", "tcp:10250"],
 		},
 
 		// The BER1 switches → the Omada controller in the staging cluster, on
 		// its device ports only. The switches are not on the tailnet: their
 		// traffic reaches it through the rack's edge node, translated to the
 		// edge node's own address, so the source here is the edge node's tag and
-		// no rack prefix is advertised or routed. The destination is the
-		// staging operator's tag, which the controller's exposed Service
+		// the management prefix is not advertised or routed. The destination is
+		// the staging operator's tag, which the controller's exposed Service
 		// carries. 29811-29817 are the device management, adoption, upgrade
 		// and monitoring channels; 8044 firmware upgrades; 29810 and 19810
 		// discovery and management over UDP.
@@ -368,8 +386,8 @@
 
 		// The BER1 edge node → the staging Alloy receiver's loki.source.api.
 		// The node's pod logs (alloy-rack-edge in infra/helm/k8s-monitoring)
-		// have no other way into Loki: the API server cannot reach the node's
-		// kubelet, and the node has no route to cluster Services.
+		// have no other way into Loki: the node has no route to cluster
+		// Services.
 		{
 			"src": ["tag:tuist-rack-edge"],
 			"dst": ["tag:tuist-k8s-staging"],
@@ -495,19 +513,19 @@
 	// break the route on each rollout). Scoped to the staging
 	// cluster tag — the 100.64.0.0/10 advertisement predates this
 	// file's autoApprovers section and stays manually approved.
+	//
+	// The BER1 edges' routes are auto-approved too, and only inside the
+	// rack's machines segment. They advertise one /32 per Mac mini,
+	// rendered from the rack's inventory (infra/rack-switch-fleet), so
+	// racking a mini changes their routes and hand approval would be a step
+	// per mini per edge. Scoped to the segment, the tag can put nothing else
+	// into the tailnet's routing table.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
+			"10.10.0.0/24":  ["tag:tuist-rack-edge"],
 		},
 	},
-
-	// The BER1 rack's host LAN is NOT auto-approved. Unlike the Connector's
-	// Service CIDR above, which a Pod re-advertises on every rollout so manual
-	// approval would break the route each time, the rack's
-	// subnet router is a long-lived box that advertises once. Auto-approval
-	// would buy nothing there and would mean any device holding the approver
-	// tag could put a private prefix into the tailnet's routing table by
-	// asserting it. Approve the rack router's route once, by hand.
 
 	// Tailscale SSH (distinct from "grants"). The same-env
 	// k8s→macmini accept grants let the cluster-side subnet-router
@@ -605,6 +623,15 @@
 	// accept the intended traffic. Add cross-env deny assertions
 	// when the catch-all is removed.
 	"tests": [
+		{
+			"src": "tag:tuist-k8s-staging",
+			"accept": [
+				"tag:tuist-rack-edge:22",
+				"tag:tuist-rack-node:22",
+				"tag:tuist-rack-edge:10250",
+				"tag:tuist-rack-node:10250",
+			],
+		},
 		{
 			"src": "tag:tuist-k8s-staging",
 			"accept": [

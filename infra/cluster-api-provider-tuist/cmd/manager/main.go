@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -109,6 +111,7 @@ func main() {
 		egressNamespace      string
 		egressProxyGroup     string
 		egressMagicDNSSuffix string
+		egressProxyTags      string
 
 		defaultAdoptPoolPrefix       string
 		orphanReclaimClaimNamePrefix string
@@ -279,11 +282,60 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	var rackLinuxTailscaleSecretName string
+	flag.StringVar(&rackLinuxTailscaleSecretName, "rack-linux-tailscale-secret-name", "",
+		"Secret in the operator namespace holding the Tailscale OAuth client (client-id, client-secret) "+
+			"the RackLinuxHost controller finds hosts on the tailnet with. Empty leaves rack Linux hosts unreachable.")
+	var rackLinuxFleetName, rackLinuxInstallServerURL string
+	var rackLinuxAuthorizedKeys []string
+	flag.StringVar(&rackLinuxFleetName, "rack-linux-fleet-name", "",
+		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
+	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
+		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxAMTProvisioningSecretName string
+	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
+		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
+			"activates the AMT of hosts that ask for it with. Empty, or no --rack-linux-fleet-name, activates none.")
+	var rackLinuxAMTProducts []string
+	flag.Func("rack-linux-amt-product",
+		"A hardware model, as its SMBIOS vendor and product name, whose AMT the RackLinuxHost controller activates unless a host "+
+			"sets spec.amt.activate. Repeatable.",
+		func(v string) error {
+			rackLinuxAMTProducts = append(rackLinuxAMTProducts, v)
+			return nil
+		})
+	var rackLinuxAMTAddressRange, rackLinuxAMTGateway string
+	flag.StringVar(&rackLinuxAMTAddressRange, "rack-linux-amt-address-range", "",
+		"The CIDR the RackLinuxHost controller gives activated AMT static addresses from, for hosts without spec.amt.address. "+
+			"Empty leaves such hosts' AMT on DHCP.")
+	flag.StringVar(&rackLinuxAMTGateway, "rack-linux-amt-gateway", "",
+		"The gateway of the segment AMT's static addresses are on, for hosts without spec.amt.gateway.")
+	var rackLinuxClusterName, rackLinuxBootstrapSecretName string
+	flag.StringVar(&rackLinuxClusterName, "rack-linux-cluster-name", "",
+		"The CAPI Cluster the RackLinuxHost controller makes each rack Linux host a Machine of. Empty makes none.")
+	flag.StringVar(&rackLinuxBootstrapSecretName, "rack-linux-bootstrap-secret-name", "",
+		"The Secret each rack Linux Machine names as its bootstrap data; the host joins itself, so it only has to exist.")
+	var rackNodeBinaryPath string
+	flag.StringVar(&rackNodeBinaryPath, "rack-node-binary", "/opt/rack-node/rack-node-linux-amd64",
+		"The rack-node binary (linux/amd64) the operator runs on a rack Linux host over SSH to join it.")
+	flag.Func("rack-linux-authorized-key",
+		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
+		func(v string) error {
+			rackLinuxAuthorizedKeys = append(rackLinuxAuthorizedKeys, v)
+			return nil
+		})
 	var rackHostQuarantineRetryAfter time.Duration
 	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
-		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
+		"How long a RackHost's bootstrap is held off after bootstrap exhaustion. "+
 			"0 uses the controller default (30m); a negative value makes a quarantine permanent, "+
 			"which strands the host unless something can write rackhosts/status.")
+	var rackHostFleetName, rackHostClusterName, rackHostBootstrapSecretName string
+	flag.StringVar(&rackHostFleetName, "rackhost-fleet-name", "",
+		"The rack Mac fleet each RackHost's machine joins: its <fleet>-ssh Secret, the prefix of its Machines' names and their tuist.dev/fleet label.")
+	flag.StringVar(&rackHostClusterName, "rackhost-cluster-name", "",
+		"The CAPI Cluster the RackHost controller makes each rack Mac host a Machine of. Empty, or no --rackhost-fleet-name, makes none.")
+	flag.StringVar(&rackHostBootstrapSecretName, "rackhost-bootstrap-secret-name", "",
+		"The Secret each rack Mac Machine names as its bootstrap data; the operator bootstraps the host, so it only has to exist.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -339,6 +391,13 @@ func main() {
 			"ProxyGroup into. The operator needs `services` get/list/watch/"+
 			"create/update/patch/delete here — granted via a namespaced Role "+
 			"+ RoleBinding rendered by the main tuist chart.")
+	flag.StringVar(&egressProxyTags, "tailscale-egress-proxy-tags",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_TAGS", ""),
+		"Comma-separated tags for a proxy the Tailscale operator runs for one "+
+			"Service outside the ProxyGroup, such as a rack Linux host's kubelet "+
+			"proxy: the cluster's own tag (`tag:tuist-k8s-<env>`), which the "+
+			"Tailscale operator's credential can mint. Empty leaves the "+
+			"operator's default, tag:k8s.")
 	flag.StringVar(&egressMagicDNSSuffix, "tailscale-egress-magicdns-suffix",
 		envOrDefault("CAPI_TAILSCALE_EGRESS_MAGICDNS_SUFFIX", ""),
 		"MagicDNS suffix of the tailnet the Mac minis register under "+
@@ -599,18 +658,23 @@ func main() {
 	}
 
 	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
-	// inventory of physical hosts, and the machine kind that claims from it.
-	//
-	// Both are registered unconditionally, unlike the provider-backed kinds
-	// that stay dormant until an env wires credentials. They need none: the
-	// pool is Kubernetes objects, and with no RackHost declared they simply
-	// have nothing to reconcile. Gating them on a flag would only add a way for
-	// an env to have inventory that nothing acts on.
+	// physical hosts, each of which keeps its own Machine, and the machine
+	// kind that bootstraps the host. Both are registered unconditionally: with
+	// no RackHost declared they have nothing to reconcile.
+	var rackHostMachines *macos.RackMachines
+	if rackHostFleetName != "" && rackHostClusterName != "" && rackHostBootstrapSecretName != "" {
+		rackHostMachines = &macos.RackMachines{
+			ClusterName:     rackHostClusterName,
+			BootstrapSecret: rackHostBootstrapSecretName,
+			FleetName:       rackHostFleetName,
+		}
+	}
 	powerRegistry := power.NewRegistry()
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		Recorder:             mgr.GetEventRecorderFor("rackhost-controller"),
+		Machines:             rackHostMachines,
 		Power:                powerRegistry,
 		SecretsNamespace:     secretsNamespace,
 		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
@@ -643,6 +707,72 @@ func main() {
 		SecretsNamespace:              secretsNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
+		os.Exit(1)
+	}
+
+	var rackTailnet linux.TailnetAPI
+	if rackLinuxTailscaleSecretName != "" {
+		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	}
+	var rackInstall *linux.RackInstall
+	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+	}
+	var rackAMT *linux.RackAMT
+	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
+		rackAMT = &linux.RackAMT{
+			FleetName:          rackLinuxFleetName,
+			ProvisioningSecret: rackLinuxAMTProvisioningSecretName,
+			Products:           rackLinuxAMTProducts,
+			AddressRange:       rackLinuxAMTAddressRange,
+			Gateway:            rackLinuxAMTGateway,
+		}
+	}
+	var rackMachines *linux.RackMachines
+	if rackLinuxClusterName != "" && rackLinuxBootstrapSecretName != "" {
+		rackMachines = &linux.RackMachines{ClusterName: rackLinuxClusterName, BootstrapSecret: rackLinuxBootstrapSecretName}
+	}
+	rackNodeBinary := readRackNodeBinary(rackNodeBinaryPath, rackLinuxFleetName)
+	if err := (&linux.RackLinuxHostReconciler{
+		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
+		Scheme:             mgr.GetScheme(),
+		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
+		Tailnet:            rackTailnet,
+		Install:            rackInstall,
+		Machines:           rackMachines,
+		AMT:                rackAMT,
+		CredentialsManager: credsManager,
+		EgressNamespace:    egressNamespace,
+		EgressProxyGroup:   egressProxyGroup,
+		NodeBinary:         rackNodeBinary,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxHostReconciler")
+		os.Exit(1)
+	}
+	if rackInstall != nil {
+		if err := mgr.Add(&linux.RackLinuxCandidates{Client: mgr.GetClient()}); err != nil {
+			setupLog.Error(err, "setup RackLinuxCandidates")
+			os.Exit(1)
+		}
+	}
+
+	if err := (&linux.RackLinuxMachineReconciler{
+		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("racklinuxmachine-controller"),
+		CredentialsManager:  credsManager,
+		FleetName:           rackLinuxFleetName,
+		APIServerURL:        apiServerURL,
+		KubernetesMinor:     "v1.34",
+		ControlPlaneVersion: controlPlaneVersion(restConfig),
+		EgressNamespace:     egressNamespace,
+		EgressProxyGroup:    egressProxyGroup,
+		EgressProxyTags:     egressProxyTags,
+		NodeBinary:          rackNodeBinary,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxMachineReconciler")
 		os.Exit(1)
 	}
 
@@ -927,4 +1057,46 @@ func discoverAPIServerURL(restConfig *rest.Config) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("cluster-info kubeconfig has no cluster.server entry")
+}
+
+// controlPlaneVersion reads the API server's gitVersion, at most once a
+// minute.
+func controlPlaneVersion(cfg *rest.Config) func(context.Context) (string, error) {
+	var (
+		mu      sync.Mutex
+		version string
+		readAt  time.Time
+	)
+	return func(context.Context) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if version != "" && time.Since(readAt) < time.Minute {
+			return version, nil
+		}
+		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+		if err != nil {
+			return "", err
+		}
+		info, err := dc.ServerVersion()
+		if err != nil {
+			return "", err
+		}
+		version, readAt = info.GitVersion, time.Now()
+		return version, nil
+	}
+}
+
+// readRackNodeBinary reads the rack-node binary a rack Linux fleet joins its
+// hosts with. Without a fleet, or without the binary, it is nil, and a join
+// reports that it has none.
+func readRackNodeBinary(path, fleet string) []byte {
+	if fleet == "" || path == "" {
+		return nil
+	}
+	binary, err := os.ReadFile(path)
+	if err != nil {
+		setupLog.Error(err, "read the rack-node binary; rack Linux hosts cannot be joined", "path", path)
+		return nil
+	}
+	return binary
 }

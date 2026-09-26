@@ -20,4 +20,6 @@ defmodule Tuist.ShadowClickHouseRepo do
     otp_app: :tuist,
     adapter: Ecto.Adapters.ClickHouse,
     read_only: true
+
+  use Tuist.ClickHouse.ArrayInParams
 end

@@ -362,6 +362,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Fast-forwards this host's cache masters to their volumes' HEADs, one
+	// download at a time, and prefetches the masters the server says this
+	// host's fleet needs. A host whose guests already take its memory (an M2-L
+	// promises 14 of its 16 GB) downloads only while no job runs.
+	var converge *podagent.ConvergeWorker
+	if volumes.Enabled() {
+		physicalMemory, err := podagent.PhysicalMemoryBytes()
+		if err != nil {
+			setupLog.Error(err, "read physical memory; converging cache masters only while no job runs")
+		}
+		alongsideJobs := err == nil && podagent.ConvergeAlongsideJobs(physicalMemory, hostMemoryMB)
+		converge = podagent.NewConvergeWorker(volumes, alongsideJobs, &podagent.ServerPrefetch{Client: typedClient})
+		setupLog.Info("cache-volume convergence", "alongside-jobs", alongsideJobs,
+			"physical-memory-bytes", physicalMemory, "host-memory-mb", hostMemoryMB)
+		if err := mgr.Add(converge); err != nil {
+			setupLog.Error(err, "add cache-volume converge worker")
+			os.Exit(1)
+		}
+	}
+
 	if err := (&podagent.Reconciler{
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
@@ -382,6 +402,7 @@ func main() {
 		TokenMinter: &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
 		GC:          gcCollector,
 		Volumes:     volumes,
+		Converge:    converge,
 		Recorder:    mgr.GetEventRecorderFor("tart-kubelet"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")

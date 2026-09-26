@@ -23,8 +23,13 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 `clientHostAliases` contains historical client names still within their 90-day window alongside the current public/private host. The server removes expired names; reconcile must remove their DNS, HTTP/gRPC and certificate entries, including pruning stale DNS aliases when no healthy gateway target is known. Render the same host set into DNS, HTTP/gRPC ingress and certificate names; a shared wildcard is eligible only if it covers every name. This field never enters the StatefulSet template, peer TLS identity or volume configuration. Preserve private CIDR restrictions and operator-set `OnDelete`. See [account renames](../../kura/docs/account-renames.md).
 
 For an `OnDelete` deployment, Kubernetes may retain the original `currentRevision` after every pod has been manually replaced. Rollout observation must accept an observed generation with a nonempty update revision and the complete replica set updated and Ready, while preserving the pause. Partial replacements, extra old replicas and stale observations must remain pending.
+Rollout observation reads the StatefulSet from the informer cache in the same reconcile that wrote its template, so it can still see the previous object, complete for the previous image. The desired image is observed only when the StatefulSet's `kura` container template carries it, under every update strategy.
 
 ## Deployment Topology
+
+- Proposed public EU-West provider migration: [Dedibox to OVH plan](eu-west-ovh-migration.md).
+  It retains the current pool selector and StorageClass during evacuation;
+  vRack traffic enablement and pool renaming are separate changes.
 
 - **Cache traffic (HTTPS)**: each `KuraInstance` with `spec.publicHost` set gets an nginx Ingress on `spec.ingressClassName` (managed regions default to dedicated shared regional Kura ingress controllers). ingress-nginx terminates TLS and streams uploads/downloads to the instance's internal ClusterIP Service on the runtime's plain HTTP port (`4000`). The backend Service is not a Hetzner `LoadBalancer`.
 - **One wildcard certificate for the whole fleet**: `--public-tls-secret-name` names a shared TLS Secret in the watched namespace, and every public Ingress terminates on it. The managed clusters point it at `kura-public-wildcard-tls`, a `*.kura.tuist.dev` Certificate the controller itself maintains from `--public-tls-dns-names` (`controllers/public_wildcard_certificate.go`, configured by `kuraController.publicWildcardCertificate`). Onboarding an account then issues nothing: its endpoint serves the moment the Ingress exists, one renewal every 60 days covers the fleet, and the ACME "certificates per registered domain per 168h" limit no longer tracks how fast the fleet grows. The switch is gated on that Secret holding a leaf that passes `VerifyHostname` for the instance's public host, so an instance keeps its own `<name>-public-tls` Certificate against `--grpc-cluster-issuer` until the wildcard actually covers it, and the flag and the Certificate can be deployed in either order. That gate is also what keeps a host the wildcard cannot span on its own certificate, since an ACME wildcard matches exactly one label. The per-instance `Certificate` is deleted only on a pass that reads the live Ingress already referencing the shared Secret, which stops the renewal that instance would otherwise spend every 60 days. Its issued Secret stays: nothing references it, ingress-nginx watches Ingresses and Secrets independently so deleting it would race that controller's own view of the cutover, and it is what makes the cutover reversible, since recreating the `Certificate` over a still-valid Secret adopts it instead of ordering again. Issuance is gated on the wildcard rather than on that read-back, or a freshly created Ingress that has not reached the cache yet would order a certificate for a host the wildcard already covers. The Certificate is a controller-maintained singleton with no owner reference, and it is deliberately not a chart resource. `server-deployment.yml` passes `--rollback-on-failure`, which defaults Helm 4's wait strategy to `watcher`: every resource in the release counts toward readiness, custom resources included, so a Certificate in the chart makes any first issuance slower than the release timeout fail the deploy and roll it back. That is not hypothetical, it took the 2026-09-09 cascade down. Owning it in the controller also keeps it off any one `KuraInstance`, whose deletion would otherwise garbage-collect the fleet's certificate. It is created and repaired but never deleted, since a deploy that momentarily renders no configuration must not drop the certificate every tenant terminates on.
@@ -72,6 +77,8 @@ For an `OnDelete` deployment, Kubernetes may retain the original `currentRevisio
 
 ## Development
 
+- CPU autosizing observes an instance only when every expected replica has a fresh Ready runtime sample with its initial backfill complete and none of its nodes is marked for evacuation. Exclude the serving donor as well as the joining replica; otherwise a long migration enters the seven-day demand history. Preserve the reservation, historical peaks and scheduling cap while clearing the short sampling window. Routine replication after the initial cycle still counts. Missing runtime/node evidence is not zero usage. Scheduling-cap recovery continues independently; an operator-owned OnDelete hold still requires an operator to recreate a CPU-rejected unscheduled pod after verifying the capped template.
+
 - Run tests with `go test ./...` from this directory.
 - Keep generated CRDs in `infra/helm/tuist/crds/` aligned with API changes.
 - Keep the controller independent from the Scaleway Apple Silicon CAPI provider. Kura endpoint lifecycle is a product workload concern, not a macOS node infrastructure concern.
@@ -86,3 +93,42 @@ Runner instances share the managed StatefulSet rollout, preferred co-location, d
 `controllers/client_gateway.go` observes endpoint availability independently of ring completeness. Shared routing and the endpoint observation run before storage maintenance can return early. `endpointLastCheckedAt`, `endpointReason`, and `endpointMessage` describe the observation; `lastReconciledAt` still describes full workload convergence. The server persists the controller observation time and uses one freshness window for activation and dispatch. Ready certificate conditions may omit observedGeneration, but explicit stale generations are rejected and the hostname must match. Gateway discovery is cached per ingress class for 30 seconds; DNS is cached per host for 60 seconds, with five-second negative caching and a two-second deadline. Keep [private-runner-rollouts.md](private-runner-rollouts.md) current. There is no runner-specific rollout policy or pod deletion engine.
 
 Runner sizing uses the existing account disk policy and plan memory/CPU profiles. Legacy unpinned claims adopt the account budget during enrollment, capped at 50Gi. After a smaller StatefulSet template is observed, unscheduled Pending pods with larger disk requests are recreated with resource-version preconditions; scheduled pods and PVCs remain, and operator OnDelete/partition pauses are respected. A missing StatefulSet and conflicted/already-gone pod deletions are benign races. Missing or duplicate Kura template containers fail closed without pod deletion; only successful deletes emit replacement logs. Keep the private runner extended memory-ceiling request disabled until its hosts advertise that resource. See the resource-sizing section in [private-runner-rollouts.md](private-runner-rollouts.md).
+
+## Stable cache DNS
+
+Stable HTTP/gRPC routes and per-instance certificate names include retained
+regional aliases as well as the stable hostname. Regional aliases share the
+regional TLS selection; stable TLS remains independent so pending issuance does
+not replace a working regional wildcard. Regional DNS continues to use only
+the canonical regional host and its aliases; stable DNS has its own writer.
+
+The stable chart tests render the actual canary and production overlays with
+distinct DNS owners and separate ESO credentials. Certificate readiness tests
+exercise the operator bootstrap script against pending, stale, and current
+certificates without contacting Kubernetes; an old Ready condition cannot pass
+the rollout check. Routine deployments do not run that check.
+
+The staging validation checklist and immutable links to one-off probe sources
+and completed evidence live in [`../cache-dns/README.md`](../cache-dns/README.md).
+
+`controllers/stable_endpoint.go` separates rendering from latency-record advertising. Managed host-network instances add `stableHost`, `stableAdvertise`, and `stableAWSRegion`; private instances cannot advertise. Probe the actual gateway using stable SNI before publishing, then require the exact provider record for readiness. Regional TLS keeps its working wildcard while stable TLS is pending. Host-network Ingresses use annotation-only external-dns sourcing, making DNSEndpoints authoritative.
+
+Persist identity before creating a DNS source. Rollback, rename and deletion all retain that identity in status, withdraw only its regional record, and wait the full drain after Route53 observes absence. Provider errors never count as absence. Do not remove the finalizer or disable provider credentials to unblock this barrier. Shared TCP box checks are controller-owned and garbage-collected under the same reconciliation lock only when both provider records and persisted intent release them. `../cache-dns/README.md` owns rollout and deferred staging validation.
+
+An identity with no persisted target never reached publication and clears without
+a provider read or drain. For published endpoints, withdrawal errors retain the
+host but must not stop ordinary workload repair; only deletion or a change that
+would drop public serving blocks the rest of reconciliation.
+
+Publish completed stable readiness observations. A steady reconciliation must not
+persist an intermediate `ready: false` before probing: the server can sample it
+and hand out regional names until its next observation. Initial identity and
+changed health-check claims still persist before advertising. Completed probe
+or provider failures clear readiness, with a separate bounded status-write
+context so an expired provider deadline does not prevent recording the failure.
+
+Health-check incarnations use a random caller-reference suffix: Route53 retains
+references after deletion and rejects reusing them for days. Adopt both legacy
+and suffixed checks by box identity, keep the same reference across ambiguous
+create retries and stale lists after success. Release the reference after
+confirmed collection, or rotate it after a definite AlreadyExists response.

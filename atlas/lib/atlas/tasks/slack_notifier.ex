@@ -7,6 +7,9 @@ defmodule Atlas.Tasks.SlackNotifier do
   alias Atlas.Tasks.Task
   alias Atlas.Users.User
 
+  @snooze_action_prefix "task_reminder_snooze:"
+  @snooze_options [tomorrow: "Tomorrow", end_of_week: "End of week", next_week: "Next week"]
+
   def send(%Task{} = task, kind, opts \\ []) when kind in [:reminder, :due_date] do
     with {:ok, slack_user_id} <- slack_user_id(task.assignee, opts) do
       poster = Keyword.get(opts, :poster, &API.post_message/5)
@@ -24,14 +27,44 @@ defmodule Atlas.Tasks.SlackNotifier do
         },
         %{
           "type" => "actions",
-          "elements" => [
-            %{"type" => "button", "text" => %{"type" => "plain_text", "text" => "View tasks"}, "url" => url}
-          ]
+          "elements" => action_elements(kind, task, url)
         }
       ]
 
       poster.(:company, slack_user_id, text, blocks, client_msg_id: notification_id)
     end
+  end
+
+  def snooze_action_id(option) when is_atom(option), do: @snooze_action_prefix <> Atom.to_string(option)
+
+  def parse_snooze_action_id(@snooze_action_prefix <> option) do
+    case option do
+      "tomorrow" -> {:ok, :tomorrow}
+      "end_of_week" -> {:ok, :end_of_week}
+      "next_week" -> {:ok, :next_week}
+      _other -> :error
+    end
+  end
+
+  def parse_snooze_action_id(_action_id), do: :error
+
+  defp action_elements(:reminder, %Task{id: task_id}, url) do
+    snooze_buttons =
+      Enum.map(@snooze_options, fn {option, label} ->
+        %{
+          "type" => "button",
+          "text" => %{"type" => "plain_text", "text" => label},
+          "action_id" => snooze_action_id(option),
+          "value" => task_id
+        }
+      end)
+
+    snooze_buttons ++
+      [%{"type" => "button", "text" => %{"type" => "plain_text", "text" => "View tasks"}, "url" => url}]
+  end
+
+  defp action_elements(:due_date, _task, url) do
+    [%{"type" => "button", "text" => %{"type" => "plain_text", "text" => "View tasks"}, "url" => url}]
   end
 
   defp notification_id(task, :reminder), do: "atlas-task-reminder-#{task.id}-#{task.reminder_version}"

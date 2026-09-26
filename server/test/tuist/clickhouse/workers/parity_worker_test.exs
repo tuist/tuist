@@ -64,6 +64,42 @@ defmodule Tuist.ClickHouse.Workers.ParityWorkerTest do
       assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
     end
 
+    test "measures how much of the dataset the window could not cover" do
+      # A table leaves the hourly check by growing past what a window can
+      # bound, and the tables that do are the largest ones. Without this the
+      # only trace is `compared` falling, which is indistinguishable from
+      # having fewer tables to compare.
+      stub(Tuist.Environment, :clickhouse_shadow_writes_enabled?, fn -> true end)
+
+      expect(Parity, :compare, fn _opts ->
+        {:ok,
+         %{
+           compared: 54,
+           matching: [],
+           differing: [],
+           skipped: ["build_files", "test_case_runs_by_commit", "test_case_runs_by_test_run"],
+           derived: %{},
+           schema: no_drift()
+         }}
+      end)
+
+      handler = "parity-measurements-#{System.unique_integer([:positive])}"
+      test = self()
+
+      :telemetry.attach(
+        handler,
+        [:tuist, :clickhouse, :parity],
+        fn _event, measurements, _metadata, _config -> send(test, {:parity, measurements}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+
+      assert :ok = ParityWorker.perform(%Oban.Job{args: %{}})
+
+      assert_received {:parity, %{compared: 54, skipped: 3}}
+    end
+
     test "reports a difference without failing the job" do
       # Returning an error would make Oban retry, and the retry compares a
       # window that has since moved, turning one real difference into several.

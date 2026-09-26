@@ -61,8 +61,8 @@ func forgetMachinePhase(name string) {
 // the moment the rack fleet exists.
 var rackMachinePhaseGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Name: "capt_rack_applesilicon_machine_phase",
-	Help: "Current lifecycle phase of each RackAppleSiliconMachine (rack-owned Mac minis) as a 1-valued series. Labels: machine, fleet, pool, phase (Pending|Adopting|Bootstrapping|Ready|Deleting|Failed), failure_reason (set on terminal Failed). Exactly one series per machine.",
-}, []string{"machine", "fleet", "pool", "phase", "failure_reason"})
+	Help: "Current lifecycle phase of each RackAppleSiliconMachine (rack-owned Mac minis) as a 1-valued series. Labels: machine, fleet, host, phase (Pending|Quarantined|Bootstrapping|Ready|Deleting|Failed), failure_reason (set on terminal Failed). Exactly one series per machine.",
+}, []string{"machine", "fleet", "host", "phase", "failure_reason"})
 
 func init() {
 	metrics.Registry.MustRegister(rackMachinePhaseGauge)
@@ -78,7 +78,7 @@ func recordRackMachinePhase(m *infrav1.RackAppleSiliconMachine) {
 	if m.Status.FailureReason != nil {
 		reason = *m.Status.FailureReason
 	}
-	rackMachinePhaseGauge.WithLabelValues(m.Name, m.Spec.FleetName, m.Spec.AdoptPool, phase, reason).Set(1)
+	rackMachinePhaseGauge.WithLabelValues(m.Name, m.Spec.FleetName, m.Spec.Host, phase, reason).Set(1)
 }
 
 func forgetRackMachinePhase(name string) {

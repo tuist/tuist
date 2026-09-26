@@ -234,6 +234,9 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.CacheVolumes,
+      Runners.CacheVolumes.Query,
+      Runners.CacheVolumes.Schemas,
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,
@@ -282,6 +285,7 @@ defmodule Tuist do
       Runners.RunnerSessions,
       Runners.PromExPlugin,
       Runners.Telemetry,
+      Runners.VolumePrefetch,
       Kubernetes.Client
     ]
 end

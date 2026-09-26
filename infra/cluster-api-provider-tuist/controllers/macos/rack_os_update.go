@@ -194,10 +194,6 @@ func (r *RackAppleSiliconMachineReconciler) reconcileOSUpdate(ctx context.Contex
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "Cancelled",
 			"the "+osUpdateAnnotationFor(st.Reinstall)+" annotation was removed before the host was changed", true)
 	}
-	if st.RackHost != "" && oc.host.Name != st.RackHost {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "HostReleased",
-			fmt.Sprintf("the Machine let go of %s, which the update started on, and now holds %s", st.RackHost, oc.host.Name), false)
-	}
 
 	switch st.Phase {
 	case OSUpdatePhasePreparing:
@@ -230,7 +226,6 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 		machine.Status.OSUpdate = &infrav1.OSUpdateStatus{
 			ID:             string(uuid.NewUUID()),
 			Reinstall:      reinstall,
-			RackHost:       oc.host.Name,
 			Phase:          OSUpdatePhasePreparing,
 			StartedAt:      &now,
 			PhaseStartedAt: &now,

@@ -680,6 +680,12 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
         get "/profiles", RunnersController, :index_profiles
+        get "/volumes", RunnerVolumesController, :list
+        get "/volumes/analytics", RunnerVolumesController, :analytics
+        get "/volumes/:volume_id", RunnerVolumesController, :show
+        get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
+        get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
       scope "/webhooks" do
@@ -946,8 +952,12 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
+    post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
+    post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
+    get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
@@ -1167,6 +1177,10 @@ defmodule TuistWeb.Router do
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
+    get "/sso/link", SSOLinkController, :show
+    post "/sso/link", SSOLinkController, :create
+    delete "/sso/link", SSOLinkController, :delete
+
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
@@ -1350,6 +1364,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/runners/profiles", RunnerProfilesLive
+      live "/runners/volumes", RunnerVolumesLive
+      live "/runners/volumes/:id", RunnerVolumesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive

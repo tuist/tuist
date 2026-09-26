@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -56,6 +57,48 @@ var cpuRequestBands = []int32{50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2000,
 // aggregated API.
 type PodMetricsClient interface {
 	PodCPUMilli(ctx context.Context, namespace string, selector map[string]string) (map[string]int64, error)
+}
+
+// A rebuild consumes CPU on both the joining replica and its serving donor.
+// Keep the existing reservation for the whole instance until every replica is
+// caught up. Ordinary replication after the initial cycle still counts.
+func (r *KuraInstanceReconciler) observeSteadyCPUUsage(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus) {
+	if r.MetricsClient == nil {
+		return
+	}
+	if !r.cpuObservationEligible(ctx, instance, pods, samples) {
+		if state := instance.Status.CPUAutosize; state != nil {
+			// Do not splice observations across a maintenance window, even when
+			// it starts and ends within one metrics-server sampling minute.
+			state.SamplesMilli = nil
+		}
+		return
+	}
+	r.observeCPUUsage(ctx, instance, pods)
+}
+
+func (r *KuraInstanceReconciler) cpuObservationEligible(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus) bool {
+	if len(pods) != int(replicas(instance)) {
+		return false
+	}
+	for i := range pods {
+		pod := &pods[i]
+		status, observed := samples[pod.Name]
+		if pod.DeletionTimestamp != nil || !podReady(pod) || !observed || !status.Ready || status.BackfillInitialCycle != backfillCycleComplete {
+			return false
+		}
+		// The marker precedes pod deletion. Exclude the source's CPU before
+		// the first replacement becomes visible, too. A failed lookup is
+		// missing evidence, never evidence of an idle or settled instance.
+		node := &corev1.Node{}
+		if pod.Spec.NodeName == "" || r.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node) != nil {
+			return false
+		}
+		if _, evacuating := node.Annotations[EvacuateNodeAnnotation]; evacuating {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *KuraInstanceReconciler) observeCPUUsage(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {

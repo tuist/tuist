@@ -34,6 +34,12 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerJobLogs,
     Tools.ListRunnerWorkflows,
     Tools.ListRunnerProfiles,
+    Tools.ListRunnerVolumes,
+    Tools.GetRunnerVolume,
+    Tools.ListRunnerVolumeJobs,
+    Tools.ListRunnerJobVolumes,
+    Tools.GetRunnerVolumeAnalytics,
+    Tools.ClearRunnerVolume,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -123,7 +129,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.31.2",
+      version: "1.32.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

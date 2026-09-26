@@ -401,6 +401,17 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-production-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
   privateGateway:
     enabled: true
   sharedSecrets:
@@ -542,6 +553,34 @@ clickhouse:
     # second replica, where the configuration a joining replica fetches from
     # has to reach the running one first.
     replicas: 2
+    # Most of the machine, because nothing else runs on it. Each AX102-4 has
+    # 32 threads and ~108 GiB allocatable, and the `clickhouse` pool's taint
+    # keeps everything off it but Cilium and node-exporter, which request
+    # 150m and 320Mi between them.
+    #
+    # The chart's default of a 32Gi limit leaves the rest to the page cache,
+    # and on these nodes that does not happen. They run cgroup v2, which
+    # charges the file pages ClickHouse reads to ClickHouse's own cgroup, so
+    # its page cache is capped by the same limit as its heap. At 32Gi the
+    # other ~76 GiB was serving nothing.
+    #
+    # 96Gi leaves ~12 GiB of allocatable as slack. The request matches the
+    # limit, so usage never exceeds it and the pod is last in line if the node
+    # is ever under memory pressure. CPU has no limit, as before: it already
+    # could use every core, and a limit would throttle a workload this bursty.
+    # The request only weights it against the daemonsets.
+    #
+    # Changing these restarts both replicas, one at a time. Never while a
+    # backfill is running: a replica restarting under a large copy has to
+    # catch up replication inside the postStart hook's 15-minute deadline, and
+    # missing it restart-loops the pod until `helm --wait` rolls the release
+    # back.
+    resources:
+      requests:
+        cpu: "16"
+        memory: 96Gi
+      limits:
+        memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
       # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
@@ -597,6 +636,50 @@ clickhouse:
       tags: tag:tuist-k8s-production
     backup:
       enabled: true
+    # Step 4 for production: mirror every ClickHouse write onto the in-cluster
+    # server as well as Cloud.
+    #
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers, and the backfill then copies
+    # what was written before a stated cutoff. The other order leaves the rows
+    # written between the copy finishing and the mirror starting on Cloud
+    # alone, with nothing later looking for them.
+    #
+    # Cloud stays the system of record. Nothing reads the in-cluster server
+    # yet, so a mirrored write that fails costs a metric rather than a
+    # request: inserts are handed to a bounded Task.Supervisor instead of
+    # being awaited, and mutations stay synchronous so an
+    # `ALTER TABLE ... DELETE` cannot overtake the inserts it is meant to
+    # erase. Production writes an order of magnitude more than canary did, so
+    # expect the bound to be the thing under test here.
+    #
+    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
+    # settles with no `dropped` once the pods have started. A pod's shadow
+    # pool is not ready for the first seconds of its life, which is what the
+    # retry covers, and retrying is safe because every destination table is
+    # `Replicated*` and deduplicates identical insert blocks by checksum. The
+    # same property makes the two replicas behind one Service safe: an insert
+    # lands on whichever answers and reaches the other through replication.
+    #
+    # Note when the rollout of this deploy finishes. That instant is the
+    # backfill's `cutoff`.
+    #
+    # Rollback: turn it off. Nothing has read from that server.
+    shadowWrites:
+      enabled: true
+    # Off, because the clone has run here: 82 tables, 31 views, 278 migration
+    # versions, 11 materialized-view inner tables skipped, nothing failed, in
+    # 26 seconds. Each step is a post-upgrade hook, so leaving one enabled
+    # re-runs it on every deploy. That was harmless for the clone, which
+    # creates what is missing and leaves the rest alone, and it is not
+    # harmless for what comes next.
+    #
+    # `cutoff` stays unset until the backfill, which is the next step and the
+    # one that reads it.
+    migration:
+      enabled: false
+      name: schema-clone
+      task: Tuist.Release.clone_clickhouse_schema
 
   poolSize: "15"
   bufferPoolSize: "15"
@@ -1035,6 +1118,24 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU West migration: keep the existing pool selector while OVH and Dedibox
+  # coexist. Hosts must be installed, verified and marked before adoption.
+  # All three installs are requested and adoption markers verified. Confirm
+  # installation before the production deploy arrives; evacuate separately.
+  eu-west:
+    enabled: true
+    replicas: 3
+    endpoint: ovh-us
+    nodePool: kura-dedibox
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-west
+      offer: "ADVANCE-1 | AMD EPYC 4244P"
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
   # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
   # metered provider where an unmetered one is available.
@@ -1203,6 +1304,10 @@ ovhFleets:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-production
   replicas: 2
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh
@@ -1717,6 +1822,16 @@ runnersController:
 # `/api/internal/runners/desired_replicas` rolling-P95 signal.
 runnersFleetLinux:
   enabled: true
+  # Converge existing and replacement hosts through the normal deployment.
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40
+    volumeGB: 20
+    provisioning:
+      enabled: true
+      sizeGB: 200
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with

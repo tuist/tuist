@@ -57,7 +57,7 @@ struct SetupCacheCommandServiceTests {
         // The real answers come from `xcode-select`, and the developer directory
         // lands in the agent's environment, which these tests pin exactly.
         given(xcodeController)
-            .systemDeveloperDirectory()
+            .developerDirectory()
             .willThrow(TestError("no Xcode"))
         given(xcodeController)
             .selectedVersion()
@@ -279,7 +279,7 @@ struct SetupCacheCommandServiceTests {
 
         xcodeController.reset()
         given(xcodeController)
-            .systemDeveloperDirectory()
+            .developerDirectory()
             .willThrow(TestError("no Xcode"))
         given(xcodeController)
             .selectedVersion()
@@ -778,6 +778,35 @@ struct SetupCacheCommandServiceTests {
                 "The remote cache is still being prepared.",
             ]
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setupCache_warnsWithTheServerMessageWhenTheAccountRefusesTheCaller() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let alertController = AlertController()
+        let message = "You are logged in as 'stranger', which is not a member of 'tuist', so you can't access its remote cache."
+        cacheURLStore.reset()
+        given(cacheURLStore)
+            .getCacheURL(for: .any, accountHandle: .value("tuist"))
+            .willThrow(CacheURLStoreError.forbidden(message))
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil)
+        }
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .any
+            )
+            .called(1)
+        #expect(alertController.warnings().map(\.message).map { $0.plain() } == [message])
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
@@ -1315,10 +1344,10 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
-    /// The proxy resolves the Xcode it loads its CAS plugin from once, when it
-    /// starts. Recording that Xcode makes switching the machine to another one a
-    /// changed configuration, and the plugin a launch input, so an Xcode updated
-    /// in place restarts the proxy too.
+    /// The proxy loads its CAS plugin from the Xcode it is handed through
+    /// `DEVELOPER_DIR`, once, when it starts. Handing it that Xcode makes switching
+    /// to another one a changed configuration, and the plugin a launch input, so an
+    /// Xcode updated in place restarts the proxy too.
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func setupCache_recordsTheXcodeTheProxyLoadsItsPluginFrom() async throws {
         // Given
@@ -1332,7 +1361,7 @@ struct SetupCacheCommandServiceTests {
         try await fileSystem.writeText("plugin", at: plugin)
         xcodeController.reset()
         given(xcodeController)
-            .systemDeveloperDirectory()
+            .developerDirectory()
             .willReturn(developerDirectory)
         given(xcodeController)
             .selectedVersion()
@@ -1347,7 +1376,7 @@ struct SetupCacheCommandServiceTests {
                 label: .any,
                 plistFileName: .any,
                 programArguments: .any,
-                environmentVariables: .matching { $0["TUIST_CAS_PROXY_DEVELOPER_DIR"] == developerDirectory.pathString },
+                environmentVariables: .matching { $0["DEVELOPER_DIR"] == developerDirectory.pathString },
                 launchInputs: .matching { $0.contains(plugin) }
             )
             .called(1)
@@ -1357,7 +1386,7 @@ struct SetupCacheCommandServiceTests {
                 plistFileName: .any,
                 programArguments: .any,
                 environmentVariables: .value([
-                    "TUIST_CAS_PROXY_DEVELOPER_DIR": developerDirectory.pathString,
+                    "DEVELOPER_DIR": developerDirectory.pathString,
                 ])
             )
             .called(1)
