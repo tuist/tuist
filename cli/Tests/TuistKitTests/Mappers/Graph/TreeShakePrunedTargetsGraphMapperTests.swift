@@ -1065,3 +1065,64 @@ struct TreeShakePrunedTargetsGraphMapperSchemeReparentingTests {
         #expect(gotSchemes.first?.testAction?.targets.map(\.target.name) == ["OtherFeatureTests"])
     }
 }
+
+struct TreeShakePrunedTargetsGraphMapperPackageTests {
+    private let subject = TreeShakePrunedTargetsGraphMapper()
+
+    @Test func map_keeps_the_packages_of_a_removed_project_when_a_kept_target_reaches_their_products() throws {
+        // Given
+        let featureProjectPath = try AbsolutePath(validating: "/Feature")
+        let supportProjectPath = try AbsolutePath(validating: "/Support")
+        let otherProjectPath = try AbsolutePath(validating: "/Other")
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let support = Target.test(
+            name: "Support",
+            product: .staticFramework,
+            metadata: .metadata(tags: ["tuist:prunable"])
+        )
+        let other = Target.test(name: "Other", product: .staticFramework, metadata: .metadata(tags: ["tuist:prunable"]))
+        let supportPackage = Package.local(path: try AbsolutePath(validating: "/LocalPackage"))
+        let supportProject = Project.test(
+            path: supportProjectPath,
+            targets: [support],
+            packages: [supportPackage],
+            schemes: [.test(
+                name: "Support",
+                buildAction: .test(targets: [.init(projectPath: supportProjectPath, name: "Support")])
+            )]
+        )
+        let otherProject = Project.test(
+            path: otherProjectPath,
+            targets: [other],
+            packages: [.remote(url: "https://github.com/tuist/other", requirement: .exact("1.0.0"))]
+        )
+        let supportXCFramework = GraphDependency.testXCFramework(path: "/cache/Support.xcframework", linking: .static)
+        let graph = Graph.test(
+            path: featureProjectPath,
+            workspace: Workspace.test(projects: [featureProjectPath, supportProjectPath, otherProjectPath]),
+            projects: [
+                featureProjectPath: Project.test(path: featureProjectPath, targets: [feature]),
+                supportProjectPath: supportProject,
+                otherProjectPath: otherProject,
+            ],
+            dependencies: [
+                .target(name: feature.name, path: featureProjectPath): [supportXCFramework],
+                supportXCFramework: [.packageProduct(path: supportProjectPath, product: "Analytics", type: .runtime)],
+                .target(name: other.name, path: otherProjectPath): [
+                    .packageProduct(path: otherProjectPath, product: "Other", type: .runtime),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let gotSupportProject = try #require(gotGraph.projects[supportProjectPath])
+        #expect(gotSupportProject.targets.isEmpty)
+        #expect(gotSupportProject.schemes.isEmpty)
+        #expect(gotSupportProject.packages == [supportPackage])
+        #expect(gotGraph.projects[otherProjectPath] == nil)
+        #expect(Set(gotGraph.workspace.projects) == [featureProjectPath, supportProjectPath])
+    }
+}

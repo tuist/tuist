@@ -47,7 +47,42 @@ jobs:
     container: ${{ matrix.container }}
     timeout-minutes: 15
     steps:
-      - uses: tuist/tuist/.github/actions/cache-volume@07f5e5ac8403a676bf1d7f2e35ee8f1c7c7a7a97
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare npm fixture
+        shell: bash
+        run: |
+          mkdir .npm-smoke
+          cd .npm-smoke
+          printf '{"private":true,"dependencies":{"is-number":"7.0.0"}}\n' > package.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - uses: tuist/cache-volume@v1
+        id: npm
+        with:
+          key: ${{ inputs.cache_key }}-${{ matrix.mode }}-npm
+          path: .npm-smoke/node_modules
+      - name: Exercise npm ci on a mounted node_modules directory
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.npm.outputs.cache-hit }}
+        run: |
+          cd .npm-smoke
+          test ! -L node_modules
+          mountpoint -q node_modules
+          case "$PHASE" in
+            seed|expect-empty) test "$CACHE_HIT" = false ;;
+            *)
+              test "$CACHE_HIT" = true
+              test -f node_modules/is-number/index.js
+              ;;
+          esac
+          npm ci --ignore-scripts --no-audit --no-fund
+          mountpoint -q node_modules
+          node -e "if (!require('is-number')(42)) process.exit(1)"
+      - uses: tuist/cache-volume@v1
         id: cache
         with:
           key: ${{ inputs.cache_key }}-${{ matrix.mode }}
@@ -62,9 +97,9 @@ jobs:
           HOLD_SECONDS: ${{ inputs.hold_seconds }}
         run: |
           set -euo pipefail
-          test -L .volume-smoke
-          target=$(readlink -f .volume-smoke)
-          test -f "$(dirname "$target")/.tuist-volume"
+          test ! -L .volume-smoke
+          mountpoint -q .volume-smoke
+          target=.volume-smoke
           printf 'Mounted filesystem: '
           stat -f -c '%T' "$target"
           df -h "$target"

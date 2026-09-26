@@ -246,6 +246,25 @@
         }
 
         @Test(.withMockedEnvironment())
+        func throws_the_server_message_when_the_account_refuses_the_caller() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let message = "You are logged in as 'stranger', which is not a member of 'acme'."
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willThrow(GetCacheEndpointsServiceError.forbidden(message))
+
+            // When/Then
+            await #expect(throws: CacheURLStoreError.forbidden(message)) {
+                _ = try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
+            }
+            await #expect(throws: CacheURLStoreError.forbidden(message)) {
+                _ = try await subject.getCacheEndpoints(for: serverURL, accountHandle: "acme")
+            }
+        }
+
+        @Test(.withMockedEnvironment())
         func throws_that_the_endpoint_is_being_prepared_when_the_server_is_provisioning_one() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
@@ -433,6 +452,7 @@
             #expect(CacheURLStoreError.endpointBeingPrepared.isTransientAbsence)
             #expect(CacheURLStoreError.noReachableEndpoints.isTransientAbsence)
             #expect(!CacheURLStoreError.invalidURL("not a url").isTransientAbsence)
+            #expect(!CacheURLStoreError.forbidden("not a member").isTransientAbsence)
         }
 
         @Test(.withMockedEnvironment())

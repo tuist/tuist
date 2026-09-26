@@ -299,58 +299,68 @@ defmodule Tuist.Application do
   defp get_children do
     # Workers need endpoint configuration during startup and shutdown. prep_stop/1
     # drains incoming traffic before Oban stops, without removing that configuration.
+    # Before the buffers, because children stop in reverse. Each buffer's
+    # final flush on shutdown writes to Cloud and mirrors the same rows,
+    # so the mirror's repository, task supervisor and drainer have to
+    # outlive every buffer. Started after them, they stopped first, and
+    # each deploy lost the flushes of the pods it replaced:
+    #
+    #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
+    #   Tuist.ShadowIngestRepo because it was not started or it does not exist
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
-        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
-        Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
-        Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
-        Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
-        Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
-        Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
-        Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
-        Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
-        Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
-        Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
-        Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
-        Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
-        Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
-        Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
-        Supervisor.child_spec(Buffer, id: Buffer),
-        Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
-        Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
-        Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
-        Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
-        Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
-        Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
-        Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
-        Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
-        Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
-        Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
-        Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
-        Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
-        Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
-        Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
-        Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
-        Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
-        Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
-        Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
-        Tuist.Vault,
-        {Finch, name: Tuist.Finch, pools: finch_pools()},
-        {Cachex, [:tuist, []]},
-        Cache,
-        {Phoenix.PubSub, name: Tuist.PubSub},
-        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-        {Tuist.API.Pipeline, []},
-        Tuist.Kura.Demand,
-        Tuist.Kura.Origins,
-        TuistCommon.GitHub.RateLimit,
-        TuistWeb.Telemetry
+        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
       ] ++
-        ops_clickhouse_children() ++
         shadow_ingest_children() ++
+        [
+          Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
+          Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+          Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
+          Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
+          Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
+          Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
+          Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
+          Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+          Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
+          Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
+          Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
+          Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
+          Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
+          Supervisor.child_spec(Buffer, id: Buffer),
+          Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
+          Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
+          Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
+          Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
+          Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+          Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
+          Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
+          Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
+          Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
+          Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
+          Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
+          Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+          Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
+          Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
+          Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
+          Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
+          Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
+          Tuist.Vault,
+          {Finch, name: Tuist.Finch, pools: finch_pools()},
+          {Cachex, [:tuist, []]},
+          Cache,
+          {Phoenix.PubSub, name: Tuist.PubSub},
+          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+          {Tuist.API.Pipeline, []},
+          Tuist.Kura.Demand,
+          Tuist.Kura.Origins,
+          TuistCommon.GitHub.RateLimit,
+          TuistWeb.Telemetry
+        ] ++
+        ops_clickhouse_children() ++
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
@@ -424,6 +434,9 @@ defmodule Tuist.Application do
         # waiting if it stops draining. Past it the mirror is dropped and
         # counted, which is the same outcome as a failed write.
         {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
+        # After the task supervisor, so it stops first and holds that
+        # supervisor's shutdown until the mirrors in it have finished.
+        Tuist.IngestRepo.ShadowWrite.Drainer,
         # The read side of the same server. Reads move onto it a flag at a
         # time, so both have to be connected at once.
         {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}

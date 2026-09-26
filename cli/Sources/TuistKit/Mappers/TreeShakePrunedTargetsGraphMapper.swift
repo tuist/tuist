@@ -39,6 +39,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         // scheme resolve to the same winner on every run, rather than to whichever one
         // `graph.projects` happened to yield first.
         var reparentedSchemes: [(projectPath: AbsolutePath, scheme: Scheme)] = []
+        var removedProjectsDeclaringPackages: [AbsolutePath: Project] = [:]
 
         // Every target reference the graph held before pruning, which is what tells a plan entry
         // that this mapper removed apart from one that never resolved to a target at all.
@@ -60,6 +61,9 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             )
             if treeShakenTargets.isEmpty {
                 reparentedSchemes.append(contentsOf: schemes.map { (projectPath, $0) })
+                if !project.packages.isEmpty {
+                    removedProjectsDeclaringPackages[projectPath] = project
+                }
             } else {
                 var project = project
                 project.schemes = schemes
@@ -71,6 +75,18 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             for (fromDependency, toDependencies) in projecttreeShakenDependencies {
                 treeShakenDependencies[fromDependency] = toDependencies
             }
+        }
+
+        // A cached binary that replaced every target of a project still uses the package products those targets
+        // depended on. The project stays, without targets, so that the workspace keeps resolving its packages.
+        let projectsDeclaringReachablePackageProducts = removedProjectsDeclaringPackages.isEmpty
+            ? []
+            : projectsDeclaringPackageProducts(reachableFrom: sourceTargets, dependencies: treeShakenDependencies)
+        for projectPath in projectsDeclaringReachablePackageProducts {
+            guard var project = removedProjectsDeclaringPackages[projectPath] else { continue }
+            project.targets = [:]
+            project.schemes = []
+            treeShakenProjects[projectPath] = project
         }
 
         let workspace = treeShake(
@@ -89,6 +105,24 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         graph.projects = treeShakenProjects
         graph.dependencies = treeShakenDependencies
         return (graph, [], environment)
+    }
+
+    /// The paths of the projects whose targets declared the package products that the kept targets reach.
+    private func projectsDeclaringPackageProducts(
+        reachableFrom sourceTargets: Set<TargetReference>,
+        dependencies: [GraphDependency: Set<GraphDependency>]
+    ) -> Set<AbsolutePath> {
+        var stack = sourceTargets.map { GraphDependency.target(name: $0.name, path: $0.projectPath) }
+        var visited = Set<GraphDependency>()
+        var projectPaths = Set<AbsolutePath>()
+        while let dependency = stack.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+            if case let .packageProduct(projectPath, _, _) = dependency {
+                projectPaths.insert(projectPath)
+            }
+            stack.append(contentsOf: dependencies[dependency, default: []])
+        }
+        return projectPaths
     }
 
     fileprivate func treeShake(

@@ -119,6 +119,10 @@ func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
 
 func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	*out = *in
+	if in.StableEndpoint != nil {
+		out.StableEndpoint = new(StableEndpointStatus)
+		*out.StableEndpoint = *in.StableEndpoint
+	}
 	if in.EndpointLastCheckedAt != nil {
 		out.EndpointLastCheckedAt = in.EndpointLastCheckedAt.DeepCopy()
 	}

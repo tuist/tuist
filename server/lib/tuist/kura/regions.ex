@@ -207,6 +207,7 @@ defmodule Tuist.Kura.Regions do
     # switch is prod-only.
     %{
       id: "us-east",
+      aws_region: "us-east-1",
       display_name: "US East",
       cluster_id: "us-east-1",
       ingress_class_name: "kura-us-east",
@@ -226,6 +227,7 @@ defmodule Tuist.Kura.Regions do
     },
     %{
       id: "us-west",
+      aws_region: "us-west-2",
       display_name: "US West",
       cluster_id: "us-west-1",
       ingress_class_name: "kura-us-west",
@@ -261,6 +263,7 @@ defmodule Tuist.Kura.Regions do
     # next moves it.
     %{
       id: "eu-west",
+      aws_region: "eu-west-3",
       display_name: "EU West",
       cluster_id: "eu-west-1",
       ingress_class_name: "kura-eu-west",
@@ -287,6 +290,7 @@ defmodule Tuist.Kura.Regions do
     # is validated; production serves us-east/us-west on their own OVH fleets).
     %{
       id: "ca-east",
+      aws_region: "ca-central-1",
       display_name: "Canada East",
       cluster_id: "ca-east-1",
       ingress_class_name: "kura-ca-east",
@@ -326,6 +330,7 @@ defmodule Tuist.Kura.Regions do
     # goes through `selectable/0` and never consults AccountPolicies.
     %{
       id: "ap-southeast",
+      aws_region: "ap-southeast-1",
       display_name: "Asia Pacific Southeast",
       cluster_id: "ap-southeast-1",
       ingress_class_name: "kura-ap-southeast",
@@ -376,6 +381,7 @@ defmodule Tuist.Kura.Regions do
     # account settings via `selectable/0`, or through a placement proposal.
     %{
       id: "sa-west",
+      aws_region: "sa-east-1",
       display_name: "South America West",
       cluster_id: "sa-west-1",
       ingress_class_name: "kura-sa-west",
@@ -413,6 +419,7 @@ defmodule Tuist.Kura.Regions do
     # available.
     %{
       id: "eu-east",
+      aws_region: "eu-central-1",
       display_name: "EU East",
       cluster_id: "eu-east-1",
       ingress_class_name: "kura-eu-east",
@@ -442,6 +449,7 @@ defmodule Tuist.Kura.Regions do
     # Hillsboro reaches it well.
     %{
       id: "us-central",
+      aws_region: "us-east-2",
       display_name: "US Central",
       cluster_id: "us-central-1",
       ingress_class_name: "kura-us-central",
@@ -942,6 +950,7 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
+        aws_region: Map.get(spec, :aws_region),
         hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
         private_url_template: @in_cluster_url_template,

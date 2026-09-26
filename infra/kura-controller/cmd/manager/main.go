@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -37,6 +39,8 @@ func main() {
 	var grpcClusterIssuer string
 	var publicTLSSecretName string
 	var publicTLSDNSNames string
+	var stableZone, stableOwner string
+	var stableDrain time.Duration
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
 	var connectivityDiagnosticsInstances string
@@ -51,6 +55,10 @@ func main() {
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
+
+	flag.StringVar(&stableZone, "stable-dns-zone-id", "", "Delegated cache.tuist.dev Route53 hosted zone; empty disables stable DNS")
+	flag.StringVar(&stableOwner, "stable-dns-owner", "", "Unique cluster identity for shared box health checks")
+	flag.DurationVar(&stableDrain, "stable-dns-drain", 3720*time.Second, "Minimum rendering retention after provider-observed DNS withdrawal")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -102,7 +110,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controllers.KuraInstanceReconciler{
+	reconciler := &controllers.KuraInstanceReconciler{
 		Client:                           mgr.GetClient(),
 		APIReader:                        mgr.GetAPIReader(),
 		Scheme:                           mgr.GetScheme(),
@@ -112,7 +120,28 @@ func main() {
 		Environment:                      deploymentEnvironment,
 		MetricsClient:                    metricsClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if stableZone != "" {
+		if watchNamespace == "" {
+			setupLog.Error(errors.New("stable DNS requires watch-namespace"), "invalid configuration")
+			os.Exit(1)
+		}
+		if stableDrain < 120*time.Second {
+			setupLog.Error(errors.New("stable DNS drain must cover propagation and record TTL"), "invalid drain")
+			os.Exit(1)
+		}
+		provider, err := controllers.NewRoute53StableDNS(context.Background(), stableZone, stableOwner)
+		if err != nil {
+			setupLog.Error(err, "create stable DNS provider")
+			os.Exit(1)
+		}
+		reconciler.StableDNS, reconciler.StableDrain = provider, stableDrain
+		if err := mgr.Add(&controllers.StableHealthCollector{Reconciler: reconciler, Provider: provider, Namespace: watchNamespace}); err != nil {
+			setupLog.Error(err, "add health collector")
+			os.Exit(1)
+		}
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}

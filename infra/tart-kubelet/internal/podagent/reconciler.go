@@ -166,6 +166,10 @@ type Reconciler struct {
 	// lifecycle no-ops.
 	Volumes *VolumeManager
 
+	// Converge fast-forwards the masters in Volumes to their volumes' HEADs off
+	// every job's critical path. Nil when Volumes is.
+	Converge *ConvergeWorker
+
 	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
 	// background convergence waits for the guest to stage the cache-volume HEAD.
 	// Zero values use the package defaults; injectable so tests don't wait real
@@ -435,6 +439,10 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if err != nil {
 		return fmt.Errorf("resolve env: %w", err)
 	}
+
+	// A runner Pod carries the server's dispatch URL, which is where the converge
+	// worker asks which masters to prefetch.
+	r.Converge.ObservePod(pod)
 
 	vmName := VMNameForPod(pod)
 	envDir, err := r.Tart.StageEnvFile(vmName, env)

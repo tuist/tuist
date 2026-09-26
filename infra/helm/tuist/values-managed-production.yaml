@@ -401,6 +401,17 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-production-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
   privateGateway:
     enabled: true
   sharedSecrets:
@@ -542,6 +553,34 @@ clickhouse:
     # second replica, where the configuration a joining replica fetches from
     # has to reach the running one first.
     replicas: 2
+    # Most of the machine, because nothing else runs on it. Each AX102-4 has
+    # 32 threads and ~108 GiB allocatable, and the `clickhouse` pool's taint
+    # keeps everything off it but Cilium and node-exporter, which request
+    # 150m and 320Mi between them.
+    #
+    # The chart's default of a 32Gi limit leaves the rest to the page cache,
+    # and on these nodes that does not happen. They run cgroup v2, which
+    # charges the file pages ClickHouse reads to ClickHouse's own cgroup, so
+    # its page cache is capped by the same limit as its heap. At 32Gi the
+    # other ~76 GiB was serving nothing.
+    #
+    # 96Gi leaves ~12 GiB of allocatable as slack. The request matches the
+    # limit, so usage never exceeds it and the pod is last in line if the node
+    # is ever under memory pressure. CPU has no limit, as before: it already
+    # could use every core, and a limit would throttle a workload this bursty.
+    # The request only weights it against the daemonsets.
+    #
+    # Changing these restarts both replicas, one at a time. Never while a
+    # backfill is running: a replica restarting under a large copy has to
+    # catch up replication inside the postStart hook's 15-minute deadline, and
+    # missing it restart-loops the pod until `helm --wait` rolls the release
+    # back.
+    resources:
+      requests:
+        cpu: "16"
+        memory: 96Gi
+      limits:
+        memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
       # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
@@ -1079,6 +1118,24 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU West migration: keep the existing pool selector while OVH and Dedibox
+  # coexist. Hosts must be installed, verified and marked before adoption.
+  # All three installs are requested and adoption markers verified. Confirm
+  # installation before the production deploy arrives; evacuate separately.
+  eu-west:
+    enabled: true
+    replicas: 3
+    endpoint: ovh-us
+    nodePool: kura-dedibox
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-west
+      offer: "ADVANCE-1 | AMD EPYC 4244P"
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
   # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
   # metered provider where an unmetered one is available.

@@ -81,6 +81,15 @@ The filesystem-specific implementation lives in `internal/cachevolumes/local.go`
 - The host agent owns loop devices and mounts. Only `pods/<pod UID>` is exposed
   to that job's runner and DinD containers. Masters, images, journals, tokens and
   signed URLs stay outside workflow mounts. Mount operations reject symlinks.
+The existing privileged DinD sidecar runs a mount broker inside the job's Kata
+VM. The unprivileged client passes open target-directory and mount-namespace
+file descriptors through a pod-scoped Unix socket. The broker resolves sources
+only beneath that pod's cache root and transfers a detached bind mount into the
+client namespace. This preserves normal tool paths in both native and ordinary
+Docker job containers, without sharing PID namespaces or adding workflow
+capabilities. Controller and runner images must be deployed together; the DinD
+startup probe waits for the broker socket before a job can be claimed.
+
 
 Current runner root filesystems are ext4, which cannot provide these reflinks.
 `scripts/provision-cache-filesystem.sh` prepares a bounded, **fully preallocated**
