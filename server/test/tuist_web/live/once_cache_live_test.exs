@@ -49,13 +49,13 @@ defmodule TuistWeb.OnceCacheLiveTest do
 
   test "the cache hit rate can be shown as a scatter of runs", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-cache-analytics-chart")
     refute has_element?(view, "#once-cache-hit-rate-scatter-chart")
 
     render_click(view, "select_hit_rate_chart_type", %{"type" => "scatter"})
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-cache-hit-rate-scatter-chart")
     refute has_element?(view, "#once-cache-analytics-chart")
@@ -63,7 +63,7 @@ defmodule TuistWeb.OnceCacheLiveTest do
 
   test "the scatter groups by host or Once version", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?cache-hit-rate-chart-type=scatter")
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-cache-hit-rate-scatter-chart")
     # Host is the default grouping and the runs above all report one host.
@@ -72,7 +72,7 @@ defmodule TuistWeb.OnceCacheLiveTest do
     {:ok, view, _} =
       live(conn, path <> "?cache-hit-rate-chart-type=scatter&cache-hit-rate-scatter-group-by=version")
 
-    render_async(view)
+    render_async(view, 2_000)
 
     assert render(view) =~ "0.60.0"
   end

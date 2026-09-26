@@ -27,7 +27,7 @@ defmodule TuistWeb.OnceTestsLiveTest do
     path: path
   } do
     {:ok, view, _} = live(conn, path)
-    render_async(view)
+    render_async(view, 2_000)
 
     # Default widget counts every run: two.
     assert series_total(view, "test-run-count-chart") == 2

@@ -442,14 +442,14 @@ defmodule TuistWeb.OnceRunsLiveTest do
 
   test "the build duration widget can be shown as a scatter of runs", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?analytics-selected-widget=build-duration")
-    render_async(view)
+    render_async(view, 2_000)
 
     # Line by default.
     assert has_element?(view, "#once-builds-analytics-chart")
     refute has_element?(view, "#once-build-duration-scatter-chart")
 
     render_click(view, "select_duration_chart_type", %{"type" => "scatter"})
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-build-duration-scatter-chart")
     refute has_element?(view, "#once-builds-analytics-chart")

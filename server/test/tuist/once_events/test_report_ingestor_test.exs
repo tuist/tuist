@@ -222,7 +222,7 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     assert test.status == "skipped"
   end
 
-  test "a replayed RunCompleted does not publish the run twice", %{run: run, project: project} do
+  test "a replayed RunCompleted does not publish the run twice", %{run: run} do
     stage_case(run, %{case_id: "a", name: "a"})
     finalized = finalize(run)
 

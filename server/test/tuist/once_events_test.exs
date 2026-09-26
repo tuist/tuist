@@ -2,6 +2,8 @@ defmodule Tuist.OnceEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Once.Events.V1.AckDisposition
   alias Once.Events.V1.ActionCompleted
   alias Once.Events.V1.BatchAck
@@ -15,9 +17,9 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.TestCaseCompleted
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
-  alias Tuist.OnceEvents.AckStore
   alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
+  alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.RunEventService
   alias Tuist.OnceEvents.TestCaseRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -270,7 +272,7 @@ defmodule Tuist.OnceEventsTest do
     # The failing event is seq 7, so the client must resend from there.
     assert ack.acked_seq == 6
     assert ack.expected_next_seq == 7
-    assert AckStore.acked_seq(project.id, run.run_id) == 0
+    assert OnceEvents.acked_seq(project.id, run.run_id) == 0
   end
 
   test "an empty batch advancing past a producer gap is acknowledged at the gap", %{project: project, run: run} do
@@ -294,7 +296,7 @@ defmodule Tuist.OnceEventsTest do
     project: project,
     run: run
   } do
-    AckStore.observe(project.id, run.run_id, 20)
+    OnceEvents.observe_acked_seq(project.id, run.run_id, 20)
 
     batch = %RunEventBatch{run_id: run.run_id, batch_id: "batch-replay", seq_from: 15, events: []}
 
@@ -306,17 +308,17 @@ defmodule Tuist.OnceEventsTest do
   test "acknowledgement state does not leak across projects that reuse a run id", %{project: project, run: run} do
     other_project = ProjectsFixtures.project_fixture()
 
-    AckStore.observe(project.id, run.run_id, 42)
+    OnceEvents.observe_acked_seq(project.id, run.run_id, 42)
 
-    assert AckStore.acked_seq(project.id, run.run_id) == 42
-    assert AckStore.acked_seq(other_project.id, run.run_id) == 0
+    assert OnceEvents.acked_seq(project.id, run.run_id) == 42
+    assert OnceEvents.acked_seq(other_project.id, run.run_id) == 0
   end
 
   test "the acknowledged sequence never walks backwards", %{project: project, run: run} do
-    AckStore.observe(project.id, run.run_id, 42)
-    AckStore.observe(project.id, run.run_id, 7)
+    OnceEvents.observe_acked_seq(project.id, run.run_id, 42)
+    OnceEvents.observe_acked_seq(project.id, run.run_id, 7)
 
-    assert AckStore.acked_seq(project.id, run.run_id) == 42
+    assert OnceEvents.acked_seq(project.id, run.run_id) == 42
   end
 
   test "authenticates the configured project slug and rejects another project", %{project: project} do
@@ -460,6 +462,79 @@ defmodule Tuist.OnceEventsTest do
 
     assert %{test_case_count: 2, passed_test_cases: 2} =
              OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "the acked sequence survives a restart, so a reconnect is not told zero", %{
+    project: project,
+    run: run
+  } do
+    OnceEvents.observe_acked_seq(project.id, run.run_id, 12)
+
+    # Nothing is cached in this process: a different pod, or this one after a
+    # deploy, reads the same value. Answering 0 here makes the client treat
+    # the regressing `expected_next_seq` as a protocol violation and drop the
+    # rest of the run.
+    assert OnceEvents.acked_seq(project.id, run.run_id) == 12
+    assert Tuist.Repo.get_by(Run, id: run.id).acked_seq == 12
+  end
+
+  test "a heartbeat keeps a slow run from looking abandoned", %{run: run} do
+    stale = DateTime.add(DateTime.utc_now(), -7200, :second)
+
+    {1, _} =
+      Run
+      |> where([r], r.id == ^run.id)
+      |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
+
+    # The client sends these every few seconds; the projector used to drop
+    # them, so a run doing slow work aged out like an abandoned one.
+    project(run, %RunEvent{
+      epoch_ms: DateTime.to_unix(DateTime.utc_now(), :millisecond),
+      payload: {:run_heartbeat, %Once.Events.V1.RunHeartbeat{}}
+    })
+
+    assert {:ok, 0} = OnceEvents.expire_stale_runs()
+    assert %{finalization: "active"} = OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a run that stopped reporting is marked lost rather than Running forever", %{run: run} do
+    stale = DateTime.add(DateTime.utc_now(), -7200, :second)
+
+    {1, _} =
+      Run
+      |> where([r], r.id == ^run.id)
+      |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
+
+    assert {:ok, 1} = OnceEvents.expire_stale_runs()
+
+    reloaded = OnceEvents.get_run(run.project_id, run.run_id)
+    assert reloaded.finalization == "lost"
+    assert reloaded.finalized_at
+
+    # `run_status/1` already treats lost as terminal, so the listing stops
+    # reporting it as in progress.
+    {[invocation], _meta} = Analytics.list_invocations(run.project_id, %{page: 1, page_size: 10}, [])
+    assert invocation.status == "failure"
+  end
+
+  test "a finalized run is left alone by the sweep", %{run: run} do
+    stale = DateTime.add(DateTime.utc_now(), -7200, :second)
+
+    {:ok, _} =
+      OnceEvents.finalize_run(run, %{
+        finalization: "finalized",
+        exit_status: 0,
+        wall_ms: 10,
+        finalized_at: stale
+      })
+
+    {1, _} =
+      Run
+      |> where([r], r.id == ^run.id)
+      |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
+
+    assert {:ok, 0} = OnceEvents.expire_stale_runs()
+    assert %{finalization: "finalized"} = OnceEvents.get_run(run.project_id, run.run_id)
   end
 
   defp project(run, %RunEvent{} = event), do: Projector.project(event, run.project_id, run.run_id)
