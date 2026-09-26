@@ -25,6 +25,13 @@ public enum XcodeBuildTestAction: Equatable {
     }
 }
 
+/// Environment variables for the xcodebuild invocations made inside a task, on top of the
+/// process's own: what reaches a test host through the `TEST_RUNNER_` prefix. Task-local so a
+/// caller scopes it to one invocation without every `XcodeBuildControlling` method carrying it.
+public enum XcodeBuildEnvironment {
+    @TaskLocal public static var additionalVariables: [String: String] = [:]
+}
+
 @Mockable
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.
@@ -115,6 +122,24 @@ public protocol XcodeBuildControlling {
         configuration: String,
         derivedDataPath: AbsolutePath?
     ) async throws -> [String: XcodeBuildSettings]
+
+    /// Lists the tests a run with these arguments could execute, without running any
+    /// (`-enumerate-tests`), as xcodebuild's flat JSON at `outputPath`. The products must be built
+    /// already. The run's own filters and its result bundle are left out, so the list is every
+    /// candidate rather than the ones a selective run chose.
+    /// - Parameters:
+    ///   - target: The project or workspace, or nil when the passthrough arguments name it.
+    ///   - scheme: The scheme, or nil when the passthrough arguments name it or an xctestrun.
+    func enumerateTests(
+        _ target: XcodeBuildTarget?,
+        scheme: String?,
+        destination: XcodeBuildDestination?,
+        rosetta: Bool,
+        derivedDataPath: AbsolutePath?,
+        testPlan: String?,
+        passthroughXcodeBuildArguments: [String],
+        outputPath: AbsolutePath
+    ) async throws
 
     /// Runs `xcodebuild` with passed `arguments` and formats the output
     /// - arguments: Arguments to pass to `xcodebuild`

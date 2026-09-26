@@ -19,6 +19,7 @@ This directory contains database migrations and other private assets.
 
 ## Demo Data
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
+- Coverage seeds give `tuist/tuist` a commit graph in `git_repositories` (a month of `main`, a merged branch with its merge commit, and an open pull request), a file listing per commit, runs carrying coverage for two schemes, and the published `coverage_commits`. They start from a clean graph on every run, so the trend is never two seedings deep, and they deliberately leave one commit unmeasured, one measured by a single scheme and the newest ones unsignalled, so the history shows a gap, a commit off the trend and a commit still waiting for its completion signal.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails

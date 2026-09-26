@@ -1,0 +1,468 @@
+/* The three coverage pages — the default branch's glance, the branches
+   index, and one subject in detail — are page roots laid out like every
+   other dashboard page. */
+#coverage,
+#coverage-branches,
+#coverage-detail,
+#coverage-file-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="analytics-section"] {
+    padding: 0;
+  }
+
+  /* Page state stated in passing, under a section's header. */
+  & [data-part="caption"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="analytics-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="sources-section"] > .noora-chart {
+    height: 62px;
+  }
+
+  & [data-part="sources-details-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  /* The run page's metadata row. */
+  & [data-part="sources-details-section"] > [data-part="metadata-row"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="metadata"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="title"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+        & [data-part="trigger"] {
+          display: flex;
+          cursor: pointer;
+
+          & > svg {
+            width: var(--noora-icon-size-medium);
+            height: var(--noora-icon-size-medium);
+          }
+        }
+      }
+
+      & > [data-part="value"] {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > svg {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+          color: var(--noora-surface-label-secondary);
+        }
+
+        & > [data-part="commit-link"] {
+          color: var(--noora-surface-label-primary);
+          text-decoration: none;
+
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+    }
+  }
+
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  /* The table and the buttons that page it are one block, so the section's
+     gap does not stack with the pagination's own margin. */
+  & [data-part="commits-table"],
+  & [data-part="branches-table"],
+  & [data-part="files-table"],
+  & [data-part="refs-table"],
+  & [data-part="runs-table"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="branches-section"] [data-part="filters"],
+  & [data-part="refs-section"] [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  /* The Files tab stacks two cards, spaced as the page spaces its own. */
+  & > [data-part="files"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="commits-section"],
+  & [data-part="branches-section"],
+  & [data-part="refs-section"],
+  & [data-part="comparison-section"],
+  & [data-part="gates-section"],
+  & [data-part="runs-section"],
+  & [data-part="patch-section"],
+  & [data-part="skipped-section"],
+  & [data-part="schemes-section"],
+  & [data-part="targets-section"],
+  & [data-part="files-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+  }
+
+  /* Clipped per section rather than per card: a card's header can hold a date
+     picker, whose calendar has to open over the card's edge. */
+  & .noora-card__section:not(.tuist-widget) {
+    overflow-x: hidden;
+  }
+
+  /* A widget's tooltip opens inside the widget, so neither the widget nor
+     the section holding widgets may clip it; widgets never overflow
+     sideways. The same goes for the coverage breakdown's Unknown tooltip. */
+  & .noora-card__section:has(> [data-part="widgets"]),
+  & .noora-card__section[data-part="sources-details-section"] {
+    overflow: visible;
+  }
+
+  & .noora-chart {
+    height: 200px;
+  }
+
+  /* The section holding the chart pads it already. */
+  & [data-part="analytics-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & > [data-part="analytics"],
+  & [data-part="refs"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & .noora-pagination-group,
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
+  }
+}
+
+/* A branch, a pull request or a commit against its baseline: a title block
+   above the tabs, as the test run detail page has. */
+#coverage-branches,
+#coverage-detail,
+#coverage-file-page {
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title-group"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+    }
+
+    /* The page's title only: the header's tooltips have titles of their own. */
+    & > [data-part="title-group"] > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & [data-part="badges"] {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      color: var(--noora-surface-label-secondary);
+
+      & [data-part="branches"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+      }
+
+      & svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+  }
+
+  & [data-part="section-title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+  }
+
+  & [data-part="verdict"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+}
+
+/* Paired lists — where the latest commit is thinnest, and where coverage
+   rose and fell most — stacked, so file paths keep the card's full width
+   and an empty list takes one line rather than half the card. */
+#coverage,
+#coverage-detail {
+  & [data-part="movements-sections"],
+  & [data-part="gaps-sections"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+
+    & > * {
+      min-width: 0;
+    }
+  }
+
+  & [data-part="movement-section"],
+  & [data-part="gaps-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+
+      & > [data-part="title"] {
+        flex-grow: 1;
+        color: var(--noora-surface-label-primary);
+      }
+
+      & > [data-part="count"],
+      & > [data-part="link"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+      }
+
+      & > [data-part="link"] {
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+
+    & > [data-part="empty"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+}
+
+/* A file's coverage as a bar and a percentage, and the schemes that measured
+   a commit as a row of badges: table cells with no Noora equivalent. */
+#coverage,
+#coverage-branches,
+#coverage-detail,
+#coverage-file-page {
+  & [data-part="coverage-cell"] {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    min-width: 160px;
+
+    & > .noora-progress-bar {
+      flex-grow: 1;
+    }
+
+    & > [data-part="percentage"] {
+      min-width: 48px;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+      text-align: right;
+    }
+  }
+
+  & [data-part="cell"] > [data-part="tags"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+  }
+
+  /* A gate's result is a badge and, when it could not be evaluated, the
+     reason beside it. */
+  & [data-part="cell"][data-type="badge"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+    }
+
+    & > [data-part="sublabel"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+  }
+
+  /* A cell or status with a title explains itself on hover. In a row that
+     opens a page, the row's link overlay covers every cell, so a titled cell
+     sits above it, as wide as its content, and the rest of the cell still
+     opens the row. */
+  & [data-part="cell"][title] {
+    position: relative;
+    z-index: 1;
+    cursor: help;
+    width: fit-content;
+  }
+
+  & [data-part="status"][title] {
+    cursor: help;
+  }
+
+  & [data-part="coverage-file-link"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    text-decoration: none;
+    word-break: break-all;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+#coverage [data-part="loading"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+}
+
+/* One file's page: its figures above a list of what it is made of. */
+#coverage-file-page {
+  & [data-part="loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="file-summary-section"],
+  & [data-part="file-tests-section"],
+  & [data-part="file-functions-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & [data-part="file-details"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & dd {
+      margin: var(--noora-spacing-2) 0 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-all;
+    }
+
+    & dd[title] {
+      cursor: help;
+    }
+  }
+
+  & [data-part="targets"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}

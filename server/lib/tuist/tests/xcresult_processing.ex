@@ -58,17 +58,20 @@ defmodule Tuist.Tests.XcresultProcessing do
         shard_index: Map.get(args, "shard_index"),
         ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
       },
-      stress_attrs(args)
+      carried_attrs(args)
     )
   end
 
-  @stress_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count)
+  @carried_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count
+                   base_branch merge_base_sha is_pull_request pull_request_number git_object_format history_source
+                   history_fallback_reason git_repository_id git_dirty execution_mode)
 
   # Only what the job carried: a job enqueued without them leaves the columns to
-  # their defaults, exactly as before the gate existed.
-  defp stress_attrs(args) do
+  # their defaults, as for jobs enqueued before these fields rode along.
+  defp carried_attrs(args) do
     args
-    |> Map.take(@stress_keys)
+    |> Map.take(@carried_keys)
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new(fn {key, value} -> {String.to_existing_atom(key), value} end)
   end
 

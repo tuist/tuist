@@ -12,6 +12,10 @@ public struct TestCase: Encodable, Sendable {
     public var crashReport: CrashReport?
     public var attachments: [TestAttachment]
     public var isQuarantined: Bool
+    /// The test's name as Swift and `xcodebuild -enumerate-tests` know it, when the result reports
+    /// it under another one: a Swift Testing display name (`@Test("Maps paths") func map()`).
+    /// Not sent anywhere; it lets the run's enumeration be named after its results.
+    public var identifier: String?
 
     enum CodingKeys: String, CodingKey {
         case name, module, duration, status, failures, repetitions, arguments, attachments
@@ -31,7 +35,8 @@ public struct TestCase: Encodable, Sendable {
         arguments: [TestCaseArgument] = [],
         crashReport: CrashReport? = nil,
         attachments: [TestAttachment] = [],
-        isQuarantined: Bool = false
+        isQuarantined: Bool = false,
+        identifier: String? = nil
     ) {
         self.name = name
         self.testSuite = testSuite
@@ -44,5 +49,6 @@ public struct TestCase: Encodable, Sendable {
         self.crashReport = crashReport
         self.attachments = attachments
         self.isQuarantined = isQuarantined
+        self.identifier = identifier
     }
 }

@@ -348,6 +348,46 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "coverage_inline_threshold_bytes/1" do
+    test "defaults to 5 MB and reads the environment" do
+      assert Environment.coverage_inline_threshold_bytes(%{}) == 5_000_000
+      assert Environment.coverage_inline_threshold_bytes(%{"TUIST_COVERAGE_INLINE_THRESHOLD_BYTES" => "1024"}) == 1024
+    end
+  end
+
+  describe "coverage_max_inflated_bytes/1" do
+    test "defaults to 2 GB and reads the environment" do
+      assert Environment.coverage_max_inflated_bytes(%{}) == 2_000_000_000
+      assert Environment.coverage_max_inflated_bytes(%{"TUIST_COVERAGE_MAX_INFLATED_BYTES" => "1024"}) == 1024
+    end
+  end
+
+  describe "coverage_recompute_batch_size/1" do
+    test "defaults to 500 and reads the environment" do
+      assert Environment.coverage_recompute_batch_size(%{}) == 500
+      assert Environment.coverage_recompute_batch_size(%{"TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE" => "50"}) == 50
+    end
+  end
+
+  describe "coverage_retention_days/1" do
+    test "keeps file detail for 90 days and run totals for a year by default" do
+      assert Environment.coverage_retention_days(%{}) == %{files: 90, runs: 365}
+    end
+
+    test "reads each period from its environment variable" do
+      assert Environment.coverage_retention_days(%{
+               "TUIST_COVERAGE_FILE_RETENTION_DAYS" => "30",
+               "TUIST_COVERAGE_RUN_RETENTION_DAYS" => " 730 "
+             }) == %{files: 30, runs: 730}
+    end
+
+    test "rejects a period that is not a positive number of days" do
+      assert_raise RuntimeError, ~r/TUIST_COVERAGE_FILE_RETENTION_DAYS must be a positive integer/, fn ->
+        Environment.coverage_retention_days(%{"TUIST_COVERAGE_FILE_RETENTION_DAYS" => "0"})
+      end
+    end
+  end
+
   describe "artifact_retention_days/1" do
     test "returns an empty map when artifact retention is not configured" do
       assert Environment.artifact_retention_days(%{}) == %{}
