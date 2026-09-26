@@ -301,9 +301,7 @@ spec:
                 machine:
                   description: |-
                     Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
-                    make this host a node, and of the Node they register. It is
-                    `<fleet>-<host>`, or the name of a Machine the controller adopted
-                    because its providerID is this host's.
+                    make this host a node, and of the Node they register: `<fleet>-<host>`.
                   type: string
                 power:
                   description: |-

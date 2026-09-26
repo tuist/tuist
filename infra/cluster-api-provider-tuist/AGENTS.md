@@ -304,14 +304,6 @@ and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
 alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
 `-rack-fleet-`.
 
-A Machine that already has a host's providerID
-(`rack-applesilicon://<site>/<serial>`) is adopted rather than replaced: the
-controller drops its MachineSet owner reference and the labels the MachineSet
-selects it by, becomes its controller, and keeps its name, so the host keeps its
-Node (`MachineAdopted`). A Machine with the providerID that another RackHost
-controls means two hosts declare one box, and the second gets no Machine
-(`DuplicateHost`).
-
 **The fleet's MachineHealthCheck remediates through the host.** A check only
 marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
 RackHost controller deletes a Machine so marked and makes a new one, which
@@ -567,29 +559,6 @@ sudo /usr/local/bin/tuist-pf-sshguard
 
 The next bootstrap or drift push rewrites the file from the RackHost, and
 `installTailscale` re-joins a host whose device was deleted.
-
-**Remove the fleet's MachineDeployment** where one is left. The chart keeps a
-MachineDeployment named after the fleet in the release for as long as it
-exists, with `helm.sh/resource-policy: keep`: Helm deleting it would delete its
-MachineSet's Machine, and the Machine's delete path would delete the host's
-Node. The operator adopts each Machine whose providerID is a host's (the host's
-`MachineAdopted` event, and `kubectl get rh` shows it under Machine); the
-MachineSet then makes a Machine of its own, whose RackAppleSiliconMachine
-reports `NoHost` and never dials anything. Once every Machine the MachineSet
-made for a host is adopted, which leaves it selecting only its own:
-
-```bash
-kubectl get machines -n <ns> -l cluster.x-k8s.io/deployment-name=<fleet> \
-  -o custom-columns=NAME:.metadata.name,NODE:.status.nodeRef.name   # no Node on any
-kubectl scale machinedeployment <fleet> -n <ns> --replicas=0
-```
-
-Scaling it to 0 before a host's Machine is adopted deletes that Machine and the
-host's Node. Deleting the MachineDeployment, its MachineSets, the
-`RackAppleSiliconMachineTemplate`s and the
-`rackapplesiliconmachinetemplates.infrastructure.cluster.x-k8s.io` CRD is
-cluster-admin work, as below; after the next deploy the release no longer
-carries the MachineDeployment.
 
 **Renaming a machine kind leaves three objects behind**, in every cluster the
 old name reached. The deploy workflow ships CRDs with `kubectl apply -f crds/`,

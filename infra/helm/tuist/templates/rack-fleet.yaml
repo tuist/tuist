@@ -89,29 +89,6 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}
-{{- /*
-A MachineDeployment named after the fleet stays in the release, as it is in the
-cluster and with `helm.sh/resource-policy: keep`, for as long as it exists.
-Helm deleting it would delete its MachineSet's Machines, and with them their
-Nodes, before the operator adopts the ones that are hosts'. Removing it is
-described in infra/cluster-api-provider-tuist/AGENTS.md.
-*/}}
-{{- with (lookup "cluster.x-k8s.io/v1beta1" "MachineDeployment" .Release.Namespace $fleetName) }}
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineDeployment
-metadata:
-  name: {{ .metadata.name }}
-  namespace: {{ .metadata.namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-  {{- with .metadata.labels }}
-  labels:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  {{- toYaml .spec | nindent 2 }}
-{{- end }}
 ---
 {{- /*
 Remediation for a host that dies AFTER it has joined.

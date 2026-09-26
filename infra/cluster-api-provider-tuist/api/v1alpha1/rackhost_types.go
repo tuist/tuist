@@ -174,9 +174,7 @@ type PowerOutletRef struct {
 // RackHostStatus is the observed state of one physical host.
 type RackHostStatus struct {
 	// Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
-	// make this host a node, and of the Node they register. It is
-	// `<fleet>-<host>`, or the name of a Machine the controller adopted
-	// because its providerID is this host's.
+	// make this host a node, and of the Node they register: `<fleet>-<host>`.
 	// +optional
 	Machine string `json:"machine,omitempty"`
 
