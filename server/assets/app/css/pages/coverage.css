@@ -124,7 +124,8 @@
   & [data-part="commits-table"],
   & [data-part="branches-table"],
   & [data-part="files-table"],
-  & [data-part="refs-table"] {
+  & [data-part="refs-table"],
+  & [data-part="runs-table"] {
     display: flex;
     flex-direction: column;
   }
@@ -226,7 +227,8 @@
       gap: var(--noora-spacing-4);
     }
 
-    & [data-part="title"] {
+    /* The page's title only: the header's tooltips have titles of their own. */
+    & > [data-part="title-group"] > [data-part="title"] {
       margin: 0;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
