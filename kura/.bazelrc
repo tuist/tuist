@@ -32,6 +32,13 @@ build --@rules_rust//rust/settings:use_hermetic_macos_sdkroot=false
 # Apply the os-specific config blocks below based on the host OS.
 build --enable_platform_specific_config
 
+# Persist only content-addressed downloads and action outputs, never the output base or credentials.
+build:linux --repository_cache=~/.cache/tuist/bazel/repository
+build:linux --disk_cache=~/.cache/tuist/bazel/disk
+build:linux --experimental_disk_cache_gc_max_size=12G
+build:linux --experimental_disk_cache_gc_max_age=7d
+build:linux --experimental_disk_cache_gc_idle_delay=0s
+
 # Applies to every macOS-host build (local dev plus both release binaries — arm64 native and the
 # x86_64 cross below). Bazel's darwin cc toolchain defaults --macos_minimum_os to 10.11,
 # which rules_rust feeds into the -sys build scripts' CFLAGS as -mmacosx-version-min=10.11.
