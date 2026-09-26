@@ -32,6 +32,72 @@ defmodule Tuist.OnceEvents do
   # ---- Writes -----------------------------------------------------------
 
   @doc """
+  Record that a run is still alive.
+  """
+  def touch_heartbeat(%Run{} = run, %DateTime{} = at) do
+    at = DateTime.truncate(at, :microsecond)
+
+    Run
+    |> where([r], r.id == ^run.id and (is_nil(r.heartbeat_at) or r.heartbeat_at < ^at))
+    |> Repo.update_all(set: [heartbeat_at: at])
+
+    :ok
+  end
+
+  @doc """
+  Mark runs that stopped reporting as `lost`.
+
+  A cancelled CI job or a killed `once` process never sends `RunCompleted`,
+  and nothing else wrote `lost`, so those runs showed as Running forever.
+  A run counts as abandoned once nothing has been heard from it for
+  `stale_after_seconds`, which is far longer than the client's heartbeat
+  interval and the finalization grace the server advertises.
+
+  Returns the number of runs transitioned.
+  """
+  def expire_stale_runs(stale_after_seconds \\ 3_600) do
+    cutoff = DateTime.add(DateTime.utc_now(), -stale_after_seconds, :second)
+    now = DateTime.truncate(DateTime.utc_now(), :microsecond)
+
+    {count, _} =
+      Run
+      |> where([r], r.finalization in ["active", "finalizing", "finalization_pending"])
+      |> where([r], coalesce(r.heartbeat_at, r.started_at) < ^cutoff)
+      |> Repo.update_all(set: [finalization: "lost", finalized_at: now, updated_at: now])
+
+    {:ok, count}
+  end
+
+  @doc """
+  Read the highest contiguous sequence durably projected for a run, or 0
+  when the run has not been seen. Persisted on the run row rather than held
+  in node memory: a client reconnecting onto another pod, or after a deploy,
+  must not be told the server has nothing, because it treats a regressing
+  `expected_next_seq` as a protocol violation and abandons the run.
+  """
+  def acked_seq(project_id, run_id) when is_binary(run_id) do
+    Run
+    |> where([r], r.project_id == ^project_id and r.run_id == ^run_id)
+    |> select([r], r.acked_seq)
+    |> Repo.one()
+    |> Kernel.||(0)
+  end
+
+  @doc """
+  Record that events up to `acked_seq` are durable for a run.
+
+  Monotonic in SQL rather than read-then-write, so two pods projecting
+  batches for the same run cannot walk the high-water mark backwards.
+  """
+  def observe_acked_seq(project_id, run_id, acked_seq) when is_binary(run_id) and is_integer(acked_seq) do
+    Run
+    |> where([r], r.project_id == ^project_id and r.run_id == ^run_id and r.acked_seq < ^acked_seq)
+    |> Repo.update_all(set: [acked_seq: acked_seq])
+
+    :ok
+  end
+
+  @doc """
   Claim the right to publish `run`'s results to the shared test store,
   returning `:ok` to exactly one caller and `:already_published` to the rest.
 

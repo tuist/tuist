@@ -79,6 +79,17 @@ defmodule Tuist.OnceEvents.Projector do
     :ok
   end
 
+  # The client sends `RunHeartbeat` every few seconds while a run is alive.
+  # Dropping it left `heartbeat_at` frozen at the last ingested event, so a
+  # run doing slow work looked as stale as an abandoned one.
+  def project(%RunEvent{payload: {:run_heartbeat, _}} = ev, project_id, run_id) do
+    with %{} = run <- OnceEvents.get_run(project_id, run_id) do
+      OnceEvents.touch_heartbeat(run, from_epoch_ms(ev.epoch_ms) || DateTime.utc_now())
+    end
+
+    :ok
+  end
+
   def project(%RunEvent{payload: {:run_finalizing, _}}, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
       OnceEvents.finalize_run(run, %{finalization: "finalizing"})
