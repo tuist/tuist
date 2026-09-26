@@ -45,6 +45,13 @@ type RackLinuxCandidateStatus struct {
 	// +optional
 	BootMAC string `json:"bootMAC,omitempty"`
 
+	// EK is its TPM's RSA endorsement key, base64 PKIX DER, and
+	// EKFingerprint the key's SHA-256.
+	// +optional
+	EK string `json:"ek,omitempty"`
+	// +optional
+	EKFingerprint string `json:"ekFingerprint,omitempty"`
+
 	// Site is the site of the edge whose boot server heard it.
 	// +optional
 	Site string `json:"site,omitempty"`
@@ -66,6 +73,29 @@ type RackLinuxCandidateStatus struct {
 	// DeclaredAs is the hostname of the RackLinuxHost named after its UUID.
 	// +optional
 	DeclaredAs string `json:"declaredAs,omitempty"`
+
+	// Conflict is the last announcement under the same UUID that did not
+	// match what the machine first announced. What a machine announced first
+	// is kept: the RackLinuxHost declaring the UUID takes its hardware from a
+	// candidate only while it has no conflict.
+	// +optional
+	Conflict *RackLinuxCandidateConflict `json:"conflict,omitempty"`
+}
+
+// RackLinuxCandidateConflict is an announcement that did not match what the
+// machine first announced.
+type RackLinuxCandidateConflict struct {
+	// Reason is what it announced differently.
+	Reason string `json:"reason"`
+
+	// Address is the address it came from, and SeenBy the edge that heard it.
+	// +optional
+	Address string `json:"address,omitempty"`
+	// +optional
+	SeenBy string `json:"seenBy,omitempty"`
+
+	// At is when it came.
+	At metav1.Time `json:"at"`
 }
 
 // +kubebuilder:object:root=true
@@ -75,6 +105,7 @@ type RackLinuxCandidateStatus struct {
 // +kubebuilder:printcolumn:name="BootMAC",type=string,JSONPath=".status.bootMAC"
 // +kubebuilder:printcolumn:name="DeclaredAs",type=string,JSONPath=".status.declaredAs"
 // +kubebuilder:printcolumn:name="LastSeen",type="date",JSONPath=".status.lastSeen"
+// +kubebuilder:printcolumn:name="Conflict",type=string,JSONPath=".status.conflict.reason"
 // +kubebuilder:printcolumn:name="Site",type=string,priority=1,JSONPath=".status.site"
 // +kubebuilder:printcolumn:name="Product",type=string,priority=1,JSONPath=".status.product"
 // +kubebuilder:printcolumn:name="SeenBy",type=string,priority=1,JSONPath=".status.seenBy"

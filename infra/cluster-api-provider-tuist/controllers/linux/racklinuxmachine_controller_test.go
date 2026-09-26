@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -174,7 +175,7 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 		t.Fatal(err)
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackLinuxHost{}, &infrav1.RackLinuxMachine{}, &corev1.Node{}).Build()
+		WithStatusSubresource(&infrav1.RackLinuxHost{}, &infrav1.RackLinuxMachine{}, &corev1.Node{}, &clusterv1.Machine{}).Build()
 	runner := &fakeRunner{}
 	applier := &fakeApplier{}
 	r := &RackLinuxMachineReconciler{
@@ -466,6 +467,35 @@ func TestRackLinuxMachineRejoinsARenamedHost(t *testing.T) {
 	h.reconcile(t)
 	if len(h.applier.applies) != 2 {
 		t.Fatal("rejoined the host again")
+	}
+}
+
+// CAPI records a Machine's Node once and drains and deletes that one when the
+// Machine goes, so the rename forgets the Node the host joined under before,
+// and CAPI records the one it joins as next.
+func TestRackLinuxMachineRenameForgetsTheOldNodeOnTheMachine(t *testing.T) {
+	host := claimedEdgeHost("dev-1")
+	host.Spec.Hostname = "ber1-edge-c"
+	machine := edgeMachine()
+	machine.Status.NodeName = "ber1-edge"
+	machine.Status.TailnetDeviceID = "dev-1"
+	machine.OwnerReferences = []metav1.OwnerReference{{APIVersion: clusterv1.GroupVersion.String(), Kind: "Machine", Name: edgeUUID, UID: "machine-uid"}}
+	owner := &clusterv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: edgeUUID, Namespace: rackTestNamespace, UID: "machine-uid"},
+		Status:     clusterv1.MachineStatus{NodeRef: &corev1.ObjectReference{APIVersion: "v1", Kind: "Node", Name: "ber1-edge", UID: "old-node"}},
+	}
+	old := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge", UID: "old-node"}, Spec: corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID}}
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, machine, owner, old)...)
+	h.applier.results = []func(racknode.Request) (racknode.Result, error){needsBootstrap}
+
+	h.reconcile(t)
+
+	got := &clusterv1.Machine{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.NodeRef != nil {
+		t.Fatalf("the Machine still refers to %s, the Node the host joined under before its rename", got.Status.NodeRef.Name)
 	}
 }
 

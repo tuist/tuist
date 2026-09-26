@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -132,13 +133,14 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		setProvisioningState(host, infrav1.RackLinuxHostRegistering, "waiting for the machine to announce itself from its install stick", now)
 		return 0, nil
 	}
+	var edges []string
 	switch host.Spec.Role {
 	case "edge":
-		served, err := r.anotherEdgeServes(ctx, host)
-		if err != nil {
+		var err error
+		if edges, err = r.servingEdges(ctx, host); err != nil {
 			return 0, err
 		}
-		if !served && (inst == nil || inst.TriggeredAt == nil) {
+		if len(edges) == 0 && (inst == nil || inst.TriggeredAt == nil) {
 			if inst != nil {
 				if err := r.withdrawInstall(ctx, host); err != nil {
 					return 0, err
@@ -209,10 +211,10 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "offline, and AMT cannot reboot it", now)
 		return 0, nil
 	}
-	if !bootServes(host, inst) {
+	if waiting := r.bootWaitsFor(host, inst, edges); waiting != "" {
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForBootServer", clusterv1.ConditionSeverityInfo,
-			"install %s is published; %s is rebooted into it once the boot server holding %s reports it servable",
-			inst.KeyID, host.Spec.Hostname, r.Install.provisioningAddress())
+			"install %s is published; %s is rebooted into it once it is reported servable by %s",
+			inst.KeyID, host.Spec.Hostname, waiting)
 		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "waiting for the boot server to serve the install", now)
 		return rackBootServerPoll, nil
 	}
@@ -338,14 +340,15 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	return nil
 }
 
-// anotherEdgeServes reports whether another edge of the host's site is
-// connected to the tailnet, so its boot server can serve the host's netboot.
-// One being deleted is going away.
-func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *infrav1.RackLinuxHost) (bool, error) {
+// servingEdges are the hostnames of the other edges of the host's site
+// connected to the tailnet, whose boot servers serve the host's netboot while
+// it is down. One being deleted is going away.
+func (r *RackLinuxHostReconciler) servingEdges(ctx context.Context, host *infrav1.RackLinuxHost) ([]string, error) {
 	hosts := &infrav1.RackLinuxHostList{}
 	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
-		return false, err
+		return nil, err
 	}
+	var edges []string
 	for i := range hosts.Items {
 		h := &hosts.Items[i]
 		if h.Name == host.Name || !h.DeletionTimestamp.IsZero() {
@@ -353,10 +356,11 @@ func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *i
 		}
 		if h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site &&
 			h.Status.Tailnet != nil && h.Status.Tailnet.Connected {
-			return true, nil
+			edges = append(edges, h.Spec.Hostname)
 		}
 	}
-	return false, nil
+	sort.Strings(edges)
+	return edges, nil
 }
 
 // installServed reports whether the boot Secret still carries the published
@@ -394,15 +398,42 @@ func renewDue(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallSta
 		return true
 	}
 	boot := host.Status.Boot
-	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedTo != ""
+	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedAt != nil
 	return !handedOut && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
 }
 
-// bootServes reports whether the boot server holding the site's provisioning
-// address reported the install servable.
-func bootServes(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus) bool {
-	boot := host.Status.Boot
-	return boot != nil && boot.KeyID == inst.KeyID && boot.ServableAt != nil
+// bootWaitsFor names the boot servers the install waits for before the host
+// is rebooted into it, empty once they all reported it servable: the one
+// holding the site's provisioning address, or, for an edge, which takes its
+// own boot server down with it, those of edges, the other edges of its site,
+// one of which takes the address over.
+func (r *RackLinuxHostReconciler) bootWaitsFor(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus, edges []string) string {
+	reported, holder := map[string]bool{}, false
+	if boot := host.Status.Boot; boot != nil && boot.KeyID == inst.KeyID {
+		for _, s := range boot.Servers {
+			reported[s.Node] = true
+			holder = holder || s.HoldsAddress
+		}
+	}
+	if host.Spec.Role != "edge" {
+		if holder {
+			return ""
+		}
+		return "the boot server holding " + r.Install.provisioningAddress()
+	}
+	if len(edges) == 0 {
+		return "the boot server of another edge of site " + host.Spec.Location.Site
+	}
+	var missing []string
+	for _, e := range edges {
+		if !reported[e] {
+			missing = append(missing, e)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return "the boot servers on " + strings.Join(missing, ", ")
 }
 
 // provisioningAddress is the site's provisioning address, where the boot

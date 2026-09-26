@@ -33,6 +33,9 @@ spec:
         - jsonPath: .status.lastSeen
           name: LastSeen
           type: date
+        - jsonPath: .status.conflict.reason
+          name: Conflict
+          type: string
         - jsonPath: .status.site
           name: Site
           priority: 1
@@ -91,8 +94,38 @@ spec:
                     BootMAC is the MAC to declare as the host's bootMAC: its i226-LM, the port
                     on the management switch that carries AMT.
                   type: string
+                conflict:
+                  description: |-
+                    Conflict is the last announcement under the same UUID that did not
+                    match what the machine first announced. What a machine announced first
+                    is kept: the RackLinuxHost declaring the UUID takes its hardware from a
+                    candidate only while it has no conflict.
+                  properties:
+                    address:
+                      description: Address is the address it came from, and SeenBy the edge that heard it.
+                      type: string
+                    at:
+                      description: At is when it came.
+                      format: date-time
+                      type: string
+                    reason:
+                      description: Reason is what it announced differently.
+                      type: string
+                    seenBy:
+                      type: string
+                  required:
+                    - at
+                    - reason
+                  type: object
                 declaredAs:
                   description: DeclaredAs is the hostname of the RackLinuxHost named after its UUID.
+                  type: string
+                ek:
+                  description: |-
+                    EK is its TPM's RSA endorsement key, base64 PKIX DER, and
+                    EKFingerprint the key's SHA-256.
+                  type: string
+                ekFingerprint:
                   type: string
                 firstSeen:
                   description: FirstSeen and LastSeen bound its announcements.

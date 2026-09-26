@@ -83,6 +83,13 @@ type RackLinuxHostReconciler struct {
 	EgressNamespace    string
 	EgressProxyGroup   string
 
+	// NodeBinary is the rack-node binary (linux/amd64) the operator reads an
+	// installed host's TPM with.
+	NodeBinary []byte
+
+	// ReadHostEK reads an installed host's TPM over SSH; overridden in tests.
+	ReadHostEK ReadHostEK
+
 	// RunScript and Now are overridden in tests.
 	RunScript RunRackScript
 	Now       func() time.Time
@@ -158,6 +165,7 @@ func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			requeue = after
 		}
 	}
+	r.reconcileTPM(ctx, host)
 	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 

@@ -20,7 +20,7 @@ func TestUserDataCarriesItsInstallID(t *testing.T) {
 }
 
 type stickFakes struct {
-	bin, curlLog, seed, autoinstall, console, sys, announced, prev, calls string
+	bin, curlLog, seed, autoinstall, console, sys, announced, prev, calls, node, asked string
 }
 
 // stickWorld is what the live installer finds: a boot server that publishes
@@ -51,6 +51,8 @@ func newStickWorld(t *testing.T, w stickWorld) stickFakes {
 		announced:   filepath.Join(dir, "announced"),
 		prev:        filepath.Join(dir, "prev"),
 		calls:       filepath.Join(dir, "calls"),
+		node:        filepath.Join(dir, "rack-node"),
+		asked:       filepath.Join(dir, "asked"),
 	}
 	writeFakeSys(t, f.sys)
 	published, err := UserData(edgeSeed())
@@ -87,27 +89,18 @@ func newStickWorld(t *testing.T, w stickWorld) stickFakes {
 2: enp2s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 58:47:CA:7A:1B:2C brd ff:ff:ff:ff:ff:ff
 3: enp89s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 38:05:25:38:b5:b5 brd ff:ff:ff:ff:ff:ff
 OUT`,
-		"curl": `out= url= data= format= fail=0
+		"curl": `out= url= data=
 while [ $# -gt 0 ]; do
-  case "$1" in -o) out="$2"; shift 2 ;; -w) format="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; -f*) fail=1; shift ;; http*) url="$1"; shift ;; *) shift ;; esac
+  case "$1" in -o) out="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; http*) url="$1"; shift ;; *) shift ;; esac
 done
 if [ "$url" = http://192.168.50.1:8480/cgi-bin/announce ] && [ "$data" = @- ]; then
   { cat; echo ---; } >>"` + f.announced + `"
   exit 0
 fi
 echo "$url" >>"` + f.curlLog + `"
-if [ ` + unreachable + ` = 1 ]; then
-  [ -z "$format" ] || printf 000
-  exit 7
-fi
-asked=$(grep -c 38-05-25-38-b5-b5 "` + f.curlLog + `")
-code=404
-if [ "$url" = http://192.168.50.1:8480/hosts/38-05-25-38-b5-b5/user-data ] && [ "$asked" -gt ` + publishAfter + ` ]; then
-  cp "` + filepath.Join(dir, "published") + `" "$out"
-  code=200
-fi
-[ -z "$format" ] || printf '%s' "$code"
-[ "$code" = 200 ] || [ "$fail" = 0 ] || exit 22`,
+[ ` + unreachable + ` = 0 ] || exit 7
+[ "$url" = http://192.168.50.1:8480/tools/rack-node ] || exit 22
+cp "` + filepath.Join(dir, "fake-rack-node") + `" "$out"`,
 		"lsblk":  lsblk,
 		"sleep":  `:`,
 		"mount":  `echo "mount $*" >>"` + f.calls + `"`,
@@ -120,6 +113,26 @@ else
 fi`,
 		"reboot": `echo "reboot $*" >>"` + f.calls + `"
 kill -KILL $PPID`,
+	}
+	fakeNode := `case "$1" in
+ek) echo MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtestek== ;;
+seed)
+  shift
+  while [ $# -gt 0 ]; do case "$1" in --server) server="$2"; shift 2 ;; --out) out="$2"; shift 2 ;; *) break ;; esac; done
+  [ "$server" = http://192.168.50.1:8480 ] || exit 1
+  echo "$*" >>"` + f.asked + `"
+  asked=$(wc -l <"` + f.asked + `")
+  for mac in "$@"; do
+    if [ "$mac" = 38-05-25-38-b5-b5 ] && [ "$asked" -gt ` + publishAfter + ` ]; then
+      cp "` + filepath.Join(dir, "published") + `" "$out"
+      echo "$mac"
+      exit 0
+    fi
+  done
+  exit 4 ;;
+esac`
+	if err := os.WriteFile(filepath.Join(dir, "fake-rack-node"), []byte("#!/bin/sh\n"+fakeNode+"\n"), 0o755); err != nil {
+		t.Fatal(err)
 	}
 	for name, body := range fakes {
 		if err := os.WriteFile(filepath.Join(f.bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
@@ -135,7 +148,7 @@ func (f stickFakes) command(t *testing.T) *exec.Cmd {
 	if err != nil {
 		t.Skip("no sh")
 	}
-	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys})
+	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys, Node: f.node})
 	cmd := exec.Command(sh, "-c", strings.ReplaceAll(script, "/run/tuist-prev", f.prev))
 	cmd.Env = append(os.Environ(), "PATH="+f.bin+":"+os.Getenv("PATH"))
 	return cmd
@@ -175,9 +188,13 @@ func TestStickInstallsWhatTheBootServerPublishesForItsNIC(t *testing.T) {
 	if string(got) != published {
 		t.Fatalf("autoinstall.yaml is not the published seed:\n%s", got)
 	}
-	asked, _ := os.ReadFile(f.curlLog)
-	if !strings.Contains(string(asked), "http://192.168.50.1:8480/hosts/58-47-ca-7a-1b-2c/user-data\n") {
-		t.Errorf("did not ask for the other NIC, lower-cased and hyphenated: %q", asked)
+	asked, _ := os.ReadFile(f.asked)
+	if string(asked) != "58-47-ca-7a-1b-2c 38-05-25-38-b5-b5\n" {
+		t.Errorf("did not ask for both NICs, lower-cased and hyphenated, through rack-node: %q", asked)
+	}
+	fetched, _ := os.ReadFile(f.curlLog)
+	if string(fetched) != "http://192.168.50.1:8480/tools/rack-node\n" {
+		t.Errorf("did not fetch rack-node from the boot server once: %q", fetched)
 	}
 }
 
@@ -230,7 +247,8 @@ func TestStickUserData(t *testing.T) {
 	early := seed.Autoinstall.EarlyCommands[0]
 	for _, want := range []string{
 		"server='http://192.168.50.1:8480'",
-		`-o /run/tuist-user-data -w '%{http_code}' "$server/hosts/$path/user-data"`,
+		`"$server/tools/rack-node"`,
+		`"$node" seed --server "$server" --out /run/tuist-user-data $macs`,
 		"cp /run/tuist-user-data /autoinstall.yaml",
 		`grep -qx "tailnet_key=$id" /run/tuist-prev/etc/tuist-rack-node`,
 		// With nothing published, it hands over to a
@@ -329,6 +347,7 @@ serial=MD148LS139QQMQE00070
 product=Micro Computer (HK) Tech Limited Venus Series
 nic=58:47:ca:7a:1b:2c i40e 0x1572
 nic=38:05:25:38:b5:b5 igc 0x125b
+ek=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtestek==
 ---
 `
 	if string(got) != want {
@@ -357,9 +376,9 @@ func TestStickHandsAnInstalledMachineBackAtOnce(t *testing.T) {
 	if !strings.Contains(calls, "efibootmgr -q -n 0000\n") {
 		t.Fatalf("did not boot the installed system next:\n%s", calls)
 	}
-	asked, _ := os.ReadFile(f.curlLog)
-	if n := strings.Count(string(asked), "/user-data\n"); n != 2 {
-		t.Fatalf("asked %d times before handing over, want once per NIC:\n%s", n, asked)
+	asked, _ := os.ReadFile(f.asked)
+	if string(asked) != "58-47-ca-7a-1b-2c 38-05-25-38-b5-b5\n" {
+		t.Fatalf("asked %q before handing over, want once for both NICs", asked)
 	}
 }
 
@@ -372,8 +391,8 @@ func TestStickWaitsOutAnUnreachableBootServer(t *testing.T) {
 	f.runToReboot(t)
 
 	asked, _ := os.ReadFile(f.curlLog)
-	if n := strings.Count(string(asked), "/user-data\n"); n < 60 {
-		t.Fatalf("asked %d times before handing over, want five minutes' worth", n)
+	if n := strings.Count(string(asked), "/tools/rack-node\n"); n < 30 {
+		t.Fatalf("tried %d times before handing over, want five minutes' worth", n)
 	}
 }
 

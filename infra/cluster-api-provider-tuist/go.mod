@@ -4,6 +4,8 @@ go 1.25.0
 
 require (
 	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.3
+	github.com/google/go-attestation v0.6.4
+	github.com/google/go-tpm v0.9.8
 	github.com/kdomanski/iso9660 v0.4.0
 	github.com/ovh/go-ovh v1.9.0
 	github.com/pin/tftp/v3 v3.2.0
@@ -41,7 +43,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/josharian/intern v1.0.0 // indirect
