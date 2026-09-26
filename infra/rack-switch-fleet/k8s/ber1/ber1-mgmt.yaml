@@ -296,6 +296,26 @@ spec:
       purpose: management
       peer: ber1-edge-b
       detail: edge/i226-lm
+    - port: 41
+      purpose: management
+      peer: ber1-ats-1
+      detail: power/netpack
+    - port: 42
+      purpose: management
+      peer: ber1-ats-2
+      detail: power/netpack
+    - port: 43
+      purpose: management
+      peer: ber1-ats-3
+      detail: power/netpack
+    - port: 44
+      purpose: management
+      peer: ber1-pdu-a
+      detail: power/netpack
+    - port: 45
+      purpose: management
+      peer: ber1-pdu-b
+      detail: power/netpack
     - port: 47
       purpose: edge
       peer: ber1-edge-b
