@@ -10,6 +10,10 @@ data:
     {{- .Files.Get (printf "sites/%s/mgmt-path.sh" (include "rack-edge.site" .)) | nindent 4 }}
   dnsmasq.conf: |
     {{- .Files.Get (printf "sites/%s/dnsmasq.conf" (include "rack-edge.site" .)) | nindent 4 }}
+  dnsmasq-machines.conf: |
+    {{- .Files.Get (printf "sites/%s/dnsmasq-machines.conf" (include "rack-edge.site" .)) | nindent 4 }}
+  tailnet-routes.sh: |
+    {{- .Files.Get (printf "sites/%s/tailnet-routes.sh" (include "rack-edge.site" .)) | nindent 4 }}
   {{- range $path, $_ := .Files.Glob (printf "sites/%s/keepalived-*.conf" (include "rack-edge.site" .)) }}
   {{ base $path }}: |
     {{- $.Files.Get $path | nindent 4 }}

@@ -240,7 +240,8 @@ own source address. Notes:
   anything that must keep working when the host has lost its tailnet identity
   belongs in the configured list.
 - A rack host's list is the fleet's plus its RackHost `spec.sshIngressAllowCIDRs`:
-  the LAN address of each subnet router its address is dialled through. A
+  the address each subnet router in front of it forwards from on the host's
+  side, which for BER1 is each edge's own address on the machines segment. A
   router forwards with SNAT (the default on Linux, the only mode on macOS), so
   the host sees the router, not the operator. A rented mini that drops off the
   tailnet can still be dialled on its public address because the operator's
@@ -387,27 +388,29 @@ mode behind it:
 
 A rented mini has a public IP the operator can reach before anything is
 installed. A rack mini does not, and it is not on the tailnet yet either: 
-bootstrap is what puts it there. So `RackHost.spec.address` is the in-rack LAN
-address, reached through a **subnet router in the rack** that advertises it,
-with a matching `tcp:22` grant in `infra/tailscale/acls.json`.
+bootstrap is what puts it there. So `RackHost.spec.address` is the mini's address
+on the rack's machines segment, reached through the rack's two edges, which both
+advertise it to the tailnet (see "The machines segment" in
+[`infra/rack-switch-fleet`](../rack-switch-fleet/AGENTS.md)), with a matching
+`tcp:22` grant in `infra/tailscale/acls.json`. Two routers rather than one, so
+the first dial and every drift push into the rack survive losing an edge: the
+tailnet fails over between them.
 
 **Advertise a /32 per host, not the rack's prefix**, for as long as the
 catch-all `*->*` grant at the top of that ACL file still exists. A catch-all
 subsumes every narrowing below it, so what an advertised route actually exposes
 today is every address in it, on every port, to every device on the tailnet:
 three clusters' nodes, the rented Mac mini fleet, ops laptops, and every Tart
-runner VM holding a tailnet identity. The BER1 prototype's router sits on a HOME
-network, where a /24 would hand CI runner VMs the router admin page and every
-personal device in the house. The cost of a /32 is that the address becomes
-load-bearing in two places, the grant and `RackHost.spec.address`, so give each
-host a DHCP reservation and update both together.
+runner VM holding a tailnet identity. The cost of a /32 is that the address is
+load-bearing in the grant as well as in `RackHost.spec.address`, from which the
+edges render the host's DHCP reservation and its route.
 
-**Put the router's own LAN address in `rackFleet.sshIngressAllowCIDRs`** (a
-host can override it with its own). The router forwards with SNAT, so that
-address is the source every dial through this path arrives from, and the host's
-SSH ingress guard drops it otherwise. The chart refuses to render a rack host
-without one. Give the router a DHCP reservation too: a new lease is dropped by
-every guard in the rack until the value is updated.
+**Put each edge's own address on the machines segment in
+`rackFleet.sshIngressAllowCIDRs`** (a host can override it with its own). An edge
+forwards with SNAT from its own address there, so those are the sources every
+dial through this path arrives from, and the host's SSH ingress guard drops
+anything else. Both, because the tailnet can route a dial through either. The
+chart refuses to render a rack host without one.
 
 **The cluster reaches that address through an egress Service, not directly.**
 A Pod has no route to a subnet-routed address; only the Tailscale proxies do.
@@ -428,7 +431,7 @@ needed it. Diagnose with:
 
 ```bash
 kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale debug prefs | grep RouteAll
-kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale ping 192.168.0.41
+kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale ping 10.10.0.101
 ```
 
 `RouteAll: false` or `no matching peer` is this, not a host fault and not the
@@ -441,41 +444,26 @@ riding: exactly why the drift loop's tailnet fallback has to set
 `SkipTailscaleInstall`. Through a separate router the session survives, so a
 rack host can be fully bootstrapped in one pass. The drift loop still falls back
 to the per-machine egress Service once the host has joined, for the case where
-the LAN address stops answering.
+the segment address stops answering.
 
-That LAN prefix is **not** in `autoApprovers`. The Connector's Service CIDR is,
-because a Pod re-advertises it on every rollout and manual approval would break
-the route each time; a rack's subnet router is a long-lived box that advertises
-once, so auto-approval would buy nothing and would let any device holding the
-approver tag put a private prefix into the tailnet's routing table.
+The edges' routes are in `autoApprovers`, for `tag:tuist-rack-edge` and only
+inside the machines segment's prefix. They are rendered from the rack's
+inventory, so racking a mini changes them, and hand approval would be a step per
+mini per edge; scoped to the segment, the tag can put nothing else into the
+tailnet's routing table.
 
-### Two prerequisites before a real rack replaces the prototype
+### Before the machines segment is advertised as one prefix
 
-Both are cheap to do early and expensive to retrofit, and neither is visible
-from the code.
-
-**1. Remove the catch-all grant before widening past /32.** A rack wants its
-mini VLAN advertised as one prefix rather than a /32 per host, and that is only
-safe once `{"src": ["*"], "dst": ["*"], "ip": ["*"]}` is gone from
+**Remove the catch-all grant first.** A rack wants its machines segment
+advertised as one prefix rather than a /32 per host, and that is only safe once `{"src": ["*"], "dst": ["*"], "ip": ["*"]}` is gone from
 `infra/tailscale/acls.json`. While it is there it subsumes every narrowing
 below it, so an advertised prefix is reachable on every port by every device on
 the tailnet, CI runner VMs included: those execute customer build code and would
 gain SSH to every mini in the rack. The per-env grants in that file were written
 to survive the removal (their comment says exactly that), so the work is an
 audit of what still depends on the catch-all, chiefly Talos node access and ops
-laptops, not a rewrite. Until it is gone, keep advertising per-host /32s, which
-is correct but does not scale past a handful of boxes.
-
-**2. Run two subnet routers, not one.** Tailscale supports HA subnet routing:
-two nodes advertising the same prefix, one primary, automatic failover. A single
-service node is a single point of failure for every first dial and every drift
-push into the rack, which is the one path that has no fallback. Already-Ready
-Nodes keep working without it, which is precisely why this will look fine right
-up until a host needs re-bootstrapping and cannot be reached. The rack's own
-power doctrine is to dual-feed the pets; the service node is a pet.
-
-Both are also why the prototype's /32 is not merely a prototype artefact: it is
-the shape to keep until (1) is done.
+laptops, not a rewrite. Until it is gone, the edges keep advertising per-host
+/32s.
 
 ### Operating
 

@@ -34,8 +34,22 @@
         ]
       },
       "machines": {
-        "vlan": null,
-        "gateway": null
+        "vlan": 10,
+        "gateway": "10.10.0.1/24",
+        "members": [
+          {
+            "node": "ber1-edge-a",
+            "address": "10.10.0.2"
+          },
+          {
+            "node": "ber1-edge-b",
+            "address": "10.10.0.3"
+          }
+        ],
+        "dns": [
+          "1.1.1.1",
+          "8.8.8.8"
+        ]
       },
       "wan": {
         "vlan": null,
@@ -131,7 +145,8 @@
       "description": "bulk storage"
     },
     "runner": {
-      "description": "Mac mini running the runner fleet"
+      "description": "Mac mini running the runner fleet",
+      "segment": "machines"
     },
     "console": {
       "description": "crash-cart KVM reached over the network"
@@ -419,6 +434,24 @@
         "address": 3,
         "terminator": true
       }
+    },
+    {
+      "name": "ber1-proto-01",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-proto-01",
+      "status": "installed",
+      "note": "The refurbished M1 that proves the plumbing until the leased minis arrive. Its NIC is 1G, not the 10G of the rack minis the hardware entry describes.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 1,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "14:98:77:3a:99:2c"
+        }
+      ]
     }
   ],
   "placement": {
@@ -433,6 +466,11 @@
     "namespace": "tuist-staging"
   },
   "vlans": [
+    {
+      "id": 10,
+      "name": "machines",
+      "carried_by": "edges"
+    },
     {
       "id": 4000,
       "name": "edge-vrrp",
