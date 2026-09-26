@@ -7,6 +7,10 @@ import TuistLogging
 import XcodeGraph
 
 /// A project mapper that returns side effects to delete the derived directory.
+///
+/// Generated test plans are preserved because they are written while the `.xcodeproj` is
+/// being written, before mapper side effects run; deleting the directory here would remove
+/// the plans right after they were generated.
 public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
     private let preservedDerivedDirectories: Set<String>
@@ -20,6 +24,7 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
             Constants.DerivedDirectory.sources,
             Constants.DerivedDirectory.infoPlists,
             Constants.DerivedDirectory.entitlements,
+            Constants.DerivedDirectory.testPlans,
         ],
         fileSystem: FileSysteming = FileSystem()
     ) {

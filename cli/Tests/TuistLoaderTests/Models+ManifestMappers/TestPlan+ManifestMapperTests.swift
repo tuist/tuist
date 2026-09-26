@@ -59,6 +59,39 @@ struct TestPlanManifestMapperTests {
         )
     }
 
+    @Test(.inTemporaryDirectory) func generated_plan_carries_normalized_tags_on_its_test_targets() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let manifestDirectory = temporaryDirectory.appending(component: "App")
+
+        // When
+        let got = try await TestPlan.from(
+            manifests: [
+                .generated(
+                    name: "UnitTests",
+                    testTargets: [
+                        .testableTarget(
+                            target: "AppTests",
+                            selectedTags: ["contract"],
+                            skippedTags: [".slow"]
+                        ),
+                    ]
+                ),
+            ],
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: manifestDirectory,
+                rootDirectory: temporaryDirectory
+            ),
+            schemeName: "App",
+            fileSystem: fileSystem
+        )
+
+        // Then
+        let testTarget = try #require(got.first?.testTargets.first)
+        #expect(testTarget.selectedTags == [".contract"])
+        #expect(testTarget.skippedTags == [".slow"])
+    }
+
     @Test(.inTemporaryDirectory) func plan_with_bare_container_path_resolves_to_manifest_directory() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

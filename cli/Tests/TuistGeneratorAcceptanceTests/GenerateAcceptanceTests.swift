@@ -130,6 +130,59 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
         )
         let unitTargets = try #require(unitPlanJSON["testTargets"] as? [[String: Any]])
         #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests"])
+
+        // And: the tagged entry carries the normalized selected tags and no skipped tags
+        let appTestsEntry = try #require(
+            unitTargets.first { ($0["target"] as? [String: Any])?["name"] as? String == "AppTests" }
+        )
+        #expect(appTestsEntry["selectedTags"] as? [String: [String]] == ["tags": [".contract"]])
+        #expect(appTestsEntry["skippedTags"] == nil)
+
+        // And: the untagged plan omits both tag keys
+        let snapshotPlanData = try Data(contentsOf: snapshotPlanPath.url)
+        let snapshotPlanJSON = try #require(
+            try JSONSerialization.jsonObject(with: snapshotPlanData) as? [String: Any]
+        )
+        let snapshotTargets = try #require(snapshotPlanJSON["testTargets"] as? [[String: Any]])
+        let appSnapshotTestsEntry = try #require(
+            snapshotTargets.first { ($0["target"] as? [String: Any])?["name"] as? String == "AppSnapshotTests" }
+        )
+        #expect(appSnapshotTestsEntry["selectedTags"] == nil)
+        #expect(appSnapshotTestsEntry["skippedTags"] == nil)
+
+        // And: both plans are visible in the project navigator
+        let fileReferencePaths = xcodeproj.pbxproj.fileReferences.compactMap(\.path)
+        #expect(fileReferencePaths.contains { $0.hasSuffix("UnitTests.xctestplan") })
+        #expect(fileReferencePaths.contains { $0.hasSuffix("SnapshotTests.xctestplan") })
+    }
+}
+
+struct GenerateAcceptanceTestAppWithReferencedTestPlanInSubfolder {
+    /// A checked-in plan below the manifest directory spells its `containerPath` relative to the
+    /// project, not to its own location, because that is how Xcode resolves it. The plan must
+    /// therefore survive tree-shaking and stay attached to the scheme.
+    @Test(.withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
+    func app_with_referenced_test_plan_in_subfolder() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(component: "App.xcodeproj").pathString
+        )
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "App" }
+        )
+        let planReferences = try #require(scheme.testAction?.testPlans).map(\.reference)
+        #expect(planReferences.contains("container:All.xctestplan"))
+        #expect(planReferences.contains("container:TestPlans/Subfolder.xctestplan"))
+
+        // And: both plans are visible in the navigator
+        let fileReferencePaths = xcodeproj.pbxproj.fileReferences.compactMap(\.path)
+        #expect(fileReferencePaths.contains { $0.hasSuffix("Subfolder.xctestplan") })
     }
 }
 
