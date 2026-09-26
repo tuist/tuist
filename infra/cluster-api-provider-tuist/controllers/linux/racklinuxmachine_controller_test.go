@@ -2,7 +2,6 @@ package linux
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -22,6 +21,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/racknode"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -65,6 +65,43 @@ func (f *fakeRunner) run(_ context.Context, _, host string, _ []byte, script str
 		return "", err
 	}
 	return "tuist-converge: changed=/var/lib/kubelet/config.yaml restarted=kubelet\n", nil
+}
+
+// nodeApply is one rack-node apply the operator ran over SSH.
+type nodeApply struct {
+	host   string
+	req    racknode.Request
+	pinned string
+}
+
+// fakeApplier answers rack-node applies: in turn with results, and otherwise
+// with the configuration applied.
+type fakeApplier struct {
+	applies []nodeApply
+	results []func(racknode.Request) (racknode.Result, error)
+}
+
+func (f *fakeApplier) apply(_ context.Context, _, host string, _ []byte, hk *bootstrap.HostKeyState, req racknode.Request) (racknode.Result, error) {
+	f.applies = append(f.applies, nodeApply{host: host, req: req, pinned: hk.Observed()})
+	if len(f.results) > 0 {
+		next := f.results[0]
+		f.results = f.results[1:]
+		return next(req)
+	}
+	return racknode.Result{Applied: req.Config.Hash, Changed: []string{"/var/lib/kubelet/config.yaml"}, Restarted: []string{"kubelet"}}, nil
+}
+
+func needsBootstrap(racknode.Request) (racknode.Result, error) {
+	return racknode.Result{NeedsBootstrap: true}, nil
+}
+
+func nodeFile(req racknode.Request, path string) string {
+	for _, f := range req.Config.Files {
+		if f.Path == path {
+			return f.Content
+		}
+	}
+	return ""
 }
 
 func claimedEdgeHost(device string) *infrav1.RackLinuxHost {
@@ -124,9 +161,10 @@ func rackClusterObjects(ciliumExcludes bool) []runtime.Object {
 }
 
 type rackMachineHarness struct {
-	r      *RackLinuxMachineReconciler
-	c      client.Client
-	runner *fakeRunner
+	r       *RackLinuxMachineReconciler
+	c       client.Client
+	runner  *fakeRunner
+	applier *fakeApplier
 }
 
 func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Object) *rackMachineHarness {
@@ -138,6 +176,7 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
 		WithStatusSubresource(&infrav1.RackLinuxHost{}, &infrav1.RackLinuxMachine{}, &corev1.Node{}).Build()
 	runner := &fakeRunner{}
+	applier := &fakeApplier{}
 	r := &RackLinuxMachineReconciler{
 		Client:             c,
 		APIReader:          c,
@@ -152,8 +191,9 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 		EgressProxyGroup: "macmini-egress",
 		EgressProxyTags:  "tag:tuist-k8s-staging",
 		RunScript:        runner.run,
+		ApplyNode:        applier.apply,
 	}
-	return &rackMachineHarness{r: r, c: c, runner: runner}
+	return &rackMachineHarness{r: r, c: c, runner: runner, applier: applier}
 }
 
 func (h *rackMachineHarness) reconcile(t *testing.T) *infrav1.RackLinuxMachine {
@@ -190,23 +230,24 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	stale := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"}}
 	objs := append(rackClusterObjects(true), claimedEdgeHost("dev-1"), edgeMachine(), stale)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
-	h.runner.results = []error{&scriptExitError{status: rackConvergeNeedsBootstrap, err: errors.New("exit 42")}, nil}
+	h.applier.results = []func(racknode.Request) (racknode.Result, error){needsBootstrap}
 
 	m := h.reconcile(t)
 
-	if len(h.runner.runs) != 2 {
-		t.Fatalf("ran %d scripts, want a converge then a bootstrap", len(h.runner.runs))
+	applies := h.applier.applies
+	if len(applies) != 2 {
+		t.Fatalf("applied %d times, want a converge then a join", len(applies))
 	}
-	if h.runner.runs[0].host != "rack-linux-"+edgeUUID+".tailscale-operator.svc.cluster.local" {
-		t.Fatalf("dialled %q, want the egress Service", h.runner.runs[0].host)
+	if applies[0].host != "rack-linux-"+edgeUUID+".tailscale-operator.svc.cluster.local" {
+		t.Fatalf("dialled %q, want the egress Service", applies[0].host)
 	}
-	if strings.Contains(h.runner.runs[0].script, "token:") {
+	if applies[0].req.Bootstrap != "" {
 		t.Fatal("the first converge carried a bootstrap token")
 	}
-	if !strings.Contains(h.runner.runs[1].script, "token: ") || !strings.Contains(h.runner.runs[1].script, "server: https://api.example:6443") {
-		t.Fatal("the second run did not carry a bootstrap kubeconfig")
+	if !strings.Contains(applies[1].req.Bootstrap, "token: ") || !strings.Contains(applies[1].req.Bootstrap, "server: https://api.example:6443") {
+		t.Fatal("the join did not carry a bootstrap kubeconfig")
 	}
-	if !strings.Contains(h.runner.runs[1].script, "kubelet_package 1.34.8") {
+	if applies[1].req.Config.Kubelet.Version != "1.34.8" {
 		t.Fatal("the kubelet is not pinned to the control plane release")
 	}
 	if tokens := h.bootstrapTokens(t); len(tokens) != 0 {
@@ -218,7 +259,8 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	if m.Status.NodeName != "ber1-edge" || m.Spec.ProviderID == nil || *m.Spec.ProviderID != "rack-linux://ber1/"+edgeUUID {
 		t.Fatalf("node %q providerID %v", m.Status.NodeName, m.Spec.ProviderID)
 	}
-	if m.Status.TailnetDeviceID != "dev-1" || m.Status.HostConfigHash == "" || m.Status.LastConvergeTime == nil {
+	if m.Status.TailnetDeviceID != "dev-1" || m.Status.HostConfigHash == "" || m.Status.LastConvergeTime == nil ||
+		m.Status.NodeConfig == nil || m.Status.NodeConfig.Hash != m.Status.HostConfigHash || m.Status.NodeConfigTime == nil {
 		t.Fatalf("status %+v", m.Status)
 	}
 	if !conditions.IsTrue(m, HostConvergedCondition) {
@@ -241,7 +283,7 @@ func TestRackLinuxMachineKeepsTheManagementPortUp(t *testing.T) {
 
 	h.reconcile(t)
 
-	if len(h.runner.runs) == 0 || !strings.Contains(h.runner.runs[0].script, "MACAddress=38:05:25:38:b5:b5\n") {
+	if len(h.applier.applies) == 0 || !strings.Contains(nodeFile(h.applier.applies[0].req, "/etc/systemd/network/10-tuist-management.network"), "MACAddress=38:05:25:38:b5:b5\n") {
 		t.Fatal("the converge does not keep the boot MAC's port up")
 	}
 }
@@ -252,8 +294,8 @@ func TestRackLinuxMachineRefusesWhileCiliumWouldScheduleOntoTheNode(t *testing.T
 
 	m := h.reconcile(t)
 
-	if len(h.runner.runs) != 0 {
-		t.Fatalf("ran %d scripts with Cilium able to schedule onto the node", len(h.runner.runs))
+	if len(h.applier.applies) != 0 {
+		t.Fatalf("applied %d times with Cilium able to schedule onto the node", len(h.applier.applies))
 	}
 	c := conditions.Get(m, HostConvergedCondition)
 	if c == nil || !strings.Contains(c.Message, "cilium.io/no-schedule") {
@@ -264,12 +306,14 @@ func TestRackLinuxMachineRefusesWhileCiliumWouldScheduleOntoTheNode(t *testing.T
 func TestRackLinuxMachineReportsAKubeadmJoinedHost(t *testing.T) {
 	objs := append(rackClusterObjects(true), claimedEdgeHost("dev-1"), edgeMachine())
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
-	h.runner.results = []error{&scriptExitError{status: rackConvergeForeignJoin, err: errors.New("exit 43")}}
+	h.applier.results = []func(racknode.Request) (racknode.Result, error){func(racknode.Request) (racknode.Result, error) {
+		return racknode.Result{ForeignJoin: true}, nil
+	}}
 
 	m := h.reconcile(t)
 
-	if len(h.runner.runs) != 1 || len(h.bootstrapTokens(t)) != 0 {
-		t.Fatalf("ran %d scripts; a kubeadm-joined host must not get a token", len(h.runner.runs))
+	if len(h.applier.applies) != 1 || len(h.bootstrapTokens(t)) != 0 {
+		t.Fatalf("applied %d times; a kubeadm-joined host must not get a token", len(h.applier.applies))
 	}
 	if c := conditions.Get(m, HostConvergedCondition); c == nil || !strings.Contains(c.Message, "kubeadm") {
 		t.Fatalf("condition %+v", c)
@@ -285,7 +329,7 @@ func TestRackLinuxMachineHoldsWhenTheControlPlaneIsOnAnotherMinor(t *testing.T) 
 
 	m := h.reconcile(t)
 
-	if len(h.runner.runs) != 0 {
+	if len(h.applier.applies) != 0 {
 		t.Fatal("converged a kubelet onto a minor the operator does not render for")
 	}
 	if c := conditions.Get(m, HostConvergedCondition); c == nil || c.Reason != "ConvergeHeld" {
@@ -304,12 +348,12 @@ func TestRackLinuxMachineLeavesAConvergedHostAlone(t *testing.T) {
 	objs := append(rackClusterObjects(true), host, machine, node)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 	first := h.reconcile(t)
-	if len(h.runner.runs) != 1 {
-		t.Fatalf("ran %d scripts on the first reconcile", len(h.runner.runs))
+	if len(h.applier.applies) != 1 {
+		t.Fatalf("applied %d times on the first reconcile", len(h.applier.applies))
 	}
 
 	second := h.reconcile(t)
-	if len(h.runner.runs) != 1 {
+	if len(h.applier.applies) != 1 {
 		t.Fatal("converged again with nothing changed")
 	}
 	if !second.Status.Ready || second.Status.Phase != "Ready" || first.Status.HostConfigHash != second.Status.HostConfigHash {
@@ -318,7 +362,7 @@ func TestRackLinuxMachineLeavesAConvergedHostAlone(t *testing.T) {
 
 	h.r.ControlPlaneVersion = func(context.Context) (string, error) { return "v1.34.9", nil }
 	h.reconcile(t)
-	if len(h.runner.runs) != 2 || !strings.Contains(h.runner.runs[1].script, "kubelet_package 1.34.9") {
+	if len(h.applier.applies) != 2 || h.applier.applies[1].req.Config.Kubelet.Version != "1.34.9" {
 		t.Fatal("a control plane patch release did not upgrade the kubelet")
 	}
 }
@@ -336,8 +380,8 @@ func TestRackLinuxMachinePinsAReinstalledHostAfresh(t *testing.T) {
 
 	m := h.reconcile(t)
 
-	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "" {
-		t.Fatalf("runs %+v; the reinstalled host must be trusted on first use", h.runner.runs)
+	if len(h.applier.applies) != 1 || h.applier.applies[0].pinned != "" {
+		t.Fatalf("applies %+v; the reinstalled host must be trusted on first use", h.applier.applies)
 	}
 	if creds, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(edgeUUID, "dev-1")); err != nil || creds != nil {
 		t.Fatalf("the previous install's pin is still there: %+v %v", creds, err)
@@ -361,8 +405,8 @@ func TestRackLinuxMachineKeepsAPinPerInstall(t *testing.T) {
 
 	h.reconcile(t)
 
-	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "SHA256:second-install" {
-		t.Fatalf("runs %+v; want the current install's pin", h.runner.runs)
+	if len(h.applier.applies) != 1 || h.applier.applies[0].pinned != "SHA256:second-install" {
+		t.Fatalf("applies %+v; want the current install's pin", h.applier.applies)
 	}
 }
 
@@ -400,20 +444,19 @@ func TestRackLinuxMachineRejoinsARenamedHost(t *testing.T) {
 	old := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"}, Spec: corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID}}
 	objs := append(rackClusterObjects(true), host, machine, old)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
-	h.runner.results = []error{&scriptExitError{status: rackConvergeNeedsBootstrap, err: errors.New("exit 42")}, nil}
+	h.applier.results = []func(racknode.Request) (racknode.Result, error){needsBootstrap}
 
 	m := h.reconcile(t)
 
 	if err := h.c.Get(context.Background(), types.NamespacedName{Name: "ber1-edge"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("the Node the host joined under before its rename is still there: %v", err)
 	}
-	if len(h.runner.runs) != 2 {
-		t.Fatalf("ran %d scripts, want a converge then a bootstrap", len(h.runner.runs))
+	if len(h.applier.applies) != 2 {
+		t.Fatalf("applied %d times, want a converge then a join", len(h.applier.applies))
 	}
-	for i, run := range h.runner.runs {
-		if !strings.Contains(run.script, "rm -rf /var/lib/kubelet/pki /var/lib/kubelet/kubeconfig") ||
-			!strings.Contains(run.script, "name='ber1-edge-c'") || !strings.Contains(run.script, "--hostname-override=ber1-edge-c") {
-			t.Fatalf("run %d does not rejoin the host as ber1-edge-c:\n%s", i, run.script)
+	for i, a := range h.applier.applies {
+		if !a.req.Rejoin || a.req.Config.Hostname != "ber1-edge-c" || !strings.Contains(nodeFile(a.req, "/etc/systemd/system/kubelet.service"), "--hostname-override=ber1-edge-c") {
+			t.Fatalf("apply %d does not rejoin the host as ber1-edge-c: %+v", i, a.req)
 		}
 	}
 	if m.Status.NodeName != "ber1-edge-c" {
@@ -421,7 +464,7 @@ func TestRackLinuxMachineRejoinsARenamedHost(t *testing.T) {
 	}
 
 	h.reconcile(t)
-	if len(h.runner.runs) != 2 {
+	if len(h.applier.applies) != 2 {
 		t.Fatal("rejoined the host again")
 	}
 }
@@ -451,8 +494,8 @@ func TestRackLinuxMachineConvergesANewDeviceWithoutWaitingOutTheBackoff(t *testi
 
 	m := h.reconcile(t)
 
-	if len(h.runner.runs) != 1 {
-		t.Fatalf("ran %d scripts; a reinstalled host must not wait out the old device's backoff", len(h.runner.runs))
+	if len(h.applier.applies) != 1 {
+		t.Fatalf("applied %d times; a reinstalled host must not wait out the old device's backoff", len(h.applier.applies))
 	}
 	if m.Status.ConvergeFailures != 0 || m.Status.TailnetDeviceID != "dev-2" {
 		t.Fatalf("status %+v", m.Status)
@@ -466,8 +509,8 @@ func TestRackLinuxMachineBacksOffOnTheSameDevice(t *testing.T) {
 
 	h.reconcile(t)
 
-	if len(h.runner.runs) != 0 {
-		t.Fatalf("ran %d scripts inside the backoff", len(h.runner.runs))
+	if len(h.applier.applies) != 0 {
+		t.Fatalf("applied %d times inside the backoff", len(h.applier.applies))
 	}
 }
 
@@ -531,7 +574,7 @@ func TestRackLinuxMachineHoldsANewInstallToTheHostKeyItWasGiven(t *testing.T) {
 
 	h.reconcile(t)
 
-	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "SHA256:given" {
-		t.Fatalf("runs %+v; the new install is held to the key it was given", h.runner.runs)
+	if len(h.applier.applies) != 1 || h.applier.applies[0].pinned != "SHA256:given" {
+		t.Fatalf("applies %+v; the new install is held to the key it was given", h.applier.applies)
 	}
 }

@@ -4,24 +4,18 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
+	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 )
 
 const (
-	// rackConvergeNeedsBootstrap is the converge script's exit status when the
-	// kubelet has no valid client certificate and the run carried no
-	// bootstrap kubeconfig to get one with.
-	rackConvergeNeedsBootstrap = 42
-
-	// rackConvergeForeignJoin is its exit status on a host kubeadm joined.
-	rackConvergeForeignJoin = 43
-
 	// rackLocalCNIRange is the local CNI's pod range: outside the cluster's
 	// pod CIDR (192.168.0.0/16), its service CIDR (10.128.0.0/12), the
 	// tailnet (100.64.0.0/10) and the rack's own segments.
@@ -33,15 +27,11 @@ const (
 
 	rackBootstrapKubeconfigPath = "/var/lib/kubelet/bootstrap-kubeconfig"
 
-	// rackAppliedHashPath records the configuration a converge last finished
-	// with, so a run that changed files and failed before restarting the
-	// daemons is followed by one that restarts them.
-	rackAppliedHashPath = "/var/lib/tuist/rack-converge.hash"
-
 	rackKubernetesAPIPath = "/etc/tuist/kubernetes-api"
 )
 
-// rackConvergeOptions is everything the converge script renders from.
+// rackConvergeOptions is everything a rack node's configuration renders
+// from.
 type rackConvergeOptions struct {
 	NodeName   string
 	NodeIP     string
@@ -64,13 +54,11 @@ type rackConvergeOptions struct {
 	// node reaches no Service address.
 	KubernetesAPI string
 
-	// APIServerURL and BootstrapToken, when the token is set, make the run
-	// write a bootstrap kubeconfig and wait for the kubelet's certificate.
-	// Rejoin drops the kubelet's identity first, for a host joining again
-	// under a new name. None of them is part of the configuration hash.
-	APIServerURL   string
-	BootstrapToken string
-	Rejoin         bool
+	// APIServerURL is what a join's bootstrap kubeconfig points the kubelet
+	// at. Rejoin drops the kubelet's identity first, for a host joining again
+	// under a new name. Neither is part of the configuration.
+	APIServerURL string
+	Rejoin       bool
 }
 
 // rackNodeLabels are the labels a rack Linux node registers with. Every rack
@@ -169,210 +157,44 @@ users:
 `, server, base64.StdEncoding.EncodeToString(ca), token)
 }
 
-// rackConfigHash fingerprints what a converge would write, leaving out the
-// one-off bootstrap credential.
-func rackConfigHash(o rackConvergeOptions) string {
-	o.APIServerURL = ""
-	o.BootstrapToken = ""
-	o.Rejoin = false
-	sum := sha256.Sum256([]byte(renderRackConvergeScriptWithHash(o, "")))
-	return hex.EncodeToString(sum[:])
-}
-
-// renderRackConvergeScript renders the script that joins a rack Linux host and
-// keeps it converged. It rewrites only files whose content differs, restarts a
-// daemon whose configuration changed or that is not running, and never
-// downgrades the kubelet.
-func renderRackConvergeScript(o rackConvergeOptions) string {
-	return renderRackConvergeScriptWithHash(o, rackConfigHash(o))
-}
-
-func renderRackConvergeScriptWithHash(o rackConvergeOptions, hash string) string {
-	heredoc := func(path, mode, group, content string) string {
-		return fmt.Sprintf("put %s %s %s <<'TUIST_EOF'\n%sTUIST_EOF\n", path, mode, group, ensureTrailingNewline(content))
+// rackNodeConfig renders what the host runs as a node, for the node agent
+// (internal/racknode) to apply. Its hash covers everything but itself.
+func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
+	file := func(path, group, content string) infrav1.RackNodeFile {
+		return infrav1.RackNodeFile{Path: path, Mode: "0644", Group: group, Content: ensureTrailingNewline(content)}
 	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, `#!/usr/bin/env bash
-set -euo pipefail
-shopt -s lastpipe
-trap 'echo "tuist-converge: failed at line $LINENO: $BASH_COMMAND" >&2' ERR
-
-if [ -e /etc/kubernetes/kubelet.conf ] || [ -e /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf ]; then
-  echo "tuist-converge: kubeadm joined this host; reinstall it from a stick written by rack:write-install-usb" >&2
-  exit %[1]d
-fi
-
-declare -A dirty=()
-changed=()
-restarted=()
-if [ "$(cat %[2]s 2>/dev/null || true)" != %[3]s ]; then
-  dirty[containerd]=1
-  dirty[kubelet]=1
-fi
-put() {
-  local path=$1 mode=$2 group=$3 tmp
-  tmp=$(mktemp)
-  cat > "$tmp"
-  if [ -f "$path" ] && cmp -s "$tmp" "$path" && [ "$(stat -c %%a "$path")" = "${mode#0}" ]; then
-    rm -f "$tmp"
-    return 0
-  fi
-  mkdir -p "$(dirname "$path")"
-  install -m "$mode" "$tmp" "$path"
-  rm -f "$tmp"
-  changed+=("$path")
-  dirty[$group]=1
-}
-unput() {
-  local path=$1 group=$2
-  if [ -e "$path" ]; then
-    rm -f "$path"
-    changed+=("-$path")
-    dirty[$group]=1
-  fi
-}
-apt_get() {
-  DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 -y -qq "$@"
-}
-kubelet_package() {
-  apt-cache madison kubelet 2>/dev/null | awk -v want="$1-" '!found && index($3, want) == 1 {print $3; found = 1}'
-}
-has_identity() {
-  [ -s /var/lib/kubelet/kubeconfig ] && [ -s /var/lib/kubelet/pki/kubelet-client-current.pem ] &&
-    openssl x509 -checkend 600 -noout -in /var/lib/kubelet/pki/kubelet-client-current.pem >/dev/null 2>&1
-}
-
-if [ -n "$(swapon --show --noheadings)" ]; then
-  swapoff -a
-  changed+=(swap)
-fi
-sed -ri '/\sswap\s/s/^([^#])/#\1/' /etc/fstab
-
-`, rackConvergeForeignJoin, rackAppliedHashPath, shellSingleQuote(hash))
-
-	b.WriteString(heredoc("/etc/modules-load.d/tuist-k8s.conf", "0644", "modules", modulesLoadContent))
-	b.WriteString(heredoc(rackinstall.ModprobePath, "0644", "modules", rackinstall.ModprobeConf))
-	b.WriteString("modprobe overlay\nmodprobe br_netfilter\n")
-	b.WriteString(heredoc("/etc/sysctl.d/99-tuist-k8s.conf", "0644", "sysctl", sysctlContent))
-	b.WriteString(heredoc("/etc/sysctl.d/99-tuist-hardening.conf", "0644", "sysctl", kernelHardeningSysctlContent))
-	b.WriteString("sysctl -q -p /etc/sysctl.d/99-tuist-k8s.conf\nsysctl -q -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true\n")
+	cfg := infrav1.RackNodeConfig{
+		Hostname: o.NodeName,
+		Files: []infrav1.RackNodeFile{
+			file("/etc/modules-load.d/tuist-k8s.conf", "modules", modulesLoadContent),
+			file(rackinstall.ModprobePath, "modules", rackinstall.ModprobeConf),
+			file("/etc/sysctl.d/99-tuist-k8s.conf", "sysctl", sysctlContent),
+			file("/etc/sysctl.d/99-tuist-hardening.conf", "sysctl", kernelHardeningSysctlContent),
+			file("/etc/systemd/system.conf.d/10-tuist-watchdog.conf", "systemd", watchdogDropInContent),
+			file("/etc/containerd/certs.d/docker.io/hosts.toml", "containerd", dockerHubMirrorHostsContent),
+			file("/etc/cni/net.d/10-tuist-rack-local.conflist", "cni", rackLocalCNIConfig()),
+			file(kubeletClientCAPath, "kubelet", string(o.ClusterCAPEM)),
+			file("/var/lib/kubelet/config.yaml", "kubelet", rackKubeletConfig(o)),
+			file("/etc/systemd/system/kubelet.service", "kubelet", rackKubeletUnit(o)),
+			file(rackKubernetesAPIPath, "api", o.KubernetesAPI),
+		},
+		Modules: []string{"overlay", "br_netfilter"},
+		Sysctl: []infrav1.RackNodeSysctl{
+			{Path: "/etc/sysctl.d/99-tuist-k8s.conf"},
+			{Path: "/etc/sysctl.d/99-tuist-hardening.conf", Optional: true},
+		},
+		Containerd: infrav1.RackNodeContainerd{ConfigPath: "/etc/containerd/config.toml"},
+		Kubelet:    infrav1.RackNodeKubelet{Channel: o.K8sMinor, Version: o.KubeletVersion},
+	}
 	if o.ManagementMAC != "" {
-		b.WriteString(heredoc(rackManagementNetworkPath, "0644", "network", rackManagementNetwork(o.ManagementMAC)))
+		cfg.Files = append(cfg.Files, file(rackManagementNetworkPath, "network", rackManagementNetwork(o.ManagementMAC)))
 	} else {
-		b.WriteString("unput " + rackManagementNetworkPath + " network\n")
+		cfg.Absent = append(cfg.Absent, infrav1.RackNodeFile{Path: rackManagementNetworkPath, Group: "network"})
 	}
-	b.WriteString(`if [ -n "${dirty[network]:-}" ]; then networkctl reload; fi
-`)
-	b.WriteString(heredoc("/etc/systemd/system.conf.d/10-tuist-watchdog.conf", "0644", "systemd", watchdogDropInContent))
-	b.WriteString(`if [ -n "${dirty[systemd]:-}" ]; then systemctl daemon-reexec; fi
-
-if ! dpkg-query -W -f='${Status}' containerd 2>/dev/null | grep -q 'install ok installed'; then
-  apt_get update
-  apt_get install containerd
-  changed+=(containerd)
-  dirty[containerd]=1
-fi
-containerd config default | sed 's/SystemdCgroup = false/SystemdCgroup = true/' | put /etc/containerd/config.toml 0644 containerd
-`)
-	b.WriteString(heredoc("/etc/containerd/certs.d/docker.io/hosts.toml", "0644", "containerd", dockerHubMirrorHostsContent))
-
-	fmt.Fprintf(&b, `
-keyring=/etc/apt/keyrings/kubernetes-apt-keyring.gpg
-source='deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%[1]s/deb/ /'
-refresh=0
-if [ ! -s "$keyring" ] || ! grep -qxF "$source" /etc/apt/sources.list.d/kubernetes.list 2>/dev/null; then
-  mkdir -p /etc/apt/keyrings
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | gpg --batch --yes --dearmor -o "$keyring"
-  printf '%%s\n' "$source" > /etc/apt/sources.list.d/kubernetes.list
-  refresh=1
-fi
-package=$(kubelet_package %[2]s)
-if [ -z "$package" ] || [ "$refresh" = 1 ]; then
-  apt_get update
-  package=$(kubelet_package %[2]s)
-fi
-if [ -z "$package" ]; then
-  echo "tuist-converge: kubelet %[2]s is not published in pkgs.k8s.io %[1]s" >&2
-  exit 1
-fi
-installed=$(dpkg-query -W -f='${Version}' kubelet 2>/dev/null || true)
-if [ "$installed" != "$package" ]; then
-  if [ -n "$installed" ] && dpkg --compare-versions "$installed" gt "$package"; then
-    echo "tuist-converge: kubelet $installed is newer than $package; leaving it" >&2
-  else
-    apt_get install --allow-change-held-packages "kubelet=$package"
-    changed+=("kubelet=$package")
-    dirty[kubelet]=1
-  fi
-fi
-apt-mark hold kubelet >/dev/null
-
-`, o.K8sMinor, o.KubeletVersion)
-
-	b.WriteString(heredoc("/etc/cni/net.d/10-tuist-rack-local.conflist", "0644", "cni", rackLocalCNIConfig()))
-	b.WriteString(heredoc(kubeletClientCAPath, "0644", "kubelet", string(o.ClusterCAPEM)))
-	b.WriteString(heredoc("/var/lib/kubelet/config.yaml", "0644", "kubelet", rackKubeletConfig(o)))
-	b.WriteString(heredoc(rackKubernetesAPIPath, "0644", "api", o.KubernetesAPI))
-	b.WriteString(heredoc("/etc/systemd/system/kubelet.service", "0644", "kubelet", rackKubeletUnit(o)))
-	if o.BootstrapToken != "" {
-		b.WriteString(heredoc(rackBootstrapKubeconfigPath, "0600", "kubelet",
-			rackBootstrapKubeconfig(o.APIServerURL, o.ClusterCAPEM, o.BootstrapToken)))
-		b.WriteString("bootstrap_supplied=1\n")
-	} else {
-		b.WriteString("rm -f " + rackBootstrapKubeconfigPath + "\nbootstrap_supplied=0\n")
-	}
-
-	fmt.Fprintf(&b, `
-name=%s
-if [ "$(hostnamectl --static)" != "$name" ]; then
-  hostnamectl set-hostname "$name"
-  sed -ri "s/^127\\.0\\.1\\.1[[:space:]].*/127.0.1.1 $name/" /etc/hosts
-  changed+=(hostname)
-fi
-`, shellSingleQuote(o.NodeName))
-	if o.Rejoin {
-		b.WriteString(`systemctl stop kubelet >/dev/null 2>&1 || true
-rm -rf /var/lib/kubelet/pki /var/lib/kubelet/kubeconfig
-changed+=(identity)
-`)
-	}
-	fmt.Fprintf(&b, `
-if ! has_identity && [ "$bootstrap_supplied" = 0 ]; then
-  echo "tuist-converge: the kubelet has no client certificate; it needs a bootstrap token" >&2
-  echo "tuist-converge: changed=${changed[*]:-none}"
-  exit %[1]d
-fi
-
-systemctl daemon-reload
-systemctl enable containerd kubelet >/dev/null 2>&1
-if [ -n "${dirty[containerd]:-}" ] || ! systemctl is-active --quiet containerd; then
-  systemctl restart containerd
-  restarted+=(containerd)
-fi
-if [ -n "${dirty[kubelet]:-}" ] || [ "$bootstrap_supplied" = 1 ] || ! systemctl is-active --quiet kubelet; then
-  systemctl restart kubelet
-  restarted+=(kubelet)
-fi
-
-if [ "$bootstrap_supplied" = 1 ]; then
-  for _ in $(seq 1 90); do
-    has_identity && break
-    sleep 2
-  done
-  rm -f %[2]s
-  if ! has_identity; then
-    echo "tuist-converge: the kubelet did not get a client certificate" >&2
-    journalctl -u kubelet -n 40 --no-pager >&2 || true
-    exit 1
-  fi
-fi
-
-mkdir -p "$(dirname %[3]s)"
-printf '%%s\n' %[4]s > %[3]s
-echo "tuist-converge: changed=${changed[*]:-none} restarted=${restarted[*]:-none}"
-`, rackConvergeNeedsBootstrap, rackBootstrapKubeconfigPath, rackAppliedHashPath, shellSingleQuote(hash))
-	return b.String()
+	body, _ := json.Marshal(cfg)
+	sum := sha256.Sum256(body)
+	cfg.Hash = hex.EncodeToString(sum[:])
+	return cfg
 }
 
 const rackManagementNetworkPath = "/etc/systemd/network/10-tuist-management.network"

@@ -3,7 +3,9 @@
 # Owns lifecycle: order/release Mac minis from Scaleway, SSH-bootstrap
 # each into a real cluster Node by installing `tart-kubelet`. The image also
 # carries the rack boot server (cmd/rack-boot) and the signed iPXE it serves,
-# which the tuist chart runs on a rack's edge nodes. Several
+# which the tuist chart runs on a rack's edge nodes, and the rack node agent
+# (cmd/rack-node, always linux/amd64), which the operator runs on a rack Linux
+# host over SSH and the chart runs on each rack node. Several
 # darwin/arm64 artifacts ride the linux operator image:
 #   - the manager itself (linux/<arch>),
 #   - the tart-kubelet binary the operator uploads to each Mac mini at
@@ -73,7 +75,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     export GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 && \
     go build -ldflags="-s -w" -o /out/manager ./cmd/manager && \
-    go build -ldflags="-s -w" -o /out/rack-boot ./cmd/rack-boot
+    go build -ldflags="-s -w" -o /out/rack-boot ./cmd/rack-boot && \
+    GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/rack-node-linux-amd64 ./cmd/rack-node
 
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
@@ -211,6 +214,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=manager-builder /out/rack-boot /usr/local/bin/rack-boot
+COPY --from=manager-builder /out/rack-node-linux-amd64 /opt/rack-node/rack-node-linux-amd64
 COPY --from=netboot-fetcher /out/ /opt/rack-netboot/
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz

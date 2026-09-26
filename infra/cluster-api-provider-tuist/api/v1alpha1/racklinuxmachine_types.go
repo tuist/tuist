@@ -42,9 +42,24 @@ type RackLinuxMachineStatus struct {
 	TailnetDeviceID string `json:"tailnetDeviceID,omitempty"`
 
 	// HostConfigHash fingerprints the configuration last converged onto the
-	// host.
+	// host over SSH.
 	// +optional
 	HostConfigHash string `json:"hostConfigHash,omitempty"`
+
+	// NodeConfig is the configuration the host runs as a node, which its
+	// node agent keeps applied.
+	// +optional
+	NodeConfig *RackNodeConfig `json:"nodeConfig,omitempty"`
+
+	// NodeConfigTime is when NodeConfig last changed. A node agent that has
+	// not applied it a few minutes later leaves it to a converge over SSH.
+	// +optional
+	NodeConfigTime *metav1.Time `json:"nodeConfigTime,omitempty"`
+
+	// Agent is what the host's node agent last did. The agent writes it, and
+	// nothing else.
+	// +optional
+	Agent *RackNodeAgentStatus `json:"agent,omitempty"`
 
 	// LastConvergeTime is when the host last converged successfully.
 	// +optional
@@ -69,6 +84,7 @@ type RackLinuxMachineStatus struct {
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
 // +kubebuilder:printcolumn:name="LastConverge",type="date",JSONPath=".status.lastConvergeTime"
+// +kubebuilder:printcolumn:name="Agent",type="date",JSONPath=".status.agent.appliedAt"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,priority=1,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

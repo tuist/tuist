@@ -1,13 +1,12 @@
 package linux
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+
+	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 )
 
 func edgeConvergeOptions() rackConvergeOptions {
@@ -26,130 +25,95 @@ func edgeConvergeOptions() rackConvergeOptions {
 	}
 }
 
-func TestRackConvergeScriptParses(t *testing.T) {
-	bash, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("no bash")
+func configFile(t *testing.T, cfg infrav1.RackNodeConfig, path string) infrav1.RackNodeFile {
+	t.Helper()
+	for _, f := range cfg.Files {
+		if f.Path == path {
+			return f
+		}
 	}
-	for name, token := range map[string]string{"converge": "", "bootstrap": "abcdef.0123456789abcdef"} {
-		t.Run(name, func(t *testing.T) {
-			opts := edgeConvergeOptions()
-			opts.BootstrapToken = token
-			path := filepath.Join(t.TempDir(), "converge.sh")
-			if err := os.WriteFile(path, []byte(renderRackConvergeScript(opts)), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			if out, err := exec.Command(bash, "-n", path).CombinedOutput(); err != nil {
-				t.Fatalf("bash -n: %v\n%s", err, out)
-			}
-		})
-	}
+	t.Fatalf("the configuration writes no %s", path)
+	return infrav1.RackNodeFile{}
 }
 
-// apt-cache keeps writing after the kubelet_package lookup has its answer, as
-// it does on a host with the repository's whole release history; under
-// pipefail, the lookup still succeeds.
-func TestRackConvergeScriptFindsTheKubeletPackageInALongListing(t *testing.T) {
-	bash, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("no bash")
-	}
-	script := renderRackConvergeScript(edgeConvergeOptions())
-	start := strings.Index(script, "kubelet_package() {")
-	if start < 0 {
-		t.Fatal("script has no kubelet_package")
-	}
-	end := strings.Index(script[start:], "\n}\n")
-	dir := t.TempDir()
-	fake := `#!/bin/sh
-echo "   kubelet | 1.34.6-1.1 | https://pkgs.k8s.io/core:/stable:/v1.34/deb  Packages"
-sleep 0.2
-i=5
-while [ $i -ge 0 ]; do
-  echo "   kubelet | 1.34.$i-1.1 | https://pkgs.k8s.io/core:/stable:/v1.34/deb  Packages"
-  i=$((i - 1))
-done
-`
-	if err := os.WriteFile(filepath.Join(dir, "apt-cache"), []byte(fake), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	lookup := "set -euo pipefail\n" + script[start:start+end+3] + `package=$(kubelet_package 1.34.6)
-echo "$package"
-`
-	cmd := exec.Command(bash, "-c", lookup)
-	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("lookup failed: %v\n%s", err, out)
-	}
-	if got := strings.TrimSpace(string(out)); got != "1.34.6-1.1" {
-		t.Fatalf("got %q, want 1.34.6-1.1", got)
-	}
-}
-
-func TestRackConvergeScriptRegistersTheNodeAsDeclared(t *testing.T) {
-	script := renderRackConvergeScript(edgeConvergeOptions())
+func TestRackNodeConfigRegistersTheNodeAsDeclared(t *testing.T) {
+	cfg := rackNodeConfig(edgeConvergeOptions())
+	unit := configFile(t, cfg, "/etc/systemd/system/kubelet.service")
 	for _, want := range []string{
 		"--hostname-override=ber1-edge",
 		"--node-ip=100.124.227.31",
 		"--node-labels=cilium.io/no-schedule=true,node.cluster.x-k8s.io/instance-type=rack,tuist.dev/rack-edge=ber1",
 		"--register-with-taints=tuist.dev/rack-edge=ber1:NoSchedule",
 		"--bootstrap-kubeconfig=/var/lib/kubelet/bootstrap-kubeconfig",
-		"providerID: rack-linux://ber1/ber1-edge",
-		"rotateCertificates: true",
-		"clientCAFile: /var/lib/kubelet/ca.crt",
-		"kubelet_package 1.34.8",
-		"pkgs.k8s.io/core:/stable:/v1.34/deb/",
-		`"subnet":"10.254.254.0/24"`,
-		"rm -f /var/lib/kubelet/bootstrap-kubeconfig\nbootstrap_supplied=0",
+		// The operator owns the node's addresses and adds one the control
+		// plane can reach.
+		"--cloud-provider=external",
 	} {
-		if !strings.Contains(script, want) {
-			t.Errorf("script lacks %q", want)
+		if !strings.Contains(unit.Content, want) {
+			t.Errorf("the kubelet unit lacks %q", want)
 		}
 	}
-	if strings.Contains(script, "token:") {
-		t.Error("a converge without a bootstrap token wrote a kubeconfig token")
+	config := configFile(t, cfg, "/var/lib/kubelet/config.yaml")
+	for _, want := range []string{"providerID: rack-linux://ber1/ber1-edge", "rotateCertificates: true", "clientCAFile: /var/lib/kubelet/ca.crt"} {
+		if !strings.Contains(config.Content, want) {
+			t.Errorf("the kubelet config lacks %q", want)
+		}
 	}
-}
-
-func TestRackConvergeScriptCarriesTheBootstrapTokenOnlyWhenAsked(t *testing.T) {
-	opts := edgeConvergeOptions()
-	opts.BootstrapToken = "abcdef.0123456789abcdef"
-	script := renderRackConvergeScript(opts)
-	for _, want := range []string{
-		"put /var/lib/kubelet/bootstrap-kubeconfig 0600 kubelet",
-		"token: abcdef.0123456789abcdef",
-		"server: https://api.example:6443",
-		"bootstrap_supplied=1",
-	} {
-		if !strings.Contains(script, want) {
-			t.Errorf("bootstrap script lacks %q", want)
+	if unit.Group != "kubelet" || config.Group != "kubelet" {
+		t.Errorf("the kubelet's files do not restart it: %q %q", unit.Group, config.Group)
+	}
+	if !strings.Contains(configFile(t, cfg, "/etc/cni/net.d/10-tuist-rack-local.conflist").Content, `"subnet":"10.254.254.0/24"`) {
+		t.Error("the local CNI is not on its range")
+	}
+	if cfg.Kubelet != (infrav1.RackNodeKubelet{Channel: "v1.34", Version: "1.34.8"}) || cfg.Hostname != "ber1-edge" {
+		t.Errorf("kubelet %+v hostname %q", cfg.Kubelet, cfg.Hostname)
+	}
+	for _, f := range cfg.Files {
+		if strings.Contains(f.Content, "token:") {
+			t.Errorf("%s carries a token; a bootstrap token goes only in a join's request", f.Path)
 		}
 	}
 }
 
-func TestRackConfigHash(t *testing.T) {
+func TestRackBootstrapKubeconfigCarriesTheToken(t *testing.T) {
+	kubeconfig := rackBootstrapKubeconfig("https://api.example:6443", []byte("ca"), "abcdef.0123456789abcdef")
+	for _, want := range []string{"token: abcdef.0123456789abcdef", "server: https://api.example:6443"} {
+		if !strings.Contains(kubeconfig, want) {
+			t.Errorf("the bootstrap kubeconfig lacks %q", want)
+		}
+	}
+}
+
+func TestRackNodeConfigHash(t *testing.T) {
 	base := edgeConvergeOptions()
-	withToken := base
-	withToken.BootstrapToken = "abcdef.0123456789abcdef"
-	if rackConfigHash(base) != rackConfigHash(withToken) {
-		t.Error("the bootstrap token changed the configuration hash")
+	for name, mutate := range map[string]func(*rackConvergeOptions){
+		"API server a join dials": func(o *rackConvergeOptions) { o.APIServerURL = "https://other:6443" },
+		"rejoin":                  func(o *rackConvergeOptions) { o.Rejoin = true },
+	} {
+		same := base
+		mutate(&same)
+		if rackNodeConfig(same).Hash != rackNodeConfig(base).Hash {
+			t.Errorf("the %s changed the configuration hash", name)
+		}
 	}
 	for name, mutate := range map[string]func(*rackConvergeOptions){
-		"kubelet version": func(o *rackConvergeOptions) { o.KubeletVersion = "1.34.9" },
-		"tailnet address": func(o *rackConvergeOptions) { o.NodeIP = "100.64.0.2" },
-		"labels":          func(o *rackConvergeOptions) { o.NodeLabels = map[string]string{"a": "b"} },
-		"cluster CA":      func(o *rackConvergeOptions) { o.ClusterCAPEM = []byte("other") },
-		"API server":      func(o *rackConvergeOptions) { o.KubernetesAPI = "https://other:6443" },
+		"kubelet version":  func(o *rackConvergeOptions) { o.KubeletVersion = "1.34.9" },
+		"tailnet address":  func(o *rackConvergeOptions) { o.NodeIP = "100.64.0.2" },
+		"labels":           func(o *rackConvergeOptions) { o.NodeLabels = map[string]string{"a": "b"} },
+		"cluster CA":       func(o *rackConvergeOptions) { o.ClusterCAPEM = []byte("other") },
+		"API server":       func(o *rackConvergeOptions) { o.KubernetesAPI = "https://other:6443" },
+		"management port":  func(o *rackConvergeOptions) { o.ManagementMAC = "38:05:25:38:b5:b5" },
+		"hostname":         func(o *rackConvergeOptions) { o.NodeName = "ber1-edge-c" },
+		"kubernetes minor": func(o *rackConvergeOptions) { o.K8sMinor = "v1.35" },
+		"cluster DNS":      func(o *rackConvergeOptions) { o.ClusterDNS = "10.128.0.11" },
+		"node taints":      func(o *rackConvergeOptions) { o.NodeTaints = nil },
+		"provider ID":      func(o *rackConvergeOptions) { o.ProviderID = "rack-linux://ber1/other" },
 	} {
 		changed := base
 		mutate(&changed)
-		if rackConfigHash(changed) == rackConfigHash(base) {
+		if rackNodeConfig(changed).Hash == rackNodeConfig(base).Hash {
 			t.Errorf("a new %s left the configuration hash unchanged", name)
 		}
-	}
-	if !strings.Contains(renderRackConvergeScript(base), rackConfigHash(base)) {
-		t.Error("the script does not record the hash it converges to")
 	}
 }
 
@@ -163,59 +127,47 @@ func TestParseControlPlaneVersion(t *testing.T) {
 	}
 }
 
-// The kubelet leaves the node's addresses to the operator, which adds the one
-// the API server can reach.
-func TestRackConvergeScriptLeavesTheNodeAddressesToTheOperator(t *testing.T) {
-	if script := renderRackConvergeScript(edgeConvergeOptions()); !strings.Contains(script, "--cloud-provider=external") {
-		t.Fatal("the kubelet would overwrite the addresses the operator sets")
-	}
-}
-
 // A node installed before the seed kept the Bluetooth driver out gets the
-// same blacklist from its converge.
-func TestRackConvergeScriptKeepsTheBluetoothDriverOut(t *testing.T) {
-	script := renderRackConvergeScript(edgeConvergeOptions())
-	if !strings.Contains(script, "put /etc/modprobe.d/tuist-rack.conf 0644 modules <<'TUIST_EOF'\nblacklist btusb\nTUIST_EOF\n") {
-		t.Fatal("the converge does not keep btusb out")
+// same blacklist from its configuration.
+func TestRackNodeConfigKeepsTheBluetoothDriverOut(t *testing.T) {
+	f := configFile(t, rackNodeConfig(edgeConvergeOptions()), "/etc/modprobe.d/tuist-rack.conf")
+	if f.Content != "blacklist btusb\n" || f.Group != "modules" {
+		t.Fatalf("modprobe file %+v", f)
 	}
 }
 
 // AMT shares the management port with the host, and a port the host does not
-// configure stays down, taking AMT's link with it. The converge keeps the port
-// up with no address and no ARP of the host's on it.
-func TestRackConvergeScriptKeepsTheManagementPortUpForAMT(t *testing.T) {
+// configure stays down, taking AMT's link with it. The configuration keeps the
+// port up with no address and no ARP of the host's on it.
+func TestRackNodeConfigKeepsTheManagementPortUpForAMT(t *testing.T) {
 	opts := edgeConvergeOptions()
 	opts.ManagementMAC = "38:05:25:38:b5:b5"
-	script := renderRackConvergeScript(opts)
-	want := "put /etc/systemd/network/10-tuist-management.network 0644 network <<'TUIST_EOF'\n" +
-		"[Match]\nMACAddress=38:05:25:38:b5:b5\n\n" +
+	f := configFile(t, rackNodeConfig(opts), "/etc/systemd/network/10-tuist-management.network")
+	want := "[Match]\nMACAddress=38:05:25:38:b5:b5\n\n" +
 		"[Link]\nARP=no\nActivationPolicy=always-up\nRequiredForOnline=no\n\n" +
-		"[Network]\nLinkLocalAddressing=no\nIPv6AcceptRA=no\n" +
-		"TUIST_EOF\n"
-	if !strings.Contains(script, want) {
-		t.Fatalf("the converge does not keep the management port up:\n%s", script)
-	}
-	if !strings.Contains(script, `if [ -n "${dirty[network]:-}" ]; then networkctl reload; fi`) {
-		t.Fatal("a changed management port configuration is not applied")
+		"[Network]\nLinkLocalAddressing=no\nIPv6AcceptRA=no\n"
+	if f.Content != want || f.Group != "network" {
+		t.Fatalf("management port %+v", f)
 	}
 }
 
-func TestRackConvergeScriptDropsTheManagementPortWithoutABootMAC(t *testing.T) {
-	script := renderRackConvergeScript(edgeConvergeOptions())
-	if strings.Contains(script, "\nput /etc/systemd/network/10-tuist-management.network") {
-		t.Fatal("wrote a management port configuration without a MAC to match")
+func TestRackNodeConfigDropsTheManagementPortWithoutABootMAC(t *testing.T) {
+	cfg := rackNodeConfig(edgeConvergeOptions())
+	for _, f := range cfg.Files {
+		if f.Path == "/etc/systemd/network/10-tuist-management.network" {
+			t.Fatal("wrote a management port configuration without a MAC to match")
+		}
 	}
-	if !strings.Contains(script, "unput /etc/systemd/network/10-tuist-management.network network\n") {
-		t.Fatal("a host whose boot MAC was removed keeps its management port configuration")
+	if len(cfg.Absent) != 1 || cfg.Absent[0].Path != "/etc/systemd/network/10-tuist-management.network" || cfg.Absent[0].Group != "network" {
+		t.Fatalf("absent %+v; a host whose boot MAC was removed keeps its management port configuration", cfg.Absent)
 	}
 }
 
 // A rack node reaches no Service address, so pods on it that talk to the API
 // server, such as the rack's boot server, read the address its kubelet uses
 // from the node.
-func TestRackConvergeScriptWritesTheAPIServerThePodsOnTheNodeUse(t *testing.T) {
-	script := renderRackConvergeScript(edgeConvergeOptions())
-	if !strings.Contains(script, "put /etc/tuist/kubernetes-api 0644 api <<'TUIST_EOF'\nhttps://api.example:6443\nTUIST_EOF\n") {
-		t.Fatal("the converge does not write the API server's address")
+func TestRackNodeConfigWritesTheAPIServerThePodsOnTheNodeUse(t *testing.T) {
+	if f := configFile(t, rackNodeConfig(edgeConvergeOptions()), "/etc/tuist/kubernetes-api"); f.Content != "https://api.example:6443\n" {
+		t.Fatalf("API server file %+v", f)
 	}
 }
