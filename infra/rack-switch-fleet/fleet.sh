@@ -126,7 +126,7 @@ render_edge() {
   [ -n "$dir" ] || return 0
   rendered="$(mktemp)"
   mkdir -p "$dir"
-  local -a files=(mgmt-path.sh dnsmasq.conf)
+  local -a files=(mgmt-path.sh dnsmasq.conf dnsmasq-machines.conf tailnet-routes.sh)
   local node
   while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")
   for file in "$dir"/keepalived-*.conf; do
@@ -144,6 +144,8 @@ render_edge() {
     case "$file" in
       mgmt-path.sh) fleet_edge_path "$(site_file)" > "$rendered";;
       dnsmasq.conf) fleet_edge_dhcp "$(site_file)" > "$rendered";;
+      dnsmasq-machines.conf) fleet_edge_machines_dhcp "$(site_file)" > "$rendered";;
+      tailnet-routes.sh) fleet_edge_routes "$(site_file)" > "$rendered";;
       keepalived-*.conf)
         node="${file#keepalived-}"
         fleet_edge_keepalived "$(site_file)" "${node%.conf}" > "$rendered";;

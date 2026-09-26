@@ -9,9 +9,9 @@ machine kinds:
   with tart-cri/tart-kubelet.
 - `RackAppleSiliconMachine`: Mac minis **we own**, in a rack we
   operate (the BER1 colo programme). Same host bootstrap and drift
-  loop as the Scaleway kind; the host comes from a `RackHost` in the
-  cluster's own inventory rather than a vendor API, and its reboot is
-  a PDU outlet. See "Rack-owned hosts" below.
+  loop as the Scaleway kind; each `RackHost` in the cluster's own
+  inventory keeps one, rather than a vendor API supplying hosts, and
+  its reboot is a PDU outlet. See "Rack-owned hosts" below.
 - `RackLinuxMachine`: x86 Linux machines **we own** in the same rack (the
   BER1 edge, services and storage nodes), one per `RackLinuxHost`, which the
   operator creates with its CAPI Machine, joined over their own tailnet address with a kubeadm
@@ -47,8 +47,8 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
-| `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
-| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
+| `RackAppleSiliconMachine` | One Mac mini we own as a node: the RackHost it is (`host`), sizing and fleet. Its RackHost keeps it and the Machine that owns it. |
+| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Its controller keeps the host's Machine. Nothing running on the host reads it. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -59,7 +59,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`, `rasm`, `rasmt`, `rh`, `rlm`, `rlmt`, `rlh`.
+`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rlm`, `rlmt`, `rlh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -240,7 +240,8 @@ own source address. Notes:
   anything that must keep working when the host has lost its tailnet identity
   belongs in the configured list.
 - A rack host's list is the fleet's plus its RackHost `spec.sshIngressAllowCIDRs`:
-  the LAN address of each subnet router its address is dialled through. A
+  the address each subnet router in front of it forwards from on the host's
+  side, which for BER1 is each edge's own address on the machines segment. A
   router forwards with SNAT (the default on Linux, the only mode on macOS), so
   the host sees the router, not the operator. A rented mini that drops off the
   tailnet can still be dialled on its public address because the operator's
@@ -278,35 +279,44 @@ Two auxiliary controllers run alongside it:
 ## Rack-owned hosts
 
 `RackAppleSiliconMachine` joins Mac minis we bought, in a rack we operate. It
-is the Scaleway kind with the provider removed and the pool moved in-cluster:
-same `bootstrap.Run`, same `HostConfigHash` drift loop, same terminal-failure
-and cooldown rules, same per-machine tailnet egress Service: all of which live
-in `controllers/macos/hostagent.go` and are shared rather than copied, because
+is the Scaleway kind with the provider removed: same `bootstrap.Run`, same
+`HostConfigHash` drift loop, same terminal-failure and cooldown rules, same
+per-machine tailnet egress Service: all of which live in
+`controllers/macos/hostagent.go` and are shared rather than copied, because
 those rules are the ones this provider has repeatedly got wrong in ways that
 stay invisible until a fleet has been running stale config for weeks.
 
-### Why two CRs
+### A host is its own Machine
 
-Every other machine kind gets its pool from a vendor API: Scaleway's server list
-filtered by a name prefix, OVH's by a displayName prefix, Dedibox's by a tag.
-Hardware we own has no such API, so the pool has to be Kubernetes objects: one
-`RackHost` per box, carrying the physical facts, and a `RackAppleSiliconMachine`
-that claims one.
+Every other machine kind gets its hosts from a vendor API. Hardware we own has
+none, so each box is a `RackHost`, rendered from `rackFleet.hosts`, carrying
+the physical facts and the node's sizing (`spec.machine`). With
+`--rackhost-fleet-name`, `--rackhost-cluster-name` and
+`--rackhost-bootstrap-secret-name` set, the RackHost controller
+(`rackhost_machine.go`) keeps a CAPI Machine and the `RackAppleSiliconMachine`
+it owns for each host, named `<fleet>-<host>`, with the host as the Machine's
+controller owner, and records the name in `status.machine`. A box upgrades in
+place, so there is no MachineDeployment, template or pool: a change to
+`spec.machine` reaches the host through the drift loop, and a deleted Machine
+is made again for the same box.
 
-Folding the address and the outlet onto the Machine instead is the obvious
-simplification and it does not work. A MachineTemplate is **cloned**, so every
-replica would carry the same address; you would need one MachineDeployment per
-box, `kubectl scale` would stop meaning anything, and: the part that actually
-bites: a MachineHealthCheck remediation would recreate the Machine onto the
-same broken host forever, because there would be nothing else for it to land on.
+The names keep the fleet's prefix because a Node is named after its machine,
+and the Mac fleets' dashboards and alerts select a fleet by it: the PN VLAN
+alert in `infra/helm/k8s-monitoring/alerts.md` excludes rack minis by
+`-rack-fleet-`.
 
-**The claim is a status `Update`, not a merge patch.** `Update` carries the
-resourceVersion the host was read at, so the apiserver rejects the second of two
-racing claims and the loser retries. A merge patch sends no resourceVersion:
-both claims would "succeed", both machines would bootstrap the same box, and the
-second would take over the first's Node. This is the one place in the provider
-where one object's reconciler writes another object's status, and it is why
-`rackhosts/status` is in the operator's ClusterRole.
+**The fleet's MachineHealthCheck remediates through the host.** A check only
+marks a Machine (`OwnerRemediated=False`); its owner remediates it. The
+RackHost controller deletes a Machine so marked and makes a new one, which
+bootstraps the host again. `cluster.x-k8s.io/skip-remediation` on the Machine
+keeps the check off it.
+
+**CAPI never drains or deletes these Nodes.** The cluster's control plane is
+external, so CAPI core's Machine deletion skips both (its log reads `Skipping
+deletion of Kubernetes Node associated with Machine as it is not allowed`,
+`cause="no control plane members"`). The RackAppleSiliconMachine's delete path
+deletes the Node, without a drain: cordon and drain a host's Node before
+parking or retiring the host.
 
 ### Where it deliberately diverges from the Scaleway kind
 
@@ -335,12 +345,11 @@ mode behind it:
   would return success, and the caller would wait out a boot that never happened
   and count the recovery as attempted.
 - **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
-  path releases the host so a *different* mini gets claimed, which works because
-  the pool is a vendor's and refills itself. Hand our own pool the same box back
-  and the next reconcile claims it again, so the Machine loops on the one host
-  that cannot work. `status.quarantined` takes it out of the pool; it is
-  controller-set and operator-cleared, so a bad box stays out until a human says
-  it was fixed.
+  path releases the host so a *different* mini is ordered. A rack host's
+  machine has no other box, so after `--bootstrap-max-attempts` the machine
+  controller retires the machine's identity (below) and sets
+  `status.quarantined` on the host, which holds bootstrap off until the
+  quarantine expires.
 - **It keeps its tailnet identity, and its router path does not depend on it.**
   A rented mini joins the tailnet as an ephemeral device, which Tailscale
   deletes 30 to 60 minutes after it was last seen, however long it had been
@@ -351,7 +360,7 @@ mode behind it:
   (`TailscalePersistentDevice`, set by `rackFleetConfig`) and its SSH ingress
   guard admits its subnet routers (see "SSH ingress guard"), so a box that sat
   powered off comes back reachable both ways. On 2026-09-18 the BER1 prototype
-  had neither: after a few days unpowered with the MachineDeployment at 0, it
+  had neither: after a few days unpowered with no Machine, it
   came back answering LAN ping, its device deleted from the tailnet, and `:22`
   silently dropped for the router, leaving the console as the only way in. A
   standard device outlives its host, so retiring a box for good (or
@@ -361,49 +370,47 @@ mode behind it:
   `tailscale-device-reaper`, once out of dry-run, still deletes a device
   unseen for its `graceHours` (7 days), so the router entry in the guard, not
   the standard device, is what reaches a box that was off for longer.
-- **Delete releases the claim and stops.** No reinstall, no wipe: no API can do
-  either to hardware in our own rack. That makes Stage 2 of the delete path
-  (dropping the node identity) matter *more* than on rented capacity, not less:
-  nothing wipes the disk afterwards, so the kubeconfig stays on the box until
-  the next claim overwrites it.
+- **Delete stops.** No reinstall, no wipe: no API can do either to hardware in
+  our own rack. That makes Stage 1 of the delete path (dropping the node
+  identity) matter *more* than on rented capacity, not less: nothing wipes the
+  disk afterwards, so the kubeconfig stays on the box until the next bootstrap
+  overwrites it.
 
-  The same reasoning binds every OTHER path that lets go of a host, which is why
-  they all go through `retireHost`: bootstrap exhaustion, and a claim lost
-  because the inventory record was deleted or released out of band. Bootstrap
-  starts tart-kubelet before its last fatal step (`installLogShipper`), so a
-  host can exhaust its attempts while already registering a Node and holding a
-  working long-lived token. Retiring it therefore has to revoke that identity,
-  delete the Node, and drop the TOFU fingerprint. Skip any one and the damage
-  lands on the NEXT host: the replacement is issued the same credentials and the
-  same Node name while the retired box keeps running, the stale Node keeps the
-  retired host's providerID (which tart-kubelet will not overwrite), or the old
-  host's SSH pin rejects a healthy replacement until it is quarantined too.
+  Bootstrap exhaustion retires the machine's identity the same way
+  (`retireIdentity`): it revokes the kubelet identity, deletes the Node, and
+  drops the TOFU fingerprint, so bootstrap starts over from nothing when the
+  quarantine expires. Bootstrap starts tart-kubelet before its last fatal step
+  (`installLogShipper`), so a host can exhaust its attempts while already
+  registering a Node and holding a working long-lived token, and a host that
+  was re-imaged presents a host key its old pin rejects on every dial.
 
 ### The first dial
 
 A rented mini has a public IP the operator can reach before anything is
 installed. A rack mini does not, and it is not on the tailnet yet either: 
-bootstrap is what puts it there. So `RackHost.spec.address` is the in-rack LAN
-address, reached through a **subnet router in the rack** that advertises it,
-with a matching `tcp:22` grant in `infra/tailscale/acls.json`.
+bootstrap is what puts it there. So `RackHost.spec.address` is the mini's address
+on the rack's machines segment, reached through the rack's two edges, which both
+advertise it to the tailnet (see "The machines segment" in
+[`infra/rack-switch-fleet`](../rack-switch-fleet/AGENTS.md)), with a matching
+`tcp:22` grant in `infra/tailscale/acls.json`. Two routers rather than one, so
+the first dial and every drift push into the rack survive losing an edge: the
+tailnet fails over between them.
 
 **Advertise a /32 per host, not the rack's prefix**, for as long as the
 catch-all `*->*` grant at the top of that ACL file still exists. A catch-all
 subsumes every narrowing below it, so what an advertised route actually exposes
 today is every address in it, on every port, to every device on the tailnet:
 three clusters' nodes, the rented Mac mini fleet, ops laptops, and every Tart
-runner VM holding a tailnet identity. The BER1 prototype's router sits on a HOME
-network, where a /24 would hand CI runner VMs the router admin page and every
-personal device in the house. The cost of a /32 is that the address becomes
-load-bearing in two places, the grant and `RackHost.spec.address`, so give each
-host a DHCP reservation and update both together.
+runner VM holding a tailnet identity. The cost of a /32 is that the address is
+load-bearing in the grant as well as in `RackHost.spec.address`, from which the
+edges render the host's DHCP reservation and its route.
 
-**Put the router's own LAN address in `rackFleet.sshIngressAllowCIDRs`** (a
-host can override it with its own). The router forwards with SNAT, so that
-address is the source every dial through this path arrives from, and the host's
-SSH ingress guard drops it otherwise. The chart refuses to render a rack host
-without one. Give the router a DHCP reservation too: a new lease is dropped by
-every guard in the rack until the value is updated.
+**Put each edge's own address on the machines segment in
+`rackFleet.sshIngressAllowCIDRs`** (a host can override it with its own). An edge
+forwards with SNAT from its own address there, so those are the sources every
+dial through this path arrives from, and the host's SSH ingress guard drops
+anything else. Both, because the tailnet can route a dial through either. The
+chart refuses to render a rack host without one.
 
 **The cluster reaches that address through an egress Service, not directly.**
 A Pod has no route to a subnet-routed address; only the Tailscale proxies do.
@@ -424,7 +431,7 @@ needed it. Diagnose with:
 
 ```bash
 kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale debug prefs | grep RouteAll
-kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale ping 192.168.0.41
+kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale ping 10.10.0.101
 ```
 
 `RouteAll: false` or `no matching peer` is this, not a host fault and not the
@@ -437,61 +444,51 @@ riding: exactly why the drift loop's tailnet fallback has to set
 `SkipTailscaleInstall`. Through a separate router the session survives, so a
 rack host can be fully bootstrapped in one pass. The drift loop still falls back
 to the per-machine egress Service once the host has joined, for the case where
-the LAN address stops answering.
+the segment address stops answering.
 
-That LAN prefix is **not** in `autoApprovers`. The Connector's Service CIDR is,
-because a Pod re-advertises it on every rollout and manual approval would break
-the route each time; a rack's subnet router is a long-lived box that advertises
-once, so auto-approval would buy nothing and would let any device holding the
-approver tag put a private prefix into the tailnet's routing table.
+The edges' routes are in `autoApprovers`, for `tag:tuist-rack-edge` and only
+inside the machines segment's prefix. They are rendered from the rack's
+inventory, so racking a mini changes them, and hand approval would be a step per
+mini per edge; scoped to the segment, the tag can put nothing else into the
+tailnet's routing table.
 
-### Two prerequisites before a real rack replaces the prototype
+### Before the machines segment is advertised as one prefix
 
-Both are cheap to do early and expensive to retrofit, and neither is visible
-from the code.
-
-**1. Remove the catch-all grant before widening past /32.** A rack wants its
-mini VLAN advertised as one prefix rather than a /32 per host, and that is only
-safe once `{"src": ["*"], "dst": ["*"], "ip": ["*"]}` is gone from
+**Remove the catch-all grant first.** A rack wants its machines segment
+advertised as one prefix rather than a /32 per host, and that is only safe once `{"src": ["*"], "dst": ["*"], "ip": ["*"]}` is gone from
 `infra/tailscale/acls.json`. While it is there it subsumes every narrowing
 below it, so an advertised prefix is reachable on every port by every device on
 the tailnet, CI runner VMs included: those execute customer build code and would
 gain SSH to every mini in the rack. The per-env grants in that file were written
 to survive the removal (their comment says exactly that), so the work is an
 audit of what still depends on the catch-all, chiefly Talos node access and ops
-laptops, not a rewrite. Until it is gone, keep advertising per-host /32s, which
-is correct but does not scale past a handful of boxes.
-
-**2. Run two subnet routers, not one.** Tailscale supports HA subnet routing:
-two nodes advertising the same prefix, one primary, automatic failover. A single
-service node is a single point of failure for every first dial and every drift
-push into the rack, which is the one path that has no fallback. Already-Ready
-Nodes keep working without it, which is precisely why this will look fine right
-up until a host needs re-bootstrapping and cannot be reached. The rack's own
-power doctrine is to dual-feed the pets; the service node is a pet.
-
-Both are also why the prototype's /32 is not merely a prototype artefact: it is
-the shape to keep until (1) is done.
+laptops, not a rewrite. Until it is gone, the edges keep advertising per-host
+/32s.
 
 ### Operating
 
 Inventory is chart-rendered from `rackFleet.hosts` in the env's values, so
 adding a mini is a reviewed values PR rather than a `kubectl apply` in someone's
-history.
+history. Helm keeps RackHosts (`helm.sh/resource-policy: keep`), so retiring
+one is removing it from the values and deleting it, which deletes its Machine
+and its Node through the Machine's owner reference.
 
 ```bash
-kubectl get rh                      # pool, address, claimed-by, power, quarantined
+kubectl get rh                      # address, machine, power, quarantined, parked
 kubectl get rh -o wide              # + serial and site
-kubectl get rasm                    # the Machines, with the host each holds
+kubectl get rasm                    # the machines, with the host each is
+kubectl delete rh <name>            # retire a host the values no longer declare
 ```
 
-`replicas` is a machine count and must not exceed the claimable hosts: a Machine
-with nowhere to land sits on `NoAvailableHost` forever, leaving the
-MachineDeployment permanently below spec and a `helm upgrade --wait` gated on
-that count running out its ceiling. It defaults to the declared host count. An
-explicit `0` is meaningful and is preserved (`dig`, not `default`): it declares
-the inventory, lets the RackHosts land and be power-polled, and holds the claim
-back until the boxes are reachable.
+**Take a box out of service** without deleting its inventory record (bench
+work, an RMA, a box that is off) with `parked: true` on its `rackFleet.hosts`
+entry, or `kubectl patch rh <name> --type merge -p '{"spec":{"parked":true}}'`
+until the next deploy. The controller deletes the host's Machine, and with it
+the Node, undrained: cordon and drain the Node first. Unparking makes a new
+Machine, which bootstraps the host again.
+
+**Force a re-join** by deleting the host's Machine
+(`kubectl delete machine <status.machine>`); the controller makes it again.
 
 **Reboot a host remotely:**
 
@@ -509,12 +506,12 @@ host's Node is Ready and schedulable; cordon it first, or add
 `capt_rackhost_power_reachable 0`. That is not a host fault: the mini may be
 running perfectly, but it means the fleet has lost its only remote repair for
 that box, and it is worth catching before the reboot is needed rather than at
-the moment it cannot be done. `capt_rackhost_claimed` summed per pool is the
-rack's utilisation; free == 0 is what a scale-up will fail to satisfy.
+the moment it cannot be done. `capt_rackhost_quarantined` is 1 while a host's
+bootstrap is held off.
 
 **A quarantine expires on its own** after `--rackhost-quarantine-retry-after`
-(default 30m), and the host returns to the pool with a `QuarantineExpired`
-event. That is the normal path, and it is not a convenience: clearing one by
+(default 30m), and bootstrap starts over with a `QuarantineExpired` event.
+That is the normal path, and it is not a convenience: clearing one by
 hand needs write access to `rackhosts/status`, which the operator's ClusterRole
 has and a human reaching the cluster through the kubectl gateway does NOT, so
 without the expiry a quarantined box is capacity nobody on call can recover. It
@@ -530,8 +527,8 @@ kubectl patch rackhost <name> --subresource=status --type=merge \
 ```
 
 A host that keeps re-quarantining is a real fault: read `status.quarantineReason`
-and the machine's `BootstrapFailed` events, and set `spec.unclaimable: true` to
-take it out of the pool for good while you work on it. A negative
+and the machine's `BootstrapFailed` events, and park it while you work on it. A
+negative
 `--rackhost-quarantine-retry-after` disables the expiry fleet-wide, which only
 makes sense in a cluster where somebody can actually write that status.
 
@@ -550,10 +547,6 @@ sudo /usr/local/bin/tuist-pf-sshguard
 
 The next bootstrap or drift push rewrites the file from the RackHost, and
 `installTailscale` re-joins a host whose device was deleted.
-
-**Take a box out of the pool** without deleting its inventory record (bench
-work, an RMA) by setting `spec.unclaimable: true`. It stops the next claim; it
-does not evict the current one, the same shape as `Node.spec.unschedulable`.
 
 **Renaming a machine kind leaves three objects behind**, in every cluster the
 old name reached. The deploy workflow ships CRDs with `kubectl apply -f crds/`,
@@ -1010,7 +1003,8 @@ infra/cluster-api-provider-tuist/
 │   ├── macos/
 │   │   ├── scalewayapplesiliconmachine_controller.go
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
-│   │   ├── rackhost_controller.go   # physical inventory: power, orphan claims
+│   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
+│   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
 │   │                                # failure rules, sizing overlay, egress Service

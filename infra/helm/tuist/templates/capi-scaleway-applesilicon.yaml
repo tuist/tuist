@@ -50,7 +50,6 @@ rules:
       - vultrmachines
       - vultrmachinetemplates
       - rackapplesiliconmachines
-      - rackapplesiliconmachinetemplates
       - rackhosts
       - racklinuxhosts
       - racklinuxmachines
@@ -72,10 +71,7 @@ rules:
       - vultrmachines/finalizers
       - rackapplesiliconmachines/status
       - rackapplesiliconmachines/finalizers
-      # rackhosts/status carries the claim. It is the only status in this
-      # provider written by a DIFFERENT object's reconciler, and it is written
-      # with Update rather than a merge patch so the apiserver's
-      # resourceVersion check makes the claim atomic.
+      # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
@@ -91,8 +87,9 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
-  # The RackLinuxHost controller keeps one Machine per rack Linux host, and
-  # deletes it when the host is retired.
+  # The RackLinuxHost and RackHost controllers keep one Machine per rack host,
+  # and delete it when the host is retired (Linux) or parked or remediated
+  # (Mac).
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines]
     verbs: [create, update, patch, delete]
@@ -408,6 +405,11 @@ spec:
             - --rack-linux-amt-gateway={{ . }}
             {{- end }}
             {{- end }}
+            {{- end }}
+            {{- if .Values.rackFleet.enabled }}
+            - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
+            - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
+            - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}

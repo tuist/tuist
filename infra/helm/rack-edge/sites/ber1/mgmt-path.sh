@@ -11,8 +11,8 @@ if [ "$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
 fi
 ip link set enp87s0 up
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
-  ber1-edge-a) vrrp_address=10.255.255.1/29 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
-  ber1-edge-b) vrrp_address=10.255.255.2/29 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
+  ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
+  ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
 edge_vlan_bond() {
@@ -31,6 +31,8 @@ edge_vlan_bond() {
 }
 edge_vlan_bond vrrp0 4000
 ip addr replace "$vrrp_address" dev vrrp0
+edge_vlan_bond machines0 10
+ip addr replace "$machines_address" dev machines0
 ip -o -4 addr show | awk -v port='enp87s0' '$2 != port && ($4 == "192.168.0.10/24" || $4 == "192.168.50.1/24") {print $2, $4}' |
   while read -r dev address; do ip addr del "$address" dev "$dev"; done
 nft -f - <<'NFT'
@@ -41,6 +43,7 @@ table ip tuist_mgmt_path {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
     oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
+    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
   }
   chain forward {
     type filter hook forward priority mangle;
@@ -53,6 +56,23 @@ table netdev tuist_rack_dhcp {
   chain replies {
     type filter hook egress device "enp87s0" priority 0;
     udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be
+  }
+}
+table inet tuist_rack_machines
+delete table inet tuist_rack_machines
+table inet tuist_rack_machines {
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "machines0" ct state established,related accept
+    iifname "machines0" oifname { "tailscale0", "vrrp0", "enp87s0" } drop
+    iifname "machines0" ip daddr { 192.168.0.0/24, 192.168.50.0/24, 10.255.255.0/29 } drop
+  }
+  chain input {
+    type filter hook input priority filter;
+    iifname "machines0" ct state established,related accept
+    iifname "machines0" udp dport 67 accept
+    iifname "machines0" icmp type echo-request accept
+    iifname "machines0" drop
   }
 }
 NFT

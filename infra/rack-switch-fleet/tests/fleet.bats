@@ -10,6 +10,11 @@
 setup_file() {
     FLEET_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
     export FLEET_ROOT
+    # The site's machines reference their RackHosts in the tuist chart's values,
+    # which a test that runs the tools from a copy of this directory would
+    # otherwise look for beside the copy.
+    FLEET_RACK_VALUES="$(cd "$FLEET_ROOT/../helm/tuist" && pwd)/values-managed-staging.yaml"
+    export FLEET_RACK_VALUES
     export FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-tor-b-running-config.txt"
 
     export TRANSCRIPT="$BATS_FILE_TMPDIR/transcript.txt"
@@ -62,10 +67,10 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 
 # The transcripts and the export in fixtures/ were taken off ber1-tor-b before the
 # site gave its switches the edge node as gateway, before port descriptions were
-# rendered and before the edges' VRRP VLAN, so they are compared with a render
-# of the site without any of them.
+# rendered, before the edges' VRRP VLAN and before the ISL was a lag, so they are
+# compared with a render of the site without any of them.
 render_as_captured() {
-    jq 'del(.management.edge) | del(.vlans) | (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
+    jq 'del(.management.edge) | del(.vlans) | del(.devices[].lags) | (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
     fleet_render "$BATS_TEST_TMPDIR/captured-site.json" "$1"
 }
 
@@ -136,9 +141,9 @@ render_as_captured() {
     fleet_render "$SITE_FILE" ber1-tor-a > "$a"
     fleet_render "$SITE_FILE" ber1-tor-b > "$b"
     run bash -c "diff '$a' '$b' | grep '^<'"
-    # the hostname, the address, and the two port descriptions the site gives
-    # tor-a (its WAN uplink and its end of the ISL)
-    [ "${#lines[@]}" -eq 4 ]
+    # the hostname, the address, the WAN uplink's description, and the name of
+    # tor-a's ISL lag on its two members and its port-channel
+    [ "${#lines[@]}" -eq 6 ]
     [[ "$output" == *'hostname "ber1-tor-a"'* ]]
     [[ "$output" == *"ip address 192.168.0.11"* ]]
     [[ "$output" == *'description "router uplink WAN"'* ]]
@@ -262,7 +267,7 @@ render_as_captured() {
 }
 
 @test "the ISL is declared at both ends" {
-    run jq -r '[.devices[] | select(.role == "tor") | {a: .name, b: (.ports | to_entries[] | select(.value.purpose == "isl") | .value.peer)}] | sort_by(.a) | map("\(.a)->\(.b)") | join(",")' "$SITE_FILE"
+    run jq -r '[.devices[] | select(.role == "tor") | {a: .name, b: (.ports | to_entries[] | select(.value.purpose == "isl") | .value.peer)}] | unique | sort_by(.a) | map("\(.a)->\(.b)") | join(",")' "$SITE_FILE"
     [ "$output" = "ber1-tor-a->ber1-tor-b,ber1-tor-b->ber1-tor-a" ]
 }
 
@@ -1029,9 +1034,9 @@ mini_referencing() {
     done
 }
 
-@test "nothing in the site definition references a RackHost yet, and that validates" {
-    run jq -r '[.nodes[] | select(.rack_host != null)] | length' "$SITE_FILE"
-    [ "$output" = "0" ]
+@test "the site's mini references its RackHost, and that validates" {
+    run jq -r '[.nodes[] | select(.rack_host != null) | .rack_host] | join(" ")' "$SITE_FILE"
+    [ "$output" = "ber1-proto-01" ]
     run fleet_check_rack_hosts "$SITE_FILE"
     [ "$status" -eq 0 ]
 }
@@ -1812,13 +1817,16 @@ run_resolve() {
     [ "${lines[3]}" = "255.255.255.255" ]
 }
 
-# The site with a VLAN, a lag on tor-b and two ports with settings of their own,
-# for the render features the rack does not use yet. Their forms were read off
-# ber1-tor-b after the controller wrote each one.
+# The site with a VLAN, a lag on tor-b in place of the ISL lag, and two ports
+# with settings of their own, for the render features the rack does not use yet.
+# Their forms were read off ber1-tor-b after the controller wrote each one.
 site_with_vlans_and_lag() {
     jq '.vlans = [{id: 20, name: "storage"}]
+        | del(.devices[].lags)
         | (.devices[] | select(.name == "ber1-tor-b")) |= (
             .lags = [{id: 1, name: "uplink", ports: [29, 30]}]
+            | .ports["29"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
+            | .ports["30"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
             | .ports["5"] = {purpose: "data", peer: "none", media: "dac", vlans: []}
             | .ports["6"] = {purpose: "data", peer: "none", media: "dac", spanning_tree: false, description: "no stp here"})' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-vlans.json"
@@ -1831,8 +1839,9 @@ site_with_vlans_and_lag() {
     [ "$status" -eq 0 ]
     [[ "$output" == *$'vlan 20\n name "storage"'* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c \$'\\tswitchport general allowed vlan 20 tagged\$'"
-    # 32 ports less port 5, which names no VLANs, plus the lag's own interface
-    [ "$output" = "32" ]
+    # 32 ports less port 5, which names no VLANs, and port 1, whose runner is on
+    # the machines segment, plus the lag's own interface
+    [ "$output" = "31" ]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c '^interface ten-gigabitEthernet 1/0/5	switchport'"
     [ "$output" = "0" ]
 }
@@ -1843,6 +1852,106 @@ site_with_vlans_and_lag() {
     [[ "$output" == *$'interface port-channel 1\tdescription "uplink"'* ]]
     [[ "$output" == *$'interface ten-gigabitEthernet 1/0/29\tchannel-group 1 mode active'* ]]
     [[ "$output" == *$'interface ten-gigabitEthernet 1/0/30\tdescription "uplink"'* ]]
+}
+
+# The lag fixture with one more edit applied to ber1-tor-b, for the lag guards.
+site_with_lag_edit() {
+    jq "(.devices[] | select(.name == \"ber1-tor-b\")) |= ($1)" "$(site_with_vlans_and_lag)" \
+        > "$BATS_TEST_TMPDIR/site-lag.json"
+    echo "$BATS_TEST_TMPDIR/site-lag.json"
+}
+
+# The real site with its ISL aggregated only on the ends named in $1.
+site_with_isl_lag() {
+    jq --argjson ends "$1" '
+        (.devices[] | select(.role == "tor")) |= (
+            del(.lags)
+            | if (.name as $n | $ends | index($n)) then .lags = [{id: 1, name: "isl", ports: [31, 32]}] else . end)' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-isl.json"
+    echo "$BATS_TEST_TMPDIR/site-isl.json"
+}
+
+@test "a lag member the switch does not have stops the render" {
+    site="$(site_with_lag_edit '.lags[0].ports = [29, 40]')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 port 40 does not exist on a TP-Link Omada SX3832"* ]]
+}
+
+@test "a lag member with no cable recorded on it stops the render" {
+    site="$(site_with_lag_edit 'del(.ports["30"])')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 port 30 has no cable recorded on it"* ]]
+}
+
+@test "a lag across two peers stops the render" {
+    site="$(site_with_lag_edit '.ports["30"].peer = "another-peer"')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 goes to more than one peer: another-peer, uplink-peer"* ]]
+}
+
+@test "two lags with one name stop the render, since the controller knows a lag by its name" {
+    site="$(site_with_lag_edit '.ports["27"] = .ports["29"] | .ports["28"] = .ports["29"]
+        | .lags += [{id: 2, name: "uplink", ports: [27, 28]}]')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"2 lags are named uplink"* ]]
+}
+
+@test "a port in two lags, or a lag of one port, stops the render" {
+    site="$(site_with_lag_edit '.lags += [{id: 2, name: "other", ports: [30]}]')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"port 30 is in more than one lag"* ]]
+    [[ "$output" == *"lag 2 has 1 port(s); a lag needs at least 2"* ]]
+}
+
+@test "a lag to a node takes one cable from each of the node's NICs" {
+    jq '(.nodes[] | select(.name == "ber1-edge-b") | .links) |= map(
+            if .switch == "ber1-tor-b" and .purpose == "data" then .port = 26 else . end)
+        | (.nodes[] | select(.name == "ber1-edge-b") | .links) += [
+            {switch: "ber1-tor-b", port: 27, media: "dac", purpose: "data", nic: "sfp28-1"}]
+        | (.devices[] | select(.name == "ber1-tor-b")) .lags = [{id: 1, name: "edge-b", ports: [26, 27]}]' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 has 2 cables from one NIC, sfp28-1"* ]]
+}
+
+@test "the ISL is a lag at both ends, and the lag carries the edge VLAN" {
+    site="$SITE_FILE"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'interface port-channel 1\tswitchport general allowed vlan 4000 tagged'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/31\tchannel-group 1 mode active'* ]]
+    run fleet_render "$site" ber1-tor-a
+    [ "$status" -eq 0 ]
+}
+
+@test "an ISL aggregated on one end only stops the render of both ends" {
+    site="$(site_with_isl_lag '["ber1-tor-b"]')"
+    run fleet_render "$site" ber1-tor-a
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the ISL to ber1-tor-a is a lag on one end only"* ]]
+    [[ "$output" == *"the ISL to ber1-tor-b is a lag on one end only"* ]]
+}
+
+@test "an ISL cable recorded on one end only stops the render" {
+    jq 'del(.devices[].lags) | (.devices[] | select(.name == "ber1-tor-a")) |= del(.ports["31"])' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-a
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-tor-b: 2 ISL cable(s) to ber1-tor-a, which records 1 back"* ]]
+}
+
+@test "an ISL port left out of the ISL's lag stops the render" {
+    jq '(.devices[] | select(.role == "tor")) |= (.ports["30"] = .ports["32"])' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ISL port(s) 30 to ber1-tor-a are outside lag 1"* ]]
 }
 
 @test "a port with spanning tree off renders as no spanning-tree, with its own description" {
@@ -2157,7 +2266,7 @@ STUB
     # the edge trunks carry the WAN VLAN, and nothing else does
     run fleet_render "$site" ber1-tor-a
     [ "$status" -eq 0 ]
-    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/32 " ]
+    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/31 1/0/32 1 " ]
 }
 
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
@@ -2166,7 +2275,7 @@ STUB
         [ "$status" -eq 0 ]
         [[ "$output" == *'vlan 4000
  name "edge-vrrp"'* ]]
-        [ "$(awk '/^interface /{port = $3} /allowed vlan 4000 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/32 " ]
+        [ "$(awk '/^interface /{port = $3} /allowed vlan 4000 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/31 1/0/32 1 " ]
     done
     run fleet_render "$SITE_FILE" ber1-mgmt
     [ "$status" -eq 0 ]
@@ -2190,7 +2299,7 @@ STUB
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"two edges share a VRRP address"* ]]
-    jq 'del(.vlans[0].carried_by)' "$SITE_FILE" > "$site"
+    jq '(.vlans[] | select(.id == 4000)) |= del(.carried_by)' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"vrrp.vlan 4000 is not a VLAN carried_by the edges"* ]]
@@ -2229,8 +2338,9 @@ STUB
     jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/nonetboot.json"
     [ "$status" -eq 0 ]
-    [[ "$output" != *'oifname != '* ]]
+    [[ "$output" != *'ip saddr 192.168.50.0/24 masquerade'* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
+    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
   }'* ]]
 }
 
@@ -2273,7 +2383,7 @@ STUB
     [[ "$output" != *"ip addr replace 192.168"* ]]
     # a second run finds the links it made and only puts back the address
     : > "$bin/log"
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-b FAKE_LINKS="vrrp0 vrrp0-1 vrrp0-2" sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-b FAKE_LINKS="vrrp0 vrrp0-1 vrrp0-2 machines0 machines0-1 machines0-2" sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
     [[ "$output" != *"ip link add"* ]]
@@ -2360,6 +2470,184 @@ STUB
     run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
     [ "$status" -ne 0 ]
     [[ "$output" == *"stale: "*"/sites/ber1/dnsmasq.conf"* ]]
+}
+
+# --- the machines segment ----------------------------------------------------
+#
+# The runners sit on a VLAN of their own behind the edges: untagged on their
+# ToR port, tagged only toward the edges, with the edges' DHCP handing each its
+# RackHost's address and both edges routing the tailnet to it.
+
+@test "a runner's port carries the machines VLAN untagged and nothing else, and only the edges' ports and the ISL tag it" {
+    run fleet_render "$SITE_FILE" ber1-tor-b
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'vlan 10
+ name "machines"'* ]]
+    [[ "$output" == *'interface ten-gigabitEthernet 1/0/1
+  spanning-tree
+  switchport general allowed vlan 10 untagged
+  switchport pvid 10
+  no switchport general allowed vlan 1
+#'* ]]
+    # tagged exactly where the edges' VRRP VLAN is: their ports and the ISL
+    tagged_on() { awk -v v="$1" '/^interface /{port = $2 " " $3} $0 ~ "allowed vlan " v " tagged" {printf "%s, ", port}'; }
+    [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
+    [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
+    run fleet_render "$SITE_FILE" ber1-tor-a
+    [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
+    [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
+    [[ "$output" != *"untagged"* ]]
+    run fleet_render "$SITE_FILE" ber1-mgmt
+    [[ "$output" != *"vlan 10"* ]]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | yq -o=json '.spec.config' | jq -c '[(.ports[] | select(.port == 1) | {nativeVlan, taggedVlans}), ([.vlans[].id])]'"
+    [ "$status" -eq 0 ]
+    [ "$output" = '[{"nativeVlan":10,"taggedVlans":[]},[10,4000]]' ]
+    # a site without the segment leaves the runner on the management VLAN
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    run fleet_render "$BATS_TEST_TMPDIR/nomachines.json" ber1-tor-b
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"untagged"* ]]
+}
+
+@test "each edge has an address of its own on the machines segment, and only the master holds the gateway" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 uplinks="* ]]
+    [[ "$output" == *"ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 uplinks="* ]]
+    [[ "$output" != *"10.10.0.1"* ]]
+    for edge in ber1-edge-a ber1-edge-b; do
+        run fleet_edge_keepalived "$SITE_FILE" "$edge"
+        [ "$status" -eq 0 ]
+        # a /32, so giving it up never takes the edge's own address with it
+        [[ "$output" == *"    10.10.0.1/32 dev machines0"$'\n'* ]]
+        [[ "$output" != *"10.10.0.2"* ]]
+        [[ "$output" != *"10.10.0.3"* ]]
+    done
+    bin="$BATS_TEST_TMPDIR/edge-machines"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-b sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    run cat "$bin/log"
+    [[ "$output" == *"ip link add link enp2s0f1np1 name machines0-1 type vlan id 10"* ]]
+    [[ "$output" == *"ip link add link enp2s0f0np0 name machines0-2 type vlan id 10"* ]]
+    [[ "$output" == *"ip addr replace 10.10.0.3/24 dev machines0"* ]]
+}
+
+@test "a machine reaches the internet through its gateway and nothing the edges keep for themselves" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'* ]]
+    [[ "$output" == *'delete table inet tuist_rack_machines'* ]]
+    [[ "$output" == *'iifname "machines0" oifname { "tailscale0", "vrrp0", "enp87s0" } drop'* ]]
+    [[ "$output" == *'iifname "machines0" ip daddr { 192.168.0.0/24, 192.168.50.0/24, 10.255.255.0/29 } drop'* ]]
+    # of the edge itself, a machine reaches DHCP and ping and nothing else
+    [[ "$output" == *'    iifname "machines0" udp dport 67 accept
+    iifname "machines0" icmp type echo-request accept
+    iifname "machines0" drop'* ]]
+    # and all of it in the one transaction the path already loads
+    [ "$(grep -c "^nft -f - <<'NFT'$" <<<"$output")" -eq 1 ]
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/nomachines.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"machines0"* ]]
+    [[ "$output" != *"10.10.0.0/24"* ]]
+}
+
+@test "every machine gets its RackHost's address against the MAC of its link, from either edge" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_machines_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\ninterface=machines0\n'* ]]
+    [[ "$output" == *"dhcp-range=set:machines,10.10.0.0,static,255.255.255.0,infinite"* ]]
+    [[ "$output" == *"dhcp-option=tag:machines,option:router,10.10.0.1"* ]]
+    [[ "$output" == *"dhcp-option=tag:machines,option:dns-server,1.1.1.1,8.8.8.8"* ]]
+    [[ "$output" == *"dhcp-host=14:98:77:3a:99:2c,10.10.0.101,ber1-proto-01,infinite"* ]]
+    # both edges answer, so neither NAKs a request the machine sent the other
+    [[ "$output" != *"dhcp-authoritative"* ]]
+    # its own process and lease file, one interface each, so both share port 67
+    [ "$(grep -c '^interface=' <<<"$output")" -eq 1 ]
+    [[ "$output" == *"dhcp-leasefile=/var/lib/misc/tuist-rack-machines.leases"* ]]
+    run fleet_edge_dhcp "$SITE_FILE"
+    [[ "$output" == *"dhcp-authoritative"* ]]
+    [[ "$output" != *"machines"* ]]
+    [ "$(grep -c '^interface=' <<<"$output")" -eq 1 ]
+    # the address is the RackHost's, never a copy in the site definition
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '(.rackFleet.hosts[] | select(.name == "ber1-proto-01")).address = "10.10.0.150"' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"dhcp-host=14:98:77:3a:99:2c,10.10.0.150,ber1-proto-01,infinite"* ]]
+    # a site without the segment serves nothing there
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    run fleet_edge_machines_dhcp "$BATS_TEST_TMPDIR/nomachines.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"interface="* ]]
+    [[ "$output" != *"dhcp-range"* ]]
+}
+
+@test "the edges advertise each machine's address to the tailnet, and nothing else" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_routes "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\nexec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes=10.10.0.101/32' ]]
+    # a mini still planned has no route until it is racked
+    jq '.nodes += [{name: "ber1-runner-b02", role: "runner", hardware: "mac-mini", status: "planned", rack_host: "ber1-proto-01",
+          links: [{switch: "ber1-tor-b", port: 2, media: "copper", nic: "en0", purpose: "data"}]}]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_edge_routes "$BATS_TEST_TMPDIR/planned.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--advertise-routes=10.10.0.101/32" ]]
+    # a site without the segment withdraws whatever an edge advertised
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    run fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--advertise-routes=" ]]
+}
+
+@test "the machines segment's addresses, members and machines are checked at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/machines.json"
+    jq '.management.edge.machines.members |= map(select(.node != "ber1-edge-b"))' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"machines.members are ber1-edge-a, but the site's edges are ber1-edge-a, ber1-edge-b"* ]]
+    jq '.management.edge.machines.members[1].address = "10.10.1.3"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-edge-b's machines address 10.10.1.3 is not in 10.10.0.1/24"* ]]
+    jq '.management.edge.machines.members[1].address = "10.10.0.1"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"already the gateway's or another edge's"* ]]
+    jq '.management.edge.machines.gateway = "10.10.0.1"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an address with its prefix length"* ]]
+    jq '(.vlans[] | select(.id == 10)) |= del(.carried_by)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"VLAN 10 floats an edge address but is not carried_by the edges"* ]]
+    jq '(.nodes[] | select(.name == "ber1-proto-01") | .links[0]) |= del(.mac)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-proto-01 has no MAC on its data link"* ]]
+    jq '(.nodes[] | select(.name == "ber1-proto-01")) |= del(.rack_host)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-proto-01 is on the machines segment and names no RackHost"* ]]
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '(.rackFleet.hosts[] | select(.name == "ber1-proto-01")).address = "192.168.0.41"' "$FLEET_RACK_VALUES" > "$values"
+    run fleet_edge_check_machines "$SITE_FILE" "$values"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-proto-01's address 192.168.0.41 is not in the machines segment 10.10.0.1/24"* ]]
+    yq '(.rackFleet.hosts[] | select(.name == "ber1-proto-01")).address = "10.10.0.2"' "$FLEET_RACK_VALUES" > "$values"
+    run fleet_edge_check_machines "$SITE_FILE" "$values"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-proto-01's address 10.10.0.2 is already the gateway's, an edge's or another machine's"* ]]
+    run fleet_edge_check_machines "$SITE_FILE"
+    [ "$status" -eq 0 ]
 }
 
 # --- the Omada controller's Open API -----------------------------------------
@@ -3104,7 +3392,9 @@ STUB
 @test "ztp reports a missing dnsmasq during the dry run, not after you confirm" {
     bin="$BATS_TEST_TMPDIR/ztp5"
     ztp_stub "$bin"
-    # a PATH with the stubs and the basics, but deliberately no dnsmasq
+    # a PATH with the stubs and the basics, but deliberately no dnsmasq; yq
+    # reads the RackHosts the site's machines reference
+    ln -s "$(mise which yq 2>/dev/null || command -v yq)" "$bin/yq"
     run env PATH="$bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" \
         ber1-tor-b --interface zzz0 --dry-run
     [ "$status" -eq 0 ]
