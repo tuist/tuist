@@ -11,8 +11,9 @@ import (
 // It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
 // bootstrap, same host-config drift loop, same tailnet egress Service, but the
 // host is a RackHost in the cluster's own inventory rather than a server from
-// a provider's list, and there is no order, no reinstall and no release path,
-// because nobody bills us per host and no API can wipe one.
+// a provider's list, and there is no order and no release path, because
+// nobody bills us per host. Reinstalling is the tuist.dev/os-reinstall
+// annotation, not a provider API.
 type RackAppleSiliconMachineSpec struct {
 	// ProviderID takes the shape `rack-applesilicon://<site>/<serial>`;
 	// composed from the two durable physical facts, so re-cabling a host to a
@@ -111,6 +112,69 @@ type RackAppleSiliconMachineStatus struct {
 	// Conditions are CAPI-style condition entries (Provisioned, Bootstrapped).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+
+	// OSUpdate is the progress of the latest in-place macOS update requested
+	// with the tuist.dev/os-update annotation.
+	// +optional
+	OSUpdate *OSUpdateStatus `json:"osUpdate,omitempty"`
+}
+
+// OSUpdateStatus tracks one in-place macOS update of a rack host.
+type OSUpdateStatus struct {
+	// ID names this update's job directory on the host, so a resumed update
+	// recognises the download and install it started and never one an earlier
+	// update left.
+	// +optional
+	ID string `json:"id,omitempty"`
+
+	// Target is the requested macOS version, e.g. "26.7".
+	// +optional
+	Target string `json:"target,omitempty"`
+
+	// Reinstall is set when the host is erased and Target installed from the
+	// full installer, as the tuist.dev/os-reinstall annotation asks, rather
+	// than updated in place.
+	// +optional
+	Reinstall bool `json:"reinstall,omitempty"`
+
+	// Label is the softwareupdate label resolved for Target, or for a
+	// reinstall the title of its full installer.
+	// +optional
+	Label string `json:"label,omitempty"`
+
+	// FromVersion is the macOS version the host ran when the update started.
+	// +optional
+	FromVersion string `json:"fromVersion,omitempty"`
+
+	// Phase is one of Preparing, Draining, Downloading, Installing, Converging,
+	// Succeeded or Failed. A reinstall replaces Installing with Erasing,
+	// Enrolling, Bootstrapping and, when the SSH user has no secure token yet,
+	// Restarting.
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// Reason is a machine-readable cause when Phase is Failed.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// Message describes what the update is doing or why it stopped.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// +optional
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+
+	// +optional
+	PhaseStartedAt *metav1.Time `json:"phaseStartedAt,omitempty"`
+
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// BootTimeBefore is the host's boot time (Unix seconds), recorded before the
+	// install, erase or restart starts, so the reboot is detected by the boot
+	// time moving.
+	// +optional
+	BootTimeBefore int64 `json:"bootTimeBefore,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -120,6 +184,8 @@ type RackAppleSiliconMachineStatus struct {
 // +kubebuilder:printcolumn:name="Host",type=string,JSONPath=".spec.host"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
+// +kubebuilder:printcolumn:name="OSUpdate",type=string,priority=1,JSONPath=".status.osUpdate.phase"
+// +kubebuilder:printcolumn:name="OSTarget",type=string,priority=1,JSONPath=".status.osUpdate.target"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackAppleSiliconMachine is one Mac mini we own, joined as a cluster Node.

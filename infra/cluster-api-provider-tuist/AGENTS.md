@@ -986,6 +986,123 @@ defaults read /Library/Preferences/com.apple.SoftwareUpdate
 softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
 ```
 
+### Updating a rack host
+
+An in-family update (a `_minor` in Apple's terms, such as 26.6 to 26.7) is one
+annotation on the host's machine:
+
+```bash
+kubectl annotate rasm <machine> tuist.dev/os-update=26.7
+kubectl get rasm -o wide          # OSUpdate and OSTarget columns
+kubectl get rasm <machine> -o jsonpath='{.status.osUpdate}'
+```
+
+Setting it needs `tuist-fleet-unwedge`, which staging grants standing and canary
+and production grant under a `tuist-<env>-write` elevation.
+
+The controller moves `status.osUpdate.phase` through:
+
+| Phase | What happens |
+|---|---|
+| `Preparing` | Checks the host is bootstrapped, reads its version, resolves the `softwareupdate` label for the target |
+| `Draining` | Cordons the Node and waits for every pod on it to finish. The runners controller retires idle warm runners on a cordoned Node, so what is left are pods running jobs, which are never evicted |
+| `Downloading` | Downloads the update on the drained host, so it never competes with a job for the uplink or the disk |
+| `Installing` | Sets `cluster.x-k8s.io/skip-remediation` on the CAPI Machine and records the host's boot time, then installs and waits for the host to restart on the target version. The drift loop does not dial the host in this phase |
+| `Converging` | Pushes the whole host config again, because the installer resets files it owns such as `/etc/pf.conf`. Waits for the push, a Ready Node and the auto-login console session |
+| `Succeeded` | Uncordons, removes `skip-remediation`, clears the annotation |
+
+Update one host, let it run real jobs, then do the next. Nothing sequences a
+rack.
+
+The update only lifts a cordon it placed and only removes a `skip-remediation`
+it set. It marks its cordon with the `tuist.dev/os-update-cordon` Node
+annotation and its `skip-remediation` with the value `tuist.dev/os-update`,
+each in the same patch as the change itself, so an operator's own cordon or
+`skip-remediation` is left alone.
+
+**Refused without touching the host**, with the annotation cleared: a target in
+another release family (see "Reinstalling a rack host"), a downgrade, a version Software
+Update does not offer, a host that is not bootstrapped or holds a terminal
+drift failure, and an SSH user with no secure token (`NoSecureToken`). A host
+already on the target succeeds at once, unless an earlier update left its
+cordon on the Node: then it goes through `Converging` and is uncordoned once
+the host converges.
+
+A newly enrolled host has no secure token for its SSH user: the only volume
+owner is the MDM bootstrap token until that user first logs in at the login
+window. Bootstrap configures auto-login, so restart the host once after its
+first bootstrap and `sysadminctl -secureTokenStatus <sshUser>` reads ENABLED.
+
+**Cancel** by removing the annotation during `Preparing`, `Draining` or
+`Downloading`; the Node is uncordoned. Once `Installing` starts, the update runs
+to the end.
+
+**Failures** are `phase: Failed` with a `reason` and a Warning event. Every
+failure removes `skip-remediation`. What happens to the Node depends on whether
+the host changed:
+
+| Reason | Node |
+|---|---|
+| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost`, `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
+| `InstallTimedOut`, `VersionMismatch`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human; a NotReady Node goes back to the MachineHealthCheck |
+
+Once an install has started, the drift loop pushes the whole host config again
+however the update ends. To hand back a Node a failed update left cordoned, fix
+the cause and set the annotation again rather than running `kubectl uncordon`,
+which leaves the `tuist.dev/os-update-cordon` marker behind for a later update
+to mistake for its own.
+
+Reading the outcome on the host: each update's jobs log to
+`/Users/Shared/tuist-os-update/<status.osUpdate.id>/`, which survives the
+install. `/private/var/tmp` does not. Starting a job removes every other
+update's directory.
+Nothing in the cluster reports a host's macOS version outside
+`status.osUpdate`, because `tart-kubelet` leaves `NodeInfo.OSImage` empty.
+
+A host's version only changes this way while it has a Machine. A parked host
+has neither the update policy nor the values-rendered SSH guard entries, so
+unpark it and let it converge before updating it.
+
+### Reinstalling a rack host
+
+A move to another release family (27.0 from 26.x) is an erase and a fresh
+install, one annotation on the host's machine:
+
+```bash
+kubectl annotate rasm <machine> tuist.dev/os-reinstall=27.0
+```
+
+It can also reinstall the version the host already runs, or an older one, as
+long as `softwareupdate --list-full-installers` offers it. It wipes the host:
+the host comes back without its Tart images and cache volume, so its first job
+pulls the runner image again.
+
+It shares `status.osUpdate` with the in-place update, with `reinstall: true`,
+and replaces `Installing` with four phases:
+
+| Phase | What happens |
+|---|---|
+| `Preparing`, `Draining` | As for an update, and the RackHost must record a `serial` |
+| `Downloading` | `softwareupdate --fetch-full-installer`, about 18 GB and 20 minutes on the prototype |
+| `Erasing` | Keeps tailscaled's state in the Machine's bootstrap Secret, then runs `startosinstall --eraseinstall`. The host restarts into the installer and comes back through automated enrollment, about 13 minutes on the prototype. Ends when the host answers with a new SSH host key |
+| `Enrolling` | Dials without the pinned host key until the fleet key is accepted. Pins the new key only once the host reports the RackHost's `serial` and the target version, then marks the Machine not bootstrapped |
+| `Bootstrapping` | The Machine bootstraps the host again. Restoring tailscaled's state brings it back as the same tailnet device, so its egress Service, metrics and VNC relay keep working; the kept state is dropped once bootstrap succeeds |
+| `Restarting` | Only when the SSH user has no secure token yet: one restart, after which the auto-login grants it |
+| `Converging`, `Succeeded` | As for an update |
+
+Cancel by removing the annotation before `Erasing`.
+
+| Reason | Node |
+|---|---|
+| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost`, `EraseFailed` (exited before restarting) | Uncordoned: the host is unchanged |
+| `EraseTimedOut`, `NotErased`, `EnrollTimedOut`, `HostIdentityMismatch`, `VersionMismatch`, `BootstrapTimedOut`, `RestartTimedOut`, `NoSecureToken`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human |
+
+`HostIdentityMismatch` means a host with another serial answers at the
+RackHost's address after the erase; the key is not pinned and nothing else
+touches that host. A reinstall that failed after the host came back on the
+target is finished with `tuist.dev/os-update=<target>`, which converges and
+uncordons without erasing again.
+
 ## Module layout
 
 ```
@@ -1003,6 +1120,7 @@ infra/cluster-api-provider-tuist/
 │   ├── macos/
 │   │   ├── scalewayapplesiliconmachine_controller.go
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
+│   │   ├── rack_os_update.go        # tuist.dev/os-update and os-reinstall: macOS updates
 │   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   └── hostagent.go             # what both macOS kinds share once a host

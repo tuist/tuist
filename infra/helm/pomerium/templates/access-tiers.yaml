@@ -405,6 +405,9 @@ subjects:
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
+#   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
+#     tuist.dev/os-update, tuist.dev/os-reinstall and tuist.dev/power-action
+#     annotations. Not /status: a rack host's quarantine clears by expiring.
 #   * racklinuxhosts update/patch — raise a rack Linux host's
 #     reinstallGeneration, which reinstalls it, set its online field or the
 #     tuist.dev/reboot annotation, and correct its bootMAC. delete — retire a
@@ -430,6 +433,9 @@ rules:
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachinetemplates"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackapplesiliconmachines", "rackhosts"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["racklinuxhosts"]
