@@ -1,7 +1,7 @@
 // Command rack-seed renders a rack Linux host's Ubuntu autoinstall seed, the
 // one the operator publishes for a netboot install, into a directory for
 // rack:write-install-usb to bake into a stick. The console password is read
-// from stdin and only its hash is written.
+// from stdin, and the installed system hashes it.
 package main
 
 import (
@@ -53,10 +53,6 @@ func run(args []string, stdin io.Reader) error {
 	if trimmed == "" {
 		return fmt.Errorf("no console password on stdin")
 	}
-	hash, err := rackinstall.HashPassword(trimmed)
-	if err != nil {
-		return err
-	}
 	keys, err := readLines(*keysFile)
 	if err != nil {
 		return fmt.Errorf("read the authorized keys: %w", err)
@@ -73,15 +69,15 @@ func run(args []string, stdin io.Reader) error {
 	}
 
 	seed := rackinstall.Seed{
-		Host:           *host,
-		Role:           *role,
-		User:           *user,
-		PasswordHash:   hash,
-		AuthorizedKeys: keys,
-		TailnetTags:    tagList,
-		TailnetKey:     strings.TrimSpace(string(tailnetKey)),
-		TailnetKeyID:   *keyID,
-		Built:          time.Now(),
+		Host:            *host,
+		Role:            *role,
+		User:            *user,
+		ConsolePassword: trimmed,
+		AuthorizedKeys:  keys,
+		TailnetTags:     tagList,
+		TailnetKey:      strings.TrimSpace(string(tailnetKey)),
+		TailnetKeyID:    *keyID,
+		Built:           time.Now(),
 	}
 	userData, err := rackinstall.UserData(seed)
 	if err != nil {

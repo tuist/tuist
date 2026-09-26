@@ -18,10 +18,11 @@ type Seed struct {
 	// exists.
 	Role string
 	User string
-	// PasswordHash is the console account's crypt(3) hash.
-	PasswordHash   string
-	AuthorizedKeys []string
-	TailnetTags    []string
+	// ConsolePassword is the console account's password. The installed
+	// system hashes it: cloud-init sets it on the first boot.
+	ConsolePassword string
+	AuthorizedKeys  []string
+	TailnetTags     []string
 	// TailnetKey is the single-use join key, and TailnetKeyID its ID, which
 	// the install records so a second boot of the same installer hands over
 	// to the system it installed instead of wiping it.
@@ -46,6 +47,7 @@ const (
 var (
 	hostPattern         = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	keyIDPattern        = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+	consolePassword     = regexp.MustCompile(`^[A-Za-z0-9]{16,128}$`)
 	tailnetKeyPattern   = regexp.MustCompile(`^tskey-auth-[A-Za-z0-9-]+$`)
 	tagPattern          = regexp.MustCompile(`^tag:[a-z0-9-]+$`)
 	authorizedKeyPrefix = regexp.MustCompile(`^(ssh-|ecdsa-|sk-ssh-|sk-ecdsa-)`)
@@ -76,8 +78,8 @@ func (s Seed) validate() error {
 	if !keyIDPattern.MatchString(s.TailnetKeyID) {
 		return fmt.Errorf("%q is not a tailnet key ID", s.TailnetKeyID)
 	}
-	if !strings.HasPrefix(s.PasswordHash, "$") || strings.ContainsAny(s.PasswordHash, "\"\\\n ") {
-		return fmt.Errorf("the console password hash is not a crypt(3) hash")
+	if !consolePassword.MatchString(s.ConsolePassword) {
+		return fmt.Errorf("the console password is not 16 to 128 letters and digits")
 	}
 	if s.HostKey != (HostKey{}) {
 		if err := s.HostKey.validate(); err != nil {
@@ -99,8 +101,10 @@ func (s Seed) validate() error {
 //
 // It installs Ubuntu with the direct layout and DHCP on the SFP+ uplinks only
 // (the MS-01's X710, driver i40e), so the 2.5G ports stay unmanaged for the
-// node's pods. A first-boot unit joins the tailnet with the single-use key and
-// deletes it. Early-commands look for an install carrying this key's ID and,
+// node's pods. The installer creates the console account with a locked
+// password, and cloud-init sets the password on the first boot, so the
+// installed system hashes it. A first-boot unit joins the tailnet with the
+// single-use key and deletes it. Early-commands look for an install carrying this key's ID and,
 // finding one, boot it through BootNext rather than installing again: the
 // MS-01s boot USB first, and a PXE boot can precede the disk too.
 func UserData(s Seed) (string, error) {
@@ -128,7 +132,14 @@ autoinstall:
   identity:
     hostname: %[1]s
     username: %[2]s
-    password: "%[3]s"
+    password: "!"
+  user-data:
+    chpasswd:
+      expire: false
+      users:
+        - name: %[2]s
+          password: "%[3]s"
+          type: text
   ssh:
     install-server: true
     allow-pw: false
@@ -210,7 +221,7 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s`, s.Host, s.User, s.PasswordHash, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
 		ModprobePath, indent(ModprobeConf, "      "), hostKey), nil

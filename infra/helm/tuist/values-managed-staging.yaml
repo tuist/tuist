@@ -887,7 +887,7 @@ rackLinuxFleet:
     - uuid: 04450c00-63f4-11f1-81f4-3582298d5c00
       hostname: ber1-edge-b
       role: edge
-      reinstallGeneration: 1
+      reinstallGeneration: 4
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   boot:
