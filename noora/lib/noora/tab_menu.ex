@@ -73,7 +73,7 @@ defmodule Noora.TabMenu do
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
   attr(:href, :string, default: nil, doc: "External page to link to")
   attr(:replace, :boolean, default: true, doc: "Whether to replace the current item in the history")
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(target rel))
 
   slot(:icon_left, doc: "Icon displayed on the left of an item")
   slot(:icon_right, doc: "Icon displayed on the right of an item")
