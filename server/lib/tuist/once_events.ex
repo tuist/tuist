@@ -94,7 +94,11 @@ defmodule Tuist.OnceEvents do
     |> where([r], r.project_id == ^project_id and r.run_id == ^run_id and r.acked_seq < ^acked_seq)
     |> Repo.update_all(set: [acked_seq: acked_seq])
 
-    :ok
+    # The committed value, not the one we asked for. The update matches no
+    # row when the run does not exist yet, and acking a mark the database
+    # never stored is the same bug as before: `GetRunAck` would answer lower
+    # afterwards and the client treats that regression as fatal.
+    {:ok, acked_seq(project_id, run_id)}
   end
 
   @doc """

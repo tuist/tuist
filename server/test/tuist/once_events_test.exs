@@ -248,6 +248,33 @@ defmodule Tuist.OnceEventsTest do
     def get_headers(headers), do: headers
   end
 
+  test "a batch for an unknown run is not acknowledged at a mark nothing stored", %{project: project} do
+    # No `RunStarted` was projected, so there is no run row to hold the mark.
+    # Acking ACCEPTED at seq 3 here would tell the client the server had
+    # projected through 3 while `GetRunAck` still answers 0, and that
+    # regression is fatal to the client.
+    batch = %RunEventBatch{
+      run_id: "run-that-never-started",
+      batch_id: "batch-1",
+      seq_from: 3,
+      events: [
+        %RunEvent{
+          seq: 3,
+          epoch_ms: 1_789_405_000_000,
+          payload:
+            {:action_completed, %ActionCompleted{target_execution_id: "mise", capability: "build", action_index: 0}}
+        }
+      ]
+    }
+
+    RunEventService.publish_run_events([batch], reply_stream(project))
+
+    assert_received {:ack, %BatchAck{} = ack}
+    assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_NEEDS_RESYNC)
+    assert ack.acked_seq == 0
+    assert ack.acked_seq == OnceEvents.acked_seq(project.id, "run-that-never-started")
+  end
+
   test "a batch whose projection fails is not acknowledged as accepted", %{project: project, run: run} do
     stub(OnceEvents, :ingest_action, fn _run, _attrs -> raise "postgres is down" end)
 
@@ -269,10 +296,16 @@ defmodule Tuist.OnceEventsTest do
 
     assert_received {:ack, %BatchAck{} = ack}
     assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_NEEDS_RESYNC)
-    # The failing event is seq 7, so the client must resend from there.
-    assert ack.acked_seq == 6
-    assert ack.expected_next_seq == 7
+
+    # Nothing durable happened, so the ack reports the mark the database
+    # actually holds. Claiming 6 here, as this used to, told the client the
+    # server had projected through 6 while the store still held 0: the next
+    # `GetRunAck` would then answer lower, which the client treats as a fatal
+    # protocol violation. Resending from 0 is safe, every write is idempotent.
+    assert ack.acked_seq == 0
+    assert ack.expected_next_seq == 1
     assert OnceEvents.acked_seq(project.id, run.run_id) == 0
+    assert ack.acked_seq == OnceEvents.acked_seq(project.id, run.run_id)
   end
 
   test "an empty batch advancing past a producer gap is acknowledged at the gap", %{project: project, run: run} do

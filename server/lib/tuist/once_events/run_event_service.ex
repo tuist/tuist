@@ -99,11 +99,17 @@ defmodule Tuist.OnceEvents.RunEventService do
 
     case project_events(batch, project) do
       :ok ->
-        highest_seq = max(stored_seq, batch_last_seq)
+        {:ok, committed_seq} =
+          OnceEvents.observe_acked_seq(project.id, batch.run_id, max(stored_seq, batch_last_seq))
 
-        OnceEvents.observe_acked_seq(project.id, batch.run_id, highest_seq)
-
-        ack(batch, project, :ACK_DISPOSITION_ACCEPTED, highest_seq)
+        if committed_seq >= batch_last_seq do
+          ack(batch, project, :ACK_DISPOSITION_ACCEPTED, committed_seq)
+        else
+          # Nothing was stored, so there is no run row holding the mark.
+          # Acking a sequence the database does not have would make the next
+          # `GetRunAck` regress, which the client treats as fatal.
+          ack(batch, project, :ACK_DISPOSITION_NEEDS_RESYNC, committed_seq)
+        end
 
       {:error, _reason} ->
         # Nothing durable happened for the failing event, so the ack must
@@ -111,7 +117,12 @@ defmodule Tuist.OnceEvents.RunEventService do
         # client reopen the stream and resend from where it last saw us,
         # and every projector write is idempotent, so the events in this
         # batch that did land simply replay.
-        ack(batch, project, :ACK_DISPOSITION_NEEDS_RESYNC, max(stored_seq, batch.seq_from - 1))
+        # Exactly what the database holds. `seq_from - 1` invents a mark that
+        # was never persisted, which the next `GetRunAck` contradicts, and
+        # `min/2` would regress below the stored mark when the client is
+        # replaying an earlier batch. Resending from the stored mark is safe
+        # because every projector write is idempotent.
+        ack(batch, project, :ACK_DISPOSITION_NEEDS_RESYNC, stored_seq)
     end
   end
 
