@@ -165,10 +165,13 @@ spec:
                     credentialsSecretRef:
                       description: |-
                         CredentialsSecretRef names a Secret in the operator's namespace holding
-                        `username` and `password` for the endpoint's HTTP auth. Optional: an
-                        unauthenticated plug on a management VLAN needs none. Several hosts
-                        normally point at the same Secret, since a PDU has one credential and
-                        many outlets.
+                        `username` and `password` for the endpoint, and for `eaton` the
+                        `tlsFingerprint` its certificate is pinned to: the SHA-256 of the
+                        card's certificate, as hex with or without colons. Optional for an
+                        unauthenticated plug on a management VLAN. Several hosts normally point
+                        at the same Secret, since a PDU has one credential and many outlets. The
+                        Eaton card allows one session per account, so the controller's account
+                        is its own and no person signs in to the web UI with it.
                       properties:
                         name:
                           default: ""
@@ -184,26 +187,33 @@ spec:
                     driver:
                       default: shelly
                       description: |-
-                        Driver selects the power backend. `shelly` speaks the Shelly Gen2 RPC
-                        (with a Gen1 fallback) and is for home and office prototypes only: it is
-                        the BER1 prototype's PDU stand-in, not a rack driver. A colo rack's
-                        switched PDUs get their own driver rather than being forced through this
-                        one.
+                        Driver selects the power backend. `eaton` speaks the REST API of the
+                        Eaton Rack PDU G4, the rack's production PDU, over HTTPS pinned to the
+                        card's certificate. `shelly` speaks the Shelly Gen2 RPC (with a Gen1
+                        fallback) and is for home and office prototypes only.
                       enum:
                         - shelly
+                        - eaton
                       type: string
                     host:
                       description: |-
-                        Host is the PDU / plug endpoint, as a host or host:port. Plain HTTP by
-                        default; give it an `https://` prefix to force TLS.
+                        Host is the PDU / plug endpoint, as a host, host:port or
+                        `scheme://host`. A bare host is plain HTTP for `shelly` and HTTPS for
+                        `eaton`. With the tailnet egress configured, an IP address is dialled
+                        through the egress Service `pdu-<address>`.
                       type: string
                     outlet:
                       default: "0"
                       description: |-
-                        Outlet identifies the outlet on that endpoint. Driver-specific; for
-                        Shelly it is the switch channel id, `"0"` on a single-channel plug.
+                        Outlet identifies the outlet on that endpoint. Driver-specific: for
+                        Shelly the switch channel id, `"0"` on a single-channel plug; for Eaton
+                        the outlet's 1-based number on the PDU, so `eaton` needs it set.
+                      maxLength: 16
                       type: string
                   type: object
+                  x-kubernetes-validations:
+                    - message: an eaton outlet is its 1-based number on the PDU
+                      rule: '!has(self.driver) || self.driver != ''eaton'' || (has(self.outlet) && self.outlet.matches(''^[1-9][0-9]*$''))'
                 serial:
                   description: |-
                     Serial is the Mac's hardware serial (e.g. `C07FC05JQ6NY`). This is the

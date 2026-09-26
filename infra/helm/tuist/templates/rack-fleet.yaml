@@ -78,7 +78,11 @@ spec:
   power:
     driver: {{ .driver | default "shelly" }}
     host: {{ required (printf "rackFleet.hosts[%s].power.host is required when power is set" $hostName) .host | quote }}
+    {{- if eq (.driver | default "shelly") "eaton" }}
+    outlet: {{ required (printf "rackFleet.hosts[%s].power.outlet is required for the eaton driver: the outlet's 1-based number on the PDU" $hostName) .outlet | quote }}
+    {{- else }}
     outlet: {{ .outlet | default "0" | quote }}
+    {{- end }}
     {{- with .credentialsSecret }}
     credentialsSecretRef:
       name: {{ . }}

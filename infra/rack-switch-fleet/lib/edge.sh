@@ -15,7 +15,8 @@
 # gives: at home the management prefix is the house network, which must not
 # become a route every device on the tailnet can use, nor one the edge node
 # reaches through this port. The only routes the edges advertise are the
-# machines' own addresses on the machines segment, one /32 each.
+# machines' own addresses on the machines segment and the installed power
+# devices' management addresses, one /32 each.
 #
 # The switches advertise a TCP MSS for a 1500-byte link, tailscale0 carries
 # 1280, and full-size segments coming back from the controller vanish inside
@@ -51,7 +52,37 @@ fleet_edge_check() {
     return 1
   fi
   fleet_edge_check_vrrp "$site_file" || return 1
-  fleet_edge_check_machines "$site_file"
+  fleet_edge_check_machines "$site_file" || return 1
+  fleet_edge_check_power "$site_file"
+}
+
+# The power devices the tailnet reaches through the edge, one management
+# address per line: each installed power node with a management address whose
+# management link is on a switch behind the edge.
+fleet_edge_power() {
+  local site_file="$1"
+  jq -r '
+    [.devices[]? | select(.behind_edge) | .name] as $behind |
+    .nodes[]? | select(.role == "power" and .status == "installed" and (.mgmt_address // "") != "") |
+    select(any(.links[]?; .purpose == "management" and (.switch as $s | $behind | index($s)))) |
+    .mgmt_address
+  ' "$site_file"
+}
+
+fleet_edge_check_power() {
+  local site_file="$1" prefix address bad=""
+  prefix="$(jq -r '.management.prefix' "$site_file")"
+  while read -r address; do
+    [ -n "$address" ] || continue
+    if ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$prefix"; then
+      bad="${bad:+$bad$'\n'}power device address $address is not in the management prefix $prefix"
+    fi
+  done < <(fleet_edge_power "$site_file")
+  if [ -n "$bad" ]; then
+    echo "error: the power devices behind the edge are wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
 }
 
 fleet_is_ipv4() { [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] && (( BASH_REMATCH[1] < 256 && BASH_REMATCH[2] < 256 && BASH_REMATCH[3] < 256 && BASH_REMATCH[4] < 256 )); }
@@ -310,6 +341,16 @@ SCRIPT
     [ -n "$uplinks" ] && uplinks+=$'\n'
     uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\" } ip saddr $(fleet_network "$machines_gateway") masquerade"
   fi
+  # The tailnet reaches the power devices through the master's switch port,
+  # translated to the edge address there: their gateway is not an edge, so a
+  # reply to a tailnet address would not come back. Their replies into the
+  # tailnet are clamped like the switches'.
+  local power_nat="" power_clamp="" power
+  power="$(fleet_edge_power "$site_file" | paste -sd, -)"
+  if [ -n "$power" ]; then
+    power_nat="    iifname \"tailscale0\" oifname \"$interface\" ip daddr { $power } masquerade"
+    power_clamp="    oifname \"tailscale0\" ip saddr { $power } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu"
+  fi
   # The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
   # ignores broadcast replies, so the netdev table addresses each known
   # switch's replies to its MAC, matched on the client hardware address in the
@@ -322,12 +363,14 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { $sources } masquerade
-${uplinks:+$uplinks
+${power_nat:+$power_nat
+}${uplinks:+$uplinks
 }  }
   chain forward {
     type filter hook forward priority mangle;
     oifname "tailscale0" ip saddr { $sources } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
-  }
+${power_clamp:+$power_clamp
+}  }
 }
 table netdev tuist_rack_dhcp
 delete table netdev tuist_rack_dhcp
@@ -553,7 +596,7 @@ CONF
   [ -n "$wan_address" ] && printf '    %s dev wan0\n' "$wan_address"
   printf '  }\n'
   local -a behind
-  mapfile -t behind < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file")
+  mapfile -t behind < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file"; fleet_edge_power "$site_file")
   if [ "${#behind[@]}" -gt 0 ]; then
     printf '  virtual_routes {\n'
     local s
@@ -563,22 +606,38 @@ CONF
   printf '}\n'
 }
 
-# The machines' addresses as the tailnet routes both edges advertise, through
-# the node's own tailscaled, so the tailnet fails over between the edges the
-# way the gateway does. A /32 per machine rather than the segment's prefix, so
-# the tailnet reaches the machines the site has and nothing else on the
-# segment: not the edges' own addresses, not one nothing is reserved at. A site
-# with no machines advertises nothing, which also withdraws what an edge
-# advertised before.
+# The tailnet routes the edges advertise, through the node's own tailscaled.
+# Both edges advertise the machines' addresses, so the tailnet fails over
+# between the edges the way the gateway does. A /32 per machine rather than
+# the segment's prefix, so the tailnet reaches the machines the site has and
+# nothing else on the segment: not the edges' own addresses, not one nothing is
+# reserved at. Each power device behind the edge is a /32 too, advertised only
+# by the edge holding the edge address on the switch port, the one edge with a
+# route to it, so after a failover its route moves on the script's next run. A
+# site with no machines and no power devices advertises nothing, which also
+# withdraws what an edge advertised before.
 fleet_edge_routes() {
-  local site_file="$1" routes=""
+  local site_file="$1" routes="" power interface edge_address
   fleet_edge_check "$site_file" || return 1
   if [ -n "$(jq -r '.management.edge.machines.vlan // empty' "$site_file")" ]; then
     routes="$(fleet_edge_machines "$site_file" | awk -F'\t' '$3 != "" {print $3 "/32"}' | paste -sd, -)"
   fi
+  power="$(fleet_edge_power "$site_file" | awk '{print $1 "/32"}' | paste -sd, -)"
+  interface="$(jq -r '.management.edge.interface' "$site_file")"
+  edge_address="$(jq -r '.management.edge.address' "$site_file")"
   cat <<SCRIPT
 #!/bin/sh
 # generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
-exec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes=$routes
+routes=$routes
+SCRIPT
+  if [ -n "$power" ]; then
+    cat <<SCRIPT
+if ip -4 -o addr show dev $interface 2>/dev/null | grep -qF ' $edge_address/'; then
+  routes="\${routes:+\$routes,}$power"
+fi
+SCRIPT
+  fi
+  cat <<'SCRIPT'
+exec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes="$routes"
 SCRIPT
 }

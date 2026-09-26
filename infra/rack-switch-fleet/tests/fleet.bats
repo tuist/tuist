@@ -2385,6 +2385,7 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" != *'ip saddr 192.168.50.0/24 masquerade'* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
+    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
   }'* ]]
 }
@@ -2633,22 +2634,101 @@ STUB
     [[ "$output" != *"dhcp-range"* ]]
 }
 
+# Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:
+# FAKE_EDGE_ADDRESS is what the switch port holds. Prints what was advertised.
+routes_advertised() {
+    local script="$1" bin="$BATS_TEST_TMPDIR/routes-bin"
+    mkdir -p "$bin"
+    cat > "$bin/ip" <<'STUB'
+#!/bin/sh
+[ "$*" = "-4 -o addr show dev enp87s0" ] || exit 1
+[ -n "$FAKE_EDGE_ADDRESS" ] && echo "3: enp87s0    inet $FAKE_EDGE_ADDRESS scope global noprefixroute enp87s0"
+exit 0
+STUB
+    cat > "$bin/tailscale" <<'STUB'
+#!/bin/sh
+for arg; do case "$arg" in --advertise-routes=*) echo "${arg#--advertise-routes=}";; esac; done
+STUB
+    chmod +x "$bin/ip" "$bin/tailscale"
+    PATH="$bin:$PATH" sh "$script"
+}
+
 @test "the edges advertise each machine's address to the tailnet, and nothing else" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_routes "$SITE_FILE"
+    script="$BATS_TEST_TMPDIR/routes.sh"
+    # a site whose power devices are still planned advertises only the machines
+    jq '(.nodes[] | select(.role == "power")) |= (.status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nopower.json"
+    fleet_edge_routes "$BATS_TEST_TMPDIR/nopower.json" > "$script"
+    run grep -c 'ip ' "$script"
+    [ "$output" = "0" ]
+    FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'\nexec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes=10.10.0.101/32' ]]
+    [ "$output" = "10.10.0.101/32" ]
     # a mini still planned has no route until it is racked
     jq '.nodes += [{name: "ber1-runner-b02", role: "runner", hardware: "mac-mini", status: "planned", rack_host: "ber1-proto-01",
-          links: [{switch: "ber1-tor-b", port: 2, media: "copper", nic: "en0", purpose: "data"}]}]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
-    run fleet_edge_routes "$BATS_TEST_TMPDIR/planned.json"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"--advertise-routes=10.10.0.101/32" ]]
+          links: [{switch: "ber1-tor-b", port: 2, media: "copper", nic: "en0", purpose: "data"}]}]' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/planned.json"
+    fleet_edge_routes "$BATS_TEST_TMPDIR/planned.json" > "$script"
+    run routes_advertised "$script"
+    [ "$output" = "10.10.0.101/32" ]
     # a site without the segment withdraws whatever an edge advertised
-    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
-    run fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json"
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/nomachines.json"
+    fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json" > "$script"
+    run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--advertise-routes=" ]]
+    [ "$output" = "" ]
+}
+
+@test "only the edge holding the switch port's address advertises the power devices behind it" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'192.168.0.14\n192.168.0.15\n192.168.0.16' ]
+    script="$BATS_TEST_TMPDIR/routes.sh"
+    fleet_edge_routes "$SITE_FILE" > "$script"
+    # the master: the machines, and a /32 per installed power device on ber1-mgmt
+    FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10.10.0.101/32,192.168.0.14/32,192.168.0.15/32,192.168.0.16/32" ]
+    # the standby has no route to them, so it advertises the machines alone
+    run routes_advertised "$script"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10.10.0.101/32" ]
+    # an address that merely starts like the edge's is not it
+    FAKE_EDGE_ADDRESS=192.168.0.100/24 run routes_advertised "$script"
+    [ "$output" = "10.10.0.101/32" ]
+    # a planned PDU, and one whose management link is not behind the edge, are not advertised
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")
+        | (.nodes[] | select(.name == "ber1-ats-1") | .links[0].switch) = "ber1-tor-a"' "$SITE_FILE" > "$BATS_TEST_TMPDIR/power.json"
+    run fleet_edge_power "$BATS_TEST_TMPDIR/power.json"
+    [ "$output" = $'192.168.0.15\n192.168.0.16' ]
+}
+
+@test "the tailnet reaches a power device through the master's switch port, translated to the edge address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_keepalived "$SITE_FILE" ber1-edge-b
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"192.168.0.16/32 dev enp87s0 src 192.168.0.10"* ]]
+    [[ "$output" == *"192.168.0.14/32 dev enp87s0 src 192.168.0.10"* ]]
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    # the PDU's gateway is not an edge, so a reply to a tailnet address would
+    # never come back: it is translated to the edge address, on-link for it
+    [[ "$output" == *'iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade'* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.15,192.168.0.16 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
+    # without power devices there is no rule naming an empty set, which nft refuses
+    jq '(.nodes[] | select(.role == "power")) |= del(.mgmt_address)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nopower.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/nopower.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'iifname "tailscale0" oifname "enp87s0"'* ]]
+    [[ "$output" != *"{  }"* ]]
+}
+
+@test "a power device's address outside the management prefix is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mgmt_address = "10.0.0.16; reboot")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/badpower.json"
+    run fleet_edge_routes "$BATS_TEST_TMPDIR/badpower.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"power device address 10.0.0.16; reboot is not in the management prefix 192.168.0.0/24"* ]]
 }
 
 @test "the machines segment's addresses, members and machines are checked at render" {

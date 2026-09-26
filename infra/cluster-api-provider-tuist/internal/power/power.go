@@ -10,12 +10,14 @@
 // in Berlin.
 //
 // Nothing in here is Mac-specific; it is deliberately a thin, boring switch
-// abstraction so that adding the rack's real switched PDUs later is a new
-// Driver rather than a change to the machine controller.
+// abstraction, so each kind of PDU is a Driver rather than a change to the
+// machine controller: `eaton` for the rack's Eaton Rack PDU G4s, `shelly` for
+// home and office prototypes.
 package power
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -42,16 +44,23 @@ type Outlet struct {
 	// Driver names the backend (see Drivers).
 	Driver string
 	// Host is the endpoint, as `host`, `host:port`, or a full `scheme://host`.
-	// A bare value is dialled over plain HTTP: these live on a management
-	// segment, and the devices in question ship self-signed certificates that
-	// would need their own trust plumbing to be worth anything.
+	// A bare value is dialled over the driver's default scheme: plain HTTP for
+	// Shelly, HTTPS for Eaton.
 	Host string
+	// Dial, when set, is the host connections go to instead of Host's, keeping
+	// Host's scheme and port: an in-cluster egress Service fronting an
+	// endpoint the Pod has no route to. Host still names the endpoint.
+	Dial string
 	// Outlet identifies the outlet on that endpoint; driver-specific.
 	Outlet string
 	// Username / Password authenticate to the endpoint. Empty means the
 	// endpoint is unauthenticated.
 	Username string
 	Password string
+	// TLSFingerprint pins the endpoint's leaf certificate by its SHA-256, as
+	// hex with or without colons. Drivers that speak HTTPS to a self-signed
+	// card verify the pin instead of a CA chain or a hostname.
+	TLSFingerprint string
 }
 
 func (o Outlet) String() string {
@@ -89,6 +98,7 @@ func NewRegistry() *Registry {
 	}
 	return NewRegistryWith(map[string]Driver{
 		DriverShelly: &Shelly{HTTP: httpClient},
+		DriverEaton:  &Eaton{Timeout: httpClient.Timeout},
 	})
 }
 
@@ -112,6 +122,18 @@ func (r *Registry) Get(name string) (Driver, error) {
 		return nil, fmt.Errorf("unknown power driver %q (have: %s)", name, strings.Join(r.Names(), ", "))
 	}
 	return d, nil
+}
+
+// Close releases what the drivers hold open on their endpoints, such as a
+// PDU session.
+func (r *Registry) Close(ctx context.Context) error {
+	var errs []error
+	for _, d := range r.drivers {
+		if c, ok := d.(interface{ Close(context.Context) error }); ok {
+			errs = append(errs, c.Close(ctx))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // Names lists the registered driver names, sorted.
