@@ -44,7 +44,13 @@ defmodule TuistWeb.OnceRunLive do
            cache_events: [],
            cache_current_page: 1,
            cache_total_pages: 1,
-           refresh_scheduled?: false
+           refresh_scheduled?: false,
+           # `handle_params/3` fills these per request, but the render reads
+           # them, so they need to exist from the first mount too.
+           cache_search: "",
+           cache_outcome: nil,
+           cache_sort_by: "observed",
+           cache_sort_order: "desc"
          )}
     end
   end
@@ -82,6 +88,13 @@ defmodule TuistWeb.OnceRunLive do
      )
      |> load_actions()
      |> load_cache()}
+  end
+
+  # Called from the render, where the cache assigns are only present once
+  # `handle_params/3` has run, so neither key is assumed.
+  defp cache_filters_active?(assigns) do
+    Map.get(assigns, :cache_search) not in [nil, ""] or
+      not is_nil(Map.get(assigns, :cache_outcome))
   end
 
   # Actions are only ever a hit or a miss. Offering Stored and Reused on that
@@ -233,6 +246,9 @@ defmodule TuistWeb.OnceRunLive do
         cache_events={@cache_events}
         selected_cache_view={@selected_cache_view}
         cache_search={@cache_search}
+        cache_outcome={@cache_outcome}
+        cache_sort_by={@cache_sort_by}
+        cache_sort_order={@cache_sort_order}
         cache_current_page={@cache_current_page}
         cache_total_pages={@cache_total_pages}
         uri={@uri}
@@ -454,6 +470,9 @@ defmodule TuistWeb.OnceRunLive do
   attr :cache_events, :list, required: true
   attr :selected_cache_view, :string, required: true
   attr :cache_search, :string, required: true
+  attr :cache_outcome, :string, default: nil
+  attr :cache_sort_by, :string, default: "observed"
+  attr :cache_sort_order, :string, default: "desc"
   attr :cache_current_page, :integer, required: true
   attr :cache_total_pages, :integer, required: true
   attr :uri, :map, required: true
@@ -548,7 +567,7 @@ defmodule TuistWeb.OnceRunLive do
     >
       <.card_section data-part="bazel-cache-card-section">
         <.empty_card_section
-          :if={@cache_events == []}
+          :if={@cache_events == [] and not cache_filters_active?(assigns)}
           title={
             if @selected_cache_view == "actions",
               do: dgettext("dashboard_projects", "No cache lookups reported yet"),
@@ -571,7 +590,10 @@ defmodule TuistWeb.OnceRunLive do
             />
           </:image>
         </.empty_card_section>
-        <div :if={@cache_events != []} data-part="cache-requests-content">
+        <div
+          :if={@cache_events != [] or cache_filters_active?(assigns)}
+          data-part="cache-requests-content"
+        >
           <.card_section
             :if={@selected_cache_view == "actions" and @cache.hits + @cache.misses > 0}
             data-part="cache-breakdown-card-section"
@@ -715,7 +737,27 @@ defmodule TuistWeb.OnceRunLive do
               />
             </.dropdown>
           </div>
-          <.table id="once-cache-table" rows={@cache_events}>
+          <.empty_card_section
+            :if={@cache_events == []}
+            title={dgettext("dashboard_projects", "No cache activity matches your search or filters")}
+            data-part="empty-cache-requests-card-section"
+          >
+            <:image>
+              <img
+                src={~p"/images/empty_table_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_table_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
+            </:image>
+          </.empty_card_section>
+          <.table :if={@cache_events != []} id="once-cache-table" rows={@cache_events}>
             <:col
               :let={event}
               :if={@selected_cache_view == "actions"}
@@ -776,7 +818,7 @@ defmodule TuistWeb.OnceRunLive do
             </:col>
           </.table>
           <.pagination_group
-            :if={@cache_total_pages > 1}
+            :if={@cache_events != [] and @cache_total_pages > 1}
             current_page={@cache_current_page}
             number_of_pages={@cache_total_pages}
             page_patch={

@@ -57,6 +57,15 @@ defmodule TuistWeb.OnceRunLiveTest do
     send(view.pid, :refresh)
     assert row_count(view) == 31
 
+    # A cache search that matches nothing must keep the input on screen,
+    # otherwise there is no way to clear the query that emptied the list.
+    {:ok, cache_view, _} = live(conn, path <> "/cache")
+    assert has_element?(cache_view, "#once-cache-search")
+
+    {:ok, cache_view, _} = live(conn, path <> "/cache?cache_search=nothingmatchesthis")
+    assert has_element?(cache_view, "#once-cache-search")
+    refute has_element?(cache_view, "#once-cache-table")
+
     view |> form("#once-actions-search-form", %{search: "missing"}) |> render_change()
     assert has_element?(view, "#once-run", "No actions match your search or filters")
     assert has_element?(view, "#once-actions-search")
