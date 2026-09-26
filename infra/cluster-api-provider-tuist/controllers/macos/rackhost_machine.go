@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,7 +97,7 @@ func (r *RackHostReconciler) reconcileMachine(ctx context.Context, host *infrav1
 		return ctrl.Result{}, nil
 	}
 
-	if machine != nil && collections.IsUnhealthyAndOwnerRemediated(machine) {
+	if machine != nil && ownerRemediationRequested(machine) {
 		if err := r.Delete(ctx, machine); err != nil && !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("delete unhealthy Machine %s: %w", machine.Name, err)
 		}
@@ -253,4 +252,11 @@ func (r *RackHostReconciler) machineNameFor(ctx context.Context, host *infrav1.R
 		return m.Name, nil
 	}
 	return rackMachineName(r.Machines.FleetName, host.Name), nil
+}
+
+// ownerRemediationRequested reports whether a MachineHealthCheck found the
+// Machine unhealthy and left its remediation to the Machine's owner.
+func ownerRemediationRequested(machine *clusterv1.Machine) bool {
+	return conditions.IsFalse(machine, clusterv1.MachineHealthCheckSucceededCondition) &&
+		conditions.IsFalse(machine, clusterv1.MachineOwnerRemediatedCondition)
 }
