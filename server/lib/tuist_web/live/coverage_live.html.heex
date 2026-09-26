@@ -142,11 +142,13 @@
               <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(branch.ran_at)} />
             </:col>
           </.table>
-          <.pagination_group
-            :if={@branches_meta.total_pages > 1}
-            current_page={@branches_meta.current_page}
-            number_of_pages={@branches_meta.total_pages}
-            page_patch={fn page -> "?#{Query.put(@uri.query, "branches-page", page)}" end}
+          <.pagination
+            :if={@branches_meta.has_next_page? or @branches_meta.has_previous_page?}
+            uri={@uri}
+            has_previous_page={@branches_meta.has_previous_page?}
+            has_next_page={@branches_meta.has_next_page?}
+            start_cursor={@branches_meta.start_cursor}
+            end_cursor={@branches_meta.end_cursor}
           />
         </div>
         <.coverage_empty

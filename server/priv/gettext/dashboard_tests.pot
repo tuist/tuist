@@ -2374,12 +2374,12 @@ msgstr ""
 msgid "Measured"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:162
+#: lib/tuist_web/live/coverage_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "No branch gathered coverage in this period"
 msgstr ""
 
-#: lib/tuist_web/live/coverage_live.html.heex:155
+#: lib/tuist_web/live/coverage_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "No branch matches %{search}"
 msgstr ""

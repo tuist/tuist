@@ -235,7 +235,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/main']")
     end
 
-    test "narrows them by search and pages them under their own parameters", %{
+    test "narrows them by search and pages them from a cursor", %{
       conn: conn,
       organization: organization,
       project: project
@@ -258,12 +258,14 @@ defmodule TuistWeb.CoverageLiveTest do
       end
 
       {:ok, lv, _html} = live(conn, path)
-      assert has_element?(lv, "#coverage-branches-table")
-      assert render(lv) =~ "branches-page=2"
+      assert has_element?(lv, "#ref-feature\\/gates")
+      refute has_element?(lv, "#ref-main")
+      [_, cursor] = Regex.run(~r/after=([^"&]+)/, render(lv))
 
-      {:ok, lv, _html} = live(conn, path <> "?branches-page=2")
-      second = lv |> element("#coverage-branches-table") |> render()
-      assert second =~ "main"
+      {:ok, lv, _html} = live(conn, path <> "?after=" <> cursor)
+      assert has_element?(lv, "#ref-main")
+      refute has_element?(lv, "#ref-feature\\/gates")
+      assert render(lv) =~ "before="
     end
   end
 

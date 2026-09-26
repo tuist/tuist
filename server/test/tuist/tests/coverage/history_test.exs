@@ -305,8 +305,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
     } do
       page = History.refs(project)
 
-      assert page.total_count == 3
-
       assert Enum.map(page.refs, &{&1.name, &1.pull_request_number, &1.coverage}) == [
                {"feature/gates", 42, 100.0},
                {"feature/widgets", 0, 75.0},
@@ -340,11 +338,44 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(History.refs(project, search: "#42").refs, & &1.name) == ["feature/gates"]
       assert Enum.map(History.refs(project, search: "gates").refs, & &1.name) == ["feature/gates"]
       assert History.refs(project, search: "nothing").refs == []
+    end
+
+    test "pages from a cursor, newest first, each branch once", %{project: project, account: account} do
+      # A newer commit of a branch listed further down moves it up, and it is
+      # not listed again where its older commit was.
+      run(
+        project,
+        account,
+        %{git_commit_sha: "w2", git_branch: "feature/widgets", ran_at: ~N[2026-09-04 10:00:00]},
+        [1, 0, 0, 0]
+      )
 
       first = History.refs(project, page_size: 2)
-      assert length(first.refs) == 2
-      assert first.total_pages == 2
-      assert Enum.map(History.refs(project, page: 2, page_size: 2).refs, & &1.name) == ["main"]
+      assert Enum.map(first.refs, &{&1.name, &1.git_commit_sha}) == [{"feature/widgets", "w2"}, {"feature/gates", "p"}]
+      assert first.has_next_page?
+      refute first.has_previous_page?
+
+      second = History.refs(project, page_size: 2, after: first.end_cursor)
+      assert Enum.map(second.refs, & &1.name) == ["main"]
+      refute second.has_next_page?
+      assert second.has_previous_page?
+
+      back = History.refs(project, page_size: 2, before: second.start_cursor)
+      assert Enum.map(back.refs, & &1.name) == ["feature/widgets", "feature/gates"]
+      refute back.has_previous_page?
+      assert back.has_next_page?
+    end
+
+    test "lists a branch by its newest commit up to the period's end", %{project: project, account: account} do
+      run(
+        project,
+        account,
+        %{git_commit_sha: "w2", git_branch: "feature/widgets", ran_at: ~N[2026-09-04 10:00:00]},
+        [1, 0, 0, 0]
+      )
+
+      assert [%{git_commit_sha: "f", coverage: 75.0}] =
+               History.refs(project, until: ~U[2026-09-02 23:59:59Z], search: "widgets").refs
     end
 
     test "keeps to the branches measured in the period", %{project: project} do
