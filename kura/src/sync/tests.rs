@@ -341,6 +341,109 @@ async fn feed_trims_below_the_lowest_consumer_cursor_in_batches() {
     assert_eq!(rows[0].seq, 1_041, "rows at or below the floor are gone");
 }
 
+async fn internal_request(
+    context: &TestContext,
+    method: &str,
+    uri: &str,
+    body: Body,
+) -> axum::response::Response {
+    internal_router(context.state.clone())
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(body)
+                .expect("request should build"),
+        )
+        .await
+        .expect("route should respond")
+}
+
+fn sibling_seen_at(context: &TestContext) -> std::time::Instant {
+    context
+        .state
+        .store
+        .sync_feed()
+        .consumers()
+        .into_iter()
+        .find(|(peer, _)| peer == "http://sibling:7443")
+        .expect("the sibling is registered")
+        .1
+        .seen_at
+}
+
+// A sibling in its backward pass only reads the backfill endpoints; that
+// traffic has to keep its snapshot registration live, or the stale-peer
+// window switches the feed off before the pass ends and its first forward
+// read answers 410.
+#[tokio::test]
+async fn backfill_traffic_keeps_a_bootstrapping_sibling_registered() {
+    let context = test_context(|_| {}).await;
+    let feed = context.state.store.sync_feed().clone();
+    write_inline(&context.state.store, "before", b"v").await;
+    let head = snapshot(&context).await.head;
+    let stale = Duration::from_millis(100);
+
+    for (method, uri, body) in [
+        (
+            "GET",
+            "/_internal/backfill/entries?limit=1&peer=http%3A%2F%2Fsibling%3A7443",
+            Body::empty(),
+        ),
+        (
+            "POST",
+            "/_internal/backfill/bodies?peer=http%3A%2F%2Fsibling%3A7443",
+            Body::from(r#"{"entries":[]}"#),
+        ),
+        (
+            "GET",
+            "/_internal/backfill/artifacts/missing?peer=http%3A%2F%2Fsibling%3A7443",
+            Body::empty(),
+        ),
+    ] {
+        tokio::time::sleep(stale + Duration::from_millis(20)).await;
+        assert_eq!(
+            feed.lowest_live_cursor(stale),
+            None,
+            "{uri}: stale before the request"
+        );
+        let before = sibling_seen_at(&context);
+        internal_request(&context, method, uri, body).await;
+        assert!(
+            sibling_seen_at(&context) > before,
+            "{uri} refreshes the sibling"
+        );
+        assert_eq!(
+            feed.lowest_live_cursor(stale),
+            Some(head),
+            "{uri}: live again, at its snapshot cursor"
+        );
+    }
+    let (_, sibling) = feed
+        .consumers()
+        .into_iter()
+        .find(|(peer, _)| peer == "http://sibling:7443")
+        .expect("the sibling is registered");
+    assert!(
+        sibling.pinned,
+        "a refresh keeps the snapshot pin out of the drain gate"
+    );
+
+    internal_request(
+        &context,
+        "GET",
+        "/_internal/backfill/entries?limit=1&peer=http%3A%2F%2Fremote%3A7443",
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(
+        feed.consumers().len(),
+        1,
+        "an unregistered requester, such as a remote region, registers nothing"
+    );
+}
+
 // A-5: the cap drops oldest and never refuses a write.
 #[tokio::test]
 async fn feed_cap_drops_the_oldest_rows_instead_of_blocking() {

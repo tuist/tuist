@@ -2678,8 +2678,10 @@ async fn internal_status(
 /// no longer resolves is a 404 (the requester's absent case).
 async fn internal_backfill_artifact(
     AxumPath(artifact_id): AxumPath<String>,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let manifest = match state
         .store
         .fetch_artifact_by_id_for_serving(&artifact_id)
@@ -2770,10 +2772,19 @@ async fn internal_backfill_artifact(
     }
 }
 
+/// A backfill request from a sibling mid-bootstrap is its only traffic until
+/// the backward pass ends, so it keeps that sibling's feed registration live.
+fn refresh_backfilling_sibling(state: &SharedState, params: &HashMap<String, String>) {
+    if let Some(peer) = params.get("peer").filter(|peer| !peer.is_empty()) {
+        state.store.sync_feed().refresh_consumer(peer);
+    }
+}
+
 async fn internal_backfill_entries(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let query = match BackfillEntriesQuery::from_params(&params) {
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
@@ -3109,7 +3120,12 @@ fn backfill_unavailable_response(error: &str, message: &str) -> Response {
     response
 }
 
-async fn internal_backfill_bodies(State(state): State<SharedState>, request: Request) -> Response {
+async fn internal_backfill_bodies(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+    request: Request,
+) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let identity = request.extensions().get::<InternalPeerIdentity>().cloned();
     let peer_label = identity
         .as_ref()
