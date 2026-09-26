@@ -55,6 +55,57 @@ defmodule TuistWeb.WellKnownController do
     end
   end
 
+  @doc """
+  Discovery document for Once clients talking to this deployment.
+
+  The convention is Once's: any server that speaks the Once event protocol
+  advertises where each protocol lives at `/.well-known/once`, and clients
+  read it before they pick a URL. Owning the topology on the server side
+  means the fleet can move to a dedicated ingest tier, shard per region, or
+  decommission a node without a client release.
+
+  Fields are optional. A client that does not find a protocol here should
+  fall back to whatever it used before discovery existed, and treat a missing
+  field as "not offered." Endpoints are always returned as a list so the
+  client picks one per its own policy (latency probe, region hint,
+  first-listed). Empty list means "not offered."
+
+  The run's browser link is not advertised here. The protocol reserved the
+  templated form in favour of `BatchAck.dashboard_url`, so the server hands
+  the client a finished URL once the run is durable rather than a shape the
+  client has to fill in.
+  """
+  def once_discovery(conn, _params) do
+    origin = RequestOrigin.from_conn(conn)
+
+    json(conn, %{events: events_endpoints(origin)})
+  end
+
+  # The Once event protocol speaks gRPC over HTTP/2. This deployment fronts it
+  # on `build.<host>` so a client that discovered a request origin of
+  # `https://tuist.dev` learns to open a gRPC channel against
+  # `grpcs://build.tuist.dev`. `TUIST_ONCE_EVENTS_ENDPOINTS` overrides the
+  # default for split topologies (regional ingest, dedicated tier).
+  defp events_endpoints(origin) do
+    case System.get_env("TUIST_ONCE_EVENTS_ENDPOINTS") do
+      value when is_binary(value) and value != "" ->
+        value
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        [default_events_endpoint(origin)]
+    end
+  end
+
+  defp default_events_endpoint(origin) do
+    uri = URI.parse(origin)
+    scheme = if uri.scheme == "https", do: "grpcs", else: "grpc"
+    host = uri.host || "localhost"
+    "#{scheme}://build.#{host}"
+  end
+
   def openai_apps_challenge(conn, _params) do
     if Environment.tuist_hosted?() do
       conn

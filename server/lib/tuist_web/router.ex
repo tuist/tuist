@@ -620,6 +620,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -700,6 +701,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -1423,6 +1425,17 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
+      get "/once", RedirectPlug, to: "/once/builds"
+      get "/once/runs", RedirectPlug, to: "/once/build-runs"
+      live "/once/runs/:once_run_id", OnceRunLive, :overview
+      live "/once/runs/:once_run_id/cache", OnceRunLive, :cache
+      live "/once/builds", OnceRunsLive, :builds
+      live "/once/build-runs", OnceRunsLive, :build_runs
+      live "/once/tests", OnceTestsLive
+      live "/once/test-runs", OnceRunsLive, :tests
+      live "/once/test-runs/:once_run_id", OnceTestRunLive
+      live "/once/test-runs/:once_run_id/test-cases/:case_id", OnceTestCaseRunLive
+      live "/once-cache", OnceCacheLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive

@@ -29,6 +29,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+    {"@hourly", Tuist.OnceEvents.Workers.ExpireStaleRunsWorker},
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},

@@ -159,6 +159,34 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/once" do
+    test "advertises the build.<host> gRPC endpoint by default", %{conn: conn} do
+      System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS")
+
+      conn = get(conn, "/.well-known/once")
+
+      response = json_response(conn, 200)
+      assert %{"events" => [url]} = response
+      assert url =~ ~r/^grpcs?:\/\/build\./
+      refute Map.has_key?(response, "live_url_template")
+    end
+
+    test "returns the endpoints named by TUIST_ONCE_EVENTS_ENDPOINTS when configured", %{conn: conn} do
+      System.put_env("TUIST_ONCE_EVENTS_ENDPOINTS", "grpcs://ingest-eu.tuist.dev, grpcs://ingest-us.tuist.dev")
+
+      on_exit(fn -> System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS") end)
+
+      conn = get(conn, "/.well-known/once")
+
+      assert %{
+               "events" => [
+                 "grpcs://ingest-eu.tuist.dev",
+                 "grpcs://ingest-us.tuist.dev"
+               ]
+             } = json_response(conn, 200)
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")
