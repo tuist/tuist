@@ -29,7 +29,7 @@ func StickUserData(server string) (string, error) {
 	if !stickServerPattern.MatchString(server) {
 		return "", fmt.Errorf("%q is not the boot server's http:// address", server)
 	}
-	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console", Sys: "/sys", Node: "/run/tuist-rack-node"})
+	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console", Sys: "/sys", Node: "/usr/local/bin/tuist-rack-node"})
 	return "#cloud-config\nautoinstall:\n  version: 1\n  early-commands:\n    - |\n" + indent(script, "      ") +
 		"    - |\n" + indent(keepStick, "      "), nil
 }

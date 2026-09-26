@@ -245,6 +245,10 @@ func TestStickUserData(t *testing.T) {
 		}
 	}
 	early := seed.Autoinstall.EarlyCommands[0]
+	// Ubuntu mounts /run noexec, so a rack-node kept there never runs.
+	if strings.Contains(early, "node='/run/") {
+		t.Error("the installer keeps rack-node under /run, which is mounted noexec")
+	}
 	for _, want := range []string{
 		"server='http://192.168.50.1:8480'",
 		`"$server/tools/rack-node"`,
