@@ -106,6 +106,7 @@ type AutoscalerReconciler struct {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=node.k8s.io,resources=runtimeclasses,verbs=get;list;watch
 
 func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -286,6 +287,17 @@ func (r *AutoscalerReconciler) allocate(
 		return perPool
 	}
 
+	// Before the capacity read, not after: free seats is an alerting
+	// signal rather than an allocator input, and a fleet-capacity blip
+	// takes the per-pool fallback below. Publishing there too would
+	// leave the gauge holding a pre-blip sample through exactly the
+	// window an operator is looking at it.
+	if seats, err := r.fleetShapeSeatsFree(ctx, pool, shapes); err != nil {
+		logger.Error(err, "compute free shape seats", "fleetSelector", pool.Spec.FleetSelector)
+	} else {
+		metrics.SetFleetShapeSeatsFree(pool.Spec.FleetSelector, fleetOSLabel(pool), seats)
+	}
+
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
 	// almost always a transient empty node-list read (informer cache
 	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
@@ -325,10 +337,22 @@ func (r *AutoscalerReconciler) allocate(
 type podShape struct {
 	cpuMilli int32
 	memoryMB int32
+
+	// name is the advertised `<vcpus>vcpu-<gb>gb` rung the catalog, the
+	// pool name and the customer's runner profile all use. Carried
+	// rather than derived, because placementShapeOf folds RuntimeClass
+	// overhead into the footprint and the result no longer divides into
+	// whole vCPUs or GiB. Label material only: key() and the seat
+	// arithmetic ignore it.
+	name string
 }
 
 func podShapeOf(pool *tuistv1.RunnerPool) podShape {
-	return podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
+	return podShape{
+		cpuMilli: pool.Spec.PodCPUMilli,
+		memoryMB: pool.Spec.PodMemoryMB,
+		name:     fmt.Sprintf("%dvcpu-%dgb", pool.Spec.PodCPUMilli/1000, pool.Spec.PodMemoryMB/1024),
+	}
 }
 
 // placementShapeOf is podShapeOf plus the RuntimeClass overhead the
@@ -397,12 +421,15 @@ func (s podShape) key() string {
 // memory-per-vCPU is richer than its host's. Per-node `min` answers the
 // question kube-scheduler will actually be asked.
 //
-// darwin only, deliberately. Linux runner Pods are kata microVMs that
-// pin memory per sandbox while CPU is intentionally oversubscribed, so a
-// CPU quotient there would cap a fleet that is not CPU-bound; and those
-// hosts are homogeneous, so the byte budget is already exact.
+// Both OSes. Linux used to opt out on the grounds that kata
+// oversubscribes CPU, so a CPU quotient would cap a fleet that is not
+// CPU-bound. It does not: podtemplate sets the runner container's CPU
+// request equal to its limit equal to the shape, so kube-scheduler
+// bin-packs on the full vCPU and the min() taken here is agreement with
+// it rather than pessimism.
 //
-// An empty result (no nodes, or a non-darwin pool) disables the cap.
+// An empty result (no nodes, or a pool whose OS matches none) disables
+// the cap.
 func (r *AutoscalerReconciler) shapePlacementCaps(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -458,6 +485,222 @@ func nodeSeatsForShape(node *corev1.Node, shape podShape) int32 {
 		return 0
 	}
 	return int32(byCPU)
+}
+
+// fleetShapeSeatsFree returns, per shape contending in this pool's
+// capacity domain, how many more Pods of that shape the fleet could
+// seat RIGHT NOW.
+//
+// This is shapePlacementCaps' question asked about the present instead
+// of about steady state, and both readings are wanted. The allocator
+// sizes a target that the Pods already running are themselves part of,
+// so nodeSeatsForShape deliberately ignores occupancy; an alert needs
+// the opposite: whether a job arriving now has anywhere to land.
+//
+// Summing per node is what makes the answer mean anything, and is the
+// reason this cannot be a subtraction on the fleet's byte budget. On
+// 2026-09-07 the four-node Linux fleet held roughly 38 GiB free against
+// a `16vcpu-32gb` Pod's contiguous 34.5 GiB, which a fleet-wide total
+// reads as one placeable Pod. The largest single-node hole was 20 GiB
+// and the true answer was zero: a customer's job sat queued from 16:11
+// and was claimed at 17:10, the first moment a node could seat it.
+//
+// Keyed by advertised rung, not by placement key: nothing in the
+// allocator consumes this, it exists so an alert can name the shape
+// that stopped fitting while the queue-age rule is still 20 minutes
+// from firing.
+func (r *AutoscalerReconciler) fleetShapeSeatsFree(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	shapes map[string]podShape,
+) (map[string]int, error) {
+	if len(shapes) == 0 {
+		return nil, nil
+	}
+
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
+		return nil, fmt.Errorf("list %s fleet nodes for free seats: %w", pool.Spec.OS, err)
+	}
+
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(pool.Namespace)); err != nil {
+		return nil, fmt.Errorf("list runner pods for free seats: %w", err)
+	}
+	reserved := reservedByNode(pods.Items)
+
+	seats := make(map[string]int, len(shapes))
+	for _, shape := range shapes {
+		if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
+			continue
+		}
+		free := 0
+		for i := range nodes.Items {
+			node := &nodes.Items[i]
+			// Same exclusions as the placement cap: a node that is
+			// cordoned, NotReady or under pressure will not be given a
+			// Pod, so counting its hole would report seats that cannot
+			// be taken.
+			if nodeFilterReason(node) != "" {
+				continue
+			}
+			free += int(nodeFreeSeatsForShape(node, reserved[node.Name], shape))
+		}
+		// Two placement footprints can carry the same rung name when
+		// pools of one advertised size run under different
+		// RuntimeClasses. Keep the smaller count: an alert on "nowhere
+		// to put this" must not be talked out of firing by the cheaper
+		// of the two footprints.
+		if existing, ok := seats[shape.name]; !ok || free < existing {
+			seats[shape.name] = free
+		}
+	}
+
+	return seats, nil
+}
+
+// fleetOSLabel is the `operating_system` value a fleet's series carry.
+// It mirrors fleetNodeSelector's fallthrough, so the seat gauge lines up
+// with tuist_runners_fleet_ready_nodes on (fleet_selector,
+// operating_system) instead of splitting off an empty spec.os of its
+// own.
+func fleetOSLabel(pool *tuistv1.RunnerPool) string {
+	if pool.Spec.OS == "linux" {
+		return "linux"
+	}
+	return macosNodeOSDarwin
+}
+
+// podRequests is one Pod's claim on its node's allocatable, in the
+// units the arithmetic here works in.
+type podRequests struct {
+	cpuMilli    int64
+	memoryBytes int64
+}
+
+func (p *podRequests) add(list corev1.ResourceList) {
+	if cpu, ok := list[corev1.ResourceCPU]; ok {
+		p.cpuMilli += cpu.MilliValue()
+	}
+	if memory, ok := list[corev1.ResourceMemory]; ok {
+		p.memoryBytes += memory.Value()
+	}
+}
+
+func (p podRequests) atLeast(other podRequests) podRequests {
+	if other.cpuMilli > p.cpuMilli {
+		p.cpuMilli = other.cpuMilli
+	}
+	if other.memoryBytes > p.memoryBytes {
+		p.memoryBytes = other.memoryBytes
+	}
+	return p
+}
+
+// reservedByNode sums what the Pods bound to each node have reserved.
+//
+// Terminal Pods are skipped: kubelet has released their sandbox and
+// kube-scheduler no longer counts them. Pods merely Terminating are
+// NOT, because a kata sandbox whose shim never tore the microVM down
+// keeps its node's memory reserved while looking finished. Nine of
+// them held two of four Linux nodes at 94% for four hours on
+// 2026-09-03, and a gauge that discounted them would have reported the
+// fleet as having room throughout.
+//
+// The Pod list is the runners namespace, which is the controller's
+// whole cache. Everything else those hosts run is a DaemonSet, and on
+// the production fleet that is 0.36 GiB and 0.16 CPU per node against
+// shapes measured in tens of GiB. It is a rounding error on any rung,
+// and one that biases the gauge towards reporting seats rather than
+// away, so it cannot invent the zero the alert fires on.
+func reservedByNode(pods []corev1.Pod) map[string]podRequests {
+	reserved := make(map[string]podRequests, len(pods))
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Spec.NodeName == "" {
+			continue
+		}
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+
+		requests := podRequestsOf(pod)
+		entry := reserved[pod.Spec.NodeName]
+		entry.cpuMilli += requests.cpuMilli
+		entry.memoryBytes += requests.memoryBytes
+		reserved[pod.Spec.NodeName] = entry
+	}
+	return reserved
+}
+
+// podRequestsOf is a Pod's effective request, the arithmetic
+// kube-scheduler performs: regular containers plus native sidecars,
+// floored by the peak an init container reaches while it runs, plus the
+// RuntimeClass overhead the admission controller stamped into
+// spec.overhead.
+//
+// Reading spec.overhead is what keeps this agreeing with the placement
+// footprint on the other side of the division. placementShapeOf folds
+// the same podFixed in from the RuntimeClass, so a kata Pod is charged
+// its 2.5 GiB on both sides.
+//
+// Runner Pods put their whole request on the `runner` container and
+// leave the poller, dind, metrics and shell init containers unset, so
+// the init terms are zero today. They are computed anyway: the day one
+// of those sidecars is given a request is the day a plain sum would
+// start over-reporting free memory on every node in the fleet.
+func podRequestsOf(pod *corev1.Pod) podRequests {
+	var total podRequests
+	for i := range pod.Spec.Containers {
+		total.add(pod.Spec.Containers[i].Resources.Requests)
+	}
+
+	var sidecars, peak podRequests
+	for i := range pod.Spec.InitContainers {
+		container := &pod.Spec.InitContainers[i]
+		if container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			sidecars.add(container.Resources.Requests)
+			peak = peak.atLeast(sidecars)
+			continue
+		}
+		running := sidecars
+		running.add(container.Resources.Requests)
+		peak = peak.atLeast(running)
+	}
+
+	total.cpuMilli += sidecars.cpuMilli
+	total.memoryBytes += sidecars.memoryBytes
+	total = total.atLeast(peak)
+	total.add(pod.Spec.Overhead)
+	return total
+}
+
+// nodeFreeSeatsForShape is nodeSeatsForShape with the node's current
+// reservations taken off the top: how many more Pods of `shape`
+// kube-scheduler could still bind here. min(cpu, memory) for the same
+// reason as there: whichever runs out first is what the scheduler will
+// refuse on.
+func nodeFreeSeatsForShape(node *corev1.Node, reserved podRequests, shape podShape) int32 {
+	cpu := node.Status.Allocatable.Cpu()
+	memory := node.Status.Allocatable.Memory()
+	if cpu == nil || memory == nil {
+		return 0
+	}
+
+	freeCPU := cpu.MilliValue() - reserved.cpuMilli
+	freeMemory := memory.Value() - reserved.memoryBytes
+	if freeCPU <= 0 || freeMemory <= 0 {
+		return 0
+	}
+
+	seats := freeCPU / int64(shape.cpuMilli)
+	if byMemory := freeMemory / (int64(shape.memoryMB) * 1024 * 1024); byMemory < seats {
+		seats = byMemory
+	}
+	if seats < 0 {
+		return 0
+	}
+	return int32(seats)
 }
 
 // fleetCapacity returns the shared budget `pool` competes for with

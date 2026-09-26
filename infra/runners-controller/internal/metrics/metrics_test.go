@@ -262,3 +262,52 @@ func TestClearDropsDemandAndIdleSeries(t *testing.T) {
 		t.Fatalf("idle replicas series after Clear = %d, want 0", got)
 	}
 }
+
+// A rung that leaves a fleet's catalog must lose its series rather than
+// hold its last reading: a retired shape frozen at a non-zero seat count
+// claims room on a fleet that no longer offers it.
+func TestSetFleetShapeSeatsFreeDropsRetiredShapes(t *testing.T) {
+	const fleet = "runners-linux"
+	t.Cleanup(func() { SetFleetShapeSeatsFree(fleet, "linux", nil) })
+
+	SetFleetShapeSeatsFree(fleet, "linux", map[string]int{"2vcpu-8gb": 11, "16vcpu-32gb": 0})
+
+	if got := testutil.ToFloat64(fleetShapeSeatsFree.WithLabelValues(fleet, "linux", "2vcpu-8gb")); got != 11 {
+		t.Fatalf("2vcpu-8gb seats = %v, want 11", got)
+	}
+	if got := testutil.ToFloat64(fleetShapeSeatsFree.WithLabelValues(fleet, "linux", "16vcpu-32gb")); got != 0 {
+		t.Fatalf("16vcpu-32gb seats = %v, want 0", got)
+	}
+	if got := testutil.CollectAndCount(fleetShapeSeatsFree); got != 2 {
+		t.Fatalf("series = %d, want 2", got)
+	}
+
+	SetFleetShapeSeatsFree(fleet, "linux", map[string]int{"2vcpu-8gb": 9})
+
+	if got := testutil.CollectAndCount(fleetShapeSeatsFree); got != 1 {
+		t.Fatalf("series after retiring a shape = %d, want 1", got)
+	}
+	if got := testutil.ToFloat64(fleetShapeSeatsFree.WithLabelValues(fleet, "linux", "2vcpu-8gb")); got != 9 {
+		t.Fatalf("2vcpu-8gb seats = %v, want 9", got)
+	}
+}
+
+// One fleet's publish must not reap another's. Linux and macOS
+// reconcile independently against the same GaugeVec, and pruning by
+// shape alone would leave each wiping the other every tick.
+func TestSetFleetShapeSeatsFreeIsScopedPerFleet(t *testing.T) {
+	t.Cleanup(func() {
+		SetFleetShapeSeatsFree("runners-linux", "linux", nil)
+		SetFleetShapeSeatsFree("runners-macos", "darwin", nil)
+	})
+
+	SetFleetShapeSeatsFree("runners-linux", "linux", map[string]int{"2vcpu-8gb": 11})
+	SetFleetShapeSeatsFree("runners-macos", "darwin", map[string]int{"12vcpu-28gb": 2})
+
+	if got := testutil.CollectAndCount(fleetShapeSeatsFree); got != 2 {
+		t.Fatalf("series = %d, want 2 (one per fleet)", got)
+	}
+	if got := testutil.ToFloat64(fleetShapeSeatsFree.WithLabelValues("runners-linux", "linux", "2vcpu-8gb")); got != 11 {
+		t.Fatalf("linux seats = %v, want 11", got)
+	}
+}
