@@ -162,6 +162,18 @@ host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
 Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
 stays on. Then it netboots whenever its disk does not boot.
 
+**The stick is the permanent route, not a bootstrap crutch.** The MS-01 ships
+with its network stack off, and nothing but a person in Setup turns it on:
+AMT can override the next boot but not change a Setup setting, and writing the
+firmware's Setup variables from the OS means poking an undocumented AMI
+variable layout that changes between firmware releases, where a wrong write
+can leave the box unbootable, and changing a security setting behind the
+person racking it. A stick boots with the firmware's defaults, Secure Boot
+included, so a factory box needs no one in Setup: it announces itself,
+installs once declared, and is reinstalled through `BootNext` to the stick.
+Netboot, with its one Setup visit, is what AMT's recovery of a box that no
+longer boots needs; a box without it is recovered by booting its stick.
+
 **A box whose disk already boots something** boots that first; pick the stick,
 or the i226-LM's network entry, from the boot menu (F7 on the MS-01) once.
 
@@ -177,8 +189,8 @@ People patch through the kubectl gateway's `tuist-fleet-unwedge` role
 (`infra/helm/pomerium`), standing in staging and on a write elevation in
 production.
 
-The operator publishes the install, waits two minutes for the boot server to
-have it, then sets `BootNext` to the host's install stick, or without one to its
+The operator publishes the install, waits for the boot server holding the
+site's provisioning address to report it servable (`status.boot`), then sets `BootNext` to the host's install stick, or without one to its
 PXE entry for its boot MAC, over SSH and reboots it. It does this once: a host
 that comes back on its old install reports `Installed` False with
 `ReinstallDidNotBoot` after half an hour, and raising the generation again tries
@@ -283,8 +295,15 @@ carries the same guard.
   a console password, SSH with password authentication off, and the rack's
   fleet key (`BER1_FLEET_SSH`) plus people's keys
   (`rackLinuxFleet.authorizedKeys`, or the stick writer's own);
+- for a published install, an SSH host key the operator generated for it:
+  the install replaces the host keys the package generated with it alone, and
+  tells cloud-init to keep it, and the operator trusts the new install by its
+  fingerprint rather than by whatever answers first. A per-host stick carries
+  none, and the host generates its own;
 - a tailnet join key minted from the OAuth client in `TAILSCALE_RACK_NODES`:
-  single-use, pre-authorized, not ephemeral, carrying the host's tags. The
+  single-use, pre-authorized, not ephemeral, carrying the host's tags, and
+  valid for two hours. One no host fetched is renewed before it expires, and a
+  replaced or withdrawn one is revoked. The
   OAuth client never reaches the host. It mints keys for its own tag
   (`tag:tuist-rack-edge`, which both edges carry) and the tags it owns
   (`tag:tuist-rack-node`, for every other role).
