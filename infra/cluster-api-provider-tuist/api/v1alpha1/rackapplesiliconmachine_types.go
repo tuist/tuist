@@ -5,51 +5,34 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// RackAppleSiliconMachineSpec is the desired state of one Mac mini we own.
+// RackAppleSiliconMachineSpec is one Mac mini we own as a node. The RackHost
+// controller creates it, and the CAPI Machine that owns it, for each RackHost.
 //
 // It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
 // bootstrap, same host-config drift loop, same tailnet egress Service, but the
-// host comes from a RackHost in the cluster's own inventory rather than from a
-// provider's server list, and there is no order, no reinstall and no release
-// path, because nobody bills us per host and no API can wipe one.
-//
-// Everything about the HOST lives on the RackHost (address, serial, outlet,
-// position). Everything about the WORKLOAD lives here (sizing, fleet
-// membership, kubelet version). That split is the point of having two kinds: a
-// MachineDeployment clones this spec N times, and a spec carrying an address
-// could not be cloned more than once.
+// host is a RackHost in the cluster's own inventory rather than a server from
+// a provider's list, and there is no order, no reinstall and no release path,
+// because nobody bills us per host and no API can wipe one.
 type RackAppleSiliconMachineSpec struct {
-	// ProviderID, set by the controller once a RackHost is claimed, takes the
-	// shape `rack-applesilicon://<site>/<serial>`; composed from the two
-	// durable physical facts, so re-cabling a host to a new address does not
-	// change its identity to CAPI. CAPI core expects this to populate; without
-	// it the parent Machine never goes Ready. The scheme is deliberately
-	// foreign to the Hetzner CCM so it never reaps the node, the same guard
-	// every other kind here uses.
+	// ProviderID takes the shape `rack-applesilicon://<site>/<serial>`;
+	// composed from the two durable physical facts, so re-cabling a host to a
+	// new address does not change its identity to CAPI. CAPI core expects this
+	// to populate; without it the parent Machine never goes Ready. The scheme
+	// is deliberately foreign to the Hetzner CCM so it never reaps the node,
+	// the same guard every other kind here uses.
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`
 
-	// AdoptPool is the RackHost pool this Machine claims from: the analog of
-	// the Scaleway kind's adoptPoolPrefix. The controller claims the first free
-	// RackHost whose `spec.pool` matches.
-	//
-	// Optional on purpose, even though every chart-rendered MachineTemplate
-	// sets it. A required field here is a schema constraint on a resource CAPI
-	// CLONES, so a MachineTemplate that lacks it fails
-	// `InfrastructureTemplateCloningFailed` on every MachineSet scale-up: and
-	// that drift stays invisible until the next scale-up, which is typically
-	// an operator recovering a host by deleting its Machine. The controller
-	// surfaces an empty value as a `NoAdoptPool` condition instead of scanning
-	// every RackHost in the namespace.
+	// Host is the RackHost this machine is.
 	// +optional
-	AdoptPool string `json:"adoptPool,omitempty"`
+	Host string `json:"host,omitempty"`
 
-	// FleetName groups Machines that share an SSH key and a sudo password. Set
-	// by the MachineTemplate to the parent MachineDeployment's name. Unlike the
-	// Scaleway fleets, the keypair is NOT minted in-cluster: rack hosts are
-	// provisioned out of band by MDM, which authorizes a key the operator never
-	// generated, so the fleet Secret is synced from 1Password by ESO and the
-	// controller only ever reads it.
+	// FleetName groups Machines that share an SSH key and a sudo password: the
+	// operator's `--rackhost-fleet-name`. Unlike the Scaleway fleets, the
+	// keypair is NOT minted in-cluster: rack hosts are provisioned out of band
+	// by MDM, which authorizes a key the operator never generated, so the
+	// fleet Secret is synced from 1Password by ESO and the controller only
+	// ever reads it.
 	// +optional
 	FleetName string `json:"fleetName,omitempty"`
 
@@ -119,12 +102,6 @@ type RackAppleSiliconMachineStatus struct {
 	// Ready.
 	// +optional
 	Ready bool `json:"ready,omitempty"`
-
-	// RackHost is the name of the claimed RackHost, empty before the claim.
-	// It is the Machine's half of the binding whose other half is that host's
-	// `status.claimedBy`; the delete path releases exactly this host.
-	// +optional
-	RackHost string `json:"rackHost,omitempty"`
 
 	// Addresses surfaces the host's address so kubectl describe and event
 	// correlation can map back to a physical box.
@@ -208,7 +185,7 @@ type OSUpdateStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=rackapplesiliconmachines,scope=Namespaced,categories=cluster-api,shortName=rasm
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
-// +kubebuilder:printcolumn:name="RackHost",type=string,JSONPath=".status.rackHost"
+// +kubebuilder:printcolumn:name="Host",type=string,JSONPath=".spec.host"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
 // +kubebuilder:printcolumn:name="OSUpdate",type=string,priority=1,JSONPath=".status.osUpdate.phase"

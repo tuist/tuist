@@ -781,7 +781,6 @@ ovhFleets:
 # none should be copied into the rack's values.
 rackFleet:
   enabled: true
-  pool: ber1-staging
   site: ber1
   # FORCED (no service node): the subnet router is an operator laptop on the
   # same home LAN, and this is its address there. The rack's service nodes

@@ -1610,25 +1610,12 @@ vultrFleets: {}
 # Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
 # colo programme), as opposed to capacity ordered from a provider API.
 #
-# Two things are declared here and they are different in kind. `hosts` is
-# physical INVENTORY: one entry per box, each rendering a RackHost the fleet's
-# Machines claim from. Everything under `machine` is WORKLOAD shape, cloned onto
-# every Machine by the MachineTemplate. Keeping them apart is what lets one
-# replica count scale the rack; see templates/rack-fleet.yaml.
+# `hosts` is the rack's physical inventory: one entry per box, each rendering a
+# RackHost, for which the operator keeps a Machine that makes it a node. `machine`
+# sizes every host's node. See templates/rack-fleet.yaml.
 rackFleet:
   enabled: false
   name: ""             # default: <release>-rack-fleet
-
-  # The claim marker AND the environment boundary. A Machine claims a free
-  # RackHost whose pool matches, so staging and production inventory can coexist
-  # as long as their pools differ. Required when enabled.
-  pool: ""
-
-  # Machine count. Defaults to the number of declared hosts: a Machine with
-  # nowhere to land sits on NoAvailableHost forever, which leaves the
-  # MachineDeployment permanently below spec. Set it lower to stage a rack one
-  # box at a time.
-  replicas: null
 
   # Default rack site for hosts that don't name their own. Load-bearing: it
   # composes the providerID, so it must be stable for the life of a host.
@@ -1650,9 +1637,11 @@ rackFleet:
 
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
-  # history. Nothing here is workload config: see `machine` below for that.
+  # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
+  # RackHosts.
   #
-  #   - name: ber1-proto-01     # RackHost object name; also the Node name's box
+  #   - name: ber1-proto-01     # RackHost object name; its Node is
+  #                             # <fleet>-<name>
   #     serial: C07FC05JQ6NY    # durable identity (ABM/MDM know it by this)
   #     address: 192.168.0.41   # what the operator SSHes to, normally the
   #                             # in-rack LAN address reached over a tailnet
@@ -1673,12 +1662,13 @@ rackFleet:
   #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
   #       outlet: "0"           # cold boot with nobody at a console.
   #       credentialsSecret: "" # optional; omit for an unauthenticated plug
-  #     unclaimable: false      # takes a box out of the pool (bench work, RMA)
-  #                             # without deleting its inventory record
+  #     parked: false           # keeps the box declared with no Machine (bench
+  #                             # work, an RMA, a box that is off); parking a
+  #                             # host deletes its Node undrained
   hosts: []
 
-  # Workload shape, cloned onto every Machine. Each field falls back to the
-  # operator's global default when unset.
+  # Each host's node sizing. Each field falls back to the operator's global
+  # default when unset.
   machine:
     hostCPU: null            # cores advertised on the Node
     hostMemoryMB: null       # RAM advertised, minus the ~2 GB
