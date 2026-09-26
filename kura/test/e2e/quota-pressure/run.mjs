@@ -159,7 +159,7 @@ try {
     );
   else {
     const evicted = metrics.match(
-      /kura_segment_evicted_artifacts_total_total[^\n]* ([0-9]+)/,
+      /kura_disk_pressure_reclaimed_bytes_total_total[^\n]* ([0-9]+)/,
     );
     assert(
       evicted && Number(evicted[1]) > 0,

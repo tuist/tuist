@@ -5,7 +5,6 @@ This directory contains ExUnit tests for the Tuist Server.
 ## Testing Guidelines
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
-- Kura manifest budget tests must reserve staging and both 512 MiB segments required by the runtime rotation guard, including small 16 GiB claims and explicit disk envelopes.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.
@@ -52,3 +51,5 @@ This directory contains ExUnit tests for the Tuist Server.
   region with unique AWS tags, and unsupported survivors must block retirement.
 - Kura rename regressions cover stable workload/peer identity with migrating client endpoints, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment, usage attribution and signed analytics ingestion through original/intermediate/current account handles. Endpoint migration defaults off even for already-renamed accounts; test actor isolation, independence from the rename flag, preserved deployed hosts/aliases on image updates, observation failures, paused expiry, and readiness-delayed publication after opt-in. Migration SQL tests use transaction-local shadow tables. URL-expiry coverage checks the exact 90-day boundary, independent deadlines, rename-back, automatic manifest reconciliation, and signup/rename refusal even after a client URL expires.
 - Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.
+
+- Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.

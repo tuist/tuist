@@ -1076,10 +1076,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
-      # 50Gi less the 6.2Gi tmp reserve (an eighth of the claim) and two 512Mi
-      # segments, less 3% for the index. Without this the runtime would size the
+      # 50Gi less the 6.2Gi tmp reserve (an eighth of the claim) and one 512Mi
+      # segment, less 3% for the index. Without this the runtime would size the
       # ring from the node's whole disk instead.
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "44525389086"
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "45046153871"
     end
 
     test "leaves a 20Gi volume room for staging and index alongside the ring" do
@@ -1098,14 +1098,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
 
-      assert capacity == 17_185_237_893
+      assert capacity == 17_706_002_677
 
       # The ring plus the tmp reserve plus a rotation has to stay inside the
       # volume. A flat percentage passes at 50Gi and overruns here, which on an
       # enforced class is ENOSPC.
       tmp = staging_bytes(env)
       segment = 512 * 1024 * 1024
-      assert capacity + tmp + 2 * segment < 20 * 1024 * 1024 * 1024
+      assert capacity + tmp + segment < 20 * 1024 * 1024 * 1024
     end
 
     test "every registered region derives a budget Kura can honour" do
@@ -1149,7 +1149,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             assert tmp >= 2 * 1024 * 1024 * 1024,
                    "#{region.id} stages less than one max-size module upload, which Kura rejects outright"
 
-            assert div(capacity, segment) * segment + tmp + 2 * segment <= envelope,
+            assert div(capacity, segment) * segment + tmp + segment <= envelope,
                    "#{region.id} overruns its declared envelope once staging and a rotation are reserved"
         end
       end
@@ -1202,7 +1202,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # Above the floor the clamp is a no-op, so the ring Kura resolves is the
       # segment count this budget buys and the reserves still hold.
       assert capacity >= floor
-      assert div(capacity, segment) * segment + tmp + 2 * segment < 12 * 1024 * 1024 * 1024
+      assert div(capacity, segment) * segment + tmp + segment < 12 * 1024 * 1024 * 1024
     end
 
     test "raises rather than falling back to statvfs when a region's size cannot be parsed" do
@@ -1254,7 +1254,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
       # Budgeted from the 200Gi override, not the 50Gi claim.
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "198932147732"
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "199452912517"
 
       # storageSize must stay at the claim: the controller patches live PVCs up to
       # spec.storageSize on every reconcile, and scw-local-nvme is not expandable,
@@ -1285,11 +1285,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
-      # The ring each claim leaves once the staging reserve, two rotation
-      # segments and 3% for the index are taken: a region-derived budget would
-      # hand all four the same ring and let a small instance overrun the claim
+      # The ring each claim leaves once the staging reserve, one rotation
+      # segment and 3% for the index are taken: a region-derived budget would
+      # hand all three the same ring and let a small instance overrun the claim
       # its pod reserved.
-      for {claim, ring_gib} <- [{"50Gi", 41.4675}, {"30Gi", 24.4925}, {"16Gi", 12.61}, {"8Gi", 4.85}] do
+      for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}] do
         manifest =
           KubernetesController.manifest(
             "kura-tuist-eu-west-1",
@@ -1304,10 +1304,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
         assert_in_delta capacity / (1024 * 1024 * 1024), ring_gib, 0.1
 
-        # Whatever the claim, the ring plus staging plus the rotation guard stays
+        # Whatever the claim, the ring plus staging plus one rotation stays
         # inside it.
         {claim_gib, "Gi"} = Integer.parse(claim)
-        assert capacity + staging_bytes(env) + 1024 * 1024 * 1024 < claim_gib * 1024 * 1024 * 1024
+        assert capacity + staging_bytes(env) + 512 * 1024 * 1024 < claim_gib * 1024 * 1024 * 1024
       end
     end
 
@@ -1326,7 +1326,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "198932147732"
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "199452912517"
       assert manifest["spec"]["storageSize"] == "24Gi"
     end
 

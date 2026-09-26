@@ -7440,7 +7440,7 @@
               "transformations": []
             }
           },
-          "description": "Capacity-eviction reports dropped because the pending queue for the usage reporter was full\n\nPrometheus name: `kura_capacity_eviction_reports_dropped_total_total`",
+          "description": "Segment-eviction reports dropped because the shared capacity/pressure reporting queue was full\n\nPrometheus name: `kura_capacity_eviction_reports_dropped_total_total`",
           "id": 170,
           "links": [],
           "title": "capacity_eviction_reports_dropped_total (rate)",
@@ -12455,7 +12455,7 @@
               "transformations": []
             }
           },
-          "description": "Artifacts removed when old segments are evicted\n\nPrometheus name: `kura_segment_evicted_artifacts_total_total` · labels: producer, result",
+          "description": "Artifacts removed by ordinary capacity eviction or quota-pressure cleanup. Use the pressure byte panel to distinguish them. Prometheus: kura_segment_evicted_artifacts_total_total; labels: producer, result.",
           "id": 38,
           "links": [],
           "title": "segment_evicted_artifacts_total (rate)",
@@ -23434,6 +23434,98 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-245": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_disk_pressure_reclaimed_bytes_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Quota-pressure cleanup, separate from capacity churn. Counts logical segment bytes unlinked; open readers may delay physical release. A flat rate with disk_full can mean pinned writes, the five-segment floor, or no availability progress. Prometheus name: kura_disk_pressure_reclaimed_bytes_total_total.",
+          "id": 245,
+          "links": [],
+          "title": "Disk pressure reclamation (bytes/sec)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "Bps"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -24453,6 +24545,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-245"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 42
                       }
                     }
                   ]

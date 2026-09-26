@@ -106,6 +106,20 @@ function hostStats() {
   return ["a", "b"].map((n) => ({
     node: n,
     cpu: docker("exec", `kura-resource-${n}`, "cat", "/sys/fs/cgroup/cpu.stat"),
+    processCpu: docker(
+      "exec",
+      `kura-resource-${n}`,
+      "sh",
+      "-c",
+      'read -r kura_pid rest < /proc/1/task/1/children; cat "/proc/$kura_pid/stat"; getconf CLK_TCK',
+    ),
+    memory: docker(
+      "exec",
+      `kura-resource-${n}`,
+      "sh",
+      "-c",
+      'read -r kura_pid rest < /proc/1/task/1/children; cat "/proc/$kura_pid/smaps_rollup"',
+    ),
     disk: docker("exec", `kura-resource-${n}`, "du", "-sb", "/data"),
     net: docker("exec", `kura-resource-${n}`, "cat", "/proc/net/dev"),
   }));

@@ -1,6 +1,6 @@
 # Kura control plane
 
-- Managed CAS budgets reserve upload staging plus the runtime's two-segment rotation guard before the initial metadata allowance. The 3% allowance is an estimate, not a metadata quota: runtime free-space reclamation reduces effective retention when metadata is larger. Bump the manifest revision when changing this budget so existing instances reconcile it. Claim growth also increases the CAS ceiling; a temporary quota repair must keep that ceiling fixed if its purpose is free headroom.
+- Storage sizing counts `disk_pressure` events as eviction activity to block occupancy shrink, but excludes their bytes from turnover and invalidates all retention ages for the affected account-region-day. Keep snapshots reporting configured ring budgets; runtime pressure caps belong to backfill, not the resize denominator.
 
 - Every managed public host-network region needs a distinct Route53 `aws_region`
   mapping. Stable-enabled retirement requires a supported, fresh stable-ready
