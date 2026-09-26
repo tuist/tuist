@@ -9,8 +9,8 @@ defmodule Atlas.GTM.DirectEmails do
   digest months ago must still be told their price is changing, and must not
   be invited to opt out of being told.
 
-  So a direct send addresses one recipient, carries no unsubscribe affordance,
-  and never reads subscriber status or audience membership. It still writes a
+  So a direct send addresses one recipient, optionally with other addresses in
+  CC on the same message, carries no unsubscribe affordance, and never reads subscriber status or audience membership. It still writes a
   `Delivery` row before sending, which gives it the same audit trail, provider
   idempotency key, retry, and stalled-delivery recovery as every other Atlas
   email.
@@ -29,8 +29,8 @@ defmodule Atlas.GTM.DirectEmails do
   @email_format ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   # An agent that times out and calls again must not send a second copy. A
-  # repeat of the same recipient, subject, and body inside this window returns
-  # the delivery that is already queued.
+  # repeat of the same recipient, CC addresses, subject, and body inside this
+  # window returns the delivery that is already queued.
   @dedupe_window_seconds 15 * 60
 
   # A UUID collision is exceptionally unlikely but recoverable. Keep the retry
@@ -40,7 +40,9 @@ defmodule Atlas.GTM.DirectEmails do
   def kind, do: @kind
 
   @doc """
-  Queues a direct email to one recipient.
+  Queues a direct email to one recipient, copying any `cc_emails` on the same
+  message. CC addresses are validated, deduplicated, and dropped when they
+  match the recipient.
 
   Returns `{:ok, %{delivery: delivery, duplicate: boolean}}`, or an error of
   `{:error, {:invalid, field, message}}` for a rejected argument and
@@ -50,6 +52,7 @@ defmodule Atlas.GTM.DirectEmails do
     attrs = stringify_keys(attrs)
 
     with {:ok, recipient_email} <- fetch_email(attrs, "recipient_email"),
+         {:ok, cc_emails} <- fetch_cc_emails(attrs, recipient_email),
          {:ok, subject} <- fetch_required(attrs, "subject"),
          {:ok, body_markdown} <- fetch_required(attrs, "body_markdown"),
          {:ok, from_email} <- fetch_optional_email(attrs, "from_email"),
@@ -69,6 +72,7 @@ defmodule Atlas.GTM.DirectEmails do
           kind: @kind,
           recipient_email: recipient_email,
           recipient_name: trimmed(attrs["recipient_name"]),
+          cc_emails: cc_emails,
           subject: subject,
           status: "pending",
           metadata: metadata
@@ -102,6 +106,7 @@ defmodule Atlas.GTM.DirectEmails do
               target_label: delivery.recipient_email,
               metadata: %{
                 subject: delivery.subject,
+                cc_emails: delivery.cc_emails,
                 account_id: delivery.metadata["account_id"],
                 account_key: delivery.metadata["account_key"]
               }
@@ -160,8 +165,14 @@ defmodule Atlas.GTM.DirectEmails do
       order_by: [desc: delivery.inserted_at]
     )
     |> Repo.all()
-    |> Enum.find(&(&1.metadata["body_markdown"] == attrs.metadata["body_markdown"]))
+    |> Enum.find(
+      &(&1.metadata["body_markdown"] == attrs.metadata["body_markdown"] and
+          cc_key(&1.cc_emails) == cc_key(attrs.cc_emails))
+    )
   end
+
+  # The same CC addresses in another order or capitalization are the same email.
+  defp cc_key(addresses), do: addresses |> Enum.map(&String.downcase/1) |> Enum.sort()
 
   defp enqueue(%Delivery{id: id}) do
     %{"delivery_id" => id}
@@ -188,6 +199,51 @@ defmodule Atlas.GTM.DirectEmails do
       value -> validate_email(field, value)
     end
   end
+
+  defp fetch_cc_emails(attrs, recipient_email) do
+    case attrs["cc_emails"] do
+      nil ->
+        {:ok, []}
+
+      addresses when is_list(addresses) ->
+        with {:ok, addresses} <- validate_cc_emails(addresses) do
+          {:ok,
+           addresses
+           |> Enum.reject(&same_address?(&1, recipient_email))
+           |> Enum.uniq_by(&String.downcase/1)}
+        end
+
+      _addresses ->
+        {:error, {:invalid, "cc_emails", "must be a list of email addresses"}}
+    end
+  end
+
+  defp validate_cc_emails(addresses) do
+    results = Enum.map(addresses, &cc_email/1)
+
+    case Enum.find(results, &match?({:error, _reason}, &1)) do
+      nil -> {:ok, for({:ok, address} <- results, address, do: address)}
+      error -> error
+    end
+  end
+
+  defp cc_email(address) when is_binary(address) do
+    case trimmed(address) do
+      nil ->
+        {:ok, nil}
+
+      value ->
+        if Regex.match?(@email_format, value) do
+          {:ok, value}
+        else
+          {:error, {:invalid, "cc_emails", "contains an invalid email address: #{value}"}}
+        end
+    end
+  end
+
+  defp cc_email(_address), do: {:error, {:invalid, "cc_emails", "must be a list of email addresses"}}
+
+  defp same_address?(left, right), do: String.downcase(left) == String.downcase(right)
 
   defp validate_email(field, value) do
     if Regex.match?(@email_format, value) do

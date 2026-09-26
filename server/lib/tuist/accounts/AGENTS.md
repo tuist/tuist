@@ -24,4 +24,9 @@ This context owns business logic and data related to accounts, users, organizati
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
 
+- Account handles ending in `-staging` or `-canary` are reserved case-insensitively to prevent stable cache DNS collisions across environments. Existing suffixed handles keep regional endpoints until explicitly renamed. Stable managed endpoint responses preserve eligible custom endpoints and registered self-hosted URLs.
+- Email-derived signup handles receive a numeric suffix when reserved, with the
+  normal collision retries; explicit reserved handles remain invalid. Add custom
+  endpoints only after stable hand-out succeeds, so absent managed instances
+  still trigger provisioning and the existing client-specific fallback.
 - Account handles are reserved for the account lifetime, including retired names. The database initializes and protects `kura_tenant_id`; do not cast or update it from account attributes. `Accounts.update_account/2` gates Kura account renames until compatible runtimes are deployed. See `../kura/AGENTS.md`.

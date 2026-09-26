@@ -6,6 +6,7 @@ defmodule TuistWeb.Helpers.VCSLinks do
   use Phoenix.Component
   use Noora
 
+  alias Tuist.VCS
   alias TuistWeb.Helpers.GitHubHost
 
   attr :project, :map, required: true
@@ -87,6 +88,20 @@ defmodule TuistWeb.Helpers.VCSLinks do
       <span :if={@fallback} {@rest}>{@fallback}</span>
     <% end %>
     """
+  end
+
+  @doc """
+  Returns the URL of the pull request a `refs/pull/<number>/<suffix>` git ref
+  points to in the project's connected GitHub repository, or `nil` when the ref
+  is not a pull request ref or the project has no GitHub repository connected.
+  """
+  def pull_request_url(project, git_ref) do
+    with true <- has_github_vcs?(project),
+         pr_number when is_integer(pr_number) <- VCS.pull_request_number_from_git_ref(git_ref) do
+      "#{GitHubHost.base_url(project)}/#{project.vcs_connection.repository_full_handle}/pull/#{pr_number}"
+    else
+      _ -> nil
+    end
   end
 
   attr :project, :map, required: true

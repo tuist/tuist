@@ -136,8 +136,12 @@ type KuraInstanceReconciler struct {
 	// cache. The egress classid allocation scan must see every claim already
 	// written — a cached List can lag a just-completed Update and hand two
 	// accounts the same minor.
-	APIReader client.Reader
-	Scheme    *runtime.Scheme
+	APIReader   client.Reader
+	StableDNS   StableDNSProvider
+	StableProbe StableHostProber
+	StableDrain time.Duration
+	stableDNSMu sync.Mutex
+	Scheme      *runtime.Scheme
 
 	// egressClassMu serializes egress classid allocation across concurrent
 	// reconciles; see reconcileEgressClassID.
@@ -319,10 +323,19 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 // does not span still gets one, which is the only way to serve a hostname
 // outside the zone.
 func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	host := instance.Spec.PublicHost
-	if instance.Spec.Private {
-		host = instance.Spec.PrivateHost
+	hosts := clientHosts(instance)
+	if len(hosts) == 0 {
+		return false
 	}
+	for _, host := range hosts {
+		if !r.sharedTLSCoversHost(ctx, instance, host) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) sharedTLSCoversHost(ctx context.Context, instance *kurav1alpha1.KuraInstance, host string) bool {
 	if r.PublicTLSSecretName == "" || host == "" {
 		return false
 	}
@@ -338,8 +351,12 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	if err != nil {
 		return false
 	}
-	for _, name := range clientHosts(instance) {
-		if leaf.VerifyHostname(name) != nil {
+	return leaf.VerifyHostname(host) == nil && time.Now().Before(leaf.NotAfter) && time.Now().After(leaf.NotBefore)
+}
+
+func (r *KuraInstanceReconciler) sharedTLSCoversAllHosts(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	for _, host := range stableClientHosts(instance) {
+		if !r.sharedTLSCoversHost(ctx, instance, host) {
 			return false
 		}
 	}
@@ -429,6 +446,13 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		done, err := r.withdrawStableEndpoint(ctx, instance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !done {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 		// The pre-instance public peer Service has no owner reference. Remove it
 		// with the last matching account/region instance so its load balancer and
 		// public record cannot outlive the cache. A surviving move sibling keeps
@@ -454,6 +478,16 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		controllerutil.AddFinalizer(instance, KuraInstanceFinalizer)
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
+		}
+	}
+
+	if instance.Status.StableEndpoint != nil && !stableAdvertising(instance) {
+		done, err := r.withdrawStableEndpoint(ctx, instance)
+		if err != nil {
+			logger.Error(err, "withdraw stable DNS advertisement")
+		}
+		if !done && (instance.Spec.Private || instance.Spec.PublicHost == "") {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 		}
 	}
 
@@ -522,6 +556,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileStableEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
+		// A DNS control-plane outage must not block repairs to the cache workload.
+		// The failed observation clears readiness; the periodic pass retries it.
+		logger.Error(err, "reconcile stable DNS advertisement")
+	}
 	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -545,10 +584,15 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// that is still serving, so it does not get the same treatment: re-template
 	// the StatefulSet without disturbing what it runs, then replace the volumes
 	// one replica at a time behind the standby. Requeue between replicas so each
-	// rebuilt pod is serving again before the next is taken.
+	// rebuilt pod is serving again before the next is taken. The StatefulSet is
+	// held on OnDelete meanwhile, so its template keeps following the instance
+	// without a rolling update restarting the replica that is still serving.
 	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
+		if err := r.reconcileStatefulSetDuringResize(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
 	}
 
@@ -577,6 +621,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.replacePendingPodsForStorageDecrease(ctx, instance); err != nil {
@@ -1846,18 +1893,28 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 			Hosts:      clientHosts(instance),
 			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
-		ingress.Spec.Rules = nil
-		for _, host := range clientHosts(instance) {
-			ingress.Spec.Rules = append(ingress.Spec.Rules, networkingv1.IngressRule{
-				Host: host,
-				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{{
-						Path:     "/",
-						PathType: ptr(networkingv1.PathTypePrefix),
-						Backend:  ingressBackend(instance.Name, "http"),
-					}},
+
+		for _, host := range stableClientHosts(instance)[len(clientHosts(instance)):] {
+			secret := publicTLSSecretName(instance)
+			if r.sharedTLSCoversHost(ctx, instance, host) {
+				secret = r.PublicTLSSecretName
+			}
+			ingress.Spec.TLS = append(ingress.Spec.TLS, networkingv1.IngressTLS{Hosts: []string{host}, SecretName: secret})
+		}
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: clientHost(instance),
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: []networkingv1.HTTPIngressPath{{
+					Path:     "/",
+					PathType: ptr(networkingv1.PathTypePrefix),
+					Backend:  ingressBackend(instance.Name, "http"),
 				}},
-			})
+			}},
+		}}
+		for _, host := range stableClientHosts(instance)[1:] {
+			rule := *ingress.Spec.Rules[0].DeepCopy()
+			rule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
 		}
 		return nil
 	})
@@ -1951,14 +2008,16 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Backend:  ingressBackend(instance.Name, servicePort),
 			})
 		}
-		ingress.Spec.Rules = nil
-		for _, host := range clientHosts(instance) {
-			ingress.Spec.Rules = append(ingress.Spec.Rules, networkingv1.IngressRule{
-				Host: host,
-				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: paths,
-				}},
-			})
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: clientHost(instance),
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: paths,
+			}},
+		}}
+		for _, host := range stableClientHosts(instance)[1:] {
+			rule := *ingress.Spec.Rules[0].DeepCopy()
+			rule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
 		}
 		return nil
 	})
@@ -2802,7 +2861,7 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 // earlier in the same pass, so the Secret ingress-nginx is serving is never
 // the one deleted.
 func (r *KuraInstanceReconciler) publicIngressServesSharedTLS(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	if r.PublicTLSSecretName == "" {
+	if !r.sharedTLSCoversAllHosts(ctx, instance) {
 		return false
 	}
 	ingress := &networkingv1.Ingress{}
@@ -2854,7 +2913,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	// retire above reads, so issuance is gated on the wildcard itself. Reusing
 	// the read-back there would order a certificate for a host the wildcard
 	// already covers.
-	if r.sharedPublicTLSCovers(ctx, instance) {
+	if r.sharedTLSCoversAllHosts(ctx, instance) {
 		return nil
 	}
 
@@ -2865,7 +2924,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(clientHosts(instance)...),
+			"dnsNames":   dnsNames(stableClientHosts(instance)...),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -3329,8 +3388,7 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 		}
 		return err
 	}
-	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
-		(sts.Spec.UpdateStrategy.RollingUpdate != nil && sts.Spec.UpdateStrategy.RollingUpdate.Partition != nil && *sts.Spec.UpdateStrategy.RollingUpdate.Partition > 0) {
+	if rolloutPausedByOperator(sts) {
 		return nil
 	}
 	// Do not bypass an incident pause or replace pods from an old template
@@ -3824,7 +3882,13 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		revisionReady = sts.Status.UpdateRevision != "" && sts.Status.Replicas == replicas && updatedReplicas == replicas
 	}
 
-	if observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
+	// The StatefulSet is read from the informer cache right after this reconcile
+	// wrote the new template, so it can still be the previous object, internally
+	// consistent and complete for the previous image. Its status only describes
+	// the desired image when its template does.
+	templateCurrent := statefulSetTemplateImage(sts) == instance.Spec.Image
+
+	if templateCurrent && observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
 		observedImage = instance.Spec.Image
 
 		return rolloutState{
@@ -3849,6 +3913,15 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 			revisionsMatch,
 		),
 	}
+}
+
+func statefulSetTemplateImage(sts *appsv1.StatefulSet) string {
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if container.Name == kuraContainerName {
+			return container.Image
+		}
+	}
+	return ""
 }
 
 // ceilingBudgetAdvertised reports whether a node this instance can land on

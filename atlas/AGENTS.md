@@ -31,11 +31,20 @@ Do not add README entries for internal operational details such as env var names
   }
   ```
 
+## Markdown
+
+- `AtlasWeb.Markdown.content/1` renders fenced `mermaid` blocks through the `MermaidDiagram` hook (`assets/js/hooks/mermaid_diagram.js`), which loads a pinned Mermaid build from jsDelivr only on pages that contain a diagram. Invalid diagrams fall back to their source.
+
 ## Proof-of-concept dashboard
 
 - The sales evaluation list, form, and detail pages live under `lib/atlas_web/live/poc_live/`; the account page lists records for its account. Their rendering tests cover empty/populated lists, create/edit forms, unpublished/published details with access requests, and account filtering.
 - The internal evaluation pages are styled by `assets/css/routes/pocs.css`, imported from `assets/js/app.js`. The public brief has separate styles in `assets/css/routes/poc_public.css`.
 - Card and cell icon names must exist in `noora/lib/noora/icons/` (replace filename hyphens with underscores). Unsupported names raise during rendering; include conditional sections when verifying these pages.
+
+## Tasks
+
+- General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
+- The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
 
 ## Project guidelines
 

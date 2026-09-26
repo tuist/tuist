@@ -360,6 +360,21 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            {{- if .Values.kuraController.stableDNS.enabled }}
+            - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}
+            - --stable-dns-owner={{ required "kuraController.stableDNS.ownerId is required" .Values.kuraController.stableDNS.ownerId }}
+            - --stable-dns-drain={{ .Values.kuraController.stableDNS.drain }}
+            {{- end }}
+          {{- if .Values.kuraController.stableDNS.enabled }}
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_EC2_METADATA_DISABLED
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.kuraController.stableDNS.secretName }}
+          {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

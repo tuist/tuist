@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      staging_platform_revision:
+        description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
+        required: false
       kura_controller_image_tag:
         description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
         required: false
@@ -85,6 +88,10 @@ on:
         required: false
   workflow_call:
     inputs:
+      staging_platform_revision:
+        description: Existing staging platform Helm revision to restore and retain for this deployment
+        required: false
+        type: string
       environment:
         description: Target environment (staging | canary | production)
         required: true
@@ -124,8 +131,9 @@ on:
       kura_runtime_image_tag:
         description: >-
           Pre-built Kura runtime image tag to deploy. When unset, the
-          deploy job resolves the latest kura@ release tag and strips the
-          tag prefix before passing it to Helm.
+          deploy job resolves the latest kura@ canary tag reachable from
+          the deployed commit and strips the tag prefix before passing it
+          to Helm.
         required: false
         type: string
       kura_expedite:
@@ -308,8 +316,14 @@ jobs:
           # cache for every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - uses: docker/build-push-action@v6
@@ -361,10 +375,10 @@ jobs:
     # Guarded to exactly the case the deploy job will consume this image, so
     # nothing builds an image that won't be deployed:
     #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
-    #     this sha; canary/production resolve the released `kura@` tag and
+    #     this sha; canary/production resolve the latest `kura@` canary and
     #     never reference it (the production cascade also skips it via image_tag).
     #   - image_tag == '': a staging re-roll of a prebuilt server image skips
-    #     the build, so the deploy falls through to the released kura@ tag — no
+    #     the build, so the deploy falls through to the latest kura@ canary — no
     #     point building a sha image it won't pin.
     #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
     #     tag, the deploy uses that instead, so building the sha image is waste.
@@ -632,7 +646,20 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Restore the selected staging platform revision
+        if: inputs.staging_platform_revision != ''
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          PLATFORM_REVISION: ${{ inputs.staging_platform_revision }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET_ENVIRONMENT" != staging || ! "$PLATFORM_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "A platform revision override requires staging and a positive Helm revision."
+            exit 1
+          fi
+          helm rollback platform "$PLATFORM_REVISION" --namespace platform --wait --timeout 15m
       - name: Run k8s:install-platform
+        if: inputs.staging_platform_revision == ''
         # CLOUDFLARE_API_TOKEN is read from the in-cluster Secret the bootstrap
         # script created (CI is cluster-admin) instead of being added as a
         # second GitHub secret. ::add-mask:: registers the value with Actions
@@ -748,7 +775,8 @@ jobs:
           # from DEPLOY_SHA (per-commit stable release model); "any" allows
           # tags anywhere in the repo (release-branch stable model, where
           # the promoted tag lives on releases/<component>-X.Y.x and is not
-          # --merged into main).
+          # --merged into main). $4 is the version pattern, stable X.Y.Z by
+          # default.
           # An empty $2 skips the publication check: the macOS runner image
           # fans one semver out into a `macos-<xcode>-<semver>` tag per Xcode
           # profile, so there is no single manifest to probe here. The
@@ -757,6 +785,7 @@ jobs:
             prefix="$1"
             repository="${2:-}"
             reachability="${3:-merged}"
+            pattern="${4:-^[0-9]+\.[0-9]+\.[0-9]+$}"
             if [ "$reachability" = "any" ]; then
               tag_args=(--list "${prefix}*")
             else
@@ -765,7 +794,7 @@ jobs:
             versions="$(
               git tag "${tag_args[@]}" \
                 | sed "s|^${prefix}||" \
-                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | grep -E "$pattern" \
                 | sort -rV
             )"
             for version in $versions; do
@@ -779,12 +808,15 @@ jobs:
 
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
-            # Kura is promoted from releases/kura-X.Y.x on the weekly
-            # kura-promote train, so the stable tag lives on a commit that
-            # is not --merged into main. Use "any" reachability to pick it
-            # up regardless of ancestry; the GHCR publication check still
-            # guards against a phantom tag.
-            echo "KURA_RUNTIME_TAG=$(resolve 'kura@' 'tuist/kura' any)"
+            # Hosted Kura follows main like the server: the newest canary
+            # this commit contains (server-production-deployment.yml calls
+            # kura-release.yml before deploying a Kura change). The weekly
+            # RC/stable train is for self-hosted operators. The stable
+            # fallback only covers re-deploys of commits that predate
+            # canaries.
+            kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' merged '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$')"
+            [ -n "$kura_runtime_tag" ] || kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' any)"
+            echo "KURA_RUNTIME_TAG=$kura_runtime_tag"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
             echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"
@@ -1079,8 +1111,7 @@ jobs:
           #      exist; fall through to (3) rather than pin a tag that
           #      ImagePullBackOffs.
           #   3. canary/production — and staging re-rolls of a prebuilt image —
-          #      pin the released kura@ tag resolved from git, so they never
-          #      run an unreleased (or never-built) binary.
+          #      pin the latest kura@ canary resolved from git.
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
@@ -1089,7 +1120,7 @@ jobs:
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
             kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
-            echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
+            echo "Kura runtime: ${{ inputs.environment }} pins kura@ tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
           # Expediting the rollout is always an explicit deployment input,
@@ -1175,14 +1206,14 @@ jobs:
           # `kubectl patch` to it survives every later deploy: the RunnerPool
           # `linux-4vcpu-16gb` sat at `maxReplicas: 8` from 2026-08-14 while the
           # chart said 120, capping the pool at a fifteenth of its siblings.
-          # Reassert the ceiling keys so the chart is the source of truth again.
+          # `minWarmPoolFloor` drifts the same way. Reassert these keys so the
+          # chart is the source of truth again.
           #
-          # Scoped to the two keys nothing else writes. `minWarmPoolFloor` is
-          # excluded because live values are owned by other field managers, and
-          # `spec.replicas` because the chart only seeds it and the
-          # runners-controller owns it from then on. Reasserting either would
-          # have this step fight the controller on every deploy.
-          echo "::group::Reassert chart-owned RunnerPool scaling ceiling"
+          # Scoped to the keys nothing else writes. `spec.replicas` is excluded
+          # because the chart only seeds it and the runners-controller owns it
+          # from then on. Reasserting it would have this step fight the
+          # controller on every deploy.
+          echo "::group::Reassert chart-owned RunnerPool scaling settings"
           runner_pools_render="$(mktemp)"
           if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
                "${helm_values_args[@]}" \
@@ -1204,6 +1235,7 @@ jobs:
                             | {name: .metadata.name, namespace: .metadata.namespace,
                                autoscaling: (.spec.autoscaling
                                  | with_entries(select(.key | . == "maxReplicas"
+                                                         or . == "minWarmPoolFloor"
                                                          or . == "scaleDownCooldownSeconds")))}
                             | select(.autoscaling != {})]
                           | .[]'
@@ -1243,7 +1275,7 @@ jobs:
                 continue
               fi
 
-              echo "RunnerPool $pool_namespace/$pool_name: scaling ceiling drifted from the chart; reasserting."
+              echo "RunnerPool $pool_namespace/$pool_name: scaling settings drifted from the chart; reasserting."
               echo "  live:  $have"
               echo "  chart: $want"
               kubectl -n "$pool_namespace" patch runnerpool "$pool_name" --type=merge \

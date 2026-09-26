@@ -70,7 +70,7 @@ defmodule Tuist.VCS do
         "https://app.bitrise.io/build/#{run_id}"
 
       {"circleci", project_handle} when project_handle != "" ->
-        "https://app.circleci.com/pipelines/github/#{project_handle}/#{run_id}"
+        "https://app.circleci.com/jobs/github/#{project_handle}/#{run_id}"
 
       {"buildkite", project_handle} when project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{run_id}"
@@ -361,17 +361,30 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Returns the pull request number of a `refs/pull/<number>/<suffix>` git ref,
+  such as `refs/pull/23958/merge`, or `nil` for any other ref.
+  """
+  def pull_request_number_from_git_ref("refs/pull/" <> rest) do
+    case Integer.parse(rest) do
+      {number, ""} when number > 0 -> number
+      {number, "/" <> _suffix} when number > 0 -> number
+      _ -> nil
+    end
+  end
+
+  def pull_request_number_from_git_ref(_git_ref), do: nil
+
+  @doc """
   Creates a comment on a VCS issue/pull request.
   """
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
-    with true <- String.starts_with?(git_ref, "refs/pull/"),
+    with issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
            get_github_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
       client = get_client_for_provider(:github)
-      issue_id = get_issue_id_from_git_ref(git_ref)
 
       client.create_comment(%{
         repository_full_handle: repository_full_handle,
@@ -380,7 +393,7 @@ defmodule Tuist.VCS do
         installation: installation
       })
     else
-      false -> {:error, :not_pull_request}
+      nil -> {:error, :not_pull_request}
       {:error, :not_found} -> {:error, :repository_not_connected}
     end
   end
@@ -434,14 +447,13 @@ defmodule Tuist.VCS do
     with true <- git_commit_sha != "",
          true <- not is_nil(git_ref) and git_ref != "",
          true <- not is_nil(repository_full_handle),
-         true <- String.starts_with?(git_ref, "refs/pull/"),
+         issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
            get_github_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
       client = get_client_for_provider(:github)
-      issue_id = get_issue_id_from_git_ref(git_ref)
 
       vcs_comment_body =
         get_vcs_comment_body(%{
@@ -711,11 +723,6 @@ defmodule Tuist.VCS do
   defp commit_link(git_commit_sha, git_remote_url_origin),
     do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
 
-  defp get_issue_id_from_git_ref(git_ref) do
-    [issue_id, _merge] = git_ref |> String.split("/") |> Enum.take(-2)
-    issue_id
-  end
-
   defp get_git_ref_pattern(git_ref) do
     case String.split(git_ref, "/") do
       ["refs", "pull", pr_number, _suffix] -> "refs/pull/#{pr_number}/%"
@@ -864,7 +871,7 @@ defmodule Tuist.VCS do
            fn {_test_run, metrics} -> metrics.module_cache_hit_rate || "-" end},
           {"Xcode cache hit rate", any_run?.(:xcode_cache_hit_rate),
            fn {_test_run, metrics} -> metrics.xcode_cache_hit_rate || "-" end},
-          {"Test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
+          {"Ran test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
           {"Commit", true, fn {test_run, _metrics} -> commit_link(test_run.git_commit_sha, git_remote_url_origin) end}
         ],
         fn {_header, shown?, _cell} -> shown? end

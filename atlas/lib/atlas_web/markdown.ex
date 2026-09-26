@@ -88,6 +88,23 @@ defmodule AtlasWeb.Markdown do
     """
   end
 
+  defp markdown_block(%{block: {:mermaid, id, source}} = assigns) do
+    assigns = assign(assigns, id: id, source: source)
+
+    ~H"""
+    <div
+      id={@id}
+      data-part="mermaid"
+      data-state="pending"
+      phx-hook="MermaidDiagram"
+      phx-update="ignore"
+    >
+      <pre data-part="mermaid-source"><code>{@source}</code></pre>
+      <div data-part="mermaid-diagram"></div>
+    </div>
+    """
+  end
+
   defp markdown_block(%{block: {:table, table}} = assigns) do
     assigns = assign(assigns, :table, table)
 
@@ -198,9 +215,26 @@ defmodule AtlasWeb.Markdown do
     {:table, %{id: table_id, headings: headings, rows: rows}}
   end
 
+  defp component_block(%MDEx.CodeBlock{info: info, literal: literal} = node, document, id, index) do
+    if code_block_language(info) == "mermaid" do
+      {:mermaid, "#{id}-mermaid-#{index + 1}-#{:erlang.phash2(literal)}", literal}
+    else
+      {:html, render_nodes(document, [node])}
+    end
+  end
+
   defp component_block(node, document, _id, _index) do
     {:html, render_nodes(document, [node])}
   end
+
+  defp code_block_language(info) when is_binary(info) do
+    case String.split(info) do
+      [language | _] -> String.downcase(language)
+      [] -> ""
+    end
+  end
+
+  defp code_block_language(_info), do: ""
 
   defp markdown_document(markdown, opts \\ []) do
     offset = Keyword.get(opts, :heading_offset, 1)

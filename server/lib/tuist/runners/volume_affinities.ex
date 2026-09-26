@@ -90,8 +90,7 @@ defmodule Tuist.Runners.VolumeAffinities do
   defp fetch_node_cache_volumes(node_name) do
     case K8sClient.get_node(node_name) do
       {:ok, node} ->
-        labels = get_in(node, ["metadata", "labels"]) || %{}
-        %{masters: masters_from_labels(labels), repository_volumes?: labels[@repository_volumes_label] == "true"}
+        node |> get_in(["metadata", "labels"]) |> cache_volumes_from_node_labels()
 
       {:error, _reason} ->
         no_cache_volumes()
@@ -113,6 +112,16 @@ defmodule Tuist.Runners.VolumeAffinities do
   end
 
   defp no_cache_volumes, do: %{masters: MapSet.new(), repository_volumes?: false}
+
+  @doc """
+  The masters a Node's labels advertise as resident, as `{account_id, volume_name}`
+  pairs, and whether its tart-kubelet reads the Pod's cache volume label.
+  """
+  def cache_volumes_from_node_labels(labels) when is_map(labels) do
+    %{masters: masters_from_labels(labels), repository_volumes?: labels[@repository_volumes_label] == "true"}
+  end
+
+  def cache_volumes_from_node_labels(_labels), do: no_cache_volumes()
 
   defp masters_from_labels(labels) when is_map(labels) do
     for {key, "true"} <- labels,

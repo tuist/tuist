@@ -16,36 +16,6 @@ defmodule Tuist.Mix do
   alias Tuist.Mix.Diagnostic
 
   @doc """
-  Creates a Mix compile build with associated diagnostics.
-
-  ## Parameters
-    * `attrs` — build attributes:
-      * `:id` — client-generated UUID for the build (required)
-      * `:project_id` — the project id (required)
-      * `:account_id` — the account id (required)
-      * `:duration_ms` — total compile duration in milliseconds (required)
-      * `:status` — `"success"` or `"failure"` (required)
-      * `:is_ci` — boolean, defaults to false
-      * `:elixir_version`, `:otp_version`, `:mix_env` — strings, optional
-      * `:git_branch`, `:git_commit_sha`, `:git_ref`,
-        `:git_remote_url_origin` — strings, optional
-      * `:ci_provider`, `:ci_run_id`, `:ci_project_handle` — strings, optional
-      * `:contract_version` — string, optional
-      * `:started_at` — `%DateTime{}` or ISO 8601 string, optional
-      * `:custom_tags` — list of strings, optional
-      * `:custom_values` — map of string → string, optional
-      * `:diagnostics` — list of diagnostic maps (see below), optional
-
-  Each diagnostic map:
-      %{severity: "warning" | "error", file: string, module: string,
-        message: string, line: integer | nil, column: integer | nil,
-        compiler: string}
-
-  ## Returns
-    * `{:ok, build_id}` on success
-    * `{:error, reason}` when the custom metadata is invalid
-  """
-  @doc """
   Fetches a Mix build by id, scoped to a project when `:project_id` is given.
   """
   def get_build(id, opts \\ []) do
@@ -93,6 +63,36 @@ defmodule Tuist.Mix do
     )
   end
 
+  @doc """
+  Creates a Mix compile build with associated diagnostics.
+
+  ## Parameters
+    * `attrs` — build attributes:
+      * `:id` — client-generated UUID for the build (required)
+      * `:project_id` — the project id (required)
+      * `:account_id` — the account id (required)
+      * `:duration_ms` — total compile duration in milliseconds (required)
+      * `:status` — `"success"` or `"failure"` (required)
+      * `:is_ci` — boolean, defaults to false
+      * `:elixir_version`, `:otp_version`, `:mix_env` — strings, optional
+      * `:git_branch`, `:git_commit_sha`, `:git_ref`,
+        `:git_remote_url_origin` — strings, optional
+      * `:ci_provider`, `:ci_run_id`, `:ci_project_handle` — strings, optional
+      * `:contract_version` — string, optional
+      * `:started_at` — `%DateTime{}` or ISO 8601 string, optional
+      * `:custom_tags` — list of strings, optional
+      * `:custom_values` — map of string → string, optional
+      * `:diagnostics` — list of diagnostic maps (see below), optional
+
+  Each diagnostic map:
+      %{severity: "warning" | "error", file: string, module: string,
+        message: string, line: integer | nil, column: integer | nil,
+        compiler: string}
+
+  ## Returns
+    * `{:ok, build_id}` on success
+    * `{:error, reason}` when the custom metadata is invalid
+  """
   def create_build(attrs) do
     with :ok <-
            BuildRun.validate_custom_metadata(

@@ -661,7 +661,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       # the test already exists, get_test must preload test_case_runs so
       # the response reflects what is actually stored, not an empty list.
       expect(Tests, :get_test, fn ^existing_id, opts ->
-        assert opts[:preload] == [test_case_runs: :arguments]
+        assert opts[:preload] == [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]
 
         {:ok,
          %Test{

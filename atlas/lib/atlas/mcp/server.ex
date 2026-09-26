@@ -28,6 +28,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
   alias Atlas.MCP.Tools.ClaimNudge
   alias Atlas.MCP.Tools.CompleteOutreachNextStep
+  alias Atlas.MCP.Tools.CompleteTask
   alias Atlas.MCP.Tools.ConfirmTaxCertificateDelivery
   alias Atlas.MCP.Tools.ConvertGTMOpportunity
   alias Atlas.MCP.Tools.CreateAccount
@@ -57,6 +58,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
+  alias Atlas.MCP.Tools.CreateTask
   alias Atlas.MCP.Tools.DecommissionDataCenter
   alias Atlas.MCP.Tools.DeleteAccountTerm
   alias Atlas.MCP.Tools.DeleteAsset
@@ -200,6 +202,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListSpecComments
   alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
+  alias Atlas.MCP.Tools.ListTasks
   alias Atlas.MCP.Tools.ListTuistClickhouseTables
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
@@ -276,6 +279,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSpec
   alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
+  alias Atlas.MCP.Tools.UpdateTask
   alias Atlas.MCP.Tools.UploadPostalLetter
 
   @name "atlas"
@@ -307,7 +311,7 @@ defmodule Atlas.MCP.Server do
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
   2. Call `get_account` to retrieve the customer identity, legal, billing, signatory, and commercial term fields. Prefer explicit values in the user's current request over pasted conversation context, and prefer both over older values stored on the account.
-  3. Call `list_contract_templates`, then `get_contract_template` for the appropriate official Word template. The latter attaches the binary template directly, so use that embedded resource instead of trying browser, desktop-control, or terminal hand-offs. Never create a substitute document from scratch.
+  3. Call `list_contract_templates`, then `get_contract_template` for the appropriate official Word template. The latter returns a signed `download_url` for the template; download the file from it before its `expires_at` rather than trying browser or desktop-control hand-offs. Never create a substitute document from scratch.
   4. If the user asks only for an order form, fetch only the appropriate order form rather than the full contract package. Use `order-form-tuist-hosted.docx` for a hosted deal and `order-form-self-hosted.docx` for a self-hosted deal. Ask the user when the hosting model cannot be determined from their request, conversation context, or the latest commercial term.
   5. Do not invent missing legal, billing, signatory, date, or renewal fields. Ask the user for required values that are absent from both their request and Atlas.
 
@@ -317,7 +321,7 @@ defmodule Atlas.MCP.Server do
 
   For group email, Atlas owns subscribers, audiences, and delivery history. Use the email subscriber and audience tools to inspect or prepare recipients. Only call `send_email_broadcast` when the user explicitly asks to send or queue the broadcast, because it immediately snapshots current subscribed recipients and queues delivery.
 
-  For email to one person, use `send_account_email` rather than building an audience of one. It addresses a single recipient, either by `email` or through the account whose billing contact should receive it, and it is the only correct path for transactional mail such as a billing, pricing, or contract notice: it adds no unsubscribe footer and does not skip a recipient who left a marketing audience. It also queues delivery immediately, so only call it when the user explicitly asks to send.
+  For email to one person or to a few contacts at one organization, use `send_account_email` rather than building an audience. It addresses one primary recipient, either by `email` or through the account whose billing contact should receive it, and copies any other contacts through `cc_emails`, so several admins of one customer get a single email and thread rather than separate copies. It is the only correct path for transactional mail such as a billing, pricing, or contract notice: it adds no unsubscribe footer and does not skip a recipient who left a marketing audience. It also queues delivery immediately, so only call it when the user explicitly asks to send.
 
   Use `list_briefs` and `get_brief` to understand leadership attention across domains. Treat brief items as suggested coordination moves, not authoritative facts; inspect their evidence classes. Use `act_on_brief_item` only when the user explicitly asks to own, acknowledge, resolve, rate, or suppress an item. Cross-domain claims require exact or explicitly verified links and at least two supporting domain records.
   """
@@ -546,6 +550,10 @@ defmodule Atlas.MCP.Server do
     AddSupportThreadNote,
     UpdateSupportThread,
     ListAccounts,
+    ListTasks,
+    CreateTask,
+    UpdateTask,
+    CompleteTask,
     ListUpcomingRenewals,
     CreateAccount,
     GetAccount,

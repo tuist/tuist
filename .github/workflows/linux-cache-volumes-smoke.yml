@@ -1,0 +1,131 @@
+name: Linux Cache Volumes Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Profile on a cache-enabled staging fleet
+        type: string
+        default: tuist-staging-linux
+      cache_key:
+        description: Unique smoke key; reuse across seed and verification runs
+        type: string
+        default: volume-smoke-v3
+      phase:
+        description: Seed, verify, intentional failure, hold for cancellation/clearing, or require a cold volume
+        type: choice
+        options: [seed, verify, fail, hold, expect-empty]
+        default: seed
+      expected_value:
+        description: Sentinel expected on a warm attachment
+        type: string
+        default: retained
+      write_value:
+        description: Sentinel written by this job (empty preserves existing contents)
+        type: string
+        default: retained
+      hold_seconds:
+        description: Time to keep the volume mounted for isolation and lifecycle tests
+        type: number
+        default: 0
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.mode }} / ${{ inputs.phase }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: native
+            container: null
+          - mode: container
+            container: ubuntu:22.04
+    runs-on: ${{ inputs.runner_label }}
+    container: ${{ matrix.container }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare npm fixture
+        shell: bash
+        run: |
+          mkdir .npm-smoke
+          cd .npm-smoke
+          printf '{"private":true,"dependencies":{"is-number":"7.0.0"}}\n' > package.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - uses: tuist/cache-volume@v1
+        id: npm
+        with:
+          key: ${{ inputs.cache_key }}-${{ matrix.mode }}-npm
+          path: .npm-smoke/node_modules
+      - name: Exercise npm ci on a mounted node_modules directory
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.npm.outputs.cache-hit }}
+        run: |
+          cd .npm-smoke
+          test ! -L node_modules
+          mountpoint -q node_modules
+          case "$PHASE" in
+            seed|expect-empty) test "$CACHE_HIT" = false ;;
+            *)
+              test "$CACHE_HIT" = true
+              test -f node_modules/is-number/index.js
+              ;;
+          esac
+          npm ci --ignore-scripts --no-audit --no-fund
+          mountpoint -q node_modules
+          node -e "if (!require('is-number')(42)) process.exit(1)"
+      - uses: tuist/cache-volume@v1
+        id: cache
+        with:
+          key: ${{ inputs.cache_key }}-${{ matrix.mode }}
+          path: .volume-smoke
+      - name: Verify real mounted volume
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+          EXPECTED_VALUE: ${{ inputs.expected_value }}
+          WRITE_VALUE: ${{ inputs.write_value }}
+          HOLD_SECONDS: ${{ inputs.hold_seconds }}
+        run: |
+          set -euo pipefail
+          test ! -L .volume-smoke
+          mountpoint -q .volume-smoke
+          target=.volume-smoke
+          printf 'Mounted filesystem: '
+          stat -f -c '%T' "$target"
+          df -h "$target"
+          case "$PHASE" in
+            seed|expect-empty)
+              test "$CACHE_HIT" = false
+              test ! -e .volume-smoke/sentinel
+              ;;
+            verify|fail|hold)
+              test "$CACHE_HIT" = true
+              test "$(cat .volume-smoke/sentinel)" = "$EXPECTED_VALUE"
+              ;;
+          esac
+          if [ -n "$WRITE_VALUE" ]; then
+            printf '%s' "$WRITE_VALUE" > .volume-smoke/sentinel
+            mkdir -p .volume-smoke/nested
+            printf 'nested payload' > .volume-smoke/nested/file
+            ln -sfn nested/file .volume-smoke/link
+          fi
+          if [ "$PHASE" = verify ]; then
+            test "$(cat .volume-smoke/link)" = 'nested payload'
+          fi
+          sync
+          [[ "$HOLD_SECONDS" =~ ^[0-9]+$ ]] && [ "$HOLD_SECONDS" -le 600 ]
+          sleep "$HOLD_SECONDS"
+          if [ -n "$WRITE_VALUE" ]; then
+            test "$(cat .volume-smoke/sentinel)" = "$WRITE_VALUE"
+          fi
+          test "$PHASE" != fail

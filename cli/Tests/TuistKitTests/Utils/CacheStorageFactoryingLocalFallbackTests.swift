@@ -84,6 +84,26 @@ struct CacheStorageFactoryingLocalFallbackTests {
         )
     }
 
+    @Test func uses_the_local_cache_and_relays_why_when_the_account_refuses_the_caller() async throws {
+        // Given
+        let alertController = AlertController()
+        let message = "You are logged in as 'stranger', which is not a member of 'acme'."
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(CacheURLStoreError.forbidden(message))
+
+        // When
+        _ = try await AlertController.$current.withValue(alertController) {
+            try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
+        }
+
+        // Then
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
+        #expect(alertController.warnings().map(\.message).map { $0.plain() } == [message])
+    }
+
     @Test(arguments: [
         CacheURLStoreError.invalidURL("not a url") as Error,
         RefreshAuthTokenServiceError.unauthorized("Invalid token"),

@@ -29,7 +29,7 @@ defmodule Atlas.MCP.Tools.GenerateEnterpriseContractTest do
       assert payload.document_scope == "order_form"
       assert payload.next_tools == ["get_account", "list_contract_templates", "get_contract_template"]
       assert payload.workflow =~ "standalone order form"
-      assert payload.workflow =~ "embedded resource"
+      assert payload.workflow =~ "signed `download_url`"
       assert payload.workflow =~ "exactly one order-form template"
       assert payload.workflow =~ "instead of blocking on this value"
       refute payload.workflow =~ "`msa.docx`"

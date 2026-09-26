@@ -2604,8 +2604,18 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // rather than a refusal. The `tuist.runners` anchor cannot compensate:
 // its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
 // anything appended to the end of /etc/pf.conf. So the VM sources get an
-// explicit pass, preceded by a block that still denies them the host's
-// and a sibling's :22.
+// explicit pass, preceded by blocks that still deny them a sibling's :22
+// and every one of the host's own addresses.
+//
+// The vmnet range alone is not enough for the host. A VM that dials the
+// host's en0, LAN or tailnet address is routed to the host itself and
+// delivered to the same *:22 listener, so the flood the guard exists to
+// stop could come from a customer workload. The host block uses pf's
+// static `self`, which pfctl expands to the host's addresses on every
+// load; the 60s re-arm reloads the file, so a new address is covered
+// within a minute. The dynamic `(self)` form looks like the better fit
+// and is not: xnu has no interface groups, so it resolves to the `ALL`
+// kif, whose table stays empty. It loads cleanly and matches nothing.
 //
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
@@ -2662,23 +2672,31 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # path at once.
 #
 # pf is first-match-wins across 'quick' rules, so the pass lines
-# MUST stay above the block.
+# MUST stay above the block. They use 'flags any' so a session that
+# was already open when pf was enabled gets state instead of hitting
+# the block; the default 'flags S/SA' only admits a new SYN.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
-pass in quick on lo0 proto tcp to any port 22 keep state
-pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+pass in quick on lo0 proto tcp to any port 22 flags any keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 
 # A Tart VM's egress arrives inbound on the vmnet bridge before it is
 # routed and NAT'd out, so the catch-all block below also swallows every
 # SSH the customer workload makes. The guard protects the host's own
 # listener, not the workload's outbound reach: VMs keep :22 to the
-# internet, but not to the host or a sibling VM.
+# internet, but not to a sibling VM or to any of the host's addresses.
+# A VM that dials the host's LAN, public or tailnet address reaches the
+# same listener as one that dials the bridge. 'self' is expanded on
+# every load, and the re-arm reloads this file every minute, so a new
+# host address is covered within a minute. The dynamic '(self)' form
+# resolves to an empty table on macOS and would match nothing.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
-pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+block drop in quick proto tcp from <vm_ssh_sources> to self port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
 PFCONF
@@ -2690,7 +2708,9 @@ sudo tee /usr/local/bin/tuist-pf-sshguard >/dev/null <<'SSHGUARD'
 # anchor file is the source of truth, so this needs no SSH session and
 # re-converges after a reboot or an external ruleset flush. pfctl swaps
 # anchor contents atomically, so re-running is cheap and never leaves a
-# window with no rules.
+# window with no rules. Every run re-expands 'self' in the VM block to
+# the host's current addresses, so it must reload even when the file is
+# unchanged.
 set -u
 [ -f /etc/pf.anchors/tuist.sshguard ] || exit 0
 pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard

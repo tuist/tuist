@@ -40,9 +40,9 @@ permissions:
   id-token: write
 
 concurrency:
-  # Shared with kura-release.yml / kura-promote.yml so version resolution
-  # and tag creation never race.
-  group: kura-publish
+  # Shared with kura-promote.yml so RC and stable version resolution and tag
+  # creation never race. Canaries (kura-release.yml) use their own group.
+  group: kura-stable-publish
   cancel-in-progress: false
 
 env:

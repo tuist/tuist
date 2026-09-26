@@ -95,6 +95,15 @@ defmodule AtlasWeb.EmailMailboxLiveTest do
       assert has_element?(view, "#sent-email-body strong", "22 October")
     end
 
+    test "shows the CC addresses of a direct email", %{conn: conn} do
+      {conn, _user} = log_in_user(conn)
+      delivery = insert_delivery!(%{cc_emails: ["cto@acme.example", "ops@acme.example"]})
+
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/outbox/#{delivery.id}")
+
+      assert has_element?(view, "[data-part='email-details-card']", "cto@acme.example, ops@acme.example")
+    end
+
     test "shows the delivery error of a failed email", %{conn: conn} do
       {conn, _user} = log_in_user(conn)
       delivery = insert_delivery!(%{status: "failed", delivered_at: nil, error: "{:mailgun, 400}"})

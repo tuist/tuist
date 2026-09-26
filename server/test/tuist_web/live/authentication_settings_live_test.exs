@@ -208,6 +208,76 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       refute html =~ "Failed to configure"
       assert html =~ "Enable Single Sign-On"
     end
+
+    test "offers the verification record for a login domain it did not enter itself", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Ecto.Changeset.change(%{
+        sso_legacy_email_domain_fallback: true,
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "backfilled-token",
+        sso_login_domain_verified_at: nil
+      })
+      |> Tuist.Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "customer.example"
+      assert html =~ "Pending verification"
+      assert html =~ "_tuist-verification.customer.example"
+      assert html =~ "tuist-domain-verification=backfilled-token"
+    end
+
+    test "describes the settings a lapsed verification keeps and still saves the configuration", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Ecto.Changeset.change(%{
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "verification-token",
+        sso_login_domain_verified_at: nil,
+        sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
+        sso_automatic_enrollment: true,
+        sso_enforced: true
+      })
+      |> Tuist.Repo.update!()
+
+      {:ok, _lv, html} =
+        conn
+        |> init_test_session(%{auth_method: :okta})
+        |> live(~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "Automatic enrollment is paused until the login email domain is verified"
+      refute html =~ "This existing configuration allows any email address reported by the provider"
+      refute html =~ "Verify a login email domain before enforcing single sign-on"
+      assert html =~ "tuist-domain-verification=verification-token"
+
+      assert {:ok, _organization} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 sso_organization_id: "company.okta.com",
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_secret: "rotated_client_secret"
+               })
+    end
   end
 
   describe "Microsoft Entra ID SSO" do
@@ -517,11 +587,124 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
       assert html =~ "Pending verification"
 
-      html = render_hook(lv, "verify_sso_login_domain")
+      lv |> element("#verify-sso-login-domain-button") |> render_click()
 
-      assert html =~ "The login domain has been verified."
-      assert html =~ "Verified"
-      refute html =~ "Pending verification"
+      assert has_element?(
+               lv,
+               ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="verified"])
+             )
+
+      refute has_element?(lv, "#verify-sso-login-domain-button")
+      refute has_element?(lv, "#sso-login-domain-verification")
+      refute render(lv) =~ "Pending verification"
+    end
+
+    test "shows a missing verification record next to the Verify domain button", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      html = lv |> element("#verify-sso-login-domain-button") |> render_click()
+
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
+               "No TXT record with the verification value was found at _tuist-verification.customer.example. DNS changes can take a while to propagate"
+             )
+
+      assert has_element?(
+               lv,
+               ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="pending"])
+             )
+
+      assert html |> String.split("No TXT record with the verification value was found") |> length() == 2
+    end
+
+    test "clears the verification result when the login domain changes", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      lv |> element("#verify-sso-login-domain-button") |> render_click()
+      assert has_element?(lv, "#sso-login-domain-verification-error")
+
+      lv
+      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "Customer.Example"}})
+      |> render_change()
+
+      assert has_element?(lv, "#sso-login-domain-verification-error")
+
+      lv
+      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "other.example"}})
+      |> render_change()
+
+      refute has_element?(lv, "#sso-login-domain-verification-error")
+    end
+
+    test "offers the verification record as a TXT record with copy buttons", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert has_element?(
+               lv,
+               ~s([data-part="label"] [data-part="description"]),
+               "Add the TXT record below at your DNS provider, then click Verify domain."
+             )
+
+      assert has_element?(lv, ~s(#sso-login-domain-verification [data-part="domain-records"]), "TXT")
+
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-record-name-copy-button[phx-hook="Clipboard"][data-clipboard-value="_tuist-verification.customer.example"])
+             )
+
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-record-value-copy-button[phx-hook="Clipboard"][data-clipboard-value="tuist-domain-verification=#{configured_organization.sso_login_domain_verification_token}"])
+             )
     end
 
     test "does not verify a domain that changed after the form was rendered", %{
@@ -549,9 +732,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       reject(SSOLoginDomainVerification, :verified?, 2)
 
-      html = render_hook(lv, "verify_sso_login_domain")
+      lv |> element("#verify-sso-login-domain-button") |> render_click()
 
-      assert html =~ "Save the login domain before verifying it."
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
+               "Save the login domain before verifying it."
+             )
+
       assert changed_organization.sso_login_domain == "other.example"
       refute changed_organization.sso_login_domain_verified_at
     end

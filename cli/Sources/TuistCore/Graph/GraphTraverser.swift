@@ -40,6 +40,10 @@ public class GraphTraverser: GraphTraversing {
         GraphCache<GraphDependency, Set<GraphDependency>>()
     private let staticSwiftXCFrameworksReachableViaCachedTargetsCache =
         GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let packageProductsToBuildCache =
+        GraphCache<GraphDependency, [GraphDependency: PlatformCondition.CombinationResult]>()
+    private let packageProductsToLinkCache =
+        GraphCache<GraphDependency, [GraphDependency: PlatformCondition.CombinationResult]>()
 
     struct LinkableDependenciesKey: Hashable {
         let target: GraphDependency
@@ -584,7 +588,7 @@ public class GraphTraverser: GraphTraversing {
         path: Path.AbsolutePath,
         name: String
     ) -> Set<GraphDependencyReference> {
-        packageProductsLinkedThroughStaticTargets(from: .target(name: name, path: path))
+        packageProducts(reachableFrom: .target(name: name, path: path), for: .build)
     }
 
     // swiftlint:disable:next function_body_length
@@ -739,18 +743,19 @@ public class GraphTraverser: GraphTraversing {
                     .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
             )
 
-            var packageProducts = packageProductsLinkedThroughStaticTargets(from: targetGraphDependency)
+            var linkedPackageProducts = packageProducts(reachableFrom: targetGraphDependency, for: .link)
             if let hostApplication {
-                packageProducts = packageProductsExcludingProductsLinkedByHost(
-                    packageProducts,
-                    hostPackageProducts: packageProductsLinkedThroughStaticTargets(
-                        from: .target(name: hostApplication.target.name, path: hostApplication.project.path)
+                linkedPackageProducts = packageProductsExcludingProductsLinkedByHost(
+                    linkedPackageProducts,
+                    hostPackageProducts: packageProducts(
+                        reachableFrom: .target(name: hostApplication.target.name, path: hostApplication.project.path),
+                        for: .link
                     ),
                     targetPlatformFilters: target.target.dependencyPlatformFilters,
                     hostPlatformFilters: hostApplication.target.dependencyPlatformFilters
                 )
             }
-            references.formUnion(packageProducts)
+            references.formUnion(linkedPackageProducts)
         }
 
         // Link dynamic libraries and frameworks
@@ -766,51 +771,22 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
-    private func packageProductsLinkedThroughStaticTargets(
-        from rootDependency: GraphDependency
+    /// What a package product walk collects the package products for.
+    private enum PackageProductsPurpose {
+        /// The package products a static target needs built to compile. The walk goes through every xcframework:
+        /// a cached binary still imports the package products of the target it replaced, and unlike a dynamic
+        /// target, nothing builds them for it.
+        case build
+        /// The package products a target links. The walk goes through static xcframeworks only, the same way their
+        /// archives are linked. A dynamic xcframework already contains its package products.
+        case link
+    }
+
+    private func packageProducts(
+        reachableFrom rootDependency: GraphDependency,
+        for purpose: PackageProductsPurpose
     ) -> Set<GraphDependencyReference> {
-        var dependenciesToVisit = [rootDependency]
-        var dependencyConditions: [GraphDependency: PlatformCondition.CombinationResult] = [
-            rootDependency: .condition(nil),
-        ]
-        var packageProductConditions: [GraphDependency: PlatformCondition.CombinationResult] = [:]
-
-        while let dependency = dependenciesToVisit.popLast() {
-            guard let accumulatedCondition = dependencyConditions[dependency] else { continue }
-
-            for childDependency in graph.dependencies[dependency, default: []] {
-                let condition = intersection(
-                    accumulatedCondition,
-                    with: graph.dependencyConditions[(dependency, childDependency)]
-                )
-                guard condition != .incompatible else { continue }
-
-                switch childDependency {
-                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded):
-                    packageProductConditions[childDependency] = packageProductConditions[
-                        childDependency,
-                        default: .incompatible
-                    ].combineWith(condition)
-                case .target:
-                    guard !isPackageProductLinkingBoundary(childDependency) else {
-                        continue
-                    }
-                    let combinedCondition = dependencyConditions[
-                        childDependency,
-                        default: .incompatible
-                    ].combineWith(condition)
-                    guard dependencyConditions[childDependency] != combinedCondition else {
-                        continue
-                    }
-                    dependencyConditions[childDependency] = combinedCondition
-                    dependenciesToVisit.append(childDependency)
-                case .bundle, .framework, .foreignBuildOutput, .library, .macro, .packageProduct, .sdk, .xcframework:
-                    continue
-                }
-            }
-        }
-
-        return Set(packageProductConditions.compactMap { dependency, condition in
+        Set(packageProductConditions(reachableFrom: rootDependency, for: purpose).compactMap { dependency, condition in
             guard case let .packageProduct(_, product, _) = dependency,
                   case let .condition(platformCondition) = condition
             else {
@@ -821,6 +797,70 @@ public class GraphTraverser: GraphTraversing {
                 condition: platformCondition
             )
         })
+    }
+
+    /// The platforms each package product is reachable on from the dependency, memoised per dependency because the
+    /// targets built from source commonly share one closure of cached xcframeworks. Dependencies are computed in
+    /// post-order, so every dependency the walk goes through is computed before the dependencies that reach it.
+    private func packageProductConditions(
+        reachableFrom rootDependency: GraphDependency,
+        for purpose: PackageProductsPurpose
+    ) -> [GraphDependency: PlatformCondition.CombinationResult] {
+        let cache = switch purpose {
+        case .build: packageProductsToBuildCache
+        case .link: packageProductsToLinkCache
+        }
+        if let cached = cache[rootDependency] {
+            return cached
+        }
+
+        var stack: [(dependency: GraphDependency, isExpanded: Bool)] = [(rootDependency, false)]
+        var expanded = Set<GraphDependency>()
+        while let (dependency, isExpanded) = stack.popLast() {
+            guard cache[dependency] == nil else { continue }
+            let children = graph.dependencies[dependency, default: []]
+
+            if !isExpanded {
+                guard expanded.insert(dependency).inserted else { continue }
+                stack.append((dependency, true))
+                for child in children where cache[child] == nil && packageProductWalk(for: purpose, entersInto: child) {
+                    stack.append((child, false))
+                }
+                continue
+            }
+
+            var conditions: [GraphDependency: PlatformCondition.CombinationResult] = [:]
+            for child in children {
+                let edgeCondition = graph.dependencyConditions[(dependency, child)]
+                switch child {
+                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded):
+                    conditions[child] = conditions[child, default: .incompatible].combineWith(.condition(edgeCondition))
+                default:
+                    guard packageProductWalk(for: purpose, entersInto: child),
+                          let childConditions = cache[child]
+                    else { continue }
+                    for (packageProduct, childCondition) in childConditions {
+                        let condition = intersection(childCondition, with: edgeCondition)
+                        guard condition != .incompatible else { continue }
+                        conditions[packageProduct] = conditions[packageProduct, default: .incompatible]
+                            .combineWith(condition)
+                    }
+                }
+            }
+            cache[dependency] = conditions
+        }
+        return cache[rootDependency] ?? [:]
+    }
+
+    private func packageProductWalk(for purpose: PackageProductsPurpose, entersInto dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case .target:
+            return !isPackageProductLinkingBoundary(dependency)
+        case .xcframework:
+            return purpose == .build || !isPackageProductLinkingBoundary(dependency)
+        case .bundle, .framework, .foreignBuildOutput, .library, .macro, .packageProduct, .sdk:
+            return false
+        }
     }
 
     private func isPackageProductLinkingBoundary(_ dependency: GraphDependency) -> Bool {
@@ -1034,9 +1074,9 @@ public class GraphTraverser: GraphTraversing {
     /// Iterative, per-node memoised walk from a source-graph target. Traversal stops at static
     /// xcframeworks (terminal) and at descendant targets that survive in `currentGraph` (they
     /// contribute their own settings through the current-graph walkers; walking through them
-    /// here would double-count). The starting target itself always contributes its children —
-    /// it's the surviving root we're walking from; the check gates whether we recurse INTO
-    /// surviving descendants, not whether the walk starts.
+    /// here would double-count). The starting target is the surviving root, and the walk starts
+    /// only from its children that were replaced by cached binaries. A static xcframework the
+    /// root links itself is not behind a cached target: Xcode processes it for the root.
     ///
     /// The cache stores the standard per-node reachable set (with the terminal check applied),
     /// so a node cached during one target's walk can be reused as a descendant of another
@@ -1050,7 +1090,10 @@ public class GraphTraverser: GraphTraversing {
         includes: (GraphDependency.XCFramework) -> Bool
     ) -> Set<GraphDependency> {
         let root: GraphDependency = .target(name: name, path: path)
-        guard let rootChildren = graph.dependencies[root] else { return [] }
+        guard let rootChildren = graph.dependencies[root]?.filter({ child in
+            guard case let .target(childName, childPath, _) = child else { return false }
+            return currentGraph.projects[childPath]?.targets[childName] == nil
+        }) else { return [] }
 
         func terminal(_ node: GraphDependency) -> Bool {
             if case let .xcframework(xcframework) = node, xcframework.linking == .static {
@@ -1062,42 +1105,34 @@ public class GraphTraverser: GraphTraversing {
             return false
         }
 
-        // First pass: iterative DFS from each root child, collecting the reachable subgraph in
-        // visit order. Stops at terminals (their subtrees are irrelevant beyond their own
-        // inclusion) and at nodes already cached (we reuse their memoised result in the second
-        // pass). The root itself is not enqueued — we compute its result at the end from its
-        // children's cached sets, so the cache always holds the "descendant" semantics.
-        var order: [GraphDependency] = []
+        // Iterative post-order DFS from each root child. A node is pushed back as expanded below
+        // its uncached children, so its set is computed only after every child it unions is
+        // cached. Traversal stops at terminals and at nodes already cached. The root itself is
+        // not enqueued, so the cache always holds the "descendant" semantics.
         var visited = Set<GraphDependency>()
-        var stack: [GraphDependency] = []
-        for child in rootChildren where cache[child] == nil {
-            stack.append(child)
-        }
-        while let node = stack.popLast() {
-            guard visited.insert(node).inserted else { continue }
-            guard cache[node] == nil else { continue }
-            order.append(node)
-            guard !terminal(node) else { continue }
-            for child in graph.dependencies[node, default: []] where cache[child] == nil {
-                stack.append(child)
-            }
-        }
-
-        // Second pass: reverse-visit order guarantees children are cached before their parents
-        // in a DAG. Each node's set is its own inclusion plus its (non-terminal) children's.
-        for node in order.reversed() where cache[node] == nil {
-            var result: Set<GraphDependency> = []
-            if case let .xcframework(xcframework) = node, includes(xcframework) {
-                result.insert(node)
-            }
-            if !terminal(node) {
-                for child in graph.dependencies[node, default: []] {
-                    if let childResult = cache[child] {
-                        result.formUnion(childResult)
+        var stack: [(node: GraphDependency, expanded: Bool)] = rootChildren.map { ($0, false) }
+        while let (node, expanded) = stack.popLast() {
+            if expanded {
+                var result: Set<GraphDependency> = []
+                if case let .xcframework(xcframework) = node, includes(xcframework) {
+                    result.insert(node)
+                }
+                if !terminal(node) {
+                    for child in graph.dependencies[node, default: []] {
+                        if let childResult = cache[child] {
+                            result.formUnion(childResult)
+                        }
                     }
                 }
+                cache[node] = result
+                continue
             }
-            cache[node] = result
+            guard cache[node] == nil, visited.insert(node).inserted else { continue }
+            stack.append((node, true))
+            guard !terminal(node) else { continue }
+            for child in graph.dependencies[node, default: []] where cache[child] == nil {
+                stack.append((child, false))
+            }
         }
 
         // Combine the root's children's cached sets. The root itself never matches `includes`

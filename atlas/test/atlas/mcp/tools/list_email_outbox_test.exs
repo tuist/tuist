@@ -6,14 +6,14 @@ defmodule Atlas.MCP.Tools.ListEmailOutboxTest do
   alias Atlas.MCP.Tools.ListEmailOutbox
 
   test "lists deliveries and support replies" do
-    delivery = insert_delivery!(%{recipient_email: "billing@acme.example"})
+    delivery = insert_delivery!(%{recipient_email: "billing@acme.example", cc_emails: ["cto@acme.example"]})
     thread = insert_support_thread!(%{subject: "Cache misses on CI"})
     reply = insert_support_reply!(thread)
 
     assert {:ok, %{emails: emails, count: 2, total_count: 2}} =
              execute_tool(ListEmailOutbox, executive_mcp_conn(), %{})
 
-    assert %{kind: "direct", to_emails: ["billing@acme.example"], status: "sent"} =
+    assert %{kind: "direct", to_emails: ["billing@acme.example"], cc_emails: ["cto@acme.example"], status: "sent"} =
              Enum.find(emails, &(&1.id == delivery.id))
 
     assert %{kind: "support_reply", subject: "Re: Cache misses on CI", support_thread_id: thread_id} =
