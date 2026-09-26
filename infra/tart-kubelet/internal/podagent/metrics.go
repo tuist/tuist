@@ -204,7 +204,8 @@ var cacheVolumeConvergedTotal = prometheus.NewCounter(
 // result is "converged", "current" (nothing to adopt), "recent" (a resident
 // master close enough to the HEAD is left in place), "yielded" (a job landed
 // and the download paused), "too_large" (larger than the volume can keep),
-// "no_room" (no space without evicting what it may not), "unverifiable" (the
+// "no_room" (no space without evicting what it may not), "active_masters" (no
+// space without evicting a master used in the last 12 hours), "unverifiable" (the
 // object does not reproduce the HEAD's digest), "expired" (queued past its
 // download URL) or "failed".
 var cacheVolumeConvergeTotal = prometheus.NewCounterVec(
