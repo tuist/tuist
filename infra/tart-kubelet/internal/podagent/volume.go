@@ -684,6 +684,18 @@ func joinFallback(err, fallbackErr error) error {
 // head.Generation > this; a promote installs its branch only when the accepted
 // generation exceeds this. Both comparisons are against the same monotonic
 // counter the server assigns, so the local master and the HEAD stay on one scale.
+// MasterInstalledAt reports when the (account, volume) master was last installed,
+// by a promote or a convergence: the mtime of its generation sidecar, which only
+// InstallMaster writes. The image's own mtime is touched on every materialize
+// for LRU, so it says when the master was last used, not how old it is.
+func (m *VolumeManager) MasterInstalledAt(account, volume string) (time.Time, error) {
+	info, err := os.Stat(m.masterGenerationPath(account, volume))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
 func (m *VolumeManager) MasterGeneration(account, volume string) (int, error) {
 	if volume == "" {
 		volume = ReservedTuistCacheVolume

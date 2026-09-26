@@ -268,21 +268,31 @@ fleet_prefix_mask() {
 # would shift the rest. A port in a lag takes the
 # lag's name as its description, which is what the controller writes, and its
 # VLANs are the lag's. A port that names no VLANs carries every site VLAN
-# tagged, which is what the controller does with a port on its `All` profile.
+# tagged, which is what the controller does with a port on its `All` profile,
+# except the VLANs `carried_by` the edges: those are tagged only on the ports
+# facing an edge node's data links and on the ISL, so traffic between the two
+# edges stays on the switches that join them.
 fleet_port_settings() {
   local site_file="$1" device="$2" spec="$3"
   jq -r --argjson d "$device" --argjson spec "$spec" '
-    ([.vlans[]?.id]) as $site_vlans |
+    ([.vlans[]? | select(.carried_by == null) | .id]) as $site_vlans |
+    ([.vlans[]? | select(.carried_by == "edges") | .id]) as $edge_vlans |
+    ([.nodes[]? | select(.role == "edge") | .links[] |
+      select(.purpose == "data" and .switch == $d.name and .port != null) | .port]) as $edge_ports |
     ($d.lags // []) as $lags |
     $spec.port_groups[] as $g |
     range($g.first; $g.last + 1) as $n |
     ($d.ports[($n | tostring)] // {}) as $p |
     ([$lags[] | select(.ports | index($n))] | first) as $lag |
+    (if $lag then [$lag.ports[]] else [$n] end) as $members |
+    (($members | any(. as $m | $edge_ports | index($m))) or
+      ($members | any(. as $m | $d.ports[($m | tostring)].purpose == "isl"))) as $edge_facing |
     [ $g.prefix, $g.unit, ($n | tostring),
       (if $lag then ($lag.name // "lag\($lag.id)") else ($p.description // "") end),
       ((if $p | has("spanning_tree") then $p.spanning_tree else true end) | tostring),
       (if $lag then ($lag.id | tostring) else "" end),
-      ((if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) | map(tostring) | join(","))
+      (((if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) +
+        (if $edge_facing then $edge_vlans else [] end)) | unique | map(tostring) | join(","))
     ] | join("\u001f")
   ' "$site_file"
 }
@@ -318,10 +328,13 @@ fleet_render() {
 
   printf '%s\n#\n' "$(jq -r '.banner' <<<"$spec")"
   printf 'vlan %s\n name "%s"\n#\n' "$vlan" "$vlan_name"
-  local id vlan_label
+  # An edge VLAN exists only on a switch that tags it somewhere.
+  local id vlan_label carried
+  carried="$(fleet_port_settings "$site_file" "$device" "$spec" | cut -d$'\x1f' -f7 | tr ',' '\n' | sort -u | tr '\n' ' ')"
   while IFS=$'\t' read -r id vlan_label; do
     printf 'vlan %s\n name "%s"\n#\n' "$id" "$vlan_label"
-  done < <(jq -r '.vlans[]? | "\(.id)\t\(.name)"' "$site_file")
+  done < <(jq -r --arg carried " $carried" '.vlans[]? | .id as $id |
+    select(.carried_by == null or ($carried | contains(" \($id) "))) | "\(.id)\t\(.name)"' "$site_file")
   printf 'hostname "%s"\n' "$name"
   printf 'serial_port baud_rate %s\n#\n' "$baud"
   printf 'no system-time dst\n#\n'
@@ -357,7 +370,16 @@ fleet_render() {
     printf 'interface port-channel %s\n  description "%s"\n  spanning-tree\n' "$lag" "$lag_name"
     for v in ${tagged//,/ }; do printf '  switchport general allowed vlan %s tagged\n' "$v"; done
     printf '#\n'
-  done < <(jq -r --argjson d "$device" '[.vlans[]?.id] as $site_vlans | $d.lags[]? | "\(.id)\t\(.name // "lag\(.id)")\t\((.vlans // $site_vlans) | map(tostring) | join(","))"' "$site_file")
+  done < <(jq -r --argjson d "$device" '
+    ([.vlans[]? | select(.carried_by == null) | .id]) as $site_vlans |
+    ([.vlans[]? | select(.carried_by == "edges") | .id]) as $edge_vlans |
+    ([.nodes[]? | select(.role == "edge") | .links[] |
+      select(.purpose == "data" and .switch == $d.name and .port != null) | .port]) as $edge_ports |
+    $d.lags[]? |
+    ((.ports | any(. as $m | $edge_ports | index($m))) or
+      (.ports | any(. as $m | $d.ports[($m | tostring)].purpose == "isl"))) as $edge_facing |
+    "\(.id)\t\(.name // "lag\(.id)")\t\(((.vlans // $site_vlans) + (if $edge_facing then $edge_vlans else [] end)) | unique | map(tostring) | join(","))"
+  ' "$site_file")
 
   printf 'end\n'
 }
@@ -583,6 +605,14 @@ fleet_render_k8s() {
   config="$(fleet_port_settings "$site_file" "$device" "$spec" | jq -R -s \
       --slurpfile site "$site_file" --argjson d "$device" '
     $site[0] as $s |
+    (split("\n") | map(select(length > 0) | split("\u001f")) | map({
+      port: (.[2] | tonumber),
+      description: .[3],
+      spanningTree: (.[4] == "true"),
+      nativeVlan: $s.management.vlan,
+      taggedVlans: (.[6] | if . == "" then [] else split(",") | map(tonumber) end)
+    })) as $ports |
+    ([$ports[].taggedVlans[]] | unique) as $carried |
     {
       hostname: $d.name,
       managementVlan: $s.management.vlan,
@@ -591,15 +621,9 @@ fleet_render_k8s() {
       spanningTree: $s.services.spanning_tree,
       lldp: $s.services.lldp,
       snmp: $s.services.snmp,
-      vlans: [$s.vlans[]? | {id, name}],
+      vlans: [$s.vlans[]? | select(.carried_by == null or (.id as $i | $carried | index($i))) | {id, name}],
       lags: [$d.lags[]? | {id, name: (.name // "lag\(.id)"), ports}],
-      ports: (split("\n") | map(select(length > 0) | split("\u001f")) | map({
-        port: (.[2] | tonumber),
-        description: .[3],
-        spanningTree: (.[4] == "true"),
-        nativeVlan: $s.management.vlan,
-        taggedVlans: (.[6] | if . == "" then [] else split(",") | map(tonumber) end)
-      }))
+      ports: $ports
     }')"
   jq -n --argjson d "$device" \
         --arg site "$(jq -r '.site' "$site_file")" \
@@ -693,4 +717,40 @@ fleet_load_logins() {
     # shellcheck disable=SC2034,SC2004  # lib/session.sh's associative array
     SWITCH_LOGIN_ITEMS[$address]="$item"
   done < <(jq -r '.devices[] | select(.adopted) | .mgmt_address' "$site_file")
+}
+
+# The site's cables, one row each, from the same data the switch configurations
+# are rendered from: the node links, the switch ports that face something which
+# is not a node, and the transfer switch each node's power comes from. A cable
+# moved in the site definition shows up here as a changed row. A link carries a
+# status of its own while it is planned on a node that is already installed.
+# Mac minis are RackHosts, not nodes, so their cables are in the tuist chart's
+# rackFleet.hosts rather than here.
+fleet_cable_schedule() {
+  local site_file="$1"
+  printf '# %s cable schedule\n\n' "$(jq -r '.site' "$site_file")"
+  cat <<HEADER
+Rendered by \`mise run rack:fleet render\` from \`sites/$(basename "$site_file")\`. Edit the site
+definition, not this file. Mac minis are RackHosts, in the tuist chart's
+\`rackFleet.hosts\`, and are not listed.
+
+HEADER
+  printf '| From | Port | To | NIC | Media | Purpose | Status |\n'
+  printf '|---|---|---|---|---|---|---|\n'
+  jq -r '
+    (reduce .nodes[]? as $n ({}; .[$n.name] = ($n.status // ""))) as $status |
+    [
+      (.devices[] as $d | ($d.ports // {}) | to_entries[] |
+        {from: $d.name, port: (.key | tonumber), to: .value.peer, nic: "", media: .value.media,
+         purpose: .value.purpose, status: "installed"}),
+      (.nodes[]? as $n | $n.links[] |
+        {from: .switch, port, to: $n.name, nic: (.nic // ""), media: (.media // ""),
+         purpose: (.purpose // "data"), status: (.status // $n.status // "")}),
+      (.nodes[]? | select(.ats != null) |
+        {from: .ats, port: null, to: .name, nic: "psu", media: "power", purpose: "power",
+         status: (if $status[.ats] == "planned" or .status == "planned" then "planned" else .status end)})
+    ] |
+    sort_by(.from, (.port == null), .port, .to) | .[] |
+    "| \(.from) | \(.port // "") | \(.to) | \(.nic) | \(.media) | \(.purpose) | \(.status) |"
+  ' "$site_file"
 }

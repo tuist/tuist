@@ -405,6 +405,13 @@ subjects:
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
+#   * racklinuxhosts update/patch — raise a rack Linux host's
+#     reinstallGeneration, which reinstalls it, set its online field or the
+#     tuist.dev/reboot annotation, and correct its bootMAC. delete — retire a
+#     host the chart no longer declares: the chart keeps a RackLinuxHost it
+#     drops (helm.sh/resource-policy: keep), so without it a retired box's
+#     inventory and Machine stay behind. No create: which boxes a rack has is
+#     the chart's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -424,6 +431,9 @@ rules:
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["racklinuxhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]

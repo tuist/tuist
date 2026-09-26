@@ -8,7 +8,8 @@ image:
   pullPolicy: IfNotPresent
 
 # The site whose edge node this runs on: its files under sites/<site>/, and
-# the tuist.dev/rack-edge=<site> label and taint rack:edge-join gives the node.
+# the tuist.dev/rack-edge=<site> label and taint the node registers with
+# (rackLinuxFleet.roles.edge in the tuist chart).
 site: ""
 
 # Seconds between re-applying the management path, which puts back an address,

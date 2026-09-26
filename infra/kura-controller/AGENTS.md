@@ -77,6 +77,8 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Development
 
+- CPU autosizing observes an instance only when every expected replica has a fresh Ready runtime sample with its initial backfill complete and none of its nodes is marked for evacuation. Exclude the serving donor as well as the joining replica; otherwise a long migration enters the seven-day demand history. Preserve the reservation, historical peaks and scheduling cap while clearing the short sampling window. Routine replication after the initial cycle still counts. Missing runtime/node evidence is not zero usage. Scheduling-cap recovery continues independently; an operator-owned OnDelete hold still requires an operator to recreate a CPU-rejected unscheduled pod after verifying the capped template.
+
 - Run tests with `go test ./...` from this directory.
 - Keep generated CRDs in `infra/helm/tuist/crds/` aligned with API changes.
 - Keep the controller independent from the Scaleway Apple Silicon CAPI provider. Kura endpoint lifecycle is a product workload concern, not a macOS node infrastructure concern.

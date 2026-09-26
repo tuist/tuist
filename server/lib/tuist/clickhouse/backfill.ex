@@ -65,7 +65,7 @@ defmodule Tuist.ClickHouse.Backfill do
   when the backfill starts would copy rows the dual write had already
   delivered, and no bound at all would leave the rows written between the two
   steps on the source alone. Tables with no time column cannot be bounded this
-  way, and are copied whole; see `chunks_for/3` for why that is safe for the
+  way, and are copied whole; see `chunks_for/4` for why that is safe for the
   few tables it applies to.
 
   ## How a table is divided
@@ -77,13 +77,17 @@ defmodule Tuist.ClickHouse.Backfill do
   chunks cannot claim the same row and a resumed run cannot skip one.
 
   A month holding more rows than one chunk should is sliced into equal spans
-  of time; see `slices/2`. And a table listed in `Tables.history_days/1` is
-  copied only over that many days before the cutoff, sliced the same way.
+  of time; see `slices/2`. A slice the destination already holds rows in is
+  sliced finer again, because filling its gaps costs memory on the source in
+  proportion to it; see `slices/3`. And a table listed in
+  `Tables.history_days/1` is copied only over that many days before the
+  cutoff, sliced the same way.
   """
 
   import Ecto.Query
 
   alias Tuist.ClickHouse.Endpoints
+  alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.Tables
   alias Tuist.Environment
   alias Tuist.Repo
@@ -146,37 +150,66 @@ defmodule Tuist.ClickHouse.Backfill do
   #
   # Both still answer to `max_memory_usage`, which is per statement, so more
   # parallelism can at worst fail a chunk rather than the server.
+  #
+  # The block sizes and the insert threads are also what decide how fast the
+  # copy makes parts, and a destination that makes parts faster than it can
+  # merge them rejects every insert into that table, live mirrored writes
+  # included. At 65,536-row blocks on eight threads `build_steps` reached
+  # 7,962 parts in a partition, failed with TOO_MANY_PARTS, and the mirror
+  # lost writes across 26 tables while it lasted. Blocks four times larger on
+  # half the threads make about an eighth as many parts. They stay below
+  # ClickHouse's defaults, which the tables the small blocks were first
+  # chosen for, the retired per-case aggregates, are no longer copied to need.
   @copy_settings [
     max_memory_usage: 8 * 1024 * 1024 * 1024,
     max_threads: 4,
-    max_insert_block_size: 65_536,
-    min_insert_block_size_rows: 65_536,
-    min_insert_block_size_bytes: 64 * 1024 * 1024,
+    max_insert_block_size: 262_144,
+    min_insert_block_size_rows: 262_144,
+    min_insert_block_size_bytes: 128 * 1024 * 1024,
     max_execution_time: 5_400,
-    max_insert_threads: 8,
+    max_insert_threads: 4,
     parallel_view_processing: 1
   ]
 
+  # How long the check after a chunk keeps re-counting the destination before
+  # it believes a shortfall. The copy lands on one replica and the count may
+  # be answered by the other, which fetches new parts in the background:
+  # during production's heaviest copying that replica ran up to 324 seconds
+  # behind, and chunks were recorded short that were whole.
+  @verify_patience_ms to_timeout(minute: 6)
+  @verify_interval_ms to_timeout(second: 15)
+
   # The most rows one chunk may hold before it is sliced, about fifteen to
-  # twenty minutes of copying at the rate production sustained. Two things
-  # set it, and neither is the time limit.
-  #
-  # A chunk that fails part-way is repaired by copying only what the
-  # destination lacks, which holds a hash per destination row for that chunk
-  # in memory. Past a few hundred million rows that no longer fits under
-  # `max_memory_usage`, and a chunk too large to repair is one that can only
-  # be redone by hand.
-  #
-  # And on the tables that are not ordered by time, every chunk reads the
-  # whole table on the source whatever its size, so smaller is not free
-  # either. This keeps `build_files` to a handful of such reads.
+  # twenty minutes of copying at the rate production sustained. On the tables
+  # that are not ordered by time every chunk reads the whole table on the
+  # source whatever its size, so smaller is not free, and this keeps
+  # `build_files` to a handful of such reads.
   @max_chunk_rows 300_000_000
+
+  # The most rows one chunk may hold when the destination already holds some
+  # of them, which is far fewer.
+  #
+  # Such a chunk is filled by copying only what the destination lacks, and
+  # that ships a hash of every destination row in it to the source for a
+  # `GLOBAL NOT IN`, whose set the source holds in memory. The chunks it
+  # meets are ones that are almost entirely present: a month re-checked after
+  # the cutoff moved, or a slice a failed copy had half filled. Production's
+  # September of `gradle_tasks` ran Cloud out of its 8 GiB for one such set,
+  # and four more failed the same way or timed out waiting for Cloud to build
+  # it. At this size the set stays around 2 GiB.
+  @max_gap_fill_rows 20_000_000
 
   @doc """
   Copies every table the destination has, oldest chunk first.
 
   Only tables that already exist on the destination are considered, so the
   schema clone is a hard prerequisite: this will not create anything.
+
+  Given `windows:`, a list of `{from, to}` instants, it repairs instead: for
+  every table with a time column it copies only the rows the destination
+  lacks within those spans, and needs no cutoff. That is for the spans where
+  the mirror is known to have lost writes after the cutoff, such as a deploy
+  or an overloaded destination; parity is what finds any other.
   """
   def run(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
@@ -214,7 +247,15 @@ defmodule Tuist.ClickHouse.Backfill do
     )
   end
 
+  # `windows` repairs rather than copies: see `run/1`.
   defp backfill(source, target, opts) do
+    case Keyword.fetch(opts, :windows) do
+      {:ok, windows} -> repair(source, target, windows, opts)
+      :error -> copy_up_to_cutoff(source, target, opts)
+    end
+  end
+
+  defp copy_up_to_cutoff(source, target, opts) do
     case Keyword.get_lazy(opts, :cutoff, &Environment.clickhouse_backfill_cutoff/0) do
       nil ->
         {:error, :no_cutoff_configured}
@@ -232,10 +273,49 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
-  defp backfill_table(source, target, table, cutoff) do
-    chunks = chunks_for(source, table, cutoff)
-    Logger.info("#{table}: #{length(chunks)} chunk(s)")
+  # Fills the rows the destination lacks within a few known spans of time,
+  # for every table. What moving the cutoff forward did before, it did by
+  # re-checking whole months, and a month of a table the destination already
+  # holds almost all of is what the gap-fill cannot do on the source: it holds
+  # a hash of every destination row in the chunk, and production's September
+  # chunks failed on Cloud's memory limit and socket timeouts. A span of hours
+  # holds few enough rows for that to be cheap.
+  defp repair(source, target, windows, opts) do
+    tables = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
+    Logger.info("Repairing #{length(tables)} table(s) over #{length(windows)} window(s): #{inspect(windows)}")
 
+    results =
+      Enum.map(tables, fn table ->
+        case time_column(source, table) do
+          nil ->
+            Logger.info("#{table}: no time column, so no window can bound it; left to parity")
+            {table, %{copied: 0, skipped: 0, failed: 0}}
+
+          column ->
+            chunks = column |> window_chunks(windows) |> Enum.flat_map(&sized(source, target, table, &1))
+            {table, copy_chunks(source, target, table, chunks)}
+        end
+      end)
+
+    {:ok, Map.new(results)}
+  end
+
+  @doc """
+  The chunks covering the given spans of time over `column`, one per span.
+
+  Public for the same reason as `month_chunks/4`.
+  """
+  def window_chunks(column, windows) do
+    Enum.map(windows, fn {from, to} -> {:range, column, from, to} end)
+  end
+
+  defp backfill_table(source, target, table, cutoff) do
+    chunks = chunks_for(source, target, table, cutoff)
+    Logger.info("#{table}: #{length(chunks)} chunk(s)")
+    copy_chunks(source, target, table, chunks)
+  end
+
+  defp copy_chunks(source, target, table, chunks) do
     Enum.reduce(chunks, %{copied: 0, skipped: 0, failed: 0}, fn chunk, acc ->
       case copy_chunk(source, target, table, chunk) do
         :already_done -> %{acc | skipped: acc.skipped + 1}
@@ -263,15 +343,16 @@ defmodule Tuist.ClickHouse.Backfill do
         copy(source, target, table, chunk, params)
 
         {source_rows, destination_rows} = verify(source, target, table, chunk)
-        finish_chunk(table, chunk, source_rows, destination_rows)
 
-        if source_rows == destination_rows do
-          :ok
-        else
-          # Recorded rather than raised: one mismatched chunk should not stop
-          # the run, and the parity report is what gates the stage.
-          Logger.error("#{table} #{inspect(chunk)}: source #{source_rows} rows, destination #{destination_rows}")
-          :ok
+        case outcome(source_rows, destination_rows) do
+          :done ->
+            finish_chunk(table, chunk, source_rows, destination_rows)
+            :ok
+
+          {:failed, message} ->
+            fail_chunk(table, chunk, message, source_rows: source_rows, destination_rows: destination_rows)
+            Logger.error("#{table} #{inspect(chunk)}: #{message}")
+            {:error, message}
         end
       rescue
         error ->
@@ -292,7 +373,7 @@ defmodule Tuist.ClickHouse.Backfill do
   # that no materialized view feeds and nothing has written to since July.
   # A new table with no time column would not be covered by either argument,
   # which is what the log line is for.
-  defp chunks_for(source, table, cutoff) do
+  defp chunks_for(source, target, table, cutoff) do
     case time_column(source, table) do
       nil ->
         Logger.info("#{table}: no time column, copying whole")
@@ -302,7 +383,7 @@ defmodule Tuist.ClickHouse.Backfill do
       column ->
         column
         |> time_chunks(source, table, cutoff)
-        |> Enum.flat_map(&sized(source, table, &1))
+        |> Enum.flat_map(&sized(source, target, table, &1))
     end
   end
 
@@ -322,8 +403,28 @@ defmodule Tuist.ClickHouse.Backfill do
 
   # A chunk already copied keeps its shape, so a run after this one skips it
   # rather than re-slicing it into keys the ledger has never seen.
-  defp sized(source, table, chunk) do
-    if chunk_done?(table, chunk), do: [chunk], else: slices(chunk, count(source, table, chunk))
+  #
+  # The finer cut for a gap-fill is made one level down, inside the slices
+  # the size limit makes, for the same reason. Those come from the source's
+  # count and so are the same on every run; a half-filled month keeps the
+  # key of the slice that finished and only the other is cut finer. Cutting
+  # the month itself finer would re-open the half that was already done.
+  defp sized(source, target, table, chunk) do
+    if chunk_done?(table, chunk) do
+      [chunk]
+    else
+      rows = count(source, table, chunk)
+      pieces = slices(chunk, rows)
+      rows_per_piece = div(rows, length(pieces))
+
+      Enum.flat_map(pieces, fn piece ->
+        if not chunk_done?(table, piece) and count(target, table, piece) > 0 do
+          slices(piece, rows_per_piece, @max_gap_fill_rows)
+        else
+          [piece]
+        end
+      end)
+    end
   end
 
   @doc """
@@ -336,8 +437,14 @@ defmodule Tuist.ClickHouse.Backfill do
   Equal spans of time rather than of rows, so a busy slice can run over the
   limit; it bounds the typical chunk, not every one.
   """
-  def slices({:range, column, from, to} = chunk, rows) do
-    count = div(rows + @max_chunk_rows - 1, @max_chunk_rows)
+  def slices(chunk, rows), do: slices(chunk, rows, @max_chunk_rows)
+
+  @doc """
+  Like `slices/2`, against `limit` rows per slice rather than the per-chunk
+  limit: the gap-fill's, when the destination already holds rows in it.
+  """
+  def slices({:range, column, from, to} = chunk, rows, limit) do
+    count = div(rows + limit - 1, limit)
 
     if count <= 1 do
       [chunk]
@@ -628,23 +735,72 @@ defmodule Tuist.ClickHouse.Backfill do
   # it expensive: on a table the size of production's it merges the chunk's
   # parts at read time, twice per chunk, for a question that almost always has
   # the same answer either way.
+  # Rows within a day of their TTL are left out of both counts, as parity
+  # leaves them out: the two servers expire rows on their own merge schedules,
+  # so an old chunk of a table with a TTL would otherwise come up short on
+  # every run for rows that are meant to disappear.
   defp verify(source, target, table, chunk) do
-    source_rows = count(source, table, chunk)
-    destination_rows = count(target, table, chunk)
+    ttl = Parity.ttl(target, table)
+    source_rows = count(source, table, chunk, ttl: ttl)
+    destination_rows = settled_count(target, table, chunk, ttl, source_rows)
 
     if source_rows == destination_rows do
       {source_rows, destination_rows}
     else
-      {count(source, table, chunk, collapsed: true), count(target, table, chunk, collapsed: true)}
+      {count(source, table, chunk, collapsed: true, ttl: ttl), count(target, table, chunk, collapsed: true, ttl: ttl)}
     end
+  end
+
+  defp settled_count(target, table, chunk, ttl, expected) do
+    settle(target, table, chunk, ttl, expected, System.monotonic_time(:millisecond) + @verify_patience_ms)
+  end
+
+  defp settle(target, table, chunk, ttl, expected, deadline) do
+    rows = count(target, table, chunk, ttl: ttl)
+
+    if rows >= expected or System.monotonic_time(:millisecond) >= deadline do
+      rows
+    else
+      Process.sleep(@verify_interval_ms)
+      settle(target, table, chunk, ttl, expected, deadline)
+    end
+  end
+
+  @doc """
+  Whether a chunk whose copy returned counts as done.
+
+  Only when the destination holds exactly what the source does. A copy that
+  returned is not one that stored anything: production recorded 155 chunks as
+  done that held no rows at all on the destination, while the statements
+  that were meant to fill them had reported success. Recording a mismatch as
+  done, as this once did on the grounds that parity would catch it, meant the
+  next run skipped those chunks for good. As a failure, the next run fills
+  it, copying only what the destination lacks.
+
+  More rows than the source fails as well, and a retry will not clear it,
+  since nothing is ever removed. That is deliberate: it is a difference only
+  a person can explain, and it stays in the ledger until one does.
+
+  Public for the same reason as `predicate/1`.
+  """
+  def outcome(source_rows, destination_rows) when source_rows == destination_rows, do: :done
+
+  def outcome(source_rows, destination_rows) do
+    {:failed, "the destination holds #{destination_rows} of the source's #{source_rows} rows"}
   end
 
   defp count(endpoint, table, chunk, opts \\ []) do
     final = if Keyword.get(opts, :collapsed, false), do: Tables.final_clause(endpoint, table), else: ""
 
+    unexpired =
+      case Keyword.get(opts, :ttl) do
+        nil -> ""
+        ttl -> " AND (#{ttl}) > now() + INTERVAL 1 DAY"
+      end
+
     result =
       endpoint.repo.query!(
-        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final} WHERE #{predicate(chunk)}",
+        "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final} WHERE #{predicate(chunk)}#{unexpired}",
         [],
         [
           settings: [
@@ -714,11 +870,11 @@ defmodule Tuist.ClickHouse.Backfill do
     )
   end
 
-  defp fail_chunk(table, chunk, message) do
-    update_chunk(table, chunk,
-      status: "failed",
-      error: message,
-      finished_at: DateTime.truncate(DateTime.utc_now(), :second)
+  defp fail_chunk(table, chunk, message, counts \\ []) do
+    update_chunk(
+      table,
+      chunk,
+      [status: "failed", error: message, finished_at: DateTime.truncate(DateTime.utc_now(), :second)] ++ counts
     )
   end
 

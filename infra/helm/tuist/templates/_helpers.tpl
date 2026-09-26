@@ -132,6 +132,10 @@ green-field cluster.
 {{- .Values.rackFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-fleet")) -}}
 {{- end -}}
 
+{{- define "tuist.rackLinuxFleetName" -}}
+{{- .Values.rackLinuxFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-linux")) -}}
+{{- end -}}
+
 {{- define "tuist.buildersFleetName" -}}
 {{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
 {{- end -}}

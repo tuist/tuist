@@ -51,6 +51,9 @@ rules:
       - vultrmachinetemplates
       - rackapplesiliconmachines
       - rackhosts
+      - racklinuxhosts
+      - racklinuxmachines
+      - racklinuxcandidates
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -70,17 +73,31 @@ rules:
       - rackapplesiliconmachines/finalizers
       # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
+      - racklinuxhosts/status
+      # The RackLinuxHost controller holds a deleted host with a finalizer
+      # until it retired the host's Machine, tailnet devices and console key,
+      # and owns the Machine it keeps for the host.
+      - racklinuxhosts/finalizers
+      - racklinuxmachines/status
+      - racklinuxmachines/finalizers
+      # Which host declares each machine a rack boot server listed.
+      - racklinuxcandidates/status
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
-  # The RackHost controller keeps one Machine per rack Mac host, adopts one a
-  # MachineSet made for it, and deletes it when the host is parked or its
-  # MachineHealthCheck asks the owner to remediate it.
+  # The RackLinuxHost and RackHost controllers keep one Machine per rack host,
+  # and delete it when the host is retired (Linux) or parked or remediated
+  # (Mac).
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines]
     verbs: [create, update, patch, delete]
+  # A rack Linux host's rename has its Machine forget the Node it joined
+  # under before, so CAPI records, drains and deletes the one it joins as.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines/status]
+    verbs: [get, update, patch]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so
@@ -174,6 +191,12 @@ rules:
     # read on the single ConfigMap by name.
     resources: [configmaps]
     resourceNames: [cluster-info]
+    verbs: [get]
+  - apiGroups: ["apps"]
+    # The rack Linux kind refuses to join a node while the Cilium agent would
+    # schedule onto it.
+    resources: [daemonsets]
+    resourceNames: [cilium]
     verbs: [get]
 {{- if .Values.macosFleet.tailscaleEgress.enabled }}
 ---
@@ -357,6 +380,32 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
+            - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
+            {{- end }}
+            {{- if .Values.rackLinuxFleet.enabled }}
+            - --rack-linux-fleet-name={{ include "tuist.rackLinuxFleetName" . }}
+            - --rack-linux-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
+            - --rack-linux-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- if .Values.rackLinuxFleet.boot.enabled }}
+            - --rack-linux-install-server-url=http://{{ .Values.rackLinuxFleet.boot.address }}:{{ .Values.rackLinuxFleet.boot.httpPort }}
+            {{- range .Values.rackLinuxFleet.authorizedKeys }}
+            - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.rackLinuxFleet.amt.provisioningExternalSecret.enabled }}
+            - --rack-linux-amt-provisioning-secret-name={{ include "tuist.rackLinuxFleetName" . }}-amt-provisioning
+            {{- range .Values.rackLinuxFleet.amt.products }}
+            - {{ printf "--rack-linux-amt-product=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.rackLinuxFleet.amt.addressRange }}
+            - --rack-linux-amt-address-range={{ . }}
+            {{- end }}
+            {{- with .Values.rackLinuxFleet.amt.gateway }}
+            - --rack-linux-amt-gateway={{ . }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.rackFleet.enabled }}
             - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
             - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
@@ -506,6 +555,7 @@ spec:
             - --tailscale-egress-proxy-group={{ .Values.macosFleet.tailscaleEgress.proxyGroup }}
             - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+            - --tailscale-egress-proxy-tags={{ required "macosFleet.tailscaleEgress.proxyTags is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.proxyTags }}
             {{- end }}
             {{- if .Values.macosFleet.adoptPoolPrefix }}
             # Orphan-reclaim sweep + delete-path pool-prefix fallback.

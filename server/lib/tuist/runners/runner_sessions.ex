@@ -317,10 +317,12 @@ defmodule Tuist.Runners.RunnerSessions do
   `fleet_names` pools since `since`, most first, at most `limit`. A macOS host
   prefetches the cache masters these jobs use, so the next one it is handed can
   start warm.
+
+  `:node_names` limits it to jobs that ran on those Nodes.
   """
-  def recent_demand(fleet_names, %DateTime{} = since, limit)
+  def recent_demand(fleet_names, %DateTime{} = since, limit, opts \\ [])
       when is_list(fleet_names) and is_integer(limit) and limit > 0 do
-    Repo.all(
+    query =
       from(s in RunnerSession,
         where: s.fleet_name in ^fleet_names and s.started_at >= ^since and not is_nil(s.account_id),
         group_by: [s.account_id, s.repository],
@@ -328,7 +330,14 @@ defmodule Tuist.Runners.RunnerSessions do
         limit: ^limit,
         select: %{account_id: s.account_id, repository: s.repository}
       )
-    )
+
+    query =
+      case Keyword.fetch(opts, :node_names) do
+        {:ok, node_names} -> where(query, [s], s.node_name in ^node_names)
+        :error -> query
+      end
+
+    Repo.all(query)
   end
 
   @doc """
