@@ -138,6 +138,14 @@ Catch-up applies with **batched durability** instead of the live paths' per-reco
 
 See `src/sync/` for the pull links and roles, `src/replication/mod.rs` for the membership loop and the peer body streaming shared by every pass, and `src/backfill/` for the pass pipeline.
 
+## Quota Pressure During Segment Rotation
+
+The configured CAS budget is a ceiling, not proof that another segment fits beside RocksDB and upload staging. Before rotating, the store checks filesystem-visible availability and targets the existing two-segment allocation guard plus 1 GiB of metadata headroom. It retires at most eight oldest sealed segments in one call, through the existing metadata deletion, dependency cascade, removal-log invalidation and unlink path. It retains the active writer and at least the supported five-segment ring. If the hard allocation guard still cannot be met, the write returns `disk_full`; open readers can keep unlinked blocks allocated, so logical eviction alone never counts as reclaimed space.
+
+Each retirement first persists the ring state, exactly as ordinary rotation does. A crash or cancellation before cleanup finishes leaves an orphan that startup recovery can finish without truncating files or publishing dangling metadata. The reduced ring ceiling is used by subsequent rotations, backfill capacity/horizon calculations and storage snapshots. It can grow by one segment per rotation once free space exceeds the target by another 1 GiB, never above configuration. This pressure ceiling is process-local and is re-established from actual free space after restart. Existing on-disk and peer formats are unchanged.
+
+Managed manifests reserve staging plus the two-segment guard before their initial 3% index allowance. Metadata-heavy caches can exceed that estimate; pressure reclamation trades oldest cache retention for continued ingestion and replication. A volume too small even for the minimum ring, or too full to commit metadata cleanup, still needs operational headroom.
+
 ## Discovery And Membership
 
 A node finds peers in three ways:

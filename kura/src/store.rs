@@ -181,6 +181,11 @@ pub struct Store {
     tmp_staging_budget: Arc<TmpBudget>,
     data_dir: PathBuf,
     segment_ring_limits: SegmentRingLimits,
+    // The configured ring is a ceiling. Metadata and staging share the quota,
+    // so pressure can reduce the number of segments we can actually retain.
+    disk_pressure_segment_limit: AtomicUsize,
+    #[cfg(test)]
+    disk_available_override: Option<Arc<dyn Fn() -> u64 + Send + Sync>>,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
@@ -1373,6 +1378,9 @@ impl Store {
             tmp_dir: config.tmp_dir.clone(),
             tmp_staging_budget: TmpBudget::new(config.tmp_dir_max_bytes),
             data_dir: config.data_dir.clone(),
+            disk_pressure_segment_limit: AtomicUsize::new(segment_ring_limits.total_segments()),
+            #[cfg(test)]
+            disk_available_override: None,
             segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
@@ -3697,15 +3705,9 @@ impl Store {
         };
 
         if needs_new_segment {
-            let required_bytes = segment_rotation_required_bytes(incoming_size);
-            if let Some(available) = available_disk_bytes(&self.data_dir)
-                && available < required_bytes
-            {
-                return Err(format!(
-                    "{DISK_FULL_MARKER}: insufficient free space for segment rotation: \
-                    {available} bytes available, {required_bytes} required"
-                ));
-            }
+            // Eviction has a large async state machine. Keep it out of the
+            // ordinary append future; allocate it only on actual rotation.
+            Box::pin(self.reclaim_segment_headroom(incoming_size)).await?;
             // Group commit no longer fsyncs each write, so the outgoing active
             // segment may hold un-synced appends; make them durable before it
             // stops being the fsync target.
@@ -3738,6 +3740,7 @@ impl Store {
                 .active()
                 .map(|active| active.segment_id.clone());
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
+            let limits = self.effective_segment_ring_limits();
             // The rotate decision above used a snapshot taken before the
             // state lock; that stays valid because evictions, the only other
             // mutator, never remove the active segment.
@@ -3745,9 +3748,9 @@ impl Store {
                 .mutate_segment_state(|state| {
                     state.push_new(
                         segment.clone(),
-                        self.segment_ring_limits.desired_old_segments,
-                        self.segment_ring_limits.desired_current_segments,
-                        self.segment_ring_limits.desired_new_segments,
+                        limits.desired_old_segments,
+                        limits.desired_current_segments,
+                        limits.desired_new_segments,
                     )
                 })
                 .await?;
@@ -3787,6 +3790,82 @@ impl Store {
             .state
             .active()
             .is_some_and(|active| active.segment_id == segment_id)
+    }
+
+    fn available_segment_disk_bytes(&self) -> Option<u64> {
+        #[cfg(test)]
+        if let Some(available) = &self.disk_available_override {
+            return Some(available());
+        }
+        available_disk_bytes(&self.data_dir)
+    }
+
+    fn effective_segment_ring_limits(&self) -> SegmentRingLimits {
+        SegmentRingLimits::with_total(self.disk_pressure_segment_limit.load(Ordering::Acquire))
+    }
+
+    // Called only under the exclusive segment writer barrier. Reclaim sealed
+    // segments before allocation, while there is still space for the metadata
+    // deletions. Never unlink a segment behind live metadata or touch the active
+    // writer. Persisting retirement first uses the same orphan-recovery protocol
+    // as normal rotation if a write is cancelled or the process crashes.
+    async fn reclaim_segment_headroom(&self, incoming_size: u64) -> Result<(), String> {
+        let required = segment_rotation_required_bytes(incoming_size);
+        let target = required.saturating_add(2 * MAX_SEGMENT_BYTES);
+        let Some(mut available) = self.available_segment_disk_bytes() else {
+            return Ok(());
+        };
+        if available >= target.saturating_add(2 * MAX_SEGMENT_BYTES) {
+            // Recover retention gradually after temporary staging/metadata
+            // pressure subsides, without growing past the configured ceiling.
+            let current = self.disk_pressure_segment_limit.load(Ordering::Acquire);
+            self.disk_pressure_segment_limit.store(
+                current
+                    .saturating_add(1)
+                    .min(self.segment_ring_limits.total_segments()),
+                Ordering::Release,
+            );
+        }
+        // Bound one write's recovery work. A retry can reclaim another batch,
+        // but one oversized upload cannot synchronously empty the entire ring.
+        for _ in 0..8 {
+            if available >= target {
+                break;
+            }
+            let snapshot = self.segment_state_snapshot();
+            let count = snapshot.generations.len();
+            // Preserve the supported ring floor and its three generations.
+            // If even that cannot fit, refuse allocation rather than silently
+            // turning the cache into a single rotating active segment.
+            if count <= SegmentRingLimits::legacy_floor().total_segments() {
+                break;
+            }
+            let Some(candidate) = snapshot.state.next_evictee().cloned() else {
+                break;
+            };
+            if self.is_active_segment(&candidate.segment_id) {
+                break;
+            }
+            if !self
+                .mutate_segment_state(|state| state.remove_segment(&candidate.segment_id))
+                .await?
+            {
+                continue;
+            }
+            self.disk_pressure_segment_limit
+                .fetch_min(count - 1, Ordering::AcqRel);
+            self.evict_segments(vec![candidate]).await?;
+            // An open reader may keep an unlinked file allocated. Check the
+            // filesystem again rather than assuming its logical size was freed.
+            available = self.available_segment_disk_bytes().unwrap_or(available);
+        }
+        if available < required {
+            return Err(format!(
+                "{DISK_FULL_MARKER}: insufficient free space for segment rotation after bounded reclamation: \
+                {available} bytes available, {required} required"
+            ));
+        }
+        Ok(())
     }
 
     /// Records a committed manifest's effective `version_ms` against the
@@ -4005,8 +4084,8 @@ impl Store {
             .sum();
 
         StorageSnapshotData {
-            ring_budget_bytes: self.segment_ring_limits.capacity_bytes(),
-            desired_segment_count: self.segment_ring_limits.total_segments() as u64,
+            ring_budget_bytes: self.effective_segment_ring_limits().capacity_bytes(),
+            desired_segment_count: self.effective_segment_ring_limits().total_segments() as u64,
             live_segment_count: references.len() as u64,
             live_segment_bytes,
             oldest_segment_created_at_ms: references
@@ -7876,7 +7955,7 @@ impl Store {
         let state = &snapshot.state;
         BackfillCapacityInputs {
             segment_count: state.old.len() + state.current.len() + state.new.len(),
-            ring_total_segments: self.segment_ring_limits.total_segments(),
+            ring_total_segments: self.effective_segment_ring_limits().total_segments(),
             next_evictee_stat_ms: state
                 .next_evictee()
                 .map(SegmentReference::effective_max_version_ms),
@@ -9902,6 +9981,17 @@ pub(crate) struct SegmentRingLimits {
 }
 
 impl SegmentRingLimits {
+    fn with_total(total: usize) -> Self {
+        let desired_old_segments = total / 5;
+        let remainder = total - desired_old_segments;
+        let desired_current_segments = remainder / 2;
+        Self {
+            desired_old_segments,
+            desired_current_segments,
+            desired_new_segments: remainder - desired_current_segments,
+        }
+    }
+
     fn legacy_floor() -> Self {
         Self {
             desired_old_segments: DESIRED_OLD_SEGMENTS,
@@ -9924,9 +10014,9 @@ impl SegmentRingLimits {
 ///
 /// The budget is `configured_capacity_bytes` when set, otherwise
 /// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. Either way it is
-/// capped at `CAS_CAPACITY_MAX_DISK_PERCENT` of the filesystem so resident
-/// segments plus the extra segment a rotation appends before evicting the
-/// oldest one can never run the disk full, and floored at the legacy 1/2/2
+/// capped at `CAS_CAPACITY_MAX_DISK_PERCENT` of the filesystem to leave initial
+/// space for metadata and rotation. Actual free space is checked at rotation:
+/// metadata and staging can outgrow that estimate. Floored at the legacy 1/2/2
 /// ring so small disks (or hosts where the filesystem size cannot be
 /// determined) keep the pre-existing behavior. Generations keep the legacy
 /// 1:2:2 old/current/new proportions.
@@ -20775,6 +20865,133 @@ mod tests {
         assert_eq!(
             segment_rotation_required_bytes(3 * MAX_SEGMENT_BYTES),
             3 * MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+    }
+
+    // Keep test files small, but force normal rotations so retirement exercises
+    // the real ring, RocksDB indexes, removal feed and unlink path.
+    async fn seed_pressure_segments(store: &Store, count: usize) -> Vec<ArtifactManifest> {
+        let mut manifests = Vec::new();
+        for index in 0..count {
+            manifests.push(
+                store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "pressure",
+                        &format!("key-{index}"),
+                        "application/octet-stream",
+                        b"payload",
+                    )
+                    .await
+                    .unwrap(),
+            );
+            if index + 1 < count {
+                seal_active_segment(store).await;
+            }
+        }
+        manifests
+    }
+
+    #[tokio::test]
+    async fn disk_pressure_reclaims_sealed_segments_and_recovers_after_restart() {
+        let (_temp, config, mut store) = temp_store_with(|config| {
+            config.cas_capacity_bytes = Some(12 * MAX_SEGMENT_BYTES);
+        });
+        let manifests = seed_pressure_segments(&store, 8).await;
+        let paths: Vec<_> = manifests
+            .iter()
+            .map(|manifest| store.segment_path(manifest.segment_id.as_ref().unwrap()))
+            .collect();
+        store.disk_available_override = Some(Arc::new(move || {
+            // Metadata occupies the rest of the quota; only real unlinking
+            // creates room. Start below the hard two-segment rotation guard.
+            MAX_SEGMENT_BYTES
+                + paths.iter().filter(|path| !path.exists()).count() as u64 * MAX_SEGMENT_BYTES
+        }));
+        let mut writer = store.segment_write_lock.lock().await;
+        let (_, evicted) = store
+            .active_segment(MAX_SEGMENT_BYTES, &mut writer)
+            .await
+            .unwrap();
+        drop(writer);
+        store.evict_segments(evicted).await.unwrap();
+        assert_eq!(store.effective_segment_ring_limits().total_segments(), 5);
+        assert_eq!(store.backfill_capacity_inputs().ring_total_segments, 5);
+        for manifest in &manifests[..3] {
+            assert!(store.manifest(&manifest.artifact_id).unwrap().is_none());
+            assert!(
+                !store
+                    .segment_path(manifest.segment_id.as_ref().unwrap())
+                    .exists()
+            );
+        }
+        // The active writer was never a reclamation candidate.
+        assert_eq!(read_manifest_bytes(&store, &manifests[7]).await, b"payload");
+        drop(store);
+        let reopened = reopen_store(&config);
+        assert_eq!(reopened.sweep_orphaned_segments().await.unwrap(), 0);
+        for manifest in &manifests[..3] {
+            assert!(reopened.manifest(&manifest.artifact_id).unwrap().is_none());
+        }
+        assert_eq!(
+            read_manifest_bytes(&reopened, &manifests[7]).await,
+            b"payload"
+        );
+        reopened
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "pressure",
+                "after-restart",
+                "application/octet-stream",
+                b"new payload",
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn disk_pressure_bounds_reclamation_and_never_deletes_active_writer() {
+        let (_temp, _config, mut store) = temp_store_with(|config| {
+            config.cas_capacity_bytes = Some(20 * MAX_SEGMENT_BYTES);
+        });
+        let manifests = seed_pressure_segments(&store, 16).await;
+        // Models unlinked files still pinned by readers, or metadata occupying
+        // the quota: deleting a cache entry need not make blocks available.
+        store.disk_available_override = Some(Arc::new(|| 0));
+        let error = store.reclaim_segment_headroom(1).await.unwrap_err();
+        assert!(error.contains(DISK_FULL_MARKER));
+        assert_eq!(store.segment_state_snapshot().generations.len(), 8);
+        assert!(
+            store
+                .reclaim_segment_headroom(1)
+                .await
+                .unwrap_err()
+                .contains(DISK_FULL_MARKER)
+        );
+        assert_eq!(store.segment_state_snapshot().generations.len(), 5);
+        assert_eq!(
+            read_manifest_bytes(&store, manifests.last().unwrap()).await,
+            b"payload"
+        );
+    }
+
+    #[tokio::test]
+    async fn disk_pressure_capacity_recovers_gradually_without_exceeding_ceiling() {
+        let (_temp, _config, mut store) = temp_store_with(|config| {
+            config.cas_capacity_bytes = Some(6 * MAX_SEGMENT_BYTES);
+        });
+        store
+            .disk_pressure_segment_limit
+            .store(5, Ordering::Release);
+        store.disk_available_override = Some(Arc::new(|| 16 * MAX_SEGMENT_BYTES));
+        store.reclaim_segment_headroom(1).await.unwrap();
+        assert_eq!(store.effective_segment_ring_limits().total_segments(), 6);
+        for _ in 0..10 {
+            store.reclaim_segment_headroom(1).await.unwrap();
+        }
+        assert_eq!(
+            store.effective_segment_ring_limits(),
+            store.segment_ring_limits
         );
     }
 

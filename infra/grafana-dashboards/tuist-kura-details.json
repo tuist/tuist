@@ -4639,7 +4639,7 @@
               "transformations": []
             }
           },
-          "description": "Segment count as a percentage of the segment ring's desired total\n\nPrometheus name: `kura_backfill_ring_fullness_percent`",
+          "description": "Segment count as a percentage of the effective segment-ring total. Quota-pressure reclamation can lower the denominator below the configured ceiling; a full ring can therefore represent less retained data. The pressure ceiling is process-local and resets on restart.\n\nPrometheus name: `kura_backfill_ring_fullness_percent`",
           "id": 146,
           "links": [],
           "title": "backfill_ring_fullness_percent",

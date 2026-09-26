@@ -5,6 +5,7 @@ This directory contains ExUnit tests for the Tuist Server.
 ## Testing Guidelines
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
+- Kura manifest budget tests must reserve staging and both 512 MiB segments required by the runtime rotation guard, including small 16 GiB claims and explicit disk envelopes.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.

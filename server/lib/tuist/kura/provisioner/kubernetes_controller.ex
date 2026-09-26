@@ -28,7 +28,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
   # The public host, ingress class and region label are not in the suffixes
   # below, so a change to any of them moves the base.
-  @manifest_revision "2026-09-09-eu-west-region-rename-v1"
+  @manifest_revision "2026-09-26-segment-headroom-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @client_endpoint_fields ~w(publicHost privateHost grpcPublicHost clientHostAliases)
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
@@ -917,12 +917,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # them rather than taking a flat percentage — the tmp budget is a fixed 8 GiB,
   # so a percentage that fits a 50Gi volume overruns a 20Gi one.
   #
-  # Reserves, in order: the staging budget; one extra segment, which a rotation
-  # appends before it evicts the oldest one; and a few percent for the RocksDB
-  # index, which tracks entry count rather than bytes (measured ~1.2% of
-  # resident segment bytes on a production instance, so 3% is slack).
+  # Reserve staging and the runtime's two-segment rotation safety margin.
+  # The 3% index allowance only sets an initial ceiling: metadata-heavy caches
+  # exceed it. The runtime must reclaim against actual quota-visible free space
+  # and report its effective ring capacity rather than treating this estimate
+  # as proof that another segment fits.
   defp cas_capacity_bytes(storage_bytes) do
-    usable = storage_bytes - staging_bytes(storage_bytes) - @kura_max_segment_bytes
+    usable = storage_bytes - staging_bytes(storage_bytes) - 2 * @kura_max_segment_bytes
 
     if usable > 0 do
       budget = div(usable * 97, 100)
