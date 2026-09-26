@@ -244,6 +244,15 @@ type Config struct {
 	// listening on a public IP.
 	NodeExporterBinary []byte
 
+	// HostSensorsBinary is the darwin/arm64 tuist-host-sensors binary
+	// (cross-built in the operator image from infra/macos-host-sensors). A
+	// launchd job runs it every 30 seconds to write the host's temperatures,
+	// fan speeds, power and thermal pressure for node_exporter's textfile
+	// collector. The released node_exporter cannot read Apple silicon's
+	// temperatures on a healthy host, which is why this exists. Empty, or no
+	// NodeExporterBinary to serve the readings, removes the job.
+	HostSensorsBinary []byte
+
 	// LogShipperBinary is the darwin/arm64 tuist-log-shipper binary
 	// (cross-built in the operator image from infra/macos-log-shipper).
 	// Installed at /usr/local/bin/tuist-log-shipper under a launchd
@@ -513,6 +522,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installLogShipper(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
 	}
+	// After the log shipper, for the same reason it is last.
+	if err := installHostSensors(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -630,6 +643,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	// a tart-kubelet roll from landing at all.
 	if err := installLogShipper(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install log shipper: %w", err)
+	}
+	if err := installHostSensors(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
 	return hk.Observed(), nil
 }
@@ -755,6 +771,7 @@ func HostConfigHash(cfg Config) string {
 		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
 		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
+		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
@@ -782,6 +799,7 @@ func HostConfigHash(cfg Config) string {
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
 		{"log-shipper-binary", cfg.LogShipperBinary},
+		{"host-sensors-binary", cfg.HostSensorsBinary},
 	} {
 		b.WriteString(bin.name)
 		b.WriteByte('\x00')
@@ -2838,8 +2856,11 @@ done
 }
 
 func renderNodeExporterScript() string {
+	// The textfile collector serves the readings the host sensors job writes
+	// (host_sensors.go). The directory is created here, by the reader, because
+	// a missing directory is a scrape error on a host without that job.
 	return `set -euo pipefail
-sudo mkdir -p /usr/local/bin
+sudo mkdir -p /usr/local/bin ` + hostSensorsDir + `
 sudo tee /usr/local/bin/node_exporter >/dev/null
 sudo chmod 0755 /usr/local/bin/node_exporter
 sudo tee /usr/local/bin/tuist-node-exporter-wrapper >/dev/null <<'WRAPPER'
@@ -2867,6 +2888,8 @@ exec /usr/local/bin/node_exporter \
   --collector.meminfo \
   --collector.netdev \
   --collector.os \
+  --collector.textfile \
+  --collector.textfile.directory=` + hostSensorsDir + ` \
   --collector.time \
   --collector.uname
 WRAPPER

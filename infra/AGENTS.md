@@ -163,6 +163,17 @@ forwards with the token it already holds. Installed and drift-rolled by
 `macosFleet.hostLogs.enabled`. See
 [`macos-log-shipper/AGENTS.md`](macos-log-shipper/AGENTS.md).
 
+### `macos-host-sensors/` — Mac mini hardware sensors
+`tuist-host-sensors`, run by launchd every 30 seconds on every mini, writes the
+host's temperatures, fan speeds, system power and thermal pressure for
+node_exporter's textfile collector, so they ride the existing
+`tuist-macos-node-exporter` scrape. It exists because released node_exporter
+reports no temperature on a healthy Apple silicon host and no fan or power
+reading on macOS at all. It calls IOKit and the SMC through purego rather than
+cgo, which is what lets it cross-build in the operator image like the other host
+binaries. Installed and drift-rolled by `macos-host-bootstrap`. See
+[`macos-host-sensors/AGENTS.md`](macos-host-sensors/AGENTS.md).
+
 ### `registry-router/` — Cloudflare Worker for the Tuist registry path
 Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `registry.tuist.dev`. The ingress hostname is an origin, not a separately advertised registry endpoint.
 

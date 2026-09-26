@@ -7,6 +7,7 @@ on:
       - infra/cluster-api-provider-tuist/**
       - infra/macos-host-bootstrap/**
       - infra/macos-log-shipper/**
+      - infra/macos-host-sensors/**
       - infra/tart-kubelet/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - mise/tasks/capi-scaleway-applesilicon/**
@@ -16,6 +17,7 @@ on:
       - infra/cluster-api-provider-tuist/**
       - infra/macos-host-bootstrap/**
       - infra/macos-log-shipper/**
+      - infra/macos-host-sensors/**
       - infra/tart-kubelet/**
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
       - mise/tasks/capi-scaleway-applesilicon/**
@@ -139,6 +141,37 @@ jobs:
         working-directory: infra/macos-log-shipper
         run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build ./cmd/tuist-log-shipper
 
+  test-macos-host-sensors:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/macos-host-sensors/go.mod
+          cache-dependency-path: infra/macos-host-sensors/go.sum
+      - name: Check formatting (macos-host-sensors)
+        working-directory: infra/macos-host-sensors
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (macos-host-sensors)
+        working-directory: infra/macos-host-sensors
+        run: go test ./...
+      # The sensor reads are darwin-only files, so a Linux vet and test pass
+      # never compiles them. Vet and cross-build for the fleet as well.
+      - name: Vet (macos-host-sensors)
+        working-directory: infra/macos-host-sensors
+        run: |
+          go vet ./...
+          GOOS=darwin GOARCH=arm64 go vet ./...
+      - name: Cross-build for the fleet (darwin/arm64)
+        working-directory: infra/macos-host-sensors
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build ./cmd/tuist-host-sensors
+
   generated:
     # The CRDs the apiserver enforces in every environment are generated from
     # the annotated Go types, but they land in the Helm chart's `crds/`
@@ -174,7 +207,7 @@ jobs:
           echo "Generated CAPI artefacts are up to date"
 
   build:
-    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-tart-kubelet, generated]
+    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-macos-host-sensors, test-tart-kubelet, generated]
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:

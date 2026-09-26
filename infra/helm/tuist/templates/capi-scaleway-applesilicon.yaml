@@ -400,6 +400,9 @@ spec:
             # short-circuit.
             - --tailscale-binaries-path=/opt/tailscale/tailscale-darwin-arm64.tar.gz
             - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
+            # Temperatures, fan speeds, power and thermal pressure, served by
+            # node_exporter's textfile collector (infra/macos-host-sensors).
+            - --host-sensors-binary-path=/opt/host-sensors/tuist-host-sensors-darwin-arm64
             # The bootstrap reads this Secret per Machine reconcile
             # (controller-runtime cache hit, no API round-trip) so a
             # rotated key takes effect on the next reconcile without

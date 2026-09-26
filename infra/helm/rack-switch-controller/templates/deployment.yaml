@@ -15,6 +15,11 @@ spec:
     metadata:
       labels:
         {{- include "rack-switch-controller.labels" . | nindent 8 }}
+      annotations:
+        # The switches' health (internal/telemetry), picked up by
+        # k8s-monitoring's annotation autodiscovery.
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
     spec:
       serviceAccountName: rack-switch-controller
       securityContext:

@@ -177,6 +177,21 @@ k8s-monitoring:
           replacement = "keep"
           action = "replace"
         }
+        // Rack hardware is the one exception that is not derived from alerts.
+        // A rack lives in staging while it is at home, and its hosts are real
+        // machines whose CPU, memory, disks and temperatures are the point of
+        // monitoring them, not a deploy to validate. Both host scrapes mark a
+        // rack host rack_host="true" (tailnet-addressed Linux hosts, and minis
+        // in the rack fleet), so its host metrics survive here as they do in
+        // production. It is a handful of hosts.
+        write_relabel_config {
+          source_labels = ["rack_host", "__name__"]
+          separator = ";"
+          regex = "true;node_.*"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
         // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
         // Keeping only its liveness anchor makes healthy non-production Macs
         // appear to have no VLAN. Retain one series per VLAN, not every NIC.
@@ -604,6 +619,16 @@ k8s-monitoring:
           - node_netstat_Tcp_OutSegs
           - node_netstat_Tcp_RetransSegs
           - node_timex_offset_seconds
+          # Hardware temperatures: CPU package and cores (coretemp), NVMe
+          # drives, and the ACPI and package thermal zones. Virtual machines
+          # rarely expose hardware sensors, so the series come mostly from
+          # bare metal: the rack's own machines and the rented fleets. The
+          # sensor label is what names a coretemp input ("Package id 0",
+          # "Core 4"); the chip names say which driver a chip label is.
+          - node_hwmon_temp_celsius
+          - node_hwmon_sensor_label
+          - node_hwmon_chip_names
+          - node_thermal_zone_temp
       # The allow-list above keeps node_cpu_seconds_total for all CPU modes
       # and every node_network_* series for every interface, but the
       # dashboards/alerts only read mode="idle" and physical devices
@@ -638,6 +663,37 @@ k8s-monitoring:
         rule {
           regex = "__tmp_keep_net_iface"
           action = "labeldrop"
+        }
+      # A rack Linux host joins the cluster at its tailnet address (see
+      # infra/rack-switch-fleet/edge-join.sh), so its node-exporter, which runs
+      # on the host network, is at a 100.64.0.0/10 address that no Pod can
+      # route to. alloy-metrics scraped ber1-edge that way and read up 0
+      # from the moment it joined. The Mac minis hit the same wall and are reached
+      # through an egress Service instead; so is each rack Linux host, which
+      # the CAPI provider fronts with `rack-linux-<host>` in the Tailscale
+      # operator's namespace. Pointing the scrape at that Service keeps the
+      # target in this pipeline, so the host keeps this job, its labels and the
+      # allow-list above, rather than being scraped a second way.
+      #
+      # Only Linux nodes run this DaemonSet. Every other node with an address
+      # in that range is a macOS tart-kubelet node, which has no node-exporter
+      # Pod to match.
+      #
+      # The same match marks the host rack_host="true", which is what keeps its
+      # host metrics through the destination's non-production filter.
+      extraDiscoveryRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_pod_ip", "__meta_kubernetes_pod_node_name"]
+          separator = ";"
+          regex = "100[.](6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])[.][0-9]+[.][0-9]+;(.+)"
+          target_label = "__address__"
+          replacement = "rack-linux-$2.tailscale-operator.svc.cluster.local:9100"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_ip"]
+          regex = "100[.](6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])[.][0-9]+[.][0-9]+"
+          target_label = "rack_host"
+          replacement = "true"
         }
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
@@ -965,6 +1021,13 @@ k8s-monitoring:
       # running (and reporting) exactly when a node is unhealthy, instead of
       # being the thing that gets reaped and wedges the whole pipeline.
       priorityClassName: system-node-critical
+      # Listen on the node's own address (the Pod's host IP, which is the
+      # address alloy-metrics scrapes) instead of on every interface. That
+      # takes nothing away from the scrape. It matters on a rack's edge node,
+      # which is the rack's WAN edge: on every interface, its host metrics
+      # would be served to whatever its WAN port faces.
+      service:
+        listenOnAllInterfaces: false
       # Enable the `cgroups` collector (off by default upstream). It reads
       # /proc/cgroups and exports `node_cgroups_cgroups{subsys_name}` — the
       # live cgroup count per controller.
@@ -1443,6 +1506,15 @@ k8s-monitoring:
             source_labels = ["__meta_kubernetes_service_name"]
             target_label = "instance"
           }
+          // A mini in a rack we own (the CAPI provider labels its egress
+          // Service with the rack fleet's name). rack_host is what keeps its
+          // host metrics through the destination's non-production filter.
+          rule {
+            source_labels = ["__meta_kubernetes_service_label_tuist_dev_fleet"]
+            regex = ".+-rack-fleet"
+            target_label = "rack_host"
+            replacement = "true"
+          }
         }
 
         prometheus.scrape "tuist_macos_node_exporter" {
@@ -1468,9 +1540,15 @@ k8s-monitoring:
         prometheus.relabel "tuist_macos_node_exporter" {
           rule {
             source_labels = ["__name__"]
-            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes"
+            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes|node_textfile_mtime_seconds|node_textfile_scrape_error|macos_sensor_temperature_celsius|macos_fan_(speed|target|max)_rpm|macos_system_power_watts|macos_thermal_pressure_level"
             action = "keep"
           }
+          // macos_* is written by infra/macos-host-sensors and served by
+          // node_exporter's textfile collector: temperatures, fan speeds, power
+          // and thermal pressure, which node_exporter itself cannot read on a
+          // healthy Apple silicon host. node_textfile_mtime_seconds is how old
+          // the sample is, so a stopped sensors job shows as an aging file
+          // rather than as missing series.
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
