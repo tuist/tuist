@@ -645,18 +645,31 @@ defmodule Tuist.Tests.Coverage.History do
     |> Enum.map(fn {row, depth} -> %{git_commit_sha: row.git_commit_sha, depth: depth, committed_at: row.ran_at} end)
   end
 
-  # A commit whose runs skipped tests, all of them carried forward
-  # (`Tuist.Tests.Coverage.Reported`), stands in the trend with its reported
-  # coverage, what a full run would have measured, and compares as a fully
-  # measured commit does; `measured_coverage` keeps what its runs observed.
-  defp with_coverage(%{reported_kind: "reported"} = row) do
+  # A commit whose runs skipped tests stands with its reported coverage and
+  # lines (`Tuist.Tests.Coverage.Reported`): what a full run would have
+  # measured when every skipped test was carried forward, in which case it
+  # compares as a fully measured commit does, and otherwise the part of it
+  # that is confirmed, the lines known to be covered among those that could
+  # be counted (`confirmed: false`, `Commits.confirmed?/1`). `measured_*`
+  # keep what its runs observed.
+  defp with_coverage(%{reported_kind: kind} = row) when kind in ~w(reported partial) do
     Map.merge(row, %{
       coverage: Coverage.percentage(row.reported_covered_lines, row.reported_executable_lines),
-      measured_coverage: Coverage.percentage(row.covered_lines, row.executable_lines)
+      covered_lines: row.reported_covered_lines,
+      executable_lines: row.reported_executable_lines,
+      confirmed: Commits.confirmed?(row),
+      measured_coverage: Coverage.percentage(row.covered_lines, row.executable_lines),
+      measured_covered_lines: row.covered_lines,
+      measured_executable_lines: row.executable_lines
     })
   end
 
-  defp with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
+  defp with_coverage(row),
+    do:
+      Map.merge(row, %{
+        coverage: Coverage.percentage(row.covered_lines, row.executable_lines),
+        confirmed: Commits.confirmed?(row)
+      })
 
   defp effective_partial_schemes(%{reported_kind: "reported"}), do: []
   defp effective_partial_schemes(row), do: row.partial_schemes

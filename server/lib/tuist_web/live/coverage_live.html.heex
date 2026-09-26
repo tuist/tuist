@@ -128,7 +128,10 @@
               <.text_cell :if={branch.pull_request_number == 0} label="—" />
             </:col>
             <:col :let={branch} label={dgettext("dashboard_tests", "Coverage")}>
-              <.coverage_cell covered={branch.covered_lines} executable={branch.executable_lines} />
+              <.coverage_cell
+                covered={branch.covered_lines}
+                executable={branch.executable_lines}
+              />
             </:col>
             <:col :let={branch} label={dgettext("dashboard_tests", "Status")}>
               <.badge_cell

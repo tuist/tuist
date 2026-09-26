@@ -205,20 +205,20 @@
             }
             value={format_number(displayed_lines(@summary).executable_lines)}
           />
-          <.widget
-            id="widget-files-without-data"
-            title={dgettext("dashboard_tests", "Files without coverage data")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Source files Git tracks at that commit that no scheme compiled, so they are missing from the total."
-              )
-            }
-            value={format_number(@summary.unmeasured_files_count)}
-          />
         </div>
       </.card_section>
     </.card>
+
+    <.coverage_sources_card
+      :if={@tab == "overview" and coverage_breakdown?(@summary)}
+      summary={@summary}
+      ran_tests_count={@ran_tests_count}
+      commit_href={
+        fn sha ->
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{sha}"
+        end
+      }
+    />
 
     <.files_coverage_card
       :if={@tab == "overview"}

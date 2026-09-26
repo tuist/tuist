@@ -11,6 +11,7 @@ defmodule TuistWeb.Coverage.Components do
   import TuistWeb.Components.EmptyCardSection
 
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Commits
 
   attr :title, :string, required: true
   attr :get_started_href, :string, default: nil
@@ -195,19 +196,21 @@ defmodule TuistWeb.Coverage.Components do
   def short_sha(sha), do: String.slice(sha || "", 0, 7)
 
   @doc """
-  The figure a commit is shown with: its reported coverage when everything its
-  runs skipped was carried forward (what a full run would measure), and what
-  the runs measured otherwise.
+  The figure a commit is shown with: its reported coverage once its runs
+  skipped tests, what a full run would measure when every one of them was
+  carried forward and the confirmed part of it otherwise (the lines known to
+  be covered among those that could be counted), and what the runs measured
+  when nothing was skipped.
   """
-  def displayed_coverage(%{reported: %{kind: "reported", coverage: coverage}}), do: coverage
+  def displayed_coverage(%{reported: %{kind: kind, coverage: coverage}}) when kind in ~w(reported partial), do: coverage
   def displayed_coverage(%{coverage: coverage}), do: coverage
 
+  @doc "Whether the whole of a commit's figure is confirmed (`Tuist.Tests.Coverage.Commits.confirmed?/1`)."
+  def confirmed?(summary), do: Commits.confirmed?(summary)
+
   @doc "The line totals behind `displayed_coverage/1`, from a commit's published summary (nil when there is none)."
-  def displayed_lines(%{
-        reported_kind: "reported",
-        reported_covered_lines: covered,
-        reported_executable_lines: executable
-      }), do: %{covered_lines: covered, executable_lines: executable}
+  def displayed_lines(%{reported_kind: kind, reported_covered_lines: covered, reported_executable_lines: executable})
+      when kind in ~w(reported partial), do: %{covered_lines: covered, executable_lines: executable}
 
   def displayed_lines(%{covered_lines: covered, executable_lines: executable}),
     do: %{covered_lines: covered, executable_lines: executable}
@@ -760,4 +763,248 @@ defmodule TuistWeb.Coverage.Components do
   defp metric_color("coverage"), do: "var:noora-chart-primary"
   defp metric_color("covered_lines"), do: "var:noora-chart-secondary"
   defp metric_color("executable_lines"), do: "var:noora-chart-tertiary"
+
+  attr :summary, :map, required: true, doc: "A commit's summary with its `reported` figure."
+  attr :ran_tests_count, :integer, default: 0, doc: "How many tests the commit's runs executed."
+  attr :commit_href, :any, required: true, doc: "A commit's page, from its SHA."
+
+  @doc """
+  Where a commit's coverage comes from, as one bar over its executable lines:
+  what its own runs measured, what was reused from an ancestor for the tests
+  they skipped, and the rest, which is unknown when some skipped test could
+  not be reused and simply not covered otherwise. What is unknown has no
+  line count, so it is counted in tests. It explains the one commit and
+  compares nothing.
+  """
+  def coverage_sources_card(assigns) do
+    assigns = assign(assigns, :sources, coverage_sources(assigns.summary))
+
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Coverage breakdown")}
+      icon="git_commit"
+      data-part="sources-card"
+    >
+      <.card_section data-part="sources-section">
+        <.chart
+          id="coverage-sources-chart"
+          type="bar"
+          extra_options={sources_chart_options()}
+          series={sources_chart_series(@sources)}
+          x_axis_min={0}
+          x_axis_max={max(@sources.executable, 1)}
+        />
+      </.card_section>
+      <.card_section data-part="sources-details-section">
+        <div data-part="metadata-row">
+          <div :if={@ran_tests_count > 0} data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Tests ran")}</div>
+            <span data-part="value">{format_number(@ran_tests_count)}</span>
+          </div>
+          <div :if={@sources.reused > 0} data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Skipped tests reused")}</div>
+            <span data-part="value">{format_number(@sources.reused)}</span>
+          </div>
+          <div :if={@sources.carried_from != []} data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Reused from")}</div>
+            <span data-part="value">
+              <.git_commit />
+              <.link
+                :for={sha <- @sources.carried_from}
+                navigate={@commit_href.(sha)}
+                data-part="commit-link"
+              >
+                {short_sha(sha)}
+              </.link>
+            </span>
+          </div>
+          <div :if={unknown?(@sources)} data-part="metadata">
+            <div data-part="title">
+              {dgettext("dashboard_tests", "Unknown")}
+              <.tooltip
+                id="coverage-sources-unknown-tooltip"
+                title={dgettext("dashboard_tests", "Unknown")}
+                description={sources_note(@sources)}
+                size="large"
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs}>
+                    <.alert_circle />
+                  </span>
+                </:trigger>
+              </.tooltip>
+            </div>
+            <span data-part="value">{unknown_caption(@sources)}</span>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  @doc """
+  Whether a commit's figure needs its coverage broken down: some of it was
+  reused from an ancestor, or some of it is unknown (`Commits.confirmed?/1`).
+  A commit whose tests all ran here has nothing to break down.
+  """
+  def coverage_breakdown?(summary) do
+    sources = coverage_sources(summary)
+    sources.reused_lines > 0 or unknown?(sources)
+  end
+
+  @doc """
+  A commit's covered lines split by where they come from, and its skipped
+  tests by whether their coverage could be reused. Lines reused are the
+  reported figure's beyond what the runs measured.
+  """
+  def coverage_sources(%{reported: %{kind: kind} = reported} = summary) when kind in ~w(reported partial) do
+    measured = min(summary.covered_lines, reported.covered_lines)
+
+    %{
+      kind: kind,
+      confirmed: kind == "reported",
+      measured: measured,
+      reused_lines: reported.covered_lines - measured,
+      uncovered: max(reported.executable_lines - reported.covered_lines, 0),
+      executable: reported.executable_lines,
+      skipped: reported.skipped_tests_count,
+      reused: reported.carried_tests_count,
+      unknown: max(reported.skipped_tests_count - reported.carried_tests_count, 0),
+      gap_files: reported.gap_files_count,
+      carried_from: reported.carried_from
+    }
+  end
+
+  def coverage_sources(summary) do
+    %{
+      kind: if(summary[:reported], do: summary.reported.kind, else: "measured"),
+      confirmed: Map.get(summary, :partial_schemes, []) == [],
+      measured: summary.covered_lines,
+      reused_lines: 0,
+      uncovered: max(summary.executable_lines - summary.covered_lines, 0),
+      executable: summary.executable_lines,
+      skipped: 0,
+      reused: 0,
+      unknown: 0,
+      gap_files: 0,
+      carried_from: []
+    }
+  end
+
+  defp share(_lines, executable) when executable in [nil, 0], do: 0.0
+  defp share(lines, executable), do: Float.round(lines * 100 / executable, 1)
+
+  defp unknown?(sources), do: sources.unknown > 0 or sources.gap_files > 0 or not sources.confirmed
+
+  # The stacked bar of the run page's Module Cache tab, over the commit's
+  # executable lines.
+  defp sources_chart_options do
+    %{
+      tooltip: %{trigger: "axis", axisPointer: %{type: "none"}},
+      legend: %{
+        left: "-0.3%",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-primary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        icon:
+          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+        itemWidth: 8,
+        itemHeight: 4
+      },
+      grid: %{width: "99%", left: "0%", height: "60%", top: "0%"},
+      xAxis: %{type: "value", axisLabel: %{show: false}, splitLine: %{show: false}},
+      yAxis: %{type: "category", data: [dgettext("dashboard_tests", "Executable lines")], axisLabel: %{show: false}}
+    }
+  end
+
+  defp sources_chart_series(sources) do
+    segments = [
+      {dgettext("dashboard_tests", "Covered here"), sources.measured, "var:noora-chart-legend-primary"},
+      {dgettext("dashboard_tests", "Reused"), sources.reused_lines, "var:noora-chart-legend-secondary"},
+      {if(unknown?(sources),
+         do: dgettext("dashboard_tests", "Not covered or unknown"),
+         else: dgettext("dashboard_tests", "Not covered")
+       ), sources.uncovered, "var:noora-chart-legend-primary-translucent"}
+    ]
+
+    present = segments |> Enum.with_index() |> Enum.filter(fn {{_name, lines, _color}, _index} -> lines > 0 end)
+    first = present |> List.first({nil, nil}) |> elem(1)
+    last = present |> List.last({nil, nil}) |> elem(1)
+
+    segments
+    |> Enum.with_index()
+    |> Enum.map(fn {{name, lines, color}, index} ->
+      %{
+        name: name,
+        type: "bar",
+        stack: "total",
+        emphasis: %{focus: "series"},
+        data: [lines],
+        color: color,
+        itemStyle: %{
+          borderRadius: [
+            if(index == first, do: 5, else: 0),
+            if(index == last, do: 5, else: 0),
+            if(index == last, do: 5, else: 0),
+            if(index == first, do: 5, else: 0)
+          ]
+        }
+      }
+    end)
+  end
+
+  defp unknown_caption(%{unknown: 0, gap_files: 0}), do: dgettext("dashboard_tests", "Skipped tests not listed")
+
+  defp unknown_caption(%{unknown: unknown, gap_files: 0}),
+    do:
+      dngettext("dashboard_tests", "%{count} skipped test not reused", "%{count} skipped tests not reused", unknown,
+        count: unknown
+      )
+
+  defp unknown_caption(%{unknown: 0, gap_files: files}),
+    do:
+      dngettext(
+        "dashboard_tests",
+        "%{count} changed file no run compiled",
+        "%{count} changed files no run compiled",
+        files, count: files)
+
+  defp unknown_caption(%{unknown: unknown, gap_files: files}),
+    do:
+      dgettext("dashboard_tests", "%{tests} · %{files}",
+        tests: unknown_caption(%{unknown: unknown, gap_files: 0}),
+        files: unknown_caption(%{unknown: 0, gap_files: files})
+      )
+
+  # Why part of the figure is unknown, until the fold records the reason per
+  # commit: the conditions a skipped test's coverage has to meet to be reused.
+  defp sources_note(%{kind: "partial", unknown: unknown}) when unknown > 0 do
+    dgettext(
+      "dashboard_tests",
+      "Only the confirmed part is shown: the coverage of %{count} skipped tests could not be carried forward, so the lines they cover are not counted. A skipped test's coverage is carried forward only from an ancestor where it ran with coverage attribution and passed, and only while the code it executed there and the tracked files are unchanged.",
+      count: unknown
+    )
+  end
+
+  defp sources_note(%{kind: "partial"}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Only the confirmed part is shown: files no run compiled here changed since they were last measured, so their lines are not counted."
+      )
+
+  defp sources_note(%{confirmed: false}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Only the confirmed part is shown: some schemes ran selectively and the runs did not list the tests they could have run, so what the skipped tests cover is not counted."
+      )
+
+  defp sources_note(_sources), do: nil
 end

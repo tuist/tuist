@@ -48,6 +48,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, ".noora-alert")
     assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Pending"
     assert has_element?(lv, "#coverage-gap-files-table", "A.swift")
+    refute has_element?(lv, "[data-part='sources-card']")
 
     Commits.signal_complete(project, "b")
 
@@ -138,6 +139,8 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert has_element?(lv, "#coverage-chart")
       assert has_element?(lv, "[data-part='actions'] #coverage-date-range-picker")
       assert render(lv) =~ "?tab=commits"
+
+      refute has_element?(lv, "[data-part='sources-card']")
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
       assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/b']")

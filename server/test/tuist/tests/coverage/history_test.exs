@@ -1,7 +1,11 @@
 defmodule Tuist.Tests.Coverage.HistoryTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  import Ecto.Query
+
+  alias Tuist.Repo
   alias Tuist.Tests.Coverage.History
+  alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -364,6 +368,19 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(back.refs, & &1.name) == ["feature/widgets", "feature/gates"]
       refute back.has_previous_page?
       assert back.has_next_page?
+    end
+
+    test "shows a commit whose runs skipped tests by its reported figure, only its confirmed part when some were not carried",
+         %{project: project} do
+      Repo.update_all(
+        from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == "f"),
+        set: [reported_kind: "partial", reported_covered_lines: 5, reported_executable_lines: 8]
+      )
+
+      assert %{coverage: 62.5, covered_lines: 5, executable_lines: 8, confirmed: false, measured_coverage: 75.0} =
+               Enum.find(History.refs(project).refs, &(&1.git_commit_sha == "f"))
+
+      assert %{confirmed: true} = Enum.find(History.refs(project).refs, &(&1.git_commit_sha == "m"))
     end
 
     test "lists a branch by its newest commit up to the period's end", %{project: project, account: account} do
