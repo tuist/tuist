@@ -34,6 +34,75 @@
     gap: var(--noora-spacing-4);
   }
 
+  & [data-part="sources-section"] > .noora-chart {
+    height: 62px;
+  }
+
+  & [data-part="sources-details-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  /* The run page's metadata row. */
+  & [data-part="sources-details-section"] > [data-part="metadata-row"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="metadata"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="title"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+        & [data-part="trigger"] {
+          display: flex;
+          cursor: pointer;
+
+          & > svg {
+            width: var(--noora-icon-size-medium);
+            height: var(--noora-icon-size-medium);
+          }
+        }
+      }
+
+      & > [data-part="value"] {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > svg {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+          color: var(--noora-surface-label-secondary);
+        }
+
+        & > [data-part="commit-link"] {
+          color: var(--noora-surface-label-primary);
+          text-decoration: none;
+
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+    }
+  }
+
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
@@ -97,8 +166,9 @@
 
   /* A widget's tooltip opens inside the widget, so neither the widget nor
      the section holding widgets may clip it; widgets never overflow
-     sideways. */
-  & .noora-card__section:has(> [data-part="widgets"]) {
+     sideways. The same goes for the coverage breakdown's Unknown tooltip. */
+  & .noora-card__section:has(> [data-part="widgets"]),
+  & .noora-card__section[data-part="sources-details-section"] {
     overflow: visible;
   }
 

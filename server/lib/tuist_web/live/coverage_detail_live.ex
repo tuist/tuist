@@ -230,16 +230,20 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp tab(subject, value), do: if(value in tabs(subject), do: value, else: "overview")
 
-  defp assign_overview(%{assigns: %{selected_project: project, subject: subject}} = socket) do
-    [{files, _count}, unmeasured] =
+  defp assign_overview(%{assigns: %{selected_project: project, subject: subject, summary: summary}} = socket) do
+    # The tests that ran are only read for the card that breaks the
+    # coverage down.
+    [{files, _count}, unmeasured, ran_tests] =
       Tuist.Tasks.parallel_tasks([
         fn -> Commits.list_files(project.id, subject.sha, 1, @highlight_size) end,
-        fn -> unmeasured_files(project, subject.sha, @highlight_size) end
+        fn -> unmeasured_files(project, subject.sha, @highlight_size) end,
+        fn -> if coverage_breakdown?(summary), do: Commits.ran_tests_count(project.id, summary.test_run_ids), else: 0 end
       ])
 
     socket
     |> assign(:least_covered_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
     |> assign(:unmeasured_files, unmeasured)
+    |> assign(:ran_tests_count, ran_tests)
     |> assign_analytics()
   end
 

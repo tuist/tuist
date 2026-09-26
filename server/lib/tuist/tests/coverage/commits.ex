@@ -35,6 +35,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
+  alias Tuist.Tests.TestCaseRun
 
   @doc """
   Schedules the commit's totals to be republished after a run reported
@@ -58,6 +59,20 @@ defmodule Tuist.Tests.Coverage.Commits do
   """
   def fully_carried?(%{reported_kind: "reported", schemes: []}), do: true
   def fully_carried?(_row), do: false
+
+  @doc """
+  Whether a commit's coverage figure can be confirmed: its runs ran every
+  test they listed, or every test they skipped had its coverage carried
+  forward and no file went uncounted (`reported`). A commit whose runs
+  skipped tests nothing could be carried for, or left out changed files no
+  run compiled (`partial`), or ran selectively without listing the tests
+  they could have run, has no confirmed figure: what it is missing is
+  unknown, in either direction once files go uncounted.
+  """
+  def confirmed?(%{reported_kind: kind}) when kind in ~w(measured reported), do: true
+  def confirmed?(%{reported_kind: "partial"}), do: false
+  def confirmed?(%{partial_schemes: schemes}), do: schemes == []
+  def confirmed?(_row), do: true
 
   @doc "Whether the commit already has a published coverage row."
   def measured?(_project_id, sha) when sha in [nil, ""], do: false
@@ -734,6 +749,21 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   def reported_figure(_summary), do: nil
+
+  @doc """
+  How many distinct tests the given runs of a commit executed: what its
+  measured coverage was gathered by.
+  """
+  def ran_tests_count(_project_id, []), do: 0
+
+  def ran_tests_count(project_id, test_run_ids) do
+    ClickHouseRepo.one(
+      from(r in TestCaseRun,
+        where: r.project_id == ^project_id and r.test_run_id in ^test_run_ids and not is_nil(r.test_case_id),
+        select: fragment("uniqExact(?)", r.test_case_id)
+      )
+    ) || 0
+  end
 
   @doc """
   The runs that measured the commit and count towards it: one row per run
