@@ -241,6 +241,14 @@ fn main() {
         }
     });
 
+    // Store work that has not returned is reported from a thread of its own:
+    // the maintenance loop above does store work itself, and could be the
+    // thing that is stuck.
+    std::thread::spawn(move || loop {
+        std::thread::sleep(tuist_cas_plugin::proxy::STORE_STALL_CHECK_INTERVAL);
+        proxy.report_stalled_store_work();
+    });
+
     // Endpoint resolution on a tick of its own, shorter than the sweep's: a
     // cache being prepared is asked about every second. `refresh_endpoint`
     // resolves only once its interval has passed.

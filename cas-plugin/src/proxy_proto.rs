@@ -104,6 +104,15 @@ pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
 pub const STATUS_ERROR: u8 = 2;
 
+/// Starts the STATUS_ERROR body of a lookup on a store whose open, or a file
+/// operation in whose directory, has not returned. The plugin answers such a
+/// lookup as a miss and names the cause in its build warning.
+pub const STORE_STALL_ERROR: &str = "cache store access stalled";
+
+/// The STATUS_ERROR body of a request the proxy refused because it was already
+/// handling as many as it takes at once. The plugin answers it as a miss.
+pub const SATURATED_ERROR: &str = "proxy saturated";
+
 pub struct Request {
     pub version: u8,
     pub op: u8,
@@ -201,6 +210,7 @@ impl ProxyClient {
 
     fn connect_with_read_timeout(&self, read_timeout: Duration) -> std::io::Result<UnixStream> {
         let stream = UnixStream::connect(&self.socket_path)?;
+        suppress_sigpipe(&stream)?;
         stream.set_read_timeout(Some(read_timeout))?;
         stream.set_write_timeout(Some(Duration::from_secs(10)))?;
         Ok(stream)
@@ -420,6 +430,35 @@ impl ProxyClient {
     }
 }
 
+/// Makes a write to a proxy that closed the connection fail with EPIPE instead
+/// of raising SIGPIPE. The plugin runs inside compilers, which keep SIGPIPE's
+/// default disposition and would die of it, and the proxy closes connections it
+/// refuses. The standard library sets this on Apple sockets today; it is set
+/// here so the client does not depend on that.
+#[cfg(target_vendor = "apple")]
+fn suppress_sigpipe(stream: &UnixStream) -> std::io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let on: libc::c_int = 1;
+    let failed = unsafe {
+        libc::setsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_NOSIGPIPE,
+            &on as *const libc::c_int as *const libc::c_void,
+            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+        )
+    } != 0;
+    if failed {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(not(target_vendor = "apple"))]
+fn suppress_sigpipe(_stream: &UnixStream) -> std::io::Result<()> {
+    Ok(())
+}
+
 fn publish_wait_payload(record_path: &str, budget: Duration) -> Vec<u8> {
     let millis = u32::try_from(budget.as_millis()).unwrap_or(u32::MAX);
     let mut payload = Vec::with_capacity(4 + record_path.len());
@@ -525,6 +564,67 @@ mod tests {
             u64::from_be_bytes(read.payload.try_into().unwrap()),
             5_368_709_120
         );
+    }
+
+    const SIGPIPE_FIXTURE: &str = "TUIST_CAS_SIGPIPE_FIXTURE";
+
+    /// A compiler loading the plugin keeps SIGPIPE's default disposition, which
+    /// kills the process. A proxy that closes a connection before reading it
+    /// (one refusing it past its limit, or one that exits) must cost the
+    /// compiler a failed request, not its life. Run in a child process, because
+    /// the test harness ignores SIGPIPE.
+    #[test]
+    fn a_proxy_closing_before_it_reads_fails_the_request_without_sigpipe() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "proxy_proto::tests::sigpipe_fixture",
+                "--include-ignored",
+                "--nocapture",
+            ])
+            .env(SIGPIPE_FIXTURE, "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{:?}\n{}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture for a_proxy_closing_before_it_reads_fails_the_request_without_sigpipe"]
+    fn sigpipe_fixture() {
+        if std::env::var(SIGPIPE_FIXTURE).is_err() {
+            return;
+        }
+        unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL) };
+        let dir = std::env::temp_dir().join(format!("tuist-sigpipe-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        let socket = dir.join("proxy.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                drop(stream);
+            }
+        });
+        let client = ProxyClient {
+            socket_path: socket.to_string_lossy().into_owned(),
+        };
+
+        // Larger than a unix socket's buffer, so the write is still in progress
+        // when the proxy closes.
+        let key = vec![0u8; 60_000];
+        let answer = client.resolve("/cas", "", &key);
+        assert!(
+            matches!(&answer, Err(error) if error.contains("Broken pipe")),
+            "{:?}",
+            answer.as_ref().err()
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
