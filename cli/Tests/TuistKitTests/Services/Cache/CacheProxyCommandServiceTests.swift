@@ -1,9 +1,22 @@
 import Foundation
 import Testing
+import TuistCAS
+import TuistEnvironment
+import TuistEnvironmentTesting
 
 @testable import TuistKit
 
 struct CacheProxyCommandServiceTests {
+    @Test(.withMockedEnvironment())
+    func missing_self_hosted_override_starts_local_only() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [:]
+        let endpoint = try await CacheProxyCommandService().remoteEndpoint(
+            serverURL: URL(string: "http://localhost:8080")!, accountHandle: "account"
+        )
+        #expect(endpoint == nil)
+    }
+
     @Test func spawn_startsTheExecutableWithSIGTERMUnblockedFromAConcurrencyThread() async throws {
         let (callerBlocksSIGTERM, processIdentifier) = try await Task.detached {
             var mask = sigset_t()

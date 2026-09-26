@@ -1,11 +1,11 @@
 # Proximity-steered managed cache hostnames
 
 Implements [Atlas spec 95](https://atlas.tuist.dev/engineering/specs/95).
-Chart defaults remain off. Managed overlays prepare DNS infrastructure in all
-three environments. Canary enables eligible accounts on merge. Staging and
-production use the `kura_stable_hostname` FunWithFlags account/global flag as
-the sole rollout control; absent is off. No server environment toggle or
-account-name allowlist is required.
+Chart defaults remain off; managed overlays enable DNS infrastructure. Stable
+DNS intent is published for all eligible managed accounts independently of the
+`kura_stable_hostname` flag. The flag controls only legacy `/endpoints` hand-out;
+new CLIs derive the stable URL locally. See the [activation rollout](../kura-controller/activation.md)
+before releasing those CLIs.
 
 ## Managed rollout on merge
 
@@ -38,35 +38,12 @@ this certificate. The controller independently verifies HTTPS with the stable
 hostname before advertising any endpoint, so pending issuance keeps accounts
 on their regional URLs.
 
-Managed overlays enable the DNS infrastructure. Canary requires no account
-flag. In staging and production, an absent or disabled `kura_stable_hostname`
-flag keeps accounts on regional URLs and creates no stable DNS advertising
-intent. Use the existing `/ops/flags` surface to create the flag
-and enable it for actor `account:<id>`, or use an authorized release console:
-
-```elixir
-account = Tuist.Accounts.get_account_by_handle("example")
-FunWithFlags.enable(:kura_stable_hostname, for_actor: account)
-```
-
-The normal reconciliation loop publishes DNS and observes gateway/provider
-readiness before API responses change; enabling the flag is not an immediate
-traffic cutover. Once the initial accounts are validated, enable the same flag
-for everyone with `FunWithFlags.enable(:kura_stable_hostname)`. Explicit actor
-disables still take precedence; clear those overrides separately if intended.
-No deploy is required for either flag change. New eligible accounts then inherit
-the global setting. For staging, enable only the validation accounts initially.
-Before deploying this change to the existing staging setup, enable the flag for
-`kura-spec95-e2e` and `kura-spec95-health` if those fixtures should remain active;
-the old environment allowlist is no longer read. Without those actor gates,
-reconciliation will safely withdraw their existing stable records.
-
-Disabling an account flag stops hand-out and withdraws its advertising through
-the existing provider-confirmed drain. Follow the rollback ordering below for
-clients with persisted URLs. Disabling the global boolean alone does not revoke
-explicit actor enables; remove all enabling actor/group/percentage gates as
-well when rolling back every account. Canary activation is automatic and does
-not consult the flag; reverting canary requires a code/configuration rollback.
+Managed overlays enable DNS infrastructure. Reconciliation publishes stable
+records for supported public regions and observes TLS/provider readiness.
+Canary hands ready stable URLs to older clients automatically; staging and
+production retain `kura_stable_hostname` for that legacy API behavior only.
+Disabling the flag does not withdraw DNS or disable new clients. The activation
+wildcard must be deployed and validated before shipping a CLI that derives URLs.
 
 ## Bootstrap (operator step, not performed by local validation)
 
@@ -102,10 +79,9 @@ not consult the flag; reverting canary requires a code/configuration rollback.
    Environments share an ACME name set: issue serially, without deleting Secrets.
    Regional ingress TLS stays on its working wildcard while stable TLS is
    pending. Hosts not covered by the wildcard use the per-instance Certificate.
-8. In staging, enable `kura_stable_hostname` through `/ops/flags` for the selected
-   validation account actors. Use the same account-level opt-in for the initial
-   production cohort. Canary is automatically enabled. No separate advertising,
-   hand-out, or account-list environment variables are needed.
+8. To validate legacy endpoint hand-out, enable `kura_stable_hostname` for the
+   selected account actors in `/ops/flags`. Canary hand-out is automatic. This
+   flag does not gate DNS publication and is not consulted by new CLIs.
 9. Reconciliation publishes intent and waits for DNS/TLS readiness before
    returning the stable hostname. A response collapses only when every desired
    region is active and every advertising managed region has fresh,
@@ -187,17 +163,13 @@ selected, preserving archived-account provisioning and legacy fallback.
 
 ## Rollback
 
-Disable `kura_stable_hostname` for the affected account. This immediately stops
-new stable URL hand-out once the flag change reaches each server and requests
-DNS withdrawal on the next reconciliation. There is no separate hand-out-only
-switch. Coordinate refresh of persisted client endpoint configuration before
-withdrawing stable URLs: the drain protects existing connections and cached
-answers for a bounded period, not indefinitely saved configuration.
+Disabling `kura_stable_hostname` changes only legacy hand-out. It is not a
+rollback for new clients and must not remove DNS they use. After release, retain
+working stable DNS and the activation wildcard, or keep affected accounts warm
+while rolling back the gateway/server images. Before CLI release, infrastructure
+can still be rolled back under the existing provider-confirmed drain.
 
-For a full staging/production rollback, disable the global flag and remove any
-enabling actor, group, or percentage gates; a false global gate alone does not
-override explicit actor enables. Canary remains automatically enabled and needs
-a code/configuration rollback instead. Leave the controller, AWS writer, zone
+Leave the controller, AWS writer, zone
 delegation, credentials and solver running. The controller retains the old name
 from status until each regional record is observed absent and its drain elapses.
 Confirm there are no stable DNSEndpoints, provider A records, retained stable

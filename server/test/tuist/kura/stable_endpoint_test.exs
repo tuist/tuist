@@ -30,7 +30,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     :ok
   end
 
-  test "production without the feature flag keeps regional URLs and publishes no stable intent" do
+  test "legacy hand-out stays flagged while stable DNS is published for new clients" do
     account = AccountsFixtures.user_fixture().account
     {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
     server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
@@ -40,9 +40,9 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.resolve(account, [server.url]) == [server.url]
 
     assert StableEndpoint.intent(server, Regions.get(server.region)) == %{
-             "stableHost" => "",
-             "stableAWSRegion" => "",
-             "stableAdvertise" => false
+             "stableHost" => StableEndpoint.host(account),
+             "stableAWSRegion" => Regions.get(server.region).provisioner_config.aws_region,
+             "stableAdvertise" => true
            }
   end
 
@@ -58,7 +58,7 @@ defmodule Tuist.Kura.StableEndpointTest do
       observe(server, account)
       enabled = account.id == opted_in.id
 
-      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"] == enabled
+      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
 
       expected = if enabled, do: ["https://#{account.name}.cache.tuist.dev"], else: [server.url]
       assert StableEndpoint.resolve(account, [server.url]) == expected
@@ -77,7 +77,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}-canary.cache.tuist.dev"]
   end
 
-  test "staging uses the account flag for both intent and hand-out" do
+  test "staging publishes stable DNS independently of legacy hand-out" do
     stub(Environment, :env, fn -> :stag end)
     selected = AccountsFixtures.user_fixture().account
     other = AccountsFixtures.user_fixture().account
@@ -89,7 +89,7 @@ defmodule Tuist.Kura.StableEndpointTest do
       observe(server, account)
       enabled = account.id == selected.id
 
-      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"] == enabled
+      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
 
       expected = if enabled, do: ["https://#{account.name}-staging.cache.tuist.dev"], else: [server.url]
       assert StableEndpoint.resolve(account, [server.url]) == expected
@@ -162,7 +162,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     refute StableEndpoint.retirement_ready?(server, account)
 
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
-    assert StableEndpoint.retirement_ready?(server, account)
+    refute StableEndpoint.retirement_ready?(server, account)
   end
 
   test "collapse waits for every desired region and keeps custom URLs" do
@@ -372,7 +372,7 @@ defmodule Tuist.Kura.StableEndpointTest do
     refute draining["stableAdvertise"]
   end
 
-  test "disabling an account flag stops hand-out and requests withdrawal" do
+  test "disabling legacy hand-out does not withdraw DNS used by new clients" do
     account = AccountsFixtures.user_fixture().account
     {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
     server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
@@ -385,9 +385,9 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.resolve(account, [server.url]) == [server.url]
 
     assert StableEndpoint.intent(server, Regions.get(server.region)) == %{
-             "stableHost" => "",
-             "stableAWSRegion" => "",
-             "stableAdvertise" => false
+             "stableHost" => StableEndpoint.host(account),
+             "stableAWSRegion" => Regions.get(server.region).provisioner_config.aws_region,
+             "stableAdvertise" => true
            }
   end
 

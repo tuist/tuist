@@ -149,6 +149,7 @@ private struct BazelSetupConfiguration {
 public struct BazelSetupCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
+    private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let remoteCacheProbeService: RemoteCacheProbing
     private let fullHandleService: FullHandleServicing
@@ -158,7 +159,8 @@ public struct BazelSetupCommandService {
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .forInteractiveCommands),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
@@ -167,6 +169,7 @@ public struct BazelSetupCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
         self.remoteCacheProbeService = remoteCacheProbeService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
@@ -246,11 +249,18 @@ public struct BazelSetupCommandService {
         }
         let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
 
+        var probeToken = token.value
+        do {
+            probeToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: fullHandle).token
+        } catch GetCacheTokenServiceError.unknownError(404) {
+            // Older self-hosted servers may not implement cache-token exchange.
+        }
+
         try await remoteCacheProbeService.probe(
             endpoint: endpoint,
             accountHandle: accountHandle,
             instanceName: projectHandle,
-            token: token.value
+            token: probeToken
         )
         return BazelSetupConfiguration(
             endpoint: endpoint,
@@ -260,35 +270,15 @@ public struct BazelSetupCommandService {
         )
     }
 
-    /// The account's cache endpoint, or `nil` when it has none serving right now.
-    ///
-    /// Setup still succeeds then, writing a `.bazelrc.tuist` without remote settings: Bazel fails a
-    /// build whose remote cache it cannot reach, so naming no endpoint is what keeps builds running,
-    /// and it replaces a file that names one that is gone. Bazel never asks the credential helper
-    /// about a remote it was not given, so nothing picks the endpoint up until setup runs again.
+    /// Resolve locally, leaving remote caching disabled if a self-hosted endpoint is not configured.
     private func cacheURL(serverURL: URL, accountHandle: String) async throws -> URL? {
         do {
             return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-        } catch let error as CacheURLStoreError where error.isTransientAbsence {
-            let rerun: TerminalText = "Run \(.command("tuist bazel setup")) again in a few minutes to enable them."
-            let warning: WarningAlert = switch error {
-            case .endpointBeingPrepared:
-                .alert(
-                    "The remote cache is still being prepared.",
-                    takeaway: "Bazel builds run without the Tuist remote cache and build insights until it is ready. \(rerun)"
-                )
-            case .noReachableEndpoints:
-                .alert(
-                    "The remote cache is temporarily unavailable.",
-                    takeaway: "Bazel builds run without the Tuist remote cache and build insights. \(rerun)"
-                )
-            case .noEndpointsAvailable, .invalidURL, .forbidden:
-                .alert(
-                    "No remote cache endpoint is available.",
-                    takeaway: "Bazel builds run without the Tuist remote cache and build insights."
-                )
-            }
-            AlertController.current.warning(warning)
+        } catch CacheURLStoreError.missingEndpointOverride {
+            AlertController.current.warning(.alert(
+                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
+                takeaway: "Set the override and run tuist bazel setup again to enable remote caching."
+            ))
             return nil
         }
     }

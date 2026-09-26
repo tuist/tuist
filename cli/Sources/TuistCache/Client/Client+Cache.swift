@@ -36,7 +36,8 @@ extension Client {
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RetryMiddleware(
                     retryableRequestMethods: ["GET"],
-                    retriesTransportErrors: retriesTransportErrors
+                    retriesTransportErrors: retriesTransportErrors,
+                    retriesUnforwardedCacheRequests: true
                 ),
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(

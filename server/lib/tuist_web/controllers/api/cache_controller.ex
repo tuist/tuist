@@ -49,7 +49,9 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "Returns cache endpoints for the requested account.",
+    description:
+      "Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.",
+    deprecated: true,
     operation_id: "getCacheEndpoints",
     parameters: [
       {:account_handle,
@@ -324,7 +326,7 @@ defmodule TuistWeb.API.CacheController do
         {:ok, token, _claims} =
           conn
           |> Authentication.authenticated_subject()
-          |> Cache.issue_cache_token(scope: params[:full_handle])
+          |> Cache.issue_cache_token(scope: params[:full_handle], origin: RemoteIp.origin(conn))
 
         json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
 

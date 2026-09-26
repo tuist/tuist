@@ -25,3 +25,5 @@ This module handles CLI integration with the Tuist Server APIs.
   nullable measurements, and map rate limits to AuthorizationThrottledError with
   Retry-After. Noora presentation and project/account resolution belong to the
   runner command module.
+
+- Keep legacy endpoint discovery in the generated API for older clients. New CLI routing belongs in TuistCAS and derives stable hostnames locally without demand registration.

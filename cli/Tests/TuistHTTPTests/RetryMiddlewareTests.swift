@@ -6,6 +6,90 @@ import Testing
 @testable import TuistHTTP
 
 struct RetryMiddlewareTests {
+    @Test(arguments: [429, 503])
+    func retries_unforwarded_cache_upload_with_intact_body(statusCode: Int) async throws {
+        let subject = RetryMiddleware(
+            maxRetries: 2, baseDelayMilliseconds: 0, retryableRequestMethods: ["GET"],
+            retriesUnforwardedCacheRequests: true
+        )
+        var attempts = 0
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/upload"),
+            body: HTTPBody(Data("artifact".utf8)),
+            baseURL: URL(string: "https://account.cache.tuist.dev")!, operationID: "upload"
+        ) { _, body, _ in
+            attempts += 1
+            let payload = try await Data(collecting: #require(body), upTo: .max)
+            #expect(payload == Data("artifact".utf8))
+            var response = HTTPResponse(status: attempts == 1 ? .init(code: statusCode) : .created)
+            response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = "pending"
+            return (response, nil)
+        }
+        #expect(response.status == .created)
+        #expect(attempts == 2)
+    }
+
+    @Test(arguments: ["", "pending"])
+    func unforwarded_retry_requires_opt_in(marker: String) async throws {
+        let subject = RetryMiddleware(maxRetries: 2, baseDelayMilliseconds: 0, retryableRequestMethods: ["GET"])
+        var attempts = 0
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/upload"), body: nil,
+            baseURL: URL(string: "https://account.cache.tuist.dev")!, operationID: "upload"
+        ) { _, _, _ in
+            attempts += 1
+            var response = HTTPResponse(status: .serviceUnavailable)
+            response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = marker
+            return (response, nil)
+        }
+        #expect(response.status == .serviceUnavailable)
+        #expect(attempts == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func unforwarded_retry_does_not_replay_single_pass_or_committed_upload(singlePass: Bool) async throws {
+        let subject = RetryMiddleware(
+            maxRetries: 2, baseDelayMilliseconds: 0, retryableRequestMethods: ["GET"],
+            retriesUnforwardedCacheRequests: true
+        )
+        let stream = AsyncStream<ArraySlice<UInt8>> { continuation in
+            continuation.yield(ArraySlice("artifact".utf8))
+            continuation.finish()
+        }
+        let body = singlePass ? HTTPBody(stream, length: .unknown) : HTTPBody(Data("artifact".utf8))
+        var attempts = 0
+        _ = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/upload"), body: body,
+            baseURL: URL(string: "https://account.cache.tuist.dev")!, operationID: "upload"
+        ) { _, body, _ in
+            attempts += 1
+            _ = try await Data(collecting: #require(body), upTo: .max)
+            var response = HTTPResponse(status: .serviceUnavailable)
+            if singlePass { response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = "pending" }
+            return (response, nil)
+        }
+        #expect(attempts == 1)
+    }
+
+    @Test func unforwarded_retry_is_bounded() async throws {
+        let subject = RetryMiddleware(
+            maxRetries: 2, baseDelayMilliseconds: 0, retryableRequestMethods: ["GET"],
+            retriesUnforwardedCacheRequests: true
+        )
+        var attempts = 0
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/upload"), body: nil,
+            baseURL: URL(string: "https://account.cache.tuist.dev")!, operationID: "upload"
+        ) { _, _, _ in
+            attempts += 1
+            var response = HTTPResponse(status: .serviceUnavailable)
+            response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = "pending"
+            return (response, nil)
+        }
+        #expect(response.status == .serviceUnavailable)
+        #expect(attempts == 3)
+    }
+
     @Test func does_not_retry_on_success() async throws {
         let subject = RetryMiddleware(maxRetries: 3)
         var callCount = 0

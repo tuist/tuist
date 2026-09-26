@@ -1083,6 +1083,16 @@ var targets: [Target] = [
         path: "cli/Tests/TuistOIDCTests"
     ),
     .testTarget(
+        name: "TuistREAPITests",
+        dependencies: [
+            "TuistREAPI",
+            "TuistEnvironmentTesting",
+            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+        ],
+        path: "cli/Tests/TuistREAPITests"
+    ),
+    .testTarget(
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",

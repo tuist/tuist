@@ -3736,3 +3736,13 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+
+# One global wildcard fallback; explicit account Route53 records take precedence.
+# Enable in one cluster only after validation. No PVCs or Kubernetes API token.
+kuraActivation:
+  enabled: false
+  ingressClassName: nginx
+  servers:
+    production: https://tuist.dev
+    canary: https://canary.tuist.dev
+    staging: https://staging.tuist.dev

@@ -1,8 +1,9 @@
 defmodule Tuist.Kura.StableEndpoint do
   @moduledoc """
-  Managed cache hostname intent and readiness. Advertising and hand-out share
-  one account feature flag. Readiness is a shared, freshness-bounded projection of
-  controller observations; endpoint requests never call Kubernetes or AWS.
+  Managed cache hostname intent and readiness. DNS is published for every
+  supported managed account; the legacy discovery flag controls only hand-out.
+  Readiness is a freshness-bounded projection of controller observations;
+  endpoint requests never call Kubernetes or AWS.
   """
   import Ecto.Query
 
@@ -47,7 +48,7 @@ defmodule Tuist.Kura.StableEndpoint do
   def intent(server, region, claimed \\ nil)
 
   def intent(%Server{account: account} = server, region, claimed) do
-    enabled = enabled_for_account?(account) and supported?(region) and server.move_phase == :none
+    enabled = supported?(region) and server.move_phase == :none
     claimed = if enabled, do: claimed || PlacerRegions.claimed_regions(account), else: []
     stable_host = if server.region in claimed, do: host(account)
 
@@ -132,10 +133,10 @@ defmodule Tuist.Kura.StableEndpoint do
   def retirement_ready?(server, account) do
     stable_host = host(account)
 
-    if enabled_for_account?(account) and stable_host != nil do
-      supported?(Regions.get(server.region)) and ready?(server, stable_host)
-    else
+    if stable_host == nil do
       true
+    else
+      supported?(Regions.get(server.region)) and ready?(server, stable_host)
     end
   end
 

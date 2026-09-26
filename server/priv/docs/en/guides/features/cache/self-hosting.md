@@ -8,7 +8,7 @@
 
 # Self-hosted cache {#self-hosted-cache}
 
-Self-hosted cache nodes let you keep build artifacts and cache metadata close to the machines that produce and consume build outputs. Use them when cache latency matters across CI, developer offices, remote workstations, or regional compute clusters, while keeping endpoint discovery centralized through Tuist.
+Self-hosted cache nodes let you keep build artifacts and cache metadata close to the machines that produce and consume build outputs. Use them when cache latency matters across CI, developer offices, remote workstations, or regional compute clusters, with an explicit cache endpoint configured in the CLI.
 
 The goal is low-latency caching everywhere, not only in the one environment where a central cache happens to be nearby. Each cache node serves reads and writes from local disk, while the mesh replicates artifacts and metadata between peers so other locations can benefit from the same cache over time.
 
@@ -17,9 +17,17 @@ The goal is low-latency caching everywhere, not only in the one environment wher
 
 ## How self-hosted cache fits with Tuist {#how-self-hosted-cache-fits-with-tuist}
 
-The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
+New Tuist CLIs derive managed cache URLs from the account handle, for example `https://acme.cache.tuist.dev`. To use self-hosted cache nodes, set an explicit endpoint in developer shells and CI:
 
-A self-hosted Tuist server takes those endpoints from static configuration. On the Tuist-hosted server, nodes authenticate with a credential and register themselves. Deploy a node first with one of the two sections below, then see [Connect nodes to Tuist](#connect-nodes-to-tuist).
+```sh
+export TUIST_CACHE_ENDPOINT=https://cache.example.com
+```
+
+For the Xcode cache daemon, rerun `tuist setup cache` after setting the override so its LaunchAgent receives the updated environment.
+
+This override takes precedence on the hosted server and is required for self-hosted Tuist servers. For multiple nodes, use a load balancer or DNS routing name you operate. The CLI no longer probes individual nodes or chooses the fastest endpoint. Older CLI versions still use `/api/cache/endpoints`; the server retains that deprecated route for compatibility.
+
+For older clients using endpoint discovery, a self-hosted Tuist server takes endpoints from static configuration. On the Tuist-hosted server, nodes authenticate with a credential and register themselves. Deploy a node first with one of the two sections below, then see [Connect nodes to Tuist](#connect-nodes-to-tuist).
 
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 
@@ -34,14 +42,14 @@ helm upgrade --install kura oci://ghcr.io/tuist/charts/kura \
   --set config.region=local
 ```
 
-For a self-hosted Tuist server running in the same cluster, tell the server which cache endpoints to hand to clients:
+For older clients using discovery with a self-hosted Tuist server in the same cluster, configure the endpoints on the server as well:
 
 ```yaml
 server:
   cacheEndpointUrl: "http://kura.kura.svc.cluster.local:4000"
 ```
 
-This renders `TUIST_CACHE_ENDPOINTS` in the server pod. On a self-hosted server the CLI is routed to whatever `TUIST_CACHE_ENDPOINTS` lists, so point it at your Kura service. For multiple nodes, use a comma-separated list.
+This renders `TUIST_CACHE_ENDPOINTS` in the server pod. On a self-hosted server older CLIs discover whatever `TUIST_CACHE_ENDPOINTS` lists, so point it at your Kura service. For multiple nodes, use a comma-separated list.
 
 > [!IMPORTANT]
 > Every Kura node must own its own `KURA_DATA_DIR`. Kura takes an application-level writer lock on the data directory and expects exactly one process to own it. In Kubernetes, use one persistent volume per pod. Outside Kubernetes, do not point multiple processes at the same mounted directory.
@@ -68,7 +76,7 @@ docker run -d --name kura \
   ghcr.io/tuist/kura:<tag>
 ```
 
-Then configure the Tuist server with the URLs that clients can reach:
+For older CLIs, also configure the Tuist server with the URLs they can reach:
 
 ```bash
 TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
@@ -76,9 +84,9 @@ TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 
 ## Connect nodes to Tuist {#connect-nodes-to-tuist}
 
-Running a node is only half of the setup. Tuist also has to know the node exists before it can hand the endpoint to clients. How that happens depends on which Tuist server you use.
+Registering nodes provides dashboard visibility and preserves endpoint discovery for older clients. How that happens depends on which Tuist server you use.
 
-On a **self-hosted Tuist server**, you declare endpoints statically with `TUIST_CACHE_ENDPOINTS`, as shown in the deployment sections above. The server hands clients exactly what you list.
+On a **self-hosted Tuist server**, you declare endpoints statically with `TUIST_CACHE_ENDPOINTS`, as shown in the deployment sections above. The server hands older clients exactly what you list; new CLIs use `TUIST_CACHE_ENDPOINT`.
 
 On the **Tuist-hosted server**, endpoints are not configured by hand. Each node authenticates with a credential you generate, then registers itself and reports its own liveness. This section covers that flow.
 

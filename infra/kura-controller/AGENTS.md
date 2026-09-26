@@ -130,3 +130,7 @@ references after deletion and rejects reusing them for days. Adopt both legacy
 and suffixed checks by box identity, keep the same reference across ambiguous
 create retries and stale lists after success. Release the reference after
 confirmed collection, or rotate it after a definite AlreadyExists response.
+
+## Shared cold activation
+
+The controller image also packages the stateless `cmd/cache-activation` gateway, deployed separately with no Kubernetes credentials or volumes. See [`internal/activation/AGENTS.md`](internal/activation/AGENTS.md) for its security and streaming boundaries and [`activation.md`](activation.md) for the disabled-by-default rollout.

@@ -22,14 +22,11 @@ public protocol CacheConfigCommandServicing {
 }
 
 public struct CacheConfigCommandService: CacheConfigCommandServicing {
-    /// The status the command exits with while the account's remote cache is being prepared and has
-    /// no endpoint yet (`EX_TEMPFAIL`). The compilation-cache proxy asks again sooner on it.
-    public static let endpointBeingPreparedExitCode: Int32 = 75
-
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
+    private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
@@ -38,6 +35,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
@@ -46,6 +44,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
@@ -78,23 +77,21 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             throw CacheConfigCommandServiceError.missingFullHandle
         }
 
-        let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
+        var token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
-        let cacheURL: URL
+        let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
+
         do {
-            cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
-        } catch CacheURLStoreError.endpointBeingPrepared {
-            if !json {
-                Noora.current.error(.alert("The remote cache is being prepared and has no endpoint yet."))
-            }
-            throw ExitCode(Self.endpointBeingPreparedExitCode)
+            token = try await getCacheTokenService.getCacheToken(serverURL: resolvedServerURL, fullHandle: resolvedFullHandle)
+                .token
+        } catch GetCacheTokenServiceError.unknownError(404) {
+            // Older self-hosted servers may not implement cache-token exchange.
         }
-        let endpoints = try await cacheURLStore.getCacheEndpoints(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,
-            endpoints: endpoints.map(\.absoluteString),
+            endpoints: [cacheURL.absoluteString],
             token: token,
             accountHandle: accountHandle,
             projectHandle: projectHandle
@@ -147,7 +144,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
 
 struct CacheConfiguration: Codable {
     let url: String
-    /// Every endpoint the account is served from. `url` is the nearest of them.
+    /// The locally resolved endpoint, retaining the legacy JSON array shape.
     let endpoints: [String]
     let token: String
     let accountHandle: String

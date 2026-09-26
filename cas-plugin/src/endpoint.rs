@@ -10,16 +10,15 @@
 //! how the one that does not gets to.
 //!
 //! Asked of the CLI rather than of the API directly, so "which endpoint" has
-//! one implementation. The CLI already resolves the account's endpoints,
-//! probes them for latency and caches the answer under the freshness the
-//! server sets; a second resolver here would be a second set of rules to keep
-//! in step with it.
+//! one implementation. Current CLIs derive a stable hostname locally or use
+//! an explicit override; older CLIs may still discover regional addresses.
+//! Keep their relocation and preparation compatibility here.
 
 use std::process::Command;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedEndpoint {
-    /// The endpoint the CLI picked by latency.
+    /// The endpoint resolved by the CLI.
     pub url: String,
     /// Every endpoint the server currently serves the account from, or `None`
     /// when the CLI did not report them.
@@ -43,7 +42,7 @@ pub fn same_endpoint(a: &str, b: &str) -> bool {
 }
 
 /// The status `tuist cache config` exits with while the account's cache is
-/// being prepared and has no endpoint yet (`EX_TEMPFAIL`).
+/// being prepared and has no endpoint yet (`EX_TEMPFAIL`, older CLIs only).
 pub const BEING_PREPARED_EXIT_CODE: i32 = 75;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
