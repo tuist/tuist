@@ -265,10 +265,6 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	if err != nil {
 		return err
 	}
-	hash, err := rackinstall.HashPassword(password)
-	if err != nil {
-		return err
-	}
 	hostKey, err := rackinstall.NewHostKey()
 	if err != nil {
 		return err
@@ -278,16 +274,16 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		return err
 	}
 	seed := rackinstall.Seed{
-		Host:           host.Spec.Hostname,
-		Role:           host.Spec.Role,
-		User:           firstNonEmpty(host.Spec.SSHUser, "tuist"),
-		PasswordHash:   hash,
-		AuthorizedKeys: keys,
-		TailnetTags:    host.Spec.Tailnet.Tags,
-		TailnetKey:     key.Key,
-		TailnetKeyID:   key.ID,
-		Built:          now,
-		HostKey:        hostKey,
+		Host:            host.Spec.Hostname,
+		Role:            host.Spec.Role,
+		User:            firstNonEmpty(host.Spec.SSHUser, "tuist"),
+		ConsolePassword: password,
+		AuthorizedKeys:  keys,
+		TailnetTags:     host.Spec.Tailnet.Tags,
+		TailnetKey:      key.Key,
+		TailnetKeyID:    key.ID,
+		Built:           now,
+		HostKey:         hostKey,
 	}
 	userData, err := rackinstall.UserData(seed)
 	if err != nil {

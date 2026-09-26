@@ -41,7 +41,7 @@ EOF
   HOST_JSON='{"name":"ber1-edge-a","role":"edge","sshUser":"tuist","tailnetTags":["tag:tuist-rack-edge"],"vault":"tuist-k8s-staging","sshItem":"BER1_FLEET_SSH","tailscaleItem":"TAILSCALE_RACK_NODES"}'
   printf 'ssh-ed25519 AAAAFLEET fleet\nssh-ed25519 AAAAHUMAN human\n' >"$BATS_TEST_TMPDIR/keys"
   printf 'tskey-auth-kTEST1CNTRL-abc\n' >"$BATS_TEST_TMPDIR/tailnet-key"
-  printf 'console-password\n' >"$BATS_TEST_TMPDIR/password"
+  printf 'c0nsolePassw0rdForTests\n' >"$BATS_TEST_TMPDIR/password"
 }
 
 render() {
@@ -156,12 +156,14 @@ render() {
   [ "$(yq -r '.autoinstall.network.ethernets.uplinks.dhcp4' "$seed")" = true ]
 }
 
-@test "the console password reaches the seed only as a SHA-512 crypt hash" {
+@test "the console password reaches the installed system only through cloud-init, which hashes it there" {
   run render
   [ "$status" -eq 0 ]
   seed="$BATS_TEST_TMPDIR/seed/user-data"
-  [[ "$(yq -r '.autoinstall.identity.password' "$seed")" == '$6$'* ]]
-  if grep -q console-password "$seed"; then false; fi
+  [ "$(yq -r '.autoinstall.identity.password' "$seed")" = '!' ]
+  [ "$(yq -r '.autoinstall.user-data.chpasswd.users[0] | [.name, .password, .type] | join(" ")' "$seed")" = "tuist c0nsolePassw0rdForTests text" ]
+  [ "$(yq -r '.autoinstall.user-data.chpasswd.expire' "$seed")" = false ]
+  [ "$(grep -c c0nsolePassw0rdForTests "$seed")" -eq 1 ]
   [ "$(cat "$BATS_TEST_TMPDIR/seed/meta-data")" = "$(printf 'instance-id: ber1-edge-a-ktest1cntrl\nlocal-hostname: ber1-edge-a')" ]
   [ -f "$BATS_TEST_TMPDIR/seed/vendor-data" ]
 }
