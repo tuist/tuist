@@ -274,8 +274,9 @@ func TestRackInstallPublishesAnInstallForAHostNotOnTheTailnet(t *testing.T) {
 	if len(console.Data[svcUUID]) != rackConsolePasswordChars {
 		t.Fatalf("console password %q", console.Data[svcUUID])
 	}
-	if strings.Contains(userData, string(console.Data[svcUUID])) {
-		t.Fatal("the console password is in the seed in the clear")
+	chpasswd := "        - name: tuist\n          password: \"" + string(console.Data[svcUUID]) + "\"\n          type: text\n"
+	if strings.Count(userData, string(console.Data[svcUUID])) != 1 || !strings.Contains(userData, chpasswd) || !strings.Contains(userData, "    password: \"!\"\n") {
+		t.Fatal("the console password reaches the seed other than as cloud-init's chpasswd, which the installed system hashes")
 	}
 }
 

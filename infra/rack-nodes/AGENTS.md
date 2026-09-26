@@ -8,7 +8,7 @@ keeps plugged in, which boots with the firmware as it ships, or a netboot from
 the rack's edges, which needs the firmware's network stack on. Both run with
 Secure Boot on. Either way it installs what the edges' boot server publishes for the host:
 a box with an empty disk boots it on its own, and a running one is reinstalled
-with an annotation. The edges run the boot server, each serving the other, so
+by raising its `reinstallGeneration`. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
 
 ## The pieces
@@ -132,8 +132,8 @@ every other edge of the site. The chain a netbooting host goes through:
    boots them through Ubuntu's shim from the ISO (iPXE's `shim` command), which
    verifies the kernel under Secure Boot; the kernel downloads the ISO into
    memory (`url=`), keeps its DHCP on the NIC that netbooted (`BOOTIF`), and
-   reads the seed from `/hosts/<mac>/`. The seed carries the join key and the
-   host key. For a host whose TPM is pinned (`status.tpm`), `user-data` is the
+   reads the seed from `/hosts/<mac>/`. The seed carries the join key, the
+   host key and the console password. For a host whose TPM is pinned (`status.tpm`), `user-data` is the
    install stick's loader, which asks for the seed with `rack-node seed`, and
    the boot server seals it to that TPM (`status.boot.attested`). For any
    other, the boot server hands `user-data` only to one of the MACs the host
@@ -146,7 +146,7 @@ every other edge of the site. The chain a netbooting host goes through:
    two hours.
 5. Once a tailnet device that is not the one the install replaced shows up, the
    host controller withdraws the install, so the key stops being served, and
-   removes the annotation.
+   records the generation it installed.
 
 The iPXE is the iPXE project's Secure Boot build (pinned in the operator's
 image): a shim signed by Microsoft's UEFI CA 2011, the CA that signs Ubuntu's
@@ -174,7 +174,7 @@ host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
 Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
 stays on. Then it netboots whenever its disk does not boot.
 
-**The stick is the permanent route, not a bootstrap crutch.** The MS-01 ships
+**The stick is the MS-01's route, a workaround for its firmware.** The MS-01 ships
 with its network stack off, and nothing but a person in Setup turns it on:
 AMT can override the next boot but not change a Setup setting, and writing the
 firmware's Setup variables from the OS means poking an undocumented AMI
@@ -184,7 +184,10 @@ person racking it. A stick boots with the firmware's defaults, Secure Boot
 included, so a factory box needs no one in Setup: it announces itself,
 installs once declared, and is reinstalled through `BootNext` to the stick.
 Netboot, with its one Setup visit, is what AMT's recovery of a box that no
-longer boots needs; a box without it is recovered by booting its stick.
+longer boots needs; a box without it is recovered by booting its stick. Every
+box needs its stick left plugged in, so the next machine model should be
+something like an ASRock Rack board, whose BMC sets the boot order and firmware
+settings and mounts an installer out of band, and which netboots with no stick.
 
 **A box whose disk already boots something** boots that first; pick the stick,
 or the i226-LM's network entry, from the boot menu (F7 on the MS-01) once.
@@ -252,12 +255,16 @@ pod picks its configuration by node name.
 
 **The console password** of each host is in the `<fleet>-console` Secret, under
 the host's name, minted with its first netboot install and kept across
-reinstalls.
+reinstalls. The seed carries it for cloud-init's `chpasswd`, so the installed
+system hashes it with its own crypt on the first boot; the installer's
+`identity` gives the account a locked password until then.
 
-**A published install is a credential.** Its key admits one device with the
-host's tags, and anything on the management switch can fetch it from the boot
-server until the install has used it. Keys expire after a day, and the operator
-publishes a fresh one while the host still needs it.
+**A published install is a credential.** Its seed carries a join key that
+admits one device with the host's tags, the host's SSH host key and its console
+password. The boot server seals it to the host's pinned TPM, or, for a host
+with no pinned TPM, hands it only to one of the host's NICs. Keys expire after
+two hours, and the operator publishes a fresh one while the host still needs
+it.
 
 ## A host's own stick
 
@@ -358,7 +365,7 @@ The rack moves to production by moving its inventory: the hosts and
 `tuist-k8s-production` vault, the ACL grants `tag:tuist-k8s-production` what it
 grants `tag:tuist-k8s-staging` for the rack tags, `ber1-edge-a` is reinstalled from
 a stick written with `--env production`, and the other hosts, `ber1-edge-b`
-included, are reinstalled by annotation once it is up. Production's Cilium must exclude
+included, are reinstalled by raising their `reinstallGeneration` once it is up. Production's Cilium must exclude
 `cilium.io/no-schedule=true` first (`infra/k8s/mgmt/bootstrap/cilium-values.yaml`);
 the operator refuses to join the node until it does.
 

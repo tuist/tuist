@@ -794,7 +794,10 @@ candidates and patches their status; it reads and patches hosts' status for
 marks each candidate with the hostname of the `RackLinuxHost` named after its
 UUID, and drops an undeclared one no boot server has heard from for a week; a
 declared one stays, since its host takes its boot MAC and model
-(`status.hardware`) from it.
+(`status.hardware`) from it. Candidates exist because the MS-01 can only
+describe itself from its install stick. A machine model with a BMC reports its
+inventory out of band, and a fleet of those should take a host's hardware from
+the BMC and drop `RackLinuxCandidate` and the announcements with it.
 
 Not yet done: a host with no pinned TPM gets its seed on a MAC, which a machine
 on the segment can spoof. The first announcement under a UUID is trusted, so a

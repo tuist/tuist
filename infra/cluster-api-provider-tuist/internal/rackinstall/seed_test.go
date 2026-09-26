@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,48 +12,34 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func TestSHA512CryptMatchesOpenSSL(t *testing.T) {
-	for _, c := range []struct{ password, salt, want string }{
-		{"Hello world!", "saltstring", "$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1"},
-		{"x", "saltstring", "$6$saltstring$nk7Qohr7tOmwY2mX639VRP.Lyvj3uhcgpatqHuLC867qfSHKq1LDuKa/h7Es9Nv0aL08pbF.cnQlRqhaoKT/D."},
-		{"a much longer password that crosses the sixty-four byte block boundary for sure, yes", "saltstring", "$6$saltstring$2ocw8zA.ZITqRu6Hmf5PP0JVI2HX4fe/DXKZeHUaUOZFLh1LHhIx5m5b/BclXMFIxJyEg5uHirQPGeYbipddo."},
-		{"tuist", "sixteencharsalt!", "$6$sixteencharsalt!$7zK5btoqOiW8oQjlvxBNsKqeFYd6AsGF1fZ386c9FAOyDIHPVSNsgo9ZEGLZYI8g.evhUbRQk19qtJQctb2Rr."},
-	} {
-		if got := sha512Crypt(c.password, c.salt); got != c.want {
-			t.Errorf("sha512Crypt(%q, %q) = %s, want %s", c.password, c.salt, got, c.want)
-		}
+// The installed system hashes the console password itself: the installer's
+// identity carries a locked one, and cloud-init's chpasswd sets the password
+// on the first boot, which the system hashes with its own crypt.
+func TestTheConsolePasswordIsHashedByTheInstalledSystem(t *testing.T) {
+	out, seed := renderEdge(t)
+	if seed.Autoinstall.Identity.Password != "!" {
+		t.Fatalf("identity password %q, want the locked \"!\"", seed.Autoinstall.Identity.Password)
 	}
-}
-
-func TestHashPasswordUsesAFreshSalt(t *testing.T) {
-	a, err := HashPassword("secret")
-	if err != nil {
-		t.Fatal(err)
+	c := seed.Autoinstall.UserData.Chpasswd
+	if c.Expire || len(c.Users) != 1 || c.Users[0].Name != "tuist" || c.Users[0].Password != "c0nsolePassw0rdForTests" || c.Users[0].Type != "text" {
+		t.Fatalf("chpasswd %+v", c)
 	}
-	b, _ := HashPassword("secret")
-	if a == b {
-		t.Fatal("two hashes of one password share a salt")
-	}
-	m := regexp.MustCompile(`^\$6\$([./0-9A-Za-z]{16})\$[./0-9A-Za-z]{86}$`).FindStringSubmatch(a)
-	if m == nil {
-		t.Fatalf("hash %q is not $6$ with a 16-character salt", a)
-	}
-	if sha512Crypt("secret", m[1]) != a {
-		t.Fatal("the hash does not verify")
+	if strings.Contains(out, "$6$") {
+		t.Fatal("the seed carries a crypt hash of the operator's making")
 	}
 }
 
 func edgeSeed() Seed {
 	return Seed{
-		Host:           "ber1-edge",
-		Role:           "edge",
-		User:           "tuist",
-		PasswordHash:   "$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1",
-		AuthorizedKeys: []string{"ssh-ed25519 AAAAFLEET fleet", "ssh-ed25519 AAAAHUMAN human"},
-		TailnetTags:    []string{"tag:tuist-rack-edge"},
-		TailnetKey:     "tskey-auth-kTEST1CNTRL-abc",
-		TailnetKeyID:   "kTEST1CNTRL",
-		Built:          time.Date(2026, 9, 23, 18, 0, 0, 0, time.UTC),
+		Host:            "ber1-edge",
+		Role:            "edge",
+		User:            "tuist",
+		ConsolePassword: "c0nsolePassw0rdForTests",
+		AuthorizedKeys:  []string{"ssh-ed25519 AAAAFLEET fleet", "ssh-ed25519 AAAAHUMAN human"},
+		TailnetTags:     []string{"tag:tuist-rack-edge"},
+		TailnetKey:      "tskey-auth-kTEST1CNTRL-abc",
+		TailnetKeyID:    "kTEST1CNTRL",
+		Built:           time.Date(2026, 9, 23, 18, 0, 0, 0, time.UTC),
 	}
 }
 
@@ -63,6 +48,12 @@ type autoinstall struct {
 		Identity struct {
 			Hostname, Username, Password string
 		}
+		UserData struct {
+			Chpasswd struct {
+				Expire bool
+				Users  []struct{ Name, Password, Type string }
+			}
+		} `json:"user-data"`
 		SSH struct {
 			AllowPW        bool     `json:"allow-pw"`
 			AuthorizedKeys []string `json:"authorized-keys"`
@@ -100,7 +91,7 @@ func renderEdge(t *testing.T) (string, autoinstall) {
 func TestUserDataInstallsTheHostWithTheFleetKey(t *testing.T) {
 	_, seed := renderEdge(t)
 	a := seed.Autoinstall
-	if a.Identity.Hostname != "ber1-edge" || a.Identity.Username != "tuist" || !strings.HasPrefix(a.Identity.Password, "$6$") {
+	if a.Identity.Hostname != "ber1-edge" || a.Identity.Username != "tuist" {
 		t.Fatalf("identity %+v", a.Identity)
 	}
 	if a.SSH.AllowPW || len(a.SSH.AuthorizedKeys) != 2 || a.Storage.Layout.Name != "direct" {
@@ -165,7 +156,8 @@ func TestUserDataRefusesWhatItCannotInstall(t *testing.T) {
 		"unknown role":      func(s *Seed) { s.Role = "db" },
 		"no tags":           func(s *Seed) { s.TailnetTags = nil },
 		"client secret":     func(s *Seed) { s.TailnetKey = "tskey-client-oops" },
-		"plaintext":         func(s *Seed) { s.PasswordHash = "hunter2" },
+		"short password":    func(s *Seed) { s.ConsolePassword = "hunter2" },
+		"quote in password": func(s *Seed) { s.ConsolePassword = "c0nsolePassw0rd\"ForTests" },
 		"private key":       func(s *Seed) { s.AuthorizedKeys = []string{"-----BEGIN OPENSSH PRIVATE KEY-----"} },
 		"no keys":           func(s *Seed) { s.AuthorizedKeys = nil },
 		"quote in hostname": func(s *Seed) { s.Host = "ber1'edge" },
