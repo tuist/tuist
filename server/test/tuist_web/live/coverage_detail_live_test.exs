@@ -8,6 +8,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -254,13 +255,74 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&tab=overview")
     assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=overview']")
+    assert has_element?(lv, "[data-part='kind'][data-kind='file']")
+    assert has_element?(lv, "[data-part='title'] h1[data-part='label']", "A.swift")
+    assert has_element?(lv, "[data-part='file-summary-card']", "Analytics")
     assert has_element?(lv, "#widget-coverage-file-percentage", "50.0%")
+    refute has_element?(lv, "#coverage-chart")
     refute has_element?(lv, "#coverage-file-targets")
     refute has_element?(lv, "#coverage-file-uncovered-lines")
     refute has_element?(lv, "[data-part='file-details']")
 
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/Missing.swift?commit=b")
     assert has_element?(lv, "[data-part='file-empty']")
+  end
+
+  test "searches, sorts and pages a file's functions, least covered first by default", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    # 21 one-line functions: `helper1`..`helper20` ran, `zeta` did not.
+    counts = List.duplicate(1, 20) ++ [0]
+
+    functions =
+      for {count, line} <- Enum.with_index(counts, 1) do
+        name = if line == 21, do: "zeta()", else: "helper#{line}()"
+        %{name: name, line_number: line, execution_count: count, covered_lines: count, executable_lines: 1}
+      end
+
+    file = "Sources/F.swift" |> CoverageFixtures.file(counts) |> Map.put(:functions, functions)
+    CoverageFixtures.run_with_coverage(project, organization.account, [file], %{git_commit_sha: "a"})
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/F.swift?commit=a")
+    rows = lv |> element("#coverage-functions-table tbody") |> render()
+    assert :binary.match(rows, "zeta()") < :binary.match(rows, "helper1()")
+    assert has_element?(lv, "#coverage-functions-sort-by-label-portal", "Coverage")
+    refute has_element?(lv, "#coverage-functions-table", "helper20()")
+
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/F.swift?commit=a&page=2")
+    assert has_element?(lv, "#coverage-functions-table", "helper20()")
+
+    {:ok, lv, _html} =
+      live(conn, base <> "/files/Sources/F.swift?commit=a&functions-sort-by=name&functions-sort-order=desc")
+
+    rows = lv |> element("#coverage-functions-table tbody") |> render()
+    assert :binary.match(rows, "zeta()") < :binary.match(rows, "helper9()")
+
+    # Most executed first: the one function that never ran is the 21st, on the second page.
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/F.swift?commit=a&functions-sort-by=executions")
+    assert has_element?(lv, "#coverage-functions-sort-by-label-portal", "Executions")
+    refute has_element?(lv, "#coverage-functions-table", "zeta()")
+
+    {:ok, lv, _html} =
+      live(conn, base <> "/files/Sources/F.swift?commit=a&functions-sort-by=line&functions-sort-order=desc")
+
+    rows = lv |> element("#coverage-functions-table tbody") |> render()
+    assert :binary.match(rows, "zeta()") < :binary.match(rows, "helper20()")
+
+    {:ok, lv, _html} =
+      live(conn, base <> "/files/Sources/F.swift?commit=a&functions-sort-by=covered_lines&functions-sort-order=asc")
+
+    rows = lv |> element("#coverage-functions-table tbody") |> render()
+    assert :binary.match(rows, "zeta()") < :binary.match(rows, "helper1()")
+
+    lv |> form("#coverage-functions-search-form", %{search: "ZETA"}) |> render_change()
+    assert has_element?(lv, "#coverage-functions-table", "zeta()")
+    refute has_element?(lv, "#coverage-functions-table", "helper1()")
+
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/F.swift?commit=a&functions-search=missing")
+    assert has_element?(lv, "#coverage-functions-table", "No function matches this search")
   end
 
   test "is not found for a commit without coverage", %{conn: conn, base: base} do
@@ -302,6 +364,33 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=runs")
       assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")
+    end
+
+    test "opens its files with their coverage over the branch's period", %{
+      conn: conn,
+      base: base,
+      organization: organization,
+      project: project
+    } do
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/A.swift", [1, 0, 0, 0])], %{
+        git_commit_sha: "a",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      })
+
+      assert Enum.map(History.file_points(project, "main", "Sources/A.swift"), &{&1.git_commit_sha, &1.coverage}) ==
+               [{"a", 25.0}, {"b", 50.0}]
+
+      {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=files")
+      assert has_element?(lv, "#coverage-files-table a[href*='/files/Sources/A.swift?commit=b&branch=main&tab=files']")
+
+      {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&branch=main")
+      assert has_element?(lv, "[data-part='analytics'] #coverage-file-date-range-picker")
+      assert has_element?(lv, "#coverage-chart")
+      assert has_element?(lv, "#widget-coverage", "50.0%")
+      refute has_element?(lv, "[data-part='file-summary-card']")
+
+      {:ok, lv, _html} = live(conn, base <> "/files/Sources/Missing.swift?commit=b&branch=main")
+      assert has_element?(lv, "[data-part='file-empty']")
     end
 
     test "is found by a name with slashes, encoded or not", %{
@@ -424,6 +513,19 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-search=p1&commits-status=pending")
       assert has_element?(lv, "[data-part='empty-commits']", "No commit matches these filters")
       assert has_element?(lv, "#coverage-commits-filter-form")
+    end
+
+    test "opens its files as its newest commit's, without a trend", %{conn: conn, base: base} do
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=files")
+
+      assert has_element?(
+               lv,
+               "#coverage-files-table a[href*='/files/Sources/A.swift?commit=p2&pull-request=7&tab=files']"
+             )
+
+      {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=p2&pull-request=7")
+      assert has_element?(lv, "[data-part='file-summary-card']", "Analytics")
+      refute has_element?(lv, "#coverage-chart")
     end
 
     test "reads as its newest commit whatever commit the address names", %{conn: conn, base: base} do

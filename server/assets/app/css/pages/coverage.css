@@ -233,7 +233,7 @@
     }
 
     /* The page's title only, led by an icon for what the page is (a commit,
-       a branch or a pull request), as the test case page leads with its
+       a branch, a pull request or a file), as the test case page leads with its
        status; the header's tooltips have titles of their own. */
     & > [data-part="title-group"] > [data-part="title"] {
       display: flex;
@@ -401,6 +401,16 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-7);
+  }
+
+  & [data-part="file-functions-section"] > [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="functions-table"] {
+    display: flex;
+    flex-direction: column;
   }
 
   & [data-part="file-details"] {

@@ -182,6 +182,42 @@ defmodule Tuist.Tests.Coverage.History do
     end
   end
 
+  @doc """
+  A file's coverage over the branch's trend (`branch_points/3`): one point
+  per chained commit whose runs compiled the file, oldest first, with the
+  file's lines merged over those runs as its page reads them. A chained
+  commit whose runs did not compile the file has no point.
+  """
+  def file_points(%Project{} = project, branch, path, opts \\ []) do
+    points = branch_points(project, branch, opts)
+
+    commit_of =
+      for {sha, row} <- Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha)),
+          id <- row.test_run_ids,
+          into: %{},
+          do: {id, sha}
+
+    by_commit = project.id |> Commits.file_rows(Map.keys(commit_of), path) |> Enum.group_by(&commit_of[&1.test_run_id])
+
+    Enum.flat_map(points, fn point ->
+      case Map.get(by_commit, point.git_commit_sha) do
+        nil ->
+          []
+
+        rows ->
+          file = Coverage.detail(path, rows)
+
+          [
+            Map.merge(point, %{
+              covered_lines: file.covered_lines,
+              executable_lines: file.executable_lines,
+              coverage: Coverage.percentage(file.covered_lines, file.executable_lines)
+            })
+          ]
+      end
+    end)
+  end
+
   # Chaining decides which commits the trend draws, and a commit chains
   # against the one chained before it, so every measured commit of the
   # period is read, newest first; only the columns the chaining rule and the

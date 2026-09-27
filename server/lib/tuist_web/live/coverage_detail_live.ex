@@ -84,7 +84,13 @@ defmodule TuistWeb.CoverageDetailLive do
 
   @doc false
   def file_href(%{selected_account: account, selected_project: project, subject: subject, tab: tab} = assigns, path) do
-    coverage_file_href(account.name, project.name, path, %{commit: subject.sha, tab: tab, from: here(assigns)})
+    coverage_file_href(account.name, project.name, path, %{
+      commit: subject.sha,
+      branch: if(subject.kind == :branch, do: subject.branch),
+      pull_request: subject.pull_request_number,
+      tab: tab,
+      from: here(assigns)
+    })
   end
 
   @doc "A commit's page, reached from this one, whose back button leads here."
@@ -453,11 +459,11 @@ defmodule TuistWeb.CoverageDetailLive do
     end
   end
 
-  @doc "The Targets tab's sorts, with their labels."
+  @doc "The Targets tab's sorts, with their labels, in the order of the table's columns."
   def target_sorts,
     do: [
-      {"coverage", dgettext("dashboard_tests", "Coverage")},
       {"name", dgettext("dashboard_tests", "Target")},
+      {"coverage", dgettext("dashboard_tests", "Coverage")},
       {"files", dgettext("dashboard_tests", "Files")}
     ]
 
@@ -490,9 +496,9 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:files_sort_order, sort_order)
   end
 
-  @doc "The Files tab's sorts, with their labels."
+  @doc "The Files tab's sorts, with their labels, in the order of the table's columns."
   def file_sorts,
-    do: [{"coverage", dgettext("dashboard_tests", "File coverage")}, {"path", dgettext("dashboard_tests", "File")}]
+    do: [{"path", dgettext("dashboard_tests", "File")}, {"coverage", dgettext("dashboard_tests", "File coverage")}]
 
   @doc "The query that sorts the Files tab by a column: the other order when it already does, ascending otherwise."
   def files_sort_patch(%{uri: uri, files_sort_by: sort_by, files_sort_order: order}, column) do

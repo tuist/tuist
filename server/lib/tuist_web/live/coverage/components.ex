@@ -358,15 +358,19 @@ defmodule TuistWeb.Coverage.Components do
   @doc """
   Where a file's own page lives: it carries the commit it was read at and the
   tab of the commit's page it was opened from, so the page can lead back there.
+  `branch` or `pull_request` names what that page read the commit as.
   """
   def coverage_file_href(account_name, project_name, path, scope) do
     query =
-      Enum.flat_map([commit: "commit", tab: "tab", from: "from"], fn {key, name} ->
-        case Map.get(scope, key) do
-          value when value in [nil, ""] -> []
-          value -> [{name, value}]
+      Enum.flat_map(
+        [commit: "commit", branch: "branch", pull_request: "pull-request", tab: "tab", from: "from"],
+        fn {key, name} ->
+          case Map.get(scope, key) do
+            value when value in [nil, ""] -> []
+            value -> [{name, value}]
+          end
         end
-      end)
+      )
 
     "/#{account_name}/#{project_name}/tests/coverage/files/#{encode_path(path)}?" <> URI.encode_query(query)
   end
@@ -378,20 +382,55 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :file, :map, required: true, doc: "A file's detail, from `Commits.file_detail/4`."
 
+  attr :trend, :map,
+    default: nil,
+    doc: """
+    The file's coverage over a branch's period, when the page was opened from
+    a branch: `branch`, `points`, `latest`, `trends`, `selected_widget`,
+    `preset` and `period`, as `coverage_analytics_card/1` takes them.
+    """
+
   @doc """
-  One file's coverage: its figures, the lines skipped tests' coverage was
-  carried into, and its functions.
+  One file's coverage: its figures (over the period, on a branch) and the
+  lines skipped tests' coverage was carried into. Its page lists the
+  functions under it.
   """
   def coverage_file_view(assigns) do
-    assigns =
-      assign(
-        assigns,
-        :functions,
-        assigns.file |> Map.get(:functions, []) |> Enum.with_index() |> Enum.map(fn {f, i} -> Map.put(f, :id, i) end)
-      )
+    assigns = assign(assigns, :functions, Map.get(assigns.file, :functions, []))
 
     ~H"""
-    <.card title={dgettext("dashboard_tests", "Coverage")} icon="file" data-part="file-summary-card">
+    <.coverage_analytics_card
+      :if={@trend}
+      branch={@trend.branch}
+      latest={@trend.latest}
+      trends={@trend.trends}
+      points={@trend.points}
+      selected_widget={@trend.selected_widget}
+      empty_title={
+        dgettext(
+          "dashboard_tests",
+          "No measured commit on %{branch} compiled this file in this period",
+          branch: @trend.branch
+        )
+      }
+    >
+      <:actions>
+        <.coverage_period_picker
+          id="coverage-file-date-range-picker"
+          selected_preset={@trend.preset}
+          period={@trend.period}
+        />
+      </:actions>
+      <:details :if={Map.get(@file, :carried_lines, []) != []}>
+        <.carried_lines lines={@file.carried_lines} />
+      </:details>
+    </.coverage_analytics_card>
+    <.card
+      :if={is_nil(@trend)}
+      title={dgettext("dashboard_tests", "Analytics")}
+      icon="chart_arcs"
+      data-part="file-summary-card"
+    >
       <.card_section data-part="file-summary-section">
         <div data-part="widgets">
           <.widget
@@ -421,57 +460,28 @@ defmodule TuistWeb.Coverage.Components do
             value={format_number(length(@functions))}
           />
         </div>
-        <dl :if={Map.get(@file, :carried_lines, []) != []} data-part="file-details">
-          <div>
-            <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
-            <dd id="coverage-file-carried-lines">
-              <.line_ranges
-                id="coverage-file-carried-lines-tooltip"
-                title={dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}
-                ranges={Coverage.Evidence.line_ranges(@file.carried_lines)}
-              />
-            </dd>
-          </div>
-        </dl>
+        <.carried_lines :if={Map.get(@file, :carried_lines, []) != []} lines={@file.carried_lines} />
       </.card_section>
     </.card>
+    """
+  end
 
-    <.card
-      :if={@functions != []}
-      title={dgettext("dashboard_tests", "Functions")}
-      icon="list_tree"
-      data-part="file-functions-card"
-    >
-      <.card_section data-part="file-functions-section">
-        <.table id="coverage-functions-table" rows={@functions}>
-          <:col :let={function} label={dgettext("dashboard_tests", "Function")}>
-            <.text_cell label={function.name} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
-            <.text_cell label={Integer.to_string(function.line_number)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Covered lines")}>
-            <.text_cell label={
-              "#{if function.covered_lines, do: format_number(function.covered_lines), else: "—"} / #{format_number(function.executable_lines)}"
-            } />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
-            <.text_cell label={format_number(function.execution_count)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
-            <.text_cell
-              :if={is_nil(function.covered_lines)}
-              label={dgettext("dashboard_tests", "Unavailable")}
-            />
-            <.coverage_cell
-              :if={function.covered_lines}
-              covered={function.covered_lines}
-              executable={function.executable_lines}
-            />
-          </:col>
-        </.table>
-      </.card_section>
-    </.card>
+  attr :lines, :list, required: true
+
+  defp carried_lines(assigns) do
+    ~H"""
+    <dl data-part="file-details">
+      <div>
+        <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
+        <dd id="coverage-file-carried-lines">
+          <.line_ranges
+            id="coverage-file-carried-lines-tooltip"
+            title={dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}
+            ranges={Coverage.Evidence.line_ranges(@lines)}
+          />
+        </dd>
+      </div>
+    </dl>
     """
   end
 
@@ -578,7 +588,9 @@ defmodule TuistWeb.Coverage.Components do
   attr :trends, :map, required: true
   attr :points, :list, required: true
   attr :selected_widget, :string, required: true
+  attr :empty_title, :string, default: nil, doc: "What the card says when no commit was measured in the period."
   slot :actions
+  slot :details, doc: "Figures shown under the chart."
 
   @doc """
   A branch's coverage over the period: its latest measured commit's figure,
@@ -656,12 +668,16 @@ defmodule TuistWeb.Coverage.Components do
             <.coverage_trend_chart id="coverage-chart" points={@points} metric={@selected_widget} />
           </div>
         </.card_section>
+        <.card_section :if={@details != []} data-part="analytics-details">
+          {render_slot(@details)}
+        </.card_section>
         <.coverage_empty
           :if={is_nil(@latest)}
           title={
-            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
-              branch: @branch
-            )
+            @empty_title ||
+              dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+                branch: @branch
+              )
           }
           get_started_href="https://docs.tuist.dev/en/guides/features/tests"
           data-part="empty-analytics"

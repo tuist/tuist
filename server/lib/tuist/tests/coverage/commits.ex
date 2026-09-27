@@ -1334,15 +1334,24 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  defp file_rows(_project_id, [], _path), do: []
+  @doc """
+  The rows the given runs' latest reports hold for a product file, newest
+  first: what `Tuist.Tests.Coverage.detail/2` merges. The runs are read in
+  chunks, since each one binds a parameter twice.
+  """
+  def file_rows(_project_id, [], _path), do: []
 
-  defp file_rows(project_id, ids, path) do
-    ClickHouseRepo.all(
-      from(f in Coverage.report_files_for_runs(project_id, ids),
-        where: f.path == ^path and not f.is_test,
-        order_by: [desc: f.inserted_at]
+  def file_rows(project_id, ids, path) do
+    ids
+    |> Coverage.id_chunks(div(900, 2))
+    |> Enum.flat_map(fn chunk ->
+      ClickHouseRepo.all(
+        from(f in Coverage.report_files_for_runs(project_id, chunk),
+          where: f.path == ^path and not f.is_test,
+          order_by: [desc: f.inserted_at]
+        )
       )
-    )
+    end)
   end
 
   # Nothing at the commit executed a file it did not compile.
