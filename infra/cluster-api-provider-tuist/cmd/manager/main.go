@@ -687,6 +687,7 @@ func main() {
 	}
 	if err := (&macos.RackPDUReconciler{
 		Client:           mgr.GetClient(),
+		APIReader:        mgr.GetAPIReader(),
 		Scheme:           mgr.GetScheme(),
 		Recorder:         mgr.GetEventRecorderFor("rackpdu-controller"),
 		Power:            powerRegistry,

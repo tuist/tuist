@@ -19,10 +19,12 @@ import (
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
@@ -92,6 +94,40 @@ type RackPDUReconciler struct {
 
 	// Timeout bounds each request to a card. Zero means 15 seconds.
 	Timeout time.Duration
+
+	// APIReader reads the RackPDU past the manager's cache before adopting,
+	// so a cache that has not seen the last pass's status yet does not start
+	// another. Nil reads through Client.
+	APIReader client.Reader
+}
+
+// rackPDUPredicate wakes the reconciler for a new generation and for an
+// annotation (tuist.dev/accept-certificate), not for its own status writes,
+// which would otherwise read the card again after every pass.
+func rackPDUPredicate() predicate.Predicate {
+	return predicate.Or(predicate.GenerationChangedPredicate{}, predicate.AnnotationChangedPredicate{})
+}
+
+// adoptedAlready reports whether the API server records this generation as
+// adopted, when the object read from the cache does not: the manager's cache
+// can lag the status the last pass wrote, and adopting again would log the
+// administrator in twice for one generation.
+func (r *RackPDUReconciler) adoptedAlready(ctx context.Context, pdu *infrav1.RackPDU) bool {
+	reader := r.APIReader
+	if reader == nil {
+		reader = r.Client
+	}
+	fresh := &infrav1.RackPDU{}
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(pdu), fresh); err != nil {
+		return false
+	}
+	if fresh.Generation != pdu.Generation || !fresh.Status.Adopted || fresh.Status.ObservedGeneration != pdu.Generation {
+		return false
+	}
+	pdu.Status.Adopted = true
+	pdu.Status.ObservedGeneration = fresh.Status.ObservedGeneration
+	pdu.Status.Drift = fresh.Status.Drift
+	return true
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackpdus,verbs=get;list;watch;update;patch
@@ -165,7 +201,7 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, err
 	}
 
-	if !pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation {
+	if (!pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation) && !r.adoptedAlready(ctx, pdu) {
 		return r.adopt(ctx, pdu, secret)
 	}
 	return r.verify(ctx, pdu, secret), nil
@@ -630,7 +666,7 @@ func (r *RackPDUReconciler) egressConfig() egressConfig {
 
 func (r *RackPDUReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.RackPDU{}).
+		For(&infrav1.RackPDU{}, builder.WithPredicates(rackPDUPredicate())).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
 		Complete(r)
 }
