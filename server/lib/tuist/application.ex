@@ -308,12 +308,13 @@ defmodule Tuist.Application do
     #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
     #   Tuist.ShadowIngestRepo because it was not started or it does not exist
     children =
-      [
-        {DBConnection.TelemetryListener, name: TelemetryListener},
-        {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
-        {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
-        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
-      ] ++
+      RuntimeChildren.cluster(Application.get_env(:libcluster, :topologies, [])) ++
+        [
+          {DBConnection.TelemetryListener, name: TelemetryListener},
+          {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
+          {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
+          {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
+        ] ++
         shadow_ingest_children() ++
         [
           Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
@@ -391,14 +392,6 @@ defmodule Tuist.Application do
            console_address: ":#{console_port}"},
           Tuist.MinioBucketCreator
         ]
-      end
-    )
-    |> Kernel.++(
-      if Environment.tuist_hosted?() do
-        topologies = Application.get_env(:libcluster, :topologies) || []
-        [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
-      else
-        []
       end
     )
     |> Kernel.++(

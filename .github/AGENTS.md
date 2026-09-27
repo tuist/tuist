@@ -41,3 +41,5 @@ versions. The workflow is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
+
+Helm validation includes two self-hosted server replicas with Erlang discovery, the private network policy, and custom distribution-port/cookie-key settings. Keep that profile alongside the production render when changing server clustering.
