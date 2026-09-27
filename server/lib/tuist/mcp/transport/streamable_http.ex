@@ -1,126 +1,249 @@
 defmodule Tuist.MCP.Transport.StreamableHTTP do
   @moduledoc false
-
   @behaviour Plug
 
   import Plug.Conn
 
-  alias EMCP.Transport.StreamableHTTP
+  alias Tuist.MCP.Tool
 
-  @latest_protocol_version "2025-06-18"
-  @supported_protocol_versions [@latest_protocol_version, "2025-03-26"]
-
-  # Only these methods carry anything we decorate. Every other method (notably
-  # `tools/call`, the hot path, whose bodies carry full structuredContent payloads)
-  # is passed through without decoding and re-encoding the response body.
-  @decorated_methods ["initialize", "tools/list"]
+  @latest_protocol_version "2026-07-28"
+  @legacy_protocol_versions ["2025-06-18", "2025-03-26"]
+  @supported_protocol_versions [@latest_protocol_version | @legacy_protocol_versions]
+  @version_key "io.modelcontextprotocol/protocolVersion"
+  @capabilities_key "io.modelcontextprotocol/clientCapabilities"
 
   @impl Plug
-  def init(opts), do: StreamableHTTP.init(opts)
+  def init(opts), do: opts
 
   @impl Plug
   def call(conn, opts) do
-    case validate_protocol_version_header(conn) do
-      :ok ->
-        negotiated_protocol_version = negotiated_protocol_version(conn)
-        method = request_method(conn)
-
-        conn
-        |> register_before_send(&decorate_response(&1, opts, negotiated_protocol_version, method))
-        |> StreamableHTTP.call(opts)
-
-      {:error, version} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(
-          400,
-          JSON.encode!(%{
-            "error" => "Unsupported MCP protocol version: #{version}",
-            "supported" => @supported_protocol_versions
-          })
-        )
-        |> halt()
+    with :ok <- validate_origin(conn, opts),
+         :ok <- validate_http_method(conn),
+         :ok <- validate_request(conn.body_params),
+         :ok <- validate_method_params(conn.body_params),
+         :ok <- validate_version(conn),
+         :ok <- validate_metadata(conn) do
+      dispatch(conn, Keyword.fetch!(opts, :server).server())
+    else
+      {:error, status, code, message, data} ->
+        error = %{"code" => code, "message" => message}
+        error = if data, do: Map.put(error, "data", data), else: error
+        id = if is_map(conn.body_params), do: Map.get(conn.body_params, "id")
+        respond(conn, status, %{"jsonrpc" => "2.0", "id" => id, "error" => error})
     end
   end
 
-  defp validate_protocol_version_header(conn) do
+  defp validate_origin(conn, opts) do
+    case get_req_header(conn, "origin") do
+      [] ->
+        :ok
+
+      [origin] ->
+        origins = Keyword.get_lazy(opts, :allowed_origins, fn -> [Tuist.Environment.app_url(route_type: :app)] end)
+        if origin in origins, do: :ok, else: failure(403, -32_600, "Invalid origin")
+
+      _ ->
+        failure(403, -32_600, "Invalid origin")
+    end
+  end
+
+  defp validate_http_method(%{method: "POST"}), do: :ok
+  defp validate_http_method(_conn), do: failure(405, -32_600, "Method not allowed")
+
+  defp validate_request(%{"jsonrpc" => "2.0", "method" => method} = request) when is_binary(method) do
+    if (not Map.has_key?(request, "id") or is_binary(request["id"]) or is_integer(request["id"])) and
+         is_map(Map.get(request, "params", %{})) do
+      :ok
+    else
+      failure(400, -32_600, "Invalid request")
+    end
+  end
+
+  defp validate_request(_request), do: failure(400, -32_600, "Invalid request")
+
+  defp validate_method_params(%{"method" => method} = request)
+       when method in ["tools/call", "prompts/get", "resources/read"] do
+    key = if method == "resources/read", do: "uri", else: "name"
+    params = Map.get(request, "params", %{})
+    arguments = Map.get(params, "arguments", %{})
+
+    if is_binary(params[key]) and is_map(arguments),
+      do: :ok,
+      else: failure(400, -32_602, "Missing or invalid method parameters")
+  end
+
+  defp validate_method_params(_request), do: :ok
+
+  defp validate_version(conn) do
     case get_req_header(conn, "mcp-protocol-version") do
       [] -> :ok
       [version] when version in @supported_protocol_versions -> :ok
-      [version] -> {:error, version}
-      versions -> {:error, Enum.join(versions, ", ")}
+      [version] -> unsupported_version(version)
+      _ -> failure(400, -32_020, "Malformed protocol version header")
     end
   end
 
-  defp negotiated_protocol_version(%Plug.Conn{
-         body_params: %{"method" => "initialize", "params" => %{"protocolVersion" => requested_version}}
-       }) do
-    if requested_version in @supported_protocol_versions,
-      do: requested_version,
-      else: @latest_protocol_version
-  end
+  defp validate_metadata(conn) do
+    meta = get_in(conn.body_params, ["params", "_meta"])
+    header = get_req_header(conn, "mcp-protocol-version")
 
-  defp negotiated_protocol_version(_conn), do: nil
-
-  defp request_method(%Plug.Conn{body_params: %{"method" => method}}) when is_binary(method), do: method
-  defp request_method(_conn), do: nil
-
-  # An unrecognized method (a batch request, or a body Plug did not parse) falls back
-  # to decorating, so we can never silently stop attaching output schemas.
-  defp decorates_response?(nil), do: true
-  defp decorates_response?(method), do: method in @decorated_methods
-
-  defp decorate_response(%Plug.Conn{resp_body: body} = conn, opts, negotiated_protocol_version, method)
-       when not is_nil(body) do
-    if decorates_response?(method) do
-      decode_and_decorate(conn, body, opts, negotiated_protocol_version)
+    if header == [@latest_protocol_version] or (is_map(meta) and Map.has_key?(meta, @version_key)) do
+      validate_modern_metadata(conn, meta)
     else
-      conn
+      :ok
     end
   end
 
-  defp decorate_response(conn, _opts, _negotiated_protocol_version, _method), do: conn
+  defp validate_modern_metadata(conn, meta) when is_map(meta) do
+    version = Map.get(meta, @version_key)
 
-  defp decode_and_decorate(conn, body, opts, negotiated_protocol_version) do
-    case body |> IO.iodata_to_binary() |> JSON.decode() do
-      {:ok, response} ->
-        response =
-          response
-          |> put_negotiated_protocol_version(negotiated_protocol_version)
-          |> add_output_schemas(opts)
+    cond do
+      not Map.has_key?(conn.body_params, "id") ->
+        failure(400, -32_600, "Notifications are not supported for this protocol version")
 
-        conn
-        |> delete_resp_header("content-length")
-        |> Map.put(:resp_body, JSON.encode!(response))
+      not is_binary(version) or not is_map(Map.get(meta, @capabilities_key)) ->
+        failure(400, -32_602, "Missing or invalid request metadata")
+
+      get_req_header(conn, "mcp-protocol-version") != [version] ->
+        failure(400, -32_020, "Protocol version header does not match request metadata")
+
+      version != @latest_protocol_version ->
+        unsupported_version(version)
+
+      true ->
+        validate_method_headers(conn)
+    end
+  end
+
+  defp validate_modern_metadata(_conn, _meta), do: failure(400, -32_602, "Missing request metadata")
+
+  defp validate_method_headers(conn) do
+    with :ok <- matching_header(conn, "mcp-method", conn.body_params["method"]) do
+      case conn.body_params["method"] do
+        method when method in ["tools/call", "prompts/get"] ->
+          matching_header(conn, "mcp-name", get_in(conn.body_params, ["params", "name"]))
+
+        "resources/read" ->
+          matching_header(conn, "mcp-name", get_in(conn.body_params, ["params", "uri"]))
+
+        _ ->
+          :ok
+      end
+    end
+  end
+
+  defp matching_header(conn, header, expected) do
+    case get_req_header(conn, header) do
+      [value] when is_binary(expected) ->
+        if decode_header(value) == {:ok, expected},
+          do: :ok,
+          else: failure(400, -32_020, "Header mismatch: #{header}")
 
       _ ->
-        conn
+        failure(400, -32_020, "Missing or malformed header: #{header}")
     end
   end
 
-  defp put_negotiated_protocol_version(
-         %{"result" => %{"protocolVersion" => _current_version} = result} = response,
-         negotiated_protocol_version
-       )
-       when is_binary(negotiated_protocol_version) do
-    put_in(response, ["result"], Map.put(result, "protocolVersion", negotiated_protocol_version))
+  defp decode_header("=?base64?" <> encoded) do
+    if String.ends_with?(encoded, "?="),
+      do: Base.decode64(binary_part(encoded, 0, byte_size(encoded) - 2)),
+      else: :error
   end
 
-  defp put_negotiated_protocol_version(response, _negotiated_protocol_version), do: response
-
-  defp add_output_schemas(%{"result" => %{"tools" => tools} = result} = response, opts) when is_list(tools) do
-    modules = opts |> Keyword.fetch!(:server) |> apply(:server, []) |> Map.fetch!(:tools)
-
-    descriptors =
-      Enum.map(tools, fn %{"name" => name} = tool ->
-        case Map.fetch(modules, name) do
-          {:ok, module} -> Tuist.MCP.Tool.descriptor(module)
-          :error -> tool
-        end
-      end)
-
-    put_in(response, ["result"], Map.put(result, "tools", descriptors))
+  defp decode_header(value) do
+    if String.trim(value) == value and Regex.match?(~r/^[\x20-\x7E]+$/, value), do: {:ok, value}, else: :error
   end
 
-  defp add_output_schemas(response, _opts), do: response
+  defp dispatch(conn, server) do
+    request = conn.body_params
+    modern? = get_req_header(conn, "mcp-protocol-version") == [@latest_protocol_version]
+
+    response =
+      case request["method"] do
+        "server/discover" when modern? ->
+          %{
+            "jsonrpc" => "2.0",
+            "id" => request["id"],
+            "result" => %{
+              "supportedVersions" => @supported_protocol_versions,
+              "capabilities" => capabilities(),
+              "instructions" => server.instructions
+            }
+          }
+
+        "initialize" when modern? ->
+          %{"jsonrpc" => "2.0", "id" => request["id"], "error" => %{"code" => -32_601, "message" => "Method not found"}}
+
+        _ ->
+          EMCP.Server.handle_message(server, conn, request)
+      end
+
+    case response do
+      nil ->
+        send_resp(conn, 202, "")
+
+      %{"result" => result} ->
+        result = decorate_result(result, request, server, modern?)
+        respond(conn, 200, Map.put(response, "result", result))
+
+      %{"error" => %{"code" => code}} ->
+        respond(conn, error_status(code, modern?), response)
+    end
+  end
+
+  defp error_status(-32_601, true), do: 404
+  defp error_status(code, _modern?) when code in [-32_600, -32_602], do: 400
+  defp error_status(_code, _modern?), do: 200
+
+  defp decorate_result(result, request, server, modern?) do
+    result =
+      case request["method"] do
+        "initialize" ->
+          requested = get_in(request, ["params", "protocolVersion"])
+          version = if requested in @legacy_protocol_versions, do: requested, else: hd(@legacy_protocol_versions)
+          result |> Map.put("protocolVersion", version) |> Map.put("capabilities", capabilities())
+
+        "tools/list" ->
+          Map.put(
+            result,
+            "tools",
+            Enum.map(result["tools"], fn tool ->
+              Tool.descriptor(Map.fetch!(server.tools, tool["name"]))
+            end)
+          )
+
+        _ ->
+          result
+      end
+
+    if modern? do
+      info = %{"name" => server.name, "version" => server.version}
+      info = if server.title, do: Map.put(info, "title", server.title), else: info
+
+      result
+      |> Map.put("resultType", "complete")
+      |> Map.update(
+        "_meta",
+        %{"io.modelcontextprotocol/serverInfo" => info},
+        &Map.put(&1, "io.modelcontextprotocol/serverInfo", info)
+      )
+    else
+      result
+    end
+  end
+
+  # These catalogs are static within a release; there is no subscription stream.
+  defp capabilities, do: %{"tools" => %{}, "prompts" => %{}}
+
+  defp unsupported_version(version),
+    do:
+      {:error, 400, -32_022, "Unsupported protocol version",
+       %{"supported" => @supported_protocol_versions, "requested" => version}}
+
+  defp failure(status, code, message), do: {:error, status, code, message, nil}
+
+  defp respond(conn, status, response) do
+    conn = if status == 405, do: put_resp_header(conn, "allow", "POST"), else: conn
+    conn |> put_resp_content_type("application/json") |> send_resp(status, JSON.encode!(response)) |> halt()
+  end
 end

@@ -4,7 +4,6 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
-  alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
@@ -55,7 +54,6 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
-    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)

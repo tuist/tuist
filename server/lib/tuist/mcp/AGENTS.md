@@ -42,3 +42,5 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
   derive schemas from `Runners.CacheVolumes.Schemas`. Reads require runners-read;
   clearing requires account-update and carries destructive annotations. Keep
   account scoping, unknown values and the runners feature gate intact.
+
+- The endpoint implements the stateless 2026-07-28 transport and `server/discover`. Every modern request validates protocol metadata and mirrored headers. Legacy 2025-06-18 and 2025-03-26 clients remain supported without allocating sessions. Catalogs do not advertise change subscriptions.
