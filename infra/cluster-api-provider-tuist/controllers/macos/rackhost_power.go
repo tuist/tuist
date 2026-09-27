@@ -77,6 +77,9 @@ func rackHostPDUOutlet(ctx context.Context, c client.Reader, registry *power.Reg
 		}
 		return nil, power.Outlet{}, err
 	}
+	if !pdu.DeletionTimestamp.IsZero() {
+		return nil, power.Outlet{}, &pduNotReadyError{pdu: name, detail: "it is being deleted, and its controller has logged out of the card"}
+	}
 	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
 		return nil, power.Outlet{}, &pduNotReadyError{pdu: name, detail: "it is standalone: the controller does not manage it"}
 	}

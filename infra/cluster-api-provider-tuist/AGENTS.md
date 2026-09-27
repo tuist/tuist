@@ -558,13 +558,25 @@ set its own administrator password on the card when `powerDistributions/1`
 tells it the card is not its kind. It then stops there, writes nothing else,
 and reports `Adopted=False UnsupportedCard` naming the Secret that now holds
 the password. Every credentials Secret carries the label
-`tuist.dev/rack-card-address=<address>`, and the administrator login tries,
-after the object's own password and before the factory one, the
-`admin-password` of every other Secret in the namespace with the same address
-label; the one that works is recorded in the object's own Secret, and the
-`LoggedIn` event names where it came from. So the object of the right kind
-adopts the card without anyone at it, and the wrong one stays
-`UnsupportedCard` until its site definition is fixed.
+`tuist.dev/rack-card-address=<address>`, and one whose password was set at a
+card's forced first-login change records when and on which certificate
+(`tuist.dev/rack-card-admin-set`, `tuist.dev/rack-card-admin-set-certificate`).
+The administrator login tries, after the object's own password and before the
+factory one, the password of at most one other Secret: of those with the same
+address label whose recorded certificate is the one the card presents now, the
+most recent. Unmarked Secrets and marks for another certificate (a replaced
+card, leftovers of deleted objects) are never tried, so a card that blocks an
+account after a few failures is not walked through them; these attempts count
+against the login backoff like any other. The password that works is recorded,
+with its mark, in the object's own Secret, and the `LoggedIn` event names where
+it came from. So the object of the right kind adopts the card without anyone
+at it, and the wrong one stays `UnsupportedCard` until its site definition is
+fixed.
+
+`UnsupportedCard` is for a card the object has not adopted. An adopted card
+that answers unlike its API (a page or a missing login, as a card restarting
+or upgrading can) keeps `Adopted=True` and is `Ready=False`, reason
+`UnexpectedResponse`, until it answers as it did.
 
 **Metrics**, labelled `pdu` and `site`: `capt_rackpdu_adopted`,
 `capt_rackpdu_ready`, `capt_rackpdu_drifted` and
@@ -591,7 +603,10 @@ dial target the PDU's egress Service, and the credentials and pin its Secret's.
 The CRD refuses `pdu` beside `driver`, `host` or `credentialsSecretRef`, and an
 outlet that is not a positive number, and an empty `pdu` or `host`. Power
 actions are refused, and `PowerReachable=False` with reason `PDUNotReady`,
-while the RackPDU is not Ready or is standalone. A RackPDU's change wakes the
+while the RackPDU is not Ready, is standalone, or is being deleted (checked
+first: the cache can still show it Ready after its controller logged out of
+the card, and a new session would hold the account until the card's idle
+timeout). A RackPDU's change wakes the
 hosts plugged into it at once rather than at their poll. `driver: shelly` with
 `host` and `credentialsSecretRef` stays for a desk plug; it is dialled
 directly.

@@ -85,11 +85,13 @@ type Card struct {
 	Logins []string
 	// LoginAttempts counts every login request, answered or refused.
 	LoginAttempts int
-	Logouts       int
-	Actions       []string
-	Writes        []string
-	InFlight      int
-	MaxInFlight   int
+	// LoginAttemptsBy is the username of every login request, in order.
+	LoginAttemptsBy []string
+	Logouts         int
+	Actions         []string
+	Writes          []string
+	InFlight        int
+	MaxInFlight     int
 
 	Serial   string
 	Firmware string
@@ -447,6 +449,7 @@ func (c *Card) login(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&request)
 	c.LoginAttempts++
+	c.LoginAttemptsBy = append(c.LoginAttemptsBy, request.Username)
 	if c.Refusal != nil {
 		answer(w, c.Refusal.Status, c.Refusal.Body)
 		return

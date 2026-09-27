@@ -181,6 +181,10 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	logger := log.FromContext(ctx)
 	admin, how, err := openRackCardAdmin(ctx, r.Client, r.cardOutlet(pdu, secret), secret, r.timeout())
 	if err != nil {
+		if pdu.Status.Adopted && rackCardUnexpectedResponse(err) {
+			markRackCardUnexpected(pdu, err)
+			return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
+		}
 		markRackCardNotAdopted(pdu, eatonLoginReason(err), err)
 		if cardLoginRefused(err) {
 			return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
@@ -202,6 +206,10 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 		err = &power.EatonUnsupportedError{Want: "PDU", Seen: fmt.Sprintf("powerDistributions/1 is %q with specifications.type %q, not \"pdu\"", distribution.Model, distribution.Type)}
 	}
 	var unsupported *power.EatonUnsupportedError
+	if errors.As(err, &unsupported) && pdu.Status.Adopted {
+		markRackCardUnexpected(pdu, err)
+		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
+	}
 	if errors.As(err, &unsupported) {
 		wrong := rackCardWrongKind(err, secret)
 		if conditions.GetReason(pdu, RackPDUAdoptedCondition) != "UnsupportedCard" {
@@ -293,6 +301,10 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 	pdu.Status.LastVerified = &now
 	if err != nil {
 		// Nothing on the card was read, so this says nothing about drift.
+		if rackCardUnexpectedResponse(err) {
+			markRackCardUnexpected(pdu, err)
+			return ctrl.Result{RequeueAfter: rackPDURetryInterval}
+		}
 		reason, retry := "Unreachable", rackPDURetryInterval
 		var refusal *power.EatonLoginError
 		if errors.As(err, &refusal) {

@@ -3,10 +3,10 @@ package macos
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
-	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,6 +49,14 @@ const (
 	// rackCardAddressLabel on a credentials Secret is its card's address, so
 	// every object's Secret for one card can be found.
 	rackCardAddressLabel = "tuist.dev/rack-card-address"
+
+	// rackCardAdminSetAnnotation on a credentials Secret is when its
+	// administrator password was set on a card, at the card's forced
+	// first-login change, and rackCardAdminSetCertificateAnnotation the
+	// certificate that card presented. Only such a Secret's password is tried
+	// on another object's card.
+	rackCardAdminSetAnnotation            = "tuist.dev/rack-card-admin-set"
+	rackCardAdminSetCertificateAnnotation = "tuist.dev/rack-card-admin-set-certificate"
 )
 
 // Keys of the Secret the controller generates for each card.
@@ -326,12 +334,13 @@ func asAdmin(o power.Outlet, username, password string) power.Outlet {
 }
 
 // openRackCardAdmin logs in as the card's administrator: with the Secret's
-// password; then with the administrator password of another object's Secret
-// for the same card address, which that object set when it logged in to a
-// card of a kind it could not drive (the card forces the change before it can
-// be asked what it is), recording it in this object's Secret; and otherwise
-// with the factory login, setting the Secret's password in the same request.
-// It names which.
+// password; then with the administrator password of at most one other
+// object's Secret for the same card address, one that recorded setting it on
+// a card presenting this certificate (an object that logged in to a card of a
+// kind it could not drive: the card forces the change before it can be asked
+// what it is), recording it in this object's Secret; and otherwise with the
+// factory login, setting the Secret's password in the same request and
+// recording that it did. It names which.
 func openRackCardAdmin(ctx context.Context, c client.Client, card power.Outlet, secret *corev1.Secret, timeout time.Duration) (*power.EatonSession, string, error) {
 	managed := asAdmin(card, string(secret.Data[rackCardKeyAdminUsername]), string(secret.Data[rackCardKeyAdminPassword]))
 	session, err := power.OpenEatonSession(ctx, managed, "", timeout)
@@ -343,40 +352,106 @@ func openRackCardAdmin(ctx context.Context, c client.Client, card power.Outlet, 
 		return nil, "", err
 	}
 
-	siblings := &corev1.SecretList{}
-	if address := secret.Labels[rackCardAddressLabel]; address != "" {
-		if err := c.List(ctx, siblings, client.InNamespace(secret.Namespace), client.MatchingLabels{rackCardAddressLabel: address}); err != nil {
-			return nil, "", fmt.Errorf("list the other credentials Secrets for %s: %w", address, err)
-		}
-	}
-	sort.Slice(siblings.Items, func(i, j int) bool { return siblings.Items[i].Name < siblings.Items[j].Name })
-	for _, sibling := range siblings.Items {
+	if sibling, ok, err := rackCardMarkedSibling(ctx, c, secret, card.TLSFingerprint); err != nil {
+		return nil, "", err
+	} else if ok {
 		password := string(sibling.Data[rackCardKeyAdminPassword])
-		if sibling.Name == secret.Name || password == "" || password == string(secret.Data[rackCardKeyAdminPassword]) {
-			continue
-		}
 		session, siblingErr := power.OpenEatonSession(ctx, asAdmin(card, string(secret.Data[rackCardKeyAdminUsername]), password), "", timeout)
-		if siblingErr != nil {
-			if errors.As(siblingErr, &refused) && refused.Refused() {
-				continue
+		if siblingErr == nil {
+			secret.Data[rackCardKeyAdminPassword] = []byte(password)
+			markRackCardAdminSet(secret, sibling.Annotations[rackCardAdminSetAnnotation], sibling.Annotations[rackCardAdminSetCertificateAnnotation])
+			if err := c.Update(ctx, secret); err != nil {
+				_ = session.Close(ctx)
+				return nil, "", fmt.Errorf("record the administrator password from %s in %s: %w", sibling.Name, secret.Name, err)
 			}
+			return session, fmt.Sprintf("with the administrator password another object set, from Secret %s/%s, and recorded it in %s",
+				sibling.Namespace, sibling.Name, secret.Name), nil
+		}
+		if !errors.As(siblingErr, &refused) || !refused.Refused() {
 			return nil, "", siblingErr
 		}
-		secret.Data[rackCardKeyAdminPassword] = []byte(password)
-		if err := c.Update(ctx, secret); err != nil {
-			_ = session.Close(ctx)
-			return nil, "", fmt.Errorf("record the administrator password from %s in %s: %w", sibling.Name, secret.Name, err)
-		}
-		return session, fmt.Sprintf("with the administrator password another object set, from Secret %s/%s, and recorded it in %s",
-			sibling.Namespace, sibling.Name, secret.Name), nil
 	}
 
 	factory := asAdmin(card, rackCardFactoryUser, rackCardFactoryPassword)
 	session, factoryErr := power.OpenEatonSession(ctx, factory, string(secret.Data[rackCardKeyAdminPassword]), timeout)
-	if factoryErr == nil {
-		return session, "with the factory login, and set the managed password", nil
+	if factoryErr != nil {
+		return nil, "", fmt.Errorf("the managed password: %v; the factory login: %w", err, factoryErr)
 	}
-	return nil, "", fmt.Errorf("the managed password: %v; the factory login: %w", err, factoryErr)
+	markRackCardAdminSet(secret, time.Now().UTC().Format(time.RFC3339), card.TLSFingerprint)
+	if err := c.Update(ctx, secret); err != nil {
+		_ = session.Close(ctx)
+		return nil, "", fmt.Errorf("record in %s that the administrator password is set: %w", secret.Name, err)
+	}
+	return session, "with the factory login, and set the managed password", nil
+}
+
+// rackCardMarkedSibling is the one other credentials Secret for the card's
+// address whose administrator password may be tried on it: of those that
+// recorded setting the password on a card presenting this certificate, the
+// most recent. Every other Secret is skipped, so a card that blocks an
+// account after a few failed logins is never walked through leftovers.
+func rackCardMarkedSibling(ctx context.Context, c client.Client, secret *corev1.Secret, fingerprint string) (*corev1.Secret, bool, error) {
+	address := secret.Labels[rackCardAddressLabel]
+	if address == "" {
+		return nil, false, nil
+	}
+	siblings := &corev1.SecretList{}
+	if err := c.List(ctx, siblings, client.InNamespace(secret.Namespace), client.MatchingLabels{rackCardAddressLabel: address}); err != nil {
+		return nil, false, fmt.Errorf("list the other credentials Secrets for %s: %w", address, err)
+	}
+	var best *corev1.Secret
+	var bestAt time.Time
+	for i := range siblings.Items {
+		sibling := &siblings.Items[i]
+		password := string(sibling.Data[rackCardKeyAdminPassword])
+		if sibling.Name == secret.Name || password == "" || password == string(secret.Data[rackCardKeyAdminPassword]) {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, sibling.Annotations[rackCardAdminSetAnnotation])
+		if err != nil || !power.SameTLSFingerprint(sibling.Annotations[rackCardAdminSetCertificateAnnotation], fingerprint) {
+			continue
+		}
+		if best == nil || at.After(bestAt) {
+			best, bestAt = sibling, at
+		}
+	}
+	return best, best != nil, nil
+}
+
+// markRackCardAdminSet records on a Secret when its administrator password
+// was set on a card, and that card's certificate.
+func markRackCardAdminSet(secret *corev1.Secret, at, fingerprint string) {
+	if secret.Annotations == nil {
+		secret.Annotations = map[string]string{}
+	}
+	secret.Annotations[rackCardAdminSetAnnotation] = at
+	secret.Annotations[rackCardAdminSetCertificateAnnotation] = fingerprint
+}
+
+// rackCardUnexpectedResponse reports a card answering unlike the API it was
+// adopted through: its login or a read missing, or a page instead of JSON.
+func rackCardUnexpectedResponse(err error) bool {
+	var refusal *power.EatonLoginError
+	var status *power.EatonHTTPError
+	var unsupported *power.EatonUnsupportedError
+	switch {
+	case errors.As(err, &refusal):
+		return refusal.NotServed()
+	case errors.As(err, &status):
+		return status.Status == 404 || (status.Body != "" && !json.Valid([]byte(status.Body)))
+	}
+	return errors.As(err, &unsupported)
+}
+
+// markRackCardUnexpected reports an adopted card answering unlike its API,
+// such as a card restarting, without taking its adoption back: the object
+// stays Adopted, and is not Ready until the card answers as it did.
+func markRackCardUnexpected(obj rackCard, err error) {
+	status := obj.CardStatus()
+	status.Drift = infrav1.RackCardDriftUnknown
+	status.Message = fmt.Sprintf("the adopted card answered unlike its API: %v", err)
+	conditions.MarkFalse(obj, clusterv1.ReadyCondition, "UnexpectedResponse", clusterv1.ConditionSeverityWarning, "%s", status.Message)
+	conditions.MarkUnknown(obj, RackCardConvergedCondition, "UnexpectedResponse", "%s", status.Message)
 }
 
 // rackCardWrongKind reports a card an object logged in to as administrator

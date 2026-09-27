@@ -190,8 +190,7 @@ func (r *RackATSReconciler) adopt(ctx context.Context, ats *infrav1.RackATS, car
 	if err != nil {
 		reason := atsReason(err, "ConvergeFailed")
 		if reason == rackATSReasonUnsupported {
-			r.markUnsupported(ats, err)
-			return ctrl.Result{RequeueAfter: rackATSUnsupportedInterval}, true, nil
+			return ctrl.Result{RequeueAfter: r.markUnsupported(ats, err)}, true, nil
 		}
 		r.Recorder.Eventf(ats, corev1.EventTypeWarning, reason, "%v", err)
 		refused := cardLoginRefused(err)
@@ -241,8 +240,7 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 	if err != nil {
 		reason := atsReason(err, "ObservationFailed")
 		if reason == rackATSReasonUnsupported {
-			r.markUnsupported(ats, err)
-			return ctrl.Result{RequeueAfter: rackATSUnsupportedInterval}
+			return ctrl.Result{RequeueAfter: r.markUnsupported(ats, err)}
 		}
 		ats.Status.Drift = infrav1.RackCardDriftUnknown
 		ats.Status.Message = fmt.Sprintf("the controller's account cannot read the transfer switch: %v", err)
@@ -355,7 +353,18 @@ func (r *RackATSReconciler) markUnobserved(ats *infrav1.RackATS, reason, message
 
 // markUnsupported reports a card that answered in a way the controller does
 // not recognise, with what it answered.
-func (r *RackATSReconciler) markUnsupported(ats *infrav1.RackATS, err error) {
+// An adopted card that answers so is not unadopted: it is reported as
+// UnexpectedResponse, which a card briefly serving something else (a restart,
+// an upgrade) clears on its own. It returns when to look again.
+func (r *RackATSReconciler) markUnsupported(ats *infrav1.RackATS, err error) time.Duration {
+	if ats.Status.Adopted {
+		if conditions.GetReason(ats, clusterv1.ReadyCondition) != "UnexpectedResponse" {
+			r.Recorder.Eventf(ats, corev1.EventTypeWarning, "UnexpectedResponse", "The adopted card answered unlike its API: %v", err)
+		}
+		markRackCardUnexpected(ats, err)
+		r.markUnobserved(ats, "UnexpectedResponse", ats.Status.Message)
+		return rackATSRetryInterval
+	}
 	message := fmt.Sprintf("the card at %s is not one the controller can drive: %v", ats.Spec.Address, err)
 	if cond := conditions.Get(ats, RackCardAdoptedCondition); cond == nil || cond.Reason != rackATSReasonUnsupported {
 		r.Recorder.Eventf(ats, corev1.EventTypeWarning, rackATSReasonUnsupported, "%s", message)
@@ -366,6 +375,7 @@ func (r *RackATSReconciler) markUnsupported(ats *infrav1.RackATS, err error) {
 	conditions.MarkFalse(ats, RackCardAdoptedCondition, rackATSReasonUnsupported, clusterv1.ConditionSeverityError, "%s", message)
 	conditions.MarkFalse(ats, clusterv1.ReadyCondition, rackATSReasonUnsupported, clusterv1.ConditionSeverityError, "%s", message)
 	r.markUnobserved(ats, rackATSReasonUnsupported, message)
+	return rackATSUnsupportedInterval
 }
 
 func (r *RackATSReconciler) card(ats *infrav1.RackATS, secret *corev1.Secret) atsCard {
