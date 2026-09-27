@@ -32,7 +32,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
                 self.send_response(response.status)
                 for (key, value) in response.getheaders():
                     if key.lower() not in ['connection', 'transfer-encoding', 'content-length']:
-                        self.send_header(key, value)
+                        self.send_header(key.replace('\r', '').replace('\n', '').replace(':', ''), value.replace('\r', '').replace('\n', ''))
                 self.send_header('x-verification-backend', str(index + 1))
                 self.send_header('content-length', str(len(content)))
                 self.end_headers()
