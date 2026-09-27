@@ -207,7 +207,7 @@ stringData:
   interserver-password: {{ $interserverPassword | quote }}
   # Mounted into users.d with `subPath`, so ClickHouse reads it at startup only.
   users.xml: |
-    {{- include "tuist.clickhouseManagedUsersXml" (dict "password" $password) | nindent 4 }}
+    {{- include "tuist.clickhouseManagedUsersXml" (dict "password" $password "backup" $m.backup) | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -626,7 +626,7 @@ spec:
         # otherwise sit unread until something else restarted the pod. The
         # interserver password reaches the server through env, which is read
         # only at startup too.
-        checksum/config: {{ printf "%s|%s|%s|%s" (omit $m "migration" "shadowWrites" "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password)) $interserverPassword | sha256sum | trunc 32 }}
+        checksum/config: {{ printf "%s|%s|%s|%s" (omit $m "migration" "shadowWrites" "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password "backup" $m.backup)) $interserverPassword | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}

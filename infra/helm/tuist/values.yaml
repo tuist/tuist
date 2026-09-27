@@ -3340,6 +3340,10 @@ clickhouse:
       # Six hours. Long enough for a full of a dataset this size, short enough
       # that a wedged backup does not block the next one indefinitely.
       timeoutSeconds: 21600
+      # Memory budget for the `backup` user the jobs run as, which is separate
+      # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
+      # leaves the user unbounded below the server's own ceiling.
+      maxMemoryUsageForUserBytes: ""
       resources:
         requests:
           cpu: 100m

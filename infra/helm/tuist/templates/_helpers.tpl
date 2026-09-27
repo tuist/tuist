@@ -1053,6 +1053,22 @@ profile change reaches the server only through a restart.
       <parallel_view_processing>1</parallel_view_processing>
       <max_insert_threads>4</max_insert_threads>
     </default>
+
+    <!--
+      The backup CronJobs' own user, so a backup is bounded by its own
+      budget rather than the application's. ClickHouse enforces
+      `max_memory_usage_for_user` on one tracker per user, and the
+      application sets that tracker's ceiling on every query it sends. A
+      backup running as `default` therefore shares the application's
+      budget, which production's nightly incremental outgrew at 10 GiB
+      against 8.
+    -->
+    <backup>
+      <profile>default</profile>
+{{- with .backup.maxMemoryUsageForUserBytes }}
+      <max_memory_usage_for_user>{{ . }}</max_memory_usage_for_user>
+{{- end }}
+    </backup>
   </profiles>
   <users>
     <default>
@@ -1064,6 +1080,14 @@ profile change reaches the server only through a restart.
       <quota>default</quota>
       <access_management>1</access_management>
     </default>
+    <backup>
+      <password>{{ .password }}</password>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+      <profile>backup</profile>
+      <quota>default</quota>
+    </backup>
   </users>
 </clickhouse>
 {{- end }}
