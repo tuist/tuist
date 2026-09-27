@@ -1,7 +1,7 @@
 alias Tuist.KeyValueStore.Invalidator
 
 # Run in an isolated named VM, without starting the server or its databases:
-# MIX_ENV=test elixir --name scale_root@127.0.0.1 --cookie scale_verification -S mix run --no-start test/cluster_scale_out.exs
+# MIX_ENV=test elixir --name scale_root@127.0.0.1 --cookie scale_verification -S mix run --no-start verification/cluster_scale_out.exs
 Process.flag(:trap_exit, true)
 
 for app <- [:phoenix_pubsub, :cachex, :libcluster], do: Application.ensure_all_started(app)

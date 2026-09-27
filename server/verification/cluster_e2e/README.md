@@ -61,7 +61,7 @@ From `server/`, start discovery and the proxy in a separate terminal:
 
 ```sh
 export TUIST_E2E_SECOND_ADDRESS=192.168.1.116 # Replace with your local address.
-python3 test/cluster_e2e/services.py
+python3 verification/cluster_e2e/services.py
 ```
 
 Then run the controller, using the same second address:
@@ -77,7 +77,7 @@ export TUIST_REDIS_URL=redis://127.0.0.1:14105
 export ERL_FLAGS='+S 2:2'
 mkdir -p /tmp/tuist-scale-e2e
 elixir --hidden --name e2e_control@127.0.0.1 --cookie scale_e2e_verification \
-  -S mix run --no-compile --no-start test/cluster_e2e/run.exs
+  -S mix run --no-compile --no-start verification/cluster_e2e/run.exs
 ```
 
 Success ends with `All full-server end-to-end checks passed` and exit status

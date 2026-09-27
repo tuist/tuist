@@ -242,7 +242,7 @@ Check every running web pod with the release's `rpc 'Node.list()'` command. With
 ```sh
 cd server
 MIX_ENV=test elixir --name scale_root@127.0.0.1 --cookie scale_verification \
-  -S mix run --no-start test/cluster_scale_out.exs
+  -S mix run --no-start verification/cluster_scale_out.exs
 ```
 
 Production rate limits continue using shared Valkey and reject requests if that store fails. Installations without Valkey retain approximate in-memory rate limits; publish/subscribe replication does not serialize admission. Security checks consult authoritative storage on every request. Prepaid balance invalidations are eventually consistent display updates, with expiration and cache clearing on membership changes as recovery paths.

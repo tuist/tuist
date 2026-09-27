@@ -20,7 +20,7 @@ Before and after screenshots were captured locally and retained outside the bran
 
 ### Complete two-server verification
 
-Two ordinary operating-system processes booted the complete Phoenix application against a private PostgreSQL instance, an isolated ClickHouse database, real MinIO storage, and a private Redis instance. A round-robin proxy alternated requests between them and retried the surviving backend during shutdown. No session affinity was used. The default Kubernetes discovery strategy queried actual local address records and connected nodes with the same application prefix on two existing host addresses. The reusable [harness and setup instructions](server/test/cluster_e2e/README.md) and [complete assertion results](server-scale-out-verification/full-server-results.txt) are checked in.
+Two ordinary operating-system processes booted the complete Phoenix application against a private PostgreSQL instance, an isolated ClickHouse database, real MinIO storage, and a private Redis instance. A round-robin proxy alternated requests between them and retried the surviving backend during shutdown. No session affinity was used. The default Kubernetes discovery strategy queried actual local address records and connected nodes with the same application prefix on two existing host addresses. The reusable [harness and setup instructions](server/verification/cluster_e2e/README.md) and [complete assertion results](server-scale-out-verification/full-server-results.txt) are checked in.
 
 The final automated run passed:
 
