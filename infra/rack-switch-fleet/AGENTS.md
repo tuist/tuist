@@ -414,9 +414,11 @@ waiting for a port and the ones belonging to a planned node.
 The power gear is Eaton throughout: three EATS16N transfer switches and two
 EVMAFC20A PDUs. The earlier APC choice was superseded when a single vendor across
 ATS and PDU turned out to be the stronger argument. Both are managed, so both
-keep a link to `ber1-mgmt` (ports 41-45) and a static `mgmt_address`; the PDU
-also speaks a REST API, which is what a power driver should target, and that is
-recorded on the hardware rather than left to memory.
+keep a link to `ber1-mgmt` (ports 41-45) and a static `mgmt_address`. Both
+speak Eaton's REST API, which is what their controllers target, and that is
+recorded on the hardware (`management_protocols`) rather than left to memory;
+for the transfer switch it rests on the card being a Network-M2, which is not
+yet confirmed on the units (see "RackATS" in the CAPI provider).
 
 Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. `ber1-ats-1` is
 the critical layer and powers its loads from its own outlets: `ber1-mgmt`,
@@ -492,6 +494,33 @@ router and nobody at it; an unknown MAC still gets the provisioning range. A
 node without one (today `ber1-pdu-b`, until someone reads it off the unit) is
 rendered all the same, gets no reservation, and its RackPDU reports
 `AddressReserved=False`.
+
+### RackATS objects
+
+Each transfer switch (`eats16n`) with a `mgmt_address` is rendered the same way
+as a `RackATS` into `k8s/<site>/<ats>.yaml` by `fleet_render_ats` (both go
+through `fleet_render_power`): its site, model, `mac`, address, `managedBy`
+(controller once `installed`) and `preferredSource`, with the same `<ats>-admin`
+PushSecret for one the controller adopts. Today that is `ber1-ats-1` and
+`ber1-ats-2`; `ber1-ats-3` has no address until the colo. Neither has a `mac`
+recorded yet, so neither has a DHCP reservation, and both RackATSes report
+`AddressReserved=False`; the reservation rule is the PDUs', since both are
+installed power nodes behind the edge.
+
+Every transfer switch carries `preferred_source`, 1 or 2: the source the
+switch powers the load from whenever it is good. Source 1 is feed A and
+source 2 feed B, so a transfer switch prefers the feed its chain is named for:
+`ber1-ats-1` (the critical layer) and `ber1-ats-3` (chain A) prefer 1,
+`ber1-ats-2` (chain B) prefers 2, which keeps the two chains on different feeds
+while both are good. `fleet_check_power` refuses a transfer switch without one
+and any other node with one.
+
+What the controller does with the object (adopting the card, keeping the
+preferred source, and reading every minute which source powers the load and
+whether the other could take it, into status, metrics and events) is "RackATS"
+in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+That observation replaces an SNMP exporter: nothing polls these switches over
+SNMP.
 
 ### The seam between two inventories, and how it is joined
 
@@ -927,10 +956,11 @@ tailnet too. Three things make that path work, all rendered from the site:
   independent of how the node joined. Their replies into the tailnet are MSS
   clamped like the switches'.
 - **The tailnet approves and grants only what the operator uses.**
-  `infra/tailscale/acls.json` auto-approves `192.168.0.16/32` (`ber1-pdu-b`)
-  for `tag:tuist-rack-edge` and grants the staging cluster `tcp:443` to it.
-  The transfer switches' /32s are advertised but not approved, so they stay
-  off the tailnet until something needs them.
+  `infra/tailscale/acls.json` auto-approves the installed power devices'
+  /32s, `192.168.0.14` (`ber1-ats-1`), `192.168.0.15` (`ber1-ats-2`) and
+  `192.168.0.16` (`ber1-pdu-b`), for `tag:tuist-rack-edge`, and grants the
+  staging cluster `tcp:443` to each, which the RackPDU and RackATS
+  controllers dial.
 
 ### Auto Install on the edge node
 

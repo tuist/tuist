@@ -2795,6 +2795,87 @@ STUB
     [[ "$output" == *"stale: k8s/ber1/ber1-pdu-b.yaml"* ]]
 }
 
+# --- RackATS objects ---------------------------------------------------------
+
+@test "each transfer switch prefers the feed its chain is named for" {
+    run jq -r '[.nodes[] | select(.hardware == "eats16n") | "\(.name)=\(.preferred_source)"] | join(" ")' "$SITE_FILE"
+    [ "$output" = "ber1-ats-1=1 ber1-ats-2=2 ber1-ats-3=1" ]
+    run fleet_check_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "a transfer switch without a preferred source of 1 or 2 is rejected, and nothing else carries one" {
+    local site="$BATS_TEST_TMPDIR/preferred.json"
+    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= del(.preferred_source)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-ats-2: preferred_source is missing"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-2")).preferred_source = 3' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-ats-2: preferred_source is 3"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-2")).preferred_source = "2"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")).preferred_source = 1' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-pdu-b: only a transfer switch has a preferred_source"* ]]
+}
+
+@test "the transfer switch records the protocol its controller targets" {
+    run jq -r '."eats16n".management_protocols[0]' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "rest" ]
+}
+
+@test "each transfer switch with a management address is a RackATS, adopted by the controller once installed" {
+    run fleet_atses "$SITE_FILE"
+    [ "$output" = $'ber1-ats-1\nber1-ats-2' ]
+    run fleet_render_ats "$SITE_FILE" ber1-ats-2
+    [ "$status" -eq 0 ]
+    [ "$(yq 'select(.kind == "RackATS") | .metadata.name' <<<"$output")" = "ber1-ats-2" ]
+    [ "$(yq 'select(.kind == "RackATS") | .spec | [.site, .model, .address, .managedBy, .preferredSource] | join(" ")' <<<"$output")" = "ber1 eats16n 192.168.0.15 controller 2" ]
+    # no MAC recorded, and nothing of a PDU's
+    [ "$(yq 'select(.kind == "RackATS") | .spec | (has("mac") or has("chain") or has("outletStateOnStartup"))' <<<"$output")" = "false" ]
+    [ "$(yq 'select(.kind == "PushSecret") | .spec.selector.secret.name' <<<"$output")" = "ber1-ats-2-credentials" ]
+    [ "$(yq 'select(.kind == "PushSecret") | [.spec.data[].match.remoteRef.remoteKey] | unique | join(" ")' <<<"$output" | sed '/^$/d')" = "ber1-ats-2 admin" ]
+    run fleet_render_ats "$SITE_FILE" ber1-ats-1
+    [ "$(yq 'select(.kind == "RackATS") | .spec.preferredSource' <<<"$output")" = "1" ]
+
+    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.mac = "00:20:85:aa:bb:cc")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_render_ats "$BATS_TEST_TMPDIR/mac.json" ber1-ats-2
+    [ "$(yq 'select(.kind == "RackATS") | .spec.mac' <<<"$output")" = "00:20:85:aa:bb:cc" ]
+
+    # a transfer switch not installed yet is standalone, with nothing pushed for it
+    jq '(.nodes[] | select(.name == "ber1-ats-3")) |= (.mgmt_address = "192.168.0.19")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_atses "$BATS_TEST_TMPDIR/planned.json"
+    [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
+    run fleet_render_ats "$BATS_TEST_TMPDIR/planned.json" ber1-ats-3
+    [ "$(yq 'select(.kind == "RackATS") | .spec | [.managedBy, .preferredSource] | join(" ")' <<<"$output")" = "standalone 1" ]
+    [[ "$output" != *"PushSecret"* ]]
+}
+
+@test "a transfer switch with a recorded MAC takes its address from the edge's DHCP, and one without gets no reservation" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ber1-ats-"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-1")) |= (.mac = "00:20:85:aa:bb:01")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/mac.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\ndhcp-host=00:20:85:aa:bb:01,192.168.0.14,ber1-ats-1,infinite\n'* ]]
+}
+
+@test "render --check notices a RackATS object that no longer matches the site" {
+    cp "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml" "$BATS_TEST_TMPDIR/ats.yaml"
+    sed -i.bak 's/preferredSource: 2/preferredSource: 1/' "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render --check
+    cp "$BATS_TEST_TMPDIR/ats.yaml" "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml"
+    rm -f "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml.bak"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: k8s/ber1/ber1-ats-2.yaml"* ]]
+}
+
 @test "the machines segment's addresses, members and machines are checked at render" {
     source "$FLEET_ROOT/lib/edge.sh"
     site="$BATS_TEST_TMPDIR/machines.json"

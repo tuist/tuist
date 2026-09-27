@@ -369,7 +369,8 @@
           "purpose": "management"
         }
       ],
-      "mgmt_address": "192.168.0.14"
+      "mgmt_address": "192.168.0.14",
+      "preferred_source": 1
     },
     {
       "name": "ber1-ats-2",
@@ -386,7 +387,8 @@
           "purpose": "management"
         }
       ],
-      "mgmt_address": "192.168.0.15"
+      "mgmt_address": "192.168.0.15",
+      "preferred_source": 2
     },
     {
       "name": "ber1-ats-3",
@@ -402,7 +404,8 @@
           "nic": "netpack",
           "purpose": "management"
         }
-      ]
+      ],
+      "preferred_source": 1
     },
     {
       "name": "ber1-pdu-a",

@@ -231,6 +231,12 @@ fleet_check_power() {
       $all[] | select(.hardware == "eats16n" and (.ats != null or .pdu != null)) |
         "\(.name): a transfer switch takes the facility feeds, not another power device"
     ] + [
+      $all[] | select(.hardware == "eats16n" and (.preferred_source | IN(1, 2) | not)) |
+        "\(.name): preferred_source is \(.preferred_source // "missing"); a transfer switch prefers source 1 (feed A) or 2 (feed B)"
+    ] + [
+      $all[] | select(.hardware != "eats16n" and .preferred_source != null) |
+        "\(.name): only a transfer switch has a preferred_source"
+    ] + [
       ([$all[] | select(.role == "edge")], [$all[] | select(.role == "storage")],
        [$all[] | select(.role == "tor")]) |
       [.[] | {name, ats: feeder} | select(.ats != null)] |
@@ -777,30 +783,49 @@ fleet_pdus() {
   jq -r '.nodes[]? | select(.hardware == "evmafc20a" and (.mgmt_address // "") != "") | .name' "$1"
 }
 
+# The site's transfer switches that have a management address, one name per
+# line.
+fleet_atses() {
+  jq -r '.nodes[]? | select(.hardware == "eats16n" and (.mgmt_address // "") != "") | .name' "$1"
+}
+
 # A PDU as a RackPDU object, which the CAPI provider's RackPDU controller
 # adopts once it is installed (managedBy: controller), and, for one it adopts,
 # a PushSecret that copies the administrator login the controller generated
 # into 1Password. Spec only, like the RackSwitch objects.
 fleet_render_pdu() {
-  local site_file="$1" name="$2"
-  jq -r --arg n "$name" '
-    .site as $site | .kubernetes.namespace as $ns |
+  fleet_render_power "$1" "$2" RackPDU
+}
+
+# A transfer switch as a RackATS object, which the CAPI provider's RackATS
+# controller adopts, keeps on its preferred source and observes once it is
+# installed, with the same PushSecret as a PDU.
+fleet_render_ats() {
+  fleet_render_power "$1" "$2" RackATS
+}
+
+fleet_render_power() {
+  local site_file="$1" name="$2" kind="$3"
+  jq -r --arg n "$name" --arg kind "$kind" '
+    .site as $site |
     .nodes[] | select(.name == $n) |
     (.status == "installed") as $managed |
+    { "tuist.dev/site": $site, "tuist.dev/role": "power" } as $labels |
     {
       apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
-      kind: "RackPDU",
-      metadata: { name: .name, labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
+      kind: $kind,
+      metadata: { name: .name, labels: $labels },
       spec: ({ site: $site, model: .hardware }
         + (if .mac then { mac: .mac } else {} end)
         + { address: .mgmt_address }
-        + (if .ats then { chain: .ats } else {} end)
-        + { managedBy: (if $managed then "controller" else "standalone" end), outletStateOnStartup: "on" })
+        + (if $kind == "RackPDU" and .ats then { chain: .ats } else {} end)
+        + { managedBy: (if $managed then "controller" else "standalone" end) }
+        + (if $kind == "RackPDU" then { outletStateOnStartup: "on" } else { preferredSource: .preferred_source } end))
     },
     (if $managed then {
       apiVersion: "external-secrets.io/v1alpha1",
       kind: "PushSecret",
-      metadata: { name: "\(.name)-admin", labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
+      metadata: { name: "\(.name)-admin", labels: $labels },
       spec: {
         refreshInterval: "1h",
         updatePolicy: "Replace",
