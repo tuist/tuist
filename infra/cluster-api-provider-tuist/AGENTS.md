@@ -545,7 +545,26 @@ and stops contacting it. A logout that cannot reach the card is a
 the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
 allows one session per account and another holds the administrator's; it
 lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
-for any other reason, carried verbatim), `AccountBlocked`, `ConvergeFailed`.
+for any other reason, carried verbatim), `AccountBlocked`, `UnsupportedCard`
+(the card's `powerDistributions/1` is not `specifications.type: pdu`, see
+"A card of the wrong kind" below), `ConvergeFailed`.
+
+**A card of the wrong kind.** Nothing on an Eaton card answers without a
+login: in Eaton's collections only `oauth2/token` is unauthenticated, and its
+refusal carries no product. A factory card forces the administrator's new
+password in that same first login, so an object pointed at a card of the other
+kind (a RackPDU at a transfer switch's address, or the reverse) has already
+set its own administrator password on the card when `powerDistributions/1`
+tells it the card is not its kind. It then stops there, writes nothing else,
+and reports `Adopted=False UnsupportedCard` naming the Secret that now holds
+the password. Every credentials Secret carries the label
+`tuist.dev/rack-card-address=<address>`, and the administrator login tries,
+after the object's own password and before the factory one, the
+`admin-password` of every other Secret in the namespace with the same address
+label; the one that works is recorded in the object's own Secret, and the
+`LoggedIn` event names where it came from. So the object of the right kind
+adopts the card without anyone at it, and the wrong one stays
+`UnsupportedCard` until its site definition is fixed.
 
 **Metrics**, labelled `pdu` and `site`: `capt_rackpdu_adopted`,
 `capt_rackpdu_ready`, `capt_rackpdu_drifted` and
@@ -641,7 +660,8 @@ administrator's logins wait. What differs otherwise:
 1. **It identifies the switch before writing anything else.** Right after the
    administrator's login (which, on a factory card, is itself the forced
    password change) it reads `powerDistributions/1`; a card that is not a
-   transfer switch the driver knows is left there (below).
+   transfer switch the driver knows is left there (below, and "A card of the
+   wrong kind" under RackPDU for the password the login already set).
 2. **The controller's account is in `viewers`**: it only reads.
 3. **The preferred source** is set as the administrator when it differs from
    `spec.preferredSource`, and read back. Between generations it is only
@@ -655,10 +675,12 @@ administrator's logins wait. What differs otherwise:
    (each source's `state`, one of `good`, `derated`, `outOfRange`,
    `missing`, `unknown`, with `voltage`, `frequency` and the card's raw
    `detail`), `status.preferredSource`, the device's and the card's
-   identity, and `status.lastObserved`. A change of the active source between
-   two reads sets `status.lastTransfer` and emits a `Transferred` event
-   (Warning when it moved off the preferred source, Normal when it moved back);
-   a load neither source powers emits `LoadNotPowered`.
+   identity, and `status.lastObserved`. Every change of the active source
+   between two reads sets `status.lastTransfer`, with 0 for neither source,
+   and counts in `capt_rackats_observed_transfers_total{from,to}`. The event
+   tells them apart: `Transferred` between the sources (Warning when it moved
+   off the preferred source, Normal when it moved back), `LoadNotPowered` when
+   neither source powers the load, `LoadRestored` when one does again.
 
 **`Redundant`** is True when the source not powering the load is `good`, so
 losing the active one would move the load rather than drop it. False reasons:
@@ -673,8 +695,9 @@ RackPDU's plus `UnsupportedCard`. `Converged=False` reason
 `PreferredSourceUnrecognised` is a card whose settings carry no preferred
 source the driver recognises; the message lists the keys it does carry. A
 failed read is `Ready=False` with its own reason (`Unreachable`,
-`ControllerLoginFailed`, `ObservationFailed`) and `drift: unknown`, never
-drift.
+`ControllerLoginFailed`, `AccountBlocked`, `ObservationFailed`),
+`Converged=Unknown` and `drift: unknown`, never drift. A standalone RackATS is
+not observed either: `Redundant=Unknown`, reason `Standalone`.
 
 **Metrics**, on the operator's `/metrics`, labelled `ats` and `site`:
 `capt_rackats_active_source`, `capt_rackats_preferred_source`,
@@ -696,7 +719,8 @@ restarts with the operator. There are no alert rules yet; the ones to add:
 | A load is on its alternate source | `capt_rackats_active_source != capt_rackats_preferred_source and capt_rackats_active_source > 0` for 10m |
 | A load is not powered | `capt_rackats_active_source == 0` for 1m |
 | A source is not good | `capt_rackats_input_good == 0` for 5m |
-| A transfer happened | `increase(capt_rackats_observed_transfers_total[15m]) > 0` |
+| A transfer happened | `increase(capt_rackats_observed_transfers_total{from!="0",to!="0"}[15m]) > 0` |
+| A load lost or regained power | `increase(capt_rackats_observed_transfers_total{to="0"}[15m]) > 0`, and `{from="0"}` |
 | A transfer switch is not observed | `capt_rackats_observed == 0` for 10m, or `time() - capt_rackats_last_observed_timestamp_seconds > 600` |
 | A transfer switch is not Ready | `capt_rackats_ready == 0` for 15m |
 

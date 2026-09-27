@@ -179,7 +179,7 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 // finished by the next.
 func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	admin, how, err := openEatonAdmin(ctx, r.cardOutlet(pdu, secret), secret, r.timeout())
+	admin, how, err := openRackCardAdmin(ctx, r.Client, r.cardOutlet(pdu, secret), secret, r.timeout())
 	if err != nil {
 		markRackCardNotAdopted(pdu, eatonLoginReason(err), err)
 		if cardLoginRefused(err) {
@@ -194,7 +194,27 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	}()
 	r.Recorder.Eventf(pdu, corev1.EventTypeNormal, "LoggedIn", "Logged in as %s %s", rackCardFactoryUser, how)
 
-	if err := r.converge(ctx, pdu, secret, admin); err != nil {
+	// What the card is, before anything else is written to it. The login may
+	// already have changed a factory card's administrator password: the card
+	// forces that before it answers anything else.
+	distribution, err := admin.Distribution(ctx)
+	if err == nil && distribution.Type != "pdu" {
+		err = &power.EatonUnsupportedError{Want: "PDU", Seen: fmt.Sprintf("powerDistributions/1 is %q with specifications.type %q, not \"pdu\"", distribution.Model, distribution.Type)}
+	}
+	var unsupported *power.EatonUnsupportedError
+	if errors.As(err, &unsupported) {
+		wrong := rackCardWrongKind(err, secret)
+		if conditions.GetReason(pdu, RackPDUAdoptedCondition) != "UnsupportedCard" {
+			r.Recorder.Eventf(pdu, corev1.EventTypeWarning, "UnsupportedCard", "%v", wrong)
+		}
+		pdu.Status.Adopted = false
+		markRackCardNotAdopted(pdu, "UnsupportedCard", wrong)
+		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
+	}
+	if err == nil {
+		err = r.converge(ctx, pdu, secret, admin)
+	}
+	if err != nil {
 		pdu.Status.Message = err.Error()
 		conditions.MarkFalse(pdu, RackPDUConvergedCondition, "ConvergeFailed", clusterv1.ConditionSeverityWarning, "%v", err)
 		if !pdu.Status.Adopted {
@@ -312,8 +332,8 @@ func (r *RackPDUReconciler) cardOutlet(pdu *infrav1.RackPDU, secret *corev1.Secr
 	return rackPDUOutlet(r.egressConfig(), pdu, secret)
 }
 
-// rackPDUOutlet is outlet 1 of a RackPDU as its controller's account reaches
-// it; callers set the outlet.
+// rackPDUOutlet is a RackPDU's card as its controller's account reaches
+// it; the power paths set the outlet.
 func rackPDUOutlet(egress egressConfig, pdu *infrav1.RackPDU, secret *corev1.Secret) power.Outlet {
 	return rackCardOutlet(rackPDUHost(pdu), rackPDUEgress(pdu).host(egress), secret)
 }
@@ -337,7 +357,7 @@ func rackPDUSecretName(pdu *infrav1.RackPDU) string {
 
 // ensureSecret makes the PDU's credentials Secret.
 func (r *RackPDUReconciler) ensureSecret(ctx context.Context, pdu *infrav1.RackPDU) (*corev1.Secret, error) {
-	return ensureRackCardSecret(ctx, r.Client, pdu, "tuist.dev/rack-pdu")
+	return ensureRackCardSecret(ctx, r.Client, pdu, "tuist.dev/rack-pdu", pdu.Spec.Address)
 }
 
 func (r *RackPDUReconciler) timeout() time.Duration {

@@ -369,6 +369,10 @@ func (c *Card) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && path == "/managers/1/identification":
 		fmt.Fprintf(w, `{"physicalName":"Eaton %s","vendor":"Eaton","productName":%q,"serialNumber":%q,"type":"management card","firmwareVersion":%q,"product":"enmc2-fe_0","modelNumber":%q,"partNumber":"755-456-489","macAddress":"00:20:85:D7:00:CA"}`, c.Product, c.Product, c.Serial, c.Firmware, c.ModelNumber)
 
+	case r.Method == http.MethodGet && path == "/powerDistributions/1" && c.ATS == nil:
+		// The collection's G3 HD example, which the G4 is taken to share.
+		fmt.Fprintf(w, `{"@id":"/rest/mbdetnrs/2.0/powerDistributions/1","id":"1","identification":{"model":"Eaton Rack PDU G4","productName":"Rack PDU G4","serialNumber":%q,"type":"PowerDistribution"},"specifications":{"switchable":true,"type":"pdu"}}`, c.Serial)
+
 	case r.Method == http.MethodGet && path == "/powerDistributions/1/outlets":
 		members := []string{}
 		for n := 1; n <= len(c.Outlets); n++ {

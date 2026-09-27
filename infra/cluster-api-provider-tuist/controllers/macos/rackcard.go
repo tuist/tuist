@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -44,6 +45,10 @@ const (
 	rackCardFactoryPassword = "admin"
 	// The account the controller works as, which it makes on the card.
 	rackCardControllerUser = "tuist-controller"
+
+	// rackCardAddressLabel on a credentials Secret is its card's address, so
+	// every object's Secret for one card can be found.
+	rackCardAddressLabel = "tuist.dev/rack-card-address"
 )
 
 // Keys of the Secret the controller generates for each card.
@@ -71,7 +76,7 @@ func rackCardSecretName(name string) string {
 // lacks and never replacing what it has: it is written before any password
 // reaches the card, so a pass that stops after changing one finds it here.
 // labelKey names the device kind, e.g. tuist.dev/rack-pdu.
-func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Object, labelKey string) (*corev1.Secret, error) {
+func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Object, labelKey, address string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: obj.GetNamespace(), Name: rackCardSecretName(obj.GetName())}
 	err := c.Get(ctx, key, secret)
@@ -90,6 +95,13 @@ func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Objec
 		secret.Data = map[string][]byte{}
 	}
 	changed := false
+	if secret.Labels[rackCardAddressLabel] != address {
+		if secret.Labels == nil {
+			secret.Labels = map[string]string{}
+		}
+		secret.Labels[rackCardAddressLabel] = address
+		changed = true
+	}
 	owners := secret.OwnerReferences[:0]
 	for _, ref := range secret.OwnerReferences {
 		if ref.Kind == "RackPDU" || ref.Kind == "RackATS" {
@@ -207,6 +219,7 @@ func markRackCardUnreachable(obj rackCard, err error) {
 		conditions.MarkFalse(obj, RackCardAdoptedCondition, "Unreachable", clusterv1.ConditionSeverityWarning, "%v", err)
 	}
 	conditions.MarkFalse(obj, clusterv1.ReadyCondition, "Unreachable", clusterv1.ConditionSeverityWarning, "%v", err)
+	conditions.MarkUnknown(obj, RackCardConvergedCondition, "Unreachable", "%v", err)
 }
 
 // pinRackCardCertificate records the certificate at first contact, honours an
@@ -292,12 +305,12 @@ func markRackCardConverged(recorder record.EventRecorder, obj rackCard) {
 }
 
 // rackCardOutlet is a card as the controller's account reaches it: through
-// dial when set, pinned to the Secret's fingerprint. Callers set the outlet.
+// dial when set, pinned to the Secret's fingerprint. It names no outlet; the
+// power paths set theirs.
 func rackCardOutlet(host, dial string, secret *corev1.Secret) power.Outlet {
 	return power.Outlet{
 		Driver:          power.DriverEaton,
 		Host:            host,
-		Outlet:          "1",
 		Dial:            dial,
 		Username:        string(secret.Data[rackCardKeyUsername]),
 		Password:        string(secret.Data[rackCardKeyPassword]),
@@ -312,10 +325,14 @@ func asAdmin(o power.Outlet, username, password string) power.Outlet {
 	return o
 }
 
-// openEatonAdmin logs in as the card's administrator with the Secret's
-// password, and otherwise with the factory login, setting the Secret's
-// password in the same request. It names which.
-func openEatonAdmin(ctx context.Context, card power.Outlet, secret *corev1.Secret, timeout time.Duration) (*power.EatonSession, string, error) {
+// openRackCardAdmin logs in as the card's administrator: with the Secret's
+// password; then with the administrator password of another object's Secret
+// for the same card address, which that object set when it logged in to a
+// card of a kind it could not drive (the card forces the change before it can
+// be asked what it is), recording it in this object's Secret; and otherwise
+// with the factory login, setting the Secret's password in the same request.
+// It names which.
+func openRackCardAdmin(ctx context.Context, c client.Client, card power.Outlet, secret *corev1.Secret, timeout time.Duration) (*power.EatonSession, string, error) {
 	managed := asAdmin(card, string(secret.Data[rackCardKeyAdminUsername]), string(secret.Data[rackCardKeyAdminPassword]))
 	session, err := power.OpenEatonSession(ctx, managed, "", timeout)
 	if err == nil {
@@ -325,12 +342,50 @@ func openEatonAdmin(ctx context.Context, card power.Outlet, secret *corev1.Secre
 	if !errors.As(err, &refused) || !refused.Refused() {
 		return nil, "", err
 	}
+
+	siblings := &corev1.SecretList{}
+	if address := secret.Labels[rackCardAddressLabel]; address != "" {
+		if err := c.List(ctx, siblings, client.InNamespace(secret.Namespace), client.MatchingLabels{rackCardAddressLabel: address}); err != nil {
+			return nil, "", fmt.Errorf("list the other credentials Secrets for %s: %w", address, err)
+		}
+	}
+	sort.Slice(siblings.Items, func(i, j int) bool { return siblings.Items[i].Name < siblings.Items[j].Name })
+	for _, sibling := range siblings.Items {
+		password := string(sibling.Data[rackCardKeyAdminPassword])
+		if sibling.Name == secret.Name || password == "" || password == string(secret.Data[rackCardKeyAdminPassword]) {
+			continue
+		}
+		session, siblingErr := power.OpenEatonSession(ctx, asAdmin(card, string(secret.Data[rackCardKeyAdminUsername]), password), "", timeout)
+		if siblingErr != nil {
+			if errors.As(siblingErr, &refused) && refused.Refused() {
+				continue
+			}
+			return nil, "", siblingErr
+		}
+		secret.Data[rackCardKeyAdminPassword] = []byte(password)
+		if err := c.Update(ctx, secret); err != nil {
+			_ = session.Close(ctx)
+			return nil, "", fmt.Errorf("record the administrator password from %s in %s: %w", sibling.Name, secret.Name, err)
+		}
+		return session, fmt.Sprintf("with the administrator password another object set, from Secret %s/%s, and recorded it in %s",
+			sibling.Namespace, sibling.Name, secret.Name), nil
+	}
+
 	factory := asAdmin(card, rackCardFactoryUser, rackCardFactoryPassword)
 	session, factoryErr := power.OpenEatonSession(ctx, factory, string(secret.Data[rackCardKeyAdminPassword]), timeout)
 	if factoryErr == nil {
 		return session, "with the factory login, and set the managed password", nil
 	}
 	return nil, "", fmt.Errorf("the managed password: %v; the factory login: %w", err, factoryErr)
+}
+
+// rackCardWrongKind reports a card an object logged in to as administrator
+// and found to be of a kind it does not drive. The login already changed the
+// card's administrator password, so the error names the Secret that holds it,
+// where the object for the card's real kind finds it.
+func rackCardWrongKind(err error, secret *corev1.Secret) error {
+	return fmt.Errorf("%w. Its administrator password is now the one in Secret %s/%s (%s), which the object for this card's kind logs in with",
+		err, secret.Namespace, secret.Name, rackCardKeyAdminPassword)
 }
 
 // eatonLoginReason names why the administrator could not log in.

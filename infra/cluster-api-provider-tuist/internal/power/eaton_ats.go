@@ -22,14 +22,54 @@ import (
 // its settings' keys instead.
 var eatonATSPreferredKeys = []string{"preferredInput", "preferredSource", "preferredInputSource"}
 
-// EatonUnsupportedError is a card that answered, but not as a transfer switch
-// the driver knows. Seen is what it answered instead.
+// EatonUnsupportedError is a card that answered, but not as the device the
+// driver expected (Want: "transfer switch" when empty). Seen is what it
+// answered instead.
 type EatonUnsupportedError struct {
+	Want string
 	Seen string
 }
 
 func (e *EatonUnsupportedError) Error() string {
-	return "not an Eaton transfer switch this driver knows: " + e.Seen
+	want := e.Want
+	if want == "" {
+		want = "transfer switch"
+	}
+	return "not an Eaton " + want + " this driver knows: " + e.Seen
+}
+
+// EatonDistribution is powerDistributions/1 as the card names it: its model
+// and specifications.type, "pdu" on a Rack PDU and "ats" on a transfer
+// switch in Eaton's collections.
+type EatonDistribution struct {
+	Model string
+	Type  string
+}
+
+// Distribution reads what powerDistributions/1 is, which tells a PDU's card
+// from a transfer switch's. A card without one is unsupported.
+func (s *EatonSession) Distribution(ctx context.Context) (EatonDistribution, error) {
+	var d struct {
+		Identification struct {
+			Model       string `json:"model"`
+			ProductName string `json:"productName"`
+		} `json:"identification"`
+		Specifications struct {
+			Type string `json:"type"`
+		} `json:"specifications"`
+	}
+	if err := s.get(ctx, "/powerDistributions/1", &d); err != nil {
+		var status *EatonHTTPError
+		if errors.As(err, &status) && status.Status == http.StatusNotFound {
+			return EatonDistribution{}, &EatonUnsupportedError{Want: "device", Seen: "the card has no powerDistributions/1: " + status.Body}
+		}
+		return EatonDistribution{}, err
+	}
+	model := d.Identification.Model
+	if model == "" {
+		model = d.Identification.ProductName
+	}
+	return EatonDistribution{Model: model, Type: d.Specifications.Type}, nil
 }
 
 // EatonATS is a transfer switch as its card reports it.

@@ -61,7 +61,7 @@ func newPDUHarness(t *testing.T, objs ...runtime.Object) *pduHarness {
 		}
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackPDU{}).Build()
+		WithStatusSubresource(&infrav1.RackPDU{}, &infrav1.RackATS{}).Build()
 	recorder := record.NewFakeRecorder(100)
 	eaton := &power.Eaton{SettleTimeout: time.Second, PollInterval: time.Millisecond}
 	return &pduHarness{t: t, card: card, recorder: recorder, r: &RackPDUReconciler{

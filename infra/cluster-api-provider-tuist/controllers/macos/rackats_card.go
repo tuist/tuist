@@ -101,7 +101,7 @@ func (c *eatonATSCard) Fingerprint(ctx context.Context) (string, error) {
 
 func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, error) {
 	logger := log.FromContext(ctx)
-	admin, how, err := openEatonAdmin(ctx, c.outlet(), c.secret, c.r.timeout())
+	admin, how, err := openRackCardAdmin(ctx, c.r.Client, c.outlet(), c.secret, c.r.timeout())
 	if err != nil {
 		return atsAdoption{}, &atsCardError{Reason: eatonLoginReason(err), Err: err}
 	}
@@ -112,10 +112,16 @@ func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, e
 	}()
 	c.r.Recorder.Eventf(c.ats, corev1.EventTypeNormal, "LoggedIn", "Logged in as %s %s", rackCardFactoryUser, how)
 
-	// What the card is, before anything else is written to it.
+	// What the card is, before anything else is written to it. The login may
+	// already have changed a factory card's administrator password: the card
+	// forces that before it answers anything else.
 	state, err := admin.ATS(ctx)
 	if err != nil {
-		return atsAdoption{}, eatonATSError(err)
+		var unsupported *power.EatonUnsupportedError
+		if errors.As(err, &unsupported) {
+			return atsAdoption{}, &atsCardError{Reason: rackATSReasonUnsupported, Err: rackCardWrongKind(err, c.secret)}
+		}
+		return atsAdoption{}, err
 	}
 
 	accounts, err := admin.Accounts(ctx)

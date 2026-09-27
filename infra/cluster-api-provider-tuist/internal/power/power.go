@@ -51,7 +51,9 @@ type Outlet struct {
 	// Host's scheme and port: an in-cluster egress Service fronting an
 	// endpoint the Pod has no route to. Host still names the endpoint.
 	Dial string
-	// Outlet identifies the outlet on that endpoint; driver-specific.
+	// Outlet identifies the outlet on that endpoint; driver-specific. Empty
+	// addresses the endpoint's card itself, for reads that are not an
+	// outlet's.
 	Outlet string
 	// Username / Password authenticate to the endpoint. Empty means the
 	// endpoint is unauthenticated.
@@ -68,6 +70,9 @@ type Outlet struct {
 }
 
 func (o Outlet) String() string {
+	if o.Outlet == "" {
+		return fmt.Sprintf("%s card at %s", o.Driver, o.Host)
+	}
 	return fmt.Sprintf("%s outlet %s on %s", o.Driver, o.Outlet, o.Host)
 }
 

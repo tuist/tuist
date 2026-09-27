@@ -119,6 +119,7 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		ats.Status.Message = "standalone: the controller does not contact this transfer switch"
 		conditions.MarkFalse(ats, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
 			"managedBy is %s: the controller neither adopts nor observes this transfer switch", ats.Spec.ManagedBy)
+		r.markUnobserved(ats, "Standalone", "the controller does not observe a standalone transfer switch")
 		forgetRackATSMetrics(ats.Name)
 		r.logOut(ctx, ats)
 		return ctrl.Result{}, nil
@@ -136,7 +137,7 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 	}
 
-	secret, err := ensureRackCardSecret(ctx, r.Client, ats, "tuist.dev/rack-ats")
+	secret, err := ensureRackCardSecret(ctx, r.Client, ats, "tuist.dev/rack-ats", ats.Spec.Address)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -246,6 +247,7 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 		ats.Status.Drift = infrav1.RackCardDriftUnknown
 		ats.Status.Message = fmt.Sprintf("the controller's account cannot read the transfer switch: %v", err)
 		conditions.MarkFalse(ats, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%s", ats.Status.Message)
+		conditions.MarkUnknown(ats, RackCardConvergedCondition, reason, "%s", ats.Status.Message)
 		r.markUnobserved(ats, reason, ats.Status.Message)
 		retry := rackATSRetryInterval
 		if cardLoginRefused(err) {
@@ -255,7 +257,7 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 	}
 	r.loginBackoff.succeeded(ats)
 
-	previous := ats.Status.ActiveSource
+	previous, observedBefore := ats.Status.ActiveSource, ats.Status.LastObserved != nil
 	ats.Status.Card = obs.Card
 	ats.Status.Model, ats.Status.SerialNumber, ats.Status.FirmwareVersion = obs.CardModel, obs.CardSerial, obs.CardFirmware
 	ats.Status.DeviceModel, ats.Status.DeviceSerialNumber, ats.Status.DeviceFirmwareVersion = obs.DeviceModel, obs.DeviceSerial, obs.DeviceFirmware
@@ -263,7 +265,9 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 	ats.Status.PreferredSource = obs.Preferred
 	ats.Status.Inputs = obs.Inputs
 	ats.Status.LastObserved = &now
-	r.recordTransfer(ats, previous, obs, now)
+	if observedBefore {
+		r.recordTransfer(ats, previous, obs, now)
+	}
 	r.markRedundancy(ats, obs)
 	conditions.MarkTrue(ats, clusterv1.ReadyCondition)
 
@@ -284,18 +288,29 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 
 // recordTransfer notes a change of the source powering the load, with an
 // event, and a load neither source powers.
+//
+// Every change of the active source between two reads is recorded the same
+// way, in status.lastTransfer and the counter, with 0 for neither source: a
+// transfer between the sources, the load losing power (to 0) and the load
+// coming back (from 0). Only the event tells them apart.
 func (r *RackATSReconciler) recordTransfer(ats *infrav1.RackATS, previous int32, obs atsObservation, now metav1.Time) {
+	if obs.Active == previous {
+		return
+	}
+	ats.Status.LastTransfer = &infrav1.RackATSTransfer{From: previous, To: obs.Active, ObservedAt: now}
+	rackATSTransfers.WithLabelValues(ats.Name, ats.Spec.Site, fmt.Sprint(previous), fmt.Sprint(obs.Active)).Inc()
+	inputs := describeRackATSInputs(obs.Inputs)
+	kind := corev1.EventTypeWarning
+	if obs.Active == ats.Spec.PreferredSource {
+		kind = corev1.EventTypeNormal
+	}
 	switch {
-	case obs.Active == 0 && previous != 0:
-		r.Recorder.Eventf(ats, corev1.EventTypeWarning, "LoadNotPowered", "Neither source powers the load; it was on source %d. %s", previous, describeRackATSInputs(obs.Inputs))
-	case obs.Active != 0 && previous != 0 && obs.Active != previous:
-		ats.Status.LastTransfer = &infrav1.RackATSTransfer{From: previous, To: obs.Active, ObservedAt: now}
-		rackATSTransfers.WithLabelValues(ats.Name, ats.Spec.Site, fmt.Sprint(previous), fmt.Sprint(obs.Active)).Inc()
-		kind := corev1.EventTypeWarning
-		if obs.Active == ats.Spec.PreferredSource {
-			kind = corev1.EventTypeNormal
-		}
-		r.Recorder.Eventf(ats, kind, "Transferred", "The load moved from source %d to source %d. %s", previous, obs.Active, describeRackATSInputs(obs.Inputs))
+	case obs.Active == 0:
+		r.Recorder.Eventf(ats, corev1.EventTypeWarning, "LoadNotPowered", "Neither source powers the load; it was on source %d. %s", previous, inputs)
+	case previous == 0:
+		r.Recorder.Eventf(ats, kind, "LoadRestored", "The load is powered again, from source %d, after neither source powered it. %s", obs.Active, inputs)
+	default:
+		r.Recorder.Eventf(ats, kind, "Transferred", "The load moved from source %d to source %d. %s", previous, obs.Active, inputs)
 	}
 }
 

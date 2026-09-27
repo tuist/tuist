@@ -71,7 +71,7 @@ func newATSHarness(t *testing.T, objs ...runtime.Object) *atsHarness {
 		}
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackATS{}).Build()
+		WithStatusSubresource(&infrav1.RackATS{}, &infrav1.RackPDU{}).Build()
 	recorder := record.NewFakeRecorder(100)
 	eaton := &power.Eaton{SettleTimeout: time.Second, PollInterval: time.Millisecond}
 	return &atsHarness{t: t, card: card, recorder: recorder, r: &RackATSReconciler{
@@ -285,7 +285,7 @@ func TestRackATSAdoptsAFactoryCardAndPrefersItsSource(t *testing.T) {
 func TestRackATSResumesAnInterruptedAdoption(t *testing.T) {
 	for _, changed := range []bool{false, true} {
 		h := newATSHarness(t, rackATS())
-		if _, err := ensureRackCardSecret(context.Background(), h.r.Client, rackATS(), "tuist.dev/rack-ats"); err != nil {
+		if _, err := ensureRackCardSecret(context.Background(), h.r.Client, rackATS(), "tuist.dev/rack-ats", "192.168.0.14"); err != nil {
 			t.Fatal(err)
 		}
 		stored := string(h.secret().Data["admin-password"])

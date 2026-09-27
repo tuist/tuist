@@ -54,7 +54,7 @@ var (
 	}, append(rackATSLabels, "source"))
 	rackATSTransfers = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "capt_rackats_observed_transfers_total",
-		Help: "Changes of the source powering the load that the controller observed between two reads, a minute apart. A transfer and its return within one interval is not seen.",
+		Help: "Changes of the source powering the load that the controller observed between two reads, a minute apart, with 0 for neither source: from and to 1 or 2 is a transfer, to=0 the load losing power, from=0 it coming back. A change and its return within one interval is not seen.",
 	}, append(rackATSLabels, "from", "to"))
 
 	// The lifecycle, like the other rack power devices'.
