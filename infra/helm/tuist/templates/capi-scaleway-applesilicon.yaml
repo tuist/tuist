@@ -89,7 +89,8 @@ rules:
     verbs: [get, list, watch]
   # The RackLinuxHost and RackHost controllers keep one Machine per rack host,
   # and delete it when the host is retired (Linux) or parked or remediated
-  # (Mac).
+  # (Mac). An OS update patches cluster.x-k8s.io/skip-remediation onto a rack
+  # Mac's Machine for the length of its install.
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines]
     verbs: [create, update, patch, delete]
