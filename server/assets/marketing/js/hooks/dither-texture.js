@@ -476,8 +476,9 @@ export const DitherTexture = {
       const tick = (now) => {
         this.raf = requestAnimationFrame(tick);
         if (!this.inView) return;
-        // Skip work while hidden (e.g. the dropdown is closed).
-        if (this.canvas.checkVisibility && !this.canvas.checkVisibility()) return;
+        // Skip work while hidden (e.g. the dropdown is closed, or the 404
+        // page's outline mode has hidden the canvas with visibility).
+        if (this.canvas.checkVisibility && !this.canvas.checkVisibility({ visibilityProperty: true })) return;
         const step = Math.floor((now / 1000) * TICK_HZ);
         if (step === this.lastTick) return;
         this.lastTick = step;

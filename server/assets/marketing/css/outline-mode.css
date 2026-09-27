@@ -187,9 +187,10 @@
 
 #marketing-outline-overlay {
   --marketing-outline-feather: 64px;
-  position: absolute;
-  top: 0;
-  left: 0;
+  /* The viewport, not the page: the copies inside are page-sized and the
+     hook translates them by the scroll, so the mask is rasterized over
+     the visible area only. */
+  position: fixed;
   z-index: 2147483000;
   -webkit-mask-image: radial-gradient(
     circle at var(--marketing-outline-x) var(--marketing-outline-y),
@@ -204,6 +205,7 @@
   /* Its own layer, so the mask animates in the compositor rather than
      repainting the cloned page every frame. */
   will-change: transform;
+  inset: 0;
   /* Opaque: the strokes have transparent fills, so without this the real
      page's filled text would show through them inside the spotlight. */
   background: var(--noora-surface-background-primary);

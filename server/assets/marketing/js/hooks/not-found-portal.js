@@ -107,6 +107,27 @@ const tiles = (dpr) => {
 const disc = (inset) =>
   `radial-gradient(circle at var(--marketing-outline-x) var(--marketing-outline-y), #000 calc(var(--marketing-outline-r) - ${inset}px), transparent calc(var(--marketing-outline-r) - ${inset}px))`;
 
+// Where each layer's image sits: discs at the origin (their circle is
+// placed by the custom properties), tiles offset by the page scroll so
+// their cells stay pinned to the page while the viewport-sized overlay
+// moves over it.
+const TILE_PX = TILE_CELLS * PITCH;
+const wrap = (v) => -(((v % TILE_PX) + TILE_PX) % TILE_PX);
+const positions = (sx, sy) => {
+  const out = [];
+  for (let level = 0; level <= LEVELS; level++) {
+    out.push("0 0");
+    if (level < LEVELS) out.push(`${wrap(sx)}px ${wrap(sy)}px`);
+  }
+  return out.join(", ");
+};
+
+export function positionDitherMask(el, sx, sy) {
+  const value = positions(sx, sy);
+  el.style.setProperty("-webkit-mask-position", value);
+  el.style.setProperty("mask-position", value);
+}
+
 // Layers, top first: disc, tile, disc, tile, …, disc. Composited from the
 // bottom up, each disc adds to what is below and each tile intersects it,
 // which works out to: solid inside the innermost disc, then each ring
@@ -137,13 +158,12 @@ export function applyDitherMask(el, feather) {
   s.setProperty("-webkit-mask-image", images.join(", "));
   s.setProperty("-webkit-mask-size", sizes.join(", "));
   s.setProperty("-webkit-mask-repeat", repeats.join(", "));
-  s.setProperty("-webkit-mask-position", "0 0");
   s.setProperty("-webkit-mask-composite", legacy.join(", "));
   s.setProperty("mask-image", images.join(", "));
   s.setProperty("mask-size", sizes.join(", "));
   s.setProperty("mask-repeat", repeats.join(", "));
-  s.setProperty("mask-position", "0 0");
   s.setProperty("mask-composite", composite.join(", "));
+  positionDitherMask(el, 0, 0);
 }
 
 // -------------------------------------------------------------- dither
@@ -219,6 +239,12 @@ export class PortalDither {
   // The layout changed: rasterize the content again on the next start.
   invalidate() {
     this.runs = null;
+  }
+
+  // Rasterize ahead of time (the hook calls this while the hover intent
+  // is still pending), so the first frame of the open has no work to do.
+  prepare() {
+    if (!this.runs) this.rasterize();
   }
 
   ensureCanvas() {

@@ -9,7 +9,10 @@
  * pressed again or Escape.
  *
  * The spotlight is an overlay: a copy of the three regions, cloned at the
- * positions they occupy on the page, carrying the outline attribute and
+ * positions they occupy on the page inside a wrapper the hook keeps
+ * translated by the scroll, under a fixed, viewport-sized host (so the
+ * mask is only ever rasterized over what can be seen, not the whole
+ * page), carrying the outline attribute and
  * masked to a circle whose edge is an ordered dither (not-found-portal.js:
  * stepped discs intersected with Bayer tiles; the stylesheet's soft
  * gradient where mask compositing is missing) with its centre and radius
@@ -33,7 +36,7 @@
  * nothing in it opens, focuses or follows a link.
  */
 
-import { PortalDither, applyDitherMask, supportsDitherMask } from "./not-found-portal.js";
+import { PortalDither, applyDitherMask, positionDitherMask, supportsDitherMask } from "./not-found-portal.js";
 
 const ATTRIBUTE = "data-marketing-outline";
 const OVERLAY_ID = "marketing-outline-overlay";
@@ -90,6 +93,8 @@ export const NotFoundOutline = {
       this.hovering = true;
       if (this.pinned) return;
       this.place(e);
+      // The intent wait is time to measure the text the specks will need.
+      if (this.portal) this.portal.prepare();
       clearTimeout(this.intent);
       this.intent = setTimeout(() => {
         this.intent = null;
@@ -124,7 +129,10 @@ export const NotFoundOutline = {
       this.unpin();
     };
     this.onScroll = () => {
-      if (this.overlay && this.radius > 0) this.syncNavbar();
+      if (!this.overlay || this.radius === 0) return;
+      this.syncNavbar();
+      this.syncScroll();
+      this.clip(this.radius);
     };
     this.eyebrow.addEventListener("pointerenter", this.onEnter);
     this.eyebrow.addEventListener("pointermove", this.onMove);
@@ -203,8 +211,6 @@ export const NotFoundOutline = {
     // A drawing of the page, not the page: nothing in it can be focused,
     // clicked or reached by assistive tech.
     overlay.setAttribute("inert", "");
-    overlay.style.width = `${width}px`;
-    overlay.style.height = `${height}px`;
     overlay.style.setProperty("--marketing-outline-feather", `${FEATHER}px`);
     if (supportsDitherMask()) applyDitherMask(overlay, FEATHER);
     // The copies live in a shadow tree. Ids are scoped to it, so the copy
@@ -214,13 +220,21 @@ export const NotFoundOutline = {
     // The page's stylesheets are linked into the tree (they come from
     // cache) so the copy lays out exactly like the original; the outline
     // attribute goes on a wrapper inside it, where those stylesheets can
-    // see it. The mask, the size and the custom properties stay on the
-    // host, which the outline stylesheet styles by id from outside.
+    // see it. The mask and the custom properties stay on the host, which
+    // the outline stylesheet styles by id from outside. The wrapper is
+    // page-sized and translated by the scroll (syncScroll), so the copies
+    // keep page coordinates while the host is only the viewport.
     const shadow = overlay.attachShadow({ mode: "open" });
     for (const link of document.querySelectorAll('link[rel="stylesheet"]')) shadow.append(link.cloneNode());
     const regions = document.createElement("div");
     regions.setAttribute(ATTRIBUTE, "");
+    regions.style.position = "absolute";
+    regions.style.top = "0";
+    regions.style.left = "0";
+    regions.style.width = `${width}px`;
+    regions.style.height = `${height}px`;
     shadow.append(regions);
+    this.regions = regions;
     for (const selector of REGIONS) {
       const el = document.querySelector(selector);
       if (!el) continue;
@@ -241,12 +255,25 @@ export const NotFoundOutline = {
     }
     document.body.append(overlay);
     this.overlay = overlay;
+    this.syncScroll();
     return overlay;
   },
 
   ensureOverlay() {
     if (!this.overlay) this.buildOverlay();
     this.syncNavbar();
+    this.syncScroll();
+  },
+
+  // The host is the viewport; the copies inside are the page. Keep them
+  // lined up with the real page as it scrolls, and keep the dither tiles
+  // on the page's grid rather than the viewport's.
+  syncScroll() {
+    if (!this.overlay) return;
+    const sx = window.scrollX;
+    const sy = window.scrollY;
+    this.regions.style.transform = `translate(${-sx}px, ${-sy}px)`;
+    if (supportsDitherMask()) positionDitherMask(this.overlay, sx, sy);
   },
 
   // The real navbar is sticky, so its place on the page depends on the
@@ -264,6 +291,7 @@ export const NotFoundOutline = {
       this.overlay.remove();
       this.overlay = null;
       this.navbarCopy = null;
+      this.regions = null;
     }
     this.radius = 0;
     if (!this.pinned) this.setNavbarInert(false);
@@ -282,20 +310,25 @@ export const NotFoundOutline = {
     this.radius = radius;
     if (!this.overlay) return;
     this.overlay.style.display = radius > 0 ? "" : "none";
-    this.overlay.style.setProperty("--marketing-outline-x", `${this.x}px`);
-    this.overlay.style.setProperty("--marketing-outline-y", `${this.y}px`);
+    // The centre is kept in page coordinates; the mask wants it in the
+    // viewport's.
+    this.overlay.style.setProperty("--marketing-outline-x", `${this.x - window.scrollX}px`);
+    this.overlay.style.setProperty("--marketing-outline-y", `${this.y - window.scrollY}px`);
     this.overlay.style.setProperty("--marketing-outline-r", `${radius}px`);
     // Specks only at spotlight size: the moves over and off the page
     // leave no remnants behind.
     if (this.portal) this.portal.set(this.x, this.y, radius, FEATHER, radius <= SPOT_RADIUS + 1);
   },
 
-  // Radius that covers the whole page from the spotlight's centre.
+  // Radius that covers the whole viewport from the spotlight's centre
+  // (the overlay is only ever the viewport; once covered, the page itself
+  // carries the outline view).
   coverRadius() {
-    const doc = document.documentElement;
-    const w = Math.max(doc.scrollWidth, doc.clientWidth);
-    const h = Math.max(doc.scrollHeight, doc.clientHeight);
-    return Math.hypot(Math.max(this.x, w - this.x), Math.max(this.y, h - this.y)) + FEATHER + 8;
+    const x = this.x - window.scrollX;
+    const y = this.y - window.scrollY;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    return Math.hypot(Math.max(x, w - x), Math.max(y, h - y)) + FEATHER + 8;
   },
 
   stopTween() {
