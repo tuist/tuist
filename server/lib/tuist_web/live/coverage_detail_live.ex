@@ -48,7 +48,7 @@ defmodule TuistWeb.CoverageDetailLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Code Coverage")} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("tests"))
       |> assign(:reload_scheduled, false)
-      |> assign(:available_filters, target_filters())
+      |> assign(:available_filters, [])
       |> assign(:active_filters, [])
 
     if connected?(socket) do
@@ -147,6 +147,11 @@ defmodule TuistWeb.CoverageDetailLive do
 
   def handle_event("search-files", %{"search" => search}, socket) do
     query = socket.assigns.uri.query |> Query.put("files-search", search) |> drop_paging()
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+  end
+
+  def handle_event("search-runs", %{"search" => search}, socket) do
+    query = socket.assigns.uri.query |> Query.put("runs-search", search) |> drop_paging()
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
   end
 
@@ -389,7 +394,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # so they are searched, sorted and paged here.
   defp assign_targets(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["targets-search"] || "")
-    filters = Filter.Operations.decode_filters_from_query(query, socket.assigns.available_filters)
+    filters = Filter.Operations.decode_filters_from_query(query, target_filters())
     sort_by = if query["targets-sort-by"] in @target_sorts, do: query["targets-sort-by"], else: "coverage"
     sort_order = if query["targets-sort-order"] in ~w(asc desc), do: query["targets-sort-order"], else: "asc"
 
@@ -413,6 +418,7 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:targets_search, search)
     |> assign(:targets_sort_by, sort_by)
     |> assign(:targets_sort_order, sort_order)
+    |> assign(:available_filters, target_filters())
     |> assign(:active_filters, filters)
   end
 
@@ -494,42 +500,89 @@ defmodule TuistWeb.CoverageDetailLive do
     "?" <> (uri.query |> Query.put("files-sort-by", column) |> Query.put("files-sort-order", order) |> drop_paging())
   end
 
-  # The runs behind the subject: one commit's, a pull request's commits', or
-  # those of a page of the branch's commits, so a long branch never loads
-  # more than a page.
-  defp assign_runs(%{assigns: %{selected_project: project, subject: %{kind: :branch}}} = socket, query) do
-    page = branch_commit_page(socket, query)
-    shas = page.commits |> Enum.filter(& &1.measured) |> Enum.map(& &1.git_commit_sha)
+  # The runs behind the subject, newest first and read a page at a time from
+  # a cursor, so a long period costs a page: a commit's, or those that named
+  # the branch or the pull request in the period.
+  defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
+    search = String.trim(query["runs-search"] || "")
+    available_filters = run_filters(run_schemes(socket))
+    filters = Filter.Operations.decode_filters_from_query(query, available_filters)
+    period = if subject.kind == :commit, do: [], else: period_opts(socket)
+
+    page =
+      Commits.run_cursor_page(
+        project.id,
+        run_scope(subject),
+        period ++
+          run_filter_opts(filters) ++
+          [search: search, after: query["after"], before: query["before"], page_size: @page_size]
+      )
 
     socket
-    |> assign_run_rows(Commits.runs(project.id, shas))
+    |> assign(:run_rows, Enum.map(page.runs, &Map.put(&1, :id, &1.test_run_id)))
     |> assign(:runs_meta, cursor_meta(page))
+    |> assign(:runs_search, search)
+    |> assign(:runs_filtered?, search != "" or filters != [])
+    |> assign(:available_filters, available_filters)
+    |> assign(:active_filters, filters)
   end
 
-  defp assign_runs(
-         %{assigns: %{selected_project: project, subject: %{kind: :pull_request}, commits: commits}} = socket,
-         _query
-       ) do
-    runs =
-      project.id
-      |> Commits.runs(Enum.map(commits, & &1.git_commit_sha))
-      |> Enum.filter(&in_period?(socket, &1.ran_at))
+  defp run_scope(%{kind: :commit, sha: sha}), do: {:commit, sha}
+  defp run_scope(%{kind: :branch, branch: branch}), do: {:branch, branch}
+  defp run_scope(%{kind: :pull_request, pull_request_number: number}), do: {:pull_request, number}
 
-    socket
-    |> assign_run_rows(runs)
-    |> assign(:runs_meta, nil)
+  defp run_schemes(%{assigns: %{selected_project: project, subject: %{kind: :branch, branch: branch}}} = socket),
+    do: History.branch_schemes(project, branch, period_opts(socket))
+
+  defp run_schemes(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}}),
+    do: commits |> Enum.flat_map(&(&1.schemes ++ &1.partial_schemes)) |> Enum.uniq() |> Enum.sort()
+
+  defp run_schemes(%{assigns: %{summary: summary}}),
+    do: (summary.schemes ++ summary.partial_schemes) |> Enum.uniq() |> Enum.sort()
+
+  defp run_filters(schemes) do
+    [
+      %Filter.Filter{
+        id: "run_kind",
+        field: :partial,
+        display_name: dgettext("dashboard_tests", "Run"),
+        type: :option,
+        options: ["full", "partial"],
+        options_display_names: %{
+          "full" => dgettext("dashboard_tests", "Full"),
+          "partial" => dgettext("dashboard_tests", "Partial")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "run_scheme",
+        field: :scheme,
+        display_name: dgettext("dashboard_tests", "Scheme"),
+        type: :option,
+        options: schemes,
+        options_display_names: %{},
+        operator: :==,
+        value: nil,
+        searchable: true
+      }
+    ]
   end
 
-  defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, _query) do
-    socket
-    |> assign_run_rows(Commits.runs(project.id, subject.sha))
-    |> assign(:runs_meta, nil)
+  defp run_filter_opts(filters) do
+    Enum.flat_map(filters, fn
+      %Filter.Filter{value: nil} ->
+        []
+
+      %Filter.Filter{field: :partial, operator: operator, value: value} ->
+        [partial: value == "partial" == (operator == :==)]
+
+      %Filter.Filter{field: :scheme, operator: operator, value: value} ->
+        [scheme: {operator, value}]
+    end)
   end
 
-  defp assign_run_rows(socket, runs),
-    do: assign(socket, :run_rows, runs |> Enum.reverse() |> Enum.map(&Map.put(&1, :id, &1.test_run_id)))
-
-  defp branch_commit_page(%{assigns: %{selected_project: project, subject: subject}} = socket, query, filter \\ []) do
+  defp branch_commit_page(%{assigns: %{selected_project: project, subject: subject}} = socket, query, filter) do
     History.commit_cursor_page(
       project,
       subject.branch,

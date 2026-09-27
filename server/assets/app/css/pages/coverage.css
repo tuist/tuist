@@ -135,12 +135,14 @@
   & [data-part="commits-section"] [data-part="filters"],
   & [data-part="refs-section"] [data-part="filters"],
   & [data-part="targets-section"] [data-part="filters"],
-  & [data-part="files-section"] [data-part="filters"] {
+  & [data-part="files-section"] [data-part="filters"],
+  & [data-part="runs-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
   }
 
-  & [data-part="targets-section"] > [data-part="active-filters"] {
+  & [data-part="targets-section"] > [data-part="active-filters"],
+  & [data-part="runs-section"] > [data-part="active-filters"] {
     display: flex;
     align-self: flex-start;
     gap: var(--noora-spacing-4);

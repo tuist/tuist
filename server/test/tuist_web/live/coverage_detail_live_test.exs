@@ -179,6 +179,70 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, "[data-part='empty-files']")
   end
 
+  test "searches, filters and pages the commit's runs by cursor, most recent first", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project,
+    run: run
+  } do
+    now = NaiveDateTime.utc_now()
+
+    widgets =
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/W.swift", [1, 1])], %{
+        git_commit_sha: "b",
+        scheme: "Widgets",
+        partial: true,
+        ran_at: NaiveDateTime.add(now, -3600)
+      })
+
+    kits =
+      for index <- 1..20 do
+        CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/K#{index}.swift", [0, 1])], %{
+          git_commit_sha: "b",
+          scheme: "Kit#{index}",
+          ran_at: NaiveDateTime.add(now, -7200 - index)
+        })
+      end
+
+    href = fn run -> "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']" end
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
+    rows = lv |> element("#coverage-runs-table") |> render()
+    assert :binary.match(rows, "Widgets") < :binary.match(rows, "Kit1<")
+    refute has_element?(lv, "#coverage-runs-sort-by")
+    assert has_element?(lv, href.(widgets))
+    refute has_element?(lv, href.(List.last(kits)))
+    refute has_element?(lv, "#coverage-runs-table", "Kit20")
+
+    lv |> element("[data-part='runs-table'] a", "Next") |> render_click()
+    assert has_element?(lv, href.(List.last(kits)))
+    refute has_element?(lv, href.(widgets))
+
+    lv |> element("[data-part='runs-table'] a", "Prev") |> render_click()
+    assert has_element?(lv, href.(widgets))
+
+    lv |> form("#coverage-runs-search-form", %{search: "widg"}) |> render_change()
+    assert has_element?(lv, href.(widgets))
+    refute has_element?(lv, href.(run))
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs&filter_run_kind_op=%3D%3D&filter_run_kind_val=partial")
+    assert has_element?(lv, "#run_kind", "Run")
+    assert has_element?(lv, href.(widgets))
+    refute has_element?(lv, href.(run))
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs&filter_run_kind_op=!%3D&filter_run_kind_val=partial")
+    assert has_element?(lv, href.(run))
+    refute has_element?(lv, href.(widgets))
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs&filter_run_scheme_op=%3D%3D&filter_run_scheme_val=App")
+    assert has_element?(lv, href.(run))
+    refute has_element?(lv, href.(widgets))
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs&runs-search=missing")
+    assert has_element?(lv, "#coverage-runs-table", "No run matches these filters")
+  end
+
   test "opens a file of the commit on its own page, with its uncovered lines", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
     from = URI.encode_www_form("#{base}/commits/b?tab=files")

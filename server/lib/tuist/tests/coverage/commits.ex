@@ -34,6 +34,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
+  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
@@ -835,6 +836,174 @@ defmodule Tuist.Tests.Coverage.Commits do
       ),
       settings: [select_sequential_consistency: 1]
     )
+  end
+
+  @newest_run_first [desc: :ran_at, desc: :id]
+
+  @doc """
+  One page of the runs with coverage of a subject, newest first: a commit's
+  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`) or a
+  pull request (`{:pull_request, number}`), run between `since` and `until`.
+  Runs from a dirty checkout are left out, as `runs/2` does.
+
+  `search` keeps the schemes containing it, ignoring case; `scheme` as
+  `{:== | :!=, name}` and `partial` as a boolean narrow them further. Pages
+  are read from a cursor (`after`, `before`) of `page_size` runs (20 by
+  default) along the order `test_runs` is stored in, so a page costs the same
+  however long the period.
+  """
+  def run_cursor_page(project_id, scope, opts \\ []) do
+    size = Keyword.get(opts, :page_size, 20)
+    cursor = run_cursor(opts)
+    read = fn keyset, order, limit -> read_run_page(project_id, scope, opts, keyset, order, limit) end
+    {rows, more?} = cursor |> run_page_rows(read, size + 1) |> Enum.split(size)
+    rows = if match?({:newer, _}, cursor), do: Enum.reverse(rows), else: rows
+    {newest, oldest} = {List.first(rows), List.last(rows)}
+
+    exists? = fn
+      nil, _side -> false
+      row, side -> read.(side.(run_key(row)), @newest_run_first, 1) != []
+    end
+
+    %{
+      runs: with_run_totals(project_id, rows),
+      has_next_page?: older_runs?(cursor, more? != [], fn -> exists?.(oldest, &older_run/1) end),
+      has_previous_page?: newer_runs?(cursor, more? != [], fn -> exists?.(newest, &newer_run/1) end),
+      start_cursor: newest && encode_run_cursor(run_key(newest)),
+      end_cursor: oldest && encode_run_cursor(run_key(oldest))
+    }
+  end
+
+  defp run_page_rows({:older, key}, read, limit), do: read.(older_run(key), @newest_run_first, limit)
+  defp run_page_rows({:newer, key}, read, limit), do: read.(newer_run(key), [asc: :ran_at, asc: :id], limit)
+  defp run_page_rows(nil, read, limit), do: read.(dynamic(true), @newest_run_first, limit)
+
+  # Reading older: more below when the page overflowed. Reading newer: more
+  # above when it overflowed, and below whatever the page came from.
+  defp older_runs?({:newer, _}, _more?, below?), do: below?.()
+  defp older_runs?(_cursor, more?, _below?), do: more?
+
+  defp newer_runs?({:newer, _}, more?, _above?), do: more?
+  defp newer_runs?({:older, _}, _more?, above?), do: above?.()
+  defp newer_runs?(nil, _more?, _above?), do: false
+
+  defp read_run_page(project_id, scope, opts, keyset, order, limit) do
+    ClickHouseRepo.all(
+      from(r in subquery(run_page_query(project_id, scope, opts)),
+        where: ^keyset,
+        order_by: ^order,
+        limit: ^limit
+      ),
+      settings: [select_sequential_consistency: 1]
+    )
+  end
+
+  # One row per run, however many times it was written; the period and the
+  # subject narrow the rows before they are grouped, along the table's order.
+  defp run_page_query(project_id, scope, opts) do
+    from(t in Test,
+      where: t.project_id == ^project_id and t.id in subquery(covered_runs_query(project_id, scope, opts)),
+      group_by: t.id,
+      having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
+      select: %{id: t.id, ran_at: min(t.ran_at)}
+    )
+    |> run_scope(scope)
+    |> run_period(opts)
+    |> run_scheme(Keyword.get(opts, :search, ""), Keyword.get(opts, :scheme))
+  end
+
+  # The runs whose coverage counts: totals with executable lines, published
+  # no earlier than the period starts, since a run's coverage lands after it.
+  defp covered_runs_query(project_id, scope, opts) do
+    query =
+      from(c in CoverageRun,
+        where: c.project_id == ^project_id,
+        group_by: c.test_run_id,
+        having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
+        select: c.test_run_id
+      )
+
+    query =
+      case {scope, Keyword.get(opts, :since)} do
+        {{:commit, sha}, _since} -> where(query, [c], c.git_commit_sha == ^sha)
+        {_scope, nil} -> query
+        {_scope, since} -> where(query, [c], c.inserted_at >= ^since)
+      end
+
+    case Keyword.get(opts, :partial) do
+      nil -> query
+      partial -> having(query, [c], fragment("argMax(?, ?)", c.partial, c.version) == ^partial)
+    end
+  end
+
+  defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
+  defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
+  defp run_scope(query, {:pull_request, number}), do: where(query, [t], t.pull_request_number == ^number)
+
+  defp run_period(query, opts) do
+    query = if since = Keyword.get(opts, :since), do: where(query, [t], t.ran_at >= ^since), else: query
+    if until = Keyword.get(opts, :until), do: where(query, [t], t.ran_at <= ^until), else: query
+  end
+
+  defp run_scheme(query, search, scheme) do
+    query =
+      if search == "",
+        do: query,
+        else: where(query, [t], fragment("positionCaseInsensitiveUTF8(?, ?) > 0", t.scheme, ^search))
+
+    case scheme do
+      {:==, name} -> where(query, [t], t.scheme == ^name)
+      {:!=, name} -> where(query, [t], t.scheme != ^name)
+      nil -> query
+    end
+  end
+
+  defp older_run({at, id}), do: dynamic([r], r.ran_at < ^at or (r.ran_at == ^at and r.id < ^id))
+  defp newer_run({at, id}), do: dynamic([r], r.ran_at > ^at or (r.ran_at == ^at and r.id > ^id))
+
+  defp run_key(row), do: {row.ran_at, row.id}
+
+  defp run_cursor(opts) do
+    case {Keyword.get(opts, :after), Keyword.get(opts, :before)} do
+      {value, _} when value not in [nil, ""] -> decode_run_cursor(:older, value)
+      {_, value} when value not in [nil, ""] -> decode_run_cursor(:newer, value)
+      _ -> nil
+    end
+  end
+
+  defp encode_run_cursor({at, id}), do: "#{at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:microsecond)}-#{id}"
+
+  defp decode_run_cursor(direction, value) do
+    with [micros, id] <- String.split(value, "-", parts: 2),
+         {micros, ""} <- Integer.parse(micros),
+         {:ok, at} <- DateTime.from_unix(micros, :microsecond),
+         {:ok, id} <- Ecto.UUID.cast(id) do
+      {direction, {DateTime.to_naive(at), id}}
+    else
+      _ -> nil
+    end
+  end
+
+  # The page's runs with their totals, read by run id along the totals'
+  # order.
+  defp with_run_totals(_project_id, []), do: []
+
+  defp with_run_totals(project_id, rows) do
+    ids = Enum.map(rows, & &1.id)
+
+    totals =
+      project_id
+      |> Coverage.run_totals_query()
+      |> where([c], c.test_run_id in ^ids)
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+      |> Map.new(&{&1.test_run_id, &1})
+
+    Enum.flat_map(rows, fn row ->
+      case Map.get(totals, row.id) do
+        nil -> []
+        total -> [Map.put(total, :ran_at, row.ran_at)]
+      end
+    end)
   end
 
   @doc "The ids of the runs that count towards the commit."

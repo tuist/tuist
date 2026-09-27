@@ -537,6 +537,20 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
+  The schemes that measured the branch's commits in the period, by the runs
+  that named the branch: the schemes its Test Runs tab filters by.
+  """
+  def branch_schemes(%Project{} = project, branch, opts \\ []) do
+    CoverageCommit
+    |> where([c], c.project_id == ^project.id and c.git_branch == ^branch)
+    |> ran_in(opts)
+    |> select([c], fragment("unnest(? || ?)", c.schemes, c.partial_schemes))
+    |> distinct(true)
+    |> Repo.all()
+    |> Enum.sort()
+  end
+
+  @doc """
   The branch's newest measured commit, chained or not: the commit a branch
   page describes. Nil when nothing on the branch was measured.
   """
