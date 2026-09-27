@@ -938,7 +938,7 @@ defmodule TuistWeb.Coverage.Components do
       {if(unknown?(sources),
          do: dgettext("dashboard_tests", "Not covered or unknown"),
          else: dgettext("dashboard_tests", "Not covered")
-       ), sources.uncovered, "var:noora-chart-legend-primary-translucent"}
+       ), sources.uncovered, "var:coverage-chart-uncovered"}
     ]
 
     present = segments |> Enum.with_index() |> Enum.filter(fn {{_name, lines, _color}, _index} -> lines > 0 end)
