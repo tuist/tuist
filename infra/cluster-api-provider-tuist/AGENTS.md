@@ -622,12 +622,21 @@ feed A and source 2 feed B, so `ber1-ats-1` and `ber1-ats-3` prefer 1 and
 `Standalone`, and has no metrics.
 
 **The lifecycle it shares with RackPDU** is `controllers/macos/rackcard.go`:
-the egress Service (`rackats-<name>`, finalizer `tuist.dev/rackats-egress`),
-the unowned `<name>-credentials` Secret (labelled `tuist.dev/rack-ats=<name>`,
-the same keys, written before first contact and outliving the object), trust
-on first use with `tuist.dev/accept-certificate`, the managed-then-factory
-administrator login, `AddressReserved=False`/`NoMAC` without a MAC, and the
-PushSecret `<name>-admin` to 1Password. What differs:
+the egress Service (`rackats-<name>`), the finalizer `tuist.dev/rackats`,
+held on every controller-managed RackATS so deleting it logs the
+controller's session out of the card and deletes the Service (an object an
+earlier build held with `tuist.dev/rackats-egress` is moved to it, and let go
+on delete either way), the unowned `<name>-credentials` Secret (labelled
+`tuist.dev/rack-ats=<name>`, the same keys, written before first contact and
+outliving the object), trust on first use with `tuist.dev/accept-certificate`,
+the managed-then-factory administrator login, the login backoff (a refused or
+blocked login waits a minute, doubling to an hour, reset by a success, a new
+generation or an annotation; `AccountBlocked` is its own `Ready` and `Adopted`
+reason), the logout when it goes `standalone`, `AddressReserved=False`/`NoMAC`
+without a MAC, and the PushSecret `<name>-admin` to 1Password. One difference
+in the backoff: an adopted switch whose administrator login is refused for a
+new generation keeps being observed as the controller's account, and only the
+administrator's logins wait. What differs otherwise:
 
 1. **It identifies the switch before writing anything else.** Right after the
    administrator's login (which, on a factory card, is itself the forced
@@ -1293,7 +1302,8 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
 │   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
 │   │   ├── rackhost_power.go        # a host's outlet through its RackPDU
-│   │   ├── rackcard.go              # what RackPDU and RackATS share: Secret, pin, egress Service, Eaton admin login
+│   │   ├── rackcard.go              # what RackPDU and RackATS share: Secret, pin, egress Service, Eaton admin login, logout, release
+│   │   ├── rackcard_backoff.go      # refused logins back off, one minute doubling to an hour
 │   │   ├── rackpdu_controller.go    # RackPDU: adoption, outlets' startup state, drift
 │   │   ├── rackats_controller.go    # RackATS: adoption, preferred source, observation, drift
 │   │   ├── rackats_card.go          # the atsCard seam and its Eaton (Network-M2/M3 REST) implementation

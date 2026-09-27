@@ -166,6 +166,8 @@ func (c *eatonATSCard) Observe(ctx context.Context) (atsObservation, error) {
 		switch {
 		case errors.As(err, &refused) && refused.NotServed():
 			return atsObservation{}, &atsCardError{Reason: rackATSReasonUnsupported, Err: err}
+		case errors.As(err, &refused) && refused.Code == "AccountBlocked":
+			return atsObservation{}, &atsCardError{Reason: "AccountBlocked", Err: err}
 		case errors.As(err, &refused):
 			return atsObservation{}, &atsCardError{Reason: "ControllerLoginFailed", Err: err}
 		case errors.As(err, &unreachable):

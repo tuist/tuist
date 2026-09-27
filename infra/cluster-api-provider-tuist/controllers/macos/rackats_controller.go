@@ -30,9 +30,12 @@ const (
 	// the load.
 	RackATSRedundantCondition clusterv1.ConditionType = "Redundant"
 
-	// RackATSFinalizer holds a RackATS until its egress Service, in another
-	// namespace, is deleted.
-	RackATSFinalizer = "tuist.dev/rackats-egress"
+	// RackATSFinalizer holds a controller-managed RackATS until the
+	// controller's session on its card is logged out and its egress Service,
+	// in another namespace, is deleted.
+	RackATSFinalizer = "tuist.dev/rackats"
+	// legacyRackATSFinalizer is the name an earlier build gave it.
+	legacyRackATSFinalizer = "tuist.dev/rackats-egress"
 
 	// rackATSObserveInterval is how often an adopted switch's sources are
 	// read.
@@ -74,6 +77,12 @@ type RackATSReconciler struct {
 	// another. Nil reads through Client.
 	APIReader client.Reader
 
+	// loginBackoff holds off every contact with a card that refused a login
+	// the pass depends on; adminBackoff only the administrator's logins to an
+	// adopted card, which is still observed meanwhile.
+	loginBackoff cardLoginBackoff
+	adminBackoff cardLoginBackoff
+
 	// Card, when set, replaces the card a RackATS is spoken to through; tests
 	// set it.
 	Card func(r *RackATSReconciler, ats *infrav1.RackATS, secret *corev1.Secret) atsCard
@@ -103,19 +112,25 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	if !ats.DeletionTimestamp.IsZero() {
 		forgetRackATSMetrics(ats.Name)
-		return ctrl.Result{}, releaseRackCard(ctx, r.Client, r.egressConfig(), func() {}, rackATSEgress(ats), ats, RackATSFinalizer)
+		return ctrl.Result{}, releaseRackCard(ctx, r.Client, r.egressConfig(), func() { r.logOut(ctx, ats) },
+			rackATSEgress(ats), ats, RackATSFinalizer, legacyRackATSFinalizer)
 	}
 	if ats.Spec.ManagedBy != infrav1.RackCardManagedByController {
 		ats.Status.Message = "standalone: the controller does not contact this transfer switch"
 		conditions.MarkFalse(ats, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
 			"managedBy is %s: the controller neither adopts nor observes this transfer switch", ats.Spec.ManagedBy)
 		forgetRackATSMetrics(ats.Name)
+		r.logOut(ctx, ats)
 		return ctrl.Result{}, nil
 	}
 	defer func() { recordRackATSMetrics(ats) }()
 
+	controllerutil.AddFinalizer(ats, RackATSFinalizer)
+	controllerutil.RemoveFinalizer(ats, legacyRackATSFinalizer)
+	if wait := r.loginBackoff.wait(ats); wait > 0 {
+		return ctrl.Result{RequeueAfter: wait}, nil
+	}
 	if r.egressConfig().enabled() {
-		controllerutil.AddFinalizer(ats, RackATSFinalizer)
 		if err := rackATSEgress(ats).reconcile(ctx, r.Client, r.egressConfig()); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -147,11 +162,15 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	var convergeErr error
 	if (!ats.Status.Adopted || ats.Status.ObservedGeneration != ats.Generation) &&
 		!rackCardAdoptedPastCache(ctx, r.APIReader, r.Client, ats, &infrav1.RackATS{}) {
-		res, done, err := r.adopt(ctx, ats, card)
-		if done {
-			return res, nil
+		if wait := r.adminBackoff.wait(ats); wait > 0 {
+			convergeErr = fmt.Errorf("the administrator's login is held off for %s after the card refused it", wait.Round(time.Second))
+		} else {
+			res, done, err := r.adopt(ctx, ats, card)
+			if done {
+				return res, nil
+			}
+			convergeErr = err
 		}
-		convergeErr = err
 	}
 	res := r.observe(ctx, ats, card)
 	if convergeErr != nil {
@@ -174,15 +193,27 @@ func (r *RackATSReconciler) adopt(ctx context.Context, ats *infrav1.RackATS, car
 			return ctrl.Result{RequeueAfter: rackATSUnsupportedInterval}, true, nil
 		}
 		r.Recorder.Eventf(ats, corev1.EventTypeWarning, reason, "%v", err)
+		refused := cardLoginRefused(err)
 		if ats.Status.Adopted {
+			// Observation goes on as the controller's account; only the
+			// administrator's logins are held off.
+			if refused {
+				r.adminBackoff.refused(ats)
+			}
 			return ctrl.Result{}, false, err
 		}
 		ats.Status.Drift = infrav1.RackCardDriftUnknown
 		conditions.MarkFalse(ats, RackCardConvergedCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
 		markRackCardNotAdopted(ats, reason, err)
 		r.markUnobserved(ats, reason, err.Error())
-		return ctrl.Result{RequeueAfter: rackATSRetryInterval}, true, nil
+		retry := rackATSRetryInterval
+		if refused {
+			retry = r.loginBackoff.refused(ats)
+		}
+		return ctrl.Result{RequeueAfter: retry}, true, nil
 	}
+	r.loginBackoff.succeeded(ats)
+	r.adminBackoff.succeeded(ats)
 
 	if adoption.PreferredUnrecognised == "" {
 		markRackCardConverged(r.Recorder, ats)
@@ -216,8 +247,13 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 		ats.Status.Message = fmt.Sprintf("the controller's account cannot read the transfer switch: %v", err)
 		conditions.MarkFalse(ats, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%s", ats.Status.Message)
 		r.markUnobserved(ats, reason, ats.Status.Message)
-		return ctrl.Result{RequeueAfter: rackATSRetryInterval}
+		retry := rackATSRetryInterval
+		if cardLoginRefused(err) {
+			retry = r.loginBackoff.refused(ats)
+		}
+		return ctrl.Result{RequeueAfter: retry}
 	}
+	r.loginBackoff.succeeded(ats)
 
 	previous := ats.Status.ActiveSource
 	ats.Status.Card = obs.Card
@@ -322,6 +358,11 @@ func (r *RackATSReconciler) card(ats *infrav1.RackATS, secret *corev1.Secret) at
 		return r.Card(r, ats, secret)
 	}
 	return &eatonATSCard{r: r, ats: ats, secret: secret}
+}
+
+// logOut ends the controller's session on the transfer switch's card.
+func (r *RackATSReconciler) logOut(ctx context.Context, ats *infrav1.RackATS) {
+	rackCardLogOut(ctx, r.Recorder, r.Power, ats, rackATSHost(ats), rackATSEgress(ats).host(r.egressConfig()))
 }
 
 // rackATSEgress is the egress Service fronting one RackATS's card.
