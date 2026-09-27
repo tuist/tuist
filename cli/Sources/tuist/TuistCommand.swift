@@ -114,7 +114,6 @@ public struct TuistCommand: AsyncParsableCommand {
                     RunnerCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
-                    CoverageCommand.self,
                 ]
             ))
             groups.append(CommandGroup(
