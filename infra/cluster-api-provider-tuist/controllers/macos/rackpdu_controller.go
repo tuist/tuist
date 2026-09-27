@@ -41,9 +41,12 @@ const (
 	// The controller clears it after acting.
 	AcceptCertificateAnnotation = "tuist.dev/accept-certificate"
 
-	// RackPDUFinalizer holds a RackPDU until its egress Service, in another
-	// namespace, is deleted.
-	RackPDUFinalizer = "tuist.dev/rackpdu-egress"
+	// RackPDUFinalizer holds a RackPDU until the controller's session on its
+	// card is logged out and its egress Service, in another namespace, is
+	// deleted.
+	RackPDUFinalizer = "tuist.dev/rackpdu"
+	// legacyRackPDUFinalizer is the name an earlier build gave it.
+	legacyRackPDUFinalizer = "tuist.dev/rackpdu-egress"
 
 	rackPDUResyncInterval = 10 * time.Minute
 	rackPDURetryInterval  = time.Minute
@@ -163,11 +166,12 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		pdu.Status.Drift = infrav1.RackPDUDriftUnknown
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
 			"managedBy is standalone: the controller does not contact this PDU, and no power goes through it")
+		r.logOut(ctx, pdu)
 		return ctrl.Result{}, nil
 	}
 
+	controllerutil.AddFinalizer(pdu, RackPDUFinalizer)
 	if r.egressConfig().enabled() {
-		controllerutil.AddFinalizer(pdu, RackPDUFinalizer)
 		if err := reconcileRackPDUEgressService(ctx, r.Client, r.egressConfig(), pdu); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -647,9 +651,10 @@ func generateCardPassword() (string, error) {
 }
 
 func (r *RackPDUReconciler) reconcileDelete(ctx context.Context, pdu *infrav1.RackPDU) error {
-	if !controllerutil.ContainsFinalizer(pdu, RackPDUFinalizer) {
+	if !controllerutil.ContainsFinalizer(pdu, RackPDUFinalizer) && !controllerutil.ContainsFinalizer(pdu, legacyRackPDUFinalizer) {
 		return nil
 	}
+	r.logOut(ctx, pdu)
 	if cfg := r.egressConfig(); cfg.enabled() {
 		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: rackPDUEgressServiceName(pdu.Name), Namespace: cfg.Namespace}}
 		if err := r.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
@@ -657,7 +662,22 @@ func (r *RackPDUReconciler) reconcileDelete(ctx context.Context, pdu *infrav1.Ra
 		}
 	}
 	controllerutil.RemoveFinalizer(pdu, RackPDUFinalizer)
+	controllerutil.RemoveFinalizer(pdu, legacyRackPDUFinalizer)
 	return nil
+}
+
+// logOut ends the controller's session on the card, so a person can log in
+// with the account and the card's one session for it is free. A card that
+// cannot be reached keeps it until its idle timeout, which the event says.
+func (r *RackPDUReconciler) logOut(ctx context.Context, pdu *infrav1.RackPDU) {
+	eaton, err := r.eaton()
+	if err == nil {
+		err = eaton.Logout(ctx, power.Outlet{Driver: power.DriverEaton, Host: rackPDUHost(pdu), Dial: rackPDUEgressHost(r.egressConfig(), pdu.Name)})
+	}
+	if err != nil {
+		r.Recorder.Eventf(pdu, corev1.EventTypeWarning, "LogoutFailed",
+			"Could not log the controller's account out of the card, which keeps its session until the card's idle timeout: %v", err)
+	}
 }
 
 func (r *RackPDUReconciler) eaton() (*power.Eaton, error) {

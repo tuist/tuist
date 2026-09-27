@@ -53,6 +53,24 @@ type EatonProfile struct {
 
 type eatonGetter func(ctx context.Context, path string, out any) error
 
+// Logout ends the driver's session on the card o names, if it has one, so the
+// card's one session for the account is free.
+func (e *Eaton) Logout(ctx context.Context, o Outlet) error {
+	origin, err := o.origin("https")
+	if err != nil {
+		return err
+	}
+	e.mu.Lock()
+	ep, ok := e.endpoints[origin.String()]
+	e.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+	return ep.logout(ctx)
+}
+
 // OutletSettings reads every outlet's settings through the driver's session.
 func (e *Eaton) OutletSettings(ctx context.Context, o Outlet) ([]EatonOutletSettings, error) {
 	return eatonOutletSettings(ctx, func(ctx context.Context, path string, out any) error {

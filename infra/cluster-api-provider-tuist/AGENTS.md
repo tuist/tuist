@@ -475,8 +475,8 @@ reports `AddressReserved=False`, reason `NoMAC`.
    `tailscale.com/tailnet-ip` with the address, on :443, when
    `--tailscale-egress-proxy-group` and `--tailscale-egress-namespace` are set.
    A Service in another namespace cannot be owned, so the RackPDU carries the
-   finalizer `tuist.dev/rackpdu-egress` and deleting it deletes the Service.
-   Every path to the card dials it.
+   finalizer `tuist.dev/rackpdu`: deleting it logs the controller's session out
+   of the card and deletes the Service. Every path to the card dials it.
 2. **The credentials Secret** `<name>-credentials`, labelled
    `tuist.dev/rack-pdu=<name>`: `admin-username` (`admin`), `admin-password`,
    `username` (`tuist-controller`), `password`, `initial-password`, all
@@ -533,7 +533,10 @@ One generation is one adoption pass. The reconciler wakes for a new generation
 or an annotation, not for its own status writes, and before adopting it reads
 the RackPDU past the manager's cache, whose copy can lag the status the last
 pass wrote. A RackPDU switched to `managedBy: standalone` is `Ready=False`,
-reason `Standalone`, and the controller stops contacting it.
+reason `Standalone`, and the controller logs its session out of the card (so a
+person can log in with the account, and the card's one session for it is free)
+and stops contacting it. A logout that cannot reach the card is a
+`LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
 `AddressReserved`. `Adopted=False` reasons: `Unreachable`, `AdminLoginRefused`
