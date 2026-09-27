@@ -281,7 +281,6 @@ defmodule TuistWeb.CoverageLiveTest do
       path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/b"
 
       {:ok, lv, _html} = live(conn, path)
-      assert has_element?(lv, "#coverage-gap-files-table", "A.swift")
       refute render(lv) =~ "Untested.swift"
 
       {:ok, lv, _html} = live(conn, path <> "?tab=files")

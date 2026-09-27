@@ -36,56 +36,6 @@ defmodule TuistWeb.Coverage.Components do
   def empty_artwork(_image),
     do: %{light: ~p"/images/empty_line_chart_light.png", dark: ~p"/images/empty_line_chart_dark.png"}
 
-  attr :least_covered, :list, required: true
-  attr :file_href, :any, default: nil
-  attr :href, :string, required: true
-
-  @doc "Where the commit's files are thinnest, with the way to every file behind it."
-  def files_coverage_card(assigns) do
-    ~H"""
-    <.card
-      title={dgettext("dashboard_tests", "Files coverage")}
-      icon="file"
-      data-part="files-coverage"
-    >
-      <:actions>
-        <.button
-          label={dgettext("dashboard_tests", "View more")}
-          variant="secondary"
-          size="medium"
-          navigate={@href}
-        />
-      </:actions>
-      <div data-part="movements-sections">
-        <.card_section data-part="movement-section">
-          <div data-part="header">
-            <span data-part="title">{dgettext("dashboard_tests", "Least covered files")}</span>
-          </div>
-          <.table
-            :if={@least_covered != []}
-            id="coverage-gap-files-table"
-            rows={@least_covered}
-            row_navigate={@file_href && fn file -> @file_href.(file.path) end}
-          >
-            <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_and_description_cell
-                label={Path.basename(file.path)}
-                description={parent_dir(file.path)}
-              />
-            </:col>
-            <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-              <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
-            </:col>
-          </.table>
-          <div :if={@least_covered == []} data-part="empty">
-            {dgettext("dashboard_tests", "No file was measured at this commit.")}
-          </div>
-        </.card_section>
-      </div>
-    </.card>
-    """
-  end
-
   attr :covered, :integer, required: true
   attr :executable, :integer, required: true
 

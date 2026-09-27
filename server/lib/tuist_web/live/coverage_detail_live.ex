@@ -29,7 +29,6 @@ defmodule TuistWeb.CoverageDetailLive do
   @widgets ~w(coverage covered_lines executable_lines)
   @page_size 20
   # How many rows the overview's files hold: a highlight, not a listing.
-  @highlight_size 5
 
   # A run's coverage joins its commit a few seconds after the run lands
   # (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads once
@@ -257,17 +256,12 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp tab(subject, value), do: if(value in tabs(subject), do: value, else: "overview")
 
-  defp assign_overview(%{assigns: %{selected_project: project, subject: subject, summary: summary}} = socket) do
+  defp assign_overview(%{assigns: %{selected_project: project, summary: summary}} = socket) do
     # The tests that ran are only read for the card that breaks the
     # coverage down.
-    [{files, _count}, ran_tests] =
-      Tuist.Tasks.parallel_tasks([
-        fn -> Commits.list_files(project.id, subject.sha, 1, @highlight_size) end,
-        fn -> if coverage_breakdown?(summary), do: Commits.ran_tests_count(project.id, summary.test_run_ids), else: 0 end
-      ])
+    ran_tests = if coverage_breakdown?(summary), do: Commits.ran_tests_count(project.id, summary.test_run_ids), else: 0
 
     socket
-    |> assign(:least_covered_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
     |> assign(:ran_tests_count, ran_tests)
     |> assign_analytics()
   end

@@ -297,62 +297,6 @@
   }
 }
 
-/* Paired lists — where the latest commit is thinnest, and where coverage
-   rose and fell most — stacked, so file paths keep the card's full width
-   and an empty list takes one line rather than half the card. */
-#coverage,
-#coverage-detail {
-  & [data-part="movements-sections"],
-  & [data-part="gaps-sections"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-3);
-
-    & > * {
-      min-width: 0;
-    }
-  }
-
-  & [data-part="movement-section"],
-  & [data-part="gaps-section"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-8);
-
-    & > [data-part="header"] {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-
-      & > [data-part="title"] {
-        flex-grow: 1;
-        color: var(--noora-surface-label-primary);
-      }
-
-      & > [data-part="count"],
-      & > [data-part="link"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-body-small);
-      }
-
-      & > [data-part="link"] {
-        text-decoration: none;
-
-        &:hover {
-          text-decoration: underline;
-        }
-      }
-    }
-
-    & > [data-part="empty"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-medium);
-    }
-  }
-}
-
 /* A file's coverage as a bar and a percentage, and the schemes that measured
    a commit as a row of badges: table cells with no Noora equivalent. */
 #coverage,

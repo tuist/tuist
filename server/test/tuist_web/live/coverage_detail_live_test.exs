@@ -52,7 +52,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#widget-executable-lines", "6")
     refute has_element?(lv, ".noora-alert")
     assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Pending"
-    assert has_element?(lv, "#coverage-gap-files-table", "A.swift")
+    refute has_element?(lv, "[data-part='files-coverage']")
     refute has_element?(lv, "[data-part='sources-card']")
 
     Commits.signal_complete(project, "b")
@@ -113,12 +113,12 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   end
 
   test "opens a file of the commit on its own page, with its uncovered lines", %{conn: conn, base: base} do
-    {:ok, lv, _html} = live(conn, base <> "/commits/b")
-    from = URI.encode_www_form("#{base}/commits/b")
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
+    from = URI.encode_www_form("#{base}/commits/b?tab=files")
 
     assert has_element?(
              lv,
-             "#coverage-gap-files-table a[href='#{base}/files/Sources/A.swift?commit=b&tab=overview&from=#{from}']"
+             "#coverage-files-table a[href='#{base}/files/Sources/A.swift?commit=b&tab=files&from=#{from}']"
            )
 
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&tab=overview")

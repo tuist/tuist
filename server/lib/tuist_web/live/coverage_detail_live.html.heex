@@ -176,13 +176,6 @@
       commit_href={fn sha -> commit_href(assigns, sha) end}
     />
 
-    <.files_coverage_card
-      :if={@tab == "overview"}
-      least_covered={@least_covered_files}
-      file_href={fn path -> file_href(assigns, path) end}
-      href={"?#{@uri.query |> Query.put("tab", "files") |> Query.drop("page")}"}
-    />
-
     <%!-- Targets --%>
     <.card
       :if={@tab == "targets"}
