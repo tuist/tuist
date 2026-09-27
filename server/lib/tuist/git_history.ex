@@ -377,6 +377,7 @@ defmodule Tuist.GitHistory do
       {:since, since}, query -> where(query, [c], c.committed_at >= ^since)
       {:until, nil}, query -> query
       {:until, until}, query -> where(query, [c], c.committed_at <= ^until)
+      {:refine, refine}, query when is_function(refine, 1) -> refine.(query)
       _option, query -> query
     end)
   end

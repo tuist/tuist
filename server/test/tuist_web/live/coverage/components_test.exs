@@ -5,32 +5,6 @@ defmodule TuistWeb.Coverage.ComponentsTest do
 
   alias TuistWeb.Coverage.Components
 
-  describe "measured_by_cell/1" do
-    test "shows both of two schemes" do
-      html =
-        render_component(&Components.measured_by_cell/1,
-          commit: %{git_commit_sha: "a", schemes: ["App", "Kit"], partial_schemes: []}
-        )
-
-      assert html =~ "App"
-      assert html =~ "Kit"
-      refute html =~ "+"
-    end
-
-    test "folds every scheme past the first into a count" do
-      html =
-        render_component(&Components.measured_by_cell/1,
-          commit: %{git_commit_sha: "a", schemes: ["App", "Kit", "Core"], partial_schemes: ["Core"]}
-        )
-
-      assert html =~ "App"
-      assert html =~ "+2"
-      assert html =~ "coverage-schemes-a"
-      assert html =~ "Kit, Core"
-      refute html =~ ">Kit<"
-    end
-  end
-
   describe "brief_line_ranges/1" do
     test "shows up to two ranges and folds the rest into an ellipsis, with every range for a title" do
       assert Components.brief_line_ranges([{1, 3}, {5, 5}]) == "1–3, 5"

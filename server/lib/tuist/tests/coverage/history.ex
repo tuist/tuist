@@ -251,6 +251,12 @@ defmodule Tuist.Tests.Coverage.History do
   ran. Each commit's chaining and `change` are settled over the page and the
   #{@lookback} measured commits below it. The period bounds the commits
   (`since`/`until`); `page_size` is 20 by default.
+
+  `search` keeps the commits whose SHA starts with it and `status` those of
+  one status: `complete` (its pipeline signalled it finished), `pending`
+  (measured, not yet signalled) or `not-measured` (on the branch, no run
+  measured it). Each is stored, so they narrow the query the page is read
+  with.
   """
   def commit_cursor_page(%Project{} = project, branch, opts \\ []) do
     size = Keyword.get(opts, :page_size, 20)
@@ -262,6 +268,60 @@ defmodule Tuist.Tests.Coverage.History do
     end
   end
 
+  # The branch's graph commits narrowed by `search` and `status`: a commit
+  # is measured when it has a published, comparable figure (`Commits.all/2`).
+  defp graph_filter(project_id, opts) do
+    {search, status} = commit_filter(opts)
+
+    if search == "" and status == "" do
+      nil
+    else
+      measured =
+        from(m in CoverageCommit, where: m.project_id == ^project_id)
+        |> Commits.comparable()
+        |> select([m], %{sha: m.git_commit_sha, complete: m.complete})
+
+      fn query ->
+        query = if search == "", do: query, else: where(query, [c], like(c.sha, ^sha_prefix(search)))
+        by_status(query, status, measured)
+      end
+    end
+  end
+
+  defp by_status(query, "", _measured), do: query
+
+  defp by_status(query, "not-measured", measured),
+    do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
+
+  defp by_status(query, "complete", measured),
+    do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: m.complete)
+
+  defp by_status(query, "pending", measured),
+    do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: not m.complete)
+
+  defp by_status(query, _unknown, _measured), do: where(query, false)
+
+  # A labelled branch lists measured commits only, so "not measured" matches
+  # none of them.
+  defp labelled_filter(query, opts) do
+    {search, status} = commit_filter(opts)
+    query = if search == "", do: query, else: where(query, [c], like(c.git_commit_sha, ^sha_prefix(search)))
+
+    case status do
+      "" -> query
+      "complete" -> where(query, [c], c.complete)
+      "pending" -> where(query, [c], not c.complete)
+      _other -> where(query, false)
+    end
+  end
+
+  defp commit_filter(opts) do
+    search = opts |> Keyword.get(:search) |> Kernel.||("") |> String.trim() |> String.downcase()
+    {search, Keyword.get(opts, :status) || ""}
+  end
+
+  defp sha_prefix(search), do: String.replace(search, ~w(\\ % _), &("\\" <> &1)) <> "%"
+
   defp cursor(opts) do
     case {Keyword.get(opts, :after), Keyword.get(opts, :before)} do
       {value, _} when value not in [nil, ""] -> {:older, value}
@@ -271,7 +331,12 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   defp graph_cursor_page(project, ref, opts, size, cursor) do
-    period = [since: second(Keyword.get(opts, :since)), until: second(Keyword.get(opts, :until))]
+    period = [
+      since: second(Keyword.get(opts, :since)),
+      until: second(Keyword.get(opts, :until)),
+      refine: graph_filter(project.id, opts)
+    ]
+
     cursor = cursor_position(cursor)
 
     {rows, more?} =
@@ -352,7 +417,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp fork_lookback(_project, _ref, _found), do: []
 
   defp labelled_cursor_page(project, branch, opts, size, cursor) do
-    labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) end
+    labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) |> labelled_filter(opts) end
     cursor = cursor_time(cursor)
     read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.())) end
 

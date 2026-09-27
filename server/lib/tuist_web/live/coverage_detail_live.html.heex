@@ -239,9 +239,9 @@
           period={@coverage_period}
         />
       </:actions>
-      <.card_section :if={@commit_rows != []} data-part="commits-section">
+      <.card_section data-part="commits-section">
         <.alert
-          :if={@commits_ordered_by == :time and @subject.kind == :branch}
+          :if={@commits_ordered_by == :time and @subject.kind == :branch and @commit_rows != []}
           id="coverage-commits-time-order"
           status="information"
           type="secondary"
@@ -253,7 +253,57 @@
             )
           }
         />
-        <div data-part="commits-table">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="coverage-commits-filter-form"
+            phx-change="search-commits"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-coverage-commits"
+              name="search"
+              placeholder={dgettext("dashboard_tests", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@commits_search}
+            />
+          </.form>
+          <.dropdown
+            id="coverage-commits-status-dropdown"
+            data-positioning-strategy="fixed"
+            label={
+              Enum.find_value(
+                commit_statuses(@subject.kind),
+                dgettext("dashboard_tests", "Any"),
+                fn
+                  {value, label} -> if value == @commits_status, do: label
+                end
+              )
+            }
+            secondary_text={dgettext("dashboard_tests", "Status:")}
+          >
+            <.dropdown_item
+              value="any"
+              label={dgettext("dashboard_tests", "Any")}
+              patch={"?#{@uri.query |> Query.drop("commits-status") |> drop_paging()}"}
+              data-selected={@commits_status == ""}
+            >
+              <:right_icon :if={@commits_status == ""}><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              :for={{value, label} <- commit_statuses(@subject.kind)}
+              value={value}
+              label={label}
+              patch={"?#{@uri.query |> Query.put("commits-status", value) |> drop_paging()}"}
+              data-selected={@commits_status == value}
+            >
+              <:right_icon :if={@commits_status == value}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <div :if={@commit_rows != []} data-part="commits-table">
           <.table
             id="coverage-commits-table"
             rows={@commit_rows}
@@ -275,24 +325,12 @@
               />
               <.text_cell :if={not row.measured} label="—" />
             </:col>
-            <:col :let={row} label={"#{scheme_label(@selected_project)}s"}>
-              <.measured_by_cell :if={row.measured} commit={row} />
-              <.text_cell :if={not row.measured} label="—" />
-            </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
               <.tooltip_badge_cell
-                :if={@subject.kind == :pull_request}
                 id={"coverage-commit-status-#{row.git_commit_sha}"}
-                color={ref_status_color(row)}
-                label={ref_status_label(row)}
-                description={head_status_title(row)}
-              />
-              <.tooltip_badge_cell
-                :if={@subject.kind != :pull_request}
-                id={"coverage-commit-status-#{row.git_commit_sha}"}
-                color={completeness_color(row)}
-                label={completeness_label(row)}
-                description={completeness_title(row)}
+                color={commit_status_color(row)}
+                label={commit_status_label(row)}
+                description={commit_status_title(row)}
               />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
@@ -321,13 +359,19 @@
             page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
           />
         </div>
+        <.coverage_empty
+          :if={@commit_rows == [] and (@commits_search != "" or @commits_status != "")}
+          title={dgettext("dashboard_tests", "No commit matches these filters")}
+          image="table"
+          data-part="empty-commits"
+        />
+        <.coverage_empty
+          :if={@commit_rows == [] and @commits_search == "" and @commits_status == ""}
+          title={dgettext("dashboard_tests", "No commit gathered coverage in this period")}
+          image="table"
+          data-part="empty-commits"
+        />
       </.card_section>
-      <.coverage_empty
-        :if={@commit_rows == []}
-        title={dgettext("dashboard_tests", "No commit gathered coverage in this period")}
-        image="table"
-        data-part="empty-commits"
-      />
     </.card>
 
     <%!-- Test Runs --%>

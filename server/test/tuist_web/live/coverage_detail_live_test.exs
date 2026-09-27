@@ -271,6 +271,29 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert has_element?(lv, "[data-part='empty-runs']")
     end
 
+    test "searches its commits by SHA and filters them by status", %{conn: conn, base: base, project: project} do
+      Commits.signal_complete(project, "p1")
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
+      refute has_element?(lv, "#coverage-commits-table th", "Scheme")
+
+      lv |> form("#coverage-commits-filter-form", %{"search" => "P1"}) |> render_change()
+      assert_patch(lv, base <> "/pull-requests/7?commits-search=P1&tab=commits")
+      table = lv |> element("#coverage-commits-table") |> render()
+      assert table =~ "p1"
+      refute table =~ "p2"
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-status=pending")
+      table = lv |> element("#coverage-commits-table") |> render()
+      assert table =~ "p2"
+      refute table =~ "p1"
+      assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "Pending")
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-search=p1&commits-status=pending")
+      assert has_element?(lv, "[data-part='empty-commits']", "No commit matches these filters")
+      assert has_element?(lv, "#coverage-commits-filter-form")
+    end
+
     test "reads as its newest commit whatever commit the address names", %{conn: conn, base: base} do
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?commit=p1")
       assert has_element?(lv, "#widget-coverage", "75.0%")

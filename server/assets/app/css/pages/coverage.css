@@ -131,6 +131,7 @@
   }
 
   & [data-part="branches-section"] [data-part="filters"],
+  & [data-part="commits-section"] [data-part="filters"],
   & [data-part="refs-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
@@ -321,13 +322,6 @@
       font: var(--noora-font-body-small);
       text-align: right;
     }
-  }
-
-  & [data-part="cell"] > [data-part="tags"] {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: var(--noora-spacing-3);
   }
 
   /* A gate's result is a badge and, when it could not be evaluated, the

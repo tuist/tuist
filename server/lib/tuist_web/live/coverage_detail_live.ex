@@ -130,6 +130,11 @@ defmodule TuistWeb.CoverageDetailLive do
      )}
   end
 
+  def handle_event("search-commits", %{"search" => search}, socket) do
+    query = socket.assigns.uri.query |> Query.put("commits-search", search) |> drop_paging()
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+  end
+
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     widget = selected_widget(widget)
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
@@ -284,7 +289,14 @@ defmodule TuistWeb.CoverageDetailLive do
   defp assign_analytics(socket), do: socket
 
   defp assign_commits(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}} = socket, query) do
-    commits = Enum.filter(commits, &in_period?(socket, &1.ran_at))
+    {search, status} = commits_filter(query)
+
+    commits =
+      Enum.filter(commits, fn commit ->
+        in_period?(socket, commit.ran_at) and String.starts_with?(commit.git_commit_sha, search) and
+          (status == "" or pull_request_commit_status(commit) == status)
+      end)
+
     total_pages = max(1, ceil(length(commits) / @page_size))
     page = min(Query.bounded_page(query["page"]), total_pages)
 
@@ -297,18 +309,46 @@ defmodule TuistWeb.CoverageDetailLive do
     )
     |> assign(:commits_meta, %{cursor: false, current_page: page, total_pages: total_pages})
     |> assign(:commits_ordered_by, :time)
+    |> assign_commits_filter(search, status)
   end
 
   # A branch's commits are read a page at a time from a cursor, however long
   # its history.
   defp assign_commits(%{assigns: %{subject: %{kind: :branch}}} = socket, query) do
-    page = branch_commit_page(socket, query)
+    {search, status} = commits_filter(query)
+    page = branch_commit_page(socket, query, search: search, status: status)
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
     |> assign(:commits_meta, cursor_meta(page))
     |> assign(:commits_ordered_by, page.ordered_by)
+    |> assign_commits_filter(search, status)
   end
+
+  # The Commits tab's search, by the start of a SHA, and its status: whether
+  # the commit's pipeline signalled it finished, and on a branch, which lists
+  # every commit on it, whether any run measured it.
+  defp commits_filter(query) do
+    search = (query["commits-search"] || "") |> String.trim() |> String.downcase()
+    {search, query["commits-status"] || ""}
+  end
+
+  defp assign_commits_filter(socket, search, status),
+    do: socket |> assign(:commits_search, search) |> assign(:commits_status, status)
+
+  @doc "The statuses the Commits tab filters a subject's commits by, with their labels."
+  def commit_statuses(:pull_request),
+    do: [{"complete", dgettext("dashboard_tests", "Complete")}, {"pending", dgettext("dashboard_tests", "Pending")}]
+
+  def commit_statuses(_kind),
+    do: [
+      {"complete", dgettext("dashboard_tests", "Complete")},
+      {"pending", dgettext("dashboard_tests", "Pending")},
+      {"not-measured", dgettext("dashboard_tests", "Not measured")}
+    ]
+
+  defp pull_request_commit_status(%{complete: true}), do: "complete"
+  defp pull_request_commit_status(_commit), do: "pending"
 
   defp assign_targets(%{assigns: %{selected_project: project, subject: subject}} = socket) do
     targets = Commits.targets(project.id, subject.sha)
@@ -360,11 +400,11 @@ defmodule TuistWeb.CoverageDetailLive do
   defp assign_run_rows(socket, runs),
     do: assign(socket, :run_rows, runs |> Enum.reverse() |> Enum.map(&Map.put(&1, :id, &1.test_run_id)))
 
-  defp branch_commit_page(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
+  defp branch_commit_page(%{assigns: %{selected_project: project, subject: subject}} = socket, query, filter \\ []) do
     History.commit_cursor_page(
       project,
       subject.branch,
-      Keyword.merge(period_opts(socket), after: query["after"], before: query["before"], page_size: @page_size)
+      period_opts(socket) ++ filter ++ [after: query["after"], before: query["before"], page_size: @page_size]
     )
   end
 
@@ -372,6 +412,9 @@ defmodule TuistWeb.CoverageDetailLive do
     do: page |> Map.take([:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]) |> Map.put(:cursor, true)
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
+
+  @doc false
+  def drop_paging(query), do: query |> Query.drop("page") |> Query.drop("after") |> Query.drop("before")
 
   # A pull request's commits and runs are all read for the subject, so the
   # period narrows its lists here.

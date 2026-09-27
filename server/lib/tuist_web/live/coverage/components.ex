@@ -1,7 +1,7 @@
 defmodule TuistWeb.Coverage.Components do
   @moduledoc """
   The cells and words the coverage pages share: a file's coverage as a bar,
-  a difference in percentage points, the schemes that measured a commit, and
+  a difference in percentage points, and
   the labels that word a commit's completeness, a gate's verdict and the
   reasons a comparison could not be made.
   """
@@ -103,52 +103,6 @@ defmodule TuistWeb.Coverage.Components do
           </span>
         </:trigger>
       </.tooltip>
-    </div>
-    """
-  end
-
-  attr :commit, :map, required: true
-
-  # The schemes that measured a commit, the partial ones marked. Past two, the
-  # rest fold into a count, as a run's tags do on the Build Runs page.
-  def measured_by_cell(assigns) do
-    schemes = assigns.commit.schemes
-    {shown, folded} = if length(schemes) > 2, do: Enum.split(schemes, 1), else: {schemes, []}
-    assigns = assigns |> assign(:shown, shown) |> assign(:folded, folded)
-
-    ~H"""
-    <div data-part="cell" data-type="badge">
-      <div data-part="tags">
-        <.badge
-          :for={scheme <- @shown}
-          style="light-fill"
-          size="large"
-          color={if scheme in @commit.partial_schemes, do: "warning", else: "neutral"}
-          label={if scheme in @commit.partial_schemes, do: "#{scheme} · P", else: scheme}
-        />
-        <.tooltip
-          :if={@folded != []}
-          id={"coverage-schemes-#{@commit.git_commit_sha}"}
-          size="large"
-          title={dgettext("dashboard_tests", "Schemes")}
-          description={Enum.join(@folded, ", ")}
-        >
-          <:trigger :let={attrs}>
-            <span {attrs} tabindex="0">
-              <.badge
-                style="light-fill"
-                size="large"
-                color={
-                  if Enum.any?(@folded, &(&1 in @commit.partial_schemes)),
-                    do: "warning",
-                    else: "neutral"
-                }
-                label={"+#{length(@folded)}"}
-              />
-            </span>
-          </:trigger>
-        </.tooltip>
-      </div>
     </div>
     """
   end
@@ -261,43 +215,22 @@ defmodule TuistWeb.Coverage.Components do
     )
   end
 
-  @doc false
-  def completeness_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
-  def completeness_label(%{complete: true, completeness: "signal"}), do: dgettext("dashboard_tests", "Complete")
-  def completeness_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
-  def completeness_label(%{chained: true}), do: dgettext("dashboard_tests", "Comparable")
-  def completeness_label(_commit), do: dgettext("dashboard_tests", "Not chained")
+  @doc """
+  A commit's status in a list: `Not measured` when no run measured it (a
+  branch lists every commit on it), otherwise `Complete` or `Pending` as its
+  pipeline signalled it finished or not.
+  """
+  def commit_status_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
+  def commit_status_label(commit), do: ref_status_label(commit)
 
-  @doc "What a commit's status in a list means, for the status's title."
-  def completeness_title(%{measured: false}),
+  @doc "What a commit's status in a list means, for the status's tooltip."
+  def commit_status_title(%{measured: false}),
     do: dgettext("dashboard_tests", "No run of this commit gathered coverage, so it has no figure of its own.")
 
-  def completeness_title(%{complete: true}),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "The commit's coverage pipeline signalled it finished, so no more runs are expected and its figure is final."
-      )
+  def commit_status_title(commit), do: head_status_title(commit)
 
-  def completeness_title(%{chained: true}),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "Measured the same schemes, each as fully, as the commit before it on the trend, so the two compare as a whole. More runs may still land."
-      )
-
-  def completeness_title(_commit),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "Measured a different set of schemes than the commit before it on the trend, so it only compares scheme by scheme and stays off the chart."
-      )
-
-  @doc false
-  def completeness_color(%{measured: false}), do: "neutral"
-  def completeness_color(%{complete: true}), do: "success"
-  def completeness_color(%{chained: true}), do: "information"
-  def completeness_color(_commit), do: "neutral"
+  def commit_status_color(%{measured: false}), do: "neutral"
+  def commit_status_color(commit), do: ref_status_color(commit)
 
   @doc """
   When a point of a coverage series happened, for the chart's axis: the commit's

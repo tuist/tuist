@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -203,6 +204,43 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert {back.has_previous_page?, back.has_next_page?} == {false, true}
     end
 
+    test "page a branch's commits of one status, or whose SHA starts with a search, from a cursor", %{
+      project: project,
+      account: account
+    } do
+      commits =
+        for index <- 0..6 do
+          CoverageFixtures.commit("c#{index}", if(index == 0, do: [], else: ["c#{index - 1}"]), index)
+        end
+
+      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c6"}])
+      for index <- [1, 3, 4, 6], do: run(project, account, %{git_commit_sha: "c#{index}"}, [1, 0])
+      Commits.signal_complete(project, "c4")
+
+      first = History.commit_cursor_page(project, "main", page_size: 2, status: "not-measured")
+      assert Enum.map(first.commits, & &1.git_commit_sha) == ["c5", "c2"]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+
+      second = History.commit_cursor_page(project, "main", page_size: 2, status: "not-measured", after: first.end_cursor)
+      assert Enum.map(second.commits, & &1.git_commit_sha) == ["c0"]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      back =
+        History.commit_cursor_page(project, "main", page_size: 2, status: "not-measured", before: second.start_cursor)
+
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c5", "c2"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) ==
+               ["c4"]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "pending").commits, & &1.git_commit_sha) ==
+               ["c6", "c3", "c1"]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", search: "C3 ").commits, & &1.git_commit_sha) == ["c3"]
+      assert History.commit_cursor_page(project, "main", search: "c3", status: "complete").commits == []
+    end
+
     test "page a branch's labelled commits from a cursor when its ref owns none", %{
       project: project,
       account: account
@@ -222,6 +260,19 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       second = History.commit_cursor_page(project, "main", page_size: 2, after: first.end_cursor)
       assert Enum.map(second.commits, & &1.git_commit_sha) == ["a"]
       assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      searched = History.commit_cursor_page(project, "main", page_size: 2, search: "b")
+      assert Enum.map(searched.commits, & &1.git_commit_sha) == ["b"]
+      assert {searched.has_previous_page?, searched.has_next_page?} == {false, false}
+
+      # Labelled commits are all measured.
+      assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "pending").commits, & &1.git_commit_sha) == [
+               "c",
+               "b",
+               "a"
+             ]
     end
 
     test "chain a complete commit whatever it measured", %{project: project, account: account} do
@@ -230,7 +281,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       assert Enum.map(History.branch_points(project, "main"), & &1.git_commit_sha) == ["a"]
 
-      Tuist.Tests.Coverage.Commits.signal_complete(project, "b")
+      Commits.signal_complete(project, "b")
       assert Enum.map(History.branch_points(project, "main"), & &1.git_commit_sha) == ["a", "b"]
     end
   end
