@@ -33,9 +33,12 @@ const (
 	RackPDUCertificateChangedCondition = RackCardCertificateChangedCondition
 	RackPDUAddressReservedCondition    = RackCardAddressReservedCondition
 
-	// RackPDUFinalizer holds a RackPDU until its egress Service, in another
-	// namespace, is deleted.
-	RackPDUFinalizer = "tuist.dev/rackpdu-egress"
+	// RackPDUFinalizer holds a RackPDU until the controller's session on its
+	// card is logged out and its egress Service, in another namespace, is
+	// deleted.
+	RackPDUFinalizer = "tuist.dev/rackpdu"
+	// legacyRackPDUFinalizer is the name an earlier build gave it.
+	legacyRackPDUFinalizer = "tuist.dev/rackpdu-egress"
 
 	rackPDUResyncInterval = 10 * time.Minute
 	rackPDURetryInterval  = time.Minute
@@ -77,6 +80,8 @@ type RackPDUReconciler struct {
 	// so a cache that has not seen the last pass's status yet does not start
 	// another. Nil reads through Client.
 	APIReader client.Reader
+
+	loginBackoff cardLoginBackoff
 }
 
 // rackPDUPredicate wakes the reconciler for a new generation and for an
@@ -118,18 +123,21 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	defer func() { recordRackPDUMetrics(pdu) }()
 
 	if !pdu.DeletionTimestamp.IsZero() {
-		return ctrl.Result{}, rackPDUEgress(pdu).release(ctx, r.Client, r.egressConfig(), pdu, RackPDUFinalizer)
+		return ctrl.Result{}, releaseRackCard(ctx, r.Client, r.egressConfig(), func() { r.logOut(ctx, pdu) },
+			rackPDUEgress(pdu), pdu, RackPDUFinalizer, legacyRackPDUFinalizer)
 	}
 	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
 		pdu.Status.Message = "standalone: the controller does not contact this PDU"
 		pdu.Status.Drift = infrav1.RackCardDriftUnknown
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
 			"managedBy is standalone: the controller does not contact this PDU, and no power goes through it")
+		r.logOut(ctx, pdu)
 		return ctrl.Result{}, nil
 	}
 
+	controllerutil.AddFinalizer(pdu, RackPDUFinalizer)
+	controllerutil.RemoveFinalizer(pdu, legacyRackPDUFinalizer)
 	if r.egressConfig().enabled() {
-		controllerutil.AddFinalizer(pdu, RackPDUFinalizer)
 		if err := rackPDUEgress(pdu).reconcile(ctx, r.Client, r.egressConfig()); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -146,6 +154,9 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 }
 
 func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) (ctrl.Result, error) {
+	if wait := r.loginBackoff.wait(pdu); wait > 0 {
+		return ctrl.Result{RequeueAfter: wait}, nil
+	}
 	presented, err := power.ProbeTLSFingerprint(ctx, r.cardOutlet(pdu, secret), r.timeout())
 	if err != nil {
 		markRackCardUnreachable(pdu, err)
@@ -171,6 +182,9 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	admin, how, err := openEatonAdmin(ctx, r.cardOutlet(pdu, secret), secret, r.timeout())
 	if err != nil {
 		markRackCardNotAdopted(pdu, eatonLoginReason(err), err)
+		if cardLoginRefused(err) {
+			return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
+		}
 		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
 	}
 	defer func() {
@@ -191,6 +205,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	}
 
 	markRackCardConverged(r.Recorder, pdu)
+	r.loginBackoff.succeeded(pdu)
 	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 }
 
@@ -258,17 +273,24 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 	pdu.Status.LastVerified = &now
 	if err != nil {
 		// Nothing on the card was read, so this says nothing about drift.
-		reason := "ControllerLoginFailed"
+		reason, retry := "Unreachable", rackPDURetryInterval
 		var refusal *power.EatonLoginError
-		if !errors.As(err, &refusal) {
-			reason = "Unreachable"
+		if errors.As(err, &refusal) {
+			reason = "ControllerLoginFailed"
+			if refusal.Code == "AccountBlocked" {
+				reason = "AccountBlocked"
+			}
+			if cardLoginRefused(err) {
+				retry = r.loginBackoff.refused(pdu)
+			}
 		}
 		pdu.Status.Drift = infrav1.RackCardDriftUnknown
 		pdu.Status.Message = fmt.Sprintf("the controller's account cannot read the card: %v", err)
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
 		conditions.MarkUnknown(pdu, RackPDUConvergedCondition, reason, "%s", pdu.Status.Message)
-		return ctrl.Result{RequeueAfter: rackPDURetryInterval}
+		return ctrl.Result{RequeueAfter: retry}
 	}
+	r.loginBackoff.succeeded(pdu)
 	pdu.Status.OutletCount = len(outlets)
 	if identity, err := eaton.Identification(ctx, r.cardOutlet(pdu, secret)); err == nil {
 		pdu.Status.Model, pdu.Status.SerialNumber, pdu.Status.FirmwareVersion = identity.Model, identity.Serial, identity.Firmware
@@ -294,6 +316,11 @@ func (r *RackPDUReconciler) cardOutlet(pdu *infrav1.RackPDU, secret *corev1.Secr
 // it; callers set the outlet.
 func rackPDUOutlet(egress egressConfig, pdu *infrav1.RackPDU, secret *corev1.Secret) power.Outlet {
 	return rackCardOutlet(rackPDUHost(pdu), rackPDUEgress(pdu).host(egress), secret)
+}
+
+// logOut ends the controller's session on the PDU's card.
+func (r *RackPDUReconciler) logOut(ctx context.Context, pdu *infrav1.RackPDU) {
+	rackCardLogOut(ctx, r.Recorder, r.Power, pdu, rackPDUHost(pdu), rackPDUEgress(pdu).host(r.egressConfig()))
 }
 
 // rackPDUEgress is the egress Service fronting one RackPDU's card.

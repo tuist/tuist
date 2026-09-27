@@ -476,8 +476,8 @@ reports `AddressReserved=False`, reason `NoMAC`.
    `tailscale.com/tailnet-ip` with the address, on :443, when
    `--tailscale-egress-proxy-group` and `--tailscale-egress-namespace` are set.
    A Service in another namespace cannot be owned, so the RackPDU carries the
-   finalizer `tuist.dev/rackpdu-egress` and deleting it deletes the Service.
-   Every path to the card dials it.
+   finalizer `tuist.dev/rackpdu`: deleting it logs the controller's session out
+   of the card and deletes the Service. Every path to the card dials it.
 2. **The credentials Secret** `<name>-credentials`, labelled
    `tuist.dev/rack-pdu=<name>`: `admin-username` (`admin`), `admin-password`,
    `username` (`tuist-controller`), `password`, `initial-password`, all
@@ -520,13 +520,24 @@ reports `AddressReserved=False`, reason `NoMAC`.
    and not written over; a new generation converges it. An account that cannot
    log in, or a card that does not answer, is not drift, since nothing was
    read: it is `Ready=False`, reason `ControllerLoginFailed` or `Unreachable`,
-   with `Converged` Unknown and drift `unknown`.
+   with `Converged` Unknown and drift `unknown`. A card that answers
+   `AccountBlocked` is `Ready=False`, reason `AccountBlocked`.
+
+A refused login, the controller's account's or the administrator's managed
+and factory pair, is not retried every minute: a card may block an account
+after repeated failures. The wait doubles from a minute up to an hour and
+starts over on a success, a new generation or a change to the RackPDU's
+annotations (any annotation will do to retry at once). It is held in memory
+(`controllers/macos/rackcard_backoff.go`), so a new leader starts over.
 
 One generation is one adoption pass. The reconciler wakes for a new generation
 or an annotation, not for its own status writes, and before adopting it reads
 the RackPDU past the manager's cache, whose copy can lag the status the last
 pass wrote. A RackPDU switched to `managedBy: standalone` is `Ready=False`,
-reason `Standalone`, and the controller stops contacting it.
+reason `Standalone`, and the controller logs its session out of the card (so a
+person can log in with the account, and the card's one session for it is free)
+and stops contacting it. A logout that cannot reach the card is a
+`LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
 `AddressReserved`. `Adopted=False` reasons: `Unreachable`, `AdminLoginRefused`
@@ -534,7 +545,7 @@ reason `Standalone`, and the controller stops contacting it.
 the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
 allows one session per account and another holds the administrator's; it
 lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
-for any other reason, carried verbatim), `ConvergeFailed`.
+for any other reason, carried verbatim), `AccountBlocked`, `ConvergeFailed`.
 
 **Metrics**, labelled `pdu` and `site`: `capt_rackpdu_adopted`,
 `capt_rackpdu_ready`, `capt_rackpdu_drifted` and

@@ -103,7 +103,7 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	if !ats.DeletionTimestamp.IsZero() {
 		forgetRackATSMetrics(ats.Name)
-		return ctrl.Result{}, rackATSEgress(ats).release(ctx, r.Client, r.egressConfig(), ats, RackATSFinalizer)
+		return ctrl.Result{}, releaseRackCard(ctx, r.Client, r.egressConfig(), func() {}, rackATSEgress(ats), ats, RackATSFinalizer)
 	}
 	if ats.Spec.ManagedBy != infrav1.RackCardManagedByController {
 		ats.Status.Message = "standalone: the controller does not contact this transfer switch"

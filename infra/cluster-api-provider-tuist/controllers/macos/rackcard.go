@@ -339,6 +339,8 @@ func eatonLoginReason(err error) string {
 	switch {
 	case errors.Is(err, power.ErrEatonConcurrentSession):
 		return "AdminSessionBusy"
+	case errors.As(err, &refusal) && refusal.Code == "AccountBlocked":
+		return "AccountBlocked"
 	case errors.As(err, &refusal) && refusal.Status == 401:
 		return "AdminLoginRefused"
 	case errors.As(err, &refusal) && refusal.NotServed():
@@ -507,17 +509,49 @@ func (s rackCardEgressService) reconcile(ctx context.Context, c client.Client, c
 	return nil
 }
 
-// release deletes the Service and drops the object's finalizer.
-func (s rackCardEgressService) release(ctx context.Context, c client.Client, cfg egressConfig, obj client.Object, finalizer string) error {
-	if !controllerutil.ContainsFinalizer(obj, finalizer) {
+// rackCardLogOut ends the controller's session on the card, so a person can
+// log in with the account and the card's one session for it is free. A card
+// that cannot be reached keeps it until its idle timeout, which the event
+// says.
+func rackCardLogOut(ctx context.Context, recorder record.EventRecorder, registry *power.Registry, obj client.Object, host, dial string) {
+	eaton, err := eatonDriver(registry)
+	if err == nil {
+		err = eaton.Logout(ctx, power.Outlet{Driver: power.DriverEaton, Host: host, Dial: dial})
+	}
+	if err != nil {
+		recorder.Eventf(obj, corev1.EventTypeWarning, "LogoutFailed",
+			"Could not log the controller's account out of the card, which keeps its session until the card's idle timeout: %v", err)
+	}
+}
+
+// releaseRackCard lets a deleted object go once the controller's session on
+// its card is logged out and its egress Service is deleted. finalizers are
+// the names the object may hold, current and earlier; any of them holds it.
+func releaseRackCard(ctx context.Context, c client.Client, cfg egressConfig, logOut func(), egress rackCardEgressService, obj client.Object, finalizers ...string) error {
+	held := false
+	for _, f := range finalizers {
+		held = held || controllerutil.ContainsFinalizer(obj, f)
+	}
+	if !held {
 		return nil
 	}
+	logOut()
 	if cfg.enabled() {
-		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: cfg.Namespace}}
+		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: egress.Name, Namespace: cfg.Namespace}}
 		if err := c.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("delete egress Service %s: %w", svc.Name, err)
 		}
 	}
-	controllerutil.RemoveFinalizer(obj, finalizer)
+	for _, f := range finalizers {
+		controllerutil.RemoveFinalizer(obj, f)
+	}
 	return nil
+}
+
+// cardLoginRefused reports a login the card refused for the account's
+// password or because it blocked the account: what the login backoff spaces
+// out.
+func cardLoginRefused(err error) bool {
+	var refusal *power.EatonLoginError
+	return errors.As(err, &refusal) && (refusal.Refused() || refusal.Code == "AccountBlocked")
 }
