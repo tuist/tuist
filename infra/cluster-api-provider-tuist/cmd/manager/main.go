@@ -701,6 +701,7 @@ func main() {
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
 		Recorder:         mgr.GetEventRecorderFor("rackats-controller"),
+		APIReader:        mgr.GetAPIReader(),
 		Power:            powerRegistry,
 		EgressNamespace:  egressNamespace,
 		EgressProxyGroup: egressProxyGroup,

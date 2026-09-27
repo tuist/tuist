@@ -42,7 +42,7 @@ func recordRackPDUMetrics(pdu *infrav1.RackPDU) {
 	}
 	rackPDUAdoptedGauge.WithLabelValues(labels...).Set(boolGauge(pdu.Status.Adopted))
 	rackPDUReadyGauge.WithLabelValues(labels...).Set(boolGauge(conditions.IsTrue(pdu, clusterv1.ReadyCondition)))
-	rackPDUDriftedGauge.WithLabelValues(labels...).Set(boolGauge(pdu.Status.Drift == infrav1.RackPDUDriftDrifted))
+	rackPDUDriftedGauge.WithLabelValues(labels...).Set(boolGauge(pdu.Status.Drift == infrav1.RackCardDriftDrifted))
 	rackPDUCertificateChangedGauge.WithLabelValues(labels...).Set(boolGauge(conditions.IsTrue(pdu, RackPDUCertificateChangedCondition)))
 }
 

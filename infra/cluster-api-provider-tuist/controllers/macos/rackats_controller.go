@@ -69,6 +69,11 @@ type RackATSReconciler struct {
 	// Timeout bounds each request to a card. Zero means 15 seconds.
 	Timeout time.Duration
 
+	// APIReader reads the RackATS past the manager's cache before adopting,
+	// so a cache that has not seen the last pass's status yet does not start
+	// another. Nil reads through Client.
+	APIReader client.Reader
+
 	// Card, when set, replaces the card a RackATS is spoken to through; tests
 	// set it.
 	Card func(r *RackATSReconciler, ats *infrav1.RackATS, secret *corev1.Secret) atsCard
@@ -140,7 +145,8 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	}
 
 	var convergeErr error
-	if !ats.Status.Adopted || ats.Status.ObservedGeneration != ats.Generation {
+	if (!ats.Status.Adopted || ats.Status.ObservedGeneration != ats.Generation) &&
+		!rackCardAdoptedPastCache(ctx, r.APIReader, r.Client, ats, &infrav1.RackATS{}) {
 		res, done, err := r.adopt(ctx, ats, card)
 		if done {
 			return res, nil

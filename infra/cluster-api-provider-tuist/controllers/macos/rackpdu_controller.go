@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -90,21 +91,7 @@ func rackPDUPredicate() predicate.Predicate {
 // can lag the status the last pass wrote, and adopting again would log the
 // administrator in twice for one generation.
 func (r *RackPDUReconciler) adoptedAlready(ctx context.Context, pdu *infrav1.RackPDU) bool {
-	reader := r.APIReader
-	if reader == nil {
-		reader = r.Client
-	}
-	fresh := &infrav1.RackPDU{}
-	if err := reader.Get(ctx, client.ObjectKeyFromObject(pdu), fresh); err != nil {
-		return false
-	}
-	if fresh.Generation != pdu.Generation || !fresh.Status.Adopted || fresh.Status.ObservedGeneration != pdu.Generation {
-		return false
-	}
-	pdu.Status.Adopted = true
-	pdu.Status.ObservedGeneration = fresh.Status.ObservedGeneration
-	pdu.Status.Drift = fresh.Status.Drift
-	return true
+	return rackCardAdoptedPastCache(ctx, r.APIReader, r.Client, pdu, &infrav1.RackPDU{})
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackpdus,verbs=get;list;watch;update;patch

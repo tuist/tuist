@@ -163,6 +163,29 @@ func generateCardPassword() (string, error) {
 	return string(out), nil
 }
 
+// rackCardAdoptedPastCache reports whether the API server records obj's
+// generation as adopted when the object read from the cache does not: the
+// manager's cache can lag the status the last pass wrote, and adopting again
+// would log the administrator in twice for one generation. fresh is an empty
+// object of obj's kind; a nil reader reads through fallback.
+func rackCardAdoptedPastCache(ctx context.Context, reader, fallback client.Reader, obj, fresh rackCard) bool {
+	if reader == nil {
+		reader = fallback
+	}
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(obj), fresh); err != nil {
+		return false
+	}
+	status := fresh.CardStatus()
+	if fresh.GetGeneration() != obj.GetGeneration() || !status.Adopted || status.ObservedGeneration != obj.GetGeneration() {
+		return false
+	}
+	cached := obj.CardStatus()
+	cached.Adopted = true
+	cached.ObservedGeneration = status.ObservedGeneration
+	cached.Drift = status.Drift
+	return true
+}
+
 // markRackCardAddress reports whether the rack's edge reserves the card's
 // address against its MAC.
 func markRackCardAddress(obj rackCard, mac, address string) {

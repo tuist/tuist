@@ -16,6 +16,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -645,6 +646,44 @@ func TestRackATSEgressServiceIsKeptAndDeletedWithIt(t *testing.T) {
 	if err := h.r.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: testATS + "-credentials"}, &corev1.Secret{}); err != nil {
 		t.Fatalf("the credentials went with the RackATS: %v", err)
 	}
+}
+
+// staleATSCache answers the first read of the RackATS with the object as it
+// was before a reconcile's status landed, as the manager's informer can.
+type staleATSCache struct {
+	client.Client
+	ats *infrav1.RackATS
+}
+
+func (s *staleATSCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if a, ok := obj.(*infrav1.RackATS); ok && s.ats != nil && key.Name == s.ats.Name {
+		s.ats.DeepCopyInto(a)
+		s.ats = nil
+		return nil
+	}
+	return s.Client.Get(ctx, key, obj, opts...)
+}
+
+// One generation is one adoption pass, even when the next reconcile reads a
+// cache that has not seen the first one's status yet.
+func TestRackATSAdoptsOncePerGenerationPastAStaleCache(t *testing.T) {
+	h := newATSHarness(t, rackATS())
+	before := h.ats()
+	real := h.r.Client
+	h.r.APIReader = real
+
+	h.reconcile()
+	h.r.Client = &staleATSCache{Client: real, ats: before}
+	h.reconcile()
+	h.r.Client = real
+
+	if n := h.adminLogins(); n != 1 {
+		t.Fatalf("%d administrator logins for one generation, want 1", n)
+	}
+	if n := h.eventsMatching("Converged"); n != 1 {
+		t.Fatalf("%d Converged events for one generation, want 1: %v", n, h.events)
+	}
+	h.assertAdopted(1)
 }
 
 // The controller's own status writes do not start another pass; a new
