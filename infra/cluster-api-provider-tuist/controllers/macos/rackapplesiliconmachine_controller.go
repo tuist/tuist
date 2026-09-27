@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,34 +33,28 @@ import (
 	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
-// RackMachineFinalizer keeps the CR alive until its RackHost claim is
-// released. Unlike the Scaleway finalizer this guards no billing: we own the
-// hardware either way, but a claim that outlives its Machine takes a physical
-// box out of the pool, and in a rack sized to demand that is capacity nobody
-// can get back without noticing the strand first.
+// RackMachineFinalizer keeps the CR alive until the machine's kubelet
+// identity, bootstrap Secret, Node and egress Services are gone.
 const RackMachineFinalizer = "rackapplesilicon.cluster.x-k8s.io/finalizer"
 
 // RackAppleSiliconMachineReconciler joins Mac minis we own to the cluster.
 //
-// It is the Scaleway kind's reconciler with the provider removed and the pool
-// moved in-cluster. Everything from "we have a host and its credentials"
-// onwards is shared (see hostagent.go): the same bootstrap, the same
-// host-config drift loop, the same terminal-failure and cooldown rules, the
-// same tailnet egress Service. What differs is only ever about ownership:
-// where a host comes from, how it is rebooted, and what happens when it cannot
-// be made to work:
+// It is the Scaleway kind's reconciler with the provider removed: the host is
+// the RackHost that keeps this machine, named by spec.host. Everything from
+// "we have a host and its credentials" onwards is shared (see hostagent.go):
+// the same bootstrap, the same host-config drift loop, the same
+// terminal-failure and cooldown rules, the same tailnet egress Service. What
+// differs is only ever about ownership: how a host is rebooted, and what
+// happens when it cannot be made to work:
 //
-//   - Acquire is a claim on a RackHost, not an order. There is nothing to
-//     provision and nothing to wait for; the box is already running.
+//   - There is nothing to provision and nothing to wait for; the box is
+//     already running.
 //   - Reboot is a PDU outlet, not an API call.
-//   - Giving up quarantines the host instead of releasing it. Releasing is what
-//     the Scaleway kind does so a DIFFERENT mini gets claimed, which works
-//     because the pool is fungible and refilled by someone else's inventory.
-//     Hand the same pool back a box we own and the next reconcile claims it
-//     again, so the Machine loops on the one host that cannot work.
-//   - Delete releases the claim and stops. No reinstall, no wipe: no API can
-//     do either to hardware in our own rack, and the host is expected to
-//     outlive every Kubernetes object that ever referred to it.
+//   - Giving up quarantines the host: its identity and host key pin are
+//     dropped, and bootstrap starts over when the quarantine expires.
+//   - Delete stops. No reinstall, no wipe: no API can do either to hardware
+//     in our own rack, and the host is expected to outlive every Kubernetes
+//     object that ever referred to it.
 type RackAppleSiliconMachineReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
@@ -106,7 +99,7 @@ type RackAppleSiliconMachineReconciler struct {
 	BootstrapRebootAfter int32
 
 	// BootstrapMaxAttempts is the consecutive-failure count at which the
-	// controller quarantines the host and lets the Machine claim another.
+	// controller quarantines the host.
 	BootstrapMaxAttempts int32
 
 	// MaxConcurrentReconciles parallelises across distinct machines. Bootstrap
@@ -151,8 +144,7 @@ func (r *RackAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
 // patch error into the function's return value. Without named returns the
 // deferred assignment would target a variable Go has already evaluated for the
 // return, the defer would swallow the patch failure, and the function would
-// report success: leaving Status.RackHost unpersisted after a successful claim
-// and letting the next reconcile claim a second host.
+// report success with the machine's status unpersisted.
 func (r *RackAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
 
@@ -185,12 +177,13 @@ func (r *RackAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req c
 		return r.reconcileDelete(ctx, machine)
 	}
 
-	if !controllerutil.ContainsFinalizer(machine, RackMachineFinalizer) {
-		controllerutil.AddFinalizer(machine, RackMachineFinalizer)
+	if ownerMachine == nil {
+		logger.Info("waiting for the Machine controller to set an owner reference")
+		return ctrl.Result{}, nil
 	}
 
 	var cluster *clusterv1.Cluster
-	if ownerMachine != nil && ownerMachine.Spec.ClusterName != "" {
+	if ownerMachine.Spec.ClusterName != "" {
 		cluster = &clusterv1.Cluster{}
 		clusterName := ownerMachine.Spec.ClusterName
 		if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
@@ -205,8 +198,7 @@ func (r *RackAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req c
 	// Pause gate, evaluated before the readiness check: the pause signal is
 	// "operator wants me to stop", and honouring it takes priority over
 	// requeueing on an unready cluster. It is also the latch an operator sets
-	// before hand-editing status: without it, clearing status.rackHost to
-	// detach a CR races the reconcile loop straight into claiming another host.
+	// before hand-editing status.
 	if cluster != nil && cluster.Spec.Paused {
 		logger.Info("parent Cluster paused; skipping reconcile")
 		return ctrl.Result{}, nil
@@ -230,7 +222,20 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// Stage 0: the fleet credential. Read-only, unlike the Scaleway path's
+	// Stage 0: the host this machine is.
+	host, result, err := r.hostOf(ctx, machine)
+	if err != nil || host == nil {
+		return result, err
+	}
+	if !controllerutil.ContainsFinalizer(machine, RackMachineFinalizer) {
+		controllerutil.AddFinalizer(machine, RackMachineFinalizer)
+	}
+	if host.Status.Quarantined && !conditions.IsTrue(machine, BootstrappedCondition) {
+		machine.Status.Phase = "Quarantined"
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+
+	// Stage 1: the fleet credential. Read-only, unlike the Scaleway path's
 	// EnsureFleetSSHKey: these hosts were keyed by MDM before this controller
 	// ever saw them, so a key minted here is one no host will accept and a sudo
 	// password minted here breaks auto-login on the first push. See
@@ -240,12 +245,6 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		conditions.MarkFalse(machine, BootstrappedCondition, "FleetCredentialsUnavailable",
 			clusterv1.ConditionSeverityWarning, "%v", err)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	}
-
-	// Stage 1: hold a host.
-	host, result, err := r.claimRackHost(ctx, machine)
-	if err != nil || host == nil {
-		return result, err
 	}
 
 	// The operator has no direct route to a rack host: it sits on a LAN behind a
@@ -439,194 +438,52 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 	return ctrl.Result{}, nil
 }
 
-// claimRackHost binds this Machine to a free host, or confirms the binding it
-// already has. Returns (nil, result, nil) when there is nothing to claim yet:
-// a wait, not a failure.
-func (r *RackAppleSiliconMachineReconciler) claimRackHost(
+// hostOf resolves the RackHost this machine is. It returns no host, with the
+// reason on the Provisioned condition, for a machine that names no host, whose
+// host is gone or incomplete, or that is not its host's machine: none of those
+// may dial the box.
+func (r *RackAppleSiliconMachineReconciler) hostOf(
 	ctx context.Context,
 	machine *infrav1.RackAppleSiliconMachine,
 ) (*infrav1.RackHost, ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
-	if name := machine.Status.RackHost; name != "" {
-		host := &infrav1.RackHost{}
-		err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: name}, host)
-		switch {
-		case err != nil && !apierrors.IsNotFound(err):
-			return nil, ctrl.Result{}, err
-		case err == nil && host.Status.ClaimedBy == machine.Name:
-			return host, ctrl.Result{}, nil
-		}
-		// The binding is gone: the inventory record was deleted, or someone
-		// released the claim out of band. Drop our half and claim again rather
-		// than bootstrapping a host we no longer hold.
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ClaimLost",
-			"No longer holding rack host %s; will claim another", name)
-		logger.Info("rack host claim lost; re-claiming", "host", name)
-		if err := r.retireHost(ctx, machine); err != nil {
-			logger.Error(err, "retire the lost host; will retry")
-			return nil, ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
+	if machine.Spec.Host == "" {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoHost",
+			clusterv1.ConditionSeverityWarning,
+			"names no RackHost; each rack host keeps its own machine, so this one dials nothing")
+		return nil, ctrl.Result{}, nil
 	}
 
-	pool := machine.Spec.AdoptPool
-	if pool == "" {
-		// An unscoped scan would claim an arbitrary host, possibly another
-		// environment's. Requeue rather than fail: the operator fixes this on
-		// the template and the CR does not need recreating.
-		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptPool",
+	host := &infrav1.RackHost{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, ctrl.Result{}, err
+		}
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "HostNotFound",
+			clusterv1.ConditionSeverityWarning, "RackHost %s not found", machine.Spec.Host)
+		return nil, ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	if host.Status.Machine != machine.Name {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NotTheHostsMachine",
+			clusterv1.ConditionSeverityWarning, "RackHost %s's machine is %q", host.Name, host.Status.Machine)
+		return nil, ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	if host.Spec.Address == "" || host.Spec.Location.Site == "" {
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "IncompleteHost",
 			clusterv1.ConditionSeverityError,
-			"no adoptPool on the CR; refusing to scan the rack inventory unscoped")
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAdoptPool",
-			"No adoptPool set; refusing to claim an arbitrary rack host")
+			"RackHost %s needs an address and a location.site: one is dialled and the other composes the providerID", host.Name)
 		return nil, ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
-	machine.Status.Phase = "Adopting"
-
-	hosts := &infrav1.RackHostList{}
-	if err := r.List(ctx, hosts, client.InNamespace(machine.Namespace)); err != nil {
-		return nil, ctrl.Result{}, fmt.Errorf("list rack hosts: %w", err)
-	}
-
-	candidates, skipped := selectClaimableHosts(hosts.Items, pool, machine.Name)
-	if len(candidates) == 0 {
-		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAvailableHost",
-			clusterv1.ConditionSeverityWarning,
-			"no free RackHost in pool %q%s", pool, skipped.describe())
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
-			"No free RackHost in pool %q%s", pool, skipped.describe())
-		return nil, ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-	}
-
-	host := &candidates[0]
-	host.Status.ClaimedBy = machine.Name
-	host.Status.ClaimedAt = &metav1.Time{Time: time.Now()}
-	// Update, deliberately, not a merge patch: Update carries the
-	// resourceVersion this object was read at, so the apiserver rejects the
-	// write if anything changed underneath, which is what makes the claim
-	// atomic. A merge patch sends no resourceVersion and two machines racing
-	// for the last free host would both "succeed", both bootstrap it, and the
-	// second would take over the first's Node.
-	if err := r.Status().Update(ctx, host); err != nil {
-		if apierrors.IsConflict(err) {
-			// Someone else took it (or it changed): re-read and try again
-			// immediately rather than waiting out a requeue interval.
-			logger.Info("lost the race for a rack host; retrying", "host", host.Name)
-			return nil, ctrl.Result{Requeue: true}, nil
-		}
-		return nil, ctrl.Result{}, fmt.Errorf("claim rack host %s: %w", host.Name, err)
-	}
-
-	machine.Status.RackHost = host.Name
-	// The failure-tracking state describes the previous host, not this one.
-	machine.Status.BootstrapAttempts = 0
-	machine.Status.BootstrapRebootIssued = false
 	machine.Status.Addresses = []clusterv1.MachineAddress{{
 		Type:    clusterv1.MachineInternalIP,
 		Address: host.Spec.Address,
 	}}
-	providerID := rackProviderID(host)
-	machine.Spec.ProviderID = &providerID
-
+	if machine.Spec.ProviderID == nil {
+		providerID := rackProviderID(host)
+		machine.Spec.ProviderID = &providerID
+	}
 	conditions.MarkTrue(machine, shared.ProvisionedCondition)
-	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
-		"Claimed rack host %s (serial %s, %s) at %s",
-		host.Name, host.Spec.Serial, describeLocation(host), host.Spec.Address)
-	logger.Info("claimed rack host", "host", host.Name, "serial", host.Spec.Serial, "address", host.Spec.Address)
 	return host, ctrl.Result{}, nil
-}
-
-// skippedHosts counts why hosts in the right pool were passed over, so the
-// "no available host" message says which of four very different problems this
-// is rather than sending an operator to buy hardware they already have.
-type skippedHosts struct {
-	claimed     int
-	quarantined int
-	unclaimable int
-	incomplete  int
-}
-
-func (s skippedHosts) describe() string {
-	parts := []string{}
-	for _, part := range []struct {
-		n      int
-		fmtStr string
-	}{
-		{s.claimed, "%d already claimed"},
-		{s.quarantined, "%d quarantined (clear status.quarantined once fixed)"},
-		{s.unclaimable, "%d marked unclaimable"},
-		{s.incomplete, "%d missing an address or a location.site"},
-	} {
-		if part.n > 0 {
-			parts = append(parts, fmt.Sprintf(part.fmtStr, part.n))
-		}
-	}
-	if len(parts) == 0 {
-		return "; the pool holds no hosts at all"
-	}
-	out := "; in that pool: "
-	for i, p := range parts {
-		if i > 0 {
-			out += ", "
-		}
-		out += p
-	}
-	return out
-}
-
-// selectClaimableHosts returns the hosts in `pool` this machine may claim,
-// in a stable order, plus a tally of why the rest were passed over.
-//
-// A host this machine ALREADY holds sorts first, ahead of any free one. That is
-// recovery, not a preference. The case arises when the RackHost status write
-// lands and the Machine patch that follows it does not, leaving a claim
-// recorded on the host and nothing on the Machine; Claimable() tolerates it so
-// the next reconcile can pick the claim back up. Ordering purely by name breaks
-// exactly that: a free host that happens to sort earlier wins, the Machine
-// takes a second box, and the first stays claimed by a Machine that no longer
-// references it. Orphan reclaim cannot free it either, because it only releases
-// claims whose Machine is GONE, and this one still exists.
-//
-// Otherwise the order is by name, and that matters too: two reconciles of the
-// same machine must reach for the same host, or a machine that loses a claim
-// race repeatedly can walk the whole pool leaving a trail of half-claims.
-func selectClaimableHosts(all []infrav1.RackHost, pool, machineName string) ([]infrav1.RackHost, skippedHosts) {
-	var (
-		candidates []infrav1.RackHost
-		skipped    skippedHosts
-	)
-	for _, host := range all {
-		if host.Spec.Pool != pool {
-			continue
-		}
-		switch {
-		case host.Status.ClaimedBy != "" && host.Status.ClaimedBy != machineName:
-			skipped.claimed++
-		case host.Status.Quarantined:
-			skipped.quarantined++
-		case host.Spec.Unclaimable || !host.DeletionTimestamp.IsZero():
-			skipped.unclaimable++
-		case host.Spec.Address == "" || host.Spec.Location.Site == "":
-			// Both are load-bearing: without an address there is nothing to
-			// dial, and without a site the providerID would be malformed. An
-			// incomplete inventory record is a typo in a values file, so say so
-			// rather than claiming the host and failing later at a point that
-			// looks like a host fault.
-			skipped.incomplete++
-		default:
-			candidates = append(candidates, host)
-		}
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		iMine := candidates[i].Status.ClaimedBy == machineName
-		jMine := candidates[j].Status.ClaimedBy == machineName
-		if iMine != jMine {
-			return iMine
-		}
-		return candidates[i].Name < candidates[j].Name
-	})
-	return candidates, skipped
 }
 
 // handleBootstrapFailure records the error and escalates recovery.
@@ -637,13 +494,9 @@ func selectClaimableHosts(all []infrav1.RackHost, pool, machineName string) ([]i
 // BootstrapRebootIssued so a long retry tail doesn't power-cycle the box every
 // minute; a failed cycle leaves the flag false so the next attempt retries it.
 //
-// Tier 2, at BootstrapMaxAttempts: quarantine the host and release it. This is
-// where the kind diverges most from its Scaleway sibling, which releases the
-// host to the pool so a different mini gets claimed. Releasing alone would hand
-// this Machine the same box back on the next reconcile: the pool is our own
-// inventory, not a provider's, so the host is marked out of the pool first.
-// The Machine then claims a different host if the rack has one, and the bad box
-// stays visible as quarantined until a human clears it.
+// Tier 2, at BootstrapMaxAttempts: retire the machine's identity and
+// quarantine the host. Bootstrap starts over from nothing when the quarantine
+// expires.
 func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	ctx context.Context,
 	machine *infrav1.RackAppleSiliconMachine,
@@ -662,6 +515,12 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 
 	switch {
 	case r.BootstrapMaxAttempts > 0 && attempts >= r.BootstrapMaxAttempts:
+		if err := r.retireIdentity(ctx, machine); err != nil {
+			logger.Error(err, "retire the machine's identity after bootstrap exhaustion; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RetireFailed",
+				"Could not retire %s's identity: %v (will retry before quarantining %s)", machine.Name, err, host.Name)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}
+		}
 		reason := fmt.Sprintf("bootstrap failed %d times: %v", attempts, cause)
 		if err := r.quarantineHost(ctx, host, reason); err != nil {
 			logger.Error(err, "quarantine rack host after bootstrap exhaustion; will retry")
@@ -669,23 +528,15 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 				"Could not quarantine %s: %v (will retry)", host.Name, err)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}
 		}
-		// Retire before claiming anything else. The quarantined host may still
-		// be running tart-kubelet with a working token, so leaving its identity
-		// and Node in place would hand the replacement the same credentials and
-		// the same Node name.
-		if err := r.retireHost(ctx, machine); err != nil {
-			logger.Error(err, "retire the quarantined host; will retry")
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RetireFailed",
-				"Could not retire %s after quarantining it: %v (will retry; not claiming another host until its credentials are revoked)",
-				host.Name, err)
-			return ctrl.Result{RequeueAfter: 30 * time.Second}
-		}
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapExhausted",
-			"Quarantined %s after %d bootstrap failures; will claim another host from pool %q",
-			host.Name, attempts, machine.Spec.AdoptPool)
-		conditions.MarkFalse(machine, shared.ProvisionedCondition, "HostQuarantined",
+		machine.Status.BootstrapAttempts = 0
+		machine.Status.BootstrapRebootIssued = false
+		machine.Status.Ready = false
+		machine.Status.Phase = "Quarantined"
+		conditions.MarkFalse(machine, BootstrappedCondition, "HostQuarantined",
 			clusterv1.ConditionSeverityWarning,
-			"quarantined %s after %d bootstrap failures; awaiting a fresh claim", host.Name, attempts)
+			"quarantined %s after %d bootstrap failures; bootstrap starts over when the quarantine expires", host.Name, attempts)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapExhausted",
+			"Quarantined %s after %d bootstrap failures; bootstrap starts over when the quarantine expires", host.Name, attempts)
 
 	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && !machine.Status.BootstrapRebootIssued:
 		if err := r.cycleHostPower(ctx, host); err != nil {
@@ -703,33 +554,12 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	return ctrl.Result{RequeueAfter: 60 * time.Second}
 }
 
-// retireHost drops everything tied to the host this Machine is letting go of,
-// then resets the Machine to its pre-claim shape so CAPI and operators never
-// briefly see a Ready Machine pointing at a box it does not have.
-//
-// Every path that lets go of a host goes through here, and that is the point:
-// the three things below were previously cleaned up in different places, or
-// not at all, and each omission had its own way of breaking the NEXT host.
-//
-//   - The kubelet identity and the Node. Bootstrap starts tart-kubelet before
-//     its last fatal step, so a host can exhaust its attempts while already
-//     registering a Node and holding a working long-lived token. The Scaleway
-//     kind can ignore this because releasing a host there triggers a provider
-//     reinstall that wipes it; nothing wipes hardware we own. Left alone, the
-//     replacement is issued the SAME token and Node name while the retired host
-//     keeps running, so two physical machines answer for one Node, and the
-//     stale Node keeps the old host's providerID, which tart-kubelet will not
-//     overwrite.
-//   - The TOFU host fingerprint, which is pinned to the SSH key of the host
-//     being let go. Carried forward, it is checked against the replacement's
-//     key, fails every dial, and quarantines a healthy box.
-//
-// Failures are returned rather than logged and swallowed. The Scaleway kind
-// treats its equivalent as best-effort because its release is irreversible and
-// failing would strand a host it has already given back; retiring a rack host
-// is all local writes and is safe to retry, and proceeding to claim another box
-// with the old credentials still live is the exact hazard this exists to close.
-func (r *RackAppleSiliconMachineReconciler) retireHost(
+// retireIdentity revokes the machine's kubelet identity, deletes its Node and
+// drops its bootstrap Secret with the host key it pinned, so the next
+// bootstrap starts from nothing. A host that exhausted its attempts may still
+// run tart-kubelet with a working token, or have been re-imaged under a new
+// host key that the old pin rejects on every dial.
+func (r *RackAppleSiliconMachineReconciler) retireIdentity(
 	ctx context.Context,
 	machine *infrav1.RackAppleSiliconMachine,
 ) error {
@@ -743,22 +573,11 @@ func (r *RackAppleSiliconMachineReconciler) retireHost(
 	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
 		return fmt.Errorf("delete per-machine bootstrap secret: %w", err)
 	}
-
-	machine.Status.RackHost = ""
-	machine.Status.BootstrapAttempts = 0
-	machine.Status.BootstrapRebootIssued = false
-	machine.Status.Ready = false
-	machine.Status.Addresses = nil
-	machine.Status.Phase = "Pending"
-	machine.Spec.ProviderID = nil
-	conditions.MarkFalse(machine, BootstrappedCondition, "HostReleased",
-		clusterv1.ConditionSeverityWarning, "no longer holding a rack host")
 	return nil
 }
 
-// quarantineHost marks a host out of the pool and releases its claim, in that
-// order. Quarantine first: releasing first would leave a window in which this
-// machine's own next reconcile re-claims the box it just gave up on.
+// quarantineHost holds off the host's bootstrap until the RackHost controller
+// expires the quarantine.
 func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, host *infrav1.RackHost, reason string) error {
 	fresh := &infrav1.RackHost{}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(host), fresh); err != nil {
@@ -770,44 +589,11 @@ func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, 
 	fresh.Status.Quarantined = true
 	fresh.Status.QuarantineReason = reason
 	fresh.Status.QuarantinedAt = &metav1.Time{Time: time.Now()}
-	fresh.Status.ClaimedBy = ""
-	fresh.Status.ClaimedAt = nil
 	if err := r.Status().Update(ctx, fresh); err != nil {
 		return err
 	}
 	r.Recorder.Eventf(fresh, corev1.EventTypeWarning, "Quarantined",
-		"Taken out of pool %q: %s. Clear status.quarantined once the host is fixed.", fresh.Spec.Pool, reason)
-	return nil
-}
-
-// releaseHost clears this machine's claim without quarantining: the ordinary
-// delete path. It is a no-op when the host is already free or has been claimed
-// by someone else, so a retried delete cannot steal a live host's claim.
-func (r *RackAppleSiliconMachineReconciler) releaseHost(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) error {
-	if machine.Status.RackHost == "" {
-		return nil
-	}
-	host := &infrav1.RackHost{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Status.RackHost}, host)
-	switch {
-	case apierrors.IsNotFound(err):
-		machine.Status.RackHost = ""
-		return nil
-	case err != nil:
-		return err
-	case host.Status.ClaimedBy != machine.Name:
-		machine.Status.RackHost = ""
-		return nil
-	}
-
-	host.Status.ClaimedBy = ""
-	host.Status.ClaimedAt = nil
-	if err := r.Status().Update(ctx, host); err != nil {
-		return err
-	}
-	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released",
-		"Released rack host %s back to pool %q", host.Name, host.Spec.Pool)
-	machine.Status.RackHost = ""
+		"Bootstrap held off: %s", reason)
 	return nil
 }
 
@@ -845,32 +631,20 @@ func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
-	// Captured before Stage 1, which clears it: the egress Service is named
-	// after the host, and releasing first would leave nothing to name it by.
-	heldHost := machine.Status.RackHost
-
-	// Stage 1: release the claim so the box is immediately re-claimable.
-	//
 	// Nothing is reinstalled or wiped, unlike every other adopt-style kind
 	// here. There is no API that could, and there is no billing reason to: the
-	// host keeps running with a launchd job whose credentials Stage 2 is about
-	// to invalidate, and the next claim re-pushes the whole config over it. A
-	// host that must be returned to a clean state is a DFU restore, which is a
+	// host keeps running with a launchd job whose credentials this invalidates,
+	// and the host's next machine re-pushes the whole config over it. A host
+	// that must be returned to a clean state is a DFU restore, which is a
 	// deliberate physical act and not something a Machine deletion should ever
 	// trigger.
-	if err := r.releaseHost(ctx, machine); err != nil {
-		logger.Error(err, "release rack host; will retry")
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
-			"release rack host: %v (will retry)", err)
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	}
 
-	// Stage 2: drop the per-machine kubelet identity. The token is long-lived
+	// Stage 1: drop the per-machine kubelet identity. The token is long-lived
 	// and bound to a ClusterRole that reads Secrets and ConfigMaps
 	// cluster-wide; leaving it behind orphans a valid privileged credential on
 	// a host that is no longer ours to trust. This matters MORE here than on
 	// rented capacity, not less: nothing wipes the disk afterwards, so the
-	// kubeconfig stays on the box until the next claim overwrites it.
+	// kubeconfig stays on the box until the next bootstrap overwrites it.
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		logger.Error(err, "delete node identity; will retry")
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
@@ -878,7 +652,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	// Stage 3: drop the per-machine bootstrap Secret (SSH username, TOFU host
+	// Stage 2: drop the per-machine bootstrap Secret (SSH username, TOFU host
 	// fingerprint).
 	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
 		logger.Error(err, "delete machine bootstrap; will retry")
@@ -887,7 +661,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	// Stage 4: drop the Node. The host's kubelet cannot deregister itself, so
+	// Stage 3: drop the Node. The host's kubelet cannot deregister itself, so
 	// without this the Node lingers NotReady forever and confuses drain and
 	// scaling semantics downstream.
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: machine.Name}}
@@ -898,17 +672,22 @@ func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	// Stage 5: drop both egress Services. Cross-namespace OwnerRefs aren't
+	// Stage 4: drop the egress Services. Cross-namespace OwnerRefs aren't
 	// allowed, so neither cascades.
 	//
 	// Two of them, because a rack host is reached two different ways over its
 	// life: the Machine-named Service fronts the mini's own tailnet identity
 	// for scraping, and the host-named one fronts its LAN address for the SSH
-	// the operator needs before that identity exists.
+	// the operator needs before that identity exists. The host-named one is
+	// only this machine's while the host has no other.
 	if r.EgressProxyGroup != "" {
 		names := []string{machine.Name}
-		if heldHost != "" {
-			names = append(names, rackEgressServiceName(heldHost))
+		ownsHostService, err := r.isHostsMachine(ctx, machine)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if ownsHostService {
+			names = append(names, rackEgressServiceName(machine.Spec.Host))
 		}
 		for _, name := range names {
 			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
@@ -926,6 +705,22 @@ func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 
 	controllerutil.RemoveFinalizer(machine, RackMachineFinalizer)
 	return ctrl.Result{}, nil
+}
+
+// isHostsMachine reports whether the machine names a host that has no other
+// machine: one that is gone, has none, or has this one.
+func (r *RackAppleSiliconMachineReconciler) isHostsMachine(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) (bool, error) {
+	if machine.Spec.Host == "" {
+		return false, nil
+	}
+	host := &infrav1.RackHost{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host); err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return host.Status.Machine == "" || host.Status.Machine == machine.Name, nil
 }
 
 // === helpers ================================================================
@@ -1133,7 +928,7 @@ func rackProviderID(host *infrav1.RackHost) string {
 		// An inventory record with no serial is still usable: the CR name is
 		// unique in the namespace and stable, but it is worse, because the
 		// identity now moves if the record is ever recreated under a new name.
-		// selectClaimableHosts requires an address and a site, not a serial,
+		// hostOf requires an address and a site, not a serial,
 		// because a missing serial degrades rather than breaks.
 		serial = host.Name
 	}
@@ -1157,21 +952,6 @@ func rackMachineNodeLabels(m *infrav1.RackAppleSiliconMachine) map[string]string
 	return map[string]string{"tuist.dev/fleet": m.Spec.FleetName}
 }
 
-func describeLocation(host *infrav1.RackHost) string {
-	loc := host.Spec.Location
-	out := loc.Site
-	if loc.Rack != "" {
-		out += "/" + loc.Rack
-	}
-	if loc.Shelf != "" {
-		out += "/" + loc.Shelf
-	}
-	if loc.PositionU > 0 {
-		out += fmt.Sprintf(" U%d", loc.PositionU)
-	}
-	return out
-}
-
 func (r *RackAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	concurrency := r.MaxConcurrentReconciles
 	if concurrency <= 0 {
@@ -1184,13 +964,11 @@ func (r *RackAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) e
 			&clusterv1.Machine{},
 			handler.EnqueueRequestsFromMapFunc(rackMachineForCAPIMachine),
 		).
-		// Wake on inventory changes so a host added to the pool, un-quarantined
-		// or made claimable is picked up at once rather than at the next
-		// requeue: the difference between a rack bring-up that converges as
-		// hosts are declared and one that appears stuck for a minute per host.
+		// Wake on the host, so a lifted quarantine or a new address is picked up
+		// at once rather than at the next requeue.
 		Watches(
 			&infrav1.RackHost{},
-			handler.EnqueueRequestsFromMapFunc(r.rackMachinesForRackHost),
+			handler.EnqueueRequestsFromMapFunc(rackMachineForRackHost),
 		).
 		Complete(r)
 }
@@ -1211,30 +989,13 @@ func rackMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile.R
 	}}
 }
 
-// rackMachinesForRackHost enqueues the machines a host event could unblock:
-// its current holder, plus every hostless machine whose pool it belongs to.
-func (r *RackAppleSiliconMachineReconciler) rackMachinesForRackHost(ctx context.Context, o client.Object) []reconcile.Request {
+// rackMachineForRackHost maps a host event to the host's machine.
+func rackMachineForRackHost(_ context.Context, o client.Object) []reconcile.Request {
 	host, ok := o.(*infrav1.RackHost)
-	if !ok {
+	if !ok || host.Status.Machine == "" {
 		return nil
 	}
-
-	machines := &infrav1.RackAppleSiliconMachineList{}
-	if err := r.List(ctx, machines, client.InNamespace(host.Namespace)); err != nil {
-		log.FromContext(ctx).Error(err, "list machines for rack host event", "host", host.Name)
-		return nil
-	}
-
-	var requests []reconcile.Request
-	for i := range machines.Items {
-		m := &machines.Items[i]
-		holdsIt := m.Status.RackHost == host.Name
-		waitingForOne := m.Status.RackHost == "" && m.Spec.AdoptPool == host.Spec.Pool
-		if holdsIt || waitingForOne {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{Namespace: m.Namespace, Name: m.Name},
-			})
-		}
-	}
-	return requests
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Status.Machine},
+	}}
 }

@@ -8,7 +8,10 @@ defmodule Atlas.MCP.Tools.CreateSpec do
       "required" => ["title", "body", "engineering_project_id"],
       "properties" => %{
         "title" => %{"type" => "string"},
-        "body" => %{"type" => "string"},
+        "body" => %{
+          "type" => "string",
+          "description" => "Spec body in Markdown. Fenced ```mermaid blocks render as diagrams."
+        },
         "summary" => %{
           "type" => "string",
           "description" => "Short spec description for summaries and OpenGraph cards. Do not use em dashes."

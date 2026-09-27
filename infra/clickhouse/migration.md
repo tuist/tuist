@@ -47,6 +47,23 @@ The launcher prints the Job's log. If you stop following, the Job keeps running,
 
 `backfill` records each chunk in Postgres. Running it again skips finished chunks and retries failed ones, and a later cutoff turns the latest month into a new chunk. Only one backfill runs at a time: a second one fails without copying anything.
 
+A chunk is recorded as finished only when the destination then holds exactly the rows the source does, not counting rows within a day of their TTL. Anything else is recorded as failed with both counts, so the next run fills it.
+
+## Repairing known gaps
+
+When the shadow writes are known to have lost rows after the cutoff, for example across a deploy or while the destination was overloaded, repair those spans rather than moving the cutoff. A later cutoff re-checks every table's whole latest month, and for a month the destination already holds almost all of, the gap-fill does not fit on the source.
+
+The launcher has no step for this. Run it as a one-off Job from the migrate Job's spec, as the launcher does, with this `eval`:
+
+```elixir
+Tuist.ClickHouse.Backfill.run(windows: [
+  {~U[2026-09-25 08:00:00Z], ~U[2026-09-25 14:00:00Z]},
+  {~U[2026-09-26 00:00:00Z], ~U[2026-09-26 04:00:00Z]}
+])
+```
+
+It copies only what the destination lacks in each span, for every table with a time column, and records each span in the ledger like any other chunk. Tables with no time column cannot be bounded by a span and are left to `parity`.
+
 ## The deploy hook
 
 The chart can also run a step as a post-upgrade hook through `clickhouse.managed.migration`. Leave it disabled and use the launcher. A failing hook rolls the release back and blocks every deploy behind it.

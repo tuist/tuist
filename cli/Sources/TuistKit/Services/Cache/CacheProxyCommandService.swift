@@ -165,7 +165,8 @@ struct CacheProxyCommandService {
         }
     #endif
 
-    /// The endpoint to start the proxy against, or `nil` when the account has none serving yet.
+    /// The endpoint to start the proxy against, or `nil` when the account has none serving yet or the
+    /// logged-in account cannot use it.
     ///
     /// An account whose cache is still being prepared has no endpoint, and refusing to start over
     /// that would leave Xcode retrying a socket nobody listens on. The proxy starts local-only
@@ -177,6 +178,9 @@ struct CacheProxyCommandService {
             Logger.current.debug(
                 "No cache endpoint is serving \(serverURL.absoluteString) yet (\(error.localizedDescription)). Starting the cache proxy without one."
             )
+            return nil
+        } catch let CacheURLStoreError.forbidden(message) {
+            Logger.current.warning("\(message) Starting the cache proxy without a remote cache.")
             return nil
         }
     }

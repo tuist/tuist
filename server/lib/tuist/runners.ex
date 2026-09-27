@@ -246,6 +246,22 @@ defmodule Tuist.Runners do
   end
 
   @doc """
+  The cache-volume HEAD of `account_id`'s `volume_name` with a presigned GET URL
+  for its master, for a runner host to prefetch. The same payload a trusted
+  dispatch carries, under the same public-host guard. `nil` when the account is
+  unknown, the volume has published no master, or no URL can be minted.
+  """
+  def host_volume_head(account_id, volume_name) when is_integer(account_id) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+         %{generation: generation, download_url: url} = head when generation > 0 and is_binary(url) <-
+           volume_head_payload(account, volume_name) do
+      head
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
   Mints a presigned PUT URL for the master object of `account_id`'s cache volume
   `volume_name`, keyed by `tree_digest` — the content-addressed, immutable key
   the runner uploads its

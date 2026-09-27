@@ -1,6 +1,15 @@
 # Canary workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist-canary.
 
+cacheDNS:
+  enabled: true
+  hostedZoneId: Z046862130S1WUMPV7Z3P
+  ownerId: tuist-canary-cache
+  externalSecret:
+    enabled: true
+    writerItem: cache-dns-writer
+    solverItem: cache-dns-solver
+
 # Stable outbound source IP for canary Tuist server traffic. The gateway runs HA
 # across the md-egress pool (see cluster-canary.yaml): the failover controller
 # keeps the Floating IP + active label on one Ready node; the host-configurer

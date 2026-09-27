@@ -68,6 +68,66 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == []
     end
 
+    test "refuses a user who is not a member of the account, naming the account they are logged in as", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      organization = AccountsFixtures.organization_fixture(name: "acme-#{System.unique_integer([:positive])}")
+      KuraFixtures.active_server_fixture(organization.account, url: "https://acme.kura.tuist.dev")
+      stranger = AccountsFixtures.user_fixture()
+      stranger_account = Accounts.get_account_from_user(stranger)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(stranger)
+        |> Headers.put_cli_version("4.211.0")
+        |> get(~p"/api/cache/endpoints?account_handle=#{organization.account.name}")
+
+      # Then
+      assert %{"message" => message} = json_response(conn, :forbidden)
+      assert message =~ "You are logged in as '#{stranger_account.name}'"
+      assert message =~ "not a member of '#{organization.account.name}'"
+    end
+
+    test "refuses a project from another account without naming a user", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      organization = AccountsFixtures.organization_fixture(name: "acme-#{System.unique_integer([:positive])}")
+      other_project = ProjectsFixtures.project_fixture()
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_project(other_project)
+        |> Headers.put_cli_version("x.y.z")
+        |> get(~p"/api/cache/endpoints?account_handle=#{organization.account.name}")
+
+      # Then
+      assert json_response(conn, :forbidden) == %{
+               "message" => "The credentials in use cannot access the remote cache of '#{organization.account.name}'."
+             }
+    end
+
+    test "keeps answering earlier Kura CLIs with no endpoints for an account the caller is not a member of", %{
+      conn: conn
+    } do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      organization = AccountsFixtures.organization_fixture(name: "acme-#{System.unique_integer([:positive])}")
+      KuraFixtures.active_server_fixture(organization.account, url: "https://acme.kura.tuist.dev")
+      stranger = AccountsFixtures.user_fixture()
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(stranger)
+        |> Headers.put_cli_version("4.210.0")
+        |> get(~p"/api/cache/endpoints?account_handle=#{organization.account.name}")
+
+      # Then
+      assert json_response(conn, :ok) == %{"endpoints" => [], "provisioning" => false}
+    end
+
     test "returns empty list when self-hosted without endpoints configured", %{conn: conn} do
       # Given
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)

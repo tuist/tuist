@@ -76,12 +76,7 @@ See the monorepo's
 Distribution repositories need a `main` branch and write access for
 `TUIST_RELEASE_GITHUB_TOKEN` as a one-time setup. Publishing the wrappers does
 not enable cache volumes on the fleet; storage rollout is independent.
-Until the first release is published, test with
-`tuist/tuist/.github/actions/cache-volume@<reviewed-commit>`.
 
-Targets are attached as symlinks. Cache download directories such as `~/.npm`
-or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
-Other tools that replace their cache directory are also incompatible. For a
-workspace path, ignore the link without a trailing slash (for example `.gradle`,
-not `.gradle/`, in `.gitignore`). Paths must be a single line without control
-characters; use a plain YAML string instead of `path: |`.
+Paths are mounted as ordinary directories, so tools can use their usual locations
+such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
+Each action call attaches one directory; use a different key for each directory.

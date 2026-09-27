@@ -1699,148 +1699,6 @@ alongside the restart-loop window; nothing else changes.
 Over the 30 days to 2026-09-02 the only termination reason recorded for a Kura
 container in production is `Error`. Never `OOMKilled`.
 
-### Kura instance retention horizon under a day
-
-```promql
-histogram_quantile(0.5,
-  sum by (cluster, region, tenant_id, pod, le) (
-    increase(kura_segment_shed_age_seconds_bucket{cluster="tuist-production"}[1d])
-    * on (cluster, pod) group_left(region, tenant_id)
-      max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster="tuist-production"})
-  )
-)
-and on (cluster, pod) (
-  min by (cluster, pod) (
-    min_over_time(kura_backfill_ring_fullness_percent{cluster="tuist-production"}[1d])
-  ) >= 100
-)
-```
-
-- Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
-  the alert value is the median age in seconds
-- Pending period: 60 minutes
-- Severity: warning
-- Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
-  `affected_service` for the cache component: this is customer-visible.
-- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
-  {{ $labels.region }} evicts artifacts after a median of
-  {{ $values.A.Value | humanizeDuration }}; its cache is too small for its
-  write rate`
-- Description: `The instance's ring is full and it is evicting artifacts
-  younger than a day (median age of the youngest artifact in each segment the
-  ring rotated out over the last day). Overnight and weekend builds will miss.
-  Rings run full by design; what this measures is whether the claim is enough
-  for the account's write rate. The lever is the account's storage claim,
-  which Tuist.Kura.ClaimSizing sizes and applies on its own, and it is usually
-  still confirming the reading when this fires: its one-day rungs need two to
-  five qualifying days before they grow the claim. Watch it; it escalates to
-  "Kura instance retention horizon under a day for three days" if sizing does
-  not land. Only rings that have been full for the whole day count: a ring
-  rebuilt more recently cannot report an eviction older than itself, so it
-  would fire on its own age.`
-
-Kura instances are expected to use all the disk they are given: every
-production ring runs at 100% of its desired segment count, and a full ring is
-not a signal of anything. What the customer feels is how long an artifact
-survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
-records, for every segment the ring rotates out, the age of the youngest
-content in it, which is exactly "how soon after being written can an artifact
-disappear". Under a day, overnight and weekend builds miss.
-
-**Per instance, not per region.** The write rate that empties a ring is one
-account's, and so is the lever: the storage claim, which
-`Tuist.Kura.ClaimSizing` sizes per account. The region only enters when the
-claim cannot grow because the box is full, which is the disk row of **Kura
-region cannot place another instance**. A region-level median would also hide
-the case that matters: on 2026-09-02 one account's instances sat at about
-three days in both US regions while every other instance in the fleet sat
-above ten, and the region medians read as "about three days" purely because
-of it.
-
-**Warning, because sizing is the actor.**
-`Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
-its proposals unattended every ten minutes, within a fleet-wide budget of five
-applies an hour. Its own `retention_floor_days` is 3, so any instance whose
-retention falls under two days is already inside the band sizing is working
-on, and it is deliberately unhurried there: the rung that matches a one-day
-shed age grows the claim after two qualifying days when the ring cycled about
-once a day over them, and after five when it did not. Days the account did
-not build are passed over rather than restarting the count. The step after a
-resize that landed below its own projection confirms on a single qualifying
-day of the resized ring instead, as long as that day shed at least a whole ring
-and falls within the matching rung's own window of the resize. A one-day
-reading is therefore routinely a control loop that is mid-confirmation, and
-this rule paged on exactly that while it was critical. It stays as the early
-signal; the page is **Kura instance retention horizon under a day for three
-days**. A rule at two days was deployed with this one on 2026-09-02 and
-removed on 2026-09-04, having fired only on the artifact described below.
-
-Each region is measured against the claim its own instances are pinned at,
-and an account keeps one claim: an instance pinned below the rest of its
-account (an expansion built at the plan's starting claim beside instances the
-pin migration grandfathered at 50Gi, say) that sheds under the floor is raised
-to the account's claim as soon as a rung confirms, rather than grown from the
-larger pin or left short.
-
-**Sizing also shrinks, and lands well clear of both tiers.** Besides a ring
-that never fills, a claim shrinks when every region kept what it shed for
-three retention floors (nine days) on every day of a month. It lands where
-the shortest day would keep the floor plus the growth headroom, 3.75 days, one
-step at most halves it (leaving at least 4.5 days), and it never goes under
-the plan's starting claim, so a shrunk ring sits several times above this
-rule's one day and above the longest growth rung's three. Once a lowered
-claim's pods roll, the ring's first rotation evicts its oldest segments down to
-the new budget: that sheds content older than anything it keeps afterwards,
-and fullness (segments held against the smaller desired total) reads over 100
-until it does, so the gate stays open without the rule firing.
-
-What is genuinely actionable and still has no rule of its own is *sizing
-blocked*: the claim clamped at the plan ceiling, or open proposals the worker
-is not draining. Neither is visible to Prometheus today, because the server
-exports no claim-size or ceiling metric. That is the rule to add, in place of
-the two-day tier.
-
-**Only a ring that has been full for a whole day counts.** Fullness is the
-segment count against the ring's desired total, so it reads 100 in steady
-state on every instance; the gate keeps a ring that is still filling (after a
-bootstrap, or while the segment count is converging) out of the rule even if
-it rotates a segment early. It has to be `min_over_time` across the
-threshold's own window, not the instantaneous value: a ring is rebuilt from
-empty whenever its instance lands on a new node, since the cache is
-local-path, and a rebuilt ring holds nothing older than itself, so the oldest
-eviction it can possibly report is its own age. An instantaneous gate opens
-the moment the refill completes and the rule then fires on the rebuild, every
-time, for as long as the threshold. `min_over_time(...[1d]) >= 100` is exactly
-the invariant the threshold needs: content *could* be a day old, so a median
-under a day is real.
-
-This is not hypothetical. On 2026-09-03 at 10:20 UTC both
-`kura-tuist-eu-central-1` replicas moved from node `...fleet-tkhrc-wktsj` to
-`...-x47qf`; ring fullness went 100 to 1 on both and climbed back to 100 about
-25 hours later. The rollup median shed age for that account-region went from
-1,124,768s (13d) on 09-03 to 86,347s (~24h) on 09-04, with
-`median_ring_span_seconds` collapsing identically (1,169,349 to 85,242) while
-its scw-fr-par instance held at ~11 days. Both tiers fired within an hour of
-the refill completing, on rings whose entire contents were younger than the
-threshold. Sizing correctly proposed nothing: one day of evidence, and the
-matching rung needs five.
-
-**Bucket edges are coarse but sit where the threshold is.** The histogram's
-edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
-interpolated inside a bucket, but the threshold coincides with an edge. The
-`[1d]` window is one day of rotations: long enough that a single early
-rotation does not set the median, short enough to react within the day the
-claim became too small.
-
-Measured on 2026-09-04 with the gate in place, the rule returns ten instances
-and the shortest median is 216,000s (2.5 days, one account's four instances);
-the rest read between ten and thirty days, and three instances have shed no
-segment at all in the window (`NaN`, which the `< 86400` threshold does not
-match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
-the one to watch as its usage grows.
-
 ### Kura instance retention horizon under a day for three days
 
 ```promql
@@ -1862,7 +1720,10 @@ and on (cluster, pod) (
   the alert value is the median age in seconds
 - Pending period: 60 minutes
 - Severity: critical
-- Production only. Folder `Alerts`, group `Cache`, receiver
+- Live: rule `dfygid92hevi8d`, titled `Kura - instance retention horizon
+  under a day for three days`
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
   `affected_service` for the cache component: this is customer-visible.
 - Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
@@ -1878,11 +1739,100 @@ and on (cluster, pod) (
   pro, 256Gi enterprise), the region has no disk to grow into (see "Kura
   region cannot place another instance"), or sizing itself is stuck.`
 
-Same query as the warning with both windows widened to `[3d]`; the threshold
-stays at one day.
+Kura instances are expected to use all the disk they are given: every
+production ring runs at 100% of its desired segment count, and a full ring is
+not a signal of anything. What the customer feels is how long an artifact
+survives before ring rotation sheds it. `kura_segment_shed_age_seconds`
+records, for every segment the ring rotates out, the age of the youngest
+content in it, which is exactly "how soon after being written can an artifact
+disappear". Under a day, overnight and weekend builds miss.
 
-**Why three days.** It clears what sizing needs to act on a one-day reading:
-the two-day rung, plus the day its last rollup takes to land and the worker
+**Per instance, not per region.** The write rate that empties a ring is one
+account's, and so is the lever: the storage claim, which
+`Tuist.Kura.ClaimSizing` sizes per account. The region only enters when the
+claim cannot grow because the box is full, which is the disk row of **Kura
+region cannot place another instance**. A region-level median would also hide
+the case that matters: on 2026-09-02 one account's instances sat at about
+three days in both US regions while every other instance in the fleet sat
+above ten, and the region medians read as "about three days" purely because
+of it.
+
+**Sizing is the actor, so this pages only once it has had its turn.**
+`Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
+its proposals unattended every ten minutes, within a fleet-wide budget of five
+applies an hour. Its own `retention_floor_days` is 3, so an instance whose
+retention falls under a day is deep inside the band sizing is working on. It
+confirms a sub-day reading over one to five days of the account's own
+rollups, sooner the more of the ring the account cycled, and passes over the
+days the account did not build rather than restarting the count. The step
+after a resize that landed below its own projection confirms on a single
+qualifying day of the resized ring instead, as long as that day shed at least
+a whole ring and falls within the matching rung's own window of the resize.
+
+**There is no one-day tier.** A warning on the same query with `[1d]`
+windows (`afx2mswafmvi8a`) ran from 2026-09-02 and was deleted on
+2026-09-25. It read the evidence sizing reads, so it paged at the moment
+sizing started confirming, and no growth rule could get ahead of it without
+growing on less than a day of evidence. Over its last three weeks it fired
+for 13 accounts, and none needed a person that this rule did not also catch:
+the ones that cleared after a day or two were single busy days (0.2 to 1.4
+rings evicted) that sizing correctly left alone, and on 2026-09-24 an account
+that had started building two days earlier paged all eight of its pods on its
+new rings' second day, before any rung could confirm. A two-day tier was
+removed on 2026-09-04 for the same reason.
+
+Each region is measured against the claim its own instances are pinned at,
+and an account keeps one claim: an instance pinned below the rest of its
+account (an expansion built at the plan's starting claim beside instances the
+pin migration grandfathered at 50Gi, say) that sheds under the floor is raised
+to the account's claim as soon as a rung confirms, rather than grown from the
+larger pin or left short.
+
+**Sizing also shrinks, and lands well clear of this rule.** Besides a ring
+that never fills, a claim shrinks when every region kept what it shed for
+three retention floors (nine days) on every day of a month. It lands where
+the shortest day would keep the floor plus the growth headroom, 3.75 days, one
+step at most halves it (leaving at least 4.5 days), and it never goes under
+the plan's starting claim, so a shrunk ring sits several times above this
+rule's one day and above the longest growth rung's three. Once a lowered
+claim's pods roll, the ring's first rotation evicts its oldest segments down to
+the new budget: that sheds content older than anything it keeps afterwards,
+and fullness (segments held against the smaller desired total) reads over 100
+until it does, so the gate stays open without the rule firing.
+
+What pages sooner, and is actionable, is *sizing blocked*. A growth that
+capacity admission refuses is **Kura admission refusing instances**. A claim
+clamped at the plan ceiling has no rule of its own, because the server exports
+no claim-size or ceiling metric; until it does, this rule is what catches it.
+
+**Only a ring that has been full for the whole window counts.** Fullness is
+the segment count against the ring's desired total, so it reads 100 in steady
+state on every instance; the gate keeps a ring that is still filling (after a
+bootstrap, or while the segment count is converging) out of the rule even if
+it rotates a segment early. It has to be `min_over_time` across the
+threshold's own window, not the instantaneous value: a ring is rebuilt from
+empty whenever its instance lands on a new node, since the cache is
+local-path, and a rebuilt ring holds nothing older than itself, so the oldest
+eviction it can possibly report is its own age. An instantaneous gate opens
+the moment the refill completes and the rule then fires on the rebuild, every
+time, for as long as the threshold.
+
+This is not hypothetical. On 2026-09-03 at 10:20 UTC both
+`kura-tuist-eu-central-1` replicas moved from node `...fleet-tkhrc-wktsj` to
+`...-x47qf`; ring fullness went 100 to 1 on both and climbed back to 100 about
+25 hours later. The rollup median shed age for that account-region went from
+1,124,768s (13d) on 09-03 to 86,347s (~24h) on 09-04, with
+`median_ring_span_seconds` collapsing identically (1,169,349 to 85,242) while
+its scw-fr-par instance held at ~11 days. Both tiers then deployed fired
+within an hour of the refill completing, on rings whose entire contents were
+younger than the threshold. Sizing correctly proposed nothing.
+
+**Bucket edges are coarse but sit where the threshold is.** The histogram's
+edges are 1h, 6h, 12h, 1d, 2d, 3d, 7d, 14d and 30d, so the median is
+interpolated inside a bucket, but the threshold coincides with an edge.
+
+**Why three days.** It clears what sizing needs to act on a sub-day reading:
+the two-day rungs, plus the day its last rollup takes to land and the worker
 to apply. A claim that grew changes the ring's desired segment count, so
 fullness drops below 100 while the ring converges, and `min_over_time(...[3d])`
 keeps the instance out of this rule for three days after the resize. What is
@@ -1890,6 +1840,18 @@ left is an instance sizing did not touch. The five-day rung (a ring that did
 not cycle about once a day) can still be confirming at day three; three days
 of sub-day retention is customer damage whichever way sizing reads it, so it
 still pages.
+
+**The window pools three days; sizing reads them one at a time.** The median
+is taken over every eviction in the window, while each growth rung needs every
+day in its own window under the threshold. An instance whose ring sat full
+and idle and then started shedding can therefore read under a day across the
+pool on its third day while one of its daily medians sat just over, which is
+what happened on 2026-09-25. Requiring each daily median under a day instead
+was backtested over 18 days and never fired, including for the two accounts
+whose growth was genuinely stuck in that period, because a weekend in the
+window lengthens one day's median past a day. Requiring evictions on each of
+the three days did not stop the 2026-09-25 page and dropped a real one (a
+rebuilt replica that never came back). The pooled median stays.
 
 ### Kura instance not reconciled
 
@@ -3401,9 +3363,19 @@ keepalive pool per upstream address, so this only happens on an instance serving
 both lanes at once. Kura answered correctly in every case, so no Kura metric or
 rule moves. The paired controller error lines are
 `upstream sent no valid HTTP/1.0 header` and
-`no connection data found for keepalive http2 connection`. PR #13227 routes
-gateway gRPC to a dedicated Kura port; until it is deployed, expect this rule to
-fire for accounts that use both lanes.
+`no connection data found for keepalive http2 connection`. Gateway gRPC now
+reaches Kura on a dedicated port (PR #13227), so the two lanes no longer share a
+pool.
+
+A 502 on an upload (`POST` or `PUT`) with upstream status 502 and 0 upstream
+bytes is a connection Kura closed with request bytes still unread. The paired
+controller error lines are `writev() failed (104: Connection reset by peer)`,
+`upstream prematurely closed connection while reading response header` and
+`connect() failed (32: Broken pipe)`. nginx does not retry a `POST`, so reads
+never show it. Kura answers an upload of a blob it already stores after reading
+the body. Releases older than that answer first, which turns a steady fraction of
+an account's duplicate uploads into 502s while Kura's own request metrics count
+them as successes.
 
 `upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
 identifies the account.
@@ -4389,7 +4361,7 @@ The refusal itself, which the headroom rule can only infer. It is not
 redundant with it: a claim growth or a return at a grown claim needs more than
 32 GiB, so a region can refuse those while the headroom rule is quiet, and
 `capacity_unknown` refuses everything whatever the headroom. This is also the
-"sizing blocked" rule **Kura instance retention horizon under a day** says is
+"sizing blocked" rule **Kura instance retention horizon under a day for three days** says is
 missing, for the half of it that is a capacity refusal; a claim clamped at the
 plan ceiling is still uncovered.
 

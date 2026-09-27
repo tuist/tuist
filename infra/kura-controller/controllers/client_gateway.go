@@ -59,6 +59,9 @@ func clientHosts(instance *kurav1alpha1.KuraInstance) []string {
 }
 
 func clientIngressAnnotations(instance *kurav1alpha1.KuraInstance, annotations map[string]string) map[string]string {
+	if instance.Spec.PublicHostNetwork {
+		annotations["external-dns.alpha.kubernetes.io/ingress-hostname-source"] = "annotation-only"
+	}
 	if instance.Spec.Private {
 		annotations["nginx.ingress.kubernetes.io/whitelist-source-range"] = strings.Join(instance.Spec.ClientCIDRs, ",")
 	}

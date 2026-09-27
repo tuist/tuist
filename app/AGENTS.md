@@ -41,6 +41,11 @@ The app depends on several CLI modules:
 - `CFBundleVersion` is epoch seconds. It must exceed the newest `sparkle:version` in `app/appcast.xml`, or `generate_appcast` files the build as an old update: it writes no appcast entry and moves the DMG into `old_updates`, which is how `app@0.25.5` published with no DMG and pointed the Homebrew cask at a 404. It ran on `github.run_number` twice before, and both times the counter reset below the high-water mark when the workflow was recreated.
 - `generate_appcast` mutates the directory it reads, so it runs against a copy in `app/build/appcast-input` rather than the artifacts directory the release uploads from.
 
+## Branding Assets
+- `Resources/TuistApp/AppIcon.icon` is an Icon Composer bundle (layers in `Assets/`, composition in `icon.json`). It needs Xcode 26 or later to compile; `xcode-select` pointing at an older Xcode fails on the asset catalog. Every layer must carry an explicit `"glass"` value: Icon Composer omits the key at its default (`true`), so a re-exported layer without it renders as Liquid Glass, and faint textures such as the grid turn into bright ridges at Dock and Finder sizes while looking fine at 1024px. Preview at ~95pt, not at full size.
+- `Resources/TuistApp/Assets.xcassets/TuistIcon` (macOS sign-in view) and `TuistRoundedIcon` (iOS sign-in and launch screen) are flat renders derived from the compiled `AppIcon.icon`; regenerate them when the icon changes. `MenuBarIcon` (status item) and `TuistLogo` (iOS sign-in button) are the monochrome mark rasterised at 16pt and 20pt.
+- `assets/dmg-background.tiff` is a HiDPI TIFF (660x400 at 1x plus 1320x800 at 2x, built with `tiffutil -cathidpicheck`). Keep it light and fully opaque: Finder draws the icon labels black in both light and dark appearance whenever a picture background is set, and dmgbuild has no label colour setting. The icon coordinates in `app/dmg-settings.py` are tied to the arrow drawn in the image.
+
 ## Environment Configuration
 The app supports multiple environments via `TUIST_ENV`:
 - `development` - Local server at localhost:8080

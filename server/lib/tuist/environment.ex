@@ -1983,6 +1983,15 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Namespace holding the per-machine `tart-kubelet-<machine>` ServiceAccounts
+  the macOS host operator creates. A host authenticates as its own to list the
+  cache masters it should prefetch. Helm sets it to `.Release.Namespace`.
+  """
+  def runner_host_identity_namespace do
+    System.get_env("TUIST_RUNNER_HOST_IDENTITY_NAMESPACE", "tuist")
+  end
+
+  @doc """
   Least-privilege database role the internal Atlas query runner drops to via
   `SET LOCAL ROLE` before executing operator-supplied SQL. Set to `tuist_ops_ro`
   by the chart in managed environments (requires `GRANT tuist_ops_ro TO
