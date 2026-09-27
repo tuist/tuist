@@ -2,6 +2,7 @@ package macos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -94,6 +95,9 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	}
 	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
 		pdu.Status.Message = "standalone: the controller does not contact this PDU"
+		pdu.Status.Drift = infrav1.RackCardDriftUnknown
+		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
+			"managedBy is standalone: the controller does not contact this PDU, and no power goes through it")
 		return ctrl.Result{}, nil
 	}
 
@@ -226,8 +230,16 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 	now := metav1.Now()
 	pdu.Status.LastVerified = &now
 	if err != nil {
-		markRackCardDrift(r.Recorder, pdu, fmt.Sprintf("the controller's account cannot read the card: %v", err))
-		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, "ControllerLoginFailed", clusterv1.ConditionSeverityWarning, "%v", err)
+		// Nothing on the card was read, so this says nothing about drift.
+		reason := "ControllerLoginFailed"
+		var refusal *power.EatonLoginError
+		if !errors.As(err, &refusal) {
+			reason = "Unreachable"
+		}
+		pdu.Status.Drift = infrav1.RackCardDriftUnknown
+		pdu.Status.Message = fmt.Sprintf("the controller's account cannot read the card: %v", err)
+		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
+		conditions.MarkUnknown(pdu, RackPDUConvergedCondition, reason, "%s", pdu.Status.Message)
 		return ctrl.Result{RequeueAfter: rackPDURetryInterval}
 	}
 	pdu.Status.OutletCount = len(outlets)

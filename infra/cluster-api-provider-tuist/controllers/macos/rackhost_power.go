@@ -73,6 +73,9 @@ func rackHostPDUOutlet(ctx context.Context, c client.Reader, registry *power.Reg
 		}
 		return nil, power.Outlet{}, err
 	}
+	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
+		return nil, power.Outlet{}, &pduNotReadyError{pdu: name, detail: "it is standalone: the controller does not manage it"}
+	}
 	if !conditions.IsTrue(pdu, clusterv1.ReadyCondition) {
 		detail := conditions.GetMessage(pdu, clusterv1.ReadyCondition)
 		if detail == "" {

@@ -212,7 +212,7 @@ func (e *Eaton) call(ctx context.Context, o Outlet, method, path string, out any
 	defer ep.mu.Unlock()
 
 	if err := ep.configure(ctx, config, e.timeout()); err != nil {
-		return err
+		return fmt.Errorf("%s: %w", o, err)
 	}
 
 	for attempt := 0; ; attempt++ {
@@ -314,14 +314,39 @@ func (ep *eatonEndpoint) configure(ctx context.Context, config eatonConfig, time
 	if ep.client != nil && ep.config == config {
 		return nil
 	}
-	if ep.client != nil {
-		_ = ep.logout(ctx)
+	client, err := newEatonClient(config, timeout)
+	if err != nil {
+		return err
 	}
+	// The session opened under the old settings is logged out first, or the
+	// card, which allows one session per account, refuses the next login. When
+	// the card is the same and only the pin moved, the old client, pinned to
+	// the certificate the card no longer presents, cannot open a connection,
+	// so the new one ends it.
+	var logoutErr error
+	if ep.client != nil && ep.token != "" {
+		logoutErr = ep.endSession(ctx, ep.client)
+		if logoutErr != nil && config.base == ep.config.base {
+			if err := ep.endSession(ctx, client); err == nil {
+				logoutErr = nil
+			}
+		}
+	}
+	ep.config = config
+	ep.client = client
+	ep.token, ep.session = "", ""
+	if logoutErr != nil {
+		return fmt.Errorf("the session opened before the card's settings changed may still hold the account: %w", logoutErr)
+	}
+	return nil
+}
+
+func newEatonClient(config eatonConfig, timeout time.Duration) (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if config.fingerprint != "" {
 		want, err := hex.DecodeString(config.fingerprint)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		transport.TLSClientConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
@@ -340,10 +365,7 @@ func (ep *eatonEndpoint) configure(ctx context.Context, config eatonConfig, time
 			},
 		}
 	}
-	ep.config = config
-	ep.client = &http.Client{Timeout: timeout, Transport: transport}
-	ep.token, ep.session = "", ""
-	return nil
+	return &http.Client{Timeout: timeout, Transport: transport}, nil
 }
 
 // EatonLoginError is the card refusing a login, with its code (InvalidCredential,
@@ -454,15 +476,20 @@ func (ep *eatonEndpoint) logout(ctx context.Context) error {
 	if ep.token == "" || ep.client == nil {
 		return nil
 	}
-	session := ep.session
 	defer func() { ep.token, ep.session = "", "" }()
+	return ep.endSession(ctx, ep.client)
+}
+
+// endSession deletes the session through client, keeping its token.
+func (ep *eatonEndpoint) endSession(ctx context.Context, client *http.Client) error {
+	session := ep.session
 	if session == "" {
 		return nil
 	}
 	if !strings.HasPrefix(session, "/rest/") {
 		session = "/rest" + session
 	}
-	status, body, err := ep.do(ctx, http.MethodDelete, session, nil)
+	status, body, err := ep.send(ctx, client, http.MethodDelete, session, nil, ep.token)
 	if err != nil {
 		return fmt.Errorf("log out of %s: %w", ep.config.base, err)
 	}
@@ -485,6 +512,10 @@ func (ep *eatonEndpoint) doReauth(ctx context.Context, method, path string, body
 }
 
 func (ep *eatonEndpoint) doAuth(ctx context.Context, method, path string, body []byte, bearer string) (int, []byte, error) {
+	return ep.send(ctx, ep.client, method, path, body, bearer)
+}
+
+func (ep *eatonEndpoint) send(ctx context.Context, client *http.Client, method, path string, body []byte, bearer string) (int, []byte, error) {
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
@@ -500,7 +531,7 @@ func (ep *eatonEndpoint) doAuth(ctx context.Context, method, path string, body [
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
-	resp, err := ep.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
