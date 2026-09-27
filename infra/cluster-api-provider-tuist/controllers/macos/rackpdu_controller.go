@@ -118,6 +118,9 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	}
 	if pdu.Spec.ManagedBy != infrav1.RackPDUManagedByController {
 		pdu.Status.Message = "standalone: the controller does not contact this PDU"
+		pdu.Status.Drift = infrav1.RackPDUDriftUnknown
+		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, "Standalone", clusterv1.ConditionSeverityInfo,
+			"managedBy is standalone: the controller does not contact this PDU, and no power goes through it")
 		return ctrl.Result{}, nil
 	}
 
