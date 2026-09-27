@@ -446,8 +446,14 @@ func TestRackPDURemakesAControllerAccountThatLostItsPassword(t *testing.T) {
 	h.card.Expire()
 
 	h.reconcile()
-	if pdu := h.pdu(); conditions.IsTrue(pdu, clusterv1.ReadyCondition) || pdu.Status.Drift != infrav1.RackPDUDriftDrifted {
-		t.Fatalf("a controller account that cannot log in left the PDU %+v", pdu.Status)
+	// A login that fails is not drift: nothing on the card was read.
+	pdu0 := h.pdu()
+	ready := conditions.Get(pdu0, clusterv1.ReadyCondition)
+	if ready == nil || ready.Status == corev1.ConditionTrue || ready.Reason != "ControllerLoginFailed" {
+		t.Fatalf("Ready = %+v, want False/ControllerLoginFailed", ready)
+	}
+	if pdu0.Status.Drift != infrav1.RackPDUDriftUnknown || conditions.GetReason(pdu0, RackPDUConvergedCondition) == "Drifted" || h.eventsMatching("Drifted") != 0 {
+		t.Fatalf("a login failure was reported as drift: %+v", pdu0.Status)
 	}
 
 	pdu := h.pdu()
