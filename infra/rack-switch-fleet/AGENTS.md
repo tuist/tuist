@@ -456,17 +456,42 @@ one. That matters more than a gap would: an acknowledged gap eventually gets
 filled, and filling this one would leave two places to look and two chances to
 disagree.
 
-Two things follow. `internal/power` drives the Eaton PDUs with its `eaton`
-driver, over their REST API with the card's certificate pinned (see "Power
-drivers" in the provider's AGENTS.md); `ber1-proto-01` is on outlet 1 of
-`ber1-pdu-b`. The operator reaches a PDU through the edges: see "The edge
-nodes" below. And whoever extends the chart side
+Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
+provider (see "RackPDU objects" below), and a RackHost names its outlet as
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-proto-01` is on outlet 1 of
+`ber1-pdu-b`. And whoever extends the chart side
 should carry the A/B property across: a mini's outlet and its ToR must land on
 the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
 its switch lose power together. Crossed, any one ATS failure takes the whole
 fleet: half the minis lose power and the other half lose their ToR. This file
 records which chain a node is on (`ats`/`pdu`), but not the outlet, which stays
 the RackHost's.
+
+### RackPDU objects
+
+Each PDU (`evmafc20a`) with a `mgmt_address` is rendered as a `RackPDU` object
+into `k8s/<site>/<pdu>.yaml` by `fleet_render_pdu`, beside the RackSwitch
+objects, and the workflow applies both to `kubernetes.namespace`: its site,
+model, `mac`, address, `chain` (its `ats`), `managedBy: controller` once the
+node is `installed` (`standalone`, never contacted, before), and
+`outletStateOnStartup: "on"`. There is no revision: the spec is small, and the
+controller converges on `metadata.generation`. What the controller does with
+it (adopting the card on its factory login, generating and owning its
+credentials, pinning its certificate on first use, reporting drift) is
+"RackPDU" in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
+A controller-managed PDU also gets a PushSecret, `<pdu>-admin`, which copies
+the administrator login the controller generated (`admin-username`,
+`admin-password` of `<pdu>-credentials`) into the `onepassword` store's vault
+as the item `<pdu> admin`, for a person who needs the web UI.
+
+A power node may carry `mac`, its management card's MAC in lower case, like a
+switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
+factory card, which asks for DHCP, lands on its address with the edge as its
+router and nobody at it; an unknown MAC still gets the provisioning range. A
+node without one (today `ber1-pdu-b`, until someone reads it off the unit) is
+rendered all the same, gets no reservation, and its RackPDU reports
+`AddressReserved=False`.
 
 ### The seam between two inventories, and how it is joined
 
@@ -785,7 +810,8 @@ files no longer match it:
 - `dnsmasq.conf`, DHCP on the switch port, the same on both edges: dnsmasq
   answers only for the ranges whose address the node holds, so only the master
   serves, and the reservations are identical wherever it moves. Each known
-  switch behind the edge gets its site address and the edge address as router,
+  switch behind the edge, and each installed power device behind it with a
+  `mac`, gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
@@ -890,9 +916,10 @@ tailnet too. Three things make that path work, all rendered from the site:
   power /32s only when the node holds the edge address on the switch port, so
   after a failover they follow the master on the script's next run, within
   five minutes.
-- **The master translates what it forwards to them.** A power device's
-  gateway is not an edge (at home it is the house router), so its reply to a
-  tailnet address would leave on the wrong network. `mgmt-path.sh` masquerades
+- **The master translates what it forwards to them.** A power device
+  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s is the
+  house router), so its reply to a tailnet address would leave on the wrong
+  network. `mgmt-path.sh` masquerades
   connections from `tailscale0` to them on the switch port, so they arrive
   from the edge address, which is on-link for the device. Tailscale's own
   subnet-route SNAT (`--snat-subnet-routes`, on by default on Linux, and the

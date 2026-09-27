@@ -165,13 +165,8 @@ spec:
                     credentialsSecretRef:
                       description: |-
                         CredentialsSecretRef names a Secret in the operator's namespace holding
-                        `username` and `password` for the endpoint, and for `eaton` the
-                        `tlsFingerprint` its certificate is pinned to: the SHA-256 of the
-                        card's certificate, as hex with or without colons. Optional for an
-                        unauthenticated plug on a management VLAN. Several hosts normally point
-                        at the same Secret, since a PDU has one credential and many outlets. The
-                        Eaton card allows one session per account, so the controller's account
-                        is its own and no person signs in to the web UI with it.
+                        `username` and `password` for the endpoint named by `host`. Optional
+                        for an unauthenticated plug.
                       properties:
                         name:
                           default: ""
@@ -185,35 +180,40 @@ spec:
                       type: object
                       x-kubernetes-map-type: atomic
                     driver:
-                      default: shelly
                       description: |-
-                        Driver selects the power backend. `eaton` speaks the REST API of the
-                        Eaton Rack PDU G4, the rack's production PDU, over HTTPS pinned to the
-                        card's certificate. `shelly` speaks the Shelly Gen2 RPC (with a Gen1
-                        fallback) and is for home and office prototypes only.
+                        Driver selects the power backend of an endpoint named by `host`; unset
+                        is `shelly`, the Shelly Gen2 RPC (with a Gen1 fallback), for home and
+                        office prototypes only. The rack's PDUs are RackPDUs, named by `pdu`.
                       enum:
                         - shelly
-                        - eaton
                       type: string
                     host:
                       description: |-
-                        Host is the PDU / plug endpoint, as a host, host:port or
-                        `scheme://host`. A bare host is plain HTTP for `shelly` and HTTPS for
-                        `eaton`. With the tailnet egress configured, an IP address is dialled
-                        through the egress Service `pdu-<address>`.
+                        Host is the endpoint, as a host, host:port or `scheme://host`; a bare
+                        host is plain HTTP. It is dialled directly.
                       type: string
                     outlet:
                       default: "0"
                       description: |-
-                        Outlet identifies the outlet on that endpoint. Driver-specific: for
-                        Shelly the switch channel id, `"0"` on a single-channel plug; for Eaton
-                        the outlet's 1-based number on the PDU, so `eaton` needs it set.
+                        Outlet identifies the outlet. Driver-specific: for Shelly the switch
+                        channel id, `"0"` on a single-channel plug; for a PDU the outlet's
+                        1-based number on it.
                       maxLength: 16
+                      type: string
+                    pdu:
+                      description: |-
+                        PDU names a RackPDU in the host's namespace, whose controller adopted
+                        it and owns its credentials, certificate pin and egress Service. Power
+                        actions are refused while it is not Ready.
                       type: string
                   type: object
                   x-kubernetes-validations:
-                    - message: an eaton outlet is its 1-based number on the PDU
-                      rule: '!has(self.driver) || self.driver != ''eaton'' || (has(self.outlet) && self.outlet.matches(''^[1-9][0-9]*$''))'
+                    - message: set either pdu or host
+                      rule: has(self.pdu) != has(self.host)
+                    - message: a pdu outlet takes its driver and credentials from the RackPDU
+                      rule: '!has(self.pdu) || (!has(self.driver) && !has(self.credentialsSecretRef))'
+                    - message: a pdu outlet is its 1-based number on the PDU
+                      rule: '!has(self.pdu) || (has(self.outlet) && self.outlet.matches(''^[1-9][0-9]*$''))'
                 serial:
                   description: |-
                     Serial is the Mac's hardware serial (e.g. `C07FC05JQ6NY`). This is the

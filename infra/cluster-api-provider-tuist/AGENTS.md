@@ -49,6 +49,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` | One Mac mini we own as a node: the RackHost it is (`host`), sizing and fleet. Its RackHost keeps it and the Machine that owns it. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Its controller keeps the host's Machine. Nothing running on the host reads it. |
+| `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. See "RackPDU" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -337,7 +338,7 @@ mode behind it:
   every fleet host runs `pmset autorestart 1`, so cutting and restoring an
   outlet is a cold boot with nobody at a console. `internal/power` holds the
   drivers: `eaton` for the rack's Eaton Rack PDU G4s, and `shelly`, which is
-  scoped to home and office prototypes (see "Power drivers" below).
+  scoped to home and office prototypes (see "RackPDU" below).
   `power.Cycle` drives off/settle/on itself rather than using a
   device's native cycle verb, because the settle interval is the one parameter
   that matters and no two devices agree on it. It verifies the outlet actually
@@ -452,55 +453,110 @@ inventory, so racking a mini changes them, and hand approval would be a step per
 mini per edge; scoped to the segment, the tag can put nothing else into the
 tailnet's routing table.
 
-### Power drivers
+### RackPDU
 
-`RackHost.spec.power` names a driver, an endpoint, an outlet and a credentials
-Secret (`username`, `password`, and `tlsFingerprint` for `eaton`). The
-RackHost controller (`observePower`, `tuist.dev/power-action`) and the machine
-controller's bootstrap-recovery cycle resolve it through the same
-`rackHostOutlet`, so both read the same keys and dial the same way.
+The rack is zero touch: shipping a PDU is racking and cabling it. Everything
+after that is the RackPDU controller's (`controllers/macos/rackpdu_controller.go`),
+and nobody makes an account, a 1Password item or a certificate pin by hand.
 
-- **`eaton`**: the rack's Eaton Rack PDU G4 (EVMAFC20A, network card GNM),
-  over its REST API (`/rest/mbdetnrs/2.0`). Outlets are 1-based, so the CRD's
-  `"0"` default is refused, by the CRD's validation and by the driver. A bare
-  host is HTTPS. The card's certificate is self-signed, so it is pinned by the
-  SHA-256 of the leaf certificate from the Secret's `tlsFingerprint` (hex,
-  colons allowed); HTTPS without one is refused with the command that reads
-  it: `openssl s_client -connect <pdu>:443 </dev/null | openssl x509 -noout
-  -fingerprint -sha256`. `Set` reads the outlet first, does nothing when it is
-  already in the requested state, refuses an outlet whose
-  `specifications.switchable` is false, and returns once the outlet reads the
-  new state (10 s at most).
-- **One session per account.** The card allows one session per user, so the
-  driver keeps one bearer token per PDU, serialises every call to that PDU,
-  and logs in again only when the card rejects the token. A login refused with
-  `ConcurentSession` means someone else holds the account's session: give the
-  controller a PDU account of its own, which no person signs in to the web UI
-  with. The manager logs out on shutdown so the next leader is not refused;
-  a crashed operator's session holds the account until the card's hour of
-  inactivity ends it.
-- **`shelly`**: Shelly Gen2 RPC with a Gen1 fallback, plain HTTP by default,
-  for home and office prototypes only.
+**Where the object comes from.** `infra/rack-switch-fleet` renders one `RackPDU`
+per Eaton Rack PDU G4 (`evmafc20a`) node with a management address into
+`k8s/<site>/<pdu>.yaml`, which the rack-switch-fleet workflow applies to the
+site's namespace. An installed PDU is `managedBy: controller`; a planned one is
+`standalone`, which the controller never contacts. The edge reserves the
+card's address against `spec.mac`, so a factory card, which asks for DHCP,
+lands on `spec.address`. A PDU whose MAC nobody has read off the unit yet has
+no reservation: the controller still adopts a card already at the address and
+reports `AddressReserved=False`, reason `NoMAC`.
 
-**The cluster reaches a PDU through an egress Service too.** A PDU sits on the
-rack's management LAN, which a Pod has no route to. With
-`--tailscale-egress-proxy-group` and `--tailscale-egress-namespace` set, the
-RackHost controller keeps one ExternalName Service per PDU address,
-`pdu-<address with dashes>` in the egress namespace, annotated
-`tailscale.com/tailnet-ip` with the address and exposing the port the drivers
-use (443 for HTTPS, 80 for HTTP, or the port in `power.host`). Both power paths
-dial that Service's DNS name in place of the address and keep `power.host` as
-the PDU's identity, which keys its session; the TLS pin makes the name the
-certificate is presented under irrelevant. One Service per PDU, not per host:
-the controller computes the set from every RackHost on each reconcile, deletes
-the ones no host names any more, and so keeps a PDU's Service while any host
-is plugged into it. An endpoint named by a hostname rather than an address, or
-a cluster without the egress configured, is dialled directly.
+**What a reconcile does**, one at a time, on the leader:
 
-The rest of the path is outside this repository's Go code: the edge holding
-the management address advertises the PDU as a /32 and forwards to it with
-SNAT (`infra/rack-switch-fleet`, "The edge nodes"), and
-`infra/tailscale/acls.json` grants `tcp:443` to it and auto-approves the route.
+1. **The egress Service** `rackpdu-<name>` in the egress namespace, annotated
+   `tailscale.com/tailnet-ip` with the address, on :443, when
+   `--tailscale-egress-proxy-group` and `--tailscale-egress-namespace` are set.
+   A Service in another namespace cannot be owned, so the RackPDU carries the
+   finalizer `tuist.dev/rackpdu-egress` and deleting it deletes the Service.
+   Every path to the card dials it.
+2. **The credentials Secret** `<name>-credentials`, owned by the RackPDU:
+   `admin-username` (`admin`), `admin-password`, `username`
+   (`tuist-controller`), `password`, `initial-password`, all generated to the
+   card's default password policy, and `tlsFingerprint`. Keys it lacks are
+   generated; keys it has are never replaced. It is written before any password
+   reaches the card.
+3. **The certificate, trust on first use.** The card's leaf certificate is read
+   without trusting anything. At first contact its SHA-256 is recorded in the
+   Secret and `status.tlsFingerprint`, and every later connection is pinned to
+   it. A card presenting another certificate (a replacement, a factory reset,
+   or something else at the address) sets `CertificateChanged=True`, one
+   warning event, and no writes, until `tuist.dev/accept-certificate=<the new
+   SHA-256>` names it; the controller pins it and clears the annotation, and
+   clears an annotation naming any other certificate with a warning.
+4. **Adoption**, when the card is not adopted or the spec's generation moved,
+   as the administrator: log in with the Secret's password, and when the card
+   refuses it, with the factory `admin`/`admin`, setting the Secret's password
+   in the same request (the card's forced first-login change), with an event
+   naming which. Then, reading first and writing only what differs: accept the
+   licence agreement for `admin`; make the controller's account in the
+   `operators` profile (the least predefined profile holding
+   `role-power-manager`) with `initial-password`, which the card makes it
+   change at its first login, so the driver logs in once with it and sets
+   `password`; accept its licence agreement; set every outlet's
+   `stateOnStartup` to `spec.outletStateOnStartup` (default `on`, so a Mac
+   comes back after a power loss) and read it back; read the card's model,
+   serial, firmware and outlet count into status; log the administrator out.
+   A controller account that does not take the Secret's password is deleted
+   and made again. Every step is idempotent, so a pass stopped anywhere is
+   finished by the next.
+5. **Between generations it only reads**, every 10 minutes, as the
+   controller's account through the driver's session: the outlets' startup
+   state and that the account can still log in. Drift is reported
+   (`drift: drifted`, `Converged=False` reason `Drifted`, one warning event)
+   and not written over; a new generation converges it. An account that cannot
+   log in also makes the PDU not Ready.
+
+**Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
+`AddressReserved`. `Adopted=False` reasons: `Unreachable`, `AdminLoginRefused`
+(neither the Secret's nor the factory password works: someone changed it, or
+the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
+allows one session per account and another holds the administrator's; it
+lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
+for any other reason, carried verbatim), `ConvergeFailed`.
+
+**The administrator login for people** reaches 1Password through the
+PushSecret `<name>-admin` rendered beside the RackPDU, as the item
+`<name> admin` in the `onepassword` store's vault. Without it, it is the
+Secret's `admin-username`/`admin-password`, read with a JIT kubectl elevation.
+
+**RackHost outlets.** `RackHost.spec.power` is `{pdu: <RackPDU>, outlet: "<n>"}`
+on the rack: the outlet's 1-based number on the PDU, the driver `eaton`, the
+dial target the PDU's egress Service, and the credentials and pin its Secret's.
+The CRD refuses `pdu` beside `driver`, `host` or `credentialsSecretRef`, and an
+outlet that is not a positive number. Power actions are refused, and
+`PowerReachable=False` with reason `PDUNotReady`, while the RackPDU is not
+Ready. `driver: shelly` with `host` and `credentialsSecretRef` stays for a desk
+plug; it is dialled directly.
+
+**The eaton driver** (`internal/power/eaton.go`) speaks the G4 REST API
+(`/rest/mbdetnrs/2.0`). The card allows one session per account, so the driver
+keeps one bearer token per card, serialises every call to it, and logs in again
+only when the card rejects the token; the RackPDU controller's drift reads go
+through the same session as the power paths. The manager logs out on shutdown so
+the next leader is not refused; a crashed operator's session holds the account
+until the card's hour of inactivity ends it. `Set` reads the outlet first, does
+nothing when it is already in the requested state, refuses an outlet whose
+`specifications.switchable` is false, and returns once the outlet reads the new
+state. Account changes use the reauthentication token the card requires,
+base64(access_token:password). `internal/power/eatontest` is a fake card.
+
+**Unverified on a real G4**, since the controller has not met one: that the
+factory login answers `newPassword` without anything else first; whether the
+licence agreement gates the API before it is accepted; that `operators` may
+switch outlets and read their settings (the collection lists its roles, not
+what each allows); the exact refusal bodies; whether an account the
+administrator creates starts with an expired password (the collection's
+example says it does, so both cases are handled); how long an outlet takes to
+read its new state; and whether a changed `stateOnStartup` survives the whole
+settings object being written back.
 
 ### Before the machines segment is advertised as one prefix
 
@@ -1054,7 +1110,8 @@ infra/cluster-api-provider-tuist/
 │   │   ├── scalewayapplesiliconmachine_controller.go
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
 │   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
-│   │   ├── rackhost_power.go        # a host's outlet, and the PDU egress Services
+│   │   ├── rackhost_power.go        # a host's outlet, and a RackPDU's egress Service
+│   │   ├── rackpdu_controller.go    # RackPDU: adoption, credentials, certificate pin, drift
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
@@ -1074,7 +1131,7 @@ infra/cluster-api-provider-tuist/
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
-│   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot)
+│   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot); eatontest fakes a card
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
 │   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements

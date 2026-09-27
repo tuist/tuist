@@ -60,24 +60,34 @@ fleet_edge_check() {
 # address per line: each installed power node with a management address whose
 # management link is on a switch behind the edge.
 fleet_edge_power() {
+  fleet_edge_power_devices "$1" | cut -d'|' -f3
+}
+
+# The same devices, one per line, separated by "|": name, the MAC of its
+# management card (empty until someone has read it off the unit) and its
+# management address.
+fleet_edge_power_devices() {
   local site_file="$1"
   jq -r '
     [.devices[]? | select(.behind_edge) | .name] as $behind |
     .nodes[]? | select(.role == "power" and .status == "installed" and (.mgmt_address // "") != "") |
     select(any(.links[]?; .purpose == "management" and (.switch as $s | $behind | index($s)))) |
-    .mgmt_address
+    [.name, (.mac // ""), .mgmt_address] | join("|")
   ' "$site_file"
 }
 
 fleet_edge_check_power() {
-  local site_file="$1" prefix address bad=""
+  local site_file="$1" prefix name mac address bad=""
   prefix="$(jq -r '.management.prefix' "$site_file")"
-  while read -r address; do
-    [ -n "$address" ] || continue
+  while IFS='|' read -r name mac address; do
+    [ -n "$name" ] || continue
     if ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$prefix"; then
       bad="${bad:+$bad$'\n'}power device address $address is not in the management prefix $prefix"
     fi
-  done < <(fleet_edge_power "$site_file")
+    if [ -n "$mac" ] && ! [[ "$mac" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]]; then
+      bad="${bad:+$bad$'\n'}$name's mac '$mac' is not a MAC in lower case"
+    fi
+  done < <(fleet_edge_power_devices "$site_file")
   if [ -n "$bad" ]; then
     echo "error: the power devices behind the edge are wrong:" >&2
     printf '  %s\n' "$bad" >&2
@@ -462,6 +472,13 @@ dhcp-option=tag:known,option:router,$edge_address
 CONF
   local k
   for k in "${known[@]}"; do echo "dhcp-host=$k,infinite"; done
+  # A power device behind the edge takes its address against the MAC of its
+  # management card, so a factory card, which asks for DHCP, lands there with
+  # nobody at it. One whose MAC is not recorded yet gets no reservation.
+  local name mac address
+  while IFS='|' read -r name mac address; do
+    if [ -n "$mac" ]; then echo "dhcp-host=$mac,$address,$name,infinite"; fi
+  done < <(fleet_edge_power_devices "$site_file")
   if [ -n "$provisioning" ]; then
     provisioning_net="$(fleet_network "$provisioning")"
     echo "dhcp-range=set:provisioning,${provisioning_net%.*/*}.100,${provisioning_net%.*/*}.150,$(fleet_prefix_mask "${provisioning#*/}"),1h"

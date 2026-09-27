@@ -2,6 +2,7 @@ package macos
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -112,9 +113,9 @@ type RackHostReconciler struct {
 	// operator's own namespace, same as every other Secret it reads).
 	SecretsNamespace string
 
-	// EgressNamespace and EgressProxyGroup, when both set, put an egress
-	// Service in front of each PDU address (`pdu-<address>`), which the power
-	// paths dial in place of the address. Empty dials the PDU directly.
+	// EgressNamespace and EgressProxyGroup, when both set, have an outlet of a
+	// RackPDU dialled through the PDU's egress Service. Empty dials the card
+	// directly.
 	EgressNamespace  string
 	EgressProxyGroup string
 
@@ -184,7 +185,7 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	if getErr := r.Get(ctx, req.NamespacedName, host); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
 			forgetRackHostMetrics(req.Name)
-			return ctrl.Result{}, reconcilePDUEgressServices(ctx, r.Client, r.egressConfig())
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, getErr
 	}
@@ -213,11 +214,6 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	machineResult, machineErr := r.reconcileMachine(ctx, host)
 	if machineErr != nil {
 		logger.Error(machineErr, "keep the host's Machine; will retry")
-	}
-
-	if egressErr := reconcilePDUEgressServices(ctx, r.Client, r.egressConfig()); egressErr != nil {
-		logger.Error(egressErr, "keep the PDU egress Services; will retry")
-		r.Recorder.Eventf(host, corev1.EventTypeWarning, "PowerEgressFailed", "%v", egressErr)
 	}
 
 	if actionErr := r.runRequestedPowerAction(ctx, host); actionErr != nil {
@@ -331,7 +327,12 @@ func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.Rac
 	driver, outlet, err := r.outletFor(ctx, host)
 	if err != nil {
 		host.Status.Power = string(power.StateUnknown)
-		conditions.MarkFalse(host, PowerReachableCondition, "PowerNotConfigured",
+		reason := "PowerNotConfigured"
+		var notReady *pduNotReadyError
+		if errors.As(err, &notReady) {
+			reason = "PDUNotReady"
+		}
+		conditions.MarkFalse(host, PowerReachableCondition, reason,
 			clusterv1.ConditionSeverityWarning, "%v", err)
 		return
 	}

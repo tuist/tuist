@@ -412,6 +412,9 @@ subjects:
 #     drops (helm.sh/resource-policy: keep), so without it a retired box's
 #     inventory and Machine stay behind. No create: which boxes a rack has is
 #     the chart's.
+#   * rackpdus update/patch: the tuist.dev/accept-certificate annotation that
+#     pins a PDU card's new certificate. No create or delete: which PDUs a rack
+#     has is the site definition's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -434,6 +437,9 @@ rules:
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["racklinuxhosts"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackpdus"]
+    verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]

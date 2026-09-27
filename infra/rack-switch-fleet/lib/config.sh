@@ -772,6 +772,49 @@ fleet_render_k8s() {
     }' | yq -P -
 }
 
+# The site's switched PDUs that have a management address, one name per line.
+fleet_pdus() {
+  jq -r '.nodes[]? | select(.hardware == "evmafc20a" and (.mgmt_address // "") != "") | .name' "$1"
+}
+
+# A PDU as a RackPDU object, which the CAPI provider's RackPDU controller
+# adopts once it is installed (managedBy: controller), and, for one it adopts,
+# a PushSecret that copies the administrator login the controller generated
+# into 1Password. Spec only, like the RackSwitch objects.
+fleet_render_pdu() {
+  local site_file="$1" name="$2"
+  jq -r --arg n "$name" '
+    .site as $site | .kubernetes.namespace as $ns |
+    .nodes[] | select(.name == $n) |
+    (.status == "installed") as $managed |
+    {
+      apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
+      kind: "RackPDU",
+      metadata: { name: .name, labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
+      spec: ({ site: $site, model: .hardware }
+        + (if .mac then { mac: .mac } else {} end)
+        + { address: .mgmt_address }
+        + (if .ats then { chain: .ats } else {} end)
+        + { managedBy: (if $managed then "controller" else "standalone" end), outletStateOnStartup: "on" })
+    },
+    (if $managed then {
+      apiVersion: "external-secrets.io/v1alpha1",
+      kind: "PushSecret",
+      metadata: { name: "\(.name)-admin", labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
+      spec: {
+        refreshInterval: "1h",
+        updatePolicy: "Replace",
+        deletionPolicy: "None",
+        secretStoreRefs: [{ name: "onepassword", kind: "ClusterSecretStore" }],
+        selector: { secret: { name: "\(.name)-credentials" } },
+        data: [
+          { match: { secretKey: "admin-username", remoteRef: { remoteKey: "\(.name) admin", property: "username" } } },
+          { match: { secretKey: "admin-password", remoteRef: { remoteKey: "\(.name) admin", property: "password" } } }
+        ]
+      }
+    } else empty end)
+  ' "$site_file" | yq -P -p=json '(select(.kind == "RackPDU") | .spec.outletStateOnStartup) style="double"' -
+}
 
 # Which terminal line is this connection, from `show users` output. The firmware
 # names each connection's task tSshNN with N only ever increasing, so the newest

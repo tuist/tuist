@@ -685,6 +685,17 @@ func main() {
 		setupLog.Error(err, "add power session cleanup")
 		os.Exit(1)
 	}
+	if err := (&macos.RackPDUReconciler{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackpdu-controller"),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackPDUReconciler")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),

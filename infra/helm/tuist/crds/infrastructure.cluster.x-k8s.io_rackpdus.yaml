@@ -1,0 +1,233 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: rackpdus.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: RackPDU
+    listKind: RackPDUList
+    plural: rackpdus
+    shortNames:
+      - rpdu
+    singular: rackpdu
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.site
+          name: Site
+          type: string
+        - jsonPath: .spec.address
+          name: Address
+          type: string
+        - jsonPath: .spec.managedBy
+          name: Managed By
+          type: string
+        - jsonPath: .status.adopted
+          name: Adopted
+          type: boolean
+        - jsonPath: .status.drift
+          name: Drift
+          type: string
+        - jsonPath: .status.lastVerified
+          name: Verified
+          type: date
+        - jsonPath: .status.serialNumber
+          name: Serial
+          priority: 1
+          type: string
+        - jsonPath: .status.firmwareVersion
+          name: Firmware
+          priority: 1
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RackPDU is one switched PDU in a rack we operate, adopted and kept
+            configured by the RackPDU controller.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackPDUSpec is one switched PDU, rendered from the rack's site definition
+                (infra/rack-switch-fleet).
+              properties:
+                address:
+                  description: Address is the card's fixed address on the rack's management LAN.
+                  pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
+                  type: string
+                chain:
+                  description: Chain is the transfer switch the PDU hangs off.
+                  type: string
+                mac:
+                  description: |-
+                    MAC is the management card's MAC, against which the rack's edge reserves
+                    Address. Empty until someone has read it off the unit: the controller
+                    still adopts a card already at Address, and reports that a factory card
+                    would not get there.
+                  pattern: ^$|^([0-9a-f]{2}:){5}[0-9a-f]{2}$
+                  type: string
+                managedBy:
+                  default: standalone
+                  description: |-
+                    ManagedBy gates every write: only `controller` is adopted and
+                    configured. `standalone` is never contacted.
+                  enum:
+                    - controller
+                    - standalone
+                  type: string
+                model:
+                  description: Model is the PDU's hardware model. Only the Eaton Rack PDU G4 is driven.
+                  enum:
+                    - evmafc20a
+                  type: string
+                outletStateOnStartup:
+                  default: "on"
+                  description: |-
+                    OutletStateOnStartup is every outlet's state when the PDU powers up.
+                    `on`, so a Mac comes back after a power loss without anyone switching
+                    its outlet.
+                  enum:
+                    - "on"
+                    - "off"
+                    - last known state
+                  type: string
+                site:
+                  description: Site is the rack site (e.g. `ber1`).
+                  type: string
+              required:
+                - address
+                - model
+                - site
+              type: object
+            status:
+              description: RackPDUStatus is what the controller observed.
+              properties:
+                adopted:
+                  description: |-
+                    Adopted is whether the controller configured the card: its
+                    administrator password, its licence agreement, the controller's account
+                    and the outlets' startup state.
+                  type: boolean
+                conditions:
+                  description: |-
+                    Conditions: Adopted, Converged, Ready, CertificateChanged,
+                    AddressReserved.
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                credentialsSecret:
+                  description: |-
+                    CredentialsSecret is the Secret the controller generated and owns: the
+                    administrator's password, the controller's account and the pin.
+                  type: string
+                drift:
+                  description: Drift is how the card compared with the spec when last verified.
+                  enum:
+                    - unknown
+                    - none
+                    - drifted
+                  type: string
+                firmwareVersion:
+                  type: string
+                lastVerified:
+                  description: LastVerified is when the card was last read.
+                  format: date-time
+                  type: string
+                message:
+                  description: Message says what the last reconcile found.
+                  type: string
+                model:
+                  description: |-
+                    Model, SerialNumber and FirmwareVersion are the management card's, as
+                    it reports them.
+                  type: string
+                observedGeneration:
+                  description: ObservedGeneration is the generation the card was last converged to.
+                  format: int64
+                  type: integer
+                outletCount:
+                  description: OutletCount is how many outlets the card reports.
+                  type: integer
+                presentedFingerprint:
+                  description: |-
+                    PresentedFingerprint is the certificate the card presents when it no
+                    longer matches TLSFingerprint.
+                  type: string
+                reachable:
+                  description: Reachable is whether the card answered the last reconcile.
+                  type: boolean
+                serialNumber:
+                  type: string
+                tlsFingerprint:
+                  description: |-
+                    TLSFingerprint is the SHA-256 of the certificate the card presented at
+                    first contact, which every later connection is pinned to.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

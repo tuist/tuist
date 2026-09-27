@@ -89,6 +89,7 @@ cmd_render() {
     fi
   done
   rm -f "$rendered" "$object"
+  render_pdus "$check" || stale=1
   render_edge "$check" || stale=1
   render_cables "$check" || stale=1
   if (( stale )); then
@@ -97,6 +98,28 @@ cmd_render() {
   fi
   (( check )) && echo "rendered configs are up to date with the site definition"
   return 0
+}
+
+# The site's RackPDU objects, from the same site definition.
+render_pdus() {
+  local check="$1" pdu target rendered status=0
+  rendered="$(mktemp)"
+  for pdu in $(fleet_pdus "$(site_file)"); do
+    target="$(k8s_path "$pdu")"
+    fleet_render_pdu "$(site_file)" "$pdu" > "$rendered"
+    if (( check )); then
+      if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+        echo "stale: ${target#"$FLEET_ROOT"/}" >&2
+        status=1
+      fi
+    else
+      mkdir -p "$(dirname "$target")"
+      cp "$rendered" "$target"
+      echo "rendered ${target#"$FLEET_ROOT"/}"
+    fi
+  done
+  rm -f "$rendered"
+  return "$status"
 }
 
 # The site's cable schedule, from the same site definition.

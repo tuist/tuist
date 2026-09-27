@@ -358,9 +358,9 @@
 			"ip":  ["tcp:22"],
 		},
 
-		// Staging cluster → ber1-pdu-b's REST API, which the operator switches
-		// the rack Macs' outlets through (RackHost `power`, eaton driver),
-		// through the macmini-egress ProxyGroup. The PDU sits on the rack's
+		// Staging cluster → ber1-pdu-b's REST API, which the operator adopts
+		// the card through and switches the rack Macs' outlets through (the
+		// RackPDU ber1-pdu-b), through the macmini-egress ProxyGroup. The PDU sits on the rack's
 		// management LAN; the edge holding the management address advertises
 		// it as a /32 and forwards to it with SNAT. HTTPS only.
 		{

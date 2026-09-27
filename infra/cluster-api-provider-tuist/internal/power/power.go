@@ -57,6 +57,10 @@ type Outlet struct {
 	// endpoint is unauthenticated.
 	Username string
 	Password string
+	// InitialPassword is the password an account was created with. A card
+	// makes a new account change it at its first login, so a driver refused
+	// Password tries this one, changing it to Password.
+	InitialPassword string
 	// TLSFingerprint pins the endpoint's leaf certificate by its SHA-256, as
 	// hex with or without colons. Drivers that speak HTTPS to a self-signed
 	// card verify the pin instead of a CA chain or a hostname.

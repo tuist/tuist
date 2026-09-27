@@ -141,39 +141,41 @@ type RackHostLocation struct {
 	PositionU int `json:"positionU,omitempty"`
 }
 
-// PowerOutletRef addresses one switched outlet.
-// +kubebuilder:validation:XValidation:rule="!has(self.driver) || self.driver != 'eaton' || (has(self.outlet) && self.outlet.matches('^[1-9][0-9]*$'))",message="an eaton outlet is its 1-based number on the PDU"
+// PowerOutletRef addresses one switched outlet: an outlet of a RackPDU in the
+// host's namespace (`pdu`), the rack's form, or an endpoint of its own
+// (`driver`, `host`, `credentialsSecretRef`), the prototypes' form.
+// +kubebuilder:validation:XValidation:rule="has(self.pdu) != has(self.host)",message="set either pdu or host"
+// +kubebuilder:validation:XValidation:rule="!has(self.pdu) || (!has(self.driver) && !has(self.credentialsSecretRef))",message="a pdu outlet takes its driver and credentials from the RackPDU"
+// +kubebuilder:validation:XValidation:rule="!has(self.pdu) || (has(self.outlet) && self.outlet.matches('^[1-9][0-9]*$'))",message="a pdu outlet is its 1-based number on the PDU"
 type PowerOutletRef struct {
-	// Driver selects the power backend. `eaton` speaks the REST API of the
-	// Eaton Rack PDU G4, the rack's production PDU, over HTTPS pinned to the
-	// card's certificate. `shelly` speaks the Shelly Gen2 RPC (with a Gen1
-	// fallback) and is for home and office prototypes only.
-	// +kubebuilder:default=shelly
-	// +kubebuilder:validation:Enum=shelly;eaton
+	// PDU names a RackPDU in the host's namespace, whose controller adopted
+	// it and owns its credentials, certificate pin and egress Service. Power
+	// actions are refused while it is not Ready.
+	// +optional
+	PDU string `json:"pdu,omitempty"`
+
+	// Driver selects the power backend of an endpoint named by `host`; unset
+	// is `shelly`, the Shelly Gen2 RPC (with a Gen1 fallback), for home and
+	// office prototypes only. The rack's PDUs are RackPDUs, named by `pdu`.
+	// +kubebuilder:validation:Enum=shelly
+	// +optional
 	Driver string `json:"driver,omitempty"`
 
-	// Host is the PDU / plug endpoint, as a host, host:port or
-	// `scheme://host`. A bare host is plain HTTP for `shelly` and HTTPS for
-	// `eaton`. With the tailnet egress configured, an IP address is dialled
-	// through the egress Service `pdu-<address>`.
+	// Host is the endpoint, as a host, host:port or `scheme://host`; a bare
+	// host is plain HTTP. It is dialled directly.
 	// +optional
 	Host string `json:"host,omitempty"`
 
-	// Outlet identifies the outlet on that endpoint. Driver-specific: for
-	// Shelly the switch channel id, `"0"` on a single-channel plug; for Eaton
-	// the outlet's 1-based number on the PDU, so `eaton` needs it set.
+	// Outlet identifies the outlet. Driver-specific: for Shelly the switch
+	// channel id, `"0"` on a single-channel plug; for a PDU the outlet's
+	// 1-based number on it.
 	// +kubebuilder:default="0"
 	// +kubebuilder:validation:MaxLength=16
 	Outlet string `json:"outlet,omitempty"`
 
 	// CredentialsSecretRef names a Secret in the operator's namespace holding
-	// `username` and `password` for the endpoint, and for `eaton` the
-	// `tlsFingerprint` its certificate is pinned to: the SHA-256 of the
-	// card's certificate, as hex with or without colons. Optional for an
-	// unauthenticated plug on a management VLAN. Several hosts normally point
-	// at the same Secret, since a PDU has one credential and many outlets. The
-	// Eaton card allows one session per account, so the controller's account
-	// is its own and no person signs in to the web UI with it.
+	// `username` and `password` for the endpoint named by `host`. Optional
+	// for an unauthenticated plug.
 	// +optional
 	CredentialsSecretRef *corev1.LocalObjectReference `json:"credentialsSecretRef,omitempty"`
 }

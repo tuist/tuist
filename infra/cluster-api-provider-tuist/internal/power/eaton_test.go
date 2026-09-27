@@ -2,186 +2,59 @@ package power
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power/eatontest"
 )
 
-// The fake is written from Eaton's published Rack PDU G4 API (the Postman
-// collection "Rack PDU G4" and the GNM user guide), not from captured traffic.
+const (
+	testUser     = "tuist-controller"
+	testPassword = "Hunter2-hunter2"
+)
 
-type fakeOutlet struct {
-	on         bool
-	switchable bool
-	// lag is how many reads still report the state before the last switch.
-	lag int
-}
-
-type fakeG4 struct {
-	mu sync.Mutex
-
-	username, password string
-	outlets            map[int]*fakeOutlet
-
-	token, session string
-	// foreignSession is a session some other client holds on the account.
-	foreignSession bool
-	logins         int
-	logouts        int
-	actions        []string
-	inFlight       int
-	maxInFlight    int
-	delay          time.Duration
-	// switchLag is how many reads after a switch action still report the old
-	// state.
-	switchLag int
-}
-
-func newFakeG4(outlets map[int]*fakeOutlet) *fakeG4 {
-	return &fakeG4{username: "tuist-controller", password: "hunter2", outlets: outlets}
-}
-
-func (f *fakeG4) handler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.mu.Lock()
-		f.inFlight++
-		if f.inFlight > f.maxInFlight {
-			f.maxInFlight = f.inFlight
-		}
-		delay := f.delay
-		f.mu.Unlock()
-		defer func() {
-			f.mu.Lock()
-			f.inFlight--
-			f.mu.Unlock()
-		}()
-		if delay > 0 {
-			select {
-			case <-time.After(delay):
-			case <-r.Context().Done():
-				return
-			}
-		}
-
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-
-		if r.URL.Path == "/rest/mbdetnrs/2.0/oauth2/token/" && r.Method == http.MethodPost {
-			var body map[string]string
-			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["username"] != f.username || body["password"] != f.password || body["grant_type"] != "password" {
-				w.WriteHeader(http.StatusUnauthorized)
-				fmt.Fprint(w, `{"code":"InvalidCredential"}`)
-				return
-			}
-			if f.foreignSession || f.token != "" {
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"code":"ConcurentSession"}`)
-				return
-			}
-			f.logins++
-			f.token = "token-" + strconv.Itoa(f.logins)
-			f.session = "/mbdetnrs/2.0/sessionService/sessions/" + strconv.Itoa(f.logins)
-			fmt.Fprintf(w, `{"token_type":"Bearer","access_token":%q,"session":%q}`, f.token, f.session)
-			return
-		}
-
-		if f.token == "" || r.Header.Get("Authorization") != "Bearer "+f.token {
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, `{"code":"InvalidCredential"}`)
-			return
-		}
-
-		if r.Method == http.MethodDelete && r.URL.Path == "/rest"+f.session {
-			f.token, f.session = "", ""
-			f.logouts++
-			return
-		}
-
-		rest, ok := strings.CutPrefix(r.URL.Path, "/rest/mbdetnrs/2.0/powerDistributions/1/outlets/")
-		if !ok {
-			http.NotFound(w, r)
-			return
-		}
-		id, action, _ := strings.Cut(rest, "/actions/")
-		n, _ := strconv.Atoi(id)
-		outlet, known := f.outlets[n]
-		if !known {
-			http.NotFound(w, r)
-			return
-		}
-		switch {
-		case r.Method == http.MethodGet && action == "":
-			on := outlet.on
-			if outlet.lag > 0 {
-				outlet.lag--
-				on = !on
-			}
-			fmt.Fprintf(w, `{"id":"%d","status":{"switchedOn":%t,"delayBeforeSwitchOn":-1,"delayBeforeSwitchOff":-1},"specifications":{"switchable":%t}}`, n, on, outlet.switchable)
-		case r.Method == http.MethodPost && (action == "switchOn" || action == "switchOff"):
-			if !outlet.switchable {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			f.actions = append(f.actions, fmt.Sprintf("%d/%s", n, action))
-			outlet.on = action == "switchOn"
-			outlet.lag = f.switchLag
-		default:
-			http.NotFound(w, r)
-		}
-	})
-}
-
-// expire ends the session on the card, as its lease or inactivity timeout does.
-func (f *fakeG4) expire() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.token, f.session = "", ""
-}
-
-func (f *fakeG4) snapshot() (logins, logouts int, actions []string, maxInFlight int) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.logins, f.logouts, append([]string(nil), f.actions...), f.maxInFlight
-}
-
-func eatonAgainst(t *testing.T, fake *fakeG4) (*Eaton, Outlet) {
+// eatonAgainst starts a card on which the controller's account exists and is
+// ready, and returns a driver and an outlet on it.
+func eatonAgainst(t *testing.T, outlets int) (*eatontest.Card, *Eaton, Outlet) {
 	t.Helper()
-	srv := httptest.NewTLSServer(fake.handler())
-	t.Cleanup(srv.Close)
-	sum := sha256.Sum256(srv.Certificate().Raw)
+	card := eatontest.New(outlets)
+	t.Cleanup(card.Close)
+	card.AddAccount(testUser, testPassword, eatontest.ProfileOperators)
 	e := &Eaton{SettleTimeout: 2 * time.Second, PollInterval: time.Millisecond}
-	return e, Outlet{
+	return card, e, Outlet{
 		Driver:         DriverEaton,
-		Host:           srv.URL,
+		Host:           card.URL(),
 		Outlet:         "1",
-		Username:       fake.username,
-		Password:       fake.password,
-		TLSFingerprint: formatFingerprint(sum[:]),
+		Username:       testUser,
+		Password:       testPassword,
+		TLSFingerprint: card.Fingerprint(),
 	}
+}
+
+func logins(card *eatontest.Card) int {
+	card.Mu.Lock()
+	defer card.Mu.Unlock()
+	return len(card.Logins)
+}
+
+func actions(card *eatontest.Card) []string {
+	card.Mu.Lock()
+	defer card.Mu.Unlock()
+	return append([]string(nil), card.Actions...)
 }
 
 func TestEatonReadsAndSwitchesOnOneSession(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 2)
 
 	got, err := e.State(context.Background(), outlet)
-	if err != nil {
-		t.Fatalf("State: %v", err)
-	}
-	if got != StateOn {
-		t.Fatalf("State = %q, want %q", got, StateOn)
+	if err != nil || got != StateOn {
+		t.Fatalf("State = %q, %v; want On", got, err)
 	}
 	if err := e.Set(context.Background(), outlet, false); err != nil {
 		t.Fatalf("Set(off): %v", err)
@@ -190,70 +63,59 @@ func TestEatonReadsAndSwitchesOnOneSession(t *testing.T) {
 	if err != nil || got != StateOff {
 		t.Fatalf("State after Set(off) = %q, %v; want Off", got, err)
 	}
-
-	logins, _, actions, _ := fake.snapshot()
-	if logins != 1 {
-		t.Fatalf("logged in %d times, want 1: the card allows one session per user", logins)
+	if n := logins(card); n != 1 {
+		t.Fatalf("logged in %d times, want 1: the card allows one session per user", n)
 	}
-	if strings.Join(actions, ",") != "1/switchOff" {
-		t.Fatalf("actions = %v, want [1/switchOff]", actions)
+	if got := strings.Join(actions(card), ","); got != "1/switchOff" {
+		t.Fatalf("actions = %s, want 1/switchOff", got)
 	}
 }
 
 func TestEatonSetIsIdempotent(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
-
+	card, e, outlet := eatonAgainst(t, 1)
 	if err := e.Set(context.Background(), outlet, true); err != nil {
 		t.Fatalf("Set(on) on an outlet already on: %v", err)
 	}
-	if _, _, actions, _ := fake.snapshot(); len(actions) != 0 {
-		t.Fatalf("switched an outlet already in the requested state: %v", actions)
+	if got := actions(card); len(got) != 0 {
+		t.Fatalf("switched an outlet already in the requested state: %v", got)
 	}
 }
 
 func TestEatonSetWaitsForTheOutletToSwitch(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	fake.switchLag = 3
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 1)
+	card.SwitchLag = 3
 	if err := Cycle(context.Background(), e, outlet, time.Millisecond); err != nil {
 		t.Fatalf("Cycle against an outlet that reports its switch late: %v", err)
 	}
 }
 
 func TestEatonSetFailsWhenTheOutletNeverSwitches(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 1)
 	e.SettleTimeout = 20 * time.Millisecond
-	fake.switchLag = 1 << 20
-
+	card.SwitchLag = 1 << 20
 	err := e.Set(context.Background(), outlet, false)
 	if err == nil || !strings.Contains(err.Error(), "still reads") {
-		t.Fatalf("Set against an outlet that never switches = %v, want a timeout naming its state", err)
+		t.Fatalf("Set against an outlet that never switches = %v", err)
 	}
 }
 
 func TestEatonLogsInAgainWhenTheCardEndsTheSession(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
-
+	card, e, outlet := eatonAgainst(t, 1)
 	if _, err := e.State(context.Background(), outlet); err != nil {
 		t.Fatalf("State: %v", err)
 	}
-	fake.expire()
+	card.Expire()
 	if _, err := e.State(context.Background(), outlet); err != nil {
 		t.Fatalf("State after the session expired: %v", err)
 	}
-	if logins, _, _, _ := fake.snapshot(); logins != 2 {
-		t.Fatalf("logged in %d times, want 2", logins)
+	if n := logins(card); n != 2 {
+		t.Fatalf("logged in %d times, want 2", n)
 	}
 }
 
 func TestEatonNamesAConcurrentSession(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	fake.foreignSession = true
-	e, outlet := eatonAgainst(t, fake)
-
+	card, e, outlet := eatonAgainst(t, 1)
+	card.ForeignSessions[testUser] = true
 	_, err := e.State(context.Background(), outlet)
 	if !errors.Is(err, ErrEatonConcurrentSession) {
 		t.Fatalf("State with the account's session held elsewhere = %v, want ErrEatonConcurrentSession", err)
@@ -264,21 +126,36 @@ func TestEatonNamesAConcurrentSession(t *testing.T) {
 }
 
 func TestEatonRefusesWrongCredentials(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
-	outlet.Password = "wrong"
-
+	_, e, outlet := eatonAgainst(t, 1)
+	outlet.Password = "Wrong-password1"
 	_, err := e.State(context.Background(), outlet)
-	if err == nil || !strings.Contains(err.Error(), "refused the username and password") {
+	var refused *EatonLoginError
+	if !errors.As(err, &refused) || !refused.Refused() || !strings.Contains(err.Error(), "InvalidCredential") {
 		t.Fatalf("State with a wrong password = %v", err)
 	}
 }
 
-func TestEatonSerialisesCallsToOneCard(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}, 2: {on: false, switchable: true}})
-	fake.delay = 2 * time.Millisecond
-	e, outlet := eatonAgainst(t, fake)
+// A new account must change its password at its first login, so a driver
+// given the password it was created with changes it to the one it keeps.
+func TestEatonChangesAnAccountsInitialPassword(t *testing.T) {
+	card, e, outlet := eatonAgainst(t, 1)
+	card.Mu.Lock()
+	a := card.Accounts["2"]
+	a.Password, a.PasswordExpired = "Initial-pass1", true
+	card.Mu.Unlock()
+	outlet.InitialPassword = "Initial-pass1"
 
+	if _, err := e.State(context.Background(), outlet); err != nil {
+		t.Fatalf("State with an account at its first login: %v", err)
+	}
+	if got := card.Account(testUser); got.Password != testPassword || got.PasswordExpired {
+		t.Fatalf("account = %+v, want its password changed to the driver's", got)
+	}
+}
+
+func TestEatonSerialisesCallsToOneCard(t *testing.T) {
+	card, e, outlet := eatonAgainst(t, 2)
+	card.Delay = 2 * time.Millisecond
 	var wg sync.WaitGroup
 	errs := make(chan error, 20)
 	for i := range 20 {
@@ -297,18 +174,18 @@ func TestEatonSerialisesCallsToOneCard(t *testing.T) {
 	for err := range errs {
 		t.Fatalf("concurrent State: %v", err)
 	}
-	logins, _, _, maxInFlight := fake.snapshot()
-	if logins != 1 {
-		t.Fatalf("logged in %d times, want 1", logins)
+	if n := logins(card); n != 1 {
+		t.Fatalf("logged in %d times, want 1", n)
 	}
-	if maxInFlight != 1 {
-		t.Fatalf("%d requests reached the card at once, want 1", maxInFlight)
+	card.Mu.Lock()
+	defer card.Mu.Unlock()
+	if card.MaxInFlight != 1 {
+		t.Fatalf("%d requests reached the card at once, want 1", card.MaxInFlight)
 	}
 }
 
 func TestEatonOutletIsAOneBasedNumber(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 1)
 	for _, id := range []string{"0", "", "-1", "A1", "outlet1"} {
 		outlet.Outlet = id
 		_, err := e.State(context.Background(), outlet)
@@ -319,29 +196,26 @@ func TestEatonOutletIsAOneBasedNumber(t *testing.T) {
 			t.Fatalf("Set(outlet %q) succeeded", id)
 		}
 	}
-	if logins, _, _, _ := fake.snapshot(); logins != 0 {
-		t.Fatalf("logged in for an outlet id that cannot exist")
+	if n := logins(card); n != 0 {
+		t.Fatal("logged in for an outlet id that cannot exist")
 	}
 }
 
 func TestEatonRefusesToSwitchANonSwitchableOutlet(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: false}})
-	e, outlet := eatonAgainst(t, fake)
-
+	card, e, outlet := eatonAgainst(t, 1)
+	card.Outlets[1].Switchable = false
 	err := e.Set(context.Background(), outlet, false)
 	if err == nil || !strings.Contains(err.Error(), "not switchable") {
 		t.Fatalf("Set on a non-switchable outlet = %v", err)
 	}
-	if _, _, actions, _ := fake.snapshot(); len(actions) != 0 {
-		t.Fatalf("sent %v to a non-switchable outlet", actions)
+	if got := actions(card); len(got) != 0 {
+		t.Fatalf("sent %v to a non-switchable outlet", got)
 	}
 }
 
 func TestEatonHTTPSNeedsAFingerprint(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	_, e, outlet := eatonAgainst(t, 1)
 	outlet.TLSFingerprint = ""
-
 	_, err := e.State(context.Background(), outlet)
 	if err == nil || !strings.Contains(err.Error(), "openssl s_client -connect 127.0.0.1:443") {
 		t.Fatalf("State without a fingerprint = %v, want the command that reads one", err)
@@ -349,57 +223,51 @@ func TestEatonHTTPSNeedsAFingerprint(t *testing.T) {
 }
 
 func TestEatonRefusesACertificateThatIsNotPinned(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 1)
 	outlet.TLSFingerprint = strings.Repeat("ab", 32)
-
 	_, err := e.State(context.Background(), outlet)
 	if err == nil || !strings.Contains(err.Error(), "not the pinned") {
 		t.Fatalf("State against an unpinned certificate = %v", err)
 	}
-	if logins, _, _, _ := fake.snapshot(); logins != 0 {
+	if n := logins(card); n != 0 {
 		t.Fatal("sent credentials to a card whose certificate did not match the pin")
 	}
 }
 
 func TestEatonDialsThroughDialAndKeepsTheSessionPerCard(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 1)
 	u, err := url.Parse(outlet.Host)
 	if err != nil {
 		t.Fatal(err)
 	}
 	outlet.Host = "https://pdu.rack.invalid:" + u.Port()
 	outlet.Dial = "127.0.0.1"
-
 	if got, err := e.State(context.Background(), outlet); err != nil || got != StateOn {
 		t.Fatalf("State through Dial = %q, %v", got, err)
 	}
-
 	// Moving the dial logs the old session out before opening another, or
 	// the card would refuse the new login.
 	outlet.Dial = "localhost"
 	if _, err := e.State(context.Background(), outlet); err != nil {
 		t.Fatalf("State after the dial moved: %v", err)
 	}
-	logins, logouts, _, _ := fake.snapshot()
-	if logins != 2 || logouts != 1 {
-		t.Fatalf("logins = %d, logouts = %d; want 2 and 1", logins, logouts)
+	card.Mu.Lock()
+	defer card.Mu.Unlock()
+	if len(card.Logins) != 2 || card.Logouts != 1 {
+		t.Fatalf("logins = %d, logouts = %d; want 2 and 1", len(card.Logins), card.Logouts)
 	}
 }
 
 func TestEatonCloseLogsOut(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	e, outlet := eatonAgainst(t, fake)
+	card, e, outlet := eatonAgainst(t, 1)
 	if _, err := e.State(context.Background(), outlet); err != nil {
 		t.Fatalf("State: %v", err)
 	}
-	r := NewRegistryWith(map[string]Driver{DriverEaton: e})
-	if err := r.Close(context.Background()); err != nil {
+	if err := NewRegistryWith(map[string]Driver{DriverEaton: e}).Close(context.Background()); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	if _, logouts, _, _ := fake.snapshot(); logouts != 1 {
-		t.Fatalf("logouts = %d, want 1", logouts)
+	if n := card.OpenSessions(); n != 0 {
+		t.Fatalf("%d sessions left open", n)
 	}
 	// A successor logs in without meeting its predecessor's session.
 	if _, err := (&Eaton{}).State(context.Background(), outlet); err != nil {
@@ -408,10 +276,8 @@ func TestEatonCloseLogsOut(t *testing.T) {
 }
 
 func TestEatonHonoursTheContext(t *testing.T) {
-	fake := newFakeG4(map[int]*fakeOutlet{1: {on: true, switchable: true}})
-	fake.delay = time.Second
-	e, outlet := eatonAgainst(t, fake)
-
+	card, e, outlet := eatonAgainst(t, 1)
+	card.Delay = time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	start := time.Now()
@@ -420,6 +286,21 @@ func TestEatonHonoursTheContext(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("State took %s against a 50ms deadline", elapsed)
+	}
+}
+
+func TestEatonReadsOutletSettingsAndIdentification(t *testing.T) {
+	_, e, outlet := eatonAgainst(t, 3)
+	outlets, err := e.OutletSettings(context.Background(), outlet)
+	if err != nil {
+		t.Fatalf("OutletSettings: %v", err)
+	}
+	if len(outlets) != 3 || outlets[2].Number != 3 || outlets[0].StateOnStartup != "last known state" {
+		t.Fatalf("outlets = %+v", outlets)
+	}
+	id, err := e.Identification(context.Background(), outlet)
+	if err != nil || id.Serial != "421G456777" || id.Firmware != "3.4.3" {
+		t.Fatalf("Identification = %+v, %v", id, err)
 	}
 }
 
@@ -433,6 +314,19 @@ func TestEatonBareHostIsHTTPS(t *testing.T) {
 	}
 	if config.base != "https://192.168.0.16" || key != "https://192.168.0.16" {
 		t.Fatalf("base = %q, key = %q; want https://192.168.0.16", config.base, key)
+	}
+}
+
+func TestProbeTLSFingerprint(t *testing.T) {
+	card, _, outlet := eatonAgainst(t, 1)
+	got, err := ProbeTLSFingerprint(context.Background(), outlet, time.Second)
+	if err != nil || got != card.Fingerprint() {
+		t.Fatalf("ProbeTLSFingerprint = %q, %v; want %q", got, err, card.Fingerprint())
+	}
+	card.RotateCertificate()
+	got, err = ProbeTLSFingerprint(context.Background(), outlet, time.Second)
+	if err != nil || got != card.Fingerprint() || got == outlet.TLSFingerprint {
+		t.Fatalf("after a new certificate ProbeTLSFingerprint = %q, %v", got, err)
 	}
 }
 

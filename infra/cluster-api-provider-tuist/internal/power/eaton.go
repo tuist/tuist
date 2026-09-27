@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -69,13 +70,17 @@ type eatonEndpoint struct {
 	client  *http.Client
 	token   string
 	session string
+	// sessionPassword is the password the session was opened with, which the
+	// reauthentication token is made from.
+	sessionPassword string
 }
 
 type eatonConfig struct {
-	base        string
-	fingerprint string
-	username    string
-	password    string
+	base            string
+	fingerprint     string
+	username        string
+	password        string
+	initialPassword string
 }
 
 type eatonOutlet struct {
@@ -269,7 +274,7 @@ func (e *Eaton) config(o Outlet) (eatonConfig, string, error) {
 	if err != nil {
 		return eatonConfig{}, "", err
 	}
-	config := eatonConfig{base: base, username: o.Username, password: o.Password}
+	config := eatonConfig{base: base, username: o.Username, password: o.Password, initialPassword: o.InitialPassword}
 	switch origin.Scheme {
 	case "https":
 		if strings.TrimSpace(o.TLSFingerprint) == "" {
@@ -328,31 +333,84 @@ func (ep *eatonEndpoint) configure(ctx context.Context, config eatonConfig, time
 	return nil
 }
 
+// EatonLoginError is the card refusing a login, with its code (InvalidCredential,
+// ExpiredCredentials, NotAuthorized, AccountBlocked, ConcurentSession) and the
+// body it answered with, verbatim.
+type EatonLoginError struct {
+	Status int
+	Code   string
+	Body   string
+}
+
+func (e *EatonLoginError) Error() string {
+	switch e.Code {
+	case "ConcurentSession":
+		return "log in: " + ErrEatonConcurrentSession.Error()
+	case "ExpiredCredentials":
+		return "log in: the account's password has expired: " + e.Body
+	case "AccountBlocked":
+		return "log in: the account is blocked: " + e.Body
+	case "InvalidCredential":
+		return "log in: the card refused the username and password: " + e.Body
+	}
+	return fmt.Sprintf("log in: %d: %s", e.Status, e.Body)
+}
+
+func (e *EatonLoginError) Is(target error) bool {
+	return target == ErrEatonConcurrentSession && e.Code == "ConcurentSession"
+}
+
+// Refused reports a login the card refused for its password: a wrong one, or
+// one it makes the account change first.
+func (e *EatonLoginError) Refused() bool {
+	return e.Status == http.StatusUnauthorized || e.Code == "ExpiredCredentials"
+}
+
+var eatonLoginCodes = []string{"ConcurentSession", "ExpiredCredentials", "AccountBlocked", "NotAuthorized", "InvalidCredential"}
+
+// login opens the session with the account's password, or, when the card
+// refuses it and the account has an initial password, with that one, changing
+// it to the password as the card requires at an account's first login.
 func (ep *eatonEndpoint) login(ctx context.Context) error {
-	body, err := json.Marshal(map[string]string{
-		"username":   ep.config.username,
-		"password":   ep.config.password,
-		"grant_type": "password",
-		"scope":      "GUIAccess",
-	})
+	err := ep.authenticate(ctx, ep.config.password, "")
+	var refused *EatonLoginError
+	if err == nil || ep.config.initialPassword == "" || !errors.As(err, &refused) || !refused.Refused() {
+		return err
+	}
+	if second := ep.authenticate(ctx, ep.config.initialPassword, ep.config.password); second != nil {
+		return fmt.Errorf("%w; with the initial password: %v", err, second)
+	}
+	return nil
+}
+
+// authenticate asks the card for a token ("OAuth2/token"), setting a new
+// password in the same request when newPassword is not empty ("OAuth2/change
+// password"), which is how the card's forced password change is answered.
+func (ep *eatonEndpoint) authenticate(ctx context.Context, password, newPassword string) error {
+	request := map[string]string{"username": ep.config.username, "password": password}
+	if newPassword != "" {
+		request["newPassword"] = newPassword
+	}
+	body, err := json.Marshal(request)
 	if err != nil {
 		return err
 	}
-	status, answer, err := ep.do(ctx, http.MethodPost, eatonAPI+"/oauth2/token/", body)
+	status, answer, err := ep.doAuth(ctx, http.MethodPost, eatonAPI+"/oauth2/token/", body, "")
 	if err != nil {
 		return fmt.Errorf("log in: %w", err)
 	}
-	switch {
-	case status == http.StatusForbidden && eatonCode(answer, "ConcurentSession", "ConcurrentSession"):
-		return ErrEatonConcurrentSession
-	case status == http.StatusForbidden && eatonCode(answer, "ExpiredCredentials"):
-		return fmt.Errorf("log in: the PDU account's password has expired; set a new one on the card and in the credentials Secret")
-	case status == http.StatusForbidden && eatonCode(answer, "AccountBlocked"):
-		return fmt.Errorf("log in: the PDU account is blocked; unblock it on the card")
-	case status == http.StatusUnauthorized:
-		return fmt.Errorf("log in: the card refused the username and password: %s", strings.TrimSpace(string(answer)))
-	case status < 200 || status > 299:
-		return fmt.Errorf("log in: %d: %s", status, strings.TrimSpace(string(answer)))
+	if status < 200 || status > 299 {
+		refusal := &EatonLoginError{Status: status, Body: strings.TrimSpace(string(answer))}
+		for _, code := range eatonLoginCodes {
+			if eatonCode(answer, code) {
+				refusal.Code = code
+				break
+			}
+		}
+		if refusal.Code == "" && eatonCode(answer, "ConcurrentSession") {
+			refusal.Code = "ConcurentSession"
+		}
+		return refusal
 	}
 	var token struct {
 		AccessToken string `json:"access_token"`
@@ -364,7 +422,10 @@ func (ep *eatonEndpoint) login(ctx context.Context) error {
 	if token.AccessToken == "" {
 		return fmt.Errorf("log in: the card answered without an access token")
 	}
-	ep.token, ep.session = token.AccessToken, token.Session
+	ep.token, ep.session, ep.sessionPassword = token.AccessToken, token.Session, password
+	if newPassword != "" {
+		ep.sessionPassword = newPassword
+	}
 	return nil
 }
 
@@ -392,6 +453,17 @@ func (ep *eatonEndpoint) logout(ctx context.Context) error {
 
 // do sends one request with the session's token, when there is one.
 func (ep *eatonEndpoint) do(ctx context.Context, method, path string, body []byte) (int, []byte, error) {
+	return ep.doAuth(ctx, method, path, body, ep.token)
+}
+
+// doReauth sends one request with the reauthentication token the card
+// requires for account changes: base64(access_token:password).
+func (ep *eatonEndpoint) doReauth(ctx context.Context, method, path string, body []byte) (int, []byte, error) {
+	token := base64.StdEncoding.EncodeToString([]byte(ep.token + ":" + ep.sessionPassword))
+	return ep.doAuth(ctx, method, path, body, token)
+}
+
+func (ep *eatonEndpoint) doAuth(ctx context.Context, method, path string, body []byte, bearer string) (int, []byte, error) {
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
@@ -404,8 +476,8 @@ func (ep *eatonEndpoint) do(ctx context.Context, method, path string, body []byt
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if ep.token != "" {
-		req.Header.Set("Authorization", "Bearer "+ep.token)
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
 	resp, err := ep.client.Do(req)
 	if err != nil {

@@ -2729,6 +2729,70 @@ STUB
     run fleet_edge_routes "$BATS_TEST_TMPDIR/badpower.json"
     [ "$status" -ne 0 ]
     [[ "$output" == *"power device address 10.0.0.16; reboot is not in the management prefix 192.168.0.0/24"* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:D7:00:CA")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/badmac.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/badmac.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-pdu-b's mac '00:20:85:D7:00:CA' is not a MAC in lower case"* ]]
+}
+
+# --- RackPDU objects ---------------------------------------------------------
+
+@test "a PDU with a recorded MAC takes its address from the edge's DHCP, and one without gets no reservation" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ber1-pdu-b"* ]]
+    [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150"* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:d7:00:ca")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/mac.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\ndhcp-host=00:20:85:d7:00:ca,192.168.0.16,ber1-pdu-b,infinite\n'* ]]
+    # the switch behind the edge keeps its reservation, and an unknown MAC
+    # still gets the provisioning pool
+    [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
+    [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150"* ]]
+    # a planned PDU is not reserved until it is installed
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:d7:00:ca" | .status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/planned.json"
+    [[ "$output" != *"00:20:85:d7:00:ca"* ]]
+}
+
+@test "each PDU with a management address is a RackPDU, adopted by the controller once installed" {
+    run fleet_pdus "$SITE_FILE"
+    [ "$output" = "ber1-pdu-b" ]
+    run fleet_render_pdu "$SITE_FILE" ber1-pdu-b
+    [ "$status" -eq 0 ]
+    [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-b" ]
+    [ "$(yq 'select(.kind == "RackPDU") | .spec | [.site, .model, .address, .chain, .managedBy] | join(" ")' <<<"$output")" = "ber1 evmafc20a 192.168.0.16 ber1-ats-2 controller" ]
+    # no MAC recorded: the object says nothing about one
+    [ "$(yq 'select(.kind == "RackPDU") | .spec | has("mac")' <<<"$output")" = "false" ]
+    # quoted, or YAML 1.1 reads it as a boolean and the CRD refuses it
+    [[ "$output" == *'outletStateOnStartup: "on"'* ]]
+    # the administrator login the controller generates reaches 1Password
+    [ "$(yq 'select(.kind == "PushSecret") | .spec.selector.secret.name' <<<"$output")" = "ber1-pdu-b-credentials" ]
+    [ "$(yq 'select(.kind == "PushSecret") | [.spec.data[].match.secretKey] | join(" ")' <<<"$output" | sed '/^$/d')" = "admin-username admin-password" ]
+
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:d7:00:ca")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_render_pdu "$BATS_TEST_TMPDIR/mac.json" ber1-pdu-b
+    [ "$(yq 'select(.kind == "RackPDU") | .spec.mac' <<<"$output")" = "00:20:85:d7:00:ca" ]
+
+    # a PDU not installed yet is standalone, with nothing pushed for it
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_pdus "$BATS_TEST_TMPDIR/planned.json"
+    [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
+    run fleet_render_pdu "$BATS_TEST_TMPDIR/planned.json" ber1-pdu-a
+    [ "$(yq 'select(.kind == "RackPDU") | .spec.managedBy' <<<"$output")" = "standalone" ]
+    [[ "$output" != *"PushSecret"* ]]
+}
+
+@test "render --check notices a RackPDU object that no longer matches the site" {
+    cp "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml" "$BATS_TEST_TMPDIR/pdu.yaml"
+    sed -i.bak 's/managedBy: controller/managedBy: standalone/' "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render --check
+    cp "$BATS_TEST_TMPDIR/pdu.yaml" "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml"
+    rm -f "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml.bak"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: k8s/ber1/ber1-pdu-b.yaml"* ]]
 }
 
 @test "the machines segment's addresses, members and machines are checked at render" {
