@@ -576,6 +576,11 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert {[%{path: "Sources/Math.swift", covered_lines: 2}, %{path: "Sources/Text.swift", covered_lines: 3}], 2} =
              Commits.list_files(project.id, "head", 1, 10)
 
+    assert {[%{path: "Sources/Text.swift"}, %{path: "Sources/Math.swift"}], 2} =
+             Commits.list_files(project.id, "head", 1, 10, sort: {:path, :desc})
+
+    assert {[%{path: "Sources/Text.swift"}], 1} = Commits.list_files(project.id, "head", 1, 10, search: "text")
+
     assert [%{name: "App", files_count: 2, covered_lines: 5, executable_lines: 7}] = Commits.targets(project.id, "head")
 
     assert %{carried_lines: [1, 2, 3], covered_lines: 3} =

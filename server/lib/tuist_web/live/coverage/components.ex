@@ -501,6 +501,9 @@ defmodule TuistWeb.Coverage.Components do
   attr :file_href, :any, required: true, doc: "A file's page, from its path."
   attr :meta, :map, required: true, doc: "`current_page` and `total_pages`."
   attr :page_patch, :any, required: true
+  attr :sort_by, :string, required: true, doc: "The column the files are sorted by: `path` or `coverage`."
+  attr :sort_order, :string, required: true
+  attr :sort_patch, :any, required: true, doc: "The patch that sorts by a column."
 
   @doc """
   A list of files, each opening on its own page with its coverage.
@@ -509,15 +512,32 @@ defmodule TuistWeb.Coverage.Components do
     ~H"""
     <div data-part="files-table">
       <.table id={@id} rows={@rows} row_navigate={fn file -> @file_href.(file.path) end}>
-        <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+        <:col
+          :let={file}
+          label={dgettext("dashboard_tests", "File")}
+          patch={@sort_by == "path" && @sort_patch.("path")}
+          sort_order={@sort_by == "path" && @sort_order}
+        >
           <.text_and_description_cell
             label={Path.basename(file.path)}
             description={parent_dir(file.path)}
           />
         </:col>
-        <:col :let={file} label={dgettext("dashboard_tests", "File coverage")}>
+        <:col
+          :let={file}
+          label={dgettext("dashboard_tests", "File coverage")}
+          patch={@sort_by == "coverage" && @sort_patch.("coverage")}
+          sort_order={@sort_by == "coverage" && @sort_order}
+        >
           <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
         </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="file"
+            title={dgettext("dashboard_tests", "No file matches this search")}
+            subtitle={dgettext("dashboard_tests", "Try updating your search")}
+          />
+        </:empty_state>
       </.table>
       <.pagination_group
         :if={@meta.total_pages > 1}

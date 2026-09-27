@@ -134,7 +134,8 @@
   & [data-part="branches-section"] [data-part="filters"],
   & [data-part="commits-section"] [data-part="filters"],
   & [data-part="refs-section"] [data-part="filters"],
-  & [data-part="targets-section"] [data-part="filters"] {
+  & [data-part="targets-section"] [data-part="filters"],
+  & [data-part="files-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
   }

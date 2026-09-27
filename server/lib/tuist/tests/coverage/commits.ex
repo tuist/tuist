@@ -1022,9 +1022,11 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   @doc """
-  One page of the commit's files, least covered first, and the number of
-  files; over its reported coverage on a commit whose skipped tests were all
-  carried forward, as `targets/3`.
+  One page of the commit's files and the number of files; over its reported
+  coverage on a commit whose skipped tests were all carried forward, as
+  `targets/3`. `search:` keeps the paths containing it, ignoring case, and
+  `sort:` orders them as `{:coverage | :path, :asc | :desc}`, least covered
+  first by default.
   """
   def list_files(project_id, sha, page, page_size, opts \\ []) do
     case carried_files(project_id, sha, opts) do
@@ -1032,9 +1034,8 @@ defmodule Tuist.Tests.Coverage.Commits do
         list_measured_files(project_id, sha, page, page_size, opts)
 
       files ->
-        {files
-         |> Enum.sort_by(&{&1.covered_lines / max(&1.executable_lines, 1), &1.path})
-         |> Enum.slice((page - 1) * page_size, page_size), length(files)}
+        files = Enum.filter(files, &path_matches?(&1.path, Keyword.get(opts, :search, "")))
+        {files |> sort_files(files_sort(opts)) |> Enum.slice((page - 1) * page_size, page_size), length(files)}
     end
   end
 
@@ -1058,31 +1059,58 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp carried?(%{reported_kind: "reported", partial_schemes: [_ | _]}), do: true
   defp carried?(summary), do: fully_carried?(summary)
 
+  defp files_sort(opts), do: Keyword.get(opts, :sort, {:coverage, :asc})
+
+  defp path_matches?(_path, ""), do: true
+  defp path_matches?(path, search), do: path |> String.downcase() |> String.contains?(String.downcase(search))
+
+  defp sort_files(files, {:path, direction}), do: Enum.sort_by(files, & &1.path, direction)
+
+  defp sort_files(files, {:coverage, direction}),
+    do: Enum.sort_by(files, &{&1.covered_lines / max(&1.executable_lines, 1), &1.path}, direction)
+
   defp list_measured_files(project_id, sha, page, page_size, opts) do
     case run_ids(project_id, sha) do
       [] ->
         {[], 0}
 
       ids ->
-        files_query = Coverage.merged_files_query_for_runs(project_id, ids, Coverage.excluded(project_id, opts))
+        files_query =
+          project_id
+          |> Coverage.merged_files_query_for_runs(ids, Coverage.excluded(project_id, opts))
+          |> subquery()
+          |> search_paths(Keyword.get(opts, :search, ""))
 
         [files, count] =
           Tuist.Tasks.parallel_tasks([
             fn ->
               ClickHouseRepo.all(
-                from(f in subquery(files_query),
-                  order_by: [asc: fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines), asc: f.path],
+                from(f in files_query,
+                  order_by: ^files_order(files_sort(opts)),
                   limit: ^page_size,
                   offset: ^((page - 1) * page_size)
                 )
               )
             end,
-            fn -> ClickHouseRepo.one(from(f in subquery(files_query), select: count(f.path))) || 0 end
+            fn -> ClickHouseRepo.one(from(f in files_query, select: count(f.path))) || 0 end
           ])
 
         {files, count}
     end
   end
+
+  defp search_paths(query, ""), do: from(f in query)
+
+  defp search_paths(query, search),
+    do: from(f in query, where: fragment("positionCaseInsensitiveUTF8(?, ?) > 0", f.path, ^search))
+
+  defp files_order({:path, direction}), do: [{direction, dynamic([f], f.path)}]
+
+  defp files_order({:coverage, direction}),
+    do: [
+      {direction, dynamic([f], fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines))},
+      {direction, dynamic([f], f.path)}
+    ]
 
   @doc """
   The merged per-line execution counts of the given paths at the commit,

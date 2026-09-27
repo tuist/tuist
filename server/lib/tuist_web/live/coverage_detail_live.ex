@@ -29,6 +29,7 @@ defmodule TuistWeb.CoverageDetailLive do
   @tabs ~w(overview commits targets files runs)
   @widgets ~w(coverage covered_lines executable_lines)
   @target_sorts ~w(coverage name files)
+  @file_sorts ~w(coverage path)
   @page_size 20
   # How many rows the overview's files hold: a highlight, not a listing.
 
@@ -141,6 +142,11 @@ defmodule TuistWeb.CoverageDetailLive do
 
   def handle_event("search-targets", %{"search" => search}, socket) do
     query = socket.assigns.uri.query |> Query.put("targets-search", search) |> drop_paging()
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+  end
+
+  def handle_event("search-files", %{"search" => search}, socket) do
+    query = socket.assigns.uri.query |> Query.put("files-search", search) |> drop_paging()
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
   end
 
@@ -457,12 +463,35 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp assign_files(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     page = Query.bounded_page(query["page"])
-    {files, count} = Commits.list_files(project.id, subject.sha, page, @page_size)
+    search = String.trim(query["files-search"] || "")
+    sort_by = if query["files-sort-by"] in @file_sorts, do: query["files-sort-by"], else: "coverage"
+    sort_order = if query["files-sort-order"] in ~w(asc desc), do: query["files-sort-order"], else: "asc"
+
+    {files, count} =
+      Commits.list_files(project.id, subject.sha, page, @page_size,
+        search: search,
+        sort: {String.to_existing_atom(sort_by), String.to_existing_atom(sort_order)}
+      )
+
     total_pages = max(1, ceil(count / @page_size))
 
     socket
     |> assign(:file_rows, Enum.map(files, &Map.put(&1, :id, &1.path)))
     |> assign(:files_meta, %{current_page: min(page, total_pages), total_pages: total_pages})
+    |> assign(:files_measured?, count > 0 or search != "")
+    |> assign(:files_search, search)
+    |> assign(:files_sort_by, sort_by)
+    |> assign(:files_sort_order, sort_order)
+  end
+
+  @doc "The Files tab's sorts, with their labels."
+  def file_sorts,
+    do: [{"coverage", dgettext("dashboard_tests", "File coverage")}, {"path", dgettext("dashboard_tests", "File")}]
+
+  @doc "The query that sorts the Files tab by a column: the other order when it already does, ascending otherwise."
+  def files_sort_patch(%{uri: uri, files_sort_by: sort_by, files_sort_order: order}, column) do
+    order = if sort_by == column and order == "asc", do: "desc", else: "asc"
+    "?" <> (uri.query |> Query.put("files-sort-by", column) |> Query.put("files-sort-order", order) |> drop_paging())
   end
 
   # The runs behind the subject: one commit's, a pull request's commits', or

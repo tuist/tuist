@@ -159,6 +159,26 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#coverage-targets-table", "No target matches these filters")
   end
 
+  test "searches and sorts the commit's files, least covered first by default", %{conn: conn, base: base} do
+    order = fn lv, names -> Enum.sort_by(names, &(lv |> render() |> :binary.match(&1) |> elem(0))) end
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
+    assert order.(lv, ["B.swift", "A.swift"]) == ["A.swift", "B.swift"]
+    assert has_element?(lv, "#coverage-files-sort-by-label-portal", "File coverage")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files&files-sort-by=coverage&files-sort-order=desc")
+    assert order.(lv, ["A.swift", "B.swift"]) == ["B.swift", "A.swift"]
+
+    lv |> form("#coverage-files-search-form", %{search: "b.swift"}) |> render_change()
+    assert_patch(lv, base <> "/commits/b?files-search=b.swift&files-sort-by=coverage&files-sort-order=desc&tab=files")
+    assert has_element?(lv, "#coverage-files-table", "B.swift")
+    refute has_element?(lv, "#coverage-files-table", "A.swift")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files&files-search=missing")
+    assert has_element?(lv, "#coverage-files-table", "No file matches this search")
+    refute has_element?(lv, "[data-part='empty-files']")
+  end
+
   test "opens a file of the commit on its own page, with its uncovered lines", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
     from = URI.encode_www_form("#{base}/commits/b?tab=files")

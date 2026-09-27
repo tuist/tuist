@@ -65,6 +65,13 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
              [{"Other", 2, 5}, {"App", 3, 4}]
 
     assert {[%{path: "Sources/C.swift"}], 3} = Commits.list_files(project.id, "abc123", 1, 1)
+    assert {[%{path: "Sources/B.swift"}], 3} = Commits.list_files(project.id, "abc123", 1, 1, sort: {:coverage, :desc})
+
+    assert {[%{path: "Sources/A.swift"}, %{path: "Sources/B.swift"}], 3} =
+             Commits.list_files(project.id, "abc123", 1, 2, sort: {:path, :asc})
+
+    assert {[%{path: "Sources/B.swift"}], 1} = Commits.list_files(project.id, "abc123", 1, 10, search: "b.SWIFT")
+    assert {[], 0} = Commits.list_files(project.id, "abc123", 1, 10, search: "missing")
 
     assert Commits.line_counts(project.id, "abc123", ["Sources/A.swift"]) == %{
              "Sources/A.swift" => [{1, 1}, {2, 1}, {3, 0}]

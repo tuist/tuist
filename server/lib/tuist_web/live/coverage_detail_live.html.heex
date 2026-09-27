@@ -287,17 +287,60 @@
     <%!-- Files --%>
     <div :if={@tab == "files"} data-part="files">
       <.card title={dgettext("dashboard_tests", "Files")} icon="file" data-part="files-card">
-        <.card_section :if={@file_rows != []} data-part="files-section">
+        <.card_section :if={@files_measured?} data-part="files-section">
+          <div data-part="filters">
+            <.form
+              for={%{}}
+              id="coverage-files-search-form"
+              phx-change="search-files"
+              phx-debounce="200"
+            >
+              <.text_input
+                type="search"
+                id="search-coverage-files"
+                name="search"
+                placeholder={dgettext("dashboard_tests", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@files_search}
+              />
+            </.form>
+            <.dropdown
+              id="coverage-files-sort-by"
+              data-positioning-strategy="fixed"
+              label={
+                Enum.find_value(file_sorts(), fn {value, label} ->
+                  if value == @files_sort_by, do: label
+                end)
+              }
+              secondary_text={dgettext("dashboard_tests", "Sort by:")}
+            >
+              <.dropdown_item
+                :for={{value, label} <- file_sorts()}
+                value={value}
+                label={label}
+                patch={
+                  "?#{@uri.query |> Query.put("files-sort-by", value) |> Query.drop("files-sort-order") |> drop_paging()}"
+                }
+                data-selected={@files_sort_by == value}
+              >
+                <:right_icon :if={@files_sort_by == value}><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
           <.coverage_files_table
             id="coverage-files-table"
             rows={@file_rows}
             file_href={fn path -> file_href(assigns, path) end}
             meta={@files_meta}
             page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+            sort_by={@files_sort_by}
+            sort_order={@files_sort_order}
+            sort_patch={fn column -> files_sort_patch(assigns, column) end}
           />
         </.card_section>
         <.coverage_empty
-          :if={@file_rows == []}
+          :if={not @files_measured?}
           title={dgettext("dashboard_tests", "No file was measured at this commit")}
           image="table"
           data-part="empty-files"
