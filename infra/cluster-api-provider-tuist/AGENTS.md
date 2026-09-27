@@ -1034,11 +1034,15 @@ window. Bootstrap configures auto-login, so restart the host once after its
 first bootstrap and `sysadminctl -secureTokenStatus <sshUser>` reads ENABLED.
 
 **Cancel** by removing the annotation during `Preparing`, `Draining` or
-`Downloading`; the Node is uncordoned. Once `Installing` starts, the update runs
-to the end.
+`Downloading`. The update stops its download first, and the Node is uncordoned
+once the download has ended; while the host cannot be reached to stop it, the
+cancel waits. Once `Installing` starts, the update runs to the end.
 
 **Failures** are `phase: Failed` with a `reason` and a Warning event. Every
-failure removes `skip-remediation`. What happens to the Node depends on whether
+failure removes `skip-remediation`. `DownloadTimedOut` stops the download
+before the update fails. The deadlines of the phases after the download hold
+even while bootstrap or a config push keeps failing, because the reconcile
+checks them before anything else. What happens to the Node depends on whether
 the host changed:
 
 | Reason | Node |
@@ -1089,15 +1093,16 @@ and replaces `Installing` with four phases:
 | `Erasing` | Keeps tailscaled's state in the Machine's bootstrap Secret, then runs `startosinstall --eraseinstall`. The host restarts into the installer and comes back through automated enrollment, about 14 minutes on the prototype. Ends when the host answers with a new SSH host key |
 | `Enrolling` | Dials without the pinned host key until the fleet key is accepted. Pins the new key only once the host reports the RackHost's `serial` and the target version, then marks the Machine not bootstrapped |
 | `Bootstrapping` | The Machine bootstraps the host again. Restoring tailscaled's state brings it back as the same tailnet device, so its egress Service, metrics and VNC relay keep working; the kept state is dropped once bootstrap succeeds |
-| `Restarting` | Only when the SSH user has no secure token yet: one restart, after which the auto-login grants it |
+| `Restarting` | Only when the SSH user has no secure token yet: one restart, then a wait for the auto-login and the token it grants |
 | `Converging`, `Succeeded` | As for an update |
 
-Cancel by removing the annotation before `Erasing`.
+Cancel by removing the annotation before `Erasing`; as for an update, the
+installer download is stopped first.
 
 | Reason | Node |
 |---|---|
 | `DownloadFailed`, `DownloadTimedOut`, `DownloadLost`, `EraseFailed` (exited before restarting) | Uncordoned: the host is unchanged |
-| `EraseTimedOut`, `NotErased`, `EnrollTimedOut`, `HostIdentityMismatch`, `VersionMismatch`, `BootstrapTimedOut`, `RestartTimedOut`, `NoSecureToken`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human |
+| `EraseTimedOut`, `NotErased`, `EnrollTimedOut`, `HostIdentityMismatch`, `VersionMismatch`, `BootstrapTimedOut`, `RestartTimedOut`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human |
 
 `HostIdentityMismatch` means a host with another serial answers at the
 RackHost's address after the erase; the key is not pinned and nothing else

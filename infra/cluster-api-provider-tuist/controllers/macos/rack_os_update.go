@@ -90,6 +90,7 @@ type osUpdateHost interface {
 	StartInstall(ctx context.Context, id, label, user, password string) error
 	StartErase(ctx context.Context, id string, installer bootstrap.OSInstaller, user, password string) error
 	Job(ctx context.Context, id, job string) (bootstrap.OSUpdateJob, error)
+	StopJob(ctx context.Context, id, job string) error
 	TailscaleState(ctx context.Context) ([]byte, error)
 	Restart(ctx context.Context) error
 	ConsoleUser(ctx context.Context) (string, error)
@@ -189,8 +190,17 @@ func (r *RackAppleSiliconMachineReconciler) reconcileOSUpdate(ctx context.Contex
 		return ctrl.Result{}, nil
 	}
 
+	if expired, err := r.expireOSUpdate(ctx, machine); expired || err != nil {
+		return ctrl.Result{}, err
+	}
+
 	target, requested := machine.Annotations[osUpdateAnnotationFor(st.Reinstall)]
 	if !requested && osUpdateCancellable(st.Phase) {
+		if st.Phase != OSUpdatePhasePreparing {
+			if stopped, why := r.osUpdateDownloadStopped(ctx, oc); !stopped {
+				return osUpdateWait(st, "cancelling: %s", why)
+			}
+		}
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "Cancelled",
 			"the "+osUpdateAnnotationFor(st.Reinstall)+" annotation was removed before the host was changed", true)
 	}
@@ -395,6 +405,9 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDraining(ctx context.Context
 func (r *RackAppleSiliconMachineReconciler) osUpdateDownloading(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
 	st := oc.machine.Status.OSUpdate
 	if osUpdatePhaseOlderThan(st, osUpdateDownloadTimeout) {
+		if stopped, why := r.osUpdateDownloadStopped(ctx, oc); !stopped {
+			return osUpdateWait(st, "the download ran past %s; %s", osUpdateDownloadTimeout, why)
+		}
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadTimedOut",
 			fmt.Sprintf("the download did not finish within %s", osUpdateDownloadTimeout), true)
 	}
@@ -445,11 +458,6 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDownloading(ctx context.Cont
 
 func (r *RackAppleSiliconMachineReconciler) osUpdateAwaitingInstall(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
 	st := oc.machine.Status.OSUpdate
-	if osUpdatePhaseOlderThan(st, osUpdateInstallTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "InstallTimedOut",
-			fmt.Sprintf("the host did not come back on macOS %s within %s; the Node stays cordoned", st.Target, osUpdateInstallTimeout), false)
-	}
-
 	host, err := r.openOSUpdateHost(ctx, oc)
 	if err != nil {
 		return osUpdateWait(st, "waiting for the host to come back: %v", err)
@@ -497,11 +505,6 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateAwaitingInstall(ctx context.
 
 func (r *RackAppleSiliconMachineReconciler) osUpdateErasing(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
 	st := oc.machine.Status.OSUpdate
-	if osUpdatePhaseOlderThan(st, osUpdateEraseTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "EraseTimedOut",
-			fmt.Sprintf("the host did not come back freshly installed within %s; the Node stays cordoned", osUpdateEraseTimeout), false)
-	}
-
 	host, err := r.openOSUpdateHost(ctx, oc)
 	if errors.Is(err, bootstrap.ErrHostKeyMismatch) {
 		r.setOSUpdatePhase(oc.machine, OSUpdatePhaseEnrolling,
@@ -560,11 +563,6 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateErasing(ctx context.Context,
 func (r *RackAppleSiliconMachineReconciler) osUpdateEnrolling(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
 	machine := oc.machine
 	st := machine.Status.OSUpdate
-	if osUpdatePhaseOlderThan(st, osUpdateEnrollTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "EnrollTimedOut",
-			fmt.Sprintf("the reinstalled host did not accept the fleet key within %s; the Node stays cordoned", osUpdateEnrollTimeout), false)
-	}
-
 	host, err := r.dialOSUpdateTargets(ctx, oc, "")
 	if err != nil {
 		return osUpdateWait(st, "waiting for the reinstalled host to enroll: %v", err)
@@ -605,10 +603,6 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateEnrolling(ctx context.Contex
 func (r *RackAppleSiliconMachineReconciler) osUpdateBootstrapping(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
 	machine := oc.machine
 	st := machine.Status.OSUpdate
-	if osUpdatePhaseOlderThan(st, osUpdateBootstrapTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "BootstrapTimedOut",
-			fmt.Sprintf("the reinstalled host did not bootstrap within %s; the Node stays cordoned", osUpdateBootstrapTimeout), false)
-	}
 	if !conditions.IsTrue(machine, BootstrappedCondition) {
 		st.Message = "bootstrapping the reinstalled host"
 		return ctrl.Result{}, nil
@@ -646,11 +640,6 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateBootstrapping(ctx context.Co
 func (r *RackAppleSiliconMachineReconciler) osUpdateRestarting(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
 	machine := oc.machine
 	st := machine.Status.OSUpdate
-	if osUpdatePhaseOlderThan(st, osUpdateRestartTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "RestartTimedOut",
-			fmt.Sprintf("the host did not come back from its restart within %s; the Node stays cordoned", osUpdateRestartTimeout), false)
-	}
-
 	host, err := r.openOSUpdateHost(ctx, oc)
 	if err != nil {
 		return osUpdateWait(st, "waiting for the host to come back: %v", err)
@@ -668,14 +657,22 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateRestarting(ctx context.Conte
 		return osUpdateWait(st, "restarting the host")
 	}
 
+	// SSH comes back before the auto-login, and the token comes with the login,
+	// so wait for both; the phase's deadline ends a wait that never finishes.
 	user := oc.host.Spec.SSHUser
+	console, err := host.ConsoleUser(ctx)
+	if err != nil {
+		return osUpdateWait(st, "could not read the console session: %v", err)
+	}
+	if console != user {
+		return osUpdateWait(st, "restarted; waiting for %s to log in at the console, which belongs to %q", user, console)
+	}
 	tokenEnabled, err := host.SecureTokenEnabled(ctx, user)
 	if err != nil {
 		return osUpdateWait(st, "could not read %s's secure token status: %v", user, err)
 	}
 	if !tokenEnabled {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "NoSecureToken",
-			fmt.Sprintf("%s still has no secure token after a restart; the Node stays cordoned", user), false)
+		return osUpdateWait(st, "%s is logged in at the console but has no secure token yet", user)
 	}
 	r.setOSUpdatePhase(machine, OSUpdatePhaseConverging, "restarted; waiting for the host config push, a Ready Node and the console session")
 	return ctrl.Result{Requeue: true}, nil
@@ -691,10 +688,6 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateConverging(ctx context.Conte
 		}
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "ConvergeFailed",
 			"pushing the host config after the update failed: "+message, false)
-	}
-	if osUpdatePhaseOlderThan(st, osUpdateConvergeTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "ConvergeTimedOut",
-			fmt.Sprintf("the host did not converge within %s; the Node stays cordoned", osUpdateConvergeTimeout), false)
 	}
 	if machine.Status.HostConfigHash != r.desiredHostConfigHash(machine, oc.host) {
 		return osUpdateWait(st, "waiting for the host config push")
@@ -768,6 +761,74 @@ func (r *RackAppleSiliconMachineReconciler) finishOSUpdate(ctx context.Context, 
 	}
 	r.Recorder.Event(machine, eventType, "OSUpdate"+phase, message)
 	return ctrl.Result{}, nil
+}
+
+// osUpdateDeadline is how long a phase that holds remediation off may run, and
+// the failure it ends in. Downloading has its own deadline in its step, which
+// stops the download first; the phases before it hold nothing off.
+func osUpdateDeadline(st *infrav1.OSUpdateStatus) (time.Duration, string, string) {
+	const cordoned = "; the Node stays cordoned"
+	switch st.Phase {
+	case OSUpdatePhaseInstalling:
+		return osUpdateInstallTimeout, "InstallTimedOut",
+			fmt.Sprintf("the host did not come back on macOS %s within %s%s", st.Target, osUpdateInstallTimeout, cordoned)
+	case OSUpdatePhaseErasing:
+		return osUpdateEraseTimeout, "EraseTimedOut",
+			fmt.Sprintf("the host did not come back freshly installed within %s%s", osUpdateEraseTimeout, cordoned)
+	case OSUpdatePhaseEnrolling:
+		return osUpdateEnrollTimeout, "EnrollTimedOut",
+			fmt.Sprintf("the reinstalled host did not accept the fleet key within %s%s", osUpdateEnrollTimeout, cordoned)
+	case OSUpdatePhaseBootstrapping:
+		return osUpdateBootstrapTimeout, "BootstrapTimedOut",
+			fmt.Sprintf("the reinstalled host did not bootstrap within %s%s", osUpdateBootstrapTimeout, cordoned)
+	case OSUpdatePhaseRestarting:
+		return osUpdateRestartTimeout, "RestartTimedOut",
+			fmt.Sprintf("the host did not restart into a console session with a secure token within %s%s", osUpdateRestartTimeout, cordoned)
+	case OSUpdatePhaseConverging:
+		return osUpdateConvergeTimeout, "ConvergeTimedOut",
+			fmt.Sprintf("the host did not converge within %s%s", osUpdateConvergeTimeout, cordoned)
+	}
+	return 0, "", ""
+}
+
+// expireOSUpdate fails an update whose phase has run past its deadline. The
+// reconcile runs it before anything that can return early, so a bootstrap or a
+// config push that keeps failing cannot hold remediation off past it.
+func (r *RackAppleSiliconMachineReconciler) expireOSUpdate(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) (bool, error) {
+	st := machine.Status.OSUpdate
+	if st == nil || osUpdateFinished(st.Phase) {
+		return false, nil
+	}
+	timeout, reason, message := osUpdateDeadline(st)
+	if timeout == 0 || !osUpdatePhaseOlderThan(st, timeout) {
+		return false, nil
+	}
+	_, err := r.finishOSUpdate(ctx, &osUpdateContext{machine: machine}, OSUpdatePhaseFailed, reason, message, false)
+	return true, err
+}
+
+// osUpdateDownloadStopped stops the update's download and reports whether it
+// has ended, so a cancelled or timed-out update never hands back a Node with a
+// multi-gigabyte download still running on it. When it has not, the reason says
+// why.
+func (r *RackAppleSiliconMachineReconciler) osUpdateDownloadStopped(ctx context.Context, oc *osUpdateContext) (bool, string) {
+	st := oc.machine.Status.OSUpdate
+	host, err := r.openOSUpdateHost(ctx, oc)
+	if err != nil {
+		return false, fmt.Sprintf("could not reach the host to stop the download: %v", err)
+	}
+	defer host.Close()
+	if err := host.StopJob(ctx, st.ID, bootstrap.OSUpdateJobDownload); err != nil {
+		return false, fmt.Sprintf("could not stop the download: %v", err)
+	}
+	job, err := host.Job(ctx, st.ID, bootstrap.OSUpdateJobDownload)
+	if err != nil {
+		return false, fmt.Sprintf("could not read the download: %v", err)
+	}
+	if job.State == bootstrap.OSUpdateJobRunning {
+		return false, "the download is still running after being stopped"
+	}
+	return true, ""
 }
 
 func (r *RackAppleSiliconMachineReconciler) setOSUpdatePhase(machine *infrav1.RackAppleSiliconMachine, phase, message string) {

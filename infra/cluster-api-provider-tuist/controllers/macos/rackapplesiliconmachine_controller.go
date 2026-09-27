@@ -225,6 +225,13 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// An OS update's deadline holds however early the rest of this reconcile
+	// returns: a bootstrap or a push that keeps failing must not keep health-check
+	// remediation off past it.
+	if _, err := r.expireOSUpdate(ctx, machine); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Stage 0: the host this machine is.
 	host, result, err := r.hostOf(ctx, machine)
 	if err != nil || host == nil {

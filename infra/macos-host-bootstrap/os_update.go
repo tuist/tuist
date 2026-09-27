@@ -198,6 +198,38 @@ sudo -n true
 ( trap '' HUP; sleep 2; sudo -n shutdown -r now ) </dev/null >/dev/null 2>&1 &
 `
 
+// renderOSUpdateStopJobScript ends a running job. TERM goes to the job's
+// children every second, and sudo passes it on to softwareupdate; INT would not
+// do, because a background job starts with it ignored, and repeating it covers a
+// body that has not been forked yet. Whatever of the job is still alive ten
+// seconds later is killed, the whole process tree, so a killed sudo cannot leave
+// softwareupdate running as an orphan. The job records the exit code it ends
+// with.
+func renderOSUpdateStopJobScript(root, id, job string) string {
+	return fmt.Sprintf(`dir=%[1]s/%[2]s
+pid=$(cat "$dir/%[3]s.pid" 2>/dev/null) || exit 0
+signal() {
+  i=0
+  while [ "$i" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
+    [ -n "$1" ] && sudo -n pkill -"$1" -P "$pid"
+    sleep 1
+    i=$((i + 1))
+  done
+  ! kill -0 "$pid" 2>/dev/null
+}
+descendants() {
+  for child in $(pgrep -P "$1"); do
+    descendants "$child"
+    echo "$child"
+  done
+}
+signal TERM && exit 0
+descendants "$pid" | xargs sudo -n kill -KILL 2>/dev/null || true
+signal
+true
+`, shellQuote(root), shellQuote(id), job)
+}
+
 func renderTailscaleStateReadScript(path string) string {
 	return fmt.Sprintf("if sudo -n test -s %[1]s; then sudo -n cat %[1]s; fi\n", shellQuote(path))
 }
@@ -308,6 +340,14 @@ func (s *OSUpdateSession) StartErase(ctx context.Context, id string, installer O
 		return err
 	}
 	return RunCommandWithStdin(ctx, s.client, renderOSUpdateEraseScript(osUpdateRoot, id, installer, user), strings.NewReader(password+"\n"))
+}
+
+// StopJob interrupts the update's job if it is still running; Job reports whether it ended.
+func (s *OSUpdateSession) StopJob(ctx context.Context, id, job string) error {
+	if err := checkOSUpdateID(id); err != nil {
+		return err
+	}
+	return RunCommand(ctx, s.client, renderOSUpdateStopJobScript(osUpdateRoot, id, job))
 }
 
 func (s *OSUpdateSession) Serial(ctx context.Context) (string, error) {

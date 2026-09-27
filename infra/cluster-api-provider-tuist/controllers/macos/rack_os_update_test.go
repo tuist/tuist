@@ -42,16 +42,20 @@ type fakeOSUpdateHost struct {
 	erases         []fakeErase
 	restarts       int
 	tailscaleState []byte
-	dials          int
-	version        string
-	bootTime       int64
-	updates        []bootstrap.OSUpdate
-	jobs           map[string]bootstrap.OSUpdateJob
-	jobsID         string
-	console        string
-	noToken        bool
-	downloads      []string
-	installs       []fakeInstall
+	// stopIgnored keeps a job running through StopJob, as when softwareupdate
+	// does not answer the signal.
+	stopIgnored bool
+	stops       []string
+	dials       int
+	version     string
+	bootTime    int64
+	updates     []bootstrap.OSUpdate
+	jobs        map[string]bootstrap.OSUpdateJob
+	jobsID      string
+	console     string
+	noToken     bool
+	downloads   []string
+	installs    []fakeInstall
 }
 
 func newFakeOSUpdateHost() *fakeOSUpdateHost {
@@ -150,6 +154,15 @@ func (f *fakeOSUpdateHost) reinstalled(version, hostKey string) {
 func (f *fakeOSUpdateHost) leftover(job string, state bootstrap.OSUpdateJob) {
 	f.jobsID = "an-earlier-update"
 	f.jobs[job] = state
+}
+
+// StopJob interrupts a running job, which then exits with the signal's code.
+func (f *fakeOSUpdateHost) StopJob(_ context.Context, id, job string) error {
+	f.stops = append(f.stops, job)
+	if state, ok := f.jobs[job]; ok && f.jobsID == id && state.State == bootstrap.OSUpdateJobRunning && !f.stopIgnored {
+		f.jobs[job] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited, ExitCode: 130}
+	}
+	return nil
 }
 
 // exit ends a job the current update started.
@@ -551,6 +564,99 @@ func TestOSUpdateCancelledWhileDownloadingUncordons(t *testing.T) {
 	f.wantFailed("Cancelled")
 	if f.cordoned() || len(f.host.installs) != 0 {
 		t.Fatal("cancelling a download left the Node cordoned or installed anyway")
+	}
+}
+
+func TestOSUpdateCancelledDownloadStopsBeforeTheNodeGoesBack(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.stepUntil(OSUpdatePhaseDownloading)
+
+	f.host.stopIgnored = true
+	delete(f.oc.machine.Annotations, OSUpdateAnnotation)
+	f.step()
+	if !f.cordoned() {
+		t.Fatal("handed the Node back while the cancelled download was still running")
+	}
+	f.wantPhase(OSUpdatePhaseDownloading)
+
+	f.host.stopIgnored = false
+	f.step()
+	f.wantFailed("Cancelled")
+	if f.cordoned() {
+		t.Fatal("a cancelled download left the Node cordoned")
+	}
+	if job, _ := f.host.Job(context.Background(), f.status().ID, bootstrap.OSUpdateJobDownload); job.State == bootstrap.OSUpdateJobRunning {
+		t.Fatal("the cancelled download is still running")
+	}
+}
+
+func TestOSUpdateTimedOutDownloadIsStopped(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.stepUntil(OSUpdatePhaseDownloading)
+	f.status().PhaseStartedAt = &metav1.Time{Time: time.Now().Add(-osUpdateDownloadTimeout - time.Minute)}
+	f.step()
+	f.wantFailed("DownloadTimedOut")
+	if job, _ := f.host.Job(context.Background(), f.status().ID, bootstrap.OSUpdateJobDownload); job.State == bootstrap.OSUpdateJobRunning {
+		t.Fatal("handed the Node back with the timed-out download still running")
+	}
+	if f.cordoned() {
+		t.Fatal("a stopped download left the unchanged host out of service")
+	}
+}
+
+func TestOSUpdateRestartWaitsForTheConsoleLogin(t *testing.T) {
+	f := newReinstallFixture(t)
+	f.driveToErasing()
+	f.host.reinstalled("27.0", "SHA256:new")
+	f.stepUntil(OSUpdatePhaseBootstrapping)
+	conditions.MarkTrue(f.oc.machine, BootstrappedCondition)
+	f.step()
+	f.wantPhase(OSUpdatePhaseRestarting)
+	f.step()
+
+	// Back up and answering SSH, but still at the login window.
+	f.host.bootTime += 100
+	f.host.console = "root"
+	f.step()
+	f.wantPhase(OSUpdatePhaseRestarting)
+
+	f.host.console = "tuist"
+	f.step()
+	f.wantPhase(OSUpdatePhaseRestarting)
+
+	f.host.noToken = false
+	f.step()
+	f.wantPhase(OSUpdatePhaseConverging)
+}
+
+func TestOSUpdateDeadlineHoldsWhenTheReconcileStopsEarly(t *testing.T) {
+	machine := updatingMachine("26.7", func(m *infrav1.RackAppleSiliconMachine) {
+		m.Status.OSUpdate = &infrav1.OSUpdateStatus{
+			ID:             "u1",
+			Target:         "26.7",
+			Phase:          OSUpdatePhaseConverging,
+			PhaseStartedAt: &metav1.Time{Time: time.Now().Add(-osUpdateConvergeTimeout - time.Minute)},
+		}
+	})
+	owner := ownerMachine(func(m *clusterv1.Machine) {
+		m.Annotations = map[string]string{clusterv1.MachineSkipRemediationAnnotation: osUpdateSkipRemediationValue}
+	})
+	node := updatingNode(func(n *corev1.Node) {
+		n.Spec.Unschedulable = true
+		n.Annotations = map[string]string{OSUpdateCordonAnnotation: "26.7"}
+	})
+	// No fleet Secret: the reconcile stops at its first stage, the way it does
+	// when a bootstrap or a config push keeps failing.
+	f := newOSUpdateFixture(t, machine, owner, node)
+	if _, err := f.r.reconcileNormal(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileNormal: %v", err)
+	}
+	f.wantFailed("ConvergeTimedOut")
+	if f.remediationSkipped() {
+		t.Fatal("remediation stayed off past the update's deadline")
+	}
+	if !f.cordoned() {
+		t.Fatal("a host that never converged went back into service")
 	}
 }
 

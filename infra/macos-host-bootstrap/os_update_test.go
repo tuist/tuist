@@ -180,6 +180,25 @@ func TestOSUpdateJobStateIsAbsentBeforeAnyJob(t *testing.T) {
 	}
 }
 
+func TestOSUpdateStopJobInterruptsARunningJob(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		root := t.TempDir()
+		env := passthroughSudo(t)
+		runScript(t, shell, renderOSUpdateJobScript(root, "u1", OSUpdateJobDownload, "", "sleep 60"), "", env...)
+		if got := jobState(t, shell, root, "u1", OSUpdateJobDownload); got.State != OSUpdateJobRunning {
+			t.Fatalf("%s: job state before the stop = %#v", shell, got)
+		}
+		start := time.Now()
+		runScript(t, shell, renderOSUpdateStopJobScript(root, "u1", OSUpdateJobDownload), "", env...)
+		got := waitForExit(t, shell, root, "u1", OSUpdateJobDownload)
+		if got.ExitCode == 0 || time.Since(start) > 5*time.Second {
+			t.Errorf("%s: stopped job %#v after %s, want it to end on TERM, not after the fallback", shell, got, time.Since(start))
+		}
+		runScript(t, shell, renderOSUpdateStopJobScript(root, "u1", OSUpdateJobDownload), "", env...)
+		runScript(t, shell, renderOSUpdateStopJobScript(root, "u2", OSUpdateJobDownload), "", env...)
+	}
+}
+
 func TestOSUpdateJobWhoseProcessDiedWithoutAnExitCodeIsLost(t *testing.T) {
 	for _, shell := range loginShells(t) {
 		root := t.TempDir()
