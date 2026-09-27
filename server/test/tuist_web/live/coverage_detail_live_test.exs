@@ -255,8 +255,9 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&tab=overview")
     assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=overview']")
     assert has_element?(lv, "#widget-coverage-file-percentage", "50.0%")
-    assert has_element?(lv, "#coverage-file-targets li", "Calculator")
-    assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
+    refute has_element?(lv, "#coverage-file-targets")
+    refute has_element?(lv, "#coverage-file-uncovered-lines")
+    refute has_element?(lv, "[data-part='file-details']")
 
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/Missing.swift?commit=b")
     assert has_element?(lv, "[data-part='file-empty']")

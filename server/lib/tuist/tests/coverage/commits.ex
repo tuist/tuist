@@ -1375,6 +1375,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     Map.merge(detail, %{
       carried_lines: only_carried,
       covered_lines: Enum.count(effective, fn {_line, count} -> count > 0 end),
+      functions: Coverage.cover_functions(detail.functions, effective),
       uncovered_ranges: detail.uncovered_ranges && Coverage.uncovered_ranges(effective)
     })
   end

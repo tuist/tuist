@@ -379,8 +379,8 @@ defmodule TuistWeb.Coverage.Components do
   attr :file, :map, required: true, doc: "A file's detail, from `Commits.file_detail/4`."
 
   @doc """
-  One file's coverage: its figures, the targets that compiled it, the lines
-  no test ran and its functions.
+  One file's coverage: its figures, the lines skipped tests' coverage was
+  carried into, and its functions.
   """
   def coverage_file_view(assigns) do
     assigns =
@@ -421,28 +421,8 @@ defmodule TuistWeb.Coverage.Components do
             value={format_number(length(@functions))}
           />
         </div>
-        <dl data-part="file-details">
-          <div :if={@file.targets != []}>
-            <dt>{dgettext("dashboard_tests", "Targets")}</dt>
-            <dd id="coverage-file-targets">
-              <ul data-part="targets">
-                <li :for={target <- @file.targets}>
-                  <.badge label={target} color="neutral" style="light-fill" size="large" />
-                </li>
-              </ul>
-            </dd>
-          </div>
+        <dl :if={Map.get(@file, :carried_lines, []) != []} data-part="file-details">
           <div>
-            <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
-            <dd id="coverage-file-uncovered-lines">
-              <.line_ranges
-                id="coverage-file-uncovered-lines-tooltip"
-                title={dgettext("dashboard_tests", "Uncovered lines")}
-                ranges={@file.uncovered_ranges}
-              />
-            </dd>
-          </div>
-          <div :if={Map.get(@file, :carried_lines, []) != []}>
             <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
             <dd id="coverage-file-carried-lines">
               <.line_ranges
@@ -451,10 +431,6 @@ defmodule TuistWeb.Coverage.Components do
                 ranges={Coverage.Evidence.line_ranges(@file.carried_lines)}
               />
             </dd>
-          </div>
-          <div :if={Map.get(@file, :git_blob_id, "") not in [nil, ""]}>
-            <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
-            <dd><code>{@file.git_blob_id}</code></dd>
           </div>
         </dl>
       </.card_section>
@@ -473,6 +449,11 @@ defmodule TuistWeb.Coverage.Components do
           </:col>
           <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
             <.text_cell label={Integer.to_string(function.line_number)} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Covered lines")}>
+            <.text_cell label={
+              "#{if function.covered_lines, do: format_number(function.covered_lines), else: "—"} / #{format_number(function.executable_lines)}"
+            } />
           </:col>
           <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
             <.text_cell label={format_number(function.execution_count)} />

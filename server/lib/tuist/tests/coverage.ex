@@ -680,8 +680,34 @@ defmodule Tuist.Tests.Coverage do
       executable_lines: executable_lines,
       lines: lines,
       uncovered_ranges: uncovered_ranges,
-      functions: merged_functions(rows)
+      functions: rows |> merged_functions() |> cover_functions(lines)
     }
+  end
+
+  @doc """
+  The functions' covered lines read off the file's merged `{line, count}`
+  pairs. xccov counts a function's executable lines from its first line on,
+  its nested closures' included, so they are the first `executable_lines`
+  executable lines at or after `line_number`: which of them ran is exact
+  however many reports covered the function. A function whose lines are not
+  all there, or whose count falls short of what one report alone covered,
+  keeps the figure `merged_functions/1` gave it.
+  """
+  def cover_functions(functions, []), do: functions
+
+  def cover_functions(functions, lines) do
+    Enum.map(functions, fn function ->
+      span =
+        lines
+        |> Enum.drop_while(fn {line, _count} -> line < function.line_number end)
+        |> Enum.take(function.executable_lines)
+
+      covered = Enum.count(span, fn {_line, count} -> count > 0 end)
+
+      if length(span) == function.executable_lines and covered >= function.confirmed_lines,
+        do: %{function | covered_lines: covered},
+        else: function
+    end)
   end
 
   @doc """
@@ -696,10 +722,11 @@ defmodule Tuist.Tests.Coverage do
     |> Enum.map(fn chunk -> {chunk |> hd() |> elem(0), chunk |> List.last() |> elem(0)} end)
   end
 
-  # xccov gives a function its first line but not its range, so the union of
-  # the lines several shards covered in it cannot be told apart from lines of
-  # other functions. Its covered lines are exact when at most one report
-  # covered any, and nil (unknown) otherwise; calls add up across shards.
+  # A function's lines as the reports give them: its covered lines are exact
+  # when at most one report covered any, and nil (unknown) otherwise, until
+  # `cover_functions/2` reads them off the file's lines; `confirmed_lines`,
+  # the most one report covered, is what that reading must reach. Calls add
+  # up across reports.
   defp merged_functions(rows) do
     rows
     |> Enum.flat_map(fn row ->
@@ -725,6 +752,7 @@ defmodule Tuist.Tests.Coverage do
         line_number: line,
         execution_count: entries |> Enum.map(&elem(&1, 2)) |> Enum.sum(),
         covered_lines: covered_lines,
+        confirmed_lines: entries |> Enum.map(&elem(&1, 3)) |> Enum.max(),
         executable_lines: entries |> Enum.map(&elem(&1, 4)) |> Enum.max()
       }
     end)

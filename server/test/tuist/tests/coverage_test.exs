@@ -438,7 +438,7 @@ defmodule Tuist.Tests.CoverageTest do
       assert detail.targets == ["Calculator", "CalculatorTests"]
     end
 
-    test "show a function's coverage only when at most one shard covered it", %{project: project, account: account} do
+    test "read a function's coverage off the shards' merged lines", %{project: project, account: account} do
       function = fn covered ->
         %{name: "add(_:_:)", line_number: 2, execution_count: covered, covered_lines: covered, executable_lines: 2}
       end
@@ -450,16 +450,49 @@ defmodule Tuist.Tests.CoverageTest do
       {:ok, test} = create_test(project, account, %{xcode_coverage: shard.([{2, 1}, {3, 0}], 1)})
       {:ok, stored} = Tests.get_test(test.id)
 
-      # A shard that ran none of the function leaves the other shard's count exact.
       Coverage.publish(stored, Coverage.rows(project.id, shard.([{2, 0}, {3, 0}], 0)), 1)
       detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert [%{covered_lines: 1, executable_lines: 2, execution_count: 1}] = detail.functions
 
-      # Two shards each covered one line: 1/2 twice could be the same line or both.
+      # Each shard covered one line; the merged lines say they were different ones.
       Coverage.publish(stored, Coverage.rows(project.id, shard.([{2, 0}, {3, 1}], 1)), 1)
       detail = Coverage.file_detail(project.id, test.id, "Sources/Calculator/Add.swift")
       assert {detail.covered_lines, detail.executable_lines} == {2, 2}
-      assert [%{covered_lines: nil, executable_lines: 2, execution_count: 2}] = detail.functions
+      assert [%{covered_lines: 2, executable_lines: 2, execution_count: 2}] = detail.functions
+    end
+
+    test "read a nested closure's lines within its function's, as xccov counts them" do
+      functions = [
+        %{
+          name: "body.getter",
+          line_number: 4,
+          execution_count: 1,
+          covered_lines: nil,
+          confirmed_lines: 5,
+          executable_lines: 6
+        },
+        %{
+          name: "closure #1 in body.getter",
+          line_number: 5,
+          execution_count: 1,
+          covered_lines: nil,
+          confirmed_lines: 2,
+          executable_lines: 3
+        },
+        %{name: "other()", line_number: 12, execution_count: 0, covered_lines: 0, confirmed_lines: 0, executable_lines: 2}
+      ]
+
+      lines = [{4, 1}, {5, 1}, {6, 1}, {7, 0}, {8, 1}, {9, 1}, {12, 0}, {13, 0}]
+
+      assert Enum.map(Coverage.cover_functions(functions, lines), &{&1.name, &1.covered_lines}) == [
+               {"body.getter", 5},
+               {"closure #1 in body.getter", 2},
+               {"other()", 0}
+             ]
+
+      # Without the file's lines, or with fewer than the function spans, the reports' figure stays.
+      assert Coverage.cover_functions(functions, []) == functions
+      assert [%{covered_lines: nil} | _] = Coverage.cover_functions(functions, Enum.take(lines, 3))
     end
 
     test "stay out of the trend until every shard of the plan reported coverage", %{project: project, account: account} do

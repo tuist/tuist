@@ -420,19 +420,5 @@
       font: var(--noora-font-body-medium);
       word-break: break-all;
     }
-
-    & dd[title] {
-      cursor: help;
-    }
-  }
-
-  & [data-part="targets"] {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: var(--noora-spacing-3);
-    margin: 0;
-    padding: 0;
-    list-style: none;
   }
 }
