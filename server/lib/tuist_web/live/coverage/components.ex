@@ -38,14 +38,9 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :least_covered, :list, required: true
   attr :file_href, :any, default: nil
-  attr :unmeasured, :list, required: true
-  attr :unmeasured_count, :integer, default: 0
   attr :href, :string, required: true
 
-  @doc """
-  Where the commit's files are thinnest, and which of them have no coverage
-  data, with the way to every file behind it.
-  """
+  @doc "Where the commit's files are thinnest, with the way to every file behind it."
   def files_coverage_card(assigns) do
     ~H"""
     <.card
@@ -84,27 +79,6 @@ defmodule TuistWeb.Coverage.Components do
           </.table>
           <div :if={@least_covered == []} data-part="empty">
             {dgettext("dashboard_tests", "No file was measured at this commit.")}
-          </div>
-        </.card_section>
-        <.card_section data-part="movement-section">
-          <div data-part="header">
-            <span data-part="title">{dgettext("dashboard_tests", "Files without coverage data")}</span>
-            <span :if={@unmeasured_count > 0} data-part="count">
-              {dgettext("dashboard_tests", "%{count} in total",
-                count: format_number(@unmeasured_count)
-              )}
-            </span>
-          </div>
-          <.table :if={@unmeasured != []} id="coverage-unmeasured-files-table" rows={@unmeasured}>
-            <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-              <.text_and_description_cell
-                label={Path.basename(file.path)}
-                description={parent_dir(file.path)}
-              />
-            </:col>
-          </.table>
-          <div :if={@unmeasured == []} data-part="empty">
-            {dgettext("dashboard_tests", "Every file Git tracks at this commit has coverage data.")}
           </div>
         </.card_section>
       </div>
@@ -255,6 +229,31 @@ defmodule TuistWeb.Coverage.Components do
     </.tooltip>
     """
   end
+
+  @doc """
+  Where a coverage page's back button leads when it was opened from another
+  coverage page (the `from` parameter the links out of a branch, a pull
+  request or a commit carry): that page, named for what it is. Nil when
+  `from` is missing or points anywhere but the project's coverage pages.
+  """
+  def back_to(nil, _account_name, _project_name), do: nil
+
+  def back_to(from, account_name, project_name) do
+    prefix = "/#{account_name}/#{project_name}/tests/coverage/"
+    %URI{path: path, scheme: scheme, host: host} = URI.parse(from)
+
+    if is_nil(scheme) and is_nil(host) and is_binary(path) and String.starts_with?(path, prefix) and
+         not String.contains?(from, ["//", "\\"]) do
+      %{label: path |> String.replace_prefix(prefix, "") |> String.split("/") |> back_label(), href: from}
+    end
+  end
+
+  defp back_label(["branches" | branch]) when branch != [],
+    do: dgettext("dashboard_tests", "Branch %{name}", name: Enum.map_join(branch, "/", &URI.decode/1))
+
+  defp back_label(["pull-requests", number]), do: dgettext("dashboard_tests", "Pull request %{name}", name: "#" <> number)
+  defp back_label(["commits", sha]), do: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha))
+  defp back_label(_path), do: dgettext("dashboard_tests", "Code coverage")
 
   @doc false
   def short_sha(sha), do: String.slice(sha || "", 0, 7)
@@ -479,7 +478,7 @@ defmodule TuistWeb.Coverage.Components do
   """
   def coverage_file_href(account_name, project_name, path, scope) do
     query =
-      Enum.flat_map([commit: "commit", tab: "tab"], fn {key, name} ->
+      Enum.flat_map([commit: "commit", tab: "tab", from: "from"], fn {key, name} ->
         case Map.get(scope, key) do
           value when value in [nil, ""] -> []
           value -> [{name, value}]
@@ -647,6 +646,49 @@ defmodule TuistWeb.Coverage.Components do
     """
   end
 
+  attr :id, :string, required: true
+  attr :selected_preset, :string, required: true
+  attr :period, :any, required: true
+
+  @doc """
+  The period a coverage page's figures cover, for the header of each card
+  that depends on it; every picker on a page sets the same period.
+  """
+  def coverage_period_picker(assigns) do
+    ~H"""
+    <.date_picker
+      id={@id}
+      name="coverage-date-range"
+      presets={[
+        %{id: "last-7-days", label: dgettext("dashboard_tests", "Last 7 days"), period: {7, :day}},
+        %{id: "last-30-days", label: dgettext("dashboard_tests", "Last 30 days"), period: {30, :day}},
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@selected_preset}
+      period={@period}
+      on_period_change="coverage_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: @id})}
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: @id})}
+        />
+      </:actions>
+    </.date_picker>
+    """
+  end
+
   attr :branch, :string, required: true
   attr :latest, :map, default: nil, doc: "The branch's latest measured point in the period, or nil."
   attr :trends, :map, required: true
@@ -772,8 +814,9 @@ defmodule TuistWeb.Coverage.Components do
       extra_options={
         %{
           # The last date's label centres on the last point, so the plot
-          # leaves room on its right for it.
-          grid: %{width: "93%", left: "0.4%", height: "88%", top: "5%"},
+          # leaves room on its right for half of it, as much as the y axis's
+          # labels take on the left.
+          grid: %{left: "0.4%", right: "24px", height: "88%", top: "5%"},
           xAxis: %{
             boundaryGap: false,
             type: "category",
@@ -955,9 +998,6 @@ defmodule TuistWeb.Coverage.Components do
       carried_from: []
     }
   end
-
-  defp share(_lines, executable) when executable in [nil, 0], do: 0.0
-  defp share(lines, executable), do: Float.round(lines * 100 / executable, 1)
 
   defp unknown?(sources), do: sources.unknown > 0 or sources.gap_files > 0 or not sources.confirmed
 

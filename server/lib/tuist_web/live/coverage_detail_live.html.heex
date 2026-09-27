@@ -1,24 +1,40 @@
 <div id="coverage-detail">
   <.button
-    label={dgettext("dashboard_tests", "Code coverage")}
+    label={@back.label}
     data-part="back-button"
     variant="secondary"
     size="medium"
-    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+    navigate={@back.href}
   >
     <:icon_left><.icon name="arrow_left" /></:icon_left>
   </.button>
 
   <div data-part="header">
     <div data-part="title-group">
-      <h1 data-part="title">{subject_title(@subject)}</h1>
+      <div data-part="title">
+        <div data-part="kind" data-kind={@subject.kind}>
+          <div data-part="icon">
+            <.git_commit :if={@subject.kind == :commit} />
+            <.git_branch :if={@subject.kind == :branch} />
+            <.git_merge :if={@subject.kind == :pull_request} />
+          </div>
+        </div>
+        <h1 data-part="label" aria-label={subject_title(@subject)}>{@subject.name}</h1>
+        <.button
+          :if={@subject.kind == :commit}
+          id="copy-commit-sha-button"
+          variant="secondary"
+          size="small"
+          icon_only
+          type="button"
+          phx-hook="Clipboard"
+          data-clipboard-value={@subject.sha}
+          aria-label={dgettext("dashboard_tests", "Copy commit SHA")}
+        >
+          <.copy />
+        </.button>
+      </div>
       <div data-part="badges">
-        <.badge
-          label={if @subject.kind == :commit, do: @subject.sha, else: short_sha(@subject.sha)}
-          color="neutral"
-          style="light-fill"
-          size="large"
-        />
         <span :if={@subject.kind == :pull_request and @subject.branch != ""} data-part="branches">
           <.badge label={@subject.branch} color="neutral" style="light-fill" size="large" />
           <.icon name="arrow_right" />
@@ -74,69 +90,6 @@
         </.tooltip>
       </div>
     </div>
-    <div :if={@subject.kind == :pull_request and length(@commits) > 1} data-part="actions">
-      <.dropdown
-        id="coverage-commit-dropdown"
-        label={short_sha(@subject.sha)}
-        secondary_text={dgettext("dashboard_tests", "Commit:")}
-      >
-        <.dropdown_item
-          :for={commit <- @commits}
-          value={commit.git_commit_sha}
-          label={
-            "#{short_sha(commit.git_commit_sha)} · #{Tuist.Utilities.DateFormatter.from_now(commit.ran_at)}"
-          }
-          patch={"?#{@uri.query |> Query.put("commit", commit.git_commit_sha) |> Query.drop("page")}"}
-          data-selected={@subject.sha == commit.git_commit_sha}
-        >
-          <:right_icon :if={@subject.sha == commit.git_commit_sha}><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-    </div>
-    <div :if={@subject.kind == :branch} data-part="actions">
-      <.date_picker
-        id="coverage-date-range-picker"
-        name="coverage-date-range"
-        presets={[
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@coverage_preset}
-        period={@coverage_period}
-        on_period_change="coverage_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </div>
   </div>
 
   <.tab_menu_horizontal>
@@ -164,7 +117,15 @@
       trends={@trends}
       points={@points}
       selected_widget={@selected_widget}
-    />
+    >
+      <:actions>
+        <.coverage_period_picker
+          id="coverage-analytics-date-range-picker"
+          selected_preset={@coverage_preset}
+          period={@coverage_period}
+        />
+      </:actions>
+    </.coverage_analytics_card>
     <.card
       :if={@tab == "overview" and @subject.kind != :branch}
       title={dgettext("dashboard_tests", "Analytics")}
@@ -176,7 +137,6 @@
           <.widget
             id="widget-coverage"
             title={dgettext("dashboard_tests", "Code coverage")}
-            legend_color="primary"
             description={
               dgettext(
                 "dashboard_tests",
@@ -213,19 +173,13 @@
       :if={@tab == "overview" and coverage_breakdown?(@summary)}
       summary={@summary}
       ran_tests_count={@ran_tests_count}
-      commit_href={
-        fn sha ->
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{sha}"
-        end
-      }
+      commit_href={fn sha -> commit_href(assigns, sha) end}
     />
 
     <.files_coverage_card
       :if={@tab == "overview"}
       least_covered={@least_covered_files}
       file_href={fn path -> file_href(assigns, path) end}
-      unmeasured={@unmeasured_files}
-      unmeasured_count={@summary.unmeasured_files_count}
       href={"?#{@uri.query |> Query.put("tab", "files") |> Query.drop("page")}"}
     />
 
@@ -276,38 +230,6 @@
           data-part="empty-files"
         />
       </.card>
-      <.card
-        title={dgettext("dashboard_tests", "Files without coverage data")}
-        icon="file"
-        data-part="unmeasured-card"
-      >
-        <.card_section :if={@unmeasured_files != []} data-part="files-section">
-          <div data-part="files-table">
-            <.table id="coverage-unmeasured-files-table" rows={@unmeasured_files}>
-              <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-                <.text_and_description_cell
-                  label={Path.basename(file.path)}
-                  description={parent_dir(file.path)}
-                />
-              </:col>
-            </.table>
-            <.pagination_group
-              :if={@unmeasured_meta.total_pages > 1}
-              current_page={@unmeasured_meta.current_page}
-              number_of_pages={@unmeasured_meta.total_pages}
-              page_patch={fn page -> "?#{Query.put(@uri.query, "unmeasured-page", page)}" end}
-            />
-          </div>
-        </.card_section>
-        <.coverage_empty
-          :if={@unmeasured_files == []}
-          title={
-            dgettext("dashboard_tests", "Every file Git tracks at this commit has coverage data")
-          }
-          image="table"
-          data-part="empty-unmeasured"
-        />
-      </.card>
     </div>
 
     <%!-- Commits --%>
@@ -317,6 +239,13 @@
       icon="git_commit"
       data-part="commits"
     >
+      <:actions>
+        <.coverage_period_picker
+          id="coverage-commits-date-range-picker"
+          selected_preset={@coverage_preset}
+          period={@coverage_period}
+        />
+      </:actions>
       <.card_section :if={@commit_rows != []} data-part="commits-section">
         <.alert
           :if={@commits_ordered_by == :time and @subject.kind == :branch}
@@ -338,10 +267,7 @@
             row_navigate={
               fn row ->
                 if row.measured,
-                  do:
-                    url(
-                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{row.git_commit_sha}"
-                    )
+                  do: commit_href(assigns, row.git_commit_sha)
               end
             }
           >
@@ -418,6 +344,13 @@
       icon="dashboard"
       data-part="runs-card"
     >
+      <:actions :if={@subject.kind != :commit}>
+        <.coverage_period_picker
+          id="coverage-runs-date-range-picker"
+          selected_preset={@coverage_preset}
+          period={@coverage_period}
+        />
+      </:actions>
       <.card_section :if={@run_rows != []} data-part="runs-section">
         <div data-part="runs-table">
           <.table

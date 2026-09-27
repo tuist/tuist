@@ -270,29 +270,23 @@ defmodule TuistWeb.CoverageLiveTest do
   end
 
   describe "coverage gaps" do
-    test "the Files tab pages the files without coverage data under their own parameter", %{
+    test "a commit's pages do not list the files without coverage data", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      untested = for index <- 1..25, do: "Sources/Untested#{String.pad_leading("#{index}", 2, "0")}.swift"
-      CoverageFixtures.seed_listing(organization.account, "b", ["Sources/A.swift" | untested])
+      CoverageFixtures.seed_listing(organization.account, "b", ["Sources/A.swift", "Sources/Untested.swift"])
       main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0])])
 
       path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/b"
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "#coverage-gap-files-table", "A.swift")
+      refute render(lv) =~ "Untested.swift"
+
       {:ok, lv, _html} = live(conn, path <> "?tab=files")
-
-      first = lv |> element("#coverage-unmeasured-files-table") |> render()
-      assert first =~ "Untested01.swift"
-      assert first =~ "Untested20.swift"
-      refute first =~ "Untested21.swift"
-
-      {:ok, lv, _html} = live(conn, path <> "?tab=files&unmeasured-page=2")
-
-      second = lv |> element("#coverage-unmeasured-files-table") |> render()
-      assert second =~ "Untested21.swift"
-      assert second =~ "Untested25.swift"
-      refute second =~ "Untested20.swift"
+      assert has_element?(lv, "#coverage-files-table", "A.swift")
+      refute render(lv) =~ "Untested.swift"
     end
   end
 end

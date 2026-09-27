@@ -133,14 +133,6 @@
                 executable={branch.executable_lines}
               />
             </:col>
-            <:col :let={branch} label={dgettext("dashboard_tests", "Status")}>
-              <.tooltip_badge_cell
-                id={"coverage-ref-status-#{branch.git_commit_sha}"}
-                color={ref_status_color(branch)}
-                label={ref_status_label(branch)}
-                description={head_status_title(branch)}
-              />
-            </:col>
             <:col :let={branch} label={dgettext("dashboard_tests", "Measured")}>
               <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(branch.ran_at)} />
             </:col>

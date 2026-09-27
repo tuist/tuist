@@ -61,11 +61,13 @@ defmodule TuistWeb.CoverageDetailLive do
     socket =
       socket
       |> assign(:uri, URI.new!("?" <> URI.encode_query(query)))
+      |> assign(:page_path, URI.parse(uri).path)
       |> assign(:current_params, query)
+      |> assign_back(query)
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
       |> assign(:selected_widget, selected_widget(query["analytics-selected-widget"]))
-      |> assign_subject(params, query)
+      |> assign_subject(params)
 
     # The static render resolves the subject, so a missing one is still a
     # 404, and leaves the rest to the connected one.
@@ -77,8 +79,33 @@ defmodule TuistWeb.CoverageDetailLive do
   end
 
   @doc false
-  def file_href(%{selected_account: account, selected_project: project, subject: subject, tab: tab}, path) do
-    coverage_file_href(account.name, project.name, path, %{commit: subject.sha, tab: tab})
+  def file_href(%{selected_account: account, selected_project: project, subject: subject, tab: tab} = assigns, path) do
+    coverage_file_href(account.name, project.name, path, %{commit: subject.sha, tab: tab, from: here(assigns)})
+  end
+
+  @doc "A commit's page, reached from this one, whose back button leads here."
+  def commit_href(%{selected_account: account, selected_project: project} = assigns, sha) do
+    "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?" <>
+      URI.encode_query(%{"from" => here(assigns)})
+  end
+
+  # This page as it is shown (its tab, period and page), for the pages it
+  # links to to lead back to.
+  defp here(%{page_path: path, uri: %URI{query: query}}) when query not in [nil, ""], do: path <> "?" <> query
+  defp here(%{page_path: path}), do: path
+
+  # A page opened from a branch, a pull request or a commit leads back to
+  # it; any other leads back to the Code Coverage page.
+  defp assign_back(%{assigns: %{selected_account: account, selected_project: project}} = socket, query) do
+    assign(
+      socket,
+      :back,
+      back_to(query["from"], account.name, project.name) ||
+        %{
+          label: dgettext("dashboard_tests", "Code coverage"),
+          href: "/#{account.name}/#{project.name}/tests/coverage"
+        }
+    )
   end
 
   def handle_event(
@@ -127,7 +154,7 @@ defmodule TuistWeb.CoverageDetailLive do
     if Commits.measured?(project.id, subject.sha) do
       {:noreply,
        socket
-       |> assign_subject(socket.assigns.params, socket.assigns.current_params)
+       |> assign_subject(socket.assigns.params)
        |> assign_tab(socket.assigns.current_params)}
     else
       {:noreply, socket}
@@ -149,7 +176,7 @@ defmodule TuistWeb.CoverageDetailLive do
   end
 
   # What the page is about, and the head commit every figure describes.
-  defp assign_subject(%{assigns: %{live_action: :commit, selected_project: project}} = socket, params, _query) do
+  defp assign_subject(%{assigns: %{live_action: :commit, selected_project: project}} = socket, params) do
     sha = params["git_commit_sha"]
     summary = Commits.summary(project.id, sha)
 
@@ -163,7 +190,7 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign_summary(summary)
   end
 
-  defp assign_subject(%{assigns: %{live_action: :branch, selected_project: project}} = socket, params, _query) do
+  defp assign_subject(%{assigns: %{live_action: :branch, selected_project: project}} = socket, params) do
     branch = params["branch"] |> List.wrap() |> Enum.join("/")
 
     head =
@@ -183,7 +210,7 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign_summary(Commits.summary(project.id, head.git_commit_sha))
   end
 
-  defp assign_subject(%{assigns: %{live_action: :pull_request, selected_project: project}} = socket, params, query) do
+  defp assign_subject(%{assigns: %{live_action: :pull_request, selected_project: project}} = socket, params) do
     number =
       case Integer.parse(params["pull_request_number"] || "") do
         {number, ""} -> number
@@ -197,7 +224,7 @@ defmodule TuistWeb.CoverageDetailLive do
             dgettext("dashboard_tests", "No test run of pull request #%{number} gathered coverage.", number: number)
     end
 
-    head = Enum.find(commits, hd(commits), &(&1.git_commit_sha == query["commit"]))
+    head = hd(commits)
 
     socket
     |> assign(:params, params)
@@ -233,16 +260,14 @@ defmodule TuistWeb.CoverageDetailLive do
   defp assign_overview(%{assigns: %{selected_project: project, subject: subject, summary: summary}} = socket) do
     # The tests that ran are only read for the card that breaks the
     # coverage down.
-    [{files, _count}, unmeasured, ran_tests] =
+    [{files, _count}, ran_tests] =
       Tuist.Tasks.parallel_tasks([
         fn -> Commits.list_files(project.id, subject.sha, 1, @highlight_size) end,
-        fn -> unmeasured_files(project, subject.sha, @highlight_size) end,
         fn -> if coverage_breakdown?(summary), do: Commits.ran_tests_count(project.id, summary.test_run_ids), else: 0 end
       ])
 
     socket
     |> assign(:least_covered_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
-    |> assign(:unmeasured_files, unmeasured)
     |> assign(:ran_tests_count, ran_tests)
     |> assign_analytics()
   end
@@ -265,6 +290,7 @@ defmodule TuistWeb.CoverageDetailLive do
   defp assign_analytics(socket), do: socket
 
   defp assign_commits(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}} = socket, query) do
+    commits = Enum.filter(commits, &in_period?(socket, &1.ran_at))
     total_pages = max(1, ceil(length(commits) / @page_size))
     page = min(Query.bounded_page(query["page"]), total_pages)
 
@@ -295,26 +321,14 @@ defmodule TuistWeb.CoverageDetailLive do
     assign(socket, :target_rows, Enum.map(targets, &Map.put(&1, :id, "target-" <> &1.name)))
   end
 
-  # The two lists page apart, each under its own parameter, so turning one
-  # leaves the other where it was.
-  defp assign_files(%{assigns: %{selected_project: project, subject: subject, summary: summary}} = socket, query) do
+  defp assign_files(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     page = Query.bounded_page(query["page"])
-    unmeasured_pages = max(1, ceil(summary.unmeasured_files_count / @page_size))
-    unmeasured_page = min(Query.bounded_page(query["unmeasured-page"]), unmeasured_pages)
-
-    [{files, count}, unmeasured] =
-      Tuist.Tasks.parallel_tasks([
-        fn -> Commits.list_files(project.id, subject.sha, page, @page_size) end,
-        fn -> unmeasured_files(project, subject.sha, @page_size, (unmeasured_page - 1) * @page_size) end
-      ])
-
+    {files, count} = Commits.list_files(project.id, subject.sha, page, @page_size)
     total_pages = max(1, ceil(count / @page_size))
 
     socket
     |> assign(:file_rows, Enum.map(files, &Map.put(&1, :id, &1.path)))
     |> assign(:files_meta, %{current_page: min(page, total_pages), total_pages: total_pages})
-    |> assign(:unmeasured_files, unmeasured)
-    |> assign(:unmeasured_meta, %{current_page: unmeasured_page, total_pages: unmeasured_pages})
   end
 
   # The runs behind the subject: one commit's, a pull request's commits', or
@@ -333,8 +347,13 @@ defmodule TuistWeb.CoverageDetailLive do
          %{assigns: %{selected_project: project, subject: %{kind: :pull_request}, commits: commits}} = socket,
          _query
        ) do
+    runs =
+      project.id
+      |> Commits.runs(Enum.map(commits, & &1.git_commit_sha))
+      |> Enum.filter(&in_period?(socket, &1.ran_at))
+
     socket
-    |> assign_run_rows(Commits.runs(project.id, Enum.map(commits, & &1.git_commit_sha)))
+    |> assign_run_rows(runs)
     |> assign(:runs_meta, nil)
   end
 
@@ -358,13 +377,15 @@ defmodule TuistWeb.CoverageDetailLive do
   defp cursor_meta(page),
     do: page |> Map.take([:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]) |> Map.put(:cursor, true)
 
-  defp unmeasured_files(project, sha, limit, offset \\ 0) do
-    project
-    |> Commits.unmeasured_files(sha, limit: limit, offset: offset)
-    |> Enum.map(&%{id: "unmeasured-" <> &1, path: &1})
-  end
-
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
+
+  # A pull request's commits and runs are all read for the subject, so the
+  # period narrows its lists here.
+  defp in_period?(socket, at) do
+    [since: since, until: until] = period_opts(socket)
+    at = if is_struct(at, DateTime), do: DateTime.to_naive(at), else: at
+    NaiveDateTime.compare(at, since) != :lt and NaiveDateTime.before?(at, until)
+  end
 
   defp selected_widget(widget) when widget in @widgets, do: widget
   defp selected_widget(_widget), do: "coverage"

@@ -220,18 +220,39 @@
       gap: var(--noora-spacing-4);
     }
 
-    & > [data-part="actions"] {
-      display: flex;
-      flex-shrink: 0;
-      flex-direction: row;
-      gap: var(--noora-spacing-4);
-    }
-
-    /* The page's title only: the header's tooltips have titles of their own. */
+    /* The page's title only, led by an icon for what the page is (a commit,
+       a branch or a pull request), as the test case page leads with its
+       status; the header's tooltips have titles of their own. */
     & > [data-part="title-group"] > [data-part="title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      min-width: 0;
+
+      & > [data-part="kind"] {
+        border-radius: var(--noora-radius-4);
+        background: var(--noora-icon-neutral-background);
+
+        & > [data-part="icon"] {
+          padding: var(--noora-spacing-3);
+          width: var(--noora-icon-size-large);
+          height: var(--noora-icon-size-large);
+          color: var(--noora-icon-neutral-label);
+
+          & > svg {
+            width: 100%;
+            height: 100%;
+          }
+        }
+      }
+
+      & > [data-part="label"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+        word-break: break-word;
+      }
     }
 
     & [data-part="badges"] {

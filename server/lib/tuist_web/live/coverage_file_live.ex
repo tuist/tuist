@@ -55,10 +55,14 @@ defmodule TuistWeb.CoverageFileLive do
     socket
     |> assign(:loading, true)
     |> assign(:scope, %{commit: sha})
-    |> assign(:back, %{
-      label: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha)),
-      href: "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?" <> URI.encode_query(tab)
-    })
+    |> assign(
+      :back,
+      back_to(query["from"], account.name, project.name) ||
+        %{
+          label: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha)),
+          href: "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?" <> URI.encode_query(tab)
+        }
+    )
   end
 
   @doc "What the page's badge says it is read at."

@@ -42,6 +42,11 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   test "shows a commit's totals, complete once signalled", %{conn: conn, base: base, project: project} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
 
+    assert has_element?(lv, "h1[aria-label='Commit b']", "b")
+    assert has_element?(lv, "#copy-commit-sha-button[data-clipboard-value='b']")
+    assert has_element?(lv, "[data-part='kind'][data-kind='commit']")
+    refute has_element?(lv, "#coverage-detail [data-part='badges'] .noora-badge", "b")
+
     assert has_element?(lv, "#widget-coverage", "66.7%")
     assert has_element?(lv, "#widget-covered-lines", "4")
     assert has_element?(lv, "#widget-executable-lines", "6")
@@ -109,7 +114,12 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
   test "opens a file of the commit on its own page, with its uncovered lines", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
-    assert has_element?(lv, "#coverage-gap-files-table a[href='#{base}/files/Sources/A.swift?commit=b&tab=overview']")
+    from = URI.encode_www_form("#{base}/commits/b")
+
+    assert has_element?(
+             lv,
+             "#coverage-gap-files-table a[href='#{base}/files/Sources/A.swift?commit=b&tab=overview&from=#{from}']"
+           )
 
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&tab=overview")
     assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=overview']")
@@ -134,16 +144,29 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     } do
       {:ok, lv, _html} = live(conn, base <> "/branches/main")
 
-      assert has_element?(lv, "[data-part='title']", "Branch main")
+      assert has_element?(lv, "h1[aria-label='Branch main']", "main")
+      assert has_element?(lv, "[data-part='kind'][data-kind='branch']")
       assert has_element?(lv, "#widget-coverage", "66.7%")
       assert has_element?(lv, "#coverage-chart")
-      assert has_element?(lv, "[data-part='actions'] #coverage-date-range-picker")
+      assert has_element?(lv, "[data-part='analytics'] #coverage-analytics-date-range-picker")
       assert render(lv) =~ "?tab=commits"
 
       refute has_element?(lv, "[data-part='sources-card']")
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
-      assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/b']")
+      from = URI.encode_www_form("#{base}/branches/main?tab=commits")
+      assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/b?from=#{from}']")
+
+      # The commit, and a file of it, lead back to the branch as it was.
+      {:ok, lv, _html} = live(conn, base <> "/commits/b?from=#{from}")
+      assert has_element?(lv, "[data-part='back-button'][href='#{base}/branches/main?tab=commits']", "Branch main")
+
+      {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&from=#{from}")
+      assert has_element?(lv, "[data-part='back-button'][href='#{base}/branches/main?tab=commits']", "Branch main")
+
+      # Anywhere else is not somewhere to lead back to.
+      {:ok, lv, _html} = live(conn, base <> "/commits/b?from=" <> URI.encode_www_form("https://example.com/x"))
+      assert has_element?(lv, "[data-part='back-button'][href='#{base}']", "Code coverage")
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=runs")
       assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")
@@ -161,10 +184,10 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       })
 
       {:ok, lv, _html} = live(conn, base <> "/branches/feature/widgets")
-      assert has_element?(lv, "[data-part='title']", "Branch feature/widgets")
+      assert has_element?(lv, "h1[aria-label='Branch feature/widgets']", "feature/widgets")
 
       {:ok, lv, _html} = live(conn, base <> "/branches/feature%2Fwidgets")
-      assert has_element?(lv, "[data-part='title']", "Branch feature/widgets")
+      assert has_element?(lv, "h1[aria-label='Branch feature/widgets']", "feature/widgets")
     end
   end
 
@@ -205,11 +228,12 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     } do
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7")
 
-      assert has_element?(lv, "[data-part='title']", "Pull request #7")
+      assert has_element?(lv, "h1[aria-label='Pull request #7']", "#7")
+      assert has_element?(lv, "[data-part='kind'][data-kind='pull_request']")
       assert has_element?(lv, "[data-part='branches']", "feature/gates")
       assert has_element?(lv, "[data-part='branches']", "main")
       assert has_element?(lv, "#widget-coverage", "75.0%")
-      assert has_element?(lv, "#coverage-commit-dropdown")
+      refute has_element?(lv, "#coverage-commit-dropdown")
 
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
       table = lv |> element("#coverage-commits-table") |> render()
@@ -223,9 +247,33 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{newer.id}']")
     end
 
-    test "reads an earlier commit the address picks", %{conn: conn, base: base} do
+    test "lists the commits and runs of the period, picked in those cards' headers", %{conn: conn, base: base} do
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
+      assert has_element?(lv, "[data-part='commits'] #coverage-commits-date-range-picker")
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs")
+      assert has_element?(lv, "[data-part='runs-card'] #coverage-runs-date-range-picker")
+
+      week_ago = DateTime.utc_now() |> DateTime.add(-7, :day) |> DateTime.to_iso8601()
+      yesterday = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_iso8601()
+
+      period =
+        URI.encode_query(%{
+          "coverage-date-range" => "custom",
+          "coverage-start-date" => week_ago,
+          "coverage-end-date" => yesterday
+        })
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&" <> period)
+      assert has_element?(lv, "[data-part='empty-commits']")
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs&" <> period)
+      assert has_element?(lv, "[data-part='empty-runs']")
+    end
+
+    test "reads as its newest commit whatever commit the address names", %{conn: conn, base: base} do
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?commit=p1")
-      assert has_element?(lv, "#widget-coverage", "25.0%")
+      assert has_element?(lv, "#widget-coverage", "75.0%")
     end
   end
 
