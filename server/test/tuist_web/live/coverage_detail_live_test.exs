@@ -112,6 +112,53 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")
   end
 
+  test "searches, filters, sorts and pages the commit's targets, least covered first by default", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    files =
+      [
+        CoverageFixtures.file("Sources/Calculator.swift", [1, 0], targets: ["Calculator"]),
+        CoverageFixtures.file("Sources/Networking.swift", [1, 1], targets: ["Networking"]),
+        CoverageFixtures.file("Sources/Storage.swift", [0, 0], targets: ["Storage"])
+      ] ++
+        for index <- 1..20 do
+          CoverageFixtures.file("Sources/Feature#{index}.swift", [1, 1, 1], targets: ["Feature#{index}"])
+        end
+
+    CoverageFixtures.run_with_coverage(project, organization.account, files, %{git_commit_sha: "a"})
+    order = fn lv, names -> Enum.sort_by(names, &(lv |> render() |> :binary.match(&1) |> elem(0))) end
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/a?tab=targets")
+    assert order.(lv, ["Feature1", "Calculator", "Storage"]) == ["Storage", "Calculator", "Feature1"]
+    assert has_element?(lv, "#coverage-targets-sort-by-label-portal", "Coverage")
+    assert has_element?(lv, "#coverage-targets-table", "Feature1")
+    refute has_element?(lv, "#coverage-targets-table", "Networking")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/a?tab=targets&page=2")
+    assert has_element?(lv, "#coverage-targets-table", "Networking")
+
+    lv |> form("#coverage-targets-search-form", %{search: "net"}) |> render_change()
+    assert_patch(lv, base <> "/commits/a?tab=targets&targets-search=net")
+    assert has_element?(lv, "#coverage-targets-table", "Networking")
+    refute has_element?(lv, "#coverage-targets-table", "Calculator")
+
+    not_features = "filter_target_name_op=!%3D~&filter_target_name_val=feature"
+    {:ok, lv, _html} = live(conn, base <> "/commits/a?tab=targets&#{not_features}")
+    assert has_element?(lv, "#target_name", "Target name")
+    refute has_element?(lv, "#coverage-targets-table", "Feature1")
+
+    {:ok, lv, _html} =
+      live(conn, base <> "/commits/a?tab=targets&targets-sort-by=name&targets-sort-order=desc&#{not_features}")
+
+    assert order.(lv, ["Calculator", "Storage", "Networking"]) == ["Storage", "Networking", "Calculator"]
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/a?tab=targets&targets-search=missing")
+    assert has_element?(lv, "#coverage-targets-table", "No target matches these filters")
+  end
+
   test "opens a file of the commit on its own page, with its uncovered lines", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
     from = URI.encode_www_form("#{base}/commits/b?tab=files")

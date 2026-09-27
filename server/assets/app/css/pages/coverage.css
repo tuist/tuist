@@ -124,6 +124,7 @@
   & [data-part="commits-table"],
   & [data-part="branches-table"],
   & [data-part="files-table"],
+  & [data-part="targets-table"],
   & [data-part="refs-table"],
   & [data-part="runs-table"] {
     display: flex;
@@ -132,9 +133,16 @@
 
   & [data-part="branches-section"] [data-part="filters"],
   & [data-part="commits-section"] [data-part="filters"],
-  & [data-part="refs-section"] [data-part="filters"] {
+  & [data-part="refs-section"] [data-part="filters"],
+  & [data-part="targets-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="targets-section"] > [data-part="active-filters"] {
+    display: flex;
+    align-self: flex-start;
+    gap: var(--noora-spacing-4);
   }
 
   /* The Files tab stacks two cards, spaced as the page spaces its own. */

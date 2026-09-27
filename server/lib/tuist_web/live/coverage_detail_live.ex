@@ -17,6 +17,7 @@ defmodule TuistWeb.CoverageDetailLive do
   import TuistWeb.Coverage.Components
   import TuistWeb.Helpers.TestLabels
 
+  alias Noora.Filter
   alias Tuist.FeatureFlags
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
@@ -27,6 +28,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
   @tabs ~w(overview commits targets files runs)
   @widgets ~w(coverage covered_lines executable_lines)
+  @target_sorts ~w(coverage name files)
   @page_size 20
   # How many rows the overview's files hold: a highlight, not a listing.
 
@@ -45,6 +47,8 @@ defmodule TuistWeb.CoverageDetailLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Code Coverage")} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("tests"))
       |> assign(:reload_scheduled, false)
+      |> assign(:available_filters, target_filters())
+      |> assign(:active_filters, [])
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -133,6 +137,31 @@ defmodule TuistWeb.CoverageDetailLive do
   def handle_event("search-commits", %{"search" => search}, socket) do
     query = socket.assigns.uri.query |> Query.put("commits-search", search) |> drop_paging()
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+  end
+
+  def handle_event("search-targets", %{"search" => search}, socket) do
+    query = socket.assigns.uri.query |> Query.put("targets-search", search) |> drop_paging()
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+  end
+
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    query = filter_id |> Filter.Operations.add_filter_to_query(socket) |> Map.delete("page")
+
+    {:noreply,
+     socket
+     |> push_patch(to: socket.assigns.current_path <> "?" <> URI.encode_query(query))
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    query = params |> Filter.Operations.update_filters_in_query(socket) |> Map.delete("page")
+
+    {:noreply,
+     socket
+     |> push_patch(to: socket.assigns.current_path <> "?" <> URI.encode_query(query))
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -253,7 +282,7 @@ defmodule TuistWeb.CoverageDetailLive do
     case socket.assigns.tab do
       "overview" -> assign_overview(socket)
       "commits" -> assign_commits(socket, query)
-      "targets" -> assign_targets(socket)
+      "targets" -> assign_targets(socket, query)
       "files" -> assign_files(socket, query)
       "runs" -> assign_runs(socket, query)
     end
@@ -350,9 +379,80 @@ defmodule TuistWeb.CoverageDetailLive do
   defp pull_request_commit_status(%{complete: true}), do: "complete"
   defp pull_request_commit_status(_commit), do: "pending"
 
-  defp assign_targets(%{assigns: %{selected_project: project, subject: subject}} = socket) do
-    targets = Commits.targets(project.id, subject.sha)
-    assign(socket, :target_rows, Enum.map(targets, &Map.put(&1, :id, "target-" <> &1.name)))
+  # A commit has a few thousand targets at most, all aggregated in one read,
+  # so they are searched, sorted and paged here.
+  defp assign_targets(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
+    search = String.trim(query["targets-search"] || "")
+    filters = Filter.Operations.decode_filters_from_query(query, socket.assigns.available_filters)
+    sort_by = if query["targets-sort-by"] in @target_sorts, do: query["targets-sort-by"], else: "coverage"
+    sort_order = if query["targets-sort-order"] in ~w(asc desc), do: query["targets-sort-order"], else: "asc"
+
+    measured = Commits.targets(project.id, subject.sha)
+
+    targets =
+      measured
+      |> Enum.filter(&(name_matches?(&1.name, :=~, search) and Enum.all?(filters, fn f -> target_matches?(&1, f) end)))
+      |> sort_targets(sort_by, sort_order)
+
+    total_pages = max(1, ceil(length(targets) / @page_size))
+    page = min(Query.bounded_page(query["page"]), total_pages)
+
+    socket
+    |> assign(
+      :target_rows,
+      targets |> Enum.slice((page - 1) * @page_size, @page_size) |> Enum.map(&Map.put(&1, :id, "target-" <> &1.name))
+    )
+    |> assign(:targets_measured?, measured != [])
+    |> assign(:targets_meta, %{current_page: page, total_pages: total_pages})
+    |> assign(:targets_search, search)
+    |> assign(:targets_sort_by, sort_by)
+    |> assign(:targets_sort_order, sort_order)
+    |> assign(:active_filters, filters)
+  end
+
+  defp target_filters do
+    [
+      %Filter.Filter{
+        id: "target_name",
+        field: :name,
+        display_name: dgettext("dashboard_tests", "Target name"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      }
+    ]
+  end
+
+  defp target_matches?(target, %Filter.Filter{field: :name, operator: operator, value: value}),
+    do: name_matches?(target.name, operator, value || "")
+
+  defp name_matches?(_name, _operator, ""), do: true
+  defp name_matches?(name, :==, value), do: String.downcase(name) == String.downcase(value)
+  defp name_matches?(name, :=~, value), do: name |> String.downcase() |> String.contains?(String.downcase(value))
+  defp name_matches?(name, :"!=~", value), do: not name_matches?(name, :=~, value)
+
+  defp sort_targets(targets, sort_by, sort_order) do
+    direction = String.to_existing_atom(sort_order)
+
+    case sort_by do
+      "name" -> Enum.sort_by(targets, & &1.name, direction)
+      "files" -> Enum.sort_by(targets, &{&1.files_count, &1.name}, direction)
+      "coverage" -> Enum.sort_by(targets, &{&1.covered_lines / max(&1.executable_lines, 1), &1.name}, direction)
+    end
+  end
+
+  @doc "The Targets tab's sorts, with their labels."
+  def target_sorts,
+    do: [
+      {"coverage", dgettext("dashboard_tests", "Coverage")},
+      {"name", dgettext("dashboard_tests", "Target")},
+      {"files", dgettext("dashboard_tests", "Files")}
+    ]
+
+  @doc "The query that sorts the Targets tab by a column: the other order when it already does, ascending otherwise."
+  def targets_sort_patch(%{uri: uri, targets_sort_by: sort_by, targets_sort_order: order}, column) do
+    order = if sort_by == column and order == "asc", do: "desc", else: "asc"
+    "?" <> (uri.query |> Query.put("targets-sort-by", column) |> Query.put("targets-sort-order", order) |> drop_paging())
   end
 
   defp assign_files(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do

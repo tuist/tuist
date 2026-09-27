@@ -183,21 +183,101 @@
       icon="stack_2"
       data-part="targets-card"
     >
-      <.card_section :if={@target_rows != []} data-part="targets-section">
-        <.table id="coverage-targets-table" rows={@target_rows}>
-          <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
-            <.text_cell label={target.name} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
-            <.text_cell label={format_number(target.files_count)} />
-          </:col>
-        </.table>
+      <.card_section :if={@targets_measured?} data-part="targets-section">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="coverage-targets-search-form"
+            phx-change="search-targets"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-coverage-targets"
+              name="search"
+              placeholder={dgettext("dashboard_tests", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@targets_search}
+            />
+          </.form>
+          <.dropdown
+            id="coverage-targets-sort-by"
+            data-positioning-strategy="fixed"
+            label={
+              Enum.find_value(target_sorts(), fn {value, label} ->
+                if value == @targets_sort_by, do: label
+              end)
+            }
+            secondary_text={dgettext("dashboard_tests", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={{value, label} <- target_sorts()}
+              value={value}
+              label={label}
+              patch={
+                "?#{@uri.query |> Query.put("targets-sort-by", value) |> Query.drop("targets-sort-order") |> drop_paging()}"
+              }
+              data-selected={@targets_sort_by == value}
+            >
+              <:right_icon :if={@targets_sort_by == value}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.filter_dropdown
+            id="coverage-targets-filter-dropdown"
+            data-positioning-strategy="fixed"
+            label={dgettext("dashboard_tests", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+        <div data-part="targets-table">
+          <.table id="coverage-targets-table" rows={@target_rows}>
+            <:col
+              :let={target}
+              label={dgettext("dashboard_tests", "Target")}
+              patch={@targets_sort_by == "name" && targets_sort_patch(assigns, "name")}
+              sort_order={@targets_sort_by == "name" && @targets_sort_order}
+            >
+              <.text_cell label={target.name} />
+            </:col>
+            <:col
+              :let={target}
+              label={dgettext("dashboard_tests", "Coverage")}
+              patch={@targets_sort_by == "coverage" && targets_sort_patch(assigns, "coverage")}
+              sort_order={@targets_sort_by == "coverage" && @targets_sort_order}
+            >
+              <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
+            </:col>
+            <:col
+              :let={target}
+              label={dgettext("dashboard_tests", "Files")}
+              patch={@targets_sort_by == "files" && targets_sort_patch(assigns, "files")}
+              sort_order={@targets_sort_by == "files" && @targets_sort_order}
+            >
+              <.text_cell label={format_number(target.files_count)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="stack_2"
+                title={dgettext("dashboard_tests", "No target matches these filters")}
+                subtitle={dgettext("dashboard_tests", "Try updating your search")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@targets_meta.total_pages > 1}
+            current_page={@targets_meta.current_page}
+            number_of_pages={@targets_meta.total_pages}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+          />
+        </div>
       </.card_section>
       <.coverage_empty
-        :if={@target_rows == []}
+        :if={not @targets_measured?}
         title={dgettext("dashboard_tests", "No target was measured at this commit")}
         image="table"
         data-part="empty-targets"
