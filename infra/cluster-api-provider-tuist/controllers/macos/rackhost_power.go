@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,8 +43,11 @@ func rackHostOutlet(
 	if registry == nil {
 		return nil, power.Outlet{}, fmt.Errorf("no power drivers wired into this operator build")
 	}
-	if name := host.Spec.Power.PDU; name != "" {
+	if name := strings.TrimSpace(host.Spec.Power.PDU); name != "" {
 		return rackHostPDUOutlet(ctx, c, registry, egress, host, name)
+	}
+	if strings.TrimSpace(host.Spec.Power.Host) == "" {
+		return nil, power.Outlet{}, fmt.Errorf("power names neither a pdu nor a host")
 	}
 	driver, err := registry.Get(host.Spec.Power.Driver)
 	if err != nil {

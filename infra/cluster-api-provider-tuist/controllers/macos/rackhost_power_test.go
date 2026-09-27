@@ -134,6 +134,24 @@ func TestPowerThroughAMissingRackPDUIsNotReady(t *testing.T) {
 	}
 }
 
+// A power block naming neither a PDU nor an endpoint is not a Shelly with no
+// address.
+func TestPowerWithAnEmptyPDUNamesNeither(t *testing.T) {
+	driver := &credentialRecordingDriver{}
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Spec.Power = &infrav1.PowerOutletRef{PDU: "", Outlet: "1"}
+	})
+	r := newRackHostReconciler(t, nil, host)
+	r.Power = registryWithShelly(driver)
+
+	reconcileHost(t, r, "mini-01")
+
+	cond := conditionOf(readHost(t, r, "mini-01"), PowerReachableCondition)
+	if cond == nil || cond.Reason != "PowerNotConfigured" || !strings.Contains(cond.Message, "neither a pdu nor a host") {
+		t.Fatalf("PowerReachable = %+v", cond)
+	}
+}
+
 // The bootstrap-recovery reboot reaches a RackPDU's outlet the same way.
 func TestBootstrapRecoveryCycleGoesThroughTheRackPDU(t *testing.T) {
 	host := pduHost("mini-01")

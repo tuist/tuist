@@ -409,7 +409,32 @@ func (r *RackHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&infrav1.RackAppleSiliconMachine{},
 			handler.EnqueueRequestsFromMapFunc(rackHostForRackMachine),
 		).
+		Watches(
+			&infrav1.RackPDU{},
+			handler.EnqueueRequestsFromMapFunc(r.rackHostsForRackPDU),
+		).
 		Complete(r)
+}
+
+// rackHostsForRackPDU maps a RackPDU event to the hosts plugged into it, so a
+// PDU becoming Ready, or not, reaches them at once rather than at their poll.
+func (r *RackHostReconciler) rackHostsForRackPDU(ctx context.Context, o client.Object) []reconcile.Request {
+	pdu, ok := o.(*infrav1.RackPDU)
+	if !ok {
+		return nil
+	}
+	hosts := &infrav1.RackHostList{}
+	if err := r.List(ctx, hosts, client.InNamespace(pdu.Namespace)); err != nil {
+		log.FromContext(ctx).Error(err, "list the hosts on a RackPDU", "pdu", pdu.Name)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for _, host := range hosts.Items {
+		if host.Spec.Power != nil && host.Spec.Power.PDU == pdu.Name {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}})
+		}
+	}
+	return reqs
 }
 
 // rackHostForRackMachine maps a machine event to the host it is.

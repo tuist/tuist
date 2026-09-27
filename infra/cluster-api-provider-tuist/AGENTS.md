@@ -518,7 +518,15 @@ reports `AddressReserved=False`, reason `NoMAC`.
    state and that the account can still log in. Drift is reported
    (`drift: drifted`, `Converged=False` reason `Drifted`, one warning event)
    and not written over; a new generation converges it. An account that cannot
-   log in also makes the PDU not Ready.
+   log in, or a card that does not answer, is not drift, since nothing was
+   read: it is `Ready=False`, reason `ControllerLoginFailed` or `Unreachable`,
+   with `Converged` Unknown and drift `unknown`.
+
+One generation is one adoption pass. The reconciler wakes for a new generation
+or an annotation, not for its own status writes, and before adopting it reads
+the RackPDU past the manager's cache, whose copy can lag the status the last
+pass wrote. A RackPDU switched to `managedBy: standalone` is `Ready=False`,
+reason `Standalone`, and the controller stops contacting it.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
 `AddressReserved`. `Adopted=False` reasons: `Unreachable`, `AdminLoginRefused`
@@ -527,6 +535,20 @@ the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
 allows one session per account and another holds the administrator's; it
 lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
 for any other reason, carried verbatim), `ConvergeFailed`.
+
+**Metrics**, labelled `pdu` and `site`: `capt_rackpdu_adopted`,
+`capt_rackpdu_ready`, `capt_rackpdu_drifted` and
+`capt_rackpdu_certificate_changed`, each 1 or 0. The alerts worth having:
+
+- `capt_rackpdu_ready == 0` for 15 minutes: every host on the PDU has lost its
+  remote reboot. The RackPDU's `Ready` reason says why.
+- `capt_rackpdu_certificate_changed == 1`: something else answers at the
+  card's address, or the card was replaced or reset; nothing is written to it
+  until someone accepts the certificate.
+- `capt_rackpdu_drifted == 1` for an hour: someone changed an outlet's
+  startup state on the card.
+- `capt_rackpdu_adopted == 0` for an hour on a `controller` PDU: adoption is
+  stuck; read `Adopted`'s reason.
 
 **The administrator login for people** reaches 1Password through the
 PushSecret `<name>-admin` rendered beside the RackPDU, as the item
@@ -537,10 +559,12 @@ Secret's `admin-username`/`admin-password`, read with a JIT kubectl elevation.
 on the rack: the outlet's 1-based number on the PDU, the driver `eaton`, the
 dial target the PDU's egress Service, and the credentials and pin its Secret's.
 The CRD refuses `pdu` beside `driver`, `host` or `credentialsSecretRef`, and an
-outlet that is not a positive number. Power actions are refused, and
-`PowerReachable=False` with reason `PDUNotReady`, while the RackPDU is not
-Ready. `driver: shelly` with `host` and `credentialsSecretRef` stays for a desk
-plug; it is dialled directly.
+outlet that is not a positive number, and an empty `pdu` or `host`. Power
+actions are refused, and `PowerReachable=False` with reason `PDUNotReady`,
+while the RackPDU is not Ready or is standalone. A RackPDU's change wakes the
+hosts plugged into it at once rather than at their poll. `driver: shelly` with
+`host` and `credentialsSecretRef` stays for a desk plug; it is dialled
+directly.
 
 **The eaton driver** (`internal/power/eaton.go`) speaks the G4 REST API
 (`/rest/mbdetnrs/2.0`). The card allows one session per account, so the driver
@@ -548,7 +572,10 @@ keeps one bearer token per card, serialises every call to it, and logs in again
 only when the card rejects the token; the RackPDU controller's drift reads go
 through the same session as the power paths. The manager logs out on shutdown so
 the next leader is not refused; a crashed operator's session holds the account
-until the card's hour of inactivity ends it. `Set` reads the outlet first, does
+until the card's hour of inactivity ends it. When the credentials or the pin
+change, the old session is logged out first, through a client pinned to the new
+certificate when the old one cannot connect, and a logout that still fails is
+reported rather than dropped. `Set` reads the outlet first, does
 nothing when it is already in the requested state, refuses an outlet whose
 `specifications.switchable` is false, and returns once the outlet reads the new
 state. Account changes use the reauthentication token the card requires,
