@@ -80,12 +80,14 @@ type Card struct {
 	// Refusal, when set, answers every login with it: status and body.
 	Refusal *Refusal
 
-	Logins      []string
-	Logouts     int
-	Actions     []string
-	Writes      []string
-	InFlight    int
-	MaxInFlight int
+	Logins []string
+	// LoginAttempts counts every login request, answered or refused.
+	LoginAttempts int
+	Logouts       int
+	Actions       []string
+	Writes        []string
+	InFlight      int
+	MaxInFlight   int
 
 	Serial   string
 	Firmware string
@@ -418,6 +420,7 @@ func (c *Card) login(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"newPassword"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&request)
+	c.LoginAttempts++
 	if c.Refusal != nil {
 		answer(w, c.Refusal.Status, c.Refusal.Body)
 		return

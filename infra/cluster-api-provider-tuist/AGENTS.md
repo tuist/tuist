@@ -519,7 +519,15 @@ reports `AddressReserved=False`, reason `NoMAC`.
    and not written over; a new generation converges it. An account that cannot
    log in, or a card that does not answer, is not drift, since nothing was
    read: it is `Ready=False`, reason `ControllerLoginFailed` or `Unreachable`,
-   with `Converged` Unknown and drift `unknown`.
+   with `Converged` Unknown and drift `unknown`. A card that answers
+   `AccountBlocked` is `Ready=False`, reason `AccountBlocked`.
+
+A refused login, the controller's account's or the administrator's managed
+and factory pair, is not retried every minute: a card may block an account
+after repeated failures. The wait doubles from a minute up to an hour and
+starts over on a success, a new generation or a change to the RackPDU's
+annotations (any annotation will do to retry at once). It is held in memory
+(`controllers/macos/rackcard_backoff.go`), so a new leader starts over.
 
 One generation is one adoption pass. The reconciler wakes for a new generation
 or an annotation, not for its own status writes, and before adopting it reads
@@ -533,7 +541,7 @@ reason `Standalone`, and the controller stops contacting it.
 the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
 allows one session per account and another holds the administrator's; it
 lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
-for any other reason, carried verbatim), `ConvergeFailed`.
+for any other reason, carried verbatim), `AccountBlocked`, `ConvergeFailed`.
 
 **Metrics**, labelled `pdu` and `site`: `capt_rackpdu_adopted`,
 `capt_rackpdu_ready`, `capt_rackpdu_drifted` and

@@ -99,6 +99,8 @@ type RackPDUReconciler struct {
 	// so a cache that has not seen the last pass's status yet does not start
 	// another. Nil reads through Client.
 	APIReader client.Reader
+
+	loginBackoff cardLoginBackoff
 }
 
 // rackPDUPredicate wakes the reconciler for a new generation and for an
@@ -188,6 +190,9 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 }
 
 func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) (ctrl.Result, error) {
+	if wait := r.loginBackoff.wait(pdu); wait > 0 {
+		return ctrl.Result{RequeueAfter: wait}, nil
+	}
 	presented, err := power.ProbeTLSFingerprint(ctx, r.cardOutlet(pdu, secret, "", ""), r.timeout())
 	if err != nil {
 		pdu.Status.Reachable = false
@@ -266,6 +271,9 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 		pdu.Status.Message = err.Error()
 		conditions.MarkFalse(pdu, RackPDUAdoptedCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
+		if reason == "AdminLoginRefused" || reason == "AccountBlocked" {
+			return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
+		}
 		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
 	}
 	defer func() {
@@ -296,6 +304,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	conditions.MarkTrue(pdu, RackPDUConvergedCondition)
 	conditions.MarkTrue(pdu, clusterv1.ReadyCondition)
 	r.Recorder.Eventf(pdu, corev1.EventTypeNormal, "Converged", "Converged generation %d", pdu.Generation)
+	r.loginBackoff.succeeded(pdu)
 	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 }
 
@@ -429,17 +438,24 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 	pdu.Status.LastVerified = &now
 	if err != nil {
 		// Nothing on the card was read, so this says nothing about drift.
-		reason := "ControllerLoginFailed"
+		reason, retry := "Unreachable", rackPDURetryInterval
 		var refusal *power.EatonLoginError
-		if !errors.As(err, &refusal) {
-			reason = "Unreachable"
+		if errors.As(err, &refusal) {
+			reason = "ControllerLoginFailed"
+			if refusal.Code == "AccountBlocked" {
+				reason = "AccountBlocked"
+			}
+			if refusal.Refused() || refusal.Code == "AccountBlocked" {
+				retry = r.loginBackoff.refused(pdu)
+			}
 		}
 		pdu.Status.Drift = infrav1.RackPDUDriftUnknown
 		pdu.Status.Message = fmt.Sprintf("the controller's account cannot read the card: %v", err)
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
 		conditions.MarkUnknown(pdu, RackPDUConvergedCondition, reason, "%s", pdu.Status.Message)
-		return ctrl.Result{RequeueAfter: rackPDURetryInterval}
+		return ctrl.Result{RequeueAfter: retry}
 	}
+	r.loginBackoff.succeeded(pdu)
 	pdu.Status.OutletCount = len(outlets)
 	if identity, err := eaton.Identification(ctx, r.cardOutlet(pdu, secret, "", "")); err == nil {
 		pdu.Status.Model, pdu.Status.SerialNumber, pdu.Status.FirmwareVersion = identity.Model, identity.Serial, identity.Firmware
@@ -494,6 +510,8 @@ func rackPDULoginReason(err error) string {
 	switch {
 	case errors.Is(err, power.ErrEatonConcurrentSession):
 		return "AdminSessionBusy"
+	case errors.As(err, &refusal) && refusal.Code == "AccountBlocked":
+		return "AccountBlocked"
 	case errors.As(err, &refusal) && refusal.Status == 401:
 		return "AdminLoginRefused"
 	case errors.As(err, &refusal):
