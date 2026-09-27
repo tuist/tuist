@@ -246,6 +246,10 @@ void main() {
 
 function resolveTokenColor(host, name) {
   const probe = document.createElement("span");
+  // Marked so the 404's outline mode (which paints every element of its
+  // regions with a transparent color) leaves the probe alone; otherwise a
+  // theme change made in that mode resolves the ramp to black.
+  probe.setAttribute("data-color-probe", "");
   probe.style.position = "absolute";
   probe.style.visibility = "hidden";
   probe.style.color = `var(${name})`;
