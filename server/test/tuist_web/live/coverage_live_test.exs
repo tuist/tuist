@@ -230,6 +230,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert table =~ "75.0%"
 
       base = "/#{organization.account.name}/#{project.name}/tests/coverage"
+      assert has_element?(lv, "[data-part='branches-table'] .tuist-pagination button[disabled]", "Next")
       assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/pull-requests/42']")
       assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/feature%2Fwidgets']")
       assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/main']")

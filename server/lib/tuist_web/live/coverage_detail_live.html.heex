@@ -465,10 +465,7 @@
             </:col>
           </.table>
           <.pagination
-            :if={
-              @commits_meta.cursor and
-                (@commits_meta.has_next_page? or @commits_meta.has_previous_page?)
-            }
+            :if={@commits_meta.cursor}
             uri={@uri}
             has_previous_page={@commits_meta.has_previous_page?}
             has_next_page={@commits_meta.has_next_page?}
@@ -573,7 +570,7 @@
             </:empty_state>
           </.table>
           <.pagination
-            :if={@runs_meta.has_next_page? or @runs_meta.has_previous_page?}
+            :if={@run_rows != []}
             uri={@uri}
             has_previous_page={@runs_meta.has_previous_page?}
             has_next_page={@runs_meta.has_next_page?}

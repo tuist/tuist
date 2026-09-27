@@ -138,7 +138,6 @@
             </:col>
           </.table>
           <.pagination
-            :if={@branches_meta.has_next_page? or @branches_meta.has_previous_page?}
             uri={@uri}
             has_previous_page={@branches_meta.has_previous_page?}
             has_next_page={@branches_meta.has_next_page?}

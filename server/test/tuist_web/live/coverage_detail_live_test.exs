@@ -111,6 +111,8 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
     assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")
+    # One page still shows its buttons, disabled, as every list paged by cursor does.
+    assert has_element?(lv, "[data-part='runs-table'] .tuist-pagination button[disabled]", "Next")
   end
 
   test "searches, filters, sorts and pages the commit's targets, least covered first by default", %{
@@ -348,6 +350,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       refute has_element?(lv, "[data-part='sources-card']")
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
+      assert has_element?(lv, "[data-part='commits-table'] .tuist-pagination button[disabled]", "Prev")
       from = URI.encode_www_form("#{base}/branches/main?tab=commits")
       assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/b?from=#{from}']")
 
