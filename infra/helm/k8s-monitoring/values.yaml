@@ -1975,7 +1975,7 @@ k8s-monitoring:
         type: daemonset
         hostNetwork: true
         # The node's own resolver, which answers tailnet names:
-        # rack:edge-join points the kubelet's resolv.conf at
+        # a rack node's kubelet (RackLinuxMachine) points resolv.conf at
         # systemd-resolved's stub.
         dnsPolicy: Default
         affinity:

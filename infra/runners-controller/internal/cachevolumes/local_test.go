@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type testTransfer struct {
@@ -17,7 +18,7 @@ type testTransfer struct {
 	generation         int64
 }
 
-func (t *testTransfer) Download(_ Slot, path string) error {
+func (t *testTransfer) Download(_ context.Context, _ Slot, path string) error {
 	t.downloads++
 	data, err := os.ReadFile(t.source)
 	if err != nil {
@@ -84,7 +85,7 @@ func TestLocalMastersWarmReuseAndPrivateBranches(t *testing.T) {
 	b, remote := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	path := t.TempDir()
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(b.image(slot), []byte("saved cache"), 0600); err != nil {
@@ -104,7 +105,7 @@ func TestLocalMastersWarmReuseAndPrivateBranches(t *testing.T) {
 		next.ID = id
 		next.BaseGeneration = 1
 		next.ContentDigest = content
-		if err := b.Attach(next, t.TempDir()); err != nil {
+		if err := b.Attach(context.Background(), next, t.TempDir()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -129,7 +130,7 @@ func TestFailedAndRejectedUploadsDoNotInstallMaster(t *testing.T) {
 			r.fail = !conflict
 			slot := Slot{Identity: identity(first), PodUID: "p"}
 			path := t.TempDir()
-			if err := b.Attach(slot, path); err != nil {
+			if err := b.Attach(context.Background(), slot, path); err != nil {
 				t.Fatal(err)
 			}
 			err := b.Seal(slot, path)
@@ -151,11 +152,11 @@ func TestColdHostDownloadsOnceAndRestartDoesNotReformat(t *testing.T) {
 	slot.BaseGeneration = 4
 	slot.ContentDigest = strings.Repeat("a", 64)
 	path := t.TempDir()
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	os.WriteFile(b.image(slot), []byte("job writes"), 0600)
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(b.image(slot))
@@ -171,7 +172,7 @@ func TestRejectsFilesystemWithoutReflinksAndLowSpace(t *testing.T) {
 	}
 	b, _ = newLocal(t)
 	b.FreeBytes = func(string) (uint64, error) { return 0, nil }
-	if err := b.Attach(Slot{Identity: identity(first)}, t.TempDir()); err == nil {
+	if err := b.Attach(context.Background(), Slot{Identity: identity(first)}, t.TempDir()); err == nil {
 		t.Fatal("ignored reserve")
 	}
 }
@@ -180,7 +181,7 @@ func TestDeferredLoopDetachCannotPublishOrDeleteAnImage(t *testing.T) {
 	b, remote := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	path := t.TempDir()
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -223,7 +224,7 @@ func (invalidatedTransfer) IsCurrent(Slot) (bool, error) { return false, nil }
 func TestInvalidatedLocalMasterIsEvictedWithoutTouchingActiveClone(t *testing.T) {
 	b, r := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
-	if err := b.Attach(slot, t.TempDir()); err != nil {
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.Seal(slot, t.TempDir()); err != nil {
@@ -246,7 +247,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 	b, remote := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	path := t.TempDir()
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	checks := 0
@@ -276,7 +277,7 @@ func TestVerifiedImageRetriesUploadWithoutRecheckingUnmountedFilesystem(t *testi
 	b, remote := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	path := t.TempDir()
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	remote.fail = true
@@ -297,7 +298,7 @@ func TestInterruptedWriteBackVerificationDiscardsBranch(t *testing.T) {
 	b, remote := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	path := t.TempDir()
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(b.image(slot)+".checking", nil, 0600); err != nil {
@@ -308,5 +309,84 @@ func TestInterruptedWriteBackVerificationDiscardsBranch(t *testing.T) {
 	}
 	if remote.uploads != 0 {
 		t.Fatal("published an unverified image")
+	}
+}
+
+type cancelledDownload struct{ testTransfer }
+
+func (*cancelledDownload) Download(ctx context.Context, _ Slot, path string) error {
+	if err := os.WriteFile(path, []byte("partial"), 0600); err != nil {
+		return err
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+func TestRestoreDeadlineRemovesPartialImagesWithoutMounting(t *testing.T) {
+	b, _ := newLocal(t)
+	b.Transfer = &cancelledDownload{}
+	b.Mount = func(string, string) error { t.Fatal("mounted incomplete restore"); return nil }
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.BaseGeneration = 1
+	slot.ContentDigest = strings.Repeat("b", 64)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := b.Attach(ctx, slot, t.TempDir()); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	for _, path := range []string{b.master(slot), b.master(slot) + ".tmp", b.image(slot), b.image(slot) + ".tmp"} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("left restore artifact %s: %v", path, err)
+		}
+	}
+}
+func TestRestoreDeadlineBoundsSharedMasterAndAdmissionWaits(t *testing.T) {
+	for _, kind := range []string{"master", "admission"} {
+		t.Run(kind, func(t *testing.T) {
+			b, _ := newLocal(t)
+			slot := Slot{Identity: identity(first), PodUID: "pod"}
+			slot.BaseGeneration = 1
+			slot.ContentDigest = strings.Repeat("b", 64)
+			var unlock func()
+			if kind == "master" {
+				unlock = b.lock(slot.Scope)
+			} else {
+				if err := b.admission.LockContext(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				unlock = b.admission.Unlock
+			}
+			defer unlock()
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- b.Attach(ctx, slot, t.TempDir()) }()
+			select {
+			case err := <-done:
+				if !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatal(err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("restore waited beyond deadline")
+			}
+		})
+	}
+}
+func TestRestoreDeadlineCancelsFormatting(t *testing.T) {
+	b, _ := newLocal(t)
+	b.Run = func(ctx context.Context, name string, _ ...string) ([]byte, error) {
+		if name != "mkfs.ext4" {
+			t.Fatalf("unexpected command %s", name)
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := b.Attach(ctx, slot, t.TempDir()); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(b.image(slot) + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("left partial format", err)
 	}
 }

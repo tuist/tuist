@@ -138,6 +138,18 @@ Catch-up applies with **batched durability** instead of the live paths' per-reco
 
 See `src/sync/` for the pull links and roles, `src/replication/mod.rs` for the membership loop and the peer body streaming shared by every pass, and `src/backfill/` for the pass pipeline.
 
+## Quota Pressure During Segment Rotation
+
+The configured CAS ring is a ceiling, not proof that another segment fits. RocksDB, staging, and segment bodies share the volume; metadata-heavy stores can exceed the initial overhead estimate. Rotation checks actual filesystem availability against the existing two-segment allocation guard. Below that guard it returns retryable `disk_full` and wakes a supervised worker; it never scans or evicts metadata under the writer locks.
+
+The worker retires at most one oldest sealed segment per pass, preserves the active writer and five-segment minimum, and cleans it through the existing metadata/dependency-cascade/unlink path. It acquires the promotion and writer locks only to select and persist retirement. Append destinations are pinned until their metadata commits, including deferred backfill batches; promotion pins its source as well. A pin record is shared by all appends to its segment and removed from the registry when that segment leaves the ring. Blocking metadata writes own clones of these pins so request cancellation cannot expose their segments to cleanup while the commit still runs. A pinned oldest segment delays reclamation instead of sacrificing younger data. Pressure cleanup also holds at most 32 artifact-write lock stripes per outer metadata chunk. It releases that set before waiting for a contended stripe, avoiding deadlock with deferred backfill group commits. Detached eviction commits retain the same locks so a cancelled worker cannot let a newer overwrite commit ahead of its stale deletion; unrelated stripes remain writable.
+
+A pending retirement is stored on the Store before cleanup begins. Worker errors, cancellation, or supervision restart resume that file before retiring another; a process crash is recovered by the startup orphan sweep. Unlinking may release no blocks while readers retain open files: after a no-progress pass the worker sheds no more segments until observed availability increases. Retries are paced at one second. This can still require operational headroom when even the minimum ring or metadata cleanup cannot fit.
+
+Successful retirement reduces the effective ring ceiling while including room for the next rotation. Retained references are repartitioned without further eviction, avoiding a second loss from generation trimming. Backfill uses the effective count. Plenty of free space permits one segment of regrowth per rotation, up to the configured ceiling.
+
+Storage snapshots continue reporting the configured budget and desired count, preserving the control plane's sizing denominator. Pressure events have reason `disk_pressure` and do not enter the ordinary shed-age histogram; `kura_disk_pressure_reclaimed_bytes_total` counts the logical bytes unlinked (open readers can delay physical release). The control plane counts pressure events to prevent occupancy shrink, excludes their bytes from turnover, and invalidates retention ages on any day with pressure, including mixed capacity/pressure days. The managed budget formula and manifest revision are unchanged by this runtime fix.
+
 ## Discovery And Membership
 
 A node finds peers in three ways:

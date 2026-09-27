@@ -41,7 +41,9 @@ key/path pair per action, before any tool populates that directory. Absolute,
 relative and `~/` paths work. Existing nonempty directories cause an error.
 `cache-hit` is `true` when attached from a published snapshot, otherwise `false`.
 Do not restore an archive into the same path. A missing agent or failed attachment
-warns and creates ordinary job-local directories; errors after attachment may
+warns and creates ordinary job-local directories. Acquisition waits at most 30 seconds;
+the host has a 25-second budget for authorization and restoration. Expired
+restores are cancelled and remain ineligible for publication. Errors after attachment may
 fail the build. No workflow OIDC permission or privileged container is required.
 
 Keys allow 1–200 ASCII letters, digits, dots, underscores, slashes and hyphens,

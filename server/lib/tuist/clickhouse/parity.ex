@@ -241,7 +241,16 @@ defmodule Tuist.ClickHouse.Parity do
   # orders, so a float sum differs in its last bits for data that is identical.
   # Those are compared within a relative tolerance in `same_fingerprint?/2`.
   defp fingerprint(endpoint, table, since, as_of, ttl, max_execution_time) do
-    {selects, statement} = fingerprint_statement(endpoint, table, since, as_of, ttl)
+    endpoint
+    |> spans(table, since, as_of)
+    |> Enum.map(fn {from, until} -> fingerprint_span(endpoint, table, from, until, as_of, ttl, max_execution_time) end)
+    |> Enum.reduce(&add/2)
+  rescue
+    error -> %{error: Exception.message(error)}
+  end
+
+  defp fingerprint_span(endpoint, table, since, until, as_of, ttl, max_execution_time) do
+    {selects, statement} = fingerprint_statement(endpoint, table, since, until, as_of, ttl)
 
     %{rows: [values]} =
       endpoint.repo.query!(statement, [],
@@ -252,11 +261,88 @@ defmodule Tuist.ClickHouse.Parity do
       )
 
     selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
-  rescue
-    error -> %{error: Exception.message(error)}
   end
 
-  defp fingerprint_statement(endpoint, table, since, as_of, ttl) do
+  # `FINAL` holds open every part it reads, so on production's largest
+  # deduplicating tables one read of the whole table outgrew the memory
+  # ceiling on both servers. It never merges rows across partitions, though,
+  # so a table partitioned by the month of its time column is read a month at
+  # a time: the same rows, with only one month's parts open at once.
+  defp spans(endpoint, table, since, as_of) do
+    time = time_column(endpoint, table)
+
+    with true <- monthly_final?(endpoint, table, time),
+         %DateTime{} = from <- since || earliest(endpoint, table, time) do
+      months(from, as_of)
+    else
+      _ -> [{since, as_of}]
+    end
+  end
+
+  defp monthly_final?(_endpoint, _table, nil), do: false
+
+  defp monthly_final?(endpoint, table, time) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        "SELECT engine, partition_key FROM system.tables WHERE database = {database:String} AND name = {table:String}",
+        %{"database" => endpoint.database, "table" => table},
+        log: false
+      )
+
+    case rows do
+      [[engine, partition_key]] -> Tables.collapsing?(engine) and partition_key == "toYYYYMM(#{time})"
+      _ -> false
+    end
+  end
+
+  defp earliest(endpoint, table, time) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        "SELECT min(#{quote_ident(time)}) FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)} HAVING count() > 0",
+        [],
+        log: false
+      )
+
+    case rows do
+      [[%NaiveDateTime{} = at]] -> DateTime.from_naive!(at, "Etc/UTC")
+      [[%DateTime{} = at]] -> at
+      _ -> nil
+    end
+  end
+
+  defp months(from, as_of) do
+    from
+    |> Stream.unfold(fn start ->
+      if DateTime.before?(start, as_of) do
+        next =
+          start
+          |> DateTime.to_date()
+          |> Date.beginning_of_month()
+          |> Date.shift(month: 1)
+          |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+
+        {{start, Enum.min([next, as_of], DateTime)}, next}
+      end
+    end)
+    |> Enum.to_list()
+  end
+
+  # A month with no rows reports ClickHouse's zero time as its bounds, so it is
+  # left out rather than added.
+  defp add(%{"rows" => 0}, total), do: total
+  defp add(fingerprint, %{"rows" => 0}), do: fingerprint
+
+  defp add(fingerprint, total) do
+    Map.merge(total, fingerprint, fn
+      "min_time", left, right -> Enum.min([left, right], left.__struct__)
+      "max_time", left, right -> Enum.max([left, right], left.__struct__)
+      _sum, nil, right -> right
+      _sum, left, nil -> left
+      _sum, left, right -> left + right
+    end)
+  end
+
+  defp fingerprint_statement(endpoint, table, since, until, as_of, ttl) do
     {integer, float} = numeric_columns(endpoint, table)
     time = time_column(endpoint, table)
 
@@ -266,7 +352,7 @@ defmodule Tuist.ClickHouse.Parity do
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of, ttl)}"
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, until, as_of, ttl)}"
 
     {selects, statement}
   end
@@ -320,7 +406,7 @@ defmodule Tuist.ClickHouse.Parity do
   # difference rather than the whole comparison failing on the estimate.
   defp windowable?(source, target, table, since, as_of) do
     if time_column(target, table) do
-      {_selects, statement} = fingerprint_statement(source, table, since, as_of, ttl(target, table))
+      {_selects, statement} = fingerprint_statement(source, table, since, as_of, as_of, ttl(target, table))
 
       case estimated_rows(source, statement) do
         {:ok, rows} -> rows <= @windowed_max_rows
@@ -351,12 +437,12 @@ defmodule Tuist.ClickHouse.Parity do
     end
   end
 
-  defp window_clause(time, since, as_of, ttl) do
+  defp window_clause(time, since, until, as_of, ttl) do
     conditions =
       Enum.reject(
         [
           time && since && "#{quote_ident(time)} >= toDateTime64('#{stamp(since)}', 6)",
-          time && "#{quote_ident(time)} < toDateTime64('#{stamp(as_of)}', 6)",
+          time && "#{quote_ident(time)} < toDateTime64('#{stamp(until)}', 6)",
           ttl && "(#{ttl}) > toDateTime64('#{stamp(as_of)}', 6) + INTERVAL 1 DAY"
         ],
         &(&1 in [nil, false])

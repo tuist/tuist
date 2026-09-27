@@ -67,7 +67,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", 400)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Minute)
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, input.PodName, metav1.GetOptions{})
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
@@ -83,7 +83,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unavailable", 403)
 		return
 	}
-	warm, err := a.store.Acquire(identity, input.PodName, input.PodUID)
+	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
 	if err != nil {
 		log.Printf("cache acquire failed: %v", err)
 		http.Error(w, "unavailable", 503)
