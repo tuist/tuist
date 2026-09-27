@@ -24,6 +24,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Repo.PromExPlugin
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -80,7 +81,7 @@ defmodule Tuist.Application do
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
-    Tuist.Repo.PromExPlugin.attach()
+    PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -352,6 +353,7 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          Tuist.KeyValueStore.Invalidator,
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
@@ -363,7 +365,12 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
+        [
+          TuistWeb.Endpoint,
+          {Task.Supervisor, name: Tuist.TaskSupervisor},
+          Supervisor.child_spec({Tuist.Application.TaskDrainer, supervisor: Tuist.TaskSupervisor}, shutdown: 35_000),
+          {Oban, Application.fetch_env!(:tuist, Oban)}
+        ]
 
     children
     |> Kernel.++(
