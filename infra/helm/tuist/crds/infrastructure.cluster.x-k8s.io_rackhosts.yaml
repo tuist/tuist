@@ -191,6 +191,7 @@ spec:
                       description: |-
                         Host is the endpoint, as a host, host:port or `scheme://host`; a bare
                         host is plain HTTP. It is dialled directly.
+                      minLength: 1
                       type: string
                     outlet:
                       default: "0"
@@ -205,6 +206,7 @@ spec:
                         PDU names a RackPDU in the host's namespace, whose controller adopted
                         it and owns its credentials, certificate pin and egress Service. Power
                         actions are refused while it is not Ready.
+                      minLength: 1
                       type: string
                   type: object
                   x-kubernetes-validations:

@@ -151,6 +151,7 @@ type PowerOutletRef struct {
 	// PDU names a RackPDU in the host's namespace, whose controller adopted
 	// it and owns its credentials, certificate pin and egress Service. Power
 	// actions are refused while it is not Ready.
+	// +kubebuilder:validation:MinLength=1
 	// +optional
 	PDU string `json:"pdu,omitempty"`
 
@@ -163,6 +164,7 @@ type PowerOutletRef struct {
 
 	// Host is the endpoint, as a host, host:port or `scheme://host`; a bare
 	// host is plain HTTP. It is dialled directly.
+	// +kubebuilder:validation:MinLength=1
 	// +optional
 	Host string `json:"host,omitempty"`
 
