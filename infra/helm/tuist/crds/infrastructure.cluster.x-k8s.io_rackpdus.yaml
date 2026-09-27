@@ -179,8 +179,9 @@ spec:
                   type: array
                 credentialsSecret:
                   description: |-
-                    CredentialsSecret is the Secret the controller generated and owns: the
-                    administrator's password, the controller's account and the pin.
+                    CredentialsSecret is the Secret the controller generated: the
+                    administrator's password, the controller's account and the pin. It
+                    outlives the RackPDU.
                   type: string
                 drift:
                   description: Drift is how the card compared with the spec when last verified.

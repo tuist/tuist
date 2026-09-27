@@ -493,17 +493,26 @@ func (r *RackPDUReconciler) ensureSecret(ctx context.Context, pdu *infrav1.RackP
 	if err != nil && !create {
 		return nil, err
 	}
+	// Deliberately unowned: it holds the only copy of the passwords set on the
+	// card, so deleting or recreating the RackPDU must not collect it, or the
+	// card refuses every login until someone factory-resets it.
 	if create {
 		secret = &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace,
 			Labels: map[string]string{"app.kubernetes.io/managed-by": operatorName, "tuist.dev/rack-pdu": pdu.Name}}}
-		if err := controllerutil.SetControllerReference(pdu, secret, r.Scheme); err != nil {
-			return nil, err
-		}
 	}
 	if secret.Data == nil {
 		secret.Data = map[string][]byte{}
 	}
 	changed := false
+	owners := secret.OwnerReferences[:0]
+	for _, ref := range secret.OwnerReferences {
+		if ref.Kind == "RackPDU" {
+			changed = true
+			continue
+		}
+		owners = append(owners, ref)
+	}
+	secret.OwnerReferences = owners
 	for k, value := range map[string]func() (string, error){
 		rackPDUKeyAdminUsername:   func() (string, error) { return rackPDUFactoryUser, nil },
 		rackPDUKeyAdminPassword:   generateCardPassword,

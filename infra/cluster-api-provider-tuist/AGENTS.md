@@ -477,12 +477,17 @@ reports `AddressReserved=False`, reason `NoMAC`.
    A Service in another namespace cannot be owned, so the RackPDU carries the
    finalizer `tuist.dev/rackpdu-egress` and deleting it deletes the Service.
    Every path to the card dials it.
-2. **The credentials Secret** `<name>-credentials`, owned by the RackPDU:
-   `admin-username` (`admin`), `admin-password`, `username`
-   (`tuist-controller`), `password`, `initial-password`, all generated to the
-   card's default password policy, and `tlsFingerprint`. Keys it lacks are
-   generated; keys it has are never replaced. It is written before any password
-   reaches the card.
+2. **The credentials Secret** `<name>-credentials`, labelled
+   `tuist.dev/rack-pdu=<name>`: `admin-username` (`admin`), `admin-password`,
+   `username` (`tuist-controller`), `password`, `initial-password`, all
+   generated to the card's default password policy, and `tlsFingerprint`. Keys
+   it lacks are generated; keys it has are never replaced. It is written before
+   any password reaches the card. It is deliberately not owned by the RackPDU,
+   and nothing deletes it: it holds the only copy of the passwords set on the
+   card, so deleting or recreating the RackPDU must not collect it, or the card
+   refuses every login until someone factory-resets it. A RackPDU made again
+   under the same name picks it up and logs in with it. Retiring a PDU for good
+   is deleting the Secret by hand after its RackPDU.
 3. **The certificate, trust on first use.** The card's leaf certificate is read
    without trusting anything. At first contact its SHA-256 is recorded in the
    Secret and `status.tlsFingerprint`, and every later connection is pinned to

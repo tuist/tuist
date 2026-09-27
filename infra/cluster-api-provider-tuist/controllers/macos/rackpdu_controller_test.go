@@ -165,8 +165,8 @@ func TestRackPDUAdoptsAFactoryCard(t *testing.T) {
 		t.Fatalf("events = %v, want one naming the factory login", h.events)
 	}
 	secret := h.secret()
-	if len(secret.OwnerReferences) != 1 || secret.OwnerReferences[0].Kind != "RackPDU" {
-		t.Fatalf("Secret owners = %+v, want the RackPDU", secret.OwnerReferences)
+	if len(secret.OwnerReferences) != 0 || secret.Labels["tuist.dev/rack-pdu"] != "ber1-pdu-b" {
+		t.Fatalf("Secret owners = %+v, labels = %v; want no owner and the RackPDU's label", secret.OwnerReferences, secret.Labels)
 	}
 	// The administrator's session is logged out; the driver's stays for the
 	// power paths.
@@ -220,6 +220,72 @@ func TestRackPDUResumesAfterThePasswordChanged(t *testing.T) {
 	h.assertAdopted()
 	if h.eventsMatching("with the managed password") != 1 || h.eventsMatching("factory") != 0 {
 		t.Fatalf("events = %v, want a login with the managed password", h.events)
+	}
+}
+
+// The Secret holds the only copy of the passwords set on the card, so it
+// outlives the RackPDU, and a RackPDU made again with the same name logs in
+// with them rather than being refused by a card nobody knows the password of.
+func TestRackPDUCredentialsOutliveTheRackPDU(t *testing.T) {
+	h := newPDUHarness(t, rackPDU())
+	h.reconcile()
+	h.assertAdopted()
+	stored := h.secret().Data
+
+	// Through the finalizer path too: the egress Service goes, the Secret stays.
+	h.r.EgressNamespace, h.r.EgressProxyGroup = "tailscale-operator", "macmini-egress"
+	pdu := h.pdu()
+	pdu.Finalizers = []string{RackPDUFinalizer}
+	if err := h.r.Update(context.Background(), pdu); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.r.Delete(context.Background(), pdu); err != nil {
+		t.Fatal(err)
+	}
+	h.reconcile()
+	err := h.r.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: "ber1-pdu-b"}, &infrav1.RackPDU{})
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("RackPDU after delete: %v", err)
+	}
+	secret := h.secret()
+	if len(secret.OwnerReferences) != 0 {
+		t.Fatalf("Secret owners = %+v; an owner would collect it with the RackPDU", secret.OwnerReferences)
+	}
+	h.r.EgressNamespace, h.r.EgressProxyGroup = "", ""
+
+	if err := h.r.Create(context.Background(), rackPDU()); err != nil {
+		t.Fatal(err)
+	}
+	h.events = nil
+	h.card.Expire()
+	h.reconcile()
+
+	h.assertAdopted()
+	if h.eventsMatching("with the managed password") != 1 || h.eventsMatching("factory") != 0 {
+		t.Fatalf("events = %v, want a login with the stored password", h.events)
+	}
+	for _, key := range []string{"admin-password", "password", "initial-password", "tlsFingerprint"} {
+		if string(h.secret().Data[key]) != string(stored[key]) {
+			t.Fatalf("%s was replaced", key)
+		}
+	}
+}
+
+// A Secret an earlier build made with the RackPDU as its owner is released.
+func TestRackPDUReleasesItsSecretFromAnOwner(t *testing.T) {
+	owned := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "ber1-pdu-b-credentials", Namespace: testNamespace,
+		OwnerReferences: []metav1.OwnerReference{{APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha1", Kind: "RackPDU", Name: "ber1-pdu-b", UID: "u"}}},
+		Data: map[string][]byte{"admin-password": []byte("Kept-admin-password1")}}
+	h := newPDUHarness(t, rackPDU(), owned)
+	h.card.Mu.Lock()
+	h.card.Accounts["0"].Password, h.card.Accounts["0"].PasswordExpired = "Kept-admin-password1", false
+	h.card.Mu.Unlock()
+
+	h.reconcile()
+
+	h.assertAdopted()
+	if s := h.secret(); len(s.OwnerReferences) != 0 || string(s.Data["admin-password"]) != "Kept-admin-password1" {
+		t.Fatalf("Secret = owners %+v, admin-password %q", s.OwnerReferences, s.Data["admin-password"])
 	}
 }
 

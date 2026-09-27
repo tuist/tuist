@@ -88,8 +88,9 @@ type RackPDUStatus struct {
 	// +optional
 	PresentedFingerprint string `json:"presentedFingerprint,omitempty"`
 
-	// CredentialsSecret is the Secret the controller generated and owns: the
-	// administrator's password, the controller's account and the pin.
+	// CredentialsSecret is the Secret the controller generated: the
+	// administrator's password, the controller's account and the pin. It
+	// outlives the RackPDU.
 	// +optional
 	CredentialsSecret string `json:"credentialsSecret,omitempty"`
 
