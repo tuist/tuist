@@ -137,6 +137,9 @@ func (r *RackPDUReconciler) adoptedAlready(ctx context.Context, pdu *infrav1.Rac
 func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	pdu := &infrav1.RackPDU{}
 	if getErr := r.Get(ctx, req.NamespacedName, pdu); getErr != nil {
+		if apierrors.IsNotFound(getErr) {
+			forgetRackPDUMetrics(req.Name)
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(getErr)
 	}
 	helper, helperErr := patch.NewHelper(pdu, r.Client)
@@ -148,6 +151,7 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			err = patchErr
 		}
 	}()
+	defer func() { recordRackPDUMetrics(pdu) }()
 
 	if !pdu.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, r.reconcileDelete(ctx, pdu)
