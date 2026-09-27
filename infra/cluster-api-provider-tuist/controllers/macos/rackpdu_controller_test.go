@@ -35,7 +35,7 @@ func rackPDU(mutate ...func(*infrav1.RackPDU)) *infrav1.RackPDU {
 		ObjectMeta: metav1.ObjectMeta{Name: "ber1-pdu-b", Namespace: testNamespace, Generation: 1},
 		Spec: infrav1.RackPDUSpec{
 			Site: "ber1", Model: "evmafc20a", MAC: "00:20:85:d7:00:ca", Address: "192.168.0.16", Chain: "ber1-ats-2",
-			ManagedBy: infrav1.RackPDUManagedByController, OutletStateOnStartup: "on",
+			ManagedBy: infrav1.RackCardManagedByController, OutletStateOnStartup: "on",
 		},
 	}
 	for _, m := range mutate {
@@ -125,7 +125,7 @@ func (h *pduHarness) writes() []string {
 func (h *pduHarness) assertAdopted() {
 	h.t.Helper()
 	pdu, secret := h.pdu(), h.secret()
-	if !pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation || pdu.Status.Drift != infrav1.RackPDUDriftNone {
+	if !pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation || pdu.Status.Drift != infrav1.RackCardDriftNone {
 		h.t.Fatalf("status = %+v, want adopted at generation %d with no drift", pdu.Status, pdu.Generation)
 	}
 	for _, c := range []clusterv1.ConditionType{RackPDUAdoptedCondition, RackPDUConvergedCondition, clusterv1.ReadyCondition} {
@@ -374,7 +374,7 @@ func TestUnreachableRackPDU(t *testing.T) {
 }
 
 func TestStandaloneRackPDUIsNeverContacted(t *testing.T) {
-	h := newPDUHarness(t, rackPDU(func(p *infrav1.RackPDU) { p.Spec.ManagedBy = infrav1.RackPDUManagedByStandalone }))
+	h := newPDUHarness(t, rackPDU(func(p *infrav1.RackPDU) { p.Spec.ManagedBy = infrav1.RackCardManagedByStandalone }))
 	h.reconcile()
 	h.card.Mu.Lock()
 	logins := len(h.card.Logins)
@@ -404,7 +404,7 @@ func TestRackPDUReportsDriftAndConvergesItOnANewGeneration(t *testing.T) {
 	h.reconcile()
 
 	pdu := h.pdu()
-	if pdu.Status.Drift != infrav1.RackPDUDriftDrifted || conditions.IsTrue(pdu, RackPDUConvergedCondition) {
+	if pdu.Status.Drift != infrav1.RackCardDriftDrifted || conditions.IsTrue(pdu, RackPDUConvergedCondition) {
 		t.Fatalf("status = %+v, want drifted", pdu.Status)
 	}
 	if !conditions.IsTrue(pdu, clusterv1.ReadyCondition) {
@@ -446,7 +446,7 @@ func TestRackPDURemakesAControllerAccountThatLostItsPassword(t *testing.T) {
 	h.card.Expire()
 
 	h.reconcile()
-	if pdu := h.pdu(); conditions.IsTrue(pdu, clusterv1.ReadyCondition) || pdu.Status.Drift != infrav1.RackPDUDriftDrifted {
+	if pdu := h.pdu(); conditions.IsTrue(pdu, clusterv1.ReadyCondition) || pdu.Status.Drift != infrav1.RackCardDriftDrifted {
 		t.Fatalf("a controller account that cannot log in left the PDU %+v", pdu.Status)
 	}
 

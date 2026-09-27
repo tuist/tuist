@@ -35,7 +35,7 @@ func readyPDU(ready bool) *infrav1.RackPDU {
 	pdu := &infrav1.RackPDU{
 		ObjectMeta: metav1.ObjectMeta{Name: "ber1-pdu-b", Namespace: testNamespace},
 		Spec: infrav1.RackPDUSpec{Site: "ber1", Model: "evmafc20a", Address: "192.168.0.16",
-			ManagedBy: infrav1.RackPDUManagedByController, OutletStateOnStartup: "on"},
+			ManagedBy: infrav1.RackCardManagedByController, OutletStateOnStartup: "on"},
 	}
 	if ready {
 		conditions.MarkTrue(pdu, clusterv1.ReadyCondition)

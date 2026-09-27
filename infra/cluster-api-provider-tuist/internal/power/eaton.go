@@ -230,7 +230,7 @@ func (e *Eaton) call(ctx context.Context, o Outlet, method, path string, out any
 			continue
 		}
 		if status < 200 || status > 299 {
-			return fmt.Errorf("%s: %s %s: %d: %s", o, method, path, status, strings.TrimSpace(string(body)))
+			return fmt.Errorf("%s: %w", o, &EatonHTTPError{Method: method, Path: path, Status: status, Body: strings.TrimSpace(string(body))})
 		}
 		if out == nil {
 			return nil
@@ -240,6 +240,19 @@ func (e *Eaton) call(ctx context.Context, o Outlet, method, path string, out any
 		}
 		return nil
 	}
+}
+
+// EatonHTTPError is a card answering a request with a status that is not a
+// success, with the body it answered, verbatim.
+type EatonHTTPError struct {
+	Method string
+	Path   string
+	Status int
+	Body   string
+}
+
+func (e *EatonHTTPError) Error() string {
+	return fmt.Sprintf("%s %s: %d: %s", e.Method, e.Path, e.Status, e.Body)
 }
 
 func (e *Eaton) timeout() time.Duration {
@@ -364,6 +377,14 @@ func (e *EatonLoginError) Is(target error) bool {
 // one it makes the account change first.
 func (e *EatonLoginError) Refused() bool {
 	return e.Status == http.StatusUnauthorized || e.Code == "ExpiredCredentials"
+}
+
+// NotServed reports an endpoint that does not serve the API's login at all,
+// answering it as missing or with a page rather than JSON: a card of another
+// kind, or one on firmware that serves another version of the API.
+func (e *EatonLoginError) NotServed() bool {
+	return e.Status == http.StatusNotFound || e.Status == http.StatusMethodNotAllowed ||
+		(e.Code == "" && e.Body != "" && !json.Valid([]byte(e.Body)))
 }
 
 var eatonLoginCodes = []string{"ConcurentSession", "ExpiredCredentials", "AccountBlocked", "NotAuthorized", "InvalidCredential"}

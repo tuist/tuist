@@ -1,8 +1,10 @@
 // Package eatontest fakes an Eaton Rack PDU G4 network card's REST API over
 // HTTPS, from Eaton's Postman collection "Rack PDU G4": factory state, forced
 // password change, one session per account, accounts with profiles and a
-// reauthentication token, outlet settings and switching. It is not captured
-// traffic: what a real card answers beyond the collection's examples is a guess.
+// reauthentication token, outlet settings and switching. NewATS fakes a
+// transfer switch behind a Network-M2 card on the same API (see ats.go). It is
+// not captured traffic: what a real card answers beyond the collections'
+// examples is a guess.
 package eatontest
 
 import (
@@ -89,6 +91,16 @@ type Card struct {
 
 	Serial   string
 	Firmware string
+	// Product and ModelNumber are the card's own identification.
+	Product     string
+	ModelNumber string
+
+	// ATS, when set, is the transfer switch behind the card, served as
+	// powerDistributions/1.
+	ATS *ATS
+	// LegacyWeb answers every request with an HTML 404, as a card that serves
+	// no REST API does.
+	LegacyWeb bool
 
 	cert   tls.Certificate
 	server *httptest.Server
@@ -113,6 +125,8 @@ func New(outlets int) *Card {
 		ForeignSessions: map[string]bool{},
 		Serial:          "421G456777",
 		Firmware:        "3.4.3",
+		Product:         "Rack PDU Network Management Controller",
+		ModelNumber:     "CCME-02-2",
 	}
 	for n := 1; n <= outlets; n++ {
 		c.Outlets[n] = &Outlet{On: true, Switchable: true, Settings: map[string]any{
@@ -225,6 +239,11 @@ func (c *Card) serve(w http.ResponseWriter, r *http.Request) {
 
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+	if c.LegacyWeb {
+		w.Header().Set("Content-Type", "text/html")
+		answer(w, http.StatusNotFound, "<html><body>Not Found</body></html>")
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	path := strings.TrimPrefix(r.URL.Path, api)
 
@@ -346,7 +365,7 @@ func (c *Card) serve(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case r.Method == http.MethodGet && path == "/managers/1/identification":
-		fmt.Fprintf(w, `{"physicalName":"Eaton Rack PDU Network Management Controller","vendor":"Eaton","productName":"Rack PDU Network Management Controller","serialNumber":%q,"type":"management card","firmwareVersion":%q,"product":"enmc2-fe_0","modelNumber":"CCME-02-2","partNumber":"755-456-489","macAddress":"00:20:85:D7:00:CA"}`, c.Serial, c.Firmware)
+		fmt.Fprintf(w, `{"physicalName":"Eaton %s","vendor":"Eaton","productName":%q,"serialNumber":%q,"type":"management card","firmwareVersion":%q,"product":"enmc2-fe_0","modelNumber":%q,"partNumber":"755-456-489","macAddress":"00:20:85:D7:00:CA"}`, c.Product, c.Product, c.Serial, c.Firmware, c.ModelNumber)
 
 	case r.Method == http.MethodGet && path == "/powerDistributions/1/outlets":
 		members := []string{}
@@ -407,6 +426,9 @@ func (c *Card) serve(w http.ResponseWriter, r *http.Request) {
 		}
 
 	default:
+		if c.ATS != nil && c.serveATS(w, r, path, admin) {
+			return
+		}
 		answer(w, http.StatusNotFound, `{"code":"NotFound"}`)
 	}
 }

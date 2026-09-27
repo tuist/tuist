@@ -4,18 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: rackpdus.infrastructure.cluster.x-k8s.io
+  name: rackatses.infrastructure.cluster.x-k8s.io
   labels:
     cluster.x-k8s.io/v1beta1: v1alpha1
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
-    kind: RackPDU
-    listKind: RackPDUList
-    plural: rackpdus
+    kind: RackATS
+    listKind: RackATSList
+    plural: rackatses
     shortNames:
-      - rpdu
-    singular: rackpdu
+      - rats
+    singular: rackats
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -31,26 +31,32 @@ spec:
         - jsonPath: .status.adopted
           name: Adopted
           type: boolean
-        - jsonPath: .status.drift
-          name: Drift
+        - jsonPath: .status.activeSource
+          name: Active
+          type: integer
+        - jsonPath: .spec.preferredSource
+          name: Preferred
+          type: integer
+        - jsonPath: .status.conditions[?(@.type=="Redundant")].status
+          name: Redundant
           type: string
-        - jsonPath: .status.lastVerified
-          name: Verified
+        - jsonPath: .status.lastObserved
+          name: Observed
           type: date
-        - jsonPath: .status.serialNumber
-          name: Serial
+        - jsonPath: .status.card
+          name: Card
           priority: 1
           type: string
-        - jsonPath: .status.firmwareVersion
-          name: Firmware
+        - jsonPath: .status.deviceSerialNumber
+          name: Serial
           priority: 1
           type: string
       name: v1alpha1
       schema:
         openAPIV3Schema:
           description: |-
-            RackPDU is one switched PDU in a rack we operate, adopted and kept
-            configured by the RackPDU controller.
+            RackATS is one automatic transfer switch in a rack we operate, adopted,
+            kept configured and observed by the RackATS controller.
           properties:
             apiVersion:
               description: |-
@@ -71,15 +77,12 @@ spec:
               type: object
             spec:
               description: |-
-                RackPDUSpec is one switched PDU, rendered from the rack's site definition
-                (infra/rack-switch-fleet).
+                RackATSSpec is one automatic transfer switch, rendered from the rack's site
+                definition (infra/rack-switch-fleet).
               properties:
                 address:
                   description: Address is the card's fixed address on the rack's management LAN.
                   pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
-                  type: string
-                chain:
-                  description: Chain is the transfer switch the PDU hangs off.
                   type: string
                 mac:
                   description: |-
@@ -92,28 +95,28 @@ spec:
                 managedBy:
                   default: standalone
                   description: |-
-                    ManagedBy gates every write: only `controller` is adopted and
-                    configured. `standalone` is never contacted.
+                    ManagedBy gates every write: only `controller` is adopted, configured
+                    and observed. `standalone` is never contacted.
                   enum:
                     - controller
                     - standalone
                   type: string
                 model:
-                  description: Model is the PDU's hardware model. Only the Eaton Rack PDU G4 is driven.
-                  enum:
-                    - evmafc20a
-                  type: string
-                outletStateOnStartup:
-                  default: "on"
                   description: |-
-                    OutletStateOnStartup is every outlet's state when the PDU powers up.
-                    `on`, so a Mac comes back after a power loss without anyone switching
-                    its outlet.
+                    Model is the transfer switch's hardware model. Only the Eaton EATS16N
+                    (ATS 16 Netpack) is driven.
                   enum:
-                    - "on"
-                    - "off"
-                    - last known state
+                    - eats16n
                   type: string
+                preferredSource:
+                  default: 1
+                  description: |-
+                    PreferredSource is the source the switch powers the load from whenever
+                    that source is good: 1 or 2, as the switch numbers its inputs.
+                  format: int32
+                  maximum: 2
+                  minimum: 1
+                  type: integer
                 site:
                   description: Site is the rack site (e.g. `ber1`).
                   type: string
@@ -123,17 +126,28 @@ spec:
                 - site
               type: object
             status:
-              description: RackPDUStatus is what the controller observed.
+              description: RackATSStatus is what the controller observed.
               properties:
+                activeSource:
+                  description: |-
+                    ActiveSource is the source powering the load at the last observation:
+                    1 or 2, 0 when neither does or the card did not say.
+                  format: int32
+                  type: integer
                 adopted:
                   description: |-
                     Adopted is whether the controller configured the card: its
                     administrator password, its licence agreement, the controller's account
                     and the device's settings.
                   type: boolean
+                card:
+                  description: |-
+                    Card names the kind of management card the controller speaks to and
+                    what it identified itself as.
+                  type: string
                 conditions:
                   description: |-
-                    Conditions: Adopted, Converged, Ready, CertificateChanged,
+                    Conditions: Adopted, Converged, Ready, Redundant, CertificateChanged,
                     AddressReserved.
                   items:
                     description: Condition defines an observation of a Cluster API resource operational state.
@@ -183,6 +197,15 @@ spec:
                     administrator's password, the controller's account and the pin. It
                     outlives the object.
                   type: string
+                deviceFirmwareVersion:
+                  type: string
+                deviceModel:
+                  description: |-
+                    DeviceModel, DeviceSerialNumber and DeviceFirmwareVersion are the
+                    transfer switch's own, behind its card.
+                  type: string
+                deviceSerialNumber:
+                  type: string
                 drift:
                   description: Drift is how the card compared with the spec when last verified.
                   enum:
@@ -192,6 +215,64 @@ spec:
                   type: string
                 firmwareVersion:
                   type: string
+                inputs:
+                  description: Inputs are the switch's two sources at the last observation.
+                  items:
+                    description: |-
+                      RackATSInput is one source as the switch reported it at the last
+                      observation.
+                    properties:
+                      detail:
+                        description: Detail is what the card reported that the state was read from.
+                        type: string
+                      frequency:
+                        description: Frequency is the source's frequency in hertz, when the card reports it.
+                        type: string
+                      source:
+                        description: Source is the input's number, 1 or 2.
+                        format: int32
+                        type: integer
+                      state:
+                        description: State is how the switch judges the source.
+                        enum:
+                          - good
+                          - derated
+                          - outOfRange
+                          - missing
+                          - unknown
+                        type: string
+                      voltage:
+                        description: Voltage is the source's voltage in volts, when the card reports it.
+                        type: string
+                    required:
+                      - source
+                      - state
+                    type: object
+                  type: array
+                lastObserved:
+                  description: LastObserved is when the switch's sources were last read.
+                  format: date-time
+                  type: string
+                lastTransfer:
+                  description: |-
+                    LastTransfer is the last change of the active source the controller
+                    observed.
+                  properties:
+                    from:
+                      format: int32
+                      type: integer
+                    observedAt:
+                      description: ObservedAt is the observation that first saw the load on To.
+                      format: date-time
+                      type: string
+                    to:
+                      format: int32
+                      type: integer
+                  required:
+                    - from
+                    - observedAt
+                    - to
+                  type: object
                 lastVerified:
                   description: LastVerified is when the card was last read.
                   format: date-time
@@ -208,8 +289,11 @@ spec:
                   description: ObservedGeneration is the generation the card was last converged to.
                   format: int64
                   type: integer
-                outletCount:
-                  description: OutletCount is how many outlets the card reports.
+                preferredSource:
+                  description: |-
+                    PreferredSource is the preferred source the card reports, 0 when it
+                    reports none the controller recognises.
+                  format: int32
                   type: integer
                 presentedFingerprint:
                   description: |-

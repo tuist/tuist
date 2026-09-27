@@ -160,7 +160,7 @@ func (s *EatonSession) request(ctx context.Context, method, path string, body an
 		return fmt.Errorf("%s %s: %w", method, path, err)
 	}
 	if status < 200 || status > 299 {
-		return fmt.Errorf("%s %s: %d: %s", method, path, status, strings.TrimSpace(string(answer)))
+		return &EatonHTTPError{Method: method, Path: path, Status: status, Body: strings.TrimSpace(string(answer))}
 	}
 	if out == nil {
 		return nil

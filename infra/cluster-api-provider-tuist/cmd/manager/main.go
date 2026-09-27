@@ -671,7 +671,7 @@ func main() {
 		}
 	}
 	powerRegistry := power.NewRegistry()
-	// Logs out of the PDU sessions on shutdown: an Eaton card allows one
+	// Logs out of the PDU and ATS sessions on shutdown: an Eaton card allows one
 	// session per account, and a stale one refuses the next leader's login.
 	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		<-ctx.Done()
@@ -694,6 +694,17 @@ func main() {
 		EgressProxyGroup: egressProxyGroup,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackPDUReconciler")
+		os.Exit(1)
+	}
+	if err := (&macos.RackATSReconciler{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackats-controller"),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackATSReconciler")
 		os.Exit(1)
 	}
 	if err := (&macos.RackHostReconciler{

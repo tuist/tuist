@@ -5,28 +5,6 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// RackPDUManagedBy names who changes a PDU.
-// +kubebuilder:validation:Enum=controller;standalone
-type RackPDUManagedBy string
-
-const (
-	// RackPDUManagedByController is a PDU the RackPDU controller adopts and
-	// keeps configured.
-	RackPDUManagedByController RackPDUManagedBy = "controller"
-	// RackPDUManagedByStandalone is a PDU the controller never contacts.
-	RackPDUManagedByStandalone RackPDUManagedBy = "standalone"
-)
-
-// RackPDUDrift is how the PDU compared with its spec when last verified.
-// +kubebuilder:validation:Enum=unknown;none;drifted
-type RackPDUDrift string
-
-const (
-	RackPDUDriftUnknown RackPDUDrift = "unknown"
-	RackPDUDriftNone    RackPDUDrift = "none"
-	RackPDUDriftDrifted RackPDUDrift = "drifted"
-)
-
 // RackPDUSpec is one switched PDU, rendered from the rack's site definition
 // (infra/rack-switch-fleet).
 type RackPDUSpec struct {
@@ -56,7 +34,7 @@ type RackPDUSpec struct {
 	// ManagedBy gates every write: only `controller` is adopted and
 	// configured. `standalone` is never contacted.
 	// +kubebuilder:default=standalone
-	ManagedBy RackPDUManagedBy `json:"managedBy,omitempty"`
+	ManagedBy RackCardManagedBy `json:"managedBy,omitempty"`
 
 	// OutletStateOnStartup is every outlet's state when the PDU powers up.
 	// `on`, so a Mac comes back after a power loss without anyone switching
@@ -68,60 +46,11 @@ type RackPDUSpec struct {
 
 // RackPDUStatus is what the controller observed.
 type RackPDUStatus struct {
-	// Adopted is whether the controller configured the card: its
-	// administrator password, its licence agreement, the controller's account
-	// and the outlets' startup state.
-	// +optional
-	Adopted bool `json:"adopted,omitempty"`
-
-	// Reachable is whether the card answered the last reconcile.
-	// +optional
-	Reachable bool `json:"reachable,omitempty"`
-
-	// TLSFingerprint is the SHA-256 of the certificate the card presented at
-	// first contact, which every later connection is pinned to.
-	// +optional
-	TLSFingerprint string `json:"tlsFingerprint,omitempty"`
-
-	// PresentedFingerprint is the certificate the card presents when it no
-	// longer matches TLSFingerprint.
-	// +optional
-	PresentedFingerprint string `json:"presentedFingerprint,omitempty"`
-
-	// CredentialsSecret is the Secret the controller generated: the
-	// administrator's password, the controller's account and the pin. It
-	// outlives the RackPDU.
-	// +optional
-	CredentialsSecret string `json:"credentialsSecret,omitempty"`
-
-	// Model, SerialNumber and FirmwareVersion are the management card's, as
-	// it reports them.
-	// +optional
-	Model string `json:"model,omitempty"`
-	// +optional
-	SerialNumber string `json:"serialNumber,omitempty"`
-	// +optional
-	FirmwareVersion string `json:"firmwareVersion,omitempty"`
+	RackCardStatus `json:",inline"`
 
 	// OutletCount is how many outlets the card reports.
 	// +optional
 	OutletCount int `json:"outletCount,omitempty"`
-
-	// ObservedGeneration is the generation the card was last converged to.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// Drift is how the card compared with the spec when last verified.
-	// +optional
-	Drift RackPDUDrift `json:"drift,omitempty"`
-
-	// LastVerified is when the card was last read.
-	// +optional
-	LastVerified *metav1.Time `json:"lastVerified,omitempty"`
-
-	// Message says what the last reconcile found.
-	// +optional
-	Message string `json:"message,omitempty"`
 
 	// Conditions: Adopted, Converged, Ready, CertificateChanged,
 	// AddressReserved.
@@ -171,4 +100,9 @@ func (p *RackPDU) GetConditions() clusterv1.Conditions {
 
 func (p *RackPDU) SetConditions(c clusterv1.Conditions) {
 	p.Status.Conditions = c
+}
+
+// CardStatus is the part of the status every rack power device shares.
+func (p *RackPDU) CardStatus() *RackCardStatus {
+	return &p.Status.RackCardStatus
 }

@@ -31,6 +31,7 @@ on:
       - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - mise/tasks/rack/**
@@ -46,6 +47,7 @@ on:
       - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - mise/tasks/rack/**
@@ -143,7 +145,7 @@ jobs:
   # what it observed, from a machine that can reach the switches, which CI
   # cannot.
   objects:
-    name: RackSwitch and RackPDU objects into the rack's cluster
+    name: RackSwitch, RackPDU and RackATS objects into the rack's cluster
     needs: checks
     if: github.repository == 'tuist/tuist' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -176,7 +178,8 @@ jobs:
           # means the objects never race the first server deploy after it lands.
           kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
           kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
-          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io
+          kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io crd/rackatses.infrastructure.cluster.x-k8s.io
           for site in infra/rack-switch-fleet/sites/*.json; do
             name="$(basename "$site" .json)"
             namespace="$(jq -r '.kubernetes.namespace // empty' "$site")"

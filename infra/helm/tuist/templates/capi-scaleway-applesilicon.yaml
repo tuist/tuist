@@ -52,6 +52,7 @@ rules:
       - rackapplesiliconmachines
       - rackhosts
       - rackpdus
+      - rackatses
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxcandidates
@@ -74,10 +75,12 @@ rules:
       - rackapplesiliconmachines/finalizers
       # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
-      # The RackPDU controller holds a deleted PDU with a finalizer until its
-      # egress Service is gone.
+      # The RackPDU and RackATS controllers hold a deleted PDU or transfer
+      # switch with a finalizer until its egress Service is gone.
       - rackpdus/status
       - rackpdus/finalizers
+      - rackatses/status
+      - rackatses/finalizers
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
       # until it retired the host's Machine, tailnet devices and console key,

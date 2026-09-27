@@ -6,12 +6,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
@@ -93,51 +91,4 @@ func rackHostPDUOutlet(ctx context.Context, c client.Reader, registry *power.Reg
 	outlet := rackPDUOutlet(egress, pdu, secret)
 	outlet.Outlet = host.Spec.Power.Outlet
 	return driver, outlet, nil
-}
-
-// rackPDUEgressServiceName is the egress Service fronting one RackPDU's card.
-func rackPDUEgressServiceName(pdu string) string {
-	return "rackpdu-" + pdu
-}
-
-// rackPDUEgressHost is the in-cluster DNS name a RackPDU's card is dialled by,
-// empty when the tailnet egress is not configured.
-func rackPDUEgressHost(cfg egressConfig, pdu string) string {
-	if !cfg.enabled() {
-		return ""
-	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", rackPDUEgressServiceName(pdu), cfg.Namespace)
-}
-
-// reconcileRackPDUEgressService fronts a RackPDU's card on :443, by its
-// address, which the ProxyGroup reaches through the rack's edge. The RackPDU's
-// finalizer deletes it: a Service in another namespace cannot be owned.
-func reconcileRackPDUEgressService(ctx context.Context, c client.Client, cfg egressConfig, pdu *infrav1.RackPDU) error {
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-		Name:      rackPDUEgressServiceName(pdu.Name),
-		Namespace: cfg.Namespace,
-	}}
-	_, err := controllerutil.CreateOrUpdate(ctx, c, svc, func() error {
-		if svc.Labels == nil {
-			svc.Labels = map[string]string{}
-		}
-		svc.Labels["app.kubernetes.io/managed-by"] = cfg.ManagedBy
-		svc.Labels["app.kubernetes.io/component"] = "rack-pdu-egress"
-		svc.Labels["tuist.dev/rack-pdu"] = pdu.Name
-		if svc.Annotations == nil {
-			svc.Annotations = map[string]string{}
-		}
-		svc.Annotations["tailscale.com/tailnet-ip"] = pdu.Spec.Address
-		svc.Annotations["tailscale.com/proxy-group"] = cfg.ProxyGroup
-		svc.Spec.Type = corev1.ServiceTypeExternalName
-		if svc.Spec.ExternalName == "" {
-			svc.Spec.ExternalName = "placeholder." + cfg.Namespace + ".svc.cluster.local"
-		}
-		svc.Spec.Ports = []corev1.ServicePort{{Name: "https", Port: 443, Protocol: corev1.ProtocolTCP}}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("keep egress Service %s/%s: %w", cfg.Namespace, svc.Name, err)
-	}
-	return nil
 }
