@@ -579,13 +579,6 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# All managed Dedibox hosts have completed release. Keep this explicitly off
-# so an older shared overlay cannot re-enable adoption or credential sync.
-# The separate kuraFleet remains the Scaleway Mac runner cache.
-dediboxFleet:
-  enabled: false
-  replicas: 0
-
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
 # whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH

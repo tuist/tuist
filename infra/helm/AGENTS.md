@@ -11,12 +11,11 @@ This node covers Helm assets under `infra/helm/`.
 ## Conventions
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
-  Dedibox fleets are disabled after all Machine release finalizers completed
-  on September 28, 2026. Their adoption settings and credential references are
-  removed; disabled fleets receive no provider mutation permissions. Generic
-  opt-in Dedibox chart/controller support remains available outside our managed
-  configuration. The legacy IAM ExternalSecret is a Helm hook and requires
-  explicit post-deployment deletion; follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
+  Dedibox support is removed after all Machine release finalizers completed
+  on September 28, 2026: no fleet values, templates, provider implementation,
+  CRD sources, credentials wiring, or provider permissions remain. Helm does
+  not prune installed CRDs or the legacy IAM ExternalSecret hook; both require
+  explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
   Production EU-West ingress discovers OVH gateway Node addresses automatically.
   Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
   OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the

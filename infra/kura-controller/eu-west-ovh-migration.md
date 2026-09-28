@@ -12,7 +12,7 @@ operator explicitly waived the proposed 48-hour soak before deploying #13685;
 that historical gate below is not an outstanding migration requirement.
 Staging's final EU-West instance and host are retired. Preserve the Scaleway
 Elastic Metal Mac runner cache in every environment. The current cleanup removes
-managed Dedibox configuration and restores automatic OVH ingress publication;
+Dedibox provisioning support and restores automatic OVH ingress publication;
 it does not change Kura runtime images or private-network settings.
 
 Fleet configuration changes go through a pull request and the normal production
@@ -488,13 +488,14 @@ separately from the physical-site description.
 
 ## Post-retirement cleanup
 
-All three managed overlays explicitly set `dediboxFleet.enabled: false` and
-`replicas: 0`, without adoption or 1Password item references. Rendering removes
-the MachineDeployment, MachineHealthCheck, MachineTemplate, SSH ExternalSecret,
-and provider credential environment variables. Provider mutation permissions
-for Dedibox are conditional on the fleet being enabled. Generic opt-in chart,
-CRD and controller support remains; this change retires managed infrastructure,
-not the provider implementation for other installations.
+Dedibox support is removed completely: fleet values and Helm templates,
+provider credentials wiring and RBAC, API types and CRD sources, the reconciler,
+API client, failover-IP implementation, and preparation/marking commands.
+There is no opt-in path left. Rendering removes the MachineDeployment,
+MachineHealthCheck, MachineTemplate, and ExternalSecrets. The separate
+Scaleway Elastic Metal Mac runner cache and all OVH fleets remain unchanged.
+FailoverIP now supports OVH only; all three environments had zero FailoverIP
+objects when this change was prepared.
 
 Deploy the reviewed cleanup through the ordinary canary/production cascade.
 Staging deploys independently: preserve any active private-network experiment
@@ -509,6 +510,23 @@ only the OVH gateway Nodes. At cleanup preparation their InternalIP values were
 `51.68.54.127`, `51.75.213.141`, and `51.75.213.81`, exactly the previous static
 list. Check Ingress status and authoritative DNS after deployment, especially
 if a node changes during rollout. Keep the historical pool and storage names.
+
+### Installed CRD cleanup after deployment
+
+Helm does not delete CRDs from its `crds/` directory on upgrade. After the
+new provider image is running in each environment, verify there are no
+DediboxMachine or DediboxMachineTemplate objects, including templates retained
+by old MachineSets. Inspect and remove any unused template only after its
+former MachineDeployment and MachineSet owners are gone. Then delete the two
+retired CRDs explicitly:
+
+- `dediboxmachines.infrastructure.cluster.x-k8s.io`
+- `dediboxmachinetemplates.infrastructure.cluster.x-k8s.io`
+
+Use the ordinary user access path and obtain human elevation where required.
+Do not remove a CRD while objects or finalizers remain, and do not remove any
+OVH, Elastic Metal, Apple Silicon, or shared CAPI CRD. The retained FailoverIP
+CRD needs its generated schema applied through the normal deployment path.
 
 ### Credential cleanup after deployment
 
@@ -561,10 +579,10 @@ already-released node-local volumes; it does not reclaim a cloud block volume.
 ### Rollback of cleanup
 
 An ingress regression can be rolled back by restoring only the previous static
-OVH address list. Keep Dedibox disabled: the former subscriptions are being
+OVH address list. Keep Dedibox support removed: the former subscriptions are being
 cancelled, so re-enabling the old fleet is not a migration rollback. Restoring
 Dedibox capacity would require separately ordered/prepared hosts and a reviewed
-adoption change. Keep provider credentials until their deployed consumers have
+provider implementation and adoption change. Keep provider credentials until their deployed consumers have
 been removed; do not restore cancelled hardware by reverting the entire file.
 
 ## Rollback

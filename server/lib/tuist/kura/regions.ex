@@ -245,9 +245,9 @@ defmodule Tuist.Kura.Regions do
       country: "US",
       subdivision: "US-OR"
     },
-    # EU West (Paris) runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
-    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
-    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # Production EU West runs on OVH in Gravelines, retaining the historical
+    # `kura-dedibox` pool selector and local-NVMe storage. Its hostNetwork
+    # regional gateway publishes the OVH nodes' public IPs,
     # and two bounded-size replicas so a rolling deploy fails the cache Service
     # over to the warm standby instead of dropping traffic while the primary pod
     # restarts. Both replicas of an account stay co-located on its box (controller

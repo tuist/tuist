@@ -593,13 +593,6 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# All managed Dedibox hosts have completed release. Keep this explicitly off
-# so an older shared overlay cannot re-enable adoption or credential sync.
-# The separate kuraFleet remains the Scaleway Mac runner cache.
-dediboxFleet:
-  enabled: false
-  replicas: 0
-
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
@@ -618,7 +611,6 @@ ovhFleet:
   # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
   # /dedicated/server/*/reinstall (the release path reinstalls a released box).
   # replicas: 1 so the reconciler claims the box and self-joins it. The eu-west
-  # Dedibox path is the validated twin.
   enabled: true
   replicas: 1
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
@@ -630,9 +622,8 @@ ovhFleet:
   machine:
     # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
     # boundary — one OVH account holds every env's boxes). Prefix match (case-
-    # sensitive). The pre-ordered BHS box is named `tuist-kura-ovh-staging`, the
-    # kura-scoped per-env marker (mirrors the Dedibox fleet's `tuist-kura-staging`
-    # tag); canary/prod boxes use `tuist-kura-ovh-<env>`. The operator orders a
+    # sensitive). The BHS box uses the `tuist-kura-ovh-staging` prefix;
+    # canary/prod boxes use their own per-env prefixes. The operator orders a
     # SYS-1 in BHS, names it accordingly, and scales the fleet; the controller
     # claims a free match, installs the OS, and joins it.
     adoptDisplayNamePrefix: tuist-kura-ovh-staging

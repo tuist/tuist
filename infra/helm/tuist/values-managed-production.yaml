@@ -981,13 +981,6 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# All managed Dedibox hosts have completed release. Keep this explicitly off
-# so an older shared overlay cannot re-enable adoption or credential sync.
-# The separate kuraFleet remains the Scaleway Mac runner cache.
-dediboxFleet:
-  enabled: false
-  replicas: 0
-
 # Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
 # all have no presence there, which is what put a fourth provider in the fleet.
 vultrFleet:
@@ -1468,7 +1461,7 @@ runnersFleet:
   # `--atomic` rolls production back. That is the case the orphan-reclaim
   # comment in controllers/macos/orphan_reclaimer.go and the kura
   # cold-start note in cluster-api-provider-tuist/AGENTS.md describe;
-  # kura-fleet, ovh-fleet and dedibox-fleet have the same shape.
+  # kura-fleet and ovh-fleet have the same shape.
   #
   # The other reason to park first is money: Scaleway bills a mini under
   # Apple's 24h floor whether or not this controller ever adopts it.
