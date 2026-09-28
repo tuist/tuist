@@ -305,13 +305,30 @@ Before that soak completed, concurrent
 [Server Deployment 36413863337](https://github.com/tuist/tuist/actions/runs/36413863337)
 replaced the server and Kura runtime pin with `sha-0b93604a05fb`. The rollout above
 is **superseded**, not completed; later waves did not run on this task's image.
-That release includes the Dedibox host-retention change from #13673. It was left
-intact pending coordination of the staging runtime pin. The completed isolated
-E2E evidence remains valid for `sha-dcb6a17aad0f`.
+That release includes the Dedibox host-retention change from #13673. The
+completed isolated E2E evidence remains valid for `sha-dcb6a17aad0f`.
+
+After that deployment completed, the approved runtime restoration changed only
+`TUIST_KURA_RUNTIME_IMAGE_TAG` back to `sha-dcb6a17aad0f`, with resource-version
+and previous-value preconditions. Comparing the complete Deployment spec before
+and after confirmed that the runtime pin was the only change. The newer server
+image `ghcr.io/tuist/tuist:sha-0b93604a05fb` and infrastructure were preserved,
+and the server rollout completed with its replica Ready. Progressive rollout
+`d21a4754-a936-4f5e-925f-4feeb6f28429` began at `2026-09-28T11:33:41Z`.
+At the `11:36Z` observation it was running in wave 0 without a pause reason;
+one of its two tracked public instances had converged. Existing progressive
+pacing was preserved. The controller's subsequent snapshots at `11:36:01Z`–
+`11:36:17Z` showed all three updated instances (EU, Canada and the private runner
+instance) on the restored image with both replicas Ready, serving, consistent
+rings, no active backfill, normal memory pressure and zero FD timeouts. The
+rollout coordinator had not yet recorded a continuous-health soak start. This
+is a restored pin and ongoing rollout, not a claim of completed fleet deployment.
 
 Topology remains unset on managed instances pending underlay qualification.
 Retaining this image through a Helm deployment requires the explicit
 `kura_runtime_image_tag=sha-dcb6a17aad0f` input. Do not restore the old server or
 infrastructure to re-pin Kura: preserve the concurrent deployment and change only
-the chosen runtime pin after coordinating it. The original pre-test Kura runtime
-was `sha-c07fa5b26287`, but rollback must account for subsequent deployments too.
+the chosen runtime pin after coordinating it. The immediately preceding runtime
+for this restoration was `sha-0b93604a05fb`; the original pre-test runtime
+`sha-c07fa5b26287` remains the compatibility-test reference, not automatically
+the correct operational rollback target.
