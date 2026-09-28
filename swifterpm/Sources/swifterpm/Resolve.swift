@@ -531,8 +531,9 @@ enum PackageResolver {
     /// The `originHash` only covers the root `Package.swift`, so it stays the same
     /// when a local package declares different dependencies, whether its manifest
     /// was edited or branches on `Context.environment`. Every remote dependency a
-    /// local package declares must have a pin that satisfies its requirement for
-    /// the resolved file to be current.
+    /// local package's products require must have a pin that satisfies its
+    /// requirement for the resolved file to be current. SwiftPM does not pin a local
+    /// package's test-only or unused dependencies.
     private static func localPackageDependenciesArePinned(
         by resolved: ResolvedPins,
         packageDir: URL,
@@ -547,7 +548,7 @@ enum PackageResolver {
             disableSandbox: disableSandbox
         )
         for localPackage in localPackages {
-            for dependency in try ManifestParser.dependencies(localPackage.manifest) {
+            for dependency in try ManifestParser.requiredDependencies(localPackage.manifest) {
                 guard resolved.pins.contains(where: { pin($0, satisfies: dependency) }) else {
                     return false
                 }
@@ -558,10 +559,18 @@ enum PackageResolver {
 
     private static func pin(_ pin: ResolvedPin, satisfies dependency: ManifestDependency) -> Bool {
         let identity = dependency.identity.lowercased()
-        let originalIdentity = pin.originalLocation.map {
-            ResolvedPin.identity(package: nil, location: $0)
+        var pinIdentities: Set<String> = [pin.identity.lowercased()]
+        if let originalLocation = pin.originalLocation {
+            pinIdentities.insert(ResolvedPin.identity(package: nil, location: originalLocation))
         }
-        guard pin.identity.lowercased() == identity || originalIdentity == identity else {
+        // A registry pin that replaced a source-control dependency is identified as
+        // `scope.name`, and SwiftPM does not always record its `originalLocation`.
+        if PinKind.isRegistry(pin.kind),
+           let name = pin.identity.split(separator: ".", maxSplits: 1).last
+        {
+            pinIdentities.insert(name.lowercased())
+        }
+        guard pinIdentities.contains(identity) else {
             return false
         }
         switch dependency.requirement {
