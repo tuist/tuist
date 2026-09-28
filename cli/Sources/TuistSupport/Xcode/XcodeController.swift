@@ -20,6 +20,9 @@ public protocol XcodeControlling: Sendable {
     /// - Returns: `Version` of selected Xcode
     /// - Throws: An error if it can't be obtained
     func selectedVersion() async throws -> Version
+
+    /// Returns the build version of the selected Xcode (e.g. 27A266a).
+    func selectedBuildVersion() async throws -> String
 }
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
@@ -53,5 +56,28 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
     public func selectedVersion() async throws -> Version {
         let xcode = try await selected()
         return try Version(versionString: xcode.infoPlist.version, usesLenientParsing: true)
+    }
+
+    private let selectedXcodeBuildVersion: ThreadSafe<String?> = ThreadSafe(nil)
+
+    public func selectedBuildVersion() async throws -> String {
+        if let buildVersion = selectedXcodeBuildVersion.value {
+            return buildVersion
+        }
+        let versionPlistPath = try await selected().path.appending(components: "Contents", "version.plist")
+        guard let data = try? Data(contentsOf: versionPlistPath.url) else {
+            throw XcodeError.versionPlistNotFound(versionPlistPath)
+        }
+        let buildVersion = try PropertyListDecoder().decode(VersionPlist.self, from: data).productBuildVersion
+        selectedXcodeBuildVersion.mutate { $0 = buildVersion }
+        return buildVersion
+    }
+}
+
+private struct VersionPlist: Decodable {
+    let productBuildVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case productBuildVersion = "ProductBuildVersion"
     }
 }
