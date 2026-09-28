@@ -127,7 +127,8 @@ defmodule Tuist.OAuth.Introspection do
       iss: issuer(),
       sub: claims["sub"],
       cache_grants: grants,
-      cache_payment_required: Map.get(claims, "cache_payment_required", [])
+      cache_payment_required: Map.get(claims, "cache_payment_required", []),
+      cache_payment_failed: Map.get(claims, "cache_payment_failed", [])
     }
   end
 
@@ -137,13 +138,16 @@ defmodule Tuist.OAuth.Introspection do
   end
 
   defp active_response(subject, grants) do
+    refusals = Cache.billing_refusals(subject)
+
     %{
       active: true,
       iss: issuer(),
       sub: subject_id(subject),
       principal_kind: principal_kind(subject),
       cache_grants: grants,
-      cache_payment_required: Cache.payment_required_handles(subject)
+      cache_payment_required: refusals.payment_required,
+      cache_payment_failed: refusals.payment_failed
     }
     |> maybe_put(:scope, scope_string(subject))
     |> maybe_put(:username, username(subject))

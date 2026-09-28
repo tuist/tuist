@@ -5,6 +5,7 @@ defmodule TuistWeb.BillingControllerTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistWeb.Errors.UnauthorizedError
 
   describe "upgrade" do
@@ -159,6 +160,35 @@ defmodule TuistWeb.BillingControllerTest do
         |> log_in_user(user)
         |> get("/#{organization_account.name}/billing/manage")
       end
+    end
+  end
+
+  describe "pay" do
+    test "redirects to where the outstanding subscription payment is settled", %{conn: conn} do
+      %{account: account} = user = AccountsFixtures.user_fixture(preload: [:account])
+
+      expect(Billing, :outstanding_payment_url, fn %{id: account_id} when account_id == account.id ->
+        "https://invoice.stripe.com/i/open"
+      end)
+
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get("/#{account.name}/billing/pay")
+
+      assert redirected_to(conn) == "https://invoice.stripe.com/i/open"
+    end
+
+    test "returns to the billing page when nothing is owed", %{conn: conn} do
+      %{account: account} = user = AccountsFixtures.user_fixture(preload: [:account])
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get("/#{account.name}/billing/pay")
+
+      assert redirected_to(conn) == "/#{account.name}/billing"
     end
   end
 end

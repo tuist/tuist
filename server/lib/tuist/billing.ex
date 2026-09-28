@@ -32,6 +32,19 @@ defmodule Tuist.Billing do
   # neither is billed.
   @holdable_subscription_statuses ~w(active trialing past_due unpaid paused incomplete)
 
+  # The statuses whose subscription the account keeps its plan through.
+  # `past_due` is a renewal Stripe failed to charge and is still retrying, so
+  # the customer has not lost anything yet. Once Stripe stops retrying it
+  # moves the subscription to `unpaid` or `canceled`, and the plan goes with
+  # it. `incomplete` never reached a first payment and `paused` is a trial
+  # that ended without one, so neither carries a plan either.
+  @live_subscription_statuses ~w(active trialing past_due)
+
+  # The statuses whose subscription has an invoice the customer still owes.
+  # Opening a new Checkout for such an account would create a second
+  # subscription beside the one that owes, so it is sent to settle instead.
+  @outstanding_subscription_statuses ~w(past_due unpaid)
+
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
@@ -405,7 +418,14 @@ defmodule Tuist.Billing do
     if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end
 
-  def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
+  def update_plan(%{account: %Account{} = account} = params) do
+    case outstanding_payment_url(account) do
+      nil -> change_plan(params)
+      url -> {:ok, {:external_redirect, url}}
+    end
+  end
+
+  defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
     customer_id = account.customer_id
 
     current_subscription = get_current_active_subscription(account)
@@ -853,16 +873,18 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  The accounts carrying an active Pro subscription, which are the ones the
-  switch to usage-based pricing applies to. Whether a given one is switched
-  is decided per account by `:usage_based_pricing_switch`.
+  The accounts carrying an active or past due Pro subscription, which are the
+  ones the switch to usage-based pricing applies to. Whether a given one is
+  switched is decided per account by `:usage_based_pricing_switch`. A past due
+  subscription keeps its plan while Stripe retries, so it is switched with the
+  rest rather than left behind on the previous pricing.
 
   Only Pro subscriptions. Enterprise terms are contracted per account, and
   open source accounts pay nothing, so neither is migrated by a schedule.
   """
   def accounts_with_pro_subscriptions do
     from(s in Subscription,
-      where: s.status == "active" and s.plan == :pro,
+      where: s.status in ["active", "past_due"] and s.plan == :pro,
       preload: :account
     )
     |> Repo.all()
@@ -1267,13 +1289,20 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Given an account, it returns the latest subscription that is active or trialing.
+  The subscription statuses an account keeps its plan through: `active`,
+  `trialing`, and `past_due` while Stripe retries a failed renewal.
+  """
+  def live_subscription_statuses, do: @live_subscription_statuses
+
+  @doc """
+  Given an account, it returns the latest subscription it keeps its plan
+  through. See `live_subscription_statuses/0`.
   """
   def get_current_active_subscription(%Account{} = account) do
     Repo.one(
       from(s in Subscription,
         where: s.account_id == ^account.id,
-        where: s.status == "active" or s.status == "trialing",
+        where: s.status in ^@live_subscription_statuses,
         order_by: [desc: s.inserted_at],
         limit: 1
       )
@@ -1281,13 +1310,84 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Whether the account lost its paid plan because Stripe gave up collecting a
+  subscription payment, and nothing has replaced that subscription since.
+
+  Such an account resolves to Air like one that never subscribed, but what
+  brings its plan back is paying the open invoice, not upgrading.
+  """
+  def payment_failed?(%Account{} = account) do
+    MapSet.member?(payment_failed_account_ids([account.id]), account.id)
+  end
+
+  @doc """
+  The ids among `account_ids` for which `payment_failed?/1` holds, in one query.
+  """
+  def payment_failed_account_ids([]), do: MapSet.new()
+
+  def payment_failed_account_ids(account_ids) do
+    live_account_ids =
+      from(s in Subscription,
+        where: s.account_id in ^account_ids and s.status in ^@live_subscription_statuses,
+        select: s.account_id
+      )
+
+    from(s in Subscription,
+      where: s.account_id in ^account_ids and s.status == "unpaid",
+      where: s.account_id not in subquery(live_account_ids),
+      distinct: true,
+      select: s.account_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
+  Where the account settles what its subscription owes, or `nil` when it owes
+  nothing: the latest subscription it keeps its plan through, or still owes
+  on, is `past_due` or `unpaid`.
+
+  Paying the open invoice is what returns that subscription to `active`, so
+  this is the invoice's hosted page. Without an open invoice to pay, it is the
+  billing portal, where the payment method is updated for the next attempt.
+  """
+  def outstanding_payment_url(%Account{} = account) do
+    case outstanding_subscription(account) do
+      %Subscription{} = subscription -> payment_settlement_url(account, subscription)
+      nil -> nil
+    end
+  end
+
+  defp outstanding_subscription(%Account{} = account) do
+    from(s in Subscription,
+      where: s.account_id == ^account.id,
+      where: s.status in ^(@live_subscription_statuses ++ @outstanding_subscription_statuses),
+      order_by: [desc: s.inserted_at, desc: s.id],
+      limit: 1
+    )
+    |> Repo.one()
+    |> case do
+      %Subscription{status: status} = subscription when status in @outstanding_subscription_statuses -> subscription
+      _ -> nil
+    end
+  end
+
+  defp payment_settlement_url(%Account{} = account, %Subscription{subscription_id: subscription_id}) do
+    case Stripe.Invoice.list(%{subscription: subscription_id, status: "open", limit: 1}) do
+      {:ok, %{data: [%{hosted_invoice_url: url} | _]}} when is_binary(url) -> url
+      _ -> create_session(account.customer_id).url
+    end
+  end
+
+  @doc """
   Returns the effective plan for an account.
 
-  Accounts without an active or trialing subscription use the Air plan.
+  Accounts without a live subscription use the Air plan. See
+  `live_subscription_statuses/0`.
   """
   def effective_plan(%Account{subscriptions: subscriptions}) when is_list(subscriptions) do
     subscriptions
-    |> Enum.filter(&(&1.status in ["active", "trialing"]))
+    |> Enum.filter(&(&1.status in @live_subscription_statuses))
     |> case do
       [] -> :air
       active -> active |> latest_subscription() |> Map.fetch!(:plan)
@@ -1307,9 +1407,10 @@ defmodule Tuist.Billing do
 
   Only Air accounts are gated. An account whose paid subscription lapsed
   resolves to Air, so it is gated on the same terms as one that never
-  subscribed. What exhausts the free tier depends on the pricing the account
-  is on: 200 remote cache hits, or either cache allowance on usage-based
-  pricing.
+  subscribed. A subscription Stripe is still retrying a payment for has not
+  lapsed, see `live_subscription_statuses/0`. What exhausts the free tier
+  depends on the pricing the account is on: 200 remote cache hits, or either
+  cache allowance on usage-based pricing.
   """
   def cache_access_blocked?(%Account{} = account) do
     effective_plan(account) == :air and over_free_tier?(account)
@@ -1373,7 +1474,7 @@ defmodule Tuist.Billing do
   defp latest_active_plans(account_ids) do
     from(s in Subscription,
       where: s.account_id in ^account_ids,
-      where: s.status in ["active", "trialing"],
+      where: s.status in ^@live_subscription_statuses,
       order_by: [desc: s.inserted_at, desc: s.id],
       select: {s.account_id, s.plan}
     )

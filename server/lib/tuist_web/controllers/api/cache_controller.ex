@@ -13,6 +13,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Kura
   alias Tuist.Kura.Identity
   alias Tuist.Storage
+  alias TuistWeb.API.Authorization.BillingPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
@@ -41,7 +42,7 @@ defmodule TuistWeb.API.CacheController do
        ]
        when action not in [:access, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token]
+  plug BillingPlug when action not in [:access, :endpoints, :token]
 
   plug :sign
 
@@ -210,12 +211,16 @@ defmodule TuistWeb.API.CacheController do
   end
 
   defp render_free_tier_exhausted(conn, account) do
+    message =
+      if Billing.payment_failed?(account) do
+        BillingPlug.payment_failed_message(account.name)
+      else
+        "The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}."
+      end
+
     conn
     |> put_status(:payment_required)
-    |> json(%{
-      message:
-        "The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}."
-    })
+    |> json(%{message: message})
   end
 
   defp authorized_account_handle(nil, _conn), do: nil
@@ -254,6 +259,12 @@ defmodule TuistWeb.API.CacheController do
                type: :array,
                description:
                  "Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.",
+               items: %Schema{type: :string}
+             },
+             payment_failed: %Schema{
+               type: :array,
+               description:
+                 "The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.",
                items: %Schema{type: :string}
              }
            }
