@@ -419,17 +419,21 @@ defmodule Tuist.Billing do
     if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end
 
+  # A live subscription, `past_due` included, is changed in place, so it can
+  # never end up with a second one. Without one, a Checkout would open a new
+  # subscription beside an `unpaid` one that still owes, so that account is
+  # sent to settle the open invoice instead.
   def update_plan(%{account: %Account{} = account} = params) do
-    case outstanding_payment_url(account) do
-      nil -> change_plan(params)
-      url -> {:ok, {:external_redirect, url}}
+    current_subscription = get_current_active_subscription(account)
+
+    case is_nil(current_subscription) and outstanding_payment_url(account) do
+      url when is_binary(url) -> {:ok, {:external_redirect, url}}
+      _ -> change_plan(params, current_subscription)
     end
   end
 
-  defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
+  defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}, current_subscription) do
     customer_id = account.customer_id
-
-    current_subscription = get_current_active_subscription(account)
 
     subscription_items = get_subscription_items(to_string(plan), account)
 
@@ -1069,6 +1073,13 @@ defmodule Tuist.Billing do
   def cancel_subscription_at_period_end(%Subscription{} = subscription) do
     Stripe.Subscription.update(subscription.subscription_id, %{cancel_at_period_end: true})
   end
+
+  @doc """
+  Handles a failed invoice charge reported by Stripe: tells the account's
+  admins about the first failure of an automatically charged subscription
+  invoice. See `Tuist.Billing.PaymentFailedNotifications`.
+  """
+  def on_invoice_payment_failed(invoice), do: PaymentFailedNotifications.enqueue(invoice)
 
   def on_subscription_change(subscription) do
     case Accounts.get_account_from_customer_id(subscription.customer) do

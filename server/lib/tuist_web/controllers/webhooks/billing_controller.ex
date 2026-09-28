@@ -5,7 +5,6 @@ defmodule TuistWeb.Webhooks.BillingController do
 
   alias Tuist.Accounts
   alias Tuist.Billing
-  alias Tuist.Billing.PaymentFailedNotifications
   alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
 
   @impl true
@@ -54,7 +53,7 @@ defmodule TuistWeb.Webhooks.BillingController do
 
   @impl true
   def handle_event(%Stripe.Event{type: "invoice.payment_failed"} = event) do
-    PaymentFailedNotifications.enqueue(event.data.object)
+    Billing.on_invoice_payment_failed(event.data.object)
   end
 
   # Enqueued for every finalized and every paid invoice rather than only

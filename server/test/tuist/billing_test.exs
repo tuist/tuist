@@ -655,7 +655,10 @@ defmodule Tuist.BillingTest do
       assert session_url == :ok
     end
 
-    test "sends a past due account to its open invoice instead of opening a second checkout" do
+    # A past due subscription is still live, so a plan change updates it in
+    # place and cannot open a second subscription. Only an account with no
+    # live subscription is sent to settle first.
+    test "lets a past due account change its plan on the subscription it has" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
@@ -668,18 +671,22 @@ defmodule Tuist.BillingTest do
       )
 
       reject(&Session.create/1)
-      reject(&Stripe.Subscription.update/2)
+      reject(&Stripe.Invoice.list/1)
 
-      expect(Stripe.Invoice, :list, fn %{subscription: "sub_past_due", status: "open", limit: 1} ->
-        {:ok,
-         %Stripe.List{data: [%Stripe.Invoice{id: "in_open", hosted_invoice_url: "https://invoice.stripe.com/i/open"}]}}
+      stub(Stripe.Subscription, :retrieve, fn "sub_past_due" ->
+        {:ok, %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
+      end)
+
+      expect(Stripe.Subscription, :update, fn "sub_past_due", %{items: items} ->
+        assert %{price: "air.usage"} in items
+        {:ok, %{}}
       end)
 
       # When
-      got = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+      got = Billing.update_plan(%{plan: :air, account: account, success_url: "success_url"})
 
       # Then
-      assert got == {:ok, {:external_redirect, "https://invoice.stripe.com/i/open"}}
+      assert got == :ok
     end
 
     test "sends an unpaid account to its open invoice instead of opening a second checkout" do
@@ -708,7 +715,7 @@ defmodule Tuist.BillingTest do
       assert got == {:ok, {:external_redirect, "https://invoice.stripe.com/i/open"}}
     end
 
-    test "sends a past due account without an open invoice to the billing portal" do
+    test "sends an unpaid account without an open invoice to the billing portal" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
@@ -716,8 +723,8 @@ defmodule Tuist.BillingTest do
       BillingFixtures.subscription_fixture(
         account_id: account.id,
         plan: :pro,
-        status: "past_due",
-        subscription_id: "sub_past_due"
+        status: "unpaid",
+        subscription_id: "sub_unpaid"
       )
 
       reject(&Session.create/1)
