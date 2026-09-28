@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-28",
+  "kind": "Read-only feasibility audit; not private-path E2E qualification",
+  "providerAPI": {
+    "vpcListStatus": 200,
+    "existingVPCs": 0,
+    "bareMetalVPCListStatuses": [
+      200,
+      200,
+      200
+    ],
+    "attachedVPCs": 0,
+    "legacyVPCListStatus": 404
+  },
+  "placement": {
+    "ord": {
+      "hosts": 2,
+      "instances": 19,
+      "replicas": 38,
+      "readyReplicas": 38,
+      "instancesWithoutReadySiblingOffHost": 19
+    },
+    "scl": {
+      "hosts": 1,
+      "instances": 3,
+      "replicas": 6,
+      "readyReplicas": 6,
+      "instancesWithoutReadySiblingOffHost": 3
+    }
+  },
+  "interpretation": [
+    "Every observed instance has both replicas on one physical host. A local VPC would not replace an existing inter-host sibling path in this snapshot.",
+    "Co-location is an intentional controller preference; it can change during placement or evacuation, so this observation is not a permanent guarantee.",
+    "No ready off-host sibling exists for any observed instance. Sequential host restarts alone do not preserve its regional endpoint availability.",
+    "Cross-location private transport is not supplied by Vultr VPCs. A separate physical/partner interconnect requires feasibility and pricing confirmation.",
+    "Current controller publishes automatic topology only for OVH; Vultr keeps existing canonical mTLS routing."
+  ],
+  "sources": [
+    {
+      "url": "https://docs.vultr.com/products/compute/instances/bare-metal/networking/vpc",
+      "finding": "Bare-metal VPC support; restart documented for cloud-init interface configuration. General API example uses instances path, while official SDK and successful live reads use bare-metals VPC endpoints."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vultr/govultr/master/bare_metal_server.go",
+      "finding": "Bare-metal VPC read and attachment paths."
+    },
+    {
+      "url": "https://docs.vultr.com/how-to-peer-vpcs-between-vultr-locations-with-wireguard",
+      "finding": "VPC confined to one location; VPN gateways proposed for cross-location connectivity."
+    },
+    {
+      "url": "https://docs.vultr.com/vultr-direct-connect",
+      "finding": "Private networks do not cross data-center locations; dedicated/partner transport is separate."
+    },
+    {
+      "url": "https://docs.vultr.com/how-to-use-the-linux-ip-command-to-manage-server-network-interfaces",
+      "finding": "VPC interface example has MTU 1450; actual bare-metal MTU and Cilium encapsulation need measurement."
+    }
+  ],
+  "limitations": [
+    "No host SSH, reboot, attachment, VPC creation, paid order or runtime change performed.",
+    "API list success does not prove attachment eligibility or data-plane connectivity.",
+    "No live Vultr MTU, source-address filtering, private-interface capture or throughput test performed.",
+    "VPC and interconnect pricing not verified; no purchase authorized by this audit."
+  ],
+  "outcome": "Keep Vultr topology disabled until a useful and physically qualified path exists; do not represent a public VPN as private underlay."
+}

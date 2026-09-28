@@ -6,6 +6,11 @@
   private topology only after every participant installs the same membership.
   See [managed private networking](../kura-controller/private-network-provisioning.md).
 
+- Vultr VPC bootstrap lives in `cmd/vultr-vpc` and `internal/vultr/vpc.go`.
+  Plan by default; create only empty, location-scoped networks with `--apply`.
+  Keep host attachment/restarts and topology publication behind physical
+  qualification. See [Vultr private networking](../kura-controller/vultr-private-networking.md).
+
 Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
 CAPI's standard Machine/MachineDeployment shape. It manages these

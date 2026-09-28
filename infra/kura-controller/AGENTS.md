@@ -40,6 +40,9 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
   Managed environments enable this for their qualified OVH domain. Canary has
   one OVH host; its colocated fixture does not prove a physical host pair.
   Vultr topology remains disabled pending separate provider qualification.
+  [Vultr private networking](vultr-private-networking.md) covers the provisioned
+  regional VPCs, repeatable bootstrap command, isolated test setup, restart
+  safety and encapsulation MTU checks. Empty VPCs do not attest a private path.
 
 - Production public EU-West workloads now run on OVH; staging/canary EU-West instances must be decommissioned before their Dedibox fleets retire. Public validation remains on OVH `ca-east`. Follow the [DNS withdrawal, soak and retirement gates](eu-west-ovh-migration.md) before releasing old production hosts. Keep the Mac runner cache and the historical scheduling/storage names intact.
   It retains the current pool selector and StorageClass during evacuation;

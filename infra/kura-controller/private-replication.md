@@ -34,6 +34,9 @@ required on every path.
   requirement. Do not label both locations as one domain or enable a silent WAN
   exception. Resolve that policy/topology gap before enabling strict routing
   across a mesh containing both locations.
+  Separate ORD and SCL VPCs are provisioned. See
+  [Vultr provisioning and qualification](vultr-private-networking.md) for the
+  remaining host attachment, MTU and routing-policy gates.
 - Cross-provider: retain the existing reachable peer gateway and account mTLS.
   Provider preference never removes the remote origin-region links, published
   gateways, or same-region sibling feeds.
@@ -115,8 +118,9 @@ settings and fail-closed host routing are described in
 enables both host reconciliation and automatic runtime publication after its
 physical qualification. Canary and production also enable both settings; their
 merge deployment publishes topology after the CAPI provider verifies the prepared
-hosts. Non-OVH placements retain their existing behavior. This is OVH activation,
-not a claim that Vultr private networking is provisioned.
+hosts. Non-OVH placements retain their existing behavior. Vultr's regional VPCs
+are provisioned separately; its host transport and runtime topology remain
+unqualified and disabled.
 
 Provider-only configuration is rejected at startup: opting in requires both
 `private_network` and `private_url`. Same-provider peers advertising absent or
