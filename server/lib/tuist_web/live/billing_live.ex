@@ -82,9 +82,21 @@ defmodule TuistWeb.BillingLive do
       |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
+      |> assign(:payment_issue, payment_issue(selected_account, subscription))
 
     {:ok, socket}
   end
+
+  # A past due subscription keeps its plan while Stripe retries the payment, and
+  # an unpaid one has already lost it. Either way the customer settles the open
+  # invoice rather than upgrading, which would open a second subscription.
+  defp payment_issue(_account, %{status: "past_due"}), do: :past_due
+
+  defp payment_issue(account, nil) do
+    if Billing.payment_failed?(account), do: :payment_failed
+  end
+
+  defp payment_issue(_account, _subscription), do: nil
 
   @impl true
   def handle_params(_params, uri, socket) do

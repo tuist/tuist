@@ -20,7 +20,7 @@ defmodule Tuist.OAuth.Introspection do
   def token_response(token) do
     case Authentication.authenticated_subject(token) do
       nil -> cache_token_response(token)
-      subject -> active_response(subject, Cache.cache_grants(subject))
+      subject -> active_response(subject, Cache.cache_grants(subject), nil)
     end
   end
 
@@ -41,7 +41,7 @@ defmodule Tuist.OAuth.Introspection do
         grants = scope_grants_to_account(Cache.cache_grants(subject), account)
 
         if grants_present?(grants) do
-          active_response(subject, grants)
+          active_response(subject, grants, account)
         else
           %{active: false}
         end
@@ -62,7 +62,7 @@ defmodule Tuist.OAuth.Introspection do
   # reports every exchanged token inactive and denies the request.
   defp cache_token_response(token) do
     case verified_cache_token(token) do
-      {:ok, claims, grants} -> cache_token_active(claims, grants)
+      {:ok, claims, grants} -> cache_token_active(claims, grants, nil)
       :error -> %{active: false}
     end
   end
@@ -72,7 +72,7 @@ defmodule Tuist.OAuth.Introspection do
       {:ok, claims, grants} ->
         case scoped_or_empty(grants, account) do
           :empty -> payment_required_or_inactive(claims, account)
-          scoped -> cache_token_active(claims, scoped)
+          scoped -> cache_token_active(claims, scoped, account)
         end
 
       :error ->
@@ -83,12 +83,12 @@ defmodule Tuist.OAuth.Introspection do
   # A token whose grants went empty because the account exhausted its plan still
   # has something to say. Reporting it inactive would have the node answer 401,
   # losing the only thing that tells the caller what to do about it.
-  defp payment_required_or_inactive(claims, %Account{name: name}) do
+  defp payment_required_or_inactive(claims, %Account{name: name} = account) do
     handles = Map.get(claims, "cache_payment_required", [])
     handle = String.downcase(name)
 
     if Enum.any?(handles, &(String.downcase(&1) == handle)) do
-      cache_token_active(claims, empty_grants())
+      cache_token_active(claims, empty_grants(), account)
     else
       %{active: false}
     end
@@ -121,14 +121,15 @@ defmodule Tuist.OAuth.Introspection do
 
   # `principal_kind` is omitted: the claims do not record what the token was
   # minted for, and a node treats its absence as an unnamed subject.
-  defp cache_token_active(claims, grants) do
+  defp cache_token_active(claims, grants, tenant) do
     %{
       active: true,
       iss: issuer(),
       sub: claims["sub"],
       cache_origin: claims["cache_origin"],
       cache_grants: grants,
-      cache_payment_required: Map.get(claims, "cache_payment_required", [])
+      cache_payment_required: claims |> Map.get("cache_payment_required", []) |> scope_handles(tenant),
+      cache_payment_failed: claims |> Map.get("cache_payment_failed", []) |> scope_handles(tenant)
     }
   end
 
@@ -137,14 +138,17 @@ defmodule Tuist.OAuth.Introspection do
     if grants_present?(scoped), do: scoped, else: :empty
   end
 
-  defp active_response(subject, grants) do
+  defp active_response(subject, grants, tenant) do
+    refusals = Cache.billing_refusals(subject)
+
     %{
       active: true,
       iss: issuer(),
       sub: subject_id(subject),
       principal_kind: principal_kind(subject),
       cache_grants: grants,
-      cache_payment_required: Cache.payment_required_handles(subject)
+      cache_payment_required: scope_handles(refusals.payment_required, tenant),
+      cache_payment_failed: scope_handles(refusals.payment_failed, tenant)
     }
     |> maybe_put(:scope, scope_string(subject))
     |> maybe_put(:username, username(subject))
@@ -168,6 +172,17 @@ defmodule Tuist.OAuth.Introspection do
 
   defp keep_matching(handles, predicate) when is_list(handles), do: Enum.filter(handles, predicate)
   defp keep_matching(_handles, _predicate), do: []
+
+  # The accounts refused for billing are the subject's across every tenant it
+  # reaches. A tenant's node is told only about its own account, the same as
+  # the grants, or it would learn the billing status of every other tenant the
+  # subject belongs to.
+  defp scope_handles(handles, nil), do: handles
+
+  defp scope_handles(handles, %Account{name: name}) do
+    handle = String.downcase(name)
+    keep_matching(handles, &(String.downcase(&1) == handle))
+  end
 
   defp grants_present?(%{"account" => account_bucket, "project" => project_bucket}) do
     account_bucket["read"] != [] or account_bucket["write"] != [] or

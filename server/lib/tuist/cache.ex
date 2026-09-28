@@ -23,11 +23,13 @@ defmodule Tuist.Cache do
   @cache_token_ttl_seconds 1800
 
   def accessible_handles(resource, opts \\ []) do
-    %{
-      accounts: accessible_account_handles(resource),
-      projects: accessible_project_handles(resource, opts),
-      payment_required: payment_required_handles(resource)
-    }
+    Map.merge(
+      %{
+        accounts: accessible_account_handles(resource),
+        projects: accessible_project_handles(resource, opts)
+      },
+      billing_refusals(resource)
+    )
   end
 
   @doc """
@@ -37,17 +39,33 @@ defmodule Tuist.Cache do
   indistinguishable from never having had access. A cache node reads this to
   tell the two apart and answer the caller with something actionable.
   """
-  def payment_required_handles(resource) do
+  def payment_required_handles(resource), do: billing_refusals(resource).payment_required
+
+  @doc """
+  The handles of `payment_required_handles/1` under `:payment_required`, and
+  under `:payment_failed` the subset of them whose paid plan lapsed because
+  Stripe gave up collecting a subscription payment. A cache node tells the
+  second apart so the caller is told to settle the payment, not to upgrade.
+  """
+  def billing_refusals(resource) do
     accounts =
       resource
       |> with_resolved_membership()
       |> resolve_accessible_accounts()
 
-    blocked = Billing.cache_blocked_account_ids(accounts)
+    blocked_ids = Billing.cache_blocked_account_ids(accounts)
+    blocked = Enum.filter(accounts, &MapSet.member?(blocked_ids, &1.id))
+    failed_ids = Billing.payment_failed_account_ids(MapSet.to_list(blocked_ids))
 
-    accounts
-    |> Enum.filter(&MapSet.member?(blocked, &1.id))
-    |> account_handles()
+    %{
+      payment_required: account_handles(blocked),
+      payment_failed: blocked |> Enum.filter(&MapSet.member?(failed_ids, &1.id)) |> account_handles()
+    }
+  end
+
+  defp billing_refusal_claims(resource) do
+    %{payment_required: required, payment_failed: failed} = billing_refusals(resource)
+    %{"cache_payment_required" => required, "cache_payment_failed" => failed}
   end
 
   def cache_grants(resource, opts \\ []) do
@@ -97,14 +115,10 @@ defmodule Tuist.Cache do
 
     cache_token_signer().encode_and_sign(
       subject,
-      Map.reject(
-        %{
-          "cache_origin" => Keyword.get(opts, :origin),
-          "cache_grants" => grants,
-          "cache_payment_required" => payment_required_handles(subject)
-        },
-        fn {_key, value} -> is_nil(value) end
-      ),
+      billing_refusal_claims(subject)
+      |> Map.put("cache_grants", grants)
+      |> Map.put("cache_origin", Keyword.get(opts, :origin))
+      |> Map.reject(fn {_key, value} -> is_nil(value) end),
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )
@@ -177,12 +191,14 @@ defmodule Tuist.Cache do
     resource = with_resolved_membership(resource)
     projects = accessible_projects(resource, opts)
 
-    %{
-      "accounts" => accessible_account_handles(resource),
-      "projects" => project_handles(projects),
-      "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects),
-      "cache_payment_required" => payment_required_handles(resource)
-    }
+    Map.merge(
+      %{
+        "accounts" => accessible_account_handles(resource),
+        "projects" => project_handles(projects),
+        "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects)
+      },
+      billing_refusal_claims(resource)
+    )
   end
 
   def accessible_account_handles(%User{} = user) do
@@ -345,17 +361,19 @@ defmodule Tuist.Cache do
   defp project_only_embedded_cache_claims(resource, opts) do
     projects = accessible_projects(resource, opts)
 
-    %{
-      "projects" => project_handles(projects),
-      "cache_payment_required" => payment_required_handles(resource),
-      "cache_grants" => %{
-        "account" => %{"read" => [], "write" => []},
-        "project" => %{
-          "read" => project_cache_handles(resource, projects, :read),
-          "write" => project_cache_handles(resource, projects, :write)
+    Map.merge(
+      %{
+        "projects" => project_handles(projects),
+        "cache_grants" => %{
+          "account" => %{"read" => [], "write" => []},
+          "project" => %{
+            "read" => project_cache_handles(resource, projects, :read),
+            "write" => project_cache_handles(resource, projects, :write)
+          }
         }
-      }
-    }
+      },
+      billing_refusal_claims(resource)
+    )
   end
 
   # The organization is preloaded alongside the account because the cache

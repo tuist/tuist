@@ -724,6 +724,49 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert json_response(conn, 402)["message"] =~ "Tuist Air"
     end
 
+    test "says a payment failed when an unpaid subscription left the account over the free tier", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "unpaid")
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?#{[full_handle: "#{user.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 402)["message"] ==
+               "A payment for the subscription of the account '#{user.account.name}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice at #{url(~p"/#{user.account.name}/billing")} to restore access."
+    end
+
+    test "still mints a token while the pro subscription's renewal payment is being retried", %{conn: conn} do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 10,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "past_due")
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = post(conn, ~p"/api/cache/token?#{[full_handle: "#{user.account.name}/#{project.name}"]}")
+
+      # Then
+      assert json_response(conn, 200)["token"]
+    end
+
     # `full_handle` is caller-controlled, so answering 402 for an account the
     # subject cannot reach would turn this into a probe for which accounts are
     # over the free tier.
@@ -822,6 +865,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       assert json_response(conn, 200) == %{
                "payment_required" => [],
+               "payment_failed" => [],
                "accounts" => [],
                "projects" => ["#{organization.account.name}/#{project.name}"]
              }

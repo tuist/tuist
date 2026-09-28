@@ -71,7 +71,7 @@ defmodule Tuist.Storage.RetentionPolicy do
   defp active_subscription_plans_by_account_id(account_ids) do
     Subscription
     |> where([subscription], subscription.account_id in ^account_ids)
-    |> where([subscription], subscription.status == "active" or subscription.status == "trialing")
+    |> where([subscription], subscription.status in ^Billing.live_subscription_statuses())
     |> distinct([subscription], subscription.account_id)
     |> order_by([subscription], asc: subscription.account_id, desc: subscription.inserted_at)
     |> select([subscription], {subscription.account_id, subscription.plan})
