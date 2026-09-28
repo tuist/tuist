@@ -489,6 +489,7 @@ mod tests {
             remote.provider = provider.into();
             ctx.state
                 .apply_peer_views(vec![crate::sync::roles::PeerView {
+                    private_healthy: true,
                     url: canonical.clone(),
                     region: "remote".into(),
                     topology: Some(remote),

@@ -23,7 +23,6 @@ impl PeerTopology {
             (Some(network), Some(url)) if !network.trim().is_empty() => {
                 validate_endpoint(url)?;
             }
-            (None, None) => {}
             _ => return Err("peer topology requires both private_network and private_url".into()),
         }
         Ok(())
@@ -118,6 +117,8 @@ mod tests {
 
     #[test]
     fn incomplete_and_unsafe_metadata_is_rejected() {
+        let provider_only: PeerTopology = serde_json::from_str(r#"{"provider":"ovh"}"#).unwrap();
+        assert!(provider_only.validate().is_err());
         let mut peer = topology("ovh", "vrack-1");
         for url in [
             "http://private",
@@ -141,6 +142,7 @@ mod tests {
         .await;
         let canonical = "https://public.example:7443";
         let view = crate::sync::roles::PeerView {
+            private_healthy: true,
             url: canonical.into(),
             region: "remote".into(),
             topology: Some(own),
@@ -228,6 +230,7 @@ mod tests {
         let canonical = format!("https://{address}");
         ctx.state
             .apply_peer_views(vec![crate::sync::roles::PeerView {
+                private_healthy: true,
                 url: canonical.clone(),
                 region: "remote".into(),
                 topology: Some(own),

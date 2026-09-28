@@ -365,6 +365,7 @@ impl AppState {
         };
         self.peer_views.load().iter().any(|view| {
             view.url == peer
+                && view.private_healthy
                 && view.serving
                 && !view.draining
                 && view.topology.as_ref().is_some_and(|remote| {

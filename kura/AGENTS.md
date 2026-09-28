@@ -34,6 +34,10 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   a deployment attestation of the underlay, never inferred from a provider name.
   Keep all pull body/listing/feed requests on `AppState::peer_request`, canonical
   identities unchanged, and cross-provider/published replication coverage intact.
+  Keep local private-probe health separate from advertised serving/draining state
+  and out of the local gateway election. Only backward region passes may yield
+  to healthy remote-region private donors; sibling donors and forward pages must
+  never trigger this delay. Preserve legacy canonical discovery semantics.
   Rollout gates and unresolved provider setup are in
   [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
   The staging fixture under `test/e2e/provider-topology/staging/` tests routing

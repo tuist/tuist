@@ -34,6 +34,7 @@ impl Node {
 
     fn view(&self) -> PeerView {
         PeerView {
+            private_healthy: true,
             topology: None,
             url: self.url.clone(),
             region: self.region.to_owned(),
@@ -459,6 +460,7 @@ async fn a_gap_at_the_siblings_feed_head_does_not_freeze_the_link_frontier() {
 async fn a_link_that_gave_up_its_bootstrap_stops_bounding_the_listing() {
     let a = node("local", |_| {}).await;
     let ghost = PeerView {
+        private_healthy: true,
         topology: None,
         url: "http://127.0.0.1:1".to_owned(),
         region: "local".to_owned(),
@@ -557,6 +559,7 @@ async fn a_link_that_gave_up_its_bootstrap_stops_bounding_the_listing() {
 async fn a_flapping_sibling_keeps_its_bootstrap_budget_across_respawns() {
     let a = node("local", |_| {}).await;
     let ghost = PeerView {
+        private_healthy: true,
         topology: None,
         url: "http://127.0.0.1:1".to_owned(),
         region: "local".to_owned(),

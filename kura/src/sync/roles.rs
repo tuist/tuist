@@ -19,6 +19,8 @@ use std::collections::BTreeMap;
 pub struct PeerView {
     pub url: String,
     pub topology: Option<crate::peer_topology::PeerTopology>,
+    /// This node's private-route probe, never the peer's advertised traffic state.
+    pub private_healthy: bool,
     pub region: String,
     /// `serving` in the peer's traffic state.
     pub serving: bool,
@@ -88,7 +90,12 @@ fn region_gateways(
                             .is_ok()
                 })
             });
-            (rank(peer), !preferred, &peer.url)
+            (
+                prefer.is_some() && !peer.private_healthy,
+                rank(peer),
+                !preferred,
+                &peer.url,
+            )
         })
         .map(|peer| vec![peer.url.clone()])
         .unwrap_or_default()
@@ -108,6 +115,7 @@ pub fn derive_roles(inputs: &RoleInputs<'_>) -> Roles {
     };
 
     let own = PeerView {
+        private_healthy: true,
         topology: None,
         url: inputs.own_url.to_owned(),
         region: inputs.own_region.to_owned(),
@@ -150,6 +158,7 @@ mod tests {
 
     fn peer(url: &str, region: &str, serving: bool, draining: bool) -> PeerView {
         PeerView {
+            private_healthy: true,
             topology: None,
             url: url.into(),
             region: region.into(),
@@ -343,6 +352,14 @@ mod tests {
         );
         peers[1].serving = true;
         peers[1].draining = false;
+        peers[1].private_healthy = false;
+        assert!(
+            derive(&peers, &[])
+                .remote_gateways
+                .contains(&("https://a.eu".into(), "eu".into())),
+            "a failed local probe cannot displace a reachable remote candidate"
+        );
+        peers[1].private_healthy = true;
         peers[1].topology.as_mut().unwrap().private_network = Some("another-vrack".into());
         assert!(
             derive(&peers, &[])
@@ -367,5 +384,31 @@ mod tests {
             3,
             "published coverage is never reduced by preference"
         );
+    }
+
+    #[test]
+    fn asymmetric_private_probes_do_not_change_local_gateway_election() {
+        let topology = crate::peer_topology::PeerTopology {
+            provider: "ovh".into(),
+            private_network: Some("verified-vrack".into()),
+            private_url: Some("https://private.example:7443".into()),
+        };
+        for (own, other, expected_gateway) in [
+            ("https://a.us", "https://b.us", true),
+            ("https://b.us", "https://a.us", false),
+        ] {
+            for healthy in [false, true] {
+                let mut sibling = peer(other, "us", true, false);
+                sibling.topology = Some(topology.clone());
+                sibling.private_healthy = healthy;
+                let peers = [sibling];
+                let roles = derive_roles(&RoleInputs {
+                    own_topology: Some(&topology),
+                    ..inputs(own, "us", &peers, &[])
+                });
+                assert_eq!(roles.own_gateway, expected_gateway);
+                assert_eq!(roles.siblings, vec![other]);
+            }
+        }
     }
 }

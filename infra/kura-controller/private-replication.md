@@ -6,48 +6,13 @@ migrations are outside this change. **No production network or workload has
 been changed by this work. Private routing is disabled until the gates below
 are satisfied.**
 
-## Observed inventory, 2026-09-28
+## Operational inventory
 
-Read through the normal production Pomerium context and the existing scoped
-provider API credentials. These are observations, not assumptions from Helm.
-
-| Provider | Location | Kura region | Hosts | Product |
-| --- | --- | --- | ---: | --- |
-| OVH | gra04 | eu-west | 3 | ADVANCE-1 / AMD EPYC 4244P |
-| OVH | waw1 | eu-east | 1 | Advance-1 |
-| OVH | vin1 | us-east | 4 | Advance-1 |
-| OVH | hil1 | us-west | 2 | Advance-1 |
-| OVH | sgp02 | ap-southeast | 1 | ADVANCE-2 / AMD EPYC 4344P |
-| Vultr | ord | us-central | 2 | vbm-6c-32gb-amd |
-| Vultr | scl | sa-west | 1 | vbm-6c-32gb-amd |
-
-All 14 cache hosts advertise public Kubernetes InternalIPs. The live Cilium
-ConfigMap says `routing-mode=tunnel`, `tunnel-protocol=vxlan`; no encryption
-setting is enabled. RFC1918 PodIPs therefore do not establish a private or
-encrypted physical path. Kura's account-scoped peer mTLS is the encryption and
-authentication boundary and must remain enabled on every path.
-
-`GET /dedicated/server/{service}/vrack` returned `200 []` for **all 11 OVH cache
-servers**. Their network specifications report a standard vRack interface at
-25,000 Mbps; that is not a measurement or proof of purchased/sustained private
-capacity. `GET /vrack` returned `403 NOT_GRANTED_CALL`: the existing grant
-cannot select, inspect or administer a vRack. No order or attachment was sent.
-
-Vultr `GET /vpcs` returned zero networks; `GET /bare-metals` returned exactly
-the three cache servers below; `GET /vpc2` returned 404. The
-[current bare-metal attachment guide](https://docs.vultr.com/products/compute/instances/bare-metal/networking/vpc)
-requires a restart for cloud-init interface configuration. Its API example
-uses `/instances/{instance-id}/vpcs/attach` despite starting with a bare-metal
-inventory. Confirm support for these **actual bare-metal IDs** before mutation;
-do not substitute a cloud-compute API or retired VPC 2.0 endpoint by guesswork.
-A subsequent attempt to inspect per-server VPC endpoints stopped at a 1Password
-authorization timeout, before any provider call.
-
-| Location | Bare-metal ID | Current public IP |
-| --- | --- | --- |
-| ord | `9aed08b5-30ee-4d89-879f-f3dc8d6ef0c3` | `64.177.8.160` |
-| ord | `6de18978-488c-4b69-9905-258d127df4f1` | `216.128.151.60` |
-| scl | `c65882db-b264-48ec-af5e-b5b44b584c54` | `64.176.17.88` |
+Re-query host IDs, addresses, attachment state and permissions from the provider
+and cluster before each cutover. Keep operational inventory in private records;
+this guide defines routing semantics and qualification gates. A private PodIP
+does not prove a private physical underlay. Account-scoped peer mTLS remains
+required on every path.
 
 ## Supported topology and unresolved provider gates
 
@@ -83,8 +48,8 @@ authorization timeout, before any provider call.
    checkout; no service charges are assumed approved.
 2. Confirm the current Vultr bare-metal VPC endpoint and ORD/SCL eligibility
    through the account or support. Obtain the current network price, bandwidth
-   limits and restart requirements. Plan a single ORD network containing both
-   IDs above and a separate SCL network. No NAT gateway, VPN gateway or extra
+   limits and restart requirements. Plan a single ORD network containing the
+   eligible hosts and a separate SCL network. No NAT gateway, VPN gateway or extra
    machine is needed for the local private paths; none is authorized here.
 3. Allocate nonoverlapping CIDRs from the live host, Pod, Service, tailnet and
    runner network inventories. Record network IDs, VLAN IDs, interface MACs,
@@ -93,10 +58,10 @@ authorization timeout, before any provider call.
    network IDs or advertise topology before allocation and verification.
 4. Attach networks without replacing public NICs, default routes, DNS or OLA
    mode. Keep out-of-band console access and a saved host network configuration.
-   Treat Vultr's restart as disruptive: ORD must retain a serving, caught-up
-   sibling on the other physical host; SCL currently has only one physical host.
-   Its restart needs an explicitly accepted maintenance window or separately
-   approved capacity. Two colocated process replicas do not solve host downtime.
+   Treat a required restart as disruptive: retain a serving, caught-up sibling
+   on another physical host. A location with one physical host needs an explicitly
+   accepted maintenance window or separately approved capacity. Two colocated
+   process replicas do not solve host downtime.
 5. Configure persistent private host addresses and explicit bidirectional routes.
    The node underlay must be reachable by the cluster's other providers and the
    API server too. Do **not** simply replace all kubelet InternalIPs with isolated
@@ -143,7 +108,9 @@ The controller/server do not yet derive these fields from live node networking;
 automatic publication is pending the provider/underlay model. Production chart
 values intentionally do not enable the feature.
 
-Same-provider peers with absent or different private domains fail visibly in
+Provider-only configuration is rejected at startup: opting in requires both
+`private_network` and `private_url`. Same-provider peers advertising absent or
+different private domains fail visibly in
 replication errors and private-probe logs. Failed private requests never retry
 publicly. Listings, forward reads, batches and individual bodies all use the same
 selector; canonical peer identities and watermarks remain unchanged. Disabling
@@ -153,8 +120,13 @@ the existing client factory.
 
 Among equivalent healthy remote-region candidates, prefer the same provider
 with a compatible private domain. The local gateway election stays deterministic
-and published roles remain authoritative. Remote backward passes give healthy
-same-provider peers a bounded 200 ms head start to claim common bodies. All
+and published roles remain authoritative. Local private-probe health is separate
+from the peer's advertised serving/draining state and affects only remote donor
+ranking and preference. Canonical status requests retain the existing client
+read timeout and discovery-observation semantics, including when topology is off.
+Remote backward passes give healthy same-provider donors in remote regions a
+bounded 200 ms head start to claim common bodies; local siblings never trigger
+that delay. All
 passes still run, forward replication is never delayed, and a preferred peer
 cannot hold other providers behind an exclusive admission slot. Existing claim
 release, retry and backfill failure budgets are retained.
@@ -203,7 +175,7 @@ configuration one host at a time only if necessary, with the public fallback
 budget understood. Do not detach a network carrying live replication, delete a
 Machine/PVC, reinstall a host, or retire an attached paid service as rollback.
 
-### Local validation, 2026-09-28
+### Initial local validation, 2026-09-28
 
 The topology, sync and TLS/configuration suites passed (6, 40 and 4 tests).
 The backfill and discovery/body suites passed another 53 and 3 tests (106
@@ -248,6 +220,48 @@ An earlier 8 MiB warm-up overlapped compilation and was discarded. Raw final
 samples and process/cgroup snapshots are retained locally in
 `/tmp/kura-private-resource-{before,after}-final/`.
 
+### Review corrections: local validation, 2026-09-28
+
+All 54 focused tests passed: 42 sync, 6 membership/body/discovery, and 6
+configuration/topology tests. New regressions exercise forward pages without a
+head start, local siblings excluded from donor preference, cancellation,
+asymmetric private probes with stable local gateway election, failed route probes
+preserving advertised traffic state, a real six-second canonical status response,
+and wrong-tenant responses completing discovery without adding peers. Provider-only
+configuration fails at startup. Clippy with warnings denied, formatting, and
+whitespace checks passed. The corrected release Docker build and local three-node
+mTLS ShellSpec suite passed (2 examples, 0 failures).
+
+The resource harness ran sequentially again after compilation finished. The
+baseline image's source, Cargo manifests/lockfile and Dockerfile were compared
+byte-for-byte with current merge base `9abf2c87f8da51ae566d7f80f203d424e4b6b970`.
+The corrected image was `sha256:d786e802c2027ce9eff3da501fdcccb21e8de1865a4d0a5a4d4bc2a3b569ac92`.
+Both runs completed the same 320 one-MiB writes, 768 load reads, 192 seed
+verification reads and full replication, with zero failures. Load lasted
+63.784 / 63.783 seconds, followed by the same 30-second cooldown.
+
+| Measurement | Main baseline | Review corrections |
+| --- | ---: | ---: |
+| Process CPU seconds | 22.03 | 20.29 |
+| CPU seconds / client GiB | 17.624 | 16.232 |
+| Anonymous memory peak / cooldown, MiB | 441.73 / 290.55 | 359.16 / 273.05 |
+| Allocator allocated peak / cooldown, MiB | 55.93 / 28.34 | 50.56 / 28.28 |
+| Allocator resident peak / cooldown, MiB | 194.72 / 65.93 | 154.60 / 65.57 |
+| Highest pressure / capacity sheds | normal / 0 | normal / 0 |
+| Transient reservation peak, MiB | 3.00 | 3.00 |
+| Data-volume bytes | 1,008,069,282 | 1,008,070,811 |
+| Segment refresh bytes | 0 | 0 |
+| Client egress / peer applied payload, MiB | 960 / 640 | 960 / 640 |
+| Interface transmit, MiB | 1623.98 | 1624.14 |
+
+Disk differed by 1,529 metadata bytes and network transmit by 168,924 bytes
+(about 0.01%); payload retention/transfer totals were identical. No pressure,
+shedding or segment refresh occurred. No material regression appeared in this
+bounded run; lower CPU/memory is not a statistically established improvement.
+Raw samples are local in `/tmp/kura-review-resource-{before,after}/`.
+The earlier staging validation covers the pre-review image only. No staging
+retest or persistent staging pin is planned; ordinary deployments may replace it.
+
 ### Evidence still required
 
 No private reachability, interface capture, sustained bandwidth, MTU, N-1 headroom,
@@ -291,44 +305,9 @@ connections survived it. The policy blackhole replaced that ineffective
 injection; a successful data test without an observed failure was not counted.
 All disposable fixture resources were removed after retaining the evidence.
 
-Managed staging was pinned by changing only `TUIST_KURA_RUNTIME_IMAGE_TAG` on
-the existing `tuist-staging/tuist-tuist-server` Deployment from
-`sha-c07fa5b26287` to `sha-dcb6a17aad0f`. The server image, instance strategies
-and topology configuration were preserved. The server rollout completed; the
-normal reconciler started progressive rollout
-`3eef2a57-e7c8-471a-bef8-e13e6f94e265`. Its three first-wave instances converged
-and became soak-eligible. A CPU autosize from 100m to 600m caused an ordinary
-replica roll; the continuous-health clock restarted at
-`2026-09-28T11:18:01Z`.
-
-Before that soak completed, concurrent
-[Server Deployment 36413863337](https://github.com/tuist/tuist/actions/runs/36413863337)
-replaced the server and Kura runtime pin with `sha-0b93604a05fb`. The rollout above
-is **superseded**, not completed; later waves did not run on this task's image.
-That release includes the Dedibox host-retention change from #13673. The
-completed isolated E2E evidence remains valid for `sha-dcb6a17aad0f`.
-
-After that deployment completed, the approved runtime restoration changed only
-`TUIST_KURA_RUNTIME_IMAGE_TAG` back to `sha-dcb6a17aad0f`, with resource-version
-and previous-value preconditions. Comparing the complete Deployment spec before
-and after confirmed that the runtime pin was the only change. The newer server
-image `ghcr.io/tuist/tuist:sha-0b93604a05fb` and infrastructure were preserved,
-and the server rollout completed with its replica Ready. Progressive rollout
-`d21a4754-a936-4f5e-925f-4feeb6f28429` began at `2026-09-28T11:33:41Z`.
-At the `11:36Z` observation it was running in wave 0 without a pause reason;
-one of its two tracked public instances had converged. Existing progressive
-pacing was preserved. The controller's subsequent snapshots at `11:36:01Z`–
-`11:36:17Z` showed all three updated instances (EU, Canada and the private runner
-instance) on the restored image with both replicas Ready, serving, consistent
-rings, no active backfill, normal memory pressure and zero FD timeouts. The
-rollout coordinator had not yet recorded a continuous-health soak start. This
-is a restored pin and ongoing rollout, not a claim of completed fleet deployment.
-
-Topology remains unset on managed instances pending underlay qualification.
-Retaining this image through a Helm deployment requires the explicit
-`kura_runtime_image_tag=sha-dcb6a17aad0f` input. Do not restore the old server or
-infrastructure to re-pin Kura: preserve the concurrent deployment and change only
-the chosen runtime pin after coordinating it. The immediately preceding runtime
-for this restoration was `sha-0b93604a05fb`; the original pre-test runtime
-`sha-c07fa5b26287` remains the compatibility-test reference, not automatically
-the correct operational rollback target.
+The recorded staging results apply to image `sha-dcb6a17aad0f`, before the review
+corrections to scheduling, probe-health isolation, configuration and legacy
+discovery. Those corrections receive local regression validation; another staging
+run is not planned. Normal staging deployments may replace the temporary runtime
+pin. No persistent chart pin is introduced. Historical deployment observations
+belong in the private operational record; check live state before any rollback.

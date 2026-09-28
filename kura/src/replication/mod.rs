@@ -107,7 +107,6 @@ async fn membership_task_loop(state: SharedState) {
                 let result = async {
                     let response = client?
                         .get(url)
-                        .timeout(Duration::from_secs(5))
                         .send()
                         .await
                         .map_err(|e| e.to_string())?
@@ -132,10 +131,10 @@ async fn membership_task_loop(state: SharedState) {
         for (peer, result) in lookups {
             match result {
                 Ok((payload, private_healthy)) => {
+                    peer_status_successes += 1;
                     if payload.tenant_id != state.config.tenant_id {
                         continue;
                     }
-                    peer_status_successes += 1;
                     if is_self_or_own_gateway(
                         &payload.node_url,
                         &state.config.node_url,
@@ -149,8 +148,9 @@ async fn membership_task_loop(state: SharedState) {
                         url: payload.node_url.clone(),
                         region: payload.region.clone(),
                         topology: payload.topology,
-                        serving: private_healthy && traffic_state.is_none_or(|s| s == "serving"),
-                        draining: !private_healthy || traffic_state == Some("draining"),
+                        private_healthy,
+                        serving: traffic_state.is_none_or(|s| s == "serving"),
+                        draining: traffic_state == Some("draining"),
                     });
                     peer_nodes.insert(payload.node_url, payload.region);
                 }
@@ -473,6 +473,123 @@ mod tests {
                 .expect("test server should run");
         });
         (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn legacy_discovery_accepts_status_slower_than_five_seconds() {
+        let app = Router::new().route(
+            "/_internal/status",
+            get(|| async {
+                sleep(Duration::from_secs(6)).await;
+                axum::Json(serde_json::json!({
+                    "tenant_id": "test-tenant",
+                    "region": "remote",
+                    "node_url": "http://remote.example"
+                }))
+            }),
+        );
+        let (url, server) = spawn_server(app).await;
+        let ctx = test_context(|config| config.peers = vec![url]).await;
+        ctx.state.client.store(std::sync::Arc::new(
+            ctx.state.peer_client_factory.build().unwrap(),
+        ));
+        let membership = tokio::spawn(membership_task_loop(ctx.state.clone()));
+        let discovered = tokio::time::timeout(Duration::from_secs(15), async {
+            while ctx.state.peer_views.load().is_empty() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        membership.abort();
+        server.abort();
+        discovered.expect("legacy discovery must retain the client's read timeout");
+        assert_eq!(ctx.state.peer_views.load()[0].region, "remote");
+    }
+
+    #[tokio::test]
+    async fn wrong_tenant_status_completes_discovery_without_adopting_peer() {
+        let app = Router::new().route(
+            "/_internal/status",
+            get(|| async {
+                axum::Json(serde_json::json!({
+                    "tenant_id": "another-tenant",
+                    "region": "remote",
+                    "node_url": "http://remote.example"
+                }))
+            }),
+        );
+        let (url, server) = spawn_server(app).await;
+        let ctx = test_context(|config| config.peers = vec![url]).await;
+        let membership = tokio::spawn(membership_task_loop(ctx.state.clone()));
+        let discovered = tokio::time::timeout(Duration::from_secs(5), async {
+            while !ctx
+                .state
+                .readiness_report()
+                .await
+                .initial_discovery_completed
+            {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        membership.abort();
+        server.abort();
+        discovered.expect("a decoded response completes the legacy discovery observation");
+        assert!(ctx.state.peer_views.load().is_empty());
+        assert!(
+            ctx.state
+                .cluster_status_report()
+                .await
+                .connected_nodes
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_private_probe_preserves_advertised_traffic_state() {
+        let topology = crate::peer_topology::PeerTopology {
+            provider: "ovh".into(),
+            private_network: Some("local-domain".into()),
+            private_url: Some("https://private.example:7443".into()),
+        };
+        let app = Router::new().route(
+            "/_internal/status",
+            get(|| async {
+                axum::Json(serde_json::json!({
+                    "tenant_id": "test-tenant",
+                    "region": "remote",
+                    "node_url": "https://remote.example:7443",
+                    "traffic_state": "serving",
+                    "topology": {
+                        "provider": "ovh",
+                        "private_network": "incompatible-domain",
+                        "private_url": "https://private.remote.example:7443"
+                    }
+                }))
+            }),
+        );
+        let (url, server) = spawn_server(app).await;
+        let ctx = test_context(|config| {
+            config.peers = vec![url];
+            config.peer_topology = Some(topology);
+        })
+        .await;
+        let membership = tokio::spawn(membership_task_loop(ctx.state.clone()));
+        let discovered = tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.peer_views.load().is_empty() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        membership.abort();
+        server.abort();
+        discovered.unwrap();
+        let peers = ctx.state.peer_views.load();
+        let peer = &peers[0];
+        assert!(!peer.private_healthy);
+        assert!(peer.serving);
+        assert!(!peer.draining);
+        assert!(!ctx.state.prefers_peer(&peer.url));
     }
 
     #[tokio::test]

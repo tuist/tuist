@@ -8,10 +8,14 @@ provider and a deployment-verified private routing domain. All pull requests
 select a private HTTPS endpoint for matching providers/domains, report unsupported
 same-provider routes, and retain mTLS cross-provider links. Preference is bounded:
 healthy compatible donors win otherwise equivalent remote-region selection, while
-published coverage and sibling feeds remain intact. Remote backward passes give
-preferred peers 200 ms to claim shared bodies, then run independently. Public
-status discovery continues observing gateway changes. Private-probe failures
-remove preference without introducing a public data fallback. See the
+published coverage and sibling feeds remain intact. Only remote backward passes
+give healthy preferred donors in remote regions 200 ms to claim shared bodies;
+forward pages and local sibling donors never trigger that delay. Public status
+discovery retains its existing timeout and observation semantics. Private-probe
+health is separate from advertised serving/draining state, affects only remote
+donor ranking and preference, and never changes the local gateway election.
+Provider-only configuration is rejected; different same-provider domains remain
+fail-closed without public data fallback. See the
 [network qualification and rollout plan](../../infra/kura-controller/private-replication.md).
 
 ## What Kura Is

@@ -3436,6 +3436,11 @@ mod tests {
     #[test]
     fn peer_topology_is_opt_in_and_requires_mtls() {
         assert!(config_from(&[]).unwrap().peer_topology.is_none());
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", r#"{"provider":"ovh"}"#)])
+                .unwrap_err()
+                .contains("requires both private_network and private_url")
+        );
         let topology = r#"{"provider":"ovh","private_network":"vrack-1","private_url":"https://node.private:7443"}"#;
         assert!(
             config_from(&[("KURA_PEER_TOPOLOGY", topology)])
