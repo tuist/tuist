@@ -248,8 +248,7 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 	sort.Strings(members)
 	sort.Slice(peers, func(i, j int) bool { return peers[i].Public < peers[j].Public })
 	membership := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(members, "\n"))))
-	script := strings.ReplaceAll(renderPrivateNetworkScript(nic.MAC, nic.Address, network.Mask, public, peers), "OVH", "Vultr")
-	script = strings.Replace(script, "sudo bash -s", "bash -s", 1)
+	script := renderVultrPrivateNetworkScript(nic.MAC, nic.Address, network.Mask, public, peers)
 	revision := fmt.Sprintf("%x:%s", sha256.Sum256([]byte(script)), node.Status.NodeInfo.BootID)
 	if node.Annotations[privateNetworkRevision] != revision || node.Annotations[privateNetworkMembers] != membership {
 		fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
@@ -299,4 +298,14 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 	}
 	conditions.MarkTrue(machine, privateNetworkReady)
 	return nil
+}
+
+// Restore the qualified encapsulation MTU even if Cloud-Init later renders a
+// smaller provider default. Never attest a path from a small ping alone.
+func renderVultrPrivateNetworkScript(mac, address string, bits int, public string, peers []privateNetworkPeer) string {
+	script := strings.ReplaceAll(renderPrivateNetworkScript(mac, address, bits, public, peers), "OVH", "Vultr")
+	script = strings.Replace(script, "sudo bash -s", "bash -s", 1)
+	script = strings.ReplaceAll(script, `ip link set dev "$iface" up`, `ip link set dev "$iface" mtu 1500
+ip link set dev "$iface" up`)
+	return strings.ReplaceAll(script, "ping -n -c 1 -W 2 -I", "ping -n -c 1 -W 2 -M do -s 1472 -I")
 }

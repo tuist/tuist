@@ -30,7 +30,9 @@ restart, checks the provider-assigned private address and MAC, and uses its
 existing pinned bootstrap connection to configure only the secondary NIC.
 It reuses the OVH host-route implementation: persistent private addresses,
 public-node /32 routes through private next hops, main-table unreachable guards,
-a repair timer, and guards ordered before kubelet/containerd startup. Public
+a repair timer, and guards ordered before kubelet/containerd startup. Vultr
+restores the qualified 1500-byte private-NIC MTU and checks full-size DF pings
+before route publication/repair, including after provider configuration drift. Public
 NICs, default routes, node identities, ingress and BGP stay intact. Network
 errors are visible in `PrivateNetworkReady` and do not stop ordinary node
 reconciliation.

@@ -137,8 +137,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 			}
 			a, b := machine("a", "host-a", "192.0.2.1"), machine("b", "host-b", "192.0.2.2")
 			members := fmt.Sprintf("%x", sha256.Sum256([]byte("a/host-a/192.0.2.1/172.30.244.3\nb/host-b/192.0.2.2/172.30.244.4")))
-			script := strings.ReplaceAll(renderPrivateNetworkScript("02:00:00:00:00:01", "172.30.244.3", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.244.4"}}), "OVH", "Vultr")
-			script = strings.Replace(script, "sudo bash -s", "bash -s", 1)
+			script := renderVultrPrivateNetworkScript("02:00:00:00:00:01", "172.30.244.3", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.244.4"}})
 			local := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "a", Annotations: map[string]string{privateNetworkAnnotation: "vpc-test", privateNetworkMembers: members, privateNetworkRevision: fmt.Sprintf("%x:boot-a", sha256.Sum256([]byte(script)))}}, Status: corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{BootID: "boot-a"}}}
 			remote := local.DeepCopy()
 			remote.Name = "b"

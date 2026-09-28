@@ -96,10 +96,12 @@ func TestPrivateNetworkDoesNotEnrollRunnerOrOtherNamespaces(t *testing.T) {
 }
 
 func TestPrivateNetworkScriptSyntax(t *testing.T) {
-	script := renderPrivateNetworkScript("00:11:22:33:44:55", "172.30.241.2", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.241.3"}})
-	command := exec.Command("bash", "-n")
-	command.Stdin = strings.NewReader(script)
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("invalid script: %s: %v", output, err)
+	for _, render := range []func(string, string, int, string, []privateNetworkPeer) string{renderPrivateNetworkScript, renderVultrPrivateNetworkScript} {
+		script := render("00:11:22:33:44:55", "172.30.241.2", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.241.3"}})
+		command := exec.Command("bash", "-n")
+		command.Stdin = strings.NewReader(script)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("invalid script: %s: %v", output, err)
+		}
 	}
 }
