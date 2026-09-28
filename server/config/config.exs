@@ -158,6 +158,10 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    # Operator reads through Atlas without a grant: who, and which customer
+    # account a read used it for.
+    :atlas_operator_email,
+    :atlas_operator_read_account_id,
     # Dormant operator account sweep — this line is the evidence record for
     # the inactivity control, so the ids have to survive into the log output
     :disabled_user_ids,
