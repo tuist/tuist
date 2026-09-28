@@ -333,6 +333,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 var batchFailure: String?
                 do {
                     try await self.retry(retryingDeadlineExceeded: false) {
+                        rejections = [:]
                         let pending = Set(batch).subtracting(successful)
                         var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
                         for digest in pending {

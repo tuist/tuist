@@ -329,6 +329,40 @@ struct REAPICacheClientTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func uploadReportsTheFailureThatEndedTheRetriesNotAnEarlierRejection() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        await state.planUpdates([
+            .reject(status: 8),
+            .fail(RPCError(code: .permissionDenied, message: "Injected denial")),
+        ])
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let data = Data("blob".utf8)
+            let path = directory.appending(component: "blob").url
+            try data.write(to: path)
+
+            let upload = try await client.uploadAvailableBlobs([REAPI.digest(data): path])
+
+            #expect(upload.available.isEmpty)
+            let reason = try #require(upload.failures[REAPI.digest(data)])
+            #expect(reason.hasPrefix("/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs failed with "))
+            #expect(reason.hasSuffix(": Injected denial"))
+            #expect(await state.updateCalls == 2)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
     func uploadReportsBlobsWhosePresenceCouldNotBeChecked() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
@@ -713,6 +747,16 @@ private actor WireCache {
     private var failUpdate = false
     private var failRead = false
     func failNextBatches() { failUpdate = true; failRead = true }
+
+    /// What each successive BatchUpdateBlobs call does, consumed in order; once used up, calls store their blobs.
+    enum UpdateStep: Sendable {
+        case reject(status: Int32)
+        case fail(RPCError)
+    }
+
+    private var updateSteps: [UpdateStep] = []
+    func planUpdates(_ steps: [UpdateStep]) { updateSteps = steps }
+    func nextUpdateStep() -> UpdateStep? { updateSteps.isEmpty ? nil : updateSteps.removeFirst() }
     func beginUpdate(bytes: Int) throws {
         updateCalls += 1
         largestBatch = max(largestBatch, bytes)
@@ -793,6 +837,18 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
         context _: ServerContext
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse {
         try await state.beginUpdate(bytes: request.requests.reduce(0) { $0 + $1.data.count })
+        switch await state.nextUpdateStep() {
+        case let .reject(status):
+            return .with { $0.responses = request.requests.map { entry in .with {
+                $0.digest = entry.digest
+                $0.status.code = status
+                $0.status.message = "Injected rejection"
+            } } }
+        case let .fail(error):
+            throw error
+        case nil:
+            break
+        }
         for entry in request.requests {
             let data: Data
             if entry.compressor == .zstd {

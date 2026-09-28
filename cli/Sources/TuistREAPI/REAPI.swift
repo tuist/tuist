@@ -53,7 +53,7 @@ public enum REAPI {
     }
 }
 
-public enum REAPICacheError: Error, LocalizedError {
+public enum REAPICacheError: Error, LocalizedError, Equatable {
     case unsupportedEndpoint
     case unsupportedProxy
     case proxyConnectionFailed
