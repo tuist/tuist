@@ -72,7 +72,7 @@ runs after job teardown and is recorded separately from GitHub job duration.
 ## Automated validation
 
 [Candidate CI](https://github.com/tuist/tuist/actions/runs/36414905315) passed Go
-race tests, vet, formatting, real Linux filesystem tests and both image builds.
+tests, vet, formatting, real Linux filesystem tests and both image builds.
 Focused `go test -race ./internal/cachevolumes ./cmd/cache-volumes` also passed
 locally with `GOWORK=off`. Production and staging Helm renders passed; annotations,
 port 9091 and the observability-only ingress rule were checked in the output.
