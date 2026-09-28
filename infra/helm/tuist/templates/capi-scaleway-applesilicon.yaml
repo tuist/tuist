@@ -45,8 +45,10 @@ rules:
       - scalewayelasticmetalmachinetemplates
       - ovhdedicatedmachines
       - ovhdedicatedmachinetemplates
+      {{- if .Values.dediboxFleet.enabled }}
       - dediboxmachines
       - dediboxmachinetemplates
+      {{- end }}
       - vultrmachines
       - vultrmachinetemplates
       - rackapplesiliconmachines
@@ -65,8 +67,10 @@ rules:
       - scalewayelasticmetalmachines/finalizers
       - ovhdedicatedmachines/status
       - ovhdedicatedmachines/finalizers
+      {{- if .Values.dediboxFleet.enabled }}
       - dediboxmachines/status
       - dediboxmachines/finalizers
+      {{- end }}
       - vultrmachines/status
       - vultrmachines/finalizers
       - rackapplesiliconmachines/status

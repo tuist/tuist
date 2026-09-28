@@ -593,39 +593,12 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Retire Dedibox after old EU-West instances are destroyed through the server
-# lifecycle. Public validation uses OVH ca-east; the Mac runner cache stays.
+# All managed Dedibox hosts have completed release. Keep this explicitly off
+# so an older shared overlay cannot re-enable adoption or credential sync.
+# The separate kuraFleet remains the Scaleway Mac runner cache.
 dediboxFleet:
-  # Keep the reconciler and credentials until all release finalizers finish.
-  enabled: true
-  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
+  enabled: false
   replicas: 0
-  machine:
-    # Exact tag match (not a prefix), so this is the shared pool tag every
-    # staging Dedibox carries; per-box identity is the server id, not the tag.
-    # Dedibox tags are console-only (the API tag-set 500s on these legacy boxes),
-    # so this stays kura-scoped to match what's set on sd-188785 — the generic
-    # tuist-staging rename waits on either a console retag or a working tag API.
-    adoptTag: tuist-kura-staging
-    # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
-    # Ubuntu 24.04 with SSH keys, unlike the Atom SKUs. Only sold in DC5/AMS1.
-    offer: Start-9-M
-    datacenter: DC5
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
-    # (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 1000
-  scaleway:
-    externalSecrets:
-      # 1Password item with the default-project Dedibox IAM key (secret-key +
-      # project-id), readable by the staging ClusterSecretStore.
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (the live key was extracted into this
-  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
 
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,

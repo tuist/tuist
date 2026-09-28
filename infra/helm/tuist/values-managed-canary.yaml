@@ -579,29 +579,12 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Retire Dedibox after old EU-West instances are destroyed through the server
-# lifecycle. Public validation uses OVH ca-east; the Mac runner cache stays.
+# All managed Dedibox hosts have completed release. Keep this explicitly off
+# so an older shared overlay cannot re-enable adoption or credential sync.
+# The separate kuraFleet remains the Scaleway Mac runner cache.
 dediboxFleet:
-  # Keep the reconciler and credentials until all release finalizers finish.
-  enabled: true
-  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
+  enabled: false
   replicas: 0
-  machine:
-    adoptTag: tuist-kura-canary
-    offer: Start-9-M
-    datacenter: DC2
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
-    # (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 500
-  scaleway:
-    externalSecrets:
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (generated fresh into this item).
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
 
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
