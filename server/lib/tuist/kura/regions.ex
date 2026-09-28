@@ -122,7 +122,10 @@ defmodule Tuist.Kura.Regions do
   # ~1220 MiB, and air instances sit at ~150 MiB.
   @enterprise_memory_floor_mib 1024
   # Pro and Enterprise share the paid ceiling, so a busy Pro account absorbs
-  # the same burst an Enterprise one does; Pro reserves Air's floor.
+  # the same burst an Enterprise one does. The floor is not raised with it:
+  # Kura sizes its fixed transient pool, the one materialized reads reserve
+  # from, from the floor, so Pro keeps the floor that pool was sized on.
+  @pro_memory_floor_mib 512
   @paid_memory_ceiling_mib 4096
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
@@ -608,13 +611,13 @@ defmodule Tuist.Kura.Regions do
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
   grant. The paid plans share the larger ceiling, which sets how large a burst
-  an instance absorbs; `:enterprise` alone reserves a larger floor, and every
-  other plan, `:pro` and `:air` included, reserves the smallest. Unknown plans
-  take the smallest profile, which is the safe side on a shared box.
+  an instance absorbs. Each plan reserves its own floor, and every plan other
+  than `:enterprise` and `:pro`, `:air` included, takes the smallest profile.
+  Unknown plans fall there too, which is the safe side on a shared box.
   """
   def memory_profile(:enterprise), do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
-  def memory_profile(:pro), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
+  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
 

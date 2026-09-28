@@ -195,10 +195,11 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       # Floors are standing reservations and decide how many tenants fit on a
-      # box, so Pro reserves what Air does and only Enterprise reserves more.
-      # Ceilings are bursts, and the paid plans share theirs.
-      assert Regions.memory_profile(:pro).floor_mib == Regions.memory_profile(:air).floor_mib
-      assert Regions.memory_profile(:enterprise).floor_mib > Regions.memory_profile(:pro).floor_mib
+      # box, so the ladder descends. Ceilings are bursts, and the paid plans
+      # share theirs.
+      floors = Enum.map([:enterprise, :pro, :air], &Regions.memory_profile(&1).floor_mib)
+      assert floors == Enum.sort(floors, :desc)
+      assert Enum.uniq(floors) == floors
       assert Regions.memory_profile(:pro).ceiling_mib == Regions.memory_profile(:enterprise).ceiling_mib
       assert Regions.memory_profile(:air).ceiling_mib < Regions.memory_profile(:pro).ceiling_mib
 
