@@ -524,6 +524,51 @@ defmodule Tuist.Accounts.UserNotifier do
     """)
   end
 
+  @doc """
+  Tells an account admin that a subscription payment failed, and until when
+  the account keeps its plan while the payment is retried.
+  """
+  def deliver_payment_failed_notification(user, account, %DateTime{} = plan_active_until) do
+    user |> payment_failed_email(account, plan_active_until) |> Mailer.deliver_now()
+  end
+
+  def payment_failed_email(user, account, %DateTime{} = plan_active_until) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      date_format =
+        if locale in Timex.Gettext.__gettext__(:known_locales), do: "{Mfull} {D}, {YYYY}", else: "{YYYY}-{0M}-{0D}"
+
+      date = Timex.lformat!(plan_active_until, date_format, locale)
+      pay_url = Environment.app_url(path: "/#{account.name}/billing/pay")
+
+      subject =
+        dgettext("dashboard_account", "A payment for the Tuist subscription of %{account_name} failed",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your subscription payment failed"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically.",
+            account_name: account.name
+          ),
+          dgettext(
+            "dashboard_account",
+            "Your plan stays active until %{date} (UTC). If the invoice is still unpaid by then, %{account_name} is limited to the free tier of the Air plan until the invoice is paid.",
+            date: date,
+            account_name: account.name
+          ),
+          dgettext("dashboard_account", "Pay the open invoice or update your payment method to keep your plan:")
+        ],
+        button: {dgettext("dashboard_account", "Pay open invoice"), pay_url},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
   defp air_usage_label(:runner_minutes, usage, limit),
     do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
 

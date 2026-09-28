@@ -5,6 +5,7 @@ defmodule TuistWeb.Webhooks.BillingController do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.PaymentFailedNotifications
   alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
 
   @impl true
@@ -49,6 +50,14 @@ defmodule TuistWeb.Webhooks.BillingController do
     Billing.on_subscription_change(event.data.object)
 
     :ok
+  end
+
+  # The retry window the email promises starts at the failure, so it is
+  # counted from when Stripe recorded it rather than from delivery, which
+  # Stripe may retry for days.
+  @impl true
+  def handle_event(%Stripe.Event{type: "invoice.payment_failed", created: created} = event) do
+    PaymentFailedNotifications.enqueue(event.data.object, DateTime.from_unix!(created))
   end
 
   # Enqueued for every finalized and every paid invoice rather than only
