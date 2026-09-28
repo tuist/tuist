@@ -25,10 +25,10 @@ extension CacheStorageFactorying {
 
     static func localFallbackWarning(for error: Error) -> WarningAlert? {
         switch error as? CacheURLStoreError {
-        case .missingEndpointOverride:
+        case .noEndpointsAvailable:
             return .alert(
-                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
-                takeaway: "This run uses the local cache. Set the override to enable remote caching."
+                "No remote cache endpoint is available.",
+                takeaway: "This run uses the local cache."
             )
         case .invalidURL, .invalidAccountHandle, nil:
             return ServerErrorClassifier.isTransient(error) ? temporarilyUnavailableWarning : nil

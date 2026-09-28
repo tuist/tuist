@@ -31,6 +31,7 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     /// timestamp. Each invocation exchanges a fresh cache token; bringing its reported
     /// expiry forward leaves a margin for in-flight requests and clock skew.
     private static let expirySafetyMargin: TimeInterval = 60
+    private static let endpointResolutionTimeout: Duration = .seconds(2)
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -74,8 +75,8 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         )
     }
 
-    /// Migrates an existing regional cache URL to the account's stable hostname, or applies an explicit override.
-    /// Resolution is local; the first cache request activates cold capacity.
+    /// Refreshes managed or custom routing configuration without activating capacity.
+    /// The first cache request activates cold managed capacity.
     /// Bazel reads this file at startup, so changes take effect on the next build.
     private func refreshBazelrcEndpoint(
         directory: String?,
@@ -94,8 +95,11 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
             let accountHandle = String(fullHandle.split(separator: "/")[0])
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-            guard let host = cacheURL.host else { return }
+            var resolved: URL?
+            try? await withTimeout(Self.endpointResolutionTimeout, onTimeout: {}, action: {
+                resolved = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+            })
+            guard let cacheURL = resolved, let host = cacheURL.host else { return }
             let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
 
             let contents = try await fileSystem.readTextFile(at: bazelrcPath)

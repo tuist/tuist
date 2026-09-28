@@ -26,4 +26,4 @@ This module handles CLI integration with the Tuist Server APIs.
   Retry-After. Noora presentation and project/account resolution belong to the
   runner command module.
 
-- Keep legacy endpoint discovery in the generated API for older clients. New CLI routing belongs in TuistCAS and derives stable hostnames locally without demand registration.
+- Preserve legacy endpoint discovery for older clients. New clients use `configuration_only=true` to discover custom/self-hosted routing or learn that TuistCAS should derive a managed hostname. This mode never records demand or provisions capacity.

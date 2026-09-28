@@ -165,14 +165,14 @@ struct CacheProxyCommandService {
         }
     #endif
 
-    /// Start local-only when a self-hosted server has no explicit cache endpoint.
+    /// Start local-only when discovery returns no cache endpoint.
     /// Hosted cold caches wake on their first real request through the stable hostname.
     func remoteEndpoint(serverURL: URL, accountHandle: String?) async throws -> URL? {
         do {
             return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-        } catch CacheURLStoreError.missingEndpointOverride {
+        } catch CacheURLStoreError.noEndpointsAvailable {
             Logger.current
-                .warning("Set TUIST_CACHE_ENDPOINT to enable remote caching. Starting the cache proxy with local storage only.")
+                .warning("No remote cache endpoint is available. Starting the cache proxy with local storage only.")
             return nil
         }
     }

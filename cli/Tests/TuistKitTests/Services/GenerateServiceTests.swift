@@ -461,7 +461,7 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test(arguments: [CacheURLStoreError.missingEndpointOverride])
+    @Test(arguments: [CacheURLStoreError.noEndpointsAvailable])
     func usesLocalCacheStorageWhenNoRemoteCacheEndpointIsServing(error: CacheURLStoreError) async throws {
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())

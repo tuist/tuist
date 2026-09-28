@@ -1,17 +1,23 @@
 import Foundation
+import Mockable
 import Testing
 import TuistCAS
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistServer
 
 @testable import TuistKit
 
 struct CacheProxyCommandServiceTests {
     @Test(.withMockedEnvironment())
-    func missing_self_hosted_override_starts_local_only() async throws {
+    func missing_discovered_endpoint_starts_local_only() async throws {
         let environment = try #require(Environment.mocked)
         environment.variables = [:]
-        let endpoint = try await CacheProxyCommandService().remoteEndpoint(
+        let service = MockGetCacheEndpointsServicing()
+        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
+            .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 5))
+        let store = CacheURLStore(getCacheEndpointsService: service, configurationCache: CachedValueStore())
+        let endpoint = try await CacheProxyCommandService(cacheURLStore: store).remoteEndpoint(
             serverURL: URL(string: "http://localhost:8080")!, accountHandle: "account"
         )
         #expect(endpoint == nil)

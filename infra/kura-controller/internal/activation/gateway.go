@@ -203,7 +203,7 @@ func unforwardedFailure(w http.ResponseWriter, r *http.Request, status int) {
 func failure(w http.ResponseWriter, r *http.Request, status int) {
 	message := http.StatusText(status)
 	if status == http.StatusConflict {
-		message = "This account requires an explicit cache endpoint; set TUIST_CACHE_ENDPOINT"
+		message = "This account uses custom cache endpoints; use server endpoint discovery or TUIST_CACHE_ENDPOINT"
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	if status == http.StatusServiceUnavailable || status == http.StatusTooManyRequests {

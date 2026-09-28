@@ -5,9 +5,9 @@ The Xcode compilation-cache transport lives in `cas-plugin/`.
 
 ## Responsibilities
 - Derive hosted cache URLs locally from the account handle: `<account>.cache.tuist.dev`, with `-staging` or `-canary` appended to the account in those environments.
-- Honor `TUIST_CACHE_ENDPOINT` first; self-hosted servers require this explicit override.
-- Validate account handles before composing a DNS name. Do not restore endpoint discovery, persisted endpoint choices, or client latency probes.
-- URL resolution performs no network requests. Actual cache requests wake archived hosted instances through the shared activation gateway; authentication and provisioning are server responsibilities.
+- Honor optional `TUIST_CACHE_ENDPOINT` first, bypassing discovery.
+- Read configuration-only endpoint discovery to distinguish managed accounts from custom/self-hosted configurations. Derive managed hostnames locally; select custom endpoints deterministically without latency probes. Validate handles before composing DNS names.
+- Cache configuration in process for the response max-age (at most 60 seconds); never record demand or poll provisioning during URL resolution. Actual cache requests wake archived hosted instances through the shared activation gateway; authentication and provisioning are server responsibilities.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -17,5 +17,5 @@ The Xcode compilation-cache transport lives in `cas-plugin/`.
 - cli/Sources/TuistCache/AGENTS.md
 - cas-plugin/AGENTS.md
 
-- Missing self-hosted endpoint overrides disable remote caching with a warning in ordinary builds and proxy startup; malformed overrides remain errors. Custom/registered hosted endpoints use the same explicit override contract. Do not reintroduce obsolete discovery errors or readiness polling.
+- Empty discovered configurations use local storage with a warning in ordinary builds and proxy startup; malformed endpoints and authentication errors remain errors. Never fall back from custom configuration to managed storage.
 - `tuist cache config` returns a project-scoped exchanged cache token so the Xcode proxy carries signed placement origin. The server is upgraded ahead of the CLI; exchange failures propagate, including 404, without returning raw credentials.

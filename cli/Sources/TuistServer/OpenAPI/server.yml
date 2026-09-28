@@ -1508,6 +1508,11 @@ components:
     CacheEndpoints:
       description: List of available cache endpoints
       properties:
+        derive_stable_hostname:
+          description: "Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints."
+          type: boolean
+          x-struct:
+          x-validate:
         endpoints:
           items:
             type: string
@@ -10270,10 +10275,17 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      deprecated: true
-      description: Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
+      description: Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.
       operationId: getCacheEndpoints
       parameters:
+        - description: Read routing configuration without activating managed cache capacity.
+          in: query
+          name: configuration_only
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
         - description: The name of the account to get custom cache endpoints for.
           in: query
           name: account_handle
@@ -10289,6 +10301,11 @@ paths:
               schema:
                 description: List of available cache endpoints
                 properties:
+                  derive_stable_hostname:
+                    description: "Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints."
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   endpoints:
                     items:
                       type: string

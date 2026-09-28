@@ -224,7 +224,7 @@ struct CacheConfigCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func run_requires_an_override_for_self_hosted_remote_configuration() async throws {
+    func run_reports_missing_discovered_remote_configuration() async throws {
         // Given
         let (
             subject,
@@ -235,13 +235,13 @@ struct CacheConfigCommandServiceTests {
             _,
             _,
             _
-        ) = makeSubject(cacheURLError: .missingEndpointOverride)
+        ) = makeSubject(cacheURLError: .noEndpointsAvailable)
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("account-token-123"))
 
         // When/Then
-        await #expect(throws: CacheURLStoreError.missingEndpointOverride) {
+        await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
             try await subject.run(
                 fullHandle: "my-account/my-project",
                 json: false,

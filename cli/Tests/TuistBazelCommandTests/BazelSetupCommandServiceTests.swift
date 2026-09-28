@@ -662,11 +662,11 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_succeeds_without_remote_settings_when_the_explicit_endpoint_is_missing() async throws {
+    func run_succeeds_without_remote_settings_when_no_endpoint_is_discovered() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
-            cacheURLStoreError: .missingEndpointOverride
+            cacheURLStoreError: .noEndpointsAvailable
         )
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
@@ -693,16 +693,16 @@ struct BazelSetupCommandServiceTests {
             .called(0)
         #expect(
             AlertController.current.warnings().map(\.message).map { $0.plain() } == [
-                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
+                "No remote cache endpoint is available.",
             ]
         )
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_removes_a_stale_remote_cache_when_the_explicit_endpoint_is_missing() async throws {
+    func run_removes_a_stale_remote_cache_when_no_endpoint_is_discovered() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _, _) = makeSubject(cacheURLStoreError: .missingEndpointOverride)
+        let (subject, serverAuthenticationController, _, _) = makeSubject(cacheURLStoreError: .noEndpointsAvailable)
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))

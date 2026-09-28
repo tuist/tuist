@@ -47,4 +47,4 @@ This area owns Phoenix controllers for HTML and API endpoints.
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
 
-- Cache endpoint discovery remains available but is deprecated. New hosted CLIs derive hostnames locally. The wildcard gateway uses `Internal.KuraActivationController` to authenticate the actual cache credential (including cache-scoped JWTs) and enqueue provisioning. It is an internal gateway protocol, excluded from the CLI OpenAPI; never make cache JWTs general API credentials.
+- Cache endpoint discovery remains supported. New CLIs request configuration-only routing, without demand or provisioning; ordinary hosted accounts derive their hostname locally from that decision. Requests without this option retain legacy behavior. The wildcard gateway uses `Internal.KuraActivationController` to authenticate the actual cache credential (including cache-scoped JWTs) and enqueue provisioning. It is an internal gateway protocol, excluded from the CLI OpenAPI; never make cache JWTs general API credentials.

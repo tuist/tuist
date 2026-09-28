@@ -8,6 +8,8 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Billing
   alias Tuist.CacheActionItems
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Registrations
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -22,6 +24,154 @@ defmodule TuistWeb.API.CacheControllerTest do
     cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     %{cache: cache}
+  end
+
+  describe "configuration-only cache discovery" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      reject(Demand, :record, 3)
+      :ok
+    end
+
+    test "an archived managed account derives its hostname without waking capacity", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      account
+      |> KuraFixtures.active_server_fixture()
+      |> Ecto.Changeset.change(status: :archived, url: nil)
+      |> Repo.update!()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+
+      assert json_response(conn, :ok) == %{"endpoints" => [], "derive_stable_hostname" => true}
+      assert get_resp_header(conn, "cache-control") == ["private, max-age=60"]
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "custom configuration takes precedence over managed capacity", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom.example.com"})
+      KuraFixtures.active_server_fixture(account)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+
+      assert json_response(conn, :ok) == %{
+               "endpoints" => ["https://custom.example.com"],
+               "derive_stable_hostname" => false
+             }
+
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "registered nodes are discovered, and unready nodes never fall back to managed routing", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      attrs = %{node_id: "test-node", advertised_http_url: "https://private.example.com", ready: true}
+      {:ok, _} = Registrations.register_heartbeat(account, attrs)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+        |> json_response(:ok)
+
+      assert response == %{"endpoints" => ["https://private.example.com"], "derive_stable_hostname" => false}
+
+      {:ok, _} = Registrations.register_heartbeat(account, %{attrs | ready: false})
+
+      conn =
+        conn
+        |> recycle()
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+
+      assert json_response(conn, :ok) == %{"endpoints" => [], "derive_stable_hostname" => false}
+      assert get_resp_header(conn, "cache-control") == ["private, max-age=5"]
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "empty custom configuration does not derive a managed hostname", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+
+      assert json_response(conn, :ok) == %{"endpoints" => [], "derive_stable_hostname" => false}
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "expired registrations do not derive a managed hostname", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      {:ok, endpoint} =
+        Registrations.register_heartbeat(account, %{
+          node_id: "expired",
+          advertised_http_url: "https://private.example.com",
+          ready: true
+        })
+
+      endpoint
+      |> Ecto.Changeset.change(expires_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -60, :second))
+      |> Repo.update!()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+
+      assert json_response(conn, :ok) == %{"endpoints" => [], "derive_stable_hostname" => false}
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "self-hosted servers retain static endpoint discovery without an account handle", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://cache.example.com"] end)
+
+      stub(Tuist.License, :get_license, fn ->
+        {:ok, %Tuist.License{id: "test", features: [], expiration_date: Date.add(Date.utc_today(), 365), valid: true}}
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      conn = conn |> Authentication.put_current_user(user) |> get(~p"/api/cache/endpoints?configuration_only=true")
+
+      assert json_response(conn, :ok) == %{
+               "endpoints" => ["https://cache.example.com"],
+               "derive_stable_hostname" => false
+             }
+
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "configuration requests enforce authorization regardless of CLI version", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture().account
+      stranger = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(stranger)
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}&configuration_only=true")
+
+      assert json_response(conn, :forbidden)["message"]
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
   end
 
   describe "GET /api/cache/endpoints" do

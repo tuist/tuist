@@ -50,10 +50,16 @@ defmodule TuistWeb.API.CacheController do
   operation(:endpoints,
     summary: "Get cache endpoints.",
     description:
-      "Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.",
-    deprecated: true,
+      "Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.",
     operation_id: "getCacheEndpoints",
     parameters: [
+      {:configuration_only,
+       [
+         in: :query,
+         type: :boolean,
+         required: false,
+         description: "Read routing configuration without activating managed cache capacity."
+       ]},
       {:account_handle,
        [
          in: :query,
@@ -83,6 +89,11 @@ defmodule TuistWeb.API.CacheController do
                 endpoints: %Schema{
                   type: :array,
                   items: %Schema{type: :string}
+                },
+                derive_stable_hostname: %Schema{
+                  type: :boolean,
+                  description:
+                    "Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints."
                 },
                 provisioning: %Schema{
                   type: :boolean,
@@ -131,12 +142,22 @@ defmodule TuistWeb.API.CacheController do
     account_handle = params[:account_handle]
     authorized_account_handle = authorized_account_handle(account_handle, conn)
 
-    if is_binary(account_handle) and is_nil(authorized_account_handle) and handles_forbidden_endpoints?(conn) do
+    if is_binary(account_handle) and is_nil(authorized_account_handle) and
+         (params[:configuration_only] == true or handles_forbidden_endpoints?(conn)) do
       conn
       |> put_status(:forbidden)
       |> json(%{message: forbidden_endpoints_message(conn, account_handle)})
     else
-      render_endpoints(conn, authorized_account_handle, technology)
+      if params[:configuration_only] == true do
+        configuration = Accounts.get_cache_configuration_for_handle(authorized_account_handle)
+        max_age = if configuration.derive_stable_hostname or configuration.endpoints != [], do: 60, else: 5
+
+        conn
+        |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+        |> json(configuration)
+      else
+        render_endpoints(conn, authorized_account_handle, technology)
+      end
     end
   end
 

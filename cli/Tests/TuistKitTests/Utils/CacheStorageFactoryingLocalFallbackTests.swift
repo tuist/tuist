@@ -21,12 +21,12 @@ struct CacheStorageFactoryingLocalFallbackTests {
             .willReturn(localCacheStorage)
     }
 
-    @Test func uses_the_local_cache_when_an_explicit_endpoint_is_missing() async throws {
+    @Test func uses_the_local_cache_when_no_endpoint_is_discovered() async throws {
         // Given
         let alertController = AlertController()
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.missingEndpointOverride)
+            .willThrow(CacheURLStoreError.noEndpointsAvailable)
 
         // When
         _ = try await AlertController.$current.withValue(alertController) {
@@ -39,7 +39,7 @@ struct CacheStorageFactoryingLocalFallbackTests {
             .called(1)
         #expect(
             alertController.warnings().map(\.message).map { $0.plain() } == [
-                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
+                "No remote cache endpoint is available.",
             ]
         )
     }
@@ -49,7 +49,7 @@ struct CacheStorageFactoryingLocalFallbackTests {
         let alertController = AlertController()
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.missingEndpointOverride)
+            .willThrow(CacheURLStoreError.noEndpointsAvailable)
 
         // When
         try await AlertController.$current.withValue(alertController) {

@@ -9,7 +9,7 @@ public protocol CacheURLStoring: Sendable {
 }
 
 /// Source compatibility for the pinned cache module. Stable hostname resolution does not poll readiness.
-@available(*, deprecated, message: "Cache URLs are derived locally; provisioning readiness is no longer polled.")
+@available(*, deprecated, message: "Cache requests handle provisioning readiness; URL resolution does not poll.")
 public enum CacheProvisioningWait: Equatable, Sendable {
     case none
     case upTo(Duration)
@@ -18,31 +18,51 @@ public enum CacheProvisioningWait: Equatable, Sendable {
 }
 
 public struct CacheURLStore: CacheURLStoring {
-    public init() {}
+    private static let configurations = CachedValueStore()
+    private let getCacheEndpointsService: any GetCacheEndpointsServicing
+    private let configurationCache: any CachedValueStoring
 
-    @available(*, deprecated, message: "Use init(); stable cache URLs do not require endpoint discovery or provisioning polling.")
-    public init(cachedValueStore _: CachedValueStoring, provisioningWait _: CacheProvisioningWait = .none) {}
+    public init(
+        getCacheEndpointsService: any GetCacheEndpointsServicing = GetCacheEndpointsService(),
+        configurationCache: (any CachedValueStoring)? = nil
+    ) {
+        self.getCacheEndpointsService = getCacheEndpointsService
+        self.configurationCache = configurationCache ?? Self.configurations
+    }
+
+    @available(*, deprecated, message: "Use init(configurationCache:); provisioning readiness is handled by cache requests.")
+    public init(cachedValueStore: CachedValueStoring, provisioningWait _: CacheProvisioningWait = .none) {
+        self.init(configurationCache: cachedValueStore)
+    }
 
     public func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL {
         if let overrideEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
-            guard let url = URL(string: overrideEndpoint),
-                  ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
-                  let host = url.host, !host.isEmpty
-            else { throw CacheURLStoreError.invalidURL(overrideEndpoint) }
-            return url
+            return try validatedURL(overrideEndpoint)
+        }
+
+        let configuration: CacheEndpointsResolution? = try await configurationCache.getValue(
+            key: "cache-configuration:\(serverURL.absoluteString):\(accountHandle ?? "")"
+        ) {
+            let value = try await getCacheEndpointsService.getCacheEndpoints(serverURL: serverURL, accountHandle: accountHandle)
+            return (value, Date().addingTimeInterval(max(0, min(value.maxAge ?? 60, 60))))
+        }
+        guard let configuration else { throw CacheURLStoreError.noEndpointsAvailable }
+        if !configuration.deriveStableHostname {
+            guard let endpoint = configuration.endpoints.sorted().first else { throw CacheURLStoreError.noEndpointsAvailable }
+            return try validatedURL(endpoint)
         }
 
         guard serverURL.scheme?.lowercased() == "https",
               serverURL.port == nil || serverURL.port == 443,
               serverURL.path.isEmpty || serverURL.path == "/"
-        else { throw CacheURLStoreError.missingEndpointOverride }
+        else { throw CacheURLStoreError.invalidURL(serverURL.absoluteString) }
 
         let suffix: String
         switch serverURL.host?.lowercased() {
         case "tuist.dev", "tuist.io": suffix = ""
         case "canary.tuist.dev": suffix = "-canary"
         case "staging.tuist.dev": suffix = "-staging"
-        default: throw CacheURLStoreError.missingEndpointOverride
+        default: throw CacheURLStoreError.invalidURL(serverURL.absoluteString)
         }
 
         guard let handle = accountHandle?.lowercased(),
@@ -52,20 +72,28 @@ public struct CacheURLStore: CacheURLStoring {
 
         return URL(string: "https://\(handle)\(suffix).cache.tuist.dev")!
     }
+
+    private func validatedURL(_ endpoint: String) throws -> URL {
+        guard let url = URL(string: endpoint),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty
+        else { throw CacheURLStoreError.invalidURL(endpoint) }
+        return url
+    }
 }
 
 public enum CacheURLStoreError: LocalizedError, Equatable {
     case invalidURL(String)
     case invalidAccountHandle(String?)
-    case missingEndpointOverride
+    case noEndpointsAvailable
     public var errorDescription: String? {
         switch self {
         case let .invalidURL(url):
             return "Invalid cache endpoint URL: \(url)."
         case let .invalidAccountHandle(handle):
             return "A valid account handle is required to derive the cache endpoint: \(handle ?? "missing")."
-        case .missingEndpointOverride:
-            return "Set TUIST_CACHE_ENDPOINT to the cache URL for your self-hosted server."
+        case .noEndpointsAvailable:
+            return "No remote cache endpoint is available."
         }
     }
 }

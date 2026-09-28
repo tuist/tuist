@@ -721,11 +721,10 @@ public struct Client: APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
+    /// Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
-    @available(*, deprecated)
     public func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output {
         try await client.send(
             input: input,
@@ -740,6 +739,13 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "configuration_only",
+                    value: input.query.configuration_only
+                )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,

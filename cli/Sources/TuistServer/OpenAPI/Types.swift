@@ -34,11 +34,10 @@ public protocol APIProtocol: Sendable {
     func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
     /// Get cache endpoints.
     ///
-    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
+    /// Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
-    @available(*, deprecated)
     func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output
     /// Get a runner job.
     ///
@@ -989,11 +988,10 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
+    /// Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
-    @available(*, deprecated)
     public func getCacheEndpoints(
         query: Operations.getCacheEndpoints.Input.Query = .init(),
         headers: Operations.getCacheEndpoints.Input.Headers = .init()
@@ -5541,6 +5539,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CacheEndpoints`.
         public struct CacheEndpoints: Codable, Hashable, Sendable {
+            /// Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/derive_stable_hostname`.
+            public var derive_stable_hostname: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
             /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
@@ -5550,16 +5552,20 @@ public enum Components {
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
+            ///   - derive_stable_hostname: Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints.
             ///   - endpoints:
             ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
             public init(
+                derive_stable_hostname: Swift.Bool? = nil,
                 endpoints: [Swift.String],
                 provisioning: Swift.Bool? = nil
             ) {
+                self.derive_stable_hostname = derive_stable_hostname
                 self.endpoints = endpoints
                 self.provisioning = provisioning
             }
             public enum CodingKeys: String, CodingKey {
+                case derive_stable_hostname
                 case endpoints
                 case provisioning
             }
@@ -19343,7 +19349,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
+    /// Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -19352,6 +19358,10 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Read routing configuration without activating managed cache capacity.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/configuration_only`.
+                public var configuration_only: Swift.Bool?
                 /// The name of the account to get custom cache endpoints for.
                 ///
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/account_handle`.
@@ -19359,8 +19369,13 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - configuration_only: Read routing configuration without activating managed cache capacity.
                 ///   - account_handle: The name of the account to get custom cache endpoints for.
-                public init(account_handle: Swift.String? = nil) {
+                public init(
+                    configuration_only: Swift.Bool? = nil,
+                    account_handle: Swift.String? = nil
+                ) {
+                    self.configuration_only = configuration_only
                     self.account_handle = account_handle
                 }
             }
@@ -19414,6 +19429,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/derive_stable_hostname`.
+                        public var derive_stable_hostname: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
                         /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
@@ -19423,16 +19442,20 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - derive_stable_hostname: Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints.
                         ///   - endpoints:
                         ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
                         public init(
+                            derive_stable_hostname: Swift.Bool? = nil,
                             endpoints: [Swift.String],
                             provisioning: Swift.Bool? = nil
                         ) {
+                            self.derive_stable_hostname = derive_stable_hostname
                             self.endpoints = endpoints
                             self.provisioning = provisioning
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case derive_stable_hostname
                             case endpoints
                             case provisioning
                         }

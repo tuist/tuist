@@ -265,14 +265,14 @@ public struct BazelSetupCommandService {
         )
     }
 
-    /// Resolve locally, leaving remote caching disabled if a self-hosted endpoint is not configured.
+    /// Resolve cache configuration, leaving remote caching disabled when no endpoint is available.
     private func cacheURL(serverURL: URL, accountHandle: String) async throws -> URL? {
         do {
             return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-        } catch CacheURLStoreError.missingEndpointOverride {
+        } catch CacheURLStoreError.noEndpointsAvailable {
             AlertController.current.warning(.alert(
-                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
-                takeaway: "Set the override and run tuist bazel setup again to enable remote caching."
+                "No remote cache endpoint is available.",
+                takeaway: "Configure a cache endpoint on the server and run tuist bazel setup again."
             ))
             return nil
         }

@@ -22,4 +22,4 @@
   different class identity. Do not transfer that policy automatically: multiple
   classes may have shared the old identity.
 
-- Setup probes and credential-helper responses use project-scoped cache-token exchange, preserving the signed origin used by cold activation. Bound returned token expiry with the existing safety margin. The server is upgraded ahead of the CLI, so exchange failures propagate without raw-credential fallback. Exchange is required even when no project handle is configured. Endpoint derivation remains local and does not register demand.
+- Setup probes and credential-helper responses use project-scoped cache-token exchange, preserving the signed origin used by cold activation. Bound returned token expiry with the existing safety margin. The server is upgraded ahead of the CLI, so exchange failures propagate without raw-credential fallback. Exchange is required even when no project handle is configured. Configuration-only discovery preserves custom/self-hosted endpoints; managed hostname derivation remains local. Neither path registers demand or measures latency.

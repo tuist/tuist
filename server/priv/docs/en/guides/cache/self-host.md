@@ -47,9 +47,9 @@ The key difference in configuration is that the **bridged** topology uses **enro
 
 ## Configure the CLI endpoint {#cli-endpoint}
 
-New Tuist CLIs derive the managed cache URL from the account handle, for example `https://acme.cache.tuist.dev`. They no longer discover cache nodes through `/api/cache/endpoints` or compare node latency locally.
+New Tuist CLIs derive the managed cache URL from the account handle, for example `https://acme.cache.tuist.dev`. They retain configuration-only discovery through `/api/cache/endpoints` for custom and self-hosted setups, without comparing node latency or provisioning managed storage.
 
-To use your own cache nodes, set an explicit endpoint in developer shells and CI:
+The CLI discovers configured or registered cache nodes automatically. To override that choice in developer shells and CI:
 
 ```sh
 export TUIST_CACHE_ENDPOINT=https://cache.example.com
@@ -57,7 +57,7 @@ export TUIST_CACHE_ENDPOINT=https://cache.example.com
 
 For the Xcode cache daemon, rerun `tuist setup cache` after setting the override so its LaunchAgent receives the updated environment.
 
-This override is required when connecting to a self-hosted Tuist server. It also takes precedence when using the hosted Tuist server with private cache nodes. If you operate multiple nodes, point the override at your own load balancer or DNS routing name. Older CLI versions continue to use endpoint discovery.
+This override is optional and takes precedence over discovery on both hosted and self-hosted servers. With multiple discovered nodes, the CLI chooses a URL deterministically without latency probes. To control routing across nodes, advertise your load balancer or DNS routing name.
 
 ## Prerequisites {#prerequisites}
 
@@ -91,7 +91,7 @@ With a valid deployment-level control-plane credential, registration and peer di
 
 ## How clients reach your nodes {#routing}
 
-Set `TUIST_CACHE_ENDPOINT` as described [above](#cli-endpoint). Node registration is still required for dashboard visibility and older clients: configure `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node. Older clients using endpoint discovery receive ready, non-expired endpoints from the server.
+Node registration provides dashboard visibility and CLI discovery: configure `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node. Clients using endpoint discovery receive ready, non-expired endpoints from the server.
 
 ## Bridged setup {#bridged-setup}
 
@@ -114,7 +114,7 @@ services:
       KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
       KURA_TENANT_ID: "<permanent-kura-tenant>"
 
-      # Register for dashboard visibility and older CLI endpoint discovery
+      # Register for dashboard visibility and CLI endpoint discovery
       KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
       KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"   # where your CLI/CI reach the cache
       KURA_NODE_URL: "https://kura.acme.internal:7443"         # this node's peer identity on your network
@@ -151,7 +151,7 @@ What you provide: the control-plane client, the two addresses (`KURA_NODE_URL`, 
 
 ## Standalone setup {#standalone-setup}
 
-With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). The node still uses your Tuist server for token authentication, dashboard registration heartbeats, usage, and endpoint discovery for older CLIs.
+With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). The node still uses your Tuist server for token authentication, dashboard registration heartbeats, usage, and CLI endpoint discovery.
 
 ```yaml
 # docker-compose.yml for a single node connected to a self-hosted Tuist server

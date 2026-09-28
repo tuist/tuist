@@ -6,6 +6,19 @@ import TuistHTTP
 @testable import TuistServer
 
 struct ServerErrorClassifierTests {
+    @Test(arguments: [408, 429, 500, 503])
+    func discoveryFailuresAreTransient(status: Int) {
+        #expect(ServerErrorClassifier.isTransient(GetCacheEndpointsServiceError.unknownError(status)))
+        #expect(ServerErrorClassifier.isRetryable(GetCacheEndpointsServiceError.unknownError(status)))
+    }
+
+    @Test(arguments: [401, 403, 404])
+    func discoveryRejectionsAreNotTransient(status: Int) {
+        #expect(!ServerErrorClassifier.isTransient(GetCacheEndpointsServiceError.unknownError(status)))
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheEndpointsServiceError.unknownError(status)))
+        #expect(!ServerErrorClassifier.isTransient(GetCacheEndpointsServiceError.forbidden("Forbidden")))
+    }
+
     @Test(
         arguments: [408, 429, 500, 502, 503, 599]
     )

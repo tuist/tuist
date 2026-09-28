@@ -1,8 +1,13 @@
 # Cache activation from the first request
 
-New hosted CLIs derive `<account>.cache.tuist.dev` locally. Resolving a URL must
-not allocate storage, measure latency or call an API. Older CLIs can keep using
-`GET /api/cache/endpoints`; there is no new public demand endpoint.
+New hosted CLIs derive `<account>.cache.tuist.dev` locally after a cached
+configuration lookup distinguishes managed accounts from custom routing.
+`GET /api/cache/endpoints?configuration_only=true` returns configured URLs for
+custom/self-hosted installations, or `derive_stable_hostname: true` for managed
+accounts. It never records demand or provisions storage. Clients cache the answer
+in process for at most 60 seconds and select custom URLs deterministically without
+latency probes. Requests without the option retain legacy behavior; there is no
+new public demand endpoint.
 
 ## Routing and lifecycle
 
@@ -47,7 +52,7 @@ ordinary upload errors and proxy transport failures are not replayed through
 this exception. The gateway strips the marker from upstream responses.
 The Bazel capability probe allows 30 seconds per attempt and up to four attempts
 for `UNAVAILABLE`/`RESOURCE_EXHAUSTED`; authorization failures and deadlines stop
-immediately. URL derivation still makes no network request.
+immediately. Configuration-only discovery does not activate capacity.
 
 The 20-second activation wait is a per-request budget, not a pod startup SLA.
 Provisioning continues after a timeout. Production archive-to-active analysis
@@ -74,13 +79,12 @@ now controls only legacy `/endpoints` hand-out. Disabling it must not withdraw
 a hostname that new clients derive locally. All public regions must support
 stable DNS before CLI release; private regions remain excluded.
 
-Self-hosted servers and accounts using custom or registered endpoints require
-`TUIST_CACHE_ENDPOINT`. Without the override, self-hosted builds and the Xcode
-proxy use local storage with a warning; explicit remote configuration commands
-report the missing setting. Activation refuses custom/registered accounts with
-HTTP 409 or gRPC FAILED_PRECONDITION and enqueues no managed storage. Migrate
-those endpoint settings before adopting a new CLI; legacy discovery remains
-available to older versions.
+Self-hosted servers and accounts using custom or registered endpoints retain
+discovery. `TUIST_CACHE_ENDPOINT` is an optional override that bypasses it. Empty
+configurations use local storage with a warning; explicit remote configuration
+commands report that no endpoint is available. Activation still refuses
+custom/registered accounts with HTTP 409 or gRPC FAILED_PRECONDITION and enqueues
+no managed storage. No endpoint migration is required.
 
 Fresh, nonempty public usage reports from trusted managed Kura nodes refresh the
 account demand clock. Old rollup replays, empty reports, peer replication and
@@ -109,8 +113,8 @@ wildcard. The internal handler and usage-based demand tracking are additive.
 
 Before releasing the new CLI:
 
-1. Audit registered/custom endpoints and configure explicit overrides for their
-   CLI environments. Confirm every managed public region has stable DNS support.
+1. Verify configuration-only discovery preserves registered/custom and self-hosted
+   endpoints. Confirm every managed public region has stable DNS support.
    Deploy the server handler and image containing `/cache-activation` to each
    environment. Keep the CLI draft unreleased until activation is reachable.
 2. Validate the gateway against a staging fixture using an explicit local DNS
@@ -147,6 +151,6 @@ Before CLI release, leave or turn both opt-ins off. After new CLIs are released,
 retain a functioning wildcard activation path: turning it off would strand cold
 accounts. Roll the stateless gateway image back or keep affected accounts warm
 while fixing it; do not withdraw regional records or bypass their drain barrier.
-The older `/endpoints` endpoint remains available for older versions, but new
-clients will not call it as a fallback. Self-hosted clients continue to require
-`TUIST_CACHE_ENDPOINT` and do not use this hosted activation infrastructure.
+The `/endpoints` endpoint retains legacy behavior and supports configuration-only
+discovery for new clients. Self-hosted clients use their configured endpoints or
+an optional `TUIST_CACHE_ENDPOINT` override; they do not use hosted activation.
