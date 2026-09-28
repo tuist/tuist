@@ -7,10 +7,10 @@ strategies restored. The three Dedibox sources remain cordoned and retained,
 with no Kura runtime pods or live cache claims. Their gateways still serve old
 addresses. Hardware retirement and provider billing cancellation are outstanding.
 
-The retirement change sets production `dediboxFleet.replicas: 0`; **do not deploy
+The retirement change sets `dediboxFleet.replicas: 0` in all three environments; **do not deploy
 it until the DNS withdrawal and soak gates below pass**. This is a destructive
 provider release, not an inert configuration cleanup. Staging and canary still
-use Dedibox and are outside this production retirement. Preserve the Scaleway
+use Dedibox and must be decommissioned before this retirement deploys. Preserve the Scaleway
 Elastic Metal Mac runner cache in every environment.
 
 Fleet configuration changes go through a pull request and the normal production
@@ -395,14 +395,41 @@ retiring Machines must not be combined with the first withdrawal of their DNS
 addresses. Do not use a generic drain or delete a live cache Machine to migrate
 workloads.
 
-### 5. Complete the remaining provider cleanup
+### 5. Decommission staging/canary and finish provider cleanup
 
 Read-only September 28 inventory found **two** EU-West instances in staging on
 Dedibox `188785` and **four** in canary on Dedibox `189167`, all reporting two
-Ready replicas. Migrate or deliberately decommission those instances through
-separate reviewed changes before removing their fleets or deleting shared
-Dedibox templates, CRDs, provider code and credentials. Production retirement
-alone does not make these unused.
+Ready replicas. These are not a reason to retain the Dedibox fleet permanently.
+The intended end state is zero Dedibox hosts in staging, canary and production,
+with public non-production validation using the existing OVH `ca-east` fleets.
+
+Before deploying this retirement change in **either** non-production environment:
+
+1. Pause any test automation that can recreate EU-West instances and inspect
+   their account/server lifecycle records. Staging holds the dedicated smoke and
+   spec-95 fixtures; canary holds the Tuist instance plus three UUID-shaped
+   account handles. Names alone do not prove those three accounts are disposable.
+2. Point required validation and account placement at `ca-east`, check OVH
+   capacity, and verify the replacement paths. Decommission the old instances
+   through the server lifecycle (`Tuist.Kura.destroy_server/1` and its reconciler)
+   rather than deleting their Kubernetes resources beneath active database rows.
+   Preserve any required data until its replacement is verified; discard only
+   confirmed disposable test caches.
+3. Verify old runtime pods, live claims and published client/peer DNS are gone,
+   and that no control-plane reconciliation or test recreates them. Complete
+   any required DNS withdrawal drain before releasing the node.
+4. Deploy the reviewed zero-replica fleet and the available-region list without
+   `eu-west`. The list closes future provisioning; it does **not** tear down
+   existing server rows or instances, which is why teardown must precede it.
+   Canary teardown must be complete before merging: canary is the first stage
+   of the normal production deployment cascade. Staging deploys separately.
+
+Keep each environment's Dedibox reconciler and credentials until its Machine
+finalizers complete. Then remove all three zero-replica fleet definitions, the
+non-production EU-West gateway overlays and egress-agent pool entries, and the
+shared Dedibox templates, CRDs, provider code and credentials in the final
+cleanup. Production's EU-West gateways and pool remain necessary for OVH.
+The runbook's DNS/soak gates still apply to production independently.
 
 Keep `kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache
 pool), its private network, and the Apple Silicon fleet intact. Keep the existing

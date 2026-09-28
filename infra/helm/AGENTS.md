@@ -14,8 +14,9 @@ This node covers Helm assets under `infra/helm/`.
   the evacuated Dedibox fleet with `replicas: 0`, retaining its reconciler and
   credentials until all Machine finalizers complete. Follow the DNS withdrawal
   and soak gates in [the migration runbook](../kura-controller/eu-west-ovh-migration.md)
-  before deploying retirement. Staging/canary still use Dedibox; preserve their
-  support and the separate Scaleway Mac runner cache (`kuraFleet`). The historical
+  before deploying retirement. Staging/canary Dedibox retirement also requires decommissioning their
+  EU-West instances first; public validation continues on OVH `ca-east`. Preserve
+  deletion-time support and the separate Scaleway Mac runner cache (`kuraFleet`). The historical
   `kura-dedibox` selector and `scw-local-nvme` class also serve OVH workloads.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
