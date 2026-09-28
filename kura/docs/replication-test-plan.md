@@ -94,6 +94,7 @@ cd kura && mise exec -- shellspec spec/e2e/discovery_spec.sh spec/e2e/backfill_s
 | B-9 | region of one + 2-replica region | co-located instance | region of one pulls from the gateway; no feed on the region of one |
 | B-10 | serverless 3 nodes, 2 regions, no server | roles derived locally | exactly one gateway per region in `/status/cluster` |
 | B-11 | 2 nodes, 1 region, one-way membership (d2 lists d1, d1 lists nobody) | §11.2 under the runner-region shape | a write on d1 reaches d2 by pull; d1 opens no link and nothing pushes to it, so d2's write reaches it only through the rest of a mesh it can see |
+| B-12 | 2 regions × 2 replicas | pause the region-2 gateway for 40 s (§2.5) | held in every view: region 1 keeps its region link, region 2's sibling stays non-gateway, no link closed and no backward pass logged |
 
 ## Ring C — k01 clusters (tens of minutes per setup)
 

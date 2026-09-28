@@ -274,6 +274,81 @@ The degraded case is worth noting because it is graceful: a mesh in which
 every node is a region of one derives a full gateway clique — exactly today's
 all-to-all topology and cost, never a gap.
 
+### 2.5 Membership hysteresis: a silent peer is held, not dropped
+
+Roles (§2.4) are derived from the membership view, so the view's churn is the
+topology's churn. Before this rule, one failed status probe or one failed DNS
+lookup removed a peer on the pass it happened. That re-derived the roles and
+closed the peer's pull link ("the role no longer names it"). If the peer was a
+gateway, every remote region moved its region link to the sibling and back
+within seconds, and every reopen ran a region backward pass (§4.4). A sibling
+dropping out of a node's view also made that node its region's gateway, so
+the region briefly had two.
+
+Production over one day (2026-09-27/28):
+
+- On meshes with a region across a long-haul link, the most affected pods
+  started 35–43 region backward passes a day, and most pods started at least
+  one a day. Single-region meshes saw 1–3, all from deploys.
+- Absences outside rollouts, from a sample of 16 pods: p50 11.7 s, p90 51.7 s,
+  p99 77.6 s, max 80.3 s. 94% were at most 60 s, and all were at most 90 s.
+  Every absence over 120 s was a rollout.
+- About half were triggered by DNS lookups failing in regional bursts, and
+  roughly five in six of those failures were in a single region. A failed
+  lookup dropped every peer at once, same-region sibling included. The other
+  half were status probes timing out across regions; same-region probe
+  failures happened only in rollouts.
+- Two pods of one region held the gateway role together for a median 23 s
+  per episode, up to about four minutes. Two in three episodes began when a
+  node's sibling fell out of its view.
+- Most backward passes were short (p50 0.2–2.2 s). On the worst mesh they ran
+  for up to a minute and moved hundreds of megabytes, and about one in four
+  was cancelled by the next flap before completing. That region's watermark
+  fell up to half an hour behind.
+
+**The rule** (`HeldPeers` in `src/replication/mod.rs`). Discovery is
+immediate: a peer enters the view on the first pass that observes it. A peer
+that was present and stops answering stays in the view, with its last
+observed traffic state, until it has been unseen for
+`MEMBERSHIP_REMOVAL_GRACE` (60 s). A failed DNS lookup is just another
+absence and is covered by the same window.
+
+**A drain skips the window.** A peer last seen `draining` is leaving on
+purpose (§3.5), so its first missed pass removes it. Both the managed
+controller and the Helm chart send SIGUSR1 in `preStop` and wait 20 s before
+SIGTERM, so every peer sees the drain first. A draining peer also ranks last
+for the gateway role (§2.4), so remote gateways move off it as soon as they
+see it.
+
+**Why the view, and not a sticky role.** The role rule stays a pure function
+of the view and the published roles, so nodes with the same view derive the
+same roles. A gateway role that stuck to its holder from local history would
+let two such nodes disagree and pull the same region twice. Holding the peer
+in the view gives the same stickiness across short absences on every node at
+once.
+
+**What it costs.** The window is detection time.
+- A peer that dies without draining (a crash, an OOM kill, a lost node) keeps
+  its links and its gateway role in every view for up to 60 s.
+- Writes from a dead remote gateway's region, or everything crossing a region
+  whose own gateway died, wait that long to be replicated. Nothing is lost:
+  the backward pass on failover covers them.
+- A held sibling's replica link keeps the frontier it last reported, so this
+  node's own writes are held back from remote ascending reads for the same
+  window.
+- When a gateway loses only its remote peer and that region's other node is
+  still reachable, it no longer fails over to that other node at once.
+  Instead it waits up to the window.
+
+In hosted meshes the controller also moves a published gateway off a pod
+that goes NotReady (§2.2), and a published role that names a present peer
+wins over the local rule. The measured trade-off is in §8.1.
+
+Outside membership, published roles still churn. The controller moves the
+gateway when a standby's readiness flaps, and the pods pick up the new role
+one heartbeat apart. Every region-link open also runs a backward pass, even
+when the region watermark is fresh. Both remain.
+
 ---
 
 ## 3. Replica sync (intra-region)
@@ -1225,6 +1300,67 @@ sensible cap. Two things still matter:
 
 ---
 
+### 8.1 Membership hysteresis, measured (§2.5)
+
+This lab runs two regions of two nodes on docker compose, with 2,000
+preloaded records per region and a steady one-write-per-second stream from
+region B's non-gateway, read back on region A's non-gateway. The same fault
+schedule ran against `main` and against the held view. Each cell reads
+`main / held`, summed over the four nodes per phase.
+
+| Fault | Link closes | Region backward passes | Tuples relisted | Max write lag (s) | Failover (s) |
+| --- | --- | --- | --- | --- | --- |
+| Gateway↔remote gateway unreachable, 2 s | 4 / 0 | 4 / 0 | 16.4k / 0.1k | 1.5 / 8.7 | – |
+| same, 5 s | 4 / 0 | 4 / 0 | 16.6k / 0.1k | 2.7 / 18.6 | – |
+| same, 15 s | 4 / 0 | 4 / 0 | 16.9k / 0.2k | 2.2 / 17.5 | – |
+| same, 30 s | 4 / 0 | 4 / 0 | 17.2k / 0.2k | 1.5 / 33.6 | – |
+| Gateway's resolver down, 2 s | 2 / 0 | 1 / 0 | 4.4k / 0.1k | 3.1 / 1.5 | – |
+| same, 5 s | 2 / 0 | 1 / 0 | 4.5k / 0.1k | 6.7 / 1.5 | – |
+| same, 15 s | 2 / 0 | 1 / 0 | 4.6k / 0.2k | 14.7 / 1.5 | – |
+| same, 30 s | 2 / 0 | 1 / 0 | 4.7k / 0.2k | 30.9 / 59.3 | – |
+| Remote gateway SIGKILLed | 4 / 4 | 4 / 4 | 14.7k / 10.5k | 1.6 / 58.3 | 0.2 / 59.0 |
+| Own gateway SIGKILLed | 4 / 4 | 4 / 4 | 11.1k / 11.5k | 1.7 / 59.4 | 0.7 / 59.7 |
+| Remote gateway drained (SIGUSR1), then stopped | 5 / 4 | 4 / 4 | 11.0k / 11.2k | 1.7 / 1.5 | 0.7 / 1.2 |
+
+Reading the table:
+
+- **Flaps.** Every short fault costs `main` link restarts on both sides, a
+  backward pass on each gateway and a relisting of the pass-start buffer. The
+  held view costs none of that. A resolver outage no longer breaks the pooled
+  connections either, so replication keeps flowing through it. The one 59 s
+  write in the 30 s resolver phase is a single record, and it recurred on
+  every run.
+- **Partial partitions.** When the gateway loses only its remote peer,
+  `main` moves to that region's other node within a second and keeps lag low:
+  here that node is reachable, and a backward pass relists only a few
+  thousand local records. The held view waits instead, so lag grows with the
+  outage, up to 34 s for a 30 s cut. In production that other node usually
+  sits behind the same cross-region path, and passes are long enough to be
+  cancelled by the next flap.
+- **Real failures.** A gateway killed without a drain is detected after the
+  window rather than within a second. Remote writes wait about 60 s, one per
+  second in this lab, and nothing is lost. Links to the dead peer retried
+  about 30 times across two nodes over those 60 s, on the 5-second backoff.
+- **Drains.** Failover (0.7 s against 1.2 s) and removal after the stop
+  (1.1 s on both) match `main`.
+- **Split-brain.** Two gateways in one region were sampled for 1.5–2 s per
+  phase in both builds, only around restarts.
+
+Resource budget for the whole schedule. The two runs were on the same host
+but in different sessions, and host CPU drifted by about 20% between
+sessions, so CPU is compared per minute and only roughly:
+
+| | `main` | held |
+| --- | --- | --- |
+| Run length | 15.7 min | 17.5 min |
+| CPU, all nodes | 3.2 s/min | 2.4 s/min |
+| Network tx, all nodes | 135.5 MB | 121.3 MB |
+| Data volume, all nodes | 12.0 MB | 12.1 MB |
+| Peak anonymous RSS, one node | 35.4 MB | 35.0 MB |
+
+The held view keeps one entry per peer, so memory and disk do not move.
+Network falls despite the longer run, because the relisting passes are gone.
+
 ## 9. Rejected alternatives
 
 Each looks obviously better until worked through. Recorded so they are not
@@ -1350,6 +1486,7 @@ to re-check when a measurement disagrees.
 | Long-poll wait (§3.1, §4.1) — `KURA_SYNC_LONG_POLL_SECS` | 25 s | Below the peer client's 30 s idle read timeout, which every internal request shares — a 30 s hold would race it (D-8). Idle polls re-check every second, bounding a missed wake; the ceiling is 60 s. Bounds how long a cleanly idle link goes without a proof of life. The replica link caps its own wait at the settle window instead, because its response carries the frontier the serving bound reads (D-24); a committed row still returns at once, so the cap costs one idle loopback request per window and no latency. |
 | Region-of-one bound on ascending reads (§4.1) — `KURA_SYNC_REGION_SETTLE_MS` | 2 s | Where there is no arrival feed — a region of one — the serving node lists nothing younger than this, because batches commit in any order after their `version_ms` is stamped (D-6). Where there is a feed the frontier is exact and this is only the ceiling on it (D-24). Re-check against the observed commit latency under load. |
 | Feed stale-peer window (§3.1) — `KURA_SYNC_FEED_STALE_PEER_SECS` | 30 min | The feed turns off, dropping its rows, once no sibling has asked for this long; the mesh's own stale-peer window, so a sibling that is merely restarting never loses its feed. |
+| Membership removal grace (§2.5) — `MEMBERSHIP_REMOVAL_GRACE` | 60 s | Covers 94% of production absences outside rollouts (p99 77.6 s, max 80.3 s). It also bounds how long a peer that dies without draining keeps its links and roles. 90 s would cover every absence seen, at 30 s more detection. |
 | Drain margin (§3.5) — `KURA_SYNC_DRAIN_MARGIN_MS` | 5 s | Subtracted from the termination grace period to leave the process time to exit cleanly after the gate; the gate itself is the drain wait below. |
 | The flip (§5.2) — `KURA_REPLICATION_PULL`, account flag `kura_replication_pull` | off | Per node by env, per account by the server flag rendered into each managed instance's spec and its manifest revision, so the flip rolls; either source makes the node advertise `pulling`. |
 | Peer bodies slots per peer (§11.1) — `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` | 1 | What one peer identity may hold in flight on the serving side. One is what the requester already asks for; the value exists so a mesh whose links are latency-bound can widen it deliberately rather than by patch. Re-check against the observed `rejected_busy` rate on a gateway. |
