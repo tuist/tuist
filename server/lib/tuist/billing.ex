@@ -10,6 +10,7 @@ defmodule Tuist.Billing do
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
+  alias Tuist.Billing.PaymentFailedNotifications
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
@@ -1125,9 +1126,20 @@ defmodule Tuist.Billing do
     end
 
     hold_unswitched_pro_subscription(account, plan, subscription)
+    notify_when_turned_unpaid(account, current_subscription, subscription)
 
     :ok
   end
+
+  # Only the transition is news. The row read before the update carries the
+  # previous status, so a redelivered event finds it already `unpaid`.
+  defp notify_when_turned_unpaid(account, current_subscription, %{status: "unpaid"}) do
+    if is_nil(current_subscription) or current_subscription.status != "unpaid" do
+      PaymentFailedNotifications.enqueue_subscription_unpaid(account)
+    end
+  end
+
+  defp notify_when_turned_unpaid(_account, _current_subscription, _subscription), do: nil
 
   # Checkout fixes a subscription's line items when the page opens, not when
   # the customer pays. One opened before the global gate went on and paid

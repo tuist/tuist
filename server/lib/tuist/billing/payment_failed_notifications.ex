@@ -1,12 +1,14 @@
 defmodule Tuist.Billing.PaymentFailedNotifications do
   @moduledoc """
-  Queues the email telling an account's admins that a subscription payment
-  failed.
+  Queues the emails telling an account's admins that a subscription payment
+  failed, and that the account lost its plan once Stripe stopped retrying.
   """
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Billing.AirUsageNotifications
   alias Tuist.Billing.Workers.PaymentFailedNotificationWorker
+  alias Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorker
 
   @doc """
   Queues one email per admin for the first failed charge of an automatically
@@ -36,6 +38,17 @@ defmodule Tuist.Billing.PaymentFailedNotifications do
   end
 
   def enqueue(_invoice), do: :ok
+
+  @doc """
+  Queues one email per admin telling them the account lost its plan: Stripe
+  stopped retrying the payment and marked the subscription `unpaid`.
+  """
+  def enqueue_subscription_unpaid(%Account{} = account) do
+    account
+    |> AirUsageNotifications.recipients()
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.each(&Oban.insert!(SubscriptionUnpaidNotificationWorker.new(%{account_id: account.id, user_id: &1.id})))
+  end
 
   defp subscription_invoice?(%{billing_reason: "subscription" <> _}), do: true
   defp subscription_invoice?(_invoice), do: false

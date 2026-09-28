@@ -565,6 +565,44 @@ defmodule Tuist.Accounts.UserNotifier do
     end)
   end
 
+  @doc """
+  Tells an account admin that the account moved to Air because Stripe stopped
+  retrying its subscription payment, and that paying the open invoice brings
+  the plan back.
+  """
+  def deliver_subscription_unpaid_notification(user, account) do
+    user |> subscription_unpaid_email(account) |> Mailer.deliver_now()
+  end
+
+  def subscription_unpaid_email(user, account) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      subject =
+        dgettext("dashboard_account", "%{account_name} moved to the Air plan because its subscription payment failed",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your account moved to the Air plan"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan.",
+            account_name: account.name
+          ),
+          dgettext(
+            "dashboard_account",
+            "Paying the open invoice restores your plan. You can also update your payment method before paying:"
+          )
+        ],
+        button:
+          {dgettext("dashboard_account", "Pay open invoice"), Environment.app_url(path: "/#{account.name}/billing/pay")},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
   defp air_usage_label(:runner_minutes, usage, limit),
     do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
 

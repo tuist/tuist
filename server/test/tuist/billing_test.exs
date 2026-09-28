@@ -11,6 +11,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.UsageMeters
   alias Tuist.Billing.UsagePricing
+  alias Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorker
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
@@ -216,6 +217,52 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+  end
+
+  describe "on_subscription_change/1 when a payment is given up on" do
+    defp pro_subscription_payload(status) do
+      %{
+        id: "sub_lapsing",
+        status: status,
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+    end
+
+    test "emails the account's admins once the subscription turns unpaid" do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id", preload: [:account])
+      Billing.on_subscription_change(pro_subscription_payload("past_due"))
+
+      Billing.on_subscription_change(pro_subscription_payload("unpaid"))
+
+      assert [%{args: %{"account_id" => account_id, "user_id" => user_id}}] =
+               all_enqueued(worker: SubscriptionUnpaidNotificationWorker)
+
+      assert account_id == user.account.id
+      assert user_id == user.id
+    end
+
+    # Stripe can deliver the same event more than once; only the transition
+    # into `unpaid` is news.
+    test "does not email again when Stripe redelivers the unpaid subscription" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      Billing.on_subscription_change(pro_subscription_payload("past_due"))
+      Billing.on_subscription_change(pro_subscription_payload("unpaid"))
+
+      Billing.on_subscription_change(pro_subscription_payload("unpaid"))
+
+      assert [_one] = all_enqueued(worker: SubscriptionUnpaidNotificationWorker)
+    end
+
+    test "does not email while the payment is still being retried" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      Billing.on_subscription_change(pro_subscription_payload("active"))
+
+      Billing.on_subscription_change(pro_subscription_payload("past_due"))
+
+      assert all_enqueued(worker: SubscriptionUnpaidNotificationWorker) == []
     end
   end
 
