@@ -6,10 +6,15 @@
   private topology only after every participant installs the same membership.
   See [managed private networking](../kura-controller/private-network-provisioning.md).
 
-- Vultr VPC bootstrap lives in `cmd/vultr-vpc` and `internal/vultr/vpc.go`.
-  Plan by default; create only empty, location-scoped networks with `--apply`.
-  Keep host attachment/restarts and topology publication behind physical
-  qualification. See [Vultr private networking](../kura-controller/vultr-private-networking.md).
+- Vultr private networks are declared by `capi.vultrPrivateNetwork` and reconciled
+  by `controllers/linux/vultr_private_network.go`. Retain provider IDs and create
+  intent in controller-owned state across Machine deletion; an uncertain create
+  must not be blindly retried. Attach/configure only qualified regions without a
+  restart, and attest every peer on its current boot before publication. Chicago
+  is qualified; Santiago remains VPC-only. Reject multiple qualified Vultr
+  regions until explicit cross-domain runtime policy exists. `cmd/vultr-vpc`
+  remains the empty-network bootstrap/planner. See
+  [Vultr private networking](../kura-controller/vultr-private-networking.md).
 
 Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
@@ -45,12 +50,11 @@ Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
 designed in `docs/scaleway-elastic-metal-support.md`; the sections below
 detail the Apple Silicon kind.
 
-A fifth kind for Vultr is designed but not built, in
-`docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
-given a partitioning plan, so its box is converted after install by
-`baremetal:prep-vultr` rather than installed into the right layout, and that
-pushes a conversion stage into the release-then-reinstall lifecycle the other
-Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
+`VultrMachine` manages the Chicago and Santiago bare-metal cache fleets. It
+adopts preordered hosts and performs the disk conversion the provider installer
+cannot express, followed by the shared self-join. Its Ready path also reconciles
+qualified private networks. See `docs/vultr-baremetal-support.md` and the Vultr
+private-network guide above.
 
 ## CRDs
 

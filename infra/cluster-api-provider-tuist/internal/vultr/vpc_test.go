@@ -144,3 +144,18 @@ func TestEnsureVPCRejectsMissingInventory(t *testing.T) {
 		t.Fatalf("missing inventory must prevent create: %v, requests %d", err, len(f.got))
 	}
 }
+
+func TestBareMetalVPCAttachmentDoesNotReboot(t *testing.T) {
+	f := &fakeDoer{body: map[string]string{"GET /bare-metals/host/vpcs": `{"vpcs":[]}`, "POST /bare-metals/host/vpcs/attach": ``}}
+	c := testClient(f)
+	interfaces, err := c.BareMetalVPCs(context.Background(), "host")
+	if err != nil || len(interfaces) != 0 {
+		t.Fatalf("inventory: %v", err)
+	}
+	if err = c.AttachBareMetalVPC(context.Background(), "host", "vpc-test"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.got) != 2 || f.got[1].URL.Path != "/v2/bare-metals/host/vpcs/attach" {
+		t.Fatal("attachment called another API")
+	}
+}

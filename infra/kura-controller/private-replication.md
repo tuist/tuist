@@ -9,6 +9,9 @@ environments enable OVH reconciliation and automatic runtime topology on merge.
 Their private host configuration is already installed and qualified within the
 limits recorded below. Canary and production managed runtime templates will
 activate through the normal deployment after matching route attestations.**
+Chicago Vultr now also has a qualified private path and Kubernetes-owned network
+reconciliation. Its merge activation and Santiago limitation are described in
+[Vultr private networking](vultr-private-networking.md).
 
 ## Operational inventory
 
@@ -36,7 +39,8 @@ required on every path.
   across a mesh containing both locations.
   Separate ORD and SCL VPCs are provisioned. See
   [Vultr provisioning and qualification](vultr-private-networking.md) for the
-  remaining host attachment, MTU and routing-policy gates.
+  completed Chicago attachment, MTU and E2E qualification, Kubernetes ownership,
+  and the remaining Santiago/cross-domain gate.
 - Cross-provider: retain the existing reachable peer gateway and account mTLS.
   Provider preference never removes the remote origin-region links, published
   gateways, or same-region sibling feeds.
@@ -118,9 +122,9 @@ settings and fail-closed host routing are described in
 enables both host reconciliation and automatic runtime publication after its
 physical qualification. Canary and production also enable both settings; their
 merge deployment publishes topology after the CAPI provider verifies the prepared
-hosts. Non-OVH placements retain their existing behavior. Vultr's regional VPCs
-are provisioned separately; its host transport and runtime topology remain
-unqualified and disabled.
+hosts. Vultr Chicago follows the same publication boundary after its qualified
+host routes converge; Santiago retains canonical mTLS. Other unqualified
+placements retain their existing behavior. See the provider-specific guide.
 
 Provider-only configuration is rejected at startup: opting in requires both
 `private_network` and `private_url`. Same-provider peers advertising absent or
@@ -332,8 +336,9 @@ not confirmed, cause.
 
 These are bounded correctness/path tests, not production saturation or N-1
 rebuild-capacity measurements. Capacity qualification remains necessary before
-raising replication budgets. Vultr's routing-domain and restart questions remain
-unresolved and its topology stays disabled.
+raising replication budgets. The later Chicago Vultr qualification independently
+confirmed manual attachment without reboot and the private Cilium path; see its
+provider guide. These OVH observations do not qualify Vultr or ORD–SCL.
 
 The equal-canonical/private-URL runtime correction also passed two sequential
 before/after resource comparisons, recorded in

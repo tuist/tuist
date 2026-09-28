@@ -122,13 +122,14 @@ type VultrMachineReconciler struct {
 	KubernetesMinor string
 
 	// DefaultRegion fills a spec that left it empty.
-	DefaultRegion string
+	DefaultRegion            string
+	PrivateNetworkConfigName string
+	PrivateNetworkNamespace  string
+	privateNetworkMu         sync.Mutex
 
-	// runScript is the SSH runner the conversion stage uses. A seam rather than a
-	// direct call because the conversion is the one stage with no counterpart in
-	// the other kinds, and it is what stands between a box and hosting unbounded
-	// cache volumes, so it is worth being able to test without a box. Nil uses
-	// runScriptOverSSH.
+	// runScript delivers conversion and private-network scripts through the
+	// established pinned bootstrap connection. Tests replace it without touching
+	// hosts. Nil uses runScriptOverSSH.
 	runScript func(ctx context.Context, user, host string, privateKey []byte, script string, hk *bootstrap.HostKeyState) (string, error)
 }
 
@@ -355,6 +356,11 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 		return ctrl.Result{}, err
 	}
 
+	privateErr := r.reconcilePrivateNetwork(ctx, machine, node)
+	if privateErr != nil {
+		logger.Error(privateErr, "Vultr private network is not converged")
+	}
+
 	if nodeReady(node) {
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
@@ -367,6 +373,9 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+		}
+		if privateErr != nil {
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}

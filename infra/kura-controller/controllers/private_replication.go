@@ -61,18 +61,28 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 }
 
 func privateReplicationDomain(nodes []corev1.Node) (string, string, error) {
-	ovh := 0
+	provider := ""
 	for _, node := range nodes {
 		if strings.HasPrefix(node.Spec.ProviderID, "ovh://") {
-			ovh++
+			provider = "ovh"
+			break
+		}
+		if strings.HasPrefix(node.Spec.ProviderID, "vultr://") && node.Labels[privateNetworkLabel] != "" {
+			provider = "vultr"
 		}
 	}
-	if ovh == 0 {
+	if provider == "" {
 		return "", "", nil
 	}
-	if ovh != len(nodes) {
-		return "", "", fmt.Errorf("private replication placement spans OVH and unqualified providers")
+	for _, node := range nodes {
+		if !strings.HasPrefix(node.Spec.ProviderID, provider+"://") {
+			return "", "", fmt.Errorf("private replication placement mixes qualified and unqualified providers")
+		}
+		if provider == "vultr" && (node.Status.NodeInfo.BootID == "" || !strings.HasSuffix(node.Annotations["tuist.dev/private-network-revision"], ":"+node.Status.NodeInfo.BootID)) {
+			return "", "", fmt.Errorf("private replication waits for node %s's current boot attestation", node.Name)
+		}
 	}
+
 	network, membership := "", ""
 	for _, node := range nodes {
 		n, m := node.Labels[privateNetworkLabel], node.Annotations[privateMembershipAnnotation]
@@ -84,5 +94,5 @@ func privateReplicationDomain(nodes []corev1.Node) (string, string, error) {
 		}
 		network, membership = n, m
 	}
-	return "ovh", network, nil
+	return provider, network, nil
 }

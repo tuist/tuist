@@ -3,103 +3,126 @@
 Vultr VPCs provide a private network inside one location. They do not establish
 an ORD–SCL private path. Vultr's documented cross-location solution uses
 [WireGuard gateways](https://docs.vultr.com/how-to-peer-vpcs-between-vultr-locations-with-wireguard),
-which encrypt public transport rather than replace it with provider-private
-transport. Existing Kura mTLS already authenticates and encrypts replication.
+which encrypt public transport. Existing Kura mTLS already authenticates and
+encrypts that replication. [Direct Connect](https://docs.vultr.com/vultr-direct-connect)
+would be a separate transport project requiring confirmed coverage, redundancy,
+pricing and provider coordination.
 
-[Direct Connect](https://docs.vultr.com/vultr-direct-connect) can attach an
-external physical or partner network to a location. Its documentation also
-states that private networks do not cross locations. A private interconnect
-between ORD and SCL would therefore be a separate transport project, requiring
-confirmed coverage, topology, redundancy, pricing and provider coordination.
-Do not assume two VPCs create that connection.
+## Kubernetes ownership and merge activation
 
-## Placement and rollout
+`capi.vultrPrivateNetwork` declares each region's VPC description, CIDR and
+physical qualification in Helm. Production declares `tuist-kura-production-ord`
+(`172.30.244.0/24`, qualified) and `tuist-kura-production-scl`
+(`172.30.245.0/24`, unqualified). Self-hosting defaults to disabled.
 
-The controller deliberately prefers colocating an instance's primary and warm
-standby. Different instances are isolated tenants and do not replicate to each
-other merely because they occupy different hosts in the same location.
-We provision a VPC in each supported location so future off-host replicas can
-use it. Inspect actual per-instance placement before attaching serving hosts:
-multiple physical hosts in a region alone do not establish an off-host sibling.
+`VultrMachineReconciler` manages networks for enrolled cache fleets in its
+configured namespace. It adopts an exact existing VPC or creates the missing
+empty VPC, checks the full provider inventory for conflicts, and retains the
+provider identity in a separate controller-owned `<config>-state` ConfigMap.
+It records creation intent before the provider POST. A timed-out create is
+recovered by observing the exact network; an empty subsequent inventory never
+causes a blind retry. Missing retained networks, changed definitions and
+ambiguous inventories require explicit recovery. Neither Helm removal nor
+Machine deletion deletes a VPC or its retained state.
 
-The [read-only feasibility evidence](../../kura/test/e2e/provider-topology/vultr-network-feasibility-2026-09-28.json)
-records provider API results and a placement snapshot without publishing host
-IDs, addresses or tenant inventory. It is not physical network qualification.
-Re-query placement before a rollout; co-location is a preference, not a guarantee.
-Do not change placement or move node-local volumes merely to make a network
-provisioning exercise pass.
+For a qualified region, the controller attaches each cache host without a
+restart, checks the provider-assigned private address and MAC, and uses its
+existing pinned bootstrap connection to configure only the secondary NIC.
+It reuses the OVH host-route implementation: persistent private addresses,
+public-node /32 routes through private next hops, main-table unreachable guards,
+a repair timer, and guards ordered before kubelet/containerd startup. Public
+NICs, default routes, node identities, ingress and BGP stay intact. Network
+errors are visible in `PrivateNetworkReady` and do not stop ordinary node
+reconciliation.
 
-## Bare-metal attachment and qualification
+Every participant must attest the same network and membership on its current
+boot before the CAPI controller labels placement as qualified. The Kura
+controller then renders `KURA_PEER_TOPOLOGY` and restricts scheduling to that
+network. A stale boot, missing attestation or mixed placement holds publication.
+An already-managed topology is never silently removed on an observation error.
 
-1. Use the current VPC API, not an assumed VPC 2.0 endpoint. The official
+The merge deployment therefore enables Chicago private replication after this
+convergence gate. Normal managed rollout and existing OnDelete holds still
+apply; merge does not instantly restart every runtime. Santiago's VPC is managed,
+but its host attachment and runtime topology remain disabled pending regional
+qualification. The existing Santiago canonical mTLS link remains compatible
+with Chicago's enabled topology because Santiago advertises no topology.
+
+Do not qualify a second Vultr region under the current strict same-provider
+policy. It rejects incompatible private domains. The controller rejects multiple
+qualified regions until an explicit allowed-canonical-domain policy is added
+and tested. Unknown or mistyped domains must never become public automatically.
+An ORD–SCL private interconnect is not provisioned by this PR.
+
+## Physical qualification
+
+The [Chicago evidence](../../kura/test/e2e/provider-topology/vultr-chicago-qualification-2026-09-28.json)
+records qualification on the two existing bare-metal hosts under a scoped human
+production window. Both VPC attachments and manual secondary-NIC configuration
+worked without rebooting. Both directions passed unfragmented 1500-byte traffic
+with assigned private addresses and with existing public node identities.
+Actual Cilium VXLAN carried an isolated four-peer Kura fixture between the hosts.
+
+All 12 runtime checks passed, including a 33 MiB exact-byte transfer, mTLS
+rejection, observed fixture-only private failure without canonical data fallback,
+recovery, cold backfill, mixed versions and tombstones. A second 33 MiB transfer
+used immediate captures filtered to the fixture PodIPs: both private NICs saw
+thousands of matching packets and both public NICs saw zero. The earlier broad
+node capture had two unconsumed public-filter counter hits and is not used to
+claim zero public traffic across the entire host. Bounded ten-second TCP tests
+reached approximately 200 Mbps in both directions with zero retransmits.
+
+Temporary fixture resources, peer routes and secondary-interface configuration
+were removed after qualification. Provider attachments are retained for the
+controller to adopt on merge. No production runtime was deliberately restarted.
+The evidence separates endpoint/pod snapshots from continuous availability
+monitoring. This test does not prove saturation throughput, N-1 capacity,
+Santiago transport or persistence across a production reboot. Persistence uses
+the shared host service already exercised by the OVH rollout; Chicago was not
+restarted solely to test it. Controller reconciliation is tested locally; the
+new controller image was not deployed during this qualification window.
+
+## Repeating qualification
+
+1. Re-query actual host placement, provider attachments and routes. Replicas are
+   preferably colocated; multiple tenants on different hosts do not create a
+   replication pair. Do not move serving volumes just to exercise a VPC.
+2. Use the current bare-metal API. The official
    [Go SDK](https://github.com/vultr/govultr/blob/master/bare_metal_server.go)
    uses `GET /v2/bare-metals/{id}/vpcs` and
-   `POST /v2/bare-metals/{id}/vpcs/attach`. The general guide's `instances`
-   example is not sufficient evidence for a bare-metal mutation. Verify actual
-   host eligibility, current attachment, provider-assigned address and MAC,
-   and charges before creating or attaching a network.
-2. Allocate a separate, nonoverlapping subnet per location after checking host,
-   Pod, Service, tailnet and runner routes. Preserve public NICs, default routes,
-   node identities, ingress and BGP. Never move an existing VPC attachment.
-3. The [bare-metal guide](https://docs.vultr.com/products/compute/instances/bare-metal/networking/vpc)
-   documents a restart for cloud-init to configure the interface. The live
-   Chicago bare-metal console, inspected on 2026-09-28, explicitly offers manual
-   interface IP configuration as the alternative to that restart. Use the manual
-   path on existing hosts; do not reboot merely to run cloud-init. Configure only
-   the secondary NIC and verify continuity and private reachability. If observed
-   behavior contradicts the console, stop for an explicit maintenance decision.
-   Colocated replicas do not preserve endpoint availability across a host restart.
-4. Obtain a human-controlled production window explicitly scoped to Vultr
-   qualification before host configuration, pod exec or fault tests. An earlier
-   OVH qualification window does not authorize this separate host work. Follow
-   [the production access rules](../AGENTS.md#cluster-access-for-agents).
-5. Verify both private directions and source-address behavior before reusing
-   the OVH route design. That design carries public node identities through
-   private next hops; a provider's source filtering may reject it. Do not assume
-   that success with assigned private source addresses proves this path.
-6. Measure the real private MTU. Vultr's
-   [interface configuration example](https://docs.vultr.com/how-to-use-the-linux-ip-command-to-manage-server-network-interfaces)
-   uses 1450. An additional Cilium VXLAN header can exceed that limit; neither a
-   small ping nor assigning a 1500 MTU proves support. Require unfragmented path
-   checks, actual encapsulated traffic and oversized Kura body replication.
-7. Prepare every peer before installing persistent routes and public-fallback
-   guards. Qualify mTLS, both physical NIC captures, bounded throughput,
-   fixture-only failure, cross-provider continuity and recovery. Publish topology
-   only after a provider-specific controller verifies converged host state.
+   `POST /v2/bare-metals/{id}/vpcs/attach`. Refuse a foreign attachment; never
+   detach it to make this configuration fit.
+3. Allocate a separate nonoverlapping private CIDR after checking host, Pod,
+   Service, tailnet and runner routes. Verify assigned addresses and physical
+   MACs. Keep host IDs, public addresses and tenant inventory in private records.
+4. Obtain a scoped human-controlled production window before host changes,
+   exec or fault tests. Follow [the access rules](../AGENTS.md#cluster-access-for-agents).
+   The [bare-metal guide](https://docs.vultr.com/products/compute/instances/bare-metal/networking/vpc)
+   describes a restart for Cloud-Init configuration; the authenticated console
+   offers manual IP configuration as its alternative. Use the manual path and
+   verify boot continuity. Do not reboot serving hosts merely to run Cloud-Init.
+5. Check private reachability both ways, source-address acceptance and real path
+   MTU before routing node identities through private next hops. Vultr examples
+   using 1450 do not establish a maximum for every bare-metal fabric. Require
+   unfragmented packets and actual encapsulated traffic; do not lower the entire
+   cluster MTU to make an unqualified path pass.
+6. Prepare all peers, then test isolated authenticated Kura replication, a body
+   larger than 32 MiB, both physical NICs, fixture-only failure and recovery.
+   Preserve canonical cross-provider links. Synthetic provider roles in a
+   Chicago-only fixture test policy, not a new physical cross-provider edge.
+7. Publish qualification only for the tested routing domain. Validate persistence
+   during an approved maintenance restart or on isolated capacity; extra paid
+   hardware is optional, not required for the manual attach path.
 
-## Runtime policy
+## Bootstrap and recovery tooling
 
-Automatic managed topology currently covers OVH. Vultr retains canonical mTLS
-replication. This is an explicit unqualified-provider state, not private VPC
-activation.
+`cmd/vultr-vpc` remains a read-only planner by default. `--apply` creates only an
+empty VPC; it cannot attach hosts, reboot, or order compute, NAT or interconnects.
+An exact network is reused; duplicate descriptions, changed location/subnet,
+overlap and malformed inventories are rejected. Serialize CLI creates with the
+controller and inspect uncertain outcomes before clearing retained intent.
 
-Two qualified Vultr VPCs in different locations must not be enabled under the
-current strict same-provider policy: that policy rejects incompatible domains.
-To support local-private plus cross-location-public routing, add an explicit
-configuration of permitted canonical domain pairs. Keep same-domain failures
-private-only; unknown or mistyped domains must not become public automatically.
-Test private local transfer and failed-private-path behavior separately from the
-intentionally canonical cross-location link. Do not disguise regions as separate
-providers or label separate VPCs as one private domain.
-
-## Provisioning and current state
-
-Two empty VPCs were created on 2026-09-28: `tuist-kura-production-ord`
-(`172.30.244.0/24`) and `tuist-kura-production-scl`
-(`172.30.245.0/24`). They do not connect to each other. The subnets are separate
-from the cluster Pod/Service ranges and the three OVH environment subnets;
-check actual host routes before attachment. Network creation does not attest a
-private path. Provider-assigned IDs stay in operational state, outside this guide.
-
-The bootstrap command reuses the CAPI Vultr client and reads `VULTR_API_KEY`
-from the environment. It plans by default; `--apply` only creates an empty
-VPC. It checks all API pages, rejects duplicate descriptions, mismatched existing
-networks and overlaps, and reuses an exact match. It cannot order compute, NAT
-or interconnect services, attach a NIC, or reboot a host. Run serially per account:
-the provider has no create idempotency key. On a failed create, inspect provider
-state before retrying rather than assuming nothing was created.
-
-From `infra/cluster-api-provider-tuist`, with credentials injected through the
+From `infra/cluster-api-provider-tuist`, with credentials supplied through the
 existing secret tooling:
 
 ```sh
@@ -107,69 +130,16 @@ go run ./cmd/vultr-vpc --region ord --description tuist-kura-production-ord --ci
 go run ./cmd/vultr-vpc --region scl --description tuist-kura-production-scl --cidr 172.30.245.0/24
 ```
 
-Append `--apply` to create a missing network. These names and CIDRs are desired
-bootstrap configuration; they do not enable the managed Kura topology flag for
-Vultr. Vultr's [published pricing comparison](https://marketing-sales-files.sjc1.vultrobjects.com/vultr-vs-do-saas-pricing.pdf)
-lists VPC as free. A NAT gateway is a separate paid product and is unnecessary
-for these public-plus-private hosts.
+Vultr's [published pricing comparison](https://marketing-sales-files.sjc1.vultrobjects.com/vultr-vs-do-saas-pricing.pdf)
+lists VPC as free. NAT gateways are paid and unnecessary for these hosts.
+The [provisioning evidence](../../kura/test/e2e/provider-topology/vultr-network-provisioning-2026-09-28.json)
+and [initial investigation](../../kura/test/e2e/provider-topology/vultr-attachment-investigation-2026-09-28.json)
+are historical observations preceding physical qualification.
 
-## Chicago qualification using existing hosts
-
-Use the existing Chicago hosts and the console-supported manual configuration
-path. Extra hardware is an isolation option, not a prerequisite. Record boot
-identity and endpoint health before attachment and verify continuity afterwards.
-
-Read-only telemetry on 2026-09-28 showed `enp1s0f1np1` on all three existing
-Vultr hosts, with zero receive/transmit bytes. This proves the interface is
-already registered in the running OS, not that the provider has activated its
-VPC path. Per-host operational state could not be recovered from
-`node_network_up`, whose labels were aggregated downstream.
-
-The official [SDK attachment method](https://github.com/vultr/govultr/blob/master/bare_metal_server.go)
-and [Terraform VPC update path](https://github.com/vultr/terraform-provider-vultr/blob/master/vultr/resource_vultr_bare_metal_server.go)
-do not issue a reboot call. The [API specification](https://github.com/vultr/vultr-mcp/blob/main/openapi.json)
-does not state whether the attachment endpoint itself restarts the server.
-Absence of a client reboot call is not proof of backend behavior. The reboot
-note in the bare-metal guide explicitly concerns cloud-init reconfiguration;
-it does not establish that every manual interface configuration needs a reboot.
-The authenticated console resolves the documented workflow: its Enable VPC
-confirmation offers manual IP configuration or a restart for automatic Cloud-Init
-configuration. Thus the provider explicitly supports a manual alternative to
-rebooting. The dialog was canceled without submitting an attachment. Immediate
-private connectivity and unchanged boot identity still need live validation;
-the console observation is not an E2E result. See the
-[attachment investigation](../../kura/test/e2e/provider-topology/vultr-attachment-investigation-2026-09-28.json).
-
-If existing-host qualification cannot avoid disruption, choose an approved
-maintenance/evacuation plan or isolated capacity. An unadopted bare-metal host
-and small VM in the same VPC are one optional test setup; that result alone
-would not qualify all bare-metal pairs or Santiago. Keep isolated hosts outside
-fleet adoption and retain their public management interfaces.
-
-1. Record both provider-assigned private addresses/MACs, host routes, interface
-   state, boot identity and path MTU. Measure continuity across attachment and
-   configure only the private interface. Validate persistence during an approved
-   maintenance restart or on an isolated host, not by restarting serving hosts
-   solely to exercise persistence.
-2. Check private reachability both ways, then the public-node-source behavior
-   used by the OVH design. Test unfragmented payloads and encapsulated traffic;
-   do not publish a route attestation from small private-source pings alone.
-3. If the underlay rejects public source identities or the required encapsulated
-   MTU, design and validate a provider-specific path before altering cluster
-   networking. Do not reduce the whole production cluster MTU as a test workaround.
-4. Run isolated authenticated Kura peers with a body larger than 32 MiB. Capture
-   both private and public interfaces, interrupt only the test private path,
-   verify zero unintended public data fallback, then recover and backfill.
-5. Implement and test the explicit cross-domain canonical policy above, and
-   provider-specific persistent host reconciliation, before publishing managed
-   Vultr topology. Keep OVH's already-qualified behavior intact.
-6. Qualify bare-metal-to-bare-metal transport and each additional location during
-   the controlled fleet rollout. If an existing host needs a restart, use spare
-   capacity and the controller's documented staged evacuation before the restart;
-   never delete a live Machine or its local volumes to force a network change.
-
-The independent [provisioning evidence](../../kura/test/e2e/provider-topology/vultr-network-provisioning-2026-09-28.json)
-records provider readback, attachments and tests separately from the earlier
-placement audit. Vultr replication remains canonical mTLS until the physical
-qualification and controller/runtime work above are complete. OVH's qualified
-intra-region and inter-region private rollout is unchanged.
+Rollback is explicit: hold topology publication and runtime rollout, withdraw
+runtime topology through the normal rollout, then remove the controller-owned
+host services/routes/guards in a scoped operational window if public node
+transport is intended. Disabling a Helm flag alone does not remove persistent
+routes, clear retained state, detach a NIC or delete a VPC. Keep guards in place
+until runtime policy has been rolled back; ordinary private-path failures never
+select the public default automatically.

@@ -117,3 +117,35 @@ func (c *Client) EnsureVPC(ctx context.Context, desired VPC, apply bool) (*VPC, 
 	}
 	return &out.VPC, nil
 }
+
+// VPCInterface is the provider's address assignment for one bare-metal NIC.
+type VPCInterface struct {
+	ID      string `json:"id"`
+	MAC     string `json:"mac_address"`
+	Address string `json:"ip_address"`
+}
+
+func (c *Client) BareMetalVPCs(ctx context.Context, instance string) ([]VPCInterface, error) {
+	var out struct {
+		VPCs []VPCInterface `json:"vpcs"`
+	}
+	if instance == "" {
+		return nil, fmt.Errorf("bare-metal instance ID is required")
+	}
+	if err := c.do(ctx, http.MethodGet, "/bare-metals/"+url.PathEscape(instance)+"/vpcs", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.VPCs == nil {
+		return nil, fmt.Errorf("provider omitted bare-metal VPC inventory")
+	}
+	return out.VPCs, nil
+}
+
+// AttachBareMetalVPC never detaches another network or requests a restart.
+// Read the assignment separately: acceptance does not prove host convergence.
+func (c *Client) AttachBareMetalVPC(ctx context.Context, instance, network string) error {
+	if instance == "" || network == "" {
+		return fmt.Errorf("instance and VPC IDs are required")
+	}
+	return c.do(ctx, http.MethodPost, "/bare-metals/"+url.PathEscape(instance)+"/vpcs/attach", nil, map[string]string{"vpc_id": network}, nil)
+}

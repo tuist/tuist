@@ -1397,6 +1397,9 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  vultrPrivateNetwork:
+    enabled: false
+    regions: {}
   ovhPrivateNetwork:
     enabled: false
     vrackID: ""

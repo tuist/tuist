@@ -81,3 +81,32 @@ func TestPrivateReplicationDoesNotSilentlyRemoveActiveTopology(t *testing.T) {
 		t.Fatal("missing nodes silently disabled the private route policy")
 	}
 }
+
+func TestPrivateReplicationVultrRequiresCurrentBootAndConvergedRegion(t *testing.T) {
+	ready := privateNode("a", "vultr://ord/a", "vpc-test", "members")
+	ready.Status.NodeInfo.BootID = "boot-a"
+	ready.Annotations["tuist.dev/private-network-revision"] = "script:boot-a"
+	provider, network, err := privateReplicationDomain([]corev1.Node{ready})
+	if err != nil || provider != "vultr" || network != "vpc-test" {
+		t.Fatalf("qualified Vultr: %s %s %v", provider, network, err)
+	}
+	rebooted := ready.DeepCopy()
+	rebooted.Status.NodeInfo.BootID = "boot-b"
+	if _, _, err := privateReplicationDomain([]corev1.Node{*rebooted}); err == nil {
+		t.Fatal("accepted a stale boot attestation")
+	}
+	unqualified := privateNode("b", "vultr://scl/b", "", "")
+	if provider, _, err := privateReplicationDomain([]corev1.Node{unqualified}); err != nil || provider != "" {
+		t.Fatal("unqualified Vultr must retain canonical replication")
+	}
+	if _, _, err := privateReplicationDomain([]corev1.Node{ready, unqualified}); err == nil {
+		t.Fatal("partly qualified placement must not advertise topology")
+	}
+	other := ready.DeepCopy()
+	other.Name = "b"
+	other.Labels[privateNetworkLabel] = "other"
+	other.Annotations[privateNetworkLabel] = "other"
+	if _, _, err := privateReplicationDomain([]corev1.Node{ready, *other}); err == nil {
+		t.Fatal("accepted mixed routing domains")
+	}
+}
