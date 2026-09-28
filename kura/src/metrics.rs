@@ -560,8 +560,12 @@ pub mod shed_kind {
     // query operators are told to reach for first.
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+    // One request asking for more response bytes than a single response may
+    // carry at normal memory pressure. It sheds on an idle pool, so it stays
+    // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
+    pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
 
-    pub const ALL: [&str; 8] = [
+    pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -570,6 +574,7 @@ pub mod shed_kind {
         MEMORY_PRESSURE_WRITE,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
+        REAPI_REQUEST_BUDGET,
     ];
 }
 

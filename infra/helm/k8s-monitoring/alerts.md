@@ -1060,11 +1060,11 @@ sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 
 `kind` is one of `response_stream` (egress capacity — the only kind the warning
 rule below is about), `multipart_uploads`, `multipart_storage`, `upload_memory`,
-`tmp_staging`, `memory_pressure_write`, `reapi_write_decode` or
-`reapi_materialization` (`outbox` existed through the push path's removal in
-kura@0.46 and no longer occurs).
+`tmp_staging`, `memory_pressure_write`, `reapi_write_decode`,
+`reapi_materialization` or `reapi_request_budget` (`outbox` existed through the
+push path's removal in kura@0.46 and no longer occurs).
 
-The two `reapi_*` kinds carry no HTTP status at all — the remote-execution
+The `reapi_*` kinds carry no HTTP status at all — the remote-execution
 surface answers gRPC `RESOURCE_EXHAUSTED`, which clients already retry — so the
 shed counter is the only place a node turning remote-execution traffic away
 shows up. Expect them on instances with a small memory floor: the transient
@@ -3581,15 +3581,16 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization"}[15m])
+  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization|reapi_request_budget"}[15m])
   * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Excludes `reapi_materialization`, which is a remote-execution read shed with
-  its own rule (**Kura shedding remote-execution reads**)
+- Excludes the two remote-execution read kinds: `reapi_materialization` has
+  its own rule (**Kura shedding remote-execution reads**), and
+  `reapi_request_budget` is not a capacity signal (see that section)
 - Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
@@ -3706,6 +3707,8 @@ sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 
 ### Kura shedding remote-execution reads
 
+Live as [rule `efzmp2v9usveob`](https://tuist.grafana.net/alerting/grafana/efzmp2v9usveob/view) since 2026-09-28.
+
 ```promql
 max by (cluster, region, pod) (
   increase(kura_capacity_sheds_total_total{kind="reapi_materialization"}[15m])
@@ -3725,7 +3728,8 @@ max by (cluster, region, pod) (
 - Description: `The pod answered gRPC RESOURCE_EXHAUSTED to remote-execution
   reads (BatchReadBlobs, GetActionResult with inline outputs, other unary
   responses) because the transient memory pool for building responses stayed
-  full. Clients retry, so this is read backpressure rather than loss. Compare
+  full, or memory pressure shrank the per-request budget. Clients retry, so
+  this is read backpressure rather than loss. Compare
   kura_memory_transient_reserved_bytes with kura_memory_transient_capacity_bytes:
   a pool resting at capacity means the instance's floor is too small for its
   read concurrency, and the lever is the account's memory profile.`
@@ -3735,6 +3739,26 @@ max by (cluster, region, pod) (
 on single events. A refused read is retried by the client, so one shed is
 backpressure, not a lost artifact, and the bar is a count that only sustained
 saturation reaches.
+
+#### Pool saturation versus one request's budget
+
+A read is refused for one of two reasons, and they carry different kinds:
+
+- `reapi_materialization`: the pool could not admit the response. The batch
+  read timed out waiting for it, a try-only site found it full, or memory
+  pressure above normal shrank the per-request budget the request ran out of.
+  This is capacity, and the rule counts only this kind.
+- `reapi_request_budget`: one request asked for more than a single response
+  may carry at normal pressure. A batch of 64 present 1 MiB blobs on a pod with
+  a 48 MiB budget serves 48 and refuses 16, one shed each, while the pool is
+  half empty. The same kind covers a single blob or unary response larger than
+  the per-request limit. It says nothing about the pool, so the memory profile
+  is not the lever and the rule leaves it out; read it on `Tuist Kura / Details`.
+
+Until every pod runs the release that split the kinds, older pods still file
+per-request budget refusals under `reapi_materialization`, so a single
+oversized batch on such a pod can cross the threshold on an idle pool. Check
+`kura_memory_transient_reserved_bytes` against capacity before acting.
 
 The threshold comes from the 30 days to 2026-09-28. Every 15-minute window
 with more than 10 sheds (20 to 64 per window, on five pods) had the transient

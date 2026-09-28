@@ -2158,7 +2158,7 @@
               "transformations": []
             }
           },
-          "description": "Capacity rejections by limit. REAPI materialization includes rejected reads and per-blob batch errors, not just uploads. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
+          "description": "Capacity rejections by limit. reapi_materialization is a remote-execution read refused because the response memory pool stayed full (or memory pressure shrank the per-request budget); reapi_request_budget is one request asking for more response bytes than a single response may carry at normal pressure, and sheds on an idle pool. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
           "id": 12,
           "links": [],
           "title": "capacity_sheds_total (rate)",
