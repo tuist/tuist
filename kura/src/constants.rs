@@ -355,6 +355,12 @@ pub const DEFAULT_SYNC_REGION_SETTLE_MS: u64 = 2_000;
 /// long no longer pins the trim floor, and a feed with no consumer for this
 /// long switches off. Matches the control plane's stale-peer window.
 pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
+/// How long a peer that stopped answering its status probe stays in the
+/// membership view (design §2.5). Most production probe outages are over
+/// within a minute, while removing a peer closes its pull links and makes a
+/// region link restart its backward pass. A peer last seen draining leaves
+/// on its first missed pass instead.
+pub const MEMBERSHIP_REMOVAL_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
 /// `KURA_SYNC_DRAIN_MARGIN_MS` default: what the departing node keeps back
 /// from the drain timeout so the sibling wait never eats the process exit.
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;

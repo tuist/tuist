@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     net::{IpAddr, SocketAddr},
     path::Path,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use futures_util::stream::StreamExt;
@@ -10,7 +10,9 @@ use serde::Deserialize;
 use tokio::{io::AsyncWriteExt, time::sleep};
 use tracing::{Instrument, warn};
 
-use crate::{config::Config, state::SharedState, sync::roles::PeerView};
+use crate::{
+    config::Config, constants::MEMBERSHIP_REMOVAL_GRACE, state::SharedState, sync::roles::PeerView,
+};
 
 // How much of a staged peer body may accumulate in the page cache before the
 // writer drops what it has already written behind itself.
@@ -81,10 +83,34 @@ where
     );
 }
 
+/// The peers the membership loop keeps in its view, with when each last
+/// answered (design §2.5). A peer that stops answering is held for
+/// `MEMBERSHIP_REMOVAL_GRACE` instead of being dropped on its first missed
+/// pass, so a probe that fails for a few seconds does not close its pull
+/// links and restart a region backward pass. A peer last seen draining is
+/// leaving on purpose and goes on its first miss.
+#[derive(Default)]
+struct HeldPeers {
+    peers: BTreeMap<String, (PeerView, Instant)>,
+}
+
+impl HeldPeers {
+    fn observe(&mut self, observed: Vec<PeerView>, now: Instant) -> Vec<PeerView> {
+        for view in observed {
+            self.peers.insert(view.url.clone(), (view, now));
+        }
+        self.peers.retain(|_, (view, last_seen)| {
+            *last_seen == now
+                || (!view.draining
+                    && now.saturating_duration_since(*last_seen) < MEMBERSHIP_REMOVAL_GRACE)
+        });
+        self.peers.values().map(|(view, _)| view.clone()).collect()
+    }
+}
+
 async fn membership_task_loop(state: SharedState) {
+    let mut held = HeldPeers::default();
     loop {
-        let mut members = BTreeSet::new();
-        let mut peer_nodes = BTreeMap::new();
         let mut views: Vec<PeerView> = Vec::new();
         let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
@@ -128,15 +154,13 @@ async fn membership_task_loop(state: SharedState) {
                             {
                                 continue;
                             }
-                            members.insert(payload.region.clone());
                             let traffic_state = payload.traffic_state.as_deref();
                             views.push(PeerView {
-                                url: payload.node_url.clone(),
-                                region: payload.region.clone(),
+                                url: payload.node_url,
+                                region: payload.region,
                                 serving: traffic_state.is_none_or(|s| s == "serving"),
                                 draining: traffic_state == Some("draining"),
                             });
-                            peer_nodes.insert(payload.node_url, payload.region);
                         }
                         Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
                     }
@@ -149,8 +173,12 @@ async fn membership_task_loop(state: SharedState) {
         }
 
         let discovery_observed = targets.is_empty() || peer_status_successes > 0;
-        views.sort_by(|a, b| a.url.cmp(&b.url));
-        views.dedup_by(|a, b| a.url == b.url);
+        let views = held.observe(views, Instant::now());
+        let members = views.iter().map(|view| view.region.clone()).collect();
+        let peer_nodes = views
+            .iter()
+            .map(|view| (view.url.clone(), view.region.clone()))
+            .collect();
         state.apply_peer_views(views);
         let membership_update = state
             .apply_membership_view(members, peer_nodes, discovery_observed)
@@ -410,6 +438,70 @@ mod tests {
         // With no gateway of our own, an external node adopting the managed
         // gateway URL must not skip it.
         assert!(!is_self_or_own_gateway(gateway, own, None));
+    }
+
+    fn peer_view(url: &str, draining: bool) -> PeerView {
+        PeerView {
+            url: url.into(),
+            region: "us".into(),
+            serving: !draining,
+            draining,
+        }
+    }
+
+    #[test]
+    fn a_silent_peer_is_held_for_the_grace_window_with_its_last_state() {
+        let start = Instant::now();
+        let mut held = HeldPeers::default();
+        held.observe(vec![peer_view("a", false), peer_view("b", false)], start);
+
+        let within = start + MEMBERSHIP_REMOVAL_GRACE - Duration::from_secs(1);
+        assert_eq!(
+            held.observe(vec![peer_view("b", false)], within),
+            vec![peer_view("a", false), peer_view("b", false)],
+            "a keeps its place and its traffic state, so the roles do not move"
+        );
+        assert_eq!(
+            held.observe(
+                vec![peer_view("b", false)],
+                start + MEMBERSHIP_REMOVAL_GRACE
+            ),
+            vec![peer_view("b", false)],
+            "unseen for the whole window: removed"
+        );
+    }
+
+    #[test]
+    fn a_peer_that_answers_again_restarts_its_window() {
+        let start = Instant::now();
+        let mut held = HeldPeers::default();
+        held.observe(vec![peer_view("a", false)], start);
+        held.observe(vec![], start + Duration::from_secs(50));
+        held.observe(vec![peer_view("a", false)], start + Duration::from_secs(52));
+        assert_eq!(
+            held.observe(vec![], start + Duration::from_secs(100)),
+            vec![peer_view("a", false)]
+        );
+    }
+
+    #[test]
+    fn a_peer_last_seen_draining_is_removed_on_its_first_miss() {
+        let start = Instant::now();
+        let mut held = HeldPeers::default();
+        held.observe(vec![peer_view("a", true)], start);
+        assert!(
+            held.observe(vec![], start + Duration::from_secs(2))
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_newly_observed_peer_is_in_the_view_at_once() {
+        let mut held = HeldPeers::default();
+        assert_eq!(
+            held.observe(vec![peer_view("a", false)], Instant::now()),
+            vec![peer_view("a", false)]
+        );
     }
 
     async fn spawn_server(app: Router) -> (String, tokio::task::JoinHandle<()>) {
