@@ -1,0 +1,61 @@
+{{- if .Values.tailnetIngress.enabled }}
+# A ProxyGroup that exposes in-cluster Services to the tailnet, for peers that
+# cannot reach a standalone `tailscale.com/expose` proxy directly.
+#
+# The xcresult-processor runs in a Tart VM whose traffic leaves through the
+# Mac mini's vmnet NAT, which allocates a new source port per destination. A
+# standalone proxy sits behind the cluster's NAT, which only lets UDP in from
+# a peer it has already sent to. Neither side can predict the other, so the
+# two never establish a direct path and every packet goes through a DERP
+# relay: production's ClickHouse writes from those VMs measured 18 to 414 ms
+# per round trip through DERP(par) against 15 to 20 ms direct to the Mac
+# hosts, and on 2026-09-28 one in eight of them needed a retry and sixteen
+# gave up.
+#
+# Static endpoints give each proxy a UDP NodePort on the selected nodes'
+# external IPs. A NodePort accepts packets from any source, so a peer behind
+# any NAT reaches the proxy directly, and the proxy answers to wherever the
+# packet came from. Only a ProxyGroup can advertise static endpoints, which is
+# why these Services use one rather than a proxy each.
+#
+# The NodePort range must be open to inbound UDP on those nodes.
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: {{ .Values.tailnetIngress.proxyGroup.name }}-static-endpoints
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: tailnet-ingress
+  annotations:
+    # Same hook ordering as the other ProxyClasses: the CRD ships in the
+    # subchart's templates/, so a CR applied in the main pass races it.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "4"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  staticEndpoints:
+    nodePort:
+      ports:
+        {{- toYaml .Values.tailnetIngress.staticEndpoints.ports | nindent 8 }}
+      selector:
+        {{- toYaml .Values.tailnetIngress.staticEndpoints.nodeSelector | nindent 8 }}
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: {{ .Values.tailnetIngress.proxyGroup.name }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: tailnet-ingress
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  type: ingress
+  replicas: {{ .Values.tailnetIngress.proxyGroup.replicas }}
+  proxyClass: {{ .Values.tailnetIngress.proxyGroup.name }}-static-endpoints
+  tags:
+    {{- toYaml .Values.tailnetIngress.proxyGroup.tags | nindent 4 }}
+{{- end }}

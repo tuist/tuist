@@ -1,10 +1,20 @@
 # EU-West migration from Scaleway Dedibox to OVH
 
-Status: all three servers verified through OVH and Ubuntu installation requested,
-2026-09-25. Installation tasks are queued; completion and SSH validation are
-pending. All three EU-West adoption markers have been set and read back through
-OVH. The production fleet configuration requests three replicas in PR #13634.
-No cluster adoption or workload migration has been performed as part of this plan.
+Status: production workload migration completed on **2026-09-28 at 12:31
+Europe/Berlin**. All 41 EU-West instances (82 runtime pods) were Ready on the
+three OVH nodes, with initial backfill complete and normal StatefulSet rollout
+strategies restored. The three Dedibox sources remain cordoned and retained,
+with no Kura runtime pods or live cache claims. Their gateways still serve old
+addresses. Hardware retirement and provider billing cancellation are outstanding.
+
+Live fleets were retained at three production hosts and one each in staging
+and canary while instance teardown and DNS withdrawal completed. PR #13671
+prematurely declared zero; its deployment was cancelled and #13673 restored
+those counts. The retirement values now declare zero again, with the deployment
+gates and current handoff recorded below. Do not deploy them before production's
+DNS soak passes. EU-West is already excluded from staging/canary's available
+regions; its remaining staging instance still requires explicit lifecycle
+teardown. Preserve the Scaleway Elastic Metal Mac runner cache in every environment.
 
 Fleet configuration changes go through a pull request and the normal production
 deployment workflow. Do not apply the rendered fleet objects directly. Subsequent
@@ -336,23 +346,146 @@ peer gateways alive through DNS TTLs, observed resolver behavior, long-lived
 connections, and a proposed 48-hour soak including a representative busy period.
 The soak starts after the last successful handover, not after provisioning.
 
-### 4. Retire and clean up
+### 4. Withdraw old addresses, then retire production
 
-Only after the soak, reduce the Dedibox fleet through its owning CAPI resources
-and the declarative deployment path. Confirm the chosen Machine deletions target
-evacuated hosts. Do not use a generic drain or delete a live cache Machine as the
-migration mechanism. Provider release may reinstall/wipe a box; this is the
-boundary after which its old disks are no longer a recovery option.
+The September 28 completion checks found all regional and enabled stable HTTPS
+readiness probes healthy, all client/peer Services backed by Ready endpoints,
+and no 5xx in the sampled five-minute client metrics window. This is a baseline,
+not proof of the subsequent soak. A fresh September 28 read confirmed
+41 production instances reporting two Ready replicas, but regional Ingress
+status still advertised **all six** OVH and Dedibox IPs. Cordoning the Dedibox
+nodes does not withdraw gateway addresses. A wait alone is not DNS withdrawal.
 
-Confirm release and provider billing cancellation separately. Retain Dedibox
-credentials/controllers until staging and canary no longer need them. Keep all
-Scaleway Elastic Metal and Apple Silicon resources needed by runners.
+The managed values now declare zero Dedibox replicas in all three environments.
+Preparing the retirement PR does not complete the live gates below. Before
+merging and deploying it:
 
-Update region/provider documentation and location metadata for the selected
-datacenter. `FR-IDF` currently describes Paris and is incorrect for Gravelines;
-audit the metadata's consumers and introduce any per-environment handling needed
-while environments differ. Preserve the product region ID and review its
-Route53 latency-region mapping separately from the physical-site description.
+1. Withdraw `195.154.208.26`, `195.154.208.48`, and `51.159.17.45` from
+   production regional DNS publication in a separate reviewed platform change,
+   while keeping the old gateway DaemonSet pods running. The temporary ingress
+   `publish-status-address` setting in production `values-tuist.yaml` publishes only `51.68.54.127`,
+   `51.75.213.141`, and `51.75.213.81` without moving gateway pods. Verify the
+   rendered upstream controller arguments and all three destination health checks
+   before deployment. This changes controller arguments and rolls the gateway
+   DaemonSet; watch its rollout and old-IP probes throughout. Keep normal graceful
+   shutdown; the old gateways must return Ready on their retained nodes. Do not narrow the
+   DaemonSet selector yet: that would stop serving clients with cached addresses.
+2. Confirm authoritative regional and enabled stable DNS, Ingress status, and
+   peer discovery no longer advertise any source address. Check each publication
+   path; changing regional Ingress status alone does not prove peer convergence.
+   Retain healthy old gateways through the observed TTLs, resolver caching and
+   long-lived connections. Require a 48-hour soak including a representative busy
+   period after the last handover **and** completed address withdrawal.
+3. Recheck that all runtime replicas are Ready on OVH, backfill is complete,
+   normal rollout strategies are restored, traffic is healthy, and no live cache
+   claims remain on the three source nodes. Confirm the production fleet owns
+   only server IDs `184798`, `184776`, and `148144`.
+4. Deploy production `dediboxFleet.replicas: 0` through the reviewed server
+   deployment. Keep `enabled: true`, its API and SSH ExternalSecrets, and the
+   provider reconciler until deletion finishes. Setting `enabled: false` in
+   the same change also removes the controller's `DEDIBOX_SCW_*` environment
+   variables; the manager then stops registering the Dedibox reconciler and
+   cannot finish its infrastructure finalizers. Do not bypass these finalizers.
+5. Observe zero fleet Machines, DediboxMachines and Nodes and completed provider
+   releases. Release reinstalls/wipes the boxes; it does **not** cancel the
+   monthly contracts. Verify billing cancellation separately in Scaleway.
+6. In a follow-up cleanup PR, remove the production Dedibox values and obsolete
+   fleet objects once finalizers are gone. The IAM ExternalSecret is a Helm hook
+   with `before-hook-creation`, so disabling rendering does not garbage-collect
+   that old hook: explicitly inventory/remove the orphaned hook and its owned
+   Secret after the reconciler no longer needs them. Restore dynamic OVH-only
+   gateway publication after the source nodes are gone, so a later OVH host
+   replacement does not leave a stale pinned address.
+
+The subsequent retirement change deliberately leaves a short-lived zero-replica
+fleet definition in production. Removing the controller/credentials simultaneously is unsafe, and
+retiring Machines must not be combined with the first withdrawal of their DNS
+addresses. Do not use a generic drain or delete a live cache Machine to migrate
+workloads.
+
+### 5. Decommission staging/canary and finish provider cleanup
+
+Read-only September 28 inventory found **two** EU-West instances in staging on
+Dedibox `188785` and **four** in canary on Dedibox `189167`, all reporting two
+Ready replicas. These are not a reason to retain the Dedibox fleet permanently.
+The intended end state is zero Dedibox hosts in staging, canary and production,
+with public non-production validation using the existing OVH `ca-east` fleets.
+
+The preparation deployment removes EU-West from the available-region list while
+retaining the host. After that deployment, in **each** non-production environment:
+
+1. Pause any test automation that can recreate EU-West instances and inspect
+   their account/server lifecycle records. Staging holds the dedicated smoke and
+   spec-95 fixtures; canary holds the Tuist instance plus three UUID-shaped
+   account handles. Names alone do not prove those three accounts are disposable.
+2. Point required validation and account placement at `ca-east`, check OVH
+   capacity, and verify the replacement paths. Decommission the old instances
+   through the server lifecycle (`Tuist.Kura.destroy_server/1` and its reconciler)
+   rather than deleting their Kubernetes resources beneath active database rows.
+   Preserve any required data until its replacement is verified; discard only
+   confirmed disposable test caches.
+3. Verify old runtime pods, live claims and published client/peer DNS are gone,
+   and that no control-plane reconciliation or test recreates them. Complete
+   any required DNS withdrawal drain before releasing the node.
+4. Only after teardown/drain, deploy a separate reviewed zero-replica change.
+   The earlier available-region change closes future provisioning; it does
+   **not** tear down existing server rows or instances. Canary teardown must be
+   complete before merging the retirement change because canary is the first
+   stage of the normal production cascade. Staging deploys separately.
+
+Keep each environment's Dedibox reconciler and credentials until its Machine
+finalizers complete. Then remove all three zero-replica fleet definitions, the
+non-production EU-West gateway overlays and egress-agent pool entries, and the
+shared Dedibox templates, CRDs, provider code and credentials in the final
+cleanup. Production's EU-West gateways and pool remain necessary for OVH.
+The runbook's DNS/soak gates still apply to production independently.
+
+#### September 28 retirement handoff
+
+The retirement values remove all five managed Dedibox hosts (production
+`184798`, `184776`, `148144`; staging `188785`; canary `189167`) through CAPI by
+setting each fleet to zero. They also disable non-production EU-West ingress
+and remove that pool from the non-production egress agent. The production
+EU-West gateway, OVH-only address override, and historical `kura-dedibox` pool
+remain unchanged because OVH still uses them.
+
+Production DNS withdrawal was verified at **2026-09-28 15:40 UTC**. The earliest
+48-hour-soak review is **2026-09-30 15:40 UTC (17:40 Berlin)**, with a healthy
+representative busy period and fresh DNS, runtime, backfill, and claim checks.
+This is a deployment gate, not an assumption that elapsed time proves health.
+
+Canary source-instance teardown is complete. Staging's last dedicated smoke
+replacement is active on OVH with both replicas Ready and initial backfill
+complete; its old EU-West placement entered drain at 2026-09-28 16:12 UTC.
+The ordinary placement drain ends at 17:14 UTC. The operator explicitly accepts
+staging test-cache disruption, so staging stability is not an additional soak
+gate. Still retire its exact server row through `Tuist.Kura.destroy_server/1`
+and verify workload/claim cleanup before releasing its host; do not leave an
+active server record behind by deleting its Kubernetes resources directly.
+This exception does not shorten production's DNS soak or authorize losing the
+separate Mac runner cache.
+
+Keep `dediboxFleet.enabled: true`, both ExternalSecrets, provider RBAC, CRDs and
+the Dedibox reconciler during release. Disabling them at the same time as scale
+down prevents finalizer completion. After all five releases finish, remove this
+remaining deletion support and zero-replica configuration in a cleanup PR,
+explicitly delete the orphaned IAM ExternalSecret hook, and restore dynamic
+OVH-only ingress address publication. Provider release reinstalls the boxes;
+separately cancel the five subscriptions after matching provider server IDs.
+The previously unaccounted-for server `133116` is not owned by these fleets and
+is not cancelled or wiped by this change.
+
+Keep `kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache
+pool), its private network, and the Apple Silicon fleet intact. Keep the existing
+`kura-dedibox` pool selector and `scw-local-nvme` StorageClass: despite their
+names, OVH runtime scheduling and live local volumes still depend on them.
+Renaming them requires a separate coordinated migration, not a textual cleanup.
+
+Update region/provider documentation and location metadata in that coordinated
+change. `FR-IDF` still describes the staging/canary Paris sites and is incorrect
+for production Gravelines; audit consumers before changing the shared catalog.
+Preserve the product region ID and review its Route53 latency-region mapping
+separately from the physical-site description.
 
 ## Rollback
 
@@ -378,11 +511,11 @@ DNS, peer-demux, and storage tests when changing those paths. Record actual
 staging and production observations alongside the eventual rollout, not merely
 unit-test results.
 
-Procurement is complete. Before cutover, validate the installed machines,
-finalize measured backfill limits and latency/error stop thresholds, verify
-old-IP forwarding, and secure the normal human-driven production write elevation
-for operational actions. Fleet changes deploy through reviewed pull requests.
-This document does not itself authorize migration or contract cancellation.
+Procurement and production workload cutover are complete. The next boundaries
+are DNS withdrawal, the post-withdrawal soak, and host retirement. Operational
+writes still require the normal human-driven production elevation; fleet changes
+deploy through reviewed pull requests. This document does not itself authorize
+migration or contract cancellation.
 
 Planning validation: inspected fleet templates, region mapping, local-storage
 provisioning, ingress selectors, peer-demux selection, and evacuation code;

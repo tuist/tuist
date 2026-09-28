@@ -81,14 +81,6 @@
           height: 32px;
           color: var(--noora-surface-label-primary);
         }
-
-        /* Outline mode's stroked copy of the wordmark. Hidden here rather
-           than with the HTML hidden attribute, which has no effect on inline
-           SVG (the UA rule is namespaced to HTML elements); outline-mode.css
-           shows it with !important. */
-        & > [data-part="logo-outline"] {
-          display: none;
-        }
       }
 
       /* Right-click brand menu. The panel and its rows are stock Noora

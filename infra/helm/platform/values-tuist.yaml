@@ -72,16 +72,18 @@ ingress-nginx:
 kura-eu-west-ingress-nginx:
   enabled: true
   controller:
-    # eu-west is cut over to the Dedibox bare-metal box: the regional gateway
-    # runs on the box's host network so serving traffic hits the box NIC directly
-    # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
-    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
-    # into each Ingress status so external-dns resolves the per-account hosts to
-    # the box.
+    # EU-West workloads run on OVH. Retain a gateway on every old and new
+    # cache node while cached DNS/long-lived connections drain from Dedibox.
     kind: DaemonSet
     hostNetwork: true
     dnsPolicy: ClusterFirstWithHostNet
     reportNodeInternalIp: true
+    # Temporary DNS withdrawal: publish only the verified OVH destinations,
+    # without narrowing the shared pool selector or stopping old gateways.
+    # Remove this override AFTER Dedibox retirement; until then update it if
+    # an OVH host/IP changes. See infra/kura-controller/eu-west-ovh-migration.md.
+    extraArgs:
+      publish-status-address: "51.68.54.127,51.75.213.141,51.75.213.81"
     # Direct client connections on this hostNetwork path: no Hetzner LB adds a
     # PROXY header, so the shared regional default (use-proxy-protocol: true)
     # would mangle every connection. Turn it off here.

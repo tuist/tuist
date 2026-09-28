@@ -172,7 +172,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"
@@ -649,9 +649,13 @@ k8s-monitoring:
     extraLogProcessingStages: |
       // Each Tuist request produces one completion entry with its method, path,
       // status, and duration. Sample routine responses while preserving every
-      // warning, error, and unsuccessful response.
+      // warning, error, and unsuccessful response. Requests that used operator
+      // access (an Atlas-proxied read of a customer account, or a dashboard
+      // request under an ops grant) are the server's record of operator access
+      // to customer data, so they are never sampled; they are a small share of
+      // traffic.
       stage.match {
-        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"status=(2[0-9]{2}|3[0-9]{2}).*\\\\[info\\\\] Request completed\""
+        selector = "{service_name=\"tuist\", container=\"server\"} |~ \"status=(2[0-9]{2}|3[0-9]{2}).*\\\\[info\\\\] Request completed\" !~ \"(atlas_operator_read_account_id|operator_grant_jti)=\""
 
         stage.sampling {
           rate = 0.1
