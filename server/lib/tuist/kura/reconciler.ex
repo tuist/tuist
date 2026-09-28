@@ -55,6 +55,7 @@ defmodule Tuist.Kura.Reconciler do
   import Ecto.Query
 
   alias Oban.Job
+  alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -560,7 +561,7 @@ defmodule Tuist.Kura.Reconciler do
   defp reconcile_observed_servers(handled_server_ids) do
     active_subscriptions_query =
       from(s in Subscription,
-        where: s.status in ["active", "trialing"],
+        where: s.status in ^Billing.live_subscription_statuses(),
         order_by: [desc: s.inserted_at, desc: s.id]
       )
 

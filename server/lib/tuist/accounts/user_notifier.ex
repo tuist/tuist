@@ -524,6 +524,85 @@ defmodule Tuist.Accounts.UserNotifier do
     """)
   end
 
+  @doc """
+  Tells an account admin that a subscription payment failed. It makes no
+  promise about how long the plan is kept: that is how long Stripe keeps
+  retrying, a setting that can change.
+  """
+  def deliver_payment_failed_notification(user, account) do
+    user |> payment_failed_email(account) |> Mailer.deliver_now()
+  end
+
+  def payment_failed_email(user, account) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      pay_url = Environment.app_url(path: "/#{account.name}/billing/pay")
+
+      subject =
+        dgettext("dashboard_account", "A payment for the Tuist subscription of %{account_name} failed",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your subscription payment failed"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically.",
+            account_name: account.name
+          ),
+          dgettext(
+            "dashboard_account",
+            "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid.",
+            account_name: account.name
+          ),
+          dgettext("dashboard_account", "Pay the open invoice or update your payment method to keep your plan:")
+        ],
+        button: {dgettext("dashboard_account", "Pay open invoice"), pay_url},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
+  @doc """
+  Tells an account admin that the account moved to Air because Stripe stopped
+  retrying its subscription payment, and that paying the open invoice brings
+  the plan back.
+  """
+  def deliver_subscription_unpaid_notification(user, account) do
+    user |> subscription_unpaid_email(account) |> Mailer.deliver_now()
+  end
+
+  def subscription_unpaid_email(user, account) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      subject =
+        dgettext("dashboard_account", "%{account_name} moved to the Air plan because its subscription payment failed",
+          account_name: account.name
+        )
+
+      build_email(user.email, subject, %{
+        title: dgettext("dashboard_account", "Your account moved to the Air plan"),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan.",
+            account_name: account.name
+          ),
+          dgettext(
+            "dashboard_account",
+            "Paying the open invoice restores your plan. You can also update your payment method before paying:"
+          )
+        ],
+        button:
+          {dgettext("dashboard_account", "Pay open invoice"), Environment.app_url(path: "/#{account.name}/billing/pay")},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
   defp air_usage_label(:runner_minutes, usage, limit),
     do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
 

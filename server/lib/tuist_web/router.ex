@@ -1347,6 +1347,7 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+    get "/billing/pay", BillingController, :pay
 
     get "/runners/interactive/vnc",
         RunnerInteractiveVNCController,

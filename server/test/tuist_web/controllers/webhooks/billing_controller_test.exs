@@ -3,6 +3,7 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
+  alias Tuist.Billing.Workers.PaymentFailedNotificationWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Webhooks.BillingController
 
@@ -25,6 +26,32 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
 
       {:ok, updated_account} = Accounts.get_account_by_id(account.id)
       assert updated_account.billing_email == "new-billing-email@example.com"
+    end
+  end
+
+  describe "handle_event/1 for invoice.payment_failed" do
+    test "queues the failed-payment email" do
+      user = AccountsFixtures.user_fixture(customer_id: "cus_#{System.unique_integer([:positive])}", preload: [:account])
+
+      event = %Stripe.Event{
+        type: "invoice.payment_failed",
+        data: %{
+          object: %Stripe.Invoice{
+            id: "in_failed",
+            customer: user.account.customer_id,
+            attempt_count: 1,
+            billing_reason: "subscription_cycle",
+            collection_method: "charge_automatically"
+          }
+        }
+      }
+
+      assert :ok = BillingController.handle_event(event)
+
+      assert_enqueued(
+        worker: PaymentFailedNotificationWorker,
+        args: %{invoice_id: "in_failed", user_id: user.id}
+      )
     end
   end
 

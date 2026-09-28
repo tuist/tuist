@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import GRPCCore
 import Mockable
 import Path
 import Testing
@@ -385,6 +386,36 @@ struct CacheStorageFactoryTests {
                     + "Configure a REAPI-capable endpoint. Using the local module cache."
             ) == true)
         }
+    }
+
+    @Test(.withScopedAlertController(), .withMockedEnvironment())
+    func billingRefusalsSurfaceTheServerMessage() async throws {
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.user(accessToken: .test(token: "token"), refreshToken: .test(token: "refresh")))
+        given(cacheURLStore).getCacheURL(for: .any, accountHandle: .any)
+            .willReturn(URL(string: "https://tuist.cache.tuist.dev")!)
+        let serverMessage =
+            "A payment for the subscription of the account 'tuist' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice on the account's billing page to restore access."
+        let factory = CacheStorageFactory(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            serverAuthenticationController: serverAuthenticationController,
+            serverEnvironmentService: serverEnvironmentService,
+            cacheURLStore: cacheURLStore,
+            validateREAPI: { _ in
+                throw RPCError(
+                    code: .permissionDenied,
+                    message: serverMessage,
+                    metadata: ["tuist-refusal-reason": "payment_required"]
+                )
+            }
+        )
+
+        _ = try await factory.cacheStorage(config: .test(fullHandle: "tuist/project"))
+
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } == [
+            "Remote module caching is unavailable at tuist.cache.tuist.dev: \(serverMessage) Using the local module cache.",
+        ])
     }
 
     private func payloadStorage(_ storage: CacheStoring) async -> CacheStorage? {
