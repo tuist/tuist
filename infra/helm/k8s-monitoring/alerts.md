@@ -1735,8 +1735,8 @@ and on (cluster, pod) (
   those three days is under a day. Overnight and weekend builds have been
   missing all that time. Tuist.Kura.ClaimSizing grows the claim on its own
   and a resize would have reopened the ring-fullness gate, so this means the
-  loop did not act: the claim is clamped at the plan ceiling (64Gi air and
-  pro, 256Gi enterprise), the region has no disk to grow into (see "Kura
+  loop did not act: the claim is clamped at the plan ceiling (64Gi air,
+  256Gi pro and enterprise), the region has no disk to grow into (see "Kura
   region cannot place another instance"), or sizing itself is stuck.`
 
 Kura instances are expected to use all the disk they are given: every
