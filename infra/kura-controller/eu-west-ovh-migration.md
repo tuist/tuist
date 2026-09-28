@@ -7,11 +7,15 @@ strategies restored. The three Dedibox sources remain cordoned and retained,
 with no Kura runtime pods or live cache claims. Their gateways still serve old
 addresses. Hardware retirement and provider billing cancellation are outstanding.
 
-The retirement change sets `dediboxFleet.replicas: 0` in all three environments; **do not deploy
-it until the DNS withdrawal and soak gates below pass**. This is a destructive
-provider release, not an inert configuration cleanup. Staging and canary still
-use Dedibox and must be decommissioned before this retirement deploys. Preserve the Scaleway
-Elastic Metal Mac runner cache in every environment.
+Fleet retirement is **held at three production hosts and one each in staging
+and canary** until instance teardown and DNS withdrawal/drain complete. PR #13671
+set those counts to zero prematurely; its queued deployment was cancelled before
+it started after live inspection confirmed eight Ready canary runtime pods still
+on Dedibox. The corrective change restores the counts and retains the removal of
+EU-West from staging/canary's available-region lists, so normal deployment can
+stop new provisioning without immediately wiping their hosts. Existing instances
+still require explicit lifecycle teardown. Preserve the Scaleway Elastic Metal
+Mac runner cache in every environment.
 
 Fleet configuration changes go through a pull request and the normal production
 deployment workflow. Do not apply the rendered fleet objects directly. Subsequent
@@ -353,7 +357,7 @@ not proof of the subsequent soak. A fresh September 28 read confirmed
 status still advertised **all six** OVH and Dedibox IPs. Cordoning the Dedibox
 nodes does not withdraw gateway addresses. A wait alone is not DNS withdrawal.
 
-Before merging/deploying the zero-replica retirement change:
+Before preparing and deploying the subsequent zero-replica retirement change:
 
 1. Withdraw `195.154.208.26`, `195.154.208.48`, and `51.159.17.45` from
    production regional DNS publication in a separate reviewed platform change,
@@ -389,8 +393,8 @@ Before merging/deploying the zero-replica retirement change:
    gateway publication after the source nodes are gone, so a later OVH host
    replacement does not leave a stale pinned address.
 
-This deliberately leaves a short-lived zero-replica fleet definition in
-production. Removing the controller/credentials simultaneously is unsafe, and
+The subsequent retirement change deliberately leaves a short-lived zero-replica
+fleet definition in production. Removing the controller/credentials simultaneously is unsafe, and
 retiring Machines must not be combined with the first withdrawal of their DNS
 addresses. Do not use a generic drain or delete a live cache Machine to migrate
 workloads.
@@ -403,7 +407,8 @@ Ready replicas. These are not a reason to retain the Dedibox fleet permanently.
 The intended end state is zero Dedibox hosts in staging, canary and production,
 with public non-production validation using the existing OVH `ca-east` fleets.
 
-Before deploying this retirement change in **either** non-production environment:
+The preparation deployment removes EU-West from the available-region list while
+retaining the host. After that deployment, in **each** non-production environment:
 
 1. Pause any test automation that can recreate EU-West instances and inspect
    their account/server lifecycle records. Staging holds the dedicated smoke and
@@ -418,11 +423,11 @@ Before deploying this retirement change in **either** non-production environment
 3. Verify old runtime pods, live claims and published client/peer DNS are gone,
    and that no control-plane reconciliation or test recreates them. Complete
    any required DNS withdrawal drain before releasing the node.
-4. Deploy the reviewed zero-replica fleet and the available-region list without
-   `eu-west`. The list closes future provisioning; it does **not** tear down
-   existing server rows or instances, which is why teardown must precede it.
-   Canary teardown must be complete before merging: canary is the first stage
-   of the normal production deployment cascade. Staging deploys separately.
+4. Only after teardown/drain, deploy a separate reviewed zero-replica change.
+   The earlier available-region change closes future provisioning; it does
+   **not** tear down existing server rows or instances. Canary teardown must be
+   complete before merging the retirement change because canary is the first
+   stage of the normal production cascade. Staging deploys separately.
 
 Keep each environment's Dedibox reconciler and credentials until its Machine
 finalizers complete. Then remove all three zero-replica fleet definitions, the
