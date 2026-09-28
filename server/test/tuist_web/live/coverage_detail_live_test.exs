@@ -345,6 +345,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert has_element?(lv, "#widget-coverage", "66.7%")
       assert has_element?(lv, "#coverage-chart")
       assert has_element?(lv, "[data-part='analytics'] #coverage-analytics-date-range-picker")
+      refute has_element?(lv, "[data-part='analytics']", "Default Branch Analytics: main")
       assert render(lv) =~ "?tab=commits"
 
       refute has_element?(lv, "[data-part='sources-card']")

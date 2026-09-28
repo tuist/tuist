@@ -36,6 +36,7 @@ defmodule TuistWeb.CoverageLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
+      assert has_element?(lv, "[data-part='analytics']", "Default Branch Analytics: main")
       assert has_element?(lv, "#widget-coverage", "75.0%")
       assert has_element?(lv, "#widget-coverage-covered-lines", "3")
       assert has_element?(lv, "#widget-coverage-executable-lines", "4")

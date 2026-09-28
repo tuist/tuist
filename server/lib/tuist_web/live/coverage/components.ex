@@ -588,6 +588,7 @@ defmodule TuistWeb.Coverage.Components do
   attr :trends, :map, required: true
   attr :points, :list, required: true
   attr :selected_widget, :string, required: true
+  attr :title, :string, default: nil, doc: "The card's title; Analytics when none is given."
   attr :empty_title, :string, default: nil, doc: "What the card says when no commit was measured in the period."
   slot :actions
   slot :details, doc: "Figures shown under the chart."
@@ -601,7 +602,7 @@ defmodule TuistWeb.Coverage.Components do
   def coverage_analytics_card(assigns) do
     ~H"""
     <.card
-      title={dgettext("dashboard_tests", "Analytics")}
+      title={@title || dgettext("dashboard_tests", "Analytics")}
       icon="chart_arcs"
       data-part="analytics"
     >

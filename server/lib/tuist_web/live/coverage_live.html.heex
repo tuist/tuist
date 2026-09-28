@@ -52,6 +52,7 @@
   <%= if not @loading do %>
     <%!-- Analytics --%>
     <.coverage_analytics_card
+      title={dgettext("dashboard_tests", "Default Branch Analytics: %{branch}", branch: @branch)}
       branch={@branch}
       latest={@latest}
       trends={@trends}
