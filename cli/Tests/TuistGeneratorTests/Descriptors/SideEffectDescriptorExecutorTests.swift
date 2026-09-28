@@ -216,6 +216,51 @@ struct SideEffectDescriptorExecutorTests {
         #expect(try await fileSystem.readTextFile(at: rewrittenFile) == "second")
     }
 
+    @Test(.inTemporaryDirectory) func execute_keepsTheOrderOfWritesThroughSymbolicLinkAliases() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let real = temporaryDirectory.appending(component: "Real")
+        let alias = temporaryDirectory.appending(component: "Alias")
+        let nestedAlias = temporaryDirectory.appending(component: "NestedAlias")
+        try await fileSystem.makeDirectory(at: real)
+        try await fileSystem.createSymbolicLink(from: alias, to: real)
+        try await fileSystem.createSymbolicLink(from: nestedAlias, to: alias)
+        let fileNames = (0 ..< 100).map { "File\($0).txt" }
+        let firstContents = Data(repeating: UInt8(ascii: "a"), count: 1_000_000)
+
+        try await subject.execute(sideEffects: fileNames.flatMap { fileName -> [SideEffectDescriptor] in
+            [
+                .file(FileDescriptor(path: real.appending(component: fileName), contents: firstContents)),
+                .file(FileDescriptor(path: alias.appending(component: fileName), contents: Data("second".utf8))),
+                .file(FileDescriptor(path: nestedAlias.appending(component: fileName), contents: Data("third".utf8))),
+            ]
+        })
+
+        for fileName in fileNames {
+            #expect(try await fileSystem.readTextFile(at: real.appending(component: fileName)) == "third")
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func execute_keepsTheOrderOfReplacingASymbolicLinkAndWritingThroughIt() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let oldDirectory = temporaryDirectory.appending(component: "Old")
+        let newDirectory = temporaryDirectory.appending(component: "New")
+        let intermediate = temporaryDirectory.appending(component: "Intermediate")
+        let alias = temporaryDirectory.appending(component: "Alias")
+        try await fileSystem.makeDirectory(at: oldDirectory)
+        try await fileSystem.makeDirectory(at: newDirectory)
+        try await fileSystem.makeDirectory(at: intermediate)
+        try await fileSystem.createSymbolicLink(from: intermediate.appending(component: "Link"), to: oldDirectory)
+        try await fileSystem.createSymbolicLink(from: alias, to: intermediate)
+
+        try await subject.execute(sideEffects: [
+            .symbolicLink(SymbolicLinkDescriptor(path: intermediate.appending(component: "Link"), destination: newDirectory)),
+            .file(FileDescriptor(path: alias.appending(components: "Link", "File.txt"), contents: Data("new".utf8))),
+        ])
+
+        #expect(try await fileSystem.readTextFile(at: newDirectory.appending(component: "File.txt")) == "new")
+        #expect(try await !fileSystem.exists(oldDirectory.appending(component: "File.txt")))
+    }
+
     @Test(.inTemporaryDirectory) func execute_runsCommandsInOrder() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         commandRunner.succeedCommand(["first"])

@@ -18,9 +18,9 @@ import TuistSupport
 public protocol SideEffectDescriptorExecuting {
     /// Executes the given side effects in order.
     ///
-    /// Consecutive file and symbolic link side effects whose paths neither match nor contain one another
-    /// don't depend on each other's outcome, so they may run concurrently. Every other side effect waits
-    /// for the ones before it and blocks the ones after it.
+    /// Consecutive file and symbolic link side effects that don't touch the same entries on disk, including
+    /// through symbolic links, may run concurrently. Every other side effect waits for the ones before it and
+    /// blocks the ones after it.
     /// - Parameter sideEffects: Side effects to be executed.
     func execute(sideEffects: [SideEffectDescriptor]) async throws
 }
@@ -71,9 +71,9 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         _ sideEffect: IndependentSideEffects.SideEffect,
         in batch: inout IndependentSideEffects
     ) async throws {
-        guard !batch.insert(sideEffect) else { return }
+        guard try !batch.insert(sideEffect) else { return }
         try await execute(batch.removeAll())
-        batch.insert(sideEffect)
+        try batch.insert(sideEffect)
     }
 
     private func execute(_ batch: IndependentSideEffects) async throws {
@@ -145,11 +145,6 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         }
     }
 
-    private func symbolicLinkDestination(at path: AbsolutePath) throws -> AbsolutePath {
-        let destination = try FileManager.default.destinationOfSymbolicLink(atPath: path.pathString)
-        return try AbsolutePath(validating: destination, relativeTo: path.parentDirectory)
-    }
-
     /// Removes the entry at the path without following it, so a symbolic link is removed even when its
     /// destination no longer exists.
     private func removeExistingEntry(_ path: AbsolutePath) async throws {
@@ -170,29 +165,6 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             }
         #else
             try await fileSystem.remove(path)
-        #endif
-    }
-
-    /// The type of the entry at the path, without following a symbolic link, or `nil` when there's none.
-    private func entryType(at path: AbsolutePath) throws -> EntryType? {
-        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
-            var status = stat()
-            guard lstat(path.pathString, &status) == 0 else {
-                if errno == ENOENT || errno == ENOTDIR { return nil }
-                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-            }
-            switch Int(status.st_mode) & Int(S_IFMT) {
-            case Int(S_IFDIR): return .directory
-            case Int(S_IFLNK): return .symbolicLink
-            default: return .other
-            }
-        #else
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: path.pathString) else { return nil }
-            switch attributes[.type] as? FileAttributeType {
-            case .typeDirectory: return .directory
-            case .typeSymbolicLink: return .symbolicLink
-            default: return .other
-            }
         #endif
     }
 
@@ -296,6 +268,34 @@ private enum EntryType {
     case other
 }
 
+/// The type of the entry at the path, without following a symbolic link, or `nil` when there's none.
+private func entryType(at path: AbsolutePath) throws -> EntryType? {
+    #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        var status = stat()
+        guard lstat(path.pathString, &status) == 0 else {
+            if errno == ENOENT || errno == ENOTDIR { return nil }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        switch Int(status.st_mode) & Int(S_IFMT) {
+        case Int(S_IFDIR): return .directory
+        case Int(S_IFLNK): return .symbolicLink
+        default: return .other
+        }
+    #else
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path.pathString) else { return nil }
+        switch attributes[.type] as? FileAttributeType {
+        case .typeDirectory: return .directory
+        case .typeSymbolicLink: return .symbolicLink
+        default: return .other
+        }
+    #endif
+}
+
+private func symbolicLinkDestination(at path: AbsolutePath) throws -> AbsolutePath {
+    let destination = try FileManager.default.destinationOfSymbolicLink(atPath: path.pathString)
+    return try AbsolutePath(validating: destination, relativeTo: path.parentDirectory)
+}
+
 /// A component of a `GeneratedFilesCleanupDescriptor` include pattern, compiled once per cleanup rather than
 /// once per directory entry it's matched against.
 private enum PathPatternComponent {
@@ -330,9 +330,13 @@ private enum PathPatternComponent {
     }
 }
 
-/// Consecutive file and symbolic link side effects that can run in any order: no path in the batch matches or
-/// contains another. Paths are compared case-insensitively so two spellings of the same entry on a
-/// case-insensitive volume keep their order.
+/// Consecutive file and symbolic link side effects that can run in any order.
+///
+/// Paths are compared where they physically live, so an entry reached through a symbolic link keeps its order
+/// relative to the same entry reached another way. A side effect joins the batch only when it modifies nothing that
+/// a batched side effect modifies, lives under, or follows as a symbolic link, and when nothing it lives under or
+/// follows is modified by a batched side effect. Paths are compared case-insensitively so two spellings of the same
+/// entry on a case-insensitive volume keep their order.
 private struct IndependentSideEffects {
     enum SideEffect: Sendable {
         case file(FileDescriptor)
@@ -356,31 +360,28 @@ private struct IndependentSideEffects {
     private(set) var sideEffects: [SideEffect] = []
     /// The parent directories of the present files and symbolic links, created before the batch runs.
     private(set) var parentDirectories: Set<AbsolutePath> = []
-    private var paths: Set<String> = []
-    private var ancestors: Set<String> = []
+    /// The entries the batched side effects modify.
+    private var modifiedPaths: Set<String> = []
+    /// The entries the batched side effects modify or follow as symbolic links, and every directory above them.
+    private var observedPaths: Set<String> = []
+    /// Only valid while the batch is being assembled: running it changes what's on disk.
+    private var resolver = PhysicalPathResolver()
 
     /// Adds the side effect to the batch unless it can't run concurrently with the ones already in it.
     @discardableResult
-    mutating func insert(_ sideEffect: SideEffect) -> Bool {
-        let path = sideEffect.path
-        let key = path.pathString.lowercased()
-        guard !paths.contains(key), !ancestors.contains(key) else { return false }
-        var newAncestors: [String] = []
-        var ancestor = path
-        while !ancestor.isRoot {
-            ancestor = ancestor.parentDirectory
-            let ancestorKey = ancestor.pathString.lowercased()
-            // Batched paths never contain one another, so once an ancestor is known to contain a batched
-            // path, none of its own ancestors is a batched path either.
-            if ancestors.contains(ancestorKey) { break }
-            if paths.contains(ancestorKey) { return false }
-            newAncestors.append(ancestorKey)
+    mutating func insert(_ sideEffect: SideEffect) throws -> Bool {
+        let (modified, followedLinks) = try footprint(of: sideEffect)
+        guard !modified.contains(where: { observedPaths.contains(Self.key($0)) }) else { return false }
+        for path in modified + followedLinks {
+            guard !isModified(path) else { return false }
         }
 
-        paths.insert(key)
-        ancestors.formUnion(newAncestors)
+        modifiedPaths.formUnion(modified.map(Self.key))
+        for path in modified + followedLinks {
+            observe(path)
+        }
         if sideEffect.isPresent {
-            parentDirectories.insert(path.parentDirectory)
+            parentDirectories.insert(sideEffect.path.parentDirectory)
         }
         sideEffects.append(sideEffect)
         return true
@@ -390,6 +391,88 @@ private struct IndependentSideEffects {
     mutating func removeAll() -> IndependentSideEffects {
         defer { self = IndependentSideEffects() }
         return self
+    }
+
+    private mutating func footprint(
+        of sideEffect: SideEffect
+    ) throws -> (modified: [AbsolutePath], followedLinks: [AbsolutePath]) {
+        let parent = try resolver.resolve(sideEffect.path.parentDirectory)
+        let entry = parent.path.appending(component: sideEffect.path.basename)
+        switch sideEffect {
+        case let .file(descriptor) where descriptor.state == .present:
+            // Writing a file writes through a symbolic link at its path.
+            let destination = try resolver.resolve(descriptor.path)
+            return ([entry, destination.path], destination.followedLinks)
+        case .file, .symbolicLink:
+            return ([entry], parent.followedLinks)
+        }
+    }
+
+    /// Whether a batched side effect modifies the path or a directory above it.
+    private func isModified(_ path: AbsolutePath) -> Bool {
+        var ancestor = path
+        while true {
+            let key = Self.key(ancestor)
+            if modifiedPaths.contains(key) { return true }
+            // An observed path that isn't modified was checked when it was observed, and nothing added since
+            // modifies it or a directory above it.
+            if observedPaths.contains(key) || ancestor.isRoot { return false }
+            ancestor = ancestor.parentDirectory
+        }
+    }
+
+    private mutating func observe(_ path: AbsolutePath) {
+        var ancestor = path
+        while observedPaths.insert(Self.key(ancestor)).inserted, !ancestor.isRoot {
+            ancestor = ancestor.parentDirectory
+        }
+    }
+
+    private static func key(_ path: AbsolutePath) -> String {
+        path.pathString.lowercased()
+    }
+}
+
+/// Resolves paths to where they physically live, recording the symbolic links followed to get there. A path that
+/// doesn't exist yet resolves to where it would be created.
+private struct PhysicalPathResolver {
+    struct Resolution {
+        let path: AbsolutePath
+        let followedLinks: [AbsolutePath]
+        let exists: Bool
+    }
+
+    private static let maximumFollowedLinks = 32
+    private var resolutions: [AbsolutePath: Resolution] = [:]
+
+    mutating func resolve(_ path: AbsolutePath) throws -> Resolution {
+        try resolve(path, followedLinkCount: 0)
+    }
+
+    private mutating func resolve(_ path: AbsolutePath, followedLinkCount: Int) throws -> Resolution {
+        if let resolution = resolutions[path] { return resolution }
+        guard !path.isRoot else { return Resolution(path: path, followedLinks: [], exists: true) }
+
+        let parent = try resolve(path.parentDirectory, followedLinkCount: followedLinkCount)
+        let candidate = parent.path.appending(component: path.basename)
+        let type: EntryType? = if parent.exists { try entryType(at: candidate) } else { nil }
+        let resolution: Resolution
+        switch type {
+        case nil:
+            resolution = Resolution(path: candidate, followedLinks: parent.followedLinks, exists: false)
+        case .directory, .other:
+            resolution = Resolution(path: candidate, followedLinks: parent.followedLinks, exists: true)
+        case .symbolicLink:
+            guard followedLinkCount < Self.maximumFollowedLinks else { throw POSIXError(.ELOOP) }
+            let destination = try resolve(symbolicLinkDestination(at: candidate), followedLinkCount: followedLinkCount + 1)
+            resolution = Resolution(
+                path: destination.path,
+                followedLinks: parent.followedLinks + [candidate] + destination.followedLinks,
+                exists: destination.exists
+            )
+        }
+        resolutions[path] = resolution
+        return resolution
     }
 }
 
