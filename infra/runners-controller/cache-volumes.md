@@ -221,7 +221,7 @@ orphaned images and still enforce teardown fences. See
 
 The normal controller release publishes its cache-volume agent with the same
 semantic version and checks both registry images before creating the release tag.
-Production inherits that version from `runnersController.image.tag`; an explicit
+Managed staging and production inherit that version from `runnersController.image.tag`; an explicit
 `cacheVolumes.image.tag` remains available for staging and self-hosted deployments.
 No separate production kubectl elevation is part of the merge/deploy path.
 
@@ -339,7 +339,8 @@ maintenance is counted without producing a log line every 30 seconds.
 - `tuist_runner_cache_volume_maintenance_last_success_timestamp_seconds`: detects
   stalled cleanup/publication even when the process remains ready.
 
-For p95 attachment time:
+For p95 attachment time in production (non-production retains counts and sums,
+but the existing fleet policy drops histogram buckets):
 
 ```promql
 histogram_quantile(0.95, sum by (le, source) (

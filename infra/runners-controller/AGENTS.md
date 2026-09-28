@@ -1306,3 +1306,6 @@ to runner pods. Low-cardinality phase/source/result counters and histograms cove
 restoration, publication and bounded prefetch; never label metrics with lease IDs,
 cache keys, paths or signed URLs. Non-production retains these metrics for recovery
 drills. See `cache-volumes.md` for queries and rollout evidence.
+The September 28 repeat-CI and recovery drill results are recorded in
+`cache-volume-validation.md`; distinguish measured workload gains from prefetch
+behavior that still needs production observation.
