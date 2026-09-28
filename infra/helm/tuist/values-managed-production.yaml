@@ -634,10 +634,6 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
-      # The xcresult-processor VMs never got a direct path to the standalone
-      # proxy and wrote through DERP; see `tailnetIngress` in
-      # infra/helm/tailscale-operator/values-production.yaml.
-      proxyGroup: tailnet-ingress
     backup:
       enabled: true
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
