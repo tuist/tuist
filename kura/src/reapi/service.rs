@@ -9442,6 +9442,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cas_batch_reads_declaring_more_than_the_budget_are_served_on_an_idle_pod() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 512 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 640 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let bytes = b"present-bytes";
+        let present_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let missing_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"missing-bytes")),
+            size_bytes: 40 * 1024 * 1024,
+        };
+        let key = blob_key(&digest_key(&present_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("cas blob should persist");
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![present_digest, missing_digest],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("a batch larger than the budget should be admitted up to the budget");
+
+        let codes: Vec<_> = response
+            .get_ref()
+            .responses
+            .iter()
+            .map(|response| response.status.as_ref().map(|status| status.code))
+            .collect();
+        assert_eq!(codes, vec![Some(0), Some(tonic::Code::NotFound as i32)]);
+        assert_eq!(response.get_ref().responses[0].data, bytes);
+        assert_materialization_metrics(&context, 0, 0);
+    }
+
+    #[tokio::test]
     async fn a_third_concurrent_batch_read_waits_for_the_budget_instead_of_shedding() {
         let context = test_context(|config| {
             config.memory_soft_limit_bytes = 64 * 1024 * 1024;

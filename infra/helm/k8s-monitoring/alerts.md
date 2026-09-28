@@ -3581,13 +3581,15 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
+  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization"}[15m])
   * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
+- Excludes `reapi_materialization`, which is a remote-execution read shed with
+  its own rule (**Kura shedding remote-execution reads**)
 - Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
@@ -3603,9 +3605,9 @@ max by (cluster, region, pod, kind) (
   GET, so a refused upload becomes a future cache miss and no build fails. On
   the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
   which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  upload_memory, memory_pressure_write, reapi_write_decode,
-  reapi_materialization: the transient memory budget derived from the pod's
-  ceiling is exhausted, the lever is the account's memory profile.
+  upload_memory, memory_pressure_write, reapi_write_decode: the transient
+  memory budget derived from the pod's ceiling is exhausted, the lever is the
+  account's memory profile.
   tmp_staging, multipart_storage, multipart_uploads: staging disk or the
   multipart session cap (compare kura_multipart_uploads with
   kura_multipart_upload_capacity on current versions; older versions default to
@@ -3670,23 +3672,12 @@ limit in the summary, which is what the on-call needs to pick the lever:
     `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
     below. Older versions queued on the floor alone, so a shed there can come
     with pressure normal and the headroom unused.
-- `reapi_write_decode`, `reapi_materialization`: the same budget on the
-  remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
-  Bazel retries, so this counter is the only place they show, and a
-  REAPI-heavy pod firing on them continuously is backpressure from a small
-  floor rather than loss. If that proves to be steady state on an instance,
-  raise the floor or move those two kinds to a rate-based tier; do not raise
-  the bar for the HTTP kinds, which are loss.
-  - `reapi_materialization` on the batch-read path now waits up to a second for
-    the pool before it sheds, so a shed there means the pool stayed full for a
-    whole second rather than that it was full at one instant. The wait shows
-    up as
-    `kura_memory_actions_total{action="response_materialization_admission_wait"}`,
-    which rises long before any shed does and is the earlier signal that an
-    instance's floor is too small for its read concurrency. Sheds without a
-    matching rise in that counter come from the other materialization sites,
-    which stay try-only: they are reached holding admission from another path,
-    so waiting there would be hold-and-wait on the pool they are waiting for.
+- `reapi_write_decode`: the same budget on the remote-execution surface. It
+  answers gRPC `RESOURCE_EXHAUSTED`, which Bazel retries, so this counter is
+  the only place it shows, and a REAPI-heavy pod firing on it continuously is
+  backpressure from a small floor rather than loss. If that proves to be steady
+  state on an instance, raise the floor or move the kind to a rate-based tier;
+  do not raise the bar for the HTTP kinds, which are loss.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
     Write decoding borrows the ceiling headroom above the floor-derived budget
     while pressure is normal, so a shed means the pod exhausted its floor *and*
@@ -3712,6 +3703,58 @@ limit in the summary, which is what the on-call needs to pick the lever:
 ```promql
 sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 ```
+
+### Kura shedding remote-execution reads
+
+```promql
+max by (cluster, region, pod) (
+  increase(kura_capacity_sheds_total_total{kind="reapi_materialization"}[15m])
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
+)
+```
+
+- Threshold: `> 10`, as a separate threshold expression on `A`
+- Pending period: none (group `Cache` evaluates every 5 minutes)
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, the same routing as
+  **Kura shedding cache writes by kind**; **No Data: Normal**,
+  **Error: Alerting**.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused
+  {{ $values.A.Value | printf "%.0f" }} remote-execution reads at the response
+  materialization limit in the last 15 minutes ({{ $labels.cluster }})`
+- Description: `The pod answered gRPC RESOURCE_EXHAUSTED to remote-execution
+  reads (BatchReadBlobs, GetActionResult with inline outputs, other unary
+  responses) because the transient memory pool for building responses stayed
+  full. Clients retry, so this is read backpressure rather than loss. Compare
+  kura_memory_transient_reserved_bytes with kura_memory_transient_capacity_bytes:
+  a pool resting at capacity means the instance's floor is too small for its
+  read concurrency, and the lever is the account's memory profile.`
+
+`reapi_materialization` is a read-path shed, so it does not belong in
+**Kura shedding cache writes by kind**, where it used to ride along and paged
+on single events. A refused read is retried by the client, so one shed is
+backpressure, not a lost artifact, and the bar is a count that only sustained
+saturation reaches.
+
+The threshold comes from the 30 days to 2026-09-28. Every 15-minute window
+with more than 10 sheds (20 to 64 per window, on five pods) had the transient
+pool at 100% in the same window. Every window with 1 to 7 sheds had the pool
+idle or close to it. Those small counts came from a sizing bug fixed alongside
+this rule: the per-request response budget could be twice what the pod's
+materialization limit admits, so a batch read declaring more than half the
+limit was refused outright on an empty pool. It could only happen with a
+transient pool under 256 MiB, which was 214 of 354 production pods on
+2026-09-28.
+
+The batch-read path waits up to a second for the pool before it sheds, so a
+shed there means the pool stayed full for a whole second rather than that it
+was full at one instant. The wait shows up as
+`kura_memory_actions_total{action="response_materialization_admission_wait"}`,
+which rises long before any shed does and is the earlier signal that an
+instance's floor is too small for its read concurrency. Sheds without a
+matching rise in that counter come from the other materialization sites, which
+stay try-only: they are reached holding admission from another path, so
+waiting there would be hold-and-wait on the pool they are waiting for.
 
 ### Kura replication outbox approaching its cap (retired)
 
