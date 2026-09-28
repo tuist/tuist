@@ -480,11 +480,12 @@ pool), its private network, and the Apple Silicon fleet intact. Keep the existin
 names, OVH runtime scheduling and live local volumes still depend on them.
 Renaming them requires a separate coordinated migration, not a textual cleanup.
 
-Update region/provider documentation and location metadata in that coordinated
-change. `FR-IDF` still describes the staging/canary Paris sites and is incorrect
-for production Gravelines; audit consumers before changing the shared catalog.
-Preserve the product region ID and review its Route53 latency-region mapping
-separately from the physical-site description.
+The region catalog now reports `FR-HDF` (Hauts-de-France) for EU-West's
+OVH Gravelines fleet. This feeds `KURA_NODE_SUBDIVISION` and the runtime OTel
+resource; the country remains `FR`, so residency classification is unchanged.
+Staging/canary public caches use `ca-east`; the separate Paris Mac runner cache
+retains `FR-IDF`. The product region ID, pool selector, storage class, and
+Route53 latency-region mapping remain unchanged.
 
 ## Post-retirement cleanup
 
