@@ -818,6 +818,13 @@ enum WorkspaceRestorer {
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {
         for path in try await submodulePaths(in: source) {
             let submodule = source.appendingPathComponent(path)
+            // A missing directory is acceptable. Native SPM does not initialize
+            // submodules that are not referenced by the Swift package manifest.
+            // Only an existing (but empty) submodule signals a partially
+            // initialized checkout that should not be cached.
+            guard try await fileSystem.exists(submodule.absolutePath) else {
+                continue
+            }
             guard fileSystem.isDirectoryAndNotSymlink(submodule) else {
                 return false
             }

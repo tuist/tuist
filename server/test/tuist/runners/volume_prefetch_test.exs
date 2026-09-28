@@ -40,9 +40,26 @@ defmodule Tuist.Runners.VolumePrefetchTest do
     %{"metadata" => %{"name" => name}, "spec" => %{"fleetSelector" => fleet_selector}}
   end
 
-  defp stub_node(labels) do
-    stub(K8sClient, :get_node, fn "mac-01" -> {:ok, %{"metadata" => %{"labels" => labels}}} end)
+  @m2 %{"cpu" => "8", "memory" => "14Gi"}
+  @m4 %{"cpu" => "12", "memory" => "28Gi"}
+
+  defp fleet_node(name, labels, capacity \\ @m2) do
+    %{"metadata" => %{"name" => name, "labels" => labels}, "status" => %{"capacity" => capacity}}
   end
+
+  # The Nodes of one fleet, as the apiserver lists them by its label.
+  defp stub_fleet(nodes) do
+    stub(K8sClient, :get_node, fn name ->
+      case Enum.find(nodes, &(get_in(&1, ["metadata", "name"]) == name)) do
+        nil -> {:error, :not_found}
+        node -> {:ok, node}
+      end
+    end)
+
+    stub(K8sClient, :list_nodes, fn "tuist.dev/fleet=" <> _ -> {:ok, %{"items" => nodes}} end)
+  end
+
+  defp stub_node(labels), do: stub_fleet([fleet_node("mac-01", labels)])
 
   defp mac_labels(extra \\ %{}) do
     Map.merge(%{"tuist.dev/fleet" => @fleet, "tuist.dev/cache-volumes-per-repository" => "true"}, extra)
@@ -53,11 +70,12 @@ defmodule Tuist.Runners.VolumePrefetchTest do
     generation
   end
 
-  defp ran_recently(account, repository, fleet \\ @pool) do
+  defp ran_recently(account, repository, fleet \\ @pool, node_name \\ "mac-01") do
     now = DateTime.utc_now()
 
     Repo.insert!(%RunnerSession{
       account_id: account.id,
+      node_name: node_name,
       workflow_job_id: System.unique_integer([:positive]),
       fleet_name: fleet,
       repository: repository,
@@ -176,6 +194,46 @@ defmodule Tuist.Runners.VolumePrefetchTest do
       stub_node(%{"tuist.dev/fleet" => "runners-linux"})
 
       assert VolumePrefetch.for_node("mac-01") == []
+    end
+
+    test "counts only the jobs that ran on the Node's host class" do
+      on_m2 = account_fixture()
+      on_m4 = account_fixture()
+      publish_head(on_m2)
+      publish_head(on_m4)
+      ran_recently(on_m2, "", @pool, "mac-01")
+      ran_recently(on_m4, "", @pool, "m4-01")
+      stub_fleet([fleet_node("mac-01", mac_labels()), fleet_node("m4-01", mac_labels(), @m4)])
+
+      assert [%{account_id: m2_account}] = VolumePrefetch.for_node("mac-01")
+      assert m2_account == on_m2.id
+      assert [%{account_id: m4_account}] = VolumePrefetch.for_node("m4-01")
+      assert m4_account == on_m4.id
+    end
+
+    test "leaves a volume another Node of the class already holds" do
+      account = account_fixture()
+      publish_head(account)
+      queue([%{account_id: account.id, repository: ""}])
+      held = mac_labels(%{"tuist.dev/cache-master-#{account.id}" => "true"})
+
+      stub_fleet([fleet_node("mac-01", mac_labels()), fleet_node("mac-02", held)])
+      assert VolumePrefetch.for_node("mac-01") == []
+
+      # A copy on the other class does not count: those Nodes take other jobs.
+      stub_fleet([fleet_node("mac-01", mac_labels()), fleet_node("m4-01", held, @m4)])
+      assert [%{account_id: account_id}] = VolumePrefetch.for_node("mac-01")
+      assert account_id == account.id
+    end
+
+    test "assigns each volume to one Node of the class" do
+      account = account_fixture()
+      publish_head(account)
+      queue([%{account_id: account.id, repository: ""}])
+      names = for i <- 1..6, do: "mac-0#{i}"
+      stub_fleet(Enum.map(names, &fleet_node(&1, mac_labels())))
+
+      assert [_] = Enum.filter(names, &(VolumePrefetch.for_node(&1) != []))
     end
 
     test "answers nothing for a Node it cannot read" do

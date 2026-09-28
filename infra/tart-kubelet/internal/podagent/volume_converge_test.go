@@ -850,3 +850,41 @@ func TestAdmissionDropsAPartialDownloadBeforeDecliningAJob(t *testing.T) {
 		t.Fatalf("the partial download is still on disk: %v", err)
 	}
 }
+
+// A master a generation or two behind still starts a job almost fully warm, so
+// a job-queued refresh leaves it in place until it falls further behind or ages
+// out. Before this, M2 hosts re-downloaded a 23-25 GiB master after nearly
+// every job of an account whose HEAD moves every couple of hours.
+func TestConvergeLeavesARecentMasterInPlace(t *testing.T) {
+	content := []byte("head-of-42")
+	now := time.Now()
+	for _, tc := range []struct {
+		name       string
+		generation int
+		installed  time.Duration
+		want       string
+	}{
+		{name: "two generations behind, installed recently", generation: 7, installed: time.Hour, want: "recent"},
+		{name: "three generations behind", generation: 8, installed: time.Hour, want: "converged"},
+		{name: "one generation behind, installed long ago", generation: 6, installed: 13 * time.Hour, want: "converged"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := serveImage(t, content)
+			m, _ := newTestManager(t, 100)
+			seedMasterGen(t, m, "42", masterImageContent("42"), 5)
+			installedAt := now.Add(-tc.installed)
+			if err := os.Chtimes(m.masterGenerationPath("42", ReservedTuistCacheVolume), installedAt, installedAt); err != nil {
+				t.Fatal(err)
+			}
+			w := newTestConvergeWorker(m)
+			w.now = func() time.Time { return now }
+
+			if got := w.converge(context.Background(), jobRequest("42", headFor(content, tc.generation, srv.URL))); got != tc.want {
+				t.Fatalf("converge = %q, want %q", got, tc.want)
+			}
+			if tc.want == "recent" && srv.requests.Load() != 0 {
+				t.Fatal("downloaded a master it left in place")
+			}
+		})
+	}
+}

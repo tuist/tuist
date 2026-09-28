@@ -51,6 +51,11 @@ defmodule TuistWeb.Webhooks.BillingController do
     :ok
   end
 
+  @impl true
+  def handle_event(%Stripe.Event{type: "invoice.payment_failed"} = event) do
+    Billing.on_invoice_payment_failed(event.data.object)
+  end
+
   # Enqueued for every finalized and every paid invoice rather than only
   # for ones that look prepaid here. The webhook payload carries at most
   # the first handful of an invoice's lines, so a prepaid line sitting

@@ -230,14 +230,10 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # scw-fr-par-runners is the macOS-serving private (runner-cache)
-      # region: the canary cluster's Elastic Metal node (kuraFleet) hosts
-      # the per-account cache pods and dispatch routes the Mac fleet's
-      # build cache to it over the Private Network. ca-east (Canada East /
-      # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
-      # an implementation detail behind it (ovhFleet below, replicas 1) —
-      # mirroring staging.
-      value: eu-west,scw-fr-par-runners,ca-east
+      # Public validation uses the existing OVH ca-east fleet. Retire the
+      # Dedibox EU-West instances before the later fleet-retirement change.
+      # Preserve the Scaleway private cache beside the Mac mini fleet.
+      value: scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -424,7 +420,7 @@ kuraController:
 # on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-ca-east]
+  nodePools: [kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
@@ -583,15 +579,13 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
-# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
-# env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
-# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
-# in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
-# adoptable box hangs helm --wait.
+# Retire Dedibox after old EU-West instances are destroyed through the server
+# lifecycle. Public validation uses OVH ca-east; the Mac runner cache stays.
 dediboxFleet:
+  # Keep the reconciler and credentials until all release finalizers finish.
   enabled: true
+  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
+  replicas: 0
   machine:
     adoptTag: tuist-kura-canary
     offer: Start-9-M
@@ -707,6 +701,10 @@ ovhFleets:
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-canary
   replicas: 1
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh

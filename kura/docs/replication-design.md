@@ -338,9 +338,13 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   first `{head}` request, which switches it on and returns the head in the
   same operation — activation and snapshot are one event, so there is no
   window in which rows go unwritten between a sibling's snapshot and its
-  forward read. It stays on while the peer list names a sibling, and turns
-  off, dropping its rows, once no sibling has been listed for longer than
-  the mesh's stale-peer window. A region of one therefore carries no feed at
+  forward read. It stays on while its sibling keeps asking — forward reads
+  and, during a bootstrap, the backward pass's backfill requests, which carry
+  the sibling's node URL as `peer` — and turns off, dropping its rows, once
+  the sibling has been silent for longer than the mesh's stale-peer window.
+  Counting the backward pass matters because it can outlast that window, and
+  a feed switched off under it answers the pass's first forward read with a
+  `410` that sends the sibling back through another bootstrap. A region of one therefore carries no feed at
   all. Activation is persisted (`sync/meta/enabled`), so a restart brings the
   feed back as it was instead of silently switching it off under a sibling
   still reading forward; deactivation after the stale window clears it and

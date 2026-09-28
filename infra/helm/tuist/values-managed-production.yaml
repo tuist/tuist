@@ -553,6 +553,34 @@ clickhouse:
     # second replica, where the configuration a joining replica fetches from
     # has to reach the running one first.
     replicas: 2
+    # Most of the machine, because nothing else runs on it. Each AX102-4 has
+    # 32 threads and ~108 GiB allocatable, and the `clickhouse` pool's taint
+    # keeps everything off it but Cilium and node-exporter, which request
+    # 150m and 320Mi between them.
+    #
+    # The chart's default of a 32Gi limit leaves the rest to the page cache,
+    # and on these nodes that does not happen. They run cgroup v2, which
+    # charges the file pages ClickHouse reads to ClickHouse's own cgroup, so
+    # its page cache is capped by the same limit as its heap. At 32Gi the
+    # other ~76 GiB was serving nothing.
+    #
+    # 96Gi leaves ~12 GiB of allocatable as slack. The request matches the
+    # limit, so usage never exceeds it and the pod is last in line if the node
+    # is ever under memory pressure. CPU has no limit, as before: it already
+    # could use every core, and a limit would throttle a workload this bursty.
+    # The request only weights it against the daemonsets.
+    #
+    # Changing these restarts both replicas, one at a time. Never while a
+    # backfill is running: a replica restarting under a large copy has to
+    # catch up replication inside the postStart hook's 15-minute deadline, and
+    # missing it restart-loops the pod until `helm --wait` rolls the release
+    # back.
+    resources:
+      requests:
+        cpu: "16"
+        memory: 96Gi
+      limits:
+        memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
       # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
@@ -606,8 +634,15 @@ clickhouse:
       enabled: true
       hostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
+      # The xcresult-processor VMs never got a direct path to the standalone
+      # proxy and wrote through DERP; see `tailnetIngress` in
+      # infra/helm/tailscale-operator/values-production.yaml.
+      proxyGroup: tailnet-ingress
     backup:
       enabled: true
+      # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
+      # 2026-09-27 and grows with the dataset.
+      maxMemoryUsageForUserBytes: "25769803776"
     # Step 4 for production: mirror every ClickHouse write onto the in-cluster
     # server as well as Cloud.
     #
@@ -946,48 +981,23 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
-# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
-# (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
-# merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
-# box is delivered + tagged tuist-kura-production; an enabled fleet with no
-# adoptable box hangs helm --wait.
-#
-# eu-west is a shared public region, so its capacity is the sum of its boxes
-# and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
-# ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
-# allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
-# 4096 MiB) while the 2x1 TB NVMe would hold eight.
-#
-# Every box in this fleet must be in the same datacenter: Dedibox adoption
-# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which prefix-match it. The offer is left unset, so the tag and the
-# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
-# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
-# and nothing reports why.
-#
-# Raise replicas only once each box reports `installed`. Prep is
-# `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
-# which lays down the mirrored root plus the separate XFS /data that carries the
-# per-account project quota, then tags the box into the pool.
+# Retire the evacuated public EU-West Dedibox fleet after the production DNS
+# soak and health gates in infra/kura-controller/eu-west-ovh-migration.md.
+# Release does not cancel provider billing; cancel the contracts separately.
+# The separate kuraFleet above remains the Scaleway Mac runner cache.
 dediboxFleet:
+  # Keep the reconciler and credentials until all release finalizers finish.
   enabled: true
-  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
-  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
-  replicas: 3
+  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
+  replicas: 0
   machine:
     adoptTag: tuist-kura-production
     datacenter: DC5
     os: ubuntu_24.04
-    # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
-    # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
     externalSecrets:
       item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (generated fresh into this item).
   sshExternalSecret:
     enabled: true
     item: DEDIBOX_FLEET_SSH
@@ -1090,6 +1100,23 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # Public EU West runs on these three OVH nodes after the September 28 move.
+  # Keep the historical pool name: live KuraInstances, local PVs and gateways
+  # still select it, and staging/canary have not migrated off Dedibox.
+  eu-west:
+    enabled: true
+    replicas: 3
+    endpoint: ovh-us
+    nodePool: kura-dedibox
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-west
+      offer: "ADVANCE-1 | AMD EPYC 4244P"
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
   # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
   # metered provider where an unmetered one is available.
@@ -1258,6 +1285,10 @@ ovhFleets:
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.
 macosFleet:
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-production
   replicas: 2
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh

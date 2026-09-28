@@ -61,6 +61,14 @@ const (
 	// convergeBusyBytesPerSecond caps a download that runs while a job is running
 	// on the host, so the transfer never takes the job's disk and network.
 	convergeBusyBytesPerSecond = 50 << 20
+	// convergeRefreshMaxLag / convergeRefreshMaxAge bound how stale a master a
+	// job-queued refresh leaves in place: one at most this many generations
+	// behind the HEAD and installed this recently still starts a job almost fully
+	// warm, and replacing a 20+ GiB master for a generation or two cost M2 hosts
+	// a full re-download after nearly every job of an account whose HEAD moves
+	// every couple of hours. A host holding no master always downloads.
+	convergeRefreshMaxLag = 2
+	convergeRefreshMaxAge = 12 * time.Hour
 	// convergeAlongsideJobsHeadroomBytes is the RAM a host must have beyond what
 	// it promises its guests before a download may run beside a job. Below it the
 	// guests are backed by swap and the host has nothing to give the transfer.
@@ -472,6 +480,14 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 		logger.Info("converge: host already at or past the HEAD; nothing to adopt", "local_generation", local)
 		_ = os.RemoveAll(w.Volumes.ConvergeStagingDir(key.account, key.volume))
 		return "current"
+	}
+	if local, err := w.Volumes.MasterGeneration(key.account, key.volume); err == nil && local > 0 && head.Generation-local <= convergeRefreshMaxLag {
+		if installedAt, err := w.Volumes.MasterInstalledAt(key.account, key.volume); err == nil && w.clock().Sub(installedAt) < convergeRefreshMaxAge {
+			logger.Info("converge: local master is recent enough; not refreshing it",
+				"local_generation", local, "installed_at", installedAt.UTC().Format(time.RFC3339))
+			_ = os.RemoveAll(w.Volumes.ConvergeStagingDir(key.account, key.volume))
+			return "recent"
+		}
 	}
 	if w.disproven(key, head) {
 		logger.Info("converge: this host already found this HEAD's object does not reproduce its digests; not downloading it again",

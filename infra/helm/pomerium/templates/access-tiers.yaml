@@ -402,9 +402,28 @@ subjects:
 #     MachineSet cannot recreate it, and repairing the template needs
 #     break-glass. Update/patch only — create/delete would change which template
 #     a fleet renders from, which is fleet management.
+#   * ovhdedicatedmachines patch — backfill a live Machine's egressBudgetMbps
+#     when its OnDelete fleet template has the budget but the existing clone
+#     does not. The provider then advertises the Node's egress resource without
+#     recreating the host. No template, /status, update, create or delete grant.
+#     RBAC cannot limit patch to a field: this also permits other spec/metadata
+#     patches on OVH Machines in this cluster. Treat it as host recovery and
+#     scope the actual patch to the diagnosed field; fleet configuration still
+#     goes through a reviewed chart change. Like the other recovery verbs,
+#     this is standing access in staging and JIT-only in canary/production.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
+#   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
+#     tuist.dev/os-update, tuist.dev/os-reinstall and tuist.dev/power-action
+#     annotations. Not /status: a rack host's quarantine clears by expiring.
+#   * racklinuxhosts update/patch — raise a rack Linux host's
+#     reinstallGeneration, which reinstalls it, set its online field or the
+#     tuist.dev/reboot annotation, and correct its bootMAC. delete — retire a
+#     host the chart no longer declares: the chart keeps a RackLinuxHost it
+#     drops (helm.sh/resource-policy: keep), so without it a retired box's
+#     inventory and Machine stay behind. No create: which boxes a rack has is
+#     the chart's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -424,6 +443,15 @@ rules:
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["ovhdedicatedmachines"]
+    verbs: ["patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackapplesiliconmachines", "rackhosts"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["racklinuxhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]

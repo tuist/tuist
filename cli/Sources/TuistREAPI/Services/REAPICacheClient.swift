@@ -220,6 +220,17 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
     }
 
+    /// The message a cache node refused the account with for billing reasons, such as an exhausted free tier or
+    /// a failed subscription payment. gRPC has no status for payment required, so the node marks the permission
+    /// denial with a `tuist-refusal-reason` metadata entry. `nil` for every other error.
+    public static func billingRefusalMessage(of error: Error) -> String? {
+        guard let error = error as? RPCError, error.code == .permissionDenied,
+              error.metadata[stringValues: "tuist-refusal-reason"].contains(where: { $0 == "payment_required" }),
+              !error.message.isEmpty
+        else { return nil }
+        return error.message
+    }
+
     public func validateCapabilities() async throws {
         var options = options
         options.timeout = .seconds(10)
@@ -281,13 +292,17 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func uploadBlobs(_ blobs: [REAPI.Digest: URL]) async throws {
-        guard try await uploadAvailableBlobs(blobs).count == blobs.count else { throw REAPICacheError.corruptBlob }
+        let upload = try await uploadAvailableBlobs(blobs)
+        guard upload.available.count == blobs.count else {
+            throw REAPICacheError.uploadFailed(reason: upload.failures.values.sorted().first ?? "no reason was reported")
+        }
     }
 
-    public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+    public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
+        let failures = Mutex<[REAPI.Digest: String]>([:])
         // Missing-blob requests contain only digests, so batch by metadata count, not file size.
         let digests = Array(blobs.keys)
         let queries = stride(from: 0, to: digests.count, by: 1024).map {
@@ -295,25 +310,41 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
         let missingBlobs = Mutex<Set<REAPI.Digest>>([])
         let existing = try await transfer(queries) { batch in
-            let response = try await self.retry {
-                try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: self.client)
-                    .findMissingBlobs(.with {
-                        $0.instanceName = self.instanceName; $0.blobDigests = batch; $0.digestFunction = .sha256
-                    }, metadata: try await self.metadata(), options: self.options)
+            do {
+                let response = try await self.retry {
+                    try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: self.client)
+                        .findMissingBlobs(.with {
+                            $0.instanceName = self.instanceName; $0.blobDigests = batch; $0.digestFunction = .sha256
+                        }, metadata: try await self.metadata(), options: self.options)
+                }
+                let missing = Set(response.missingBlobDigests)
+                guard missing.isSubset(of: Set(batch)) else { throw REAPICacheError.invalidDigest }
+                missingBlobs.withLock { $0.formUnion(missing) }
+                return Set(batch).subtracting(missing)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                let reason = REAPICall.findMissingBlobs.describeFailure(error)
+                failures.withLock { $0.merge(batch.map { ($0, reason) }) { _, reason in reason } }
+                return []
             }
-            let missing = Set(response.missingBlobDigests)
-            guard missing.isSubset(of: Set(batch)) else { throw REAPICacheError.invalidDigest }
-            missingBlobs.withLock { $0.formUnion(missing) }
-            return Set(batch).subtracting(missing)
         }
         let uploaded = try await transfer(batches(missingBlobs.withLock { Array($0) })) { batch in
             var successful = Set<REAPI.Digest>()
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
-                try await self.retry { try await self.uploadBlob(digest, from: blobs[digest]!) }
-                successful.insert(digest)
+                do {
+                    try await self.retry { try await self.uploadBlob(digest, from: blobs[digest]!) }
+                    successful.insert(digest)
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    let reason = REAPICall.byteStreamWrite.describeFailure(error)
+                    failures.withLock { $0[digest] = reason }
+                }
             } else {
+                var rejections: [REAPI.Digest: String] = [:]
+                var batchFailure: String?
                 do {
                     try await self.retry(retryingDeadlineExceeded: false) {
+                        rejections = [:]
                         let pending = Set(batch).subtracting(successful)
                         var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
                         for digest in pending {
@@ -340,17 +371,33 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         successful
                             .formUnion(result.responses.filter { $0.status.code == 0 && pending.contains($0.digest) }
                                 .map(\.digest))
+                        for response in result.responses where response.status.code != 0 && pending.contains(response.digest) {
+                            rejections[response.digest] = "\(REAPICall.batchUpdateBlobs.rawValue) rejected the blob "
+                                + "with status \(response.status.code): \(response.status.message)"
+                        }
                         if result.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
                             throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
                         }
                     }
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
+                    batchFailure = REAPICall.batchUpdateBlobs.describeFailure(error)
+                }
+                let rejected = Set(batch).subtracting(successful)
+                failures.withLock {
+                    for digest in rejected {
+                        $0[digest] = rejections[digest] ?? batchFailure
+                            ?? "\(REAPICall.batchUpdateBlobs.rawValue) returned no status for the blob"
+                    }
                 }
             }
             return successful
         }
-        return existing.union(uploaded)
+        let available = existing.union(uploaded)
+        return REAPIBlobUpload(
+            available: available,
+            failures: failures.withLock { $0 }.filter { !available.contains($0.key) }
+        )
     }
 
     public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {

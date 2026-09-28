@@ -1,5 +1,6 @@
 defmodule Atlas.MCP.Transport.StreamableHTTPTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import Plug.Conn
   import Plug.Test
@@ -38,6 +39,21 @@ defmodule Atlas.MCP.Transport.StreamableHTTPTest do
              "id" => 2,
              "result" => %{}
            }
+  end
+
+  # The proxy sends Atlas' identity upstream only for this interface, so the
+  # transport has to name it rather than leave it to the audit default.
+  test "marks requests as coming from the MCP interface" do
+    {session_id, _body} = initialize_session()
+
+    expect(Server, :handle_message, fn conn, request ->
+      assert conn.assigns.audit_interface == "mcp"
+      call_original(Server, :handle_message, [conn, request])
+    end)
+
+    conn = json_post(%{"jsonrpc" => "2.0", "id" => 2, "method" => "ping"}, [{"mcp-session-id", session_id}])
+
+    assert conn.status == 200
   end
 
   test "returns request responses inline when the session has a stale event stream registration" do

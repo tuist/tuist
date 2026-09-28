@@ -216,7 +216,57 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
-      assert got == %{accounts: [], projects: [], payment_required: [user.account.name]}
+      assert got == %{accounts: [], projects: [], payment_required: [user.account.name], payment_failed: []}
+    end
+
+    # A node answers both with a payment refusal, but only this one tells the
+    # caller that the fix is paying the open invoice rather than upgrading.
+    test "names the blocked accounts whose subscription payment failed" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "unpaid")
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      handles = Cache.accessible_handles(user)
+      {:ok, _token, claims} = Cache.issue_cache_token(user)
+
+      # Then
+      assert handles.payment_required == [user.account.name]
+      assert handles.payment_failed == [user.account.name]
+      assert claims["cache_payment_failed"] == [user.account.name]
+    end
+
+    test "keeps granting an account whose renewal payment is being retried" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 10,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "past_due")
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      got = Cache.accessible_handles(user)
+
+      # Then
+      assert got == %{
+               accounts: [user.account.name],
+               projects: ["#{user.account.name}/#{project.name}"],
+               payment_required: [],
+               payment_failed: []
+             }
     end
 
     # Absence from the grants alone cannot be told apart from never having had

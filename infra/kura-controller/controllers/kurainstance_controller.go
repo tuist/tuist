@@ -510,9 +510,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	seedCPURequest(instance, pods)
-	r.observeCPUUsage(ctx, instance, pods)
-	applyScheduleCap(instance, pods, time.Now())
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
+	r.observeSteadyCPUUsage(ctx, instance, pods, samples)
+	applyScheduleCap(instance, pods, time.Now())
 	primaryPod, evacuating, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
 		return ctrl.Result{}, err

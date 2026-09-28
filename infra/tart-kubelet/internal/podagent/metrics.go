@@ -201,7 +201,8 @@ var cacheVolumeConvergedTotal = prometheus.NewCounter(
 // cacheVolumeConvergeTotal counts the converge worker's attempts by what queued
 // them and how they ended. source is "job" (a job for the volume ran here and
 // relayed its HEAD) or "prefetch" (the server listed it for this host's fleet).
-// result is "converged", "current" (nothing to adopt), "yielded" (a job landed
+// result is "converged", "current" (nothing to adopt), "recent" (a resident
+// master close enough to the HEAD is left in place), "yielded" (a job landed
 // and the download paused), "too_large" (larger than the volume can keep),
 // "no_room" (no space without evicting what it may not), "unverifiable" (the
 // object does not reproduce the HEAD's digest), "expired" (queued past its

@@ -82,11 +82,15 @@ defmodule Tuist.Billing.AirUsageNotifications do
     date.year == now.year and date.month == now.month
   end
 
-  defp recipients(%Account{organization_id: nil} = account) do
+  @doc """
+  The users billing notices about `account` go to: the owner of a personal
+  account, or the admins of an organization.
+  """
+  def recipients(%Account{organization_id: nil} = account) do
     [Repo.preload(account, :user).user]
   end
 
-  defp recipients(account) do
+  def recipients(account) do
     account |> Repo.preload(:organization) |> Map.fetch!(:organization) |> Accounts.get_organization_members(:admin)
   end
 

@@ -637,7 +637,7 @@ msgid "Dashboard"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:553
-#: lib/tuist_web/live/ops_accounts_live.ex:18
+#: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -679,7 +679,7 @@ msgstr ""
 msgid "Account not found."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_helpers.ex:40
+#: lib/tuist_web/live/ops_account_helpers.ex:41
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr ""
@@ -762,7 +762,7 @@ msgstr ""
 msgid "Cancel plan"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_helpers.ex:42
+#: lib/tuist_web/live/ops_account_helpers.ex:44
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
@@ -1196,7 +1196,7 @@ msgstr ""
 msgid "Thailand"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_helpers.ex:41
+#: lib/tuist_web/live/ops_account_helpers.ex:42
 #, elixir-autogen, elixir-format
 msgid "Trialing"
 msgstr ""
@@ -2891,6 +2891,11 @@ msgstr ""
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
 msgstr ""
 
+#: lib/tuist_web/live/ops_account_helpers.ex:43
+#, elixir-autogen, elixir-format
+msgid "Past due"
+msgstr ""
+
 #: lib/tuist_web/components/oidc_scope_rules.ex:202
 #, elixir-autogen, elixir-format
 msgid " and "
@@ -2937,6 +2942,21 @@ msgstr ""
 msgid "Command runs"
 msgstr ""
 
+#: lib/tuist_web/components/oidc_scope_rules.ex:115
+#, elixir-autogen, elixir-format
+msgid "Deployment environment names, e.g. production or staging-*."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:96
+#, elixir-autogen, elixir-format
+msgid "E.g. org/repo/.github/workflows/release.yml@refs/heads/main. End with @** to allow the workflow from any ref."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:77
+#, elixir-autogen, elixir-format
+msgid "E.g. refs/heads/main or refs/tags/v*. * matches within one path segment; refs/heads/release/** matches every branch under release/."
+msgstr ""
+
 #: lib/tuist_web/components/oidc_scope_rules.ex:37
 #: lib/tuist_web/components/oidc_scope_rules.ex:105
 #, elixir-autogen, elixir-format
@@ -2956,6 +2976,11 @@ msgstr ""
 #: lib/tuist_web/components/oidc_scope_rules.ex:191
 #, elixir-autogen, elixir-format
 msgid "OIDC tokens from CircleCI or Bitrise lose write access for every permission that has a rule. Reads keep working."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:57
+#, elixir-autogen, elixir-format
+msgid "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas."
 msgstr ""
 
 #: lib/tuist_web/components/oidc_scope_rules.ex:28
@@ -2991,24 +3016,4 @@ msgstr ""
 #: lib/tuist_web/components/oidc_scope_rules.ex:175
 #, elixir-autogen, elixir-format
 msgid "This %{subject} received OIDC tokens from %{providers} in the last 30 days. Rules only match GitHub Actions tokens, so those runs lose write access for every permission that has a rule. Reads keep working."
-msgstr ""
-
-#: lib/tuist_web/components/oidc_scope_rules.ex:115
-#, elixir-autogen, elixir-format
-msgid "Deployment environment names, e.g. production or staging-*."
-msgstr ""
-
-#: lib/tuist_web/components/oidc_scope_rules.ex:96
-#, elixir-autogen, elixir-format
-msgid "E.g. org/repo/.github/workflows/release.yml@refs/heads/main. End with @** to allow the workflow from any ref."
-msgstr ""
-
-#: lib/tuist_web/components/oidc_scope_rules.ex:77
-#, elixir-autogen, elixir-format
-msgid "E.g. refs/heads/main or refs/tags/v*. * matches within one path segment; refs/heads/release/** matches every branch under release/."
-msgstr ""
-
-#: lib/tuist_web/components/oidc_scope_rules.ex:57
-#, elixir-autogen, elixir-format
-msgid "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas."
 msgstr ""

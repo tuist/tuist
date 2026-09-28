@@ -169,7 +169,8 @@ impl MemoryPools {
             MIN_REAPI_RESPONSE_BUDGET_BYTES as u64,
             MAX_REAPI_RESPONSE_BUDGET_BYTES as u64,
         ) as usize;
-        let normal_budget = normal_budget.min(self.reapi_materialization_limit_bytes);
+        // Response materialization is charged at twice the content bytes.
+        let normal_budget = normal_budget.min(self.reapi_materialization_limit_bytes / 2);
         match pressure {
             MemoryPressure::Normal => normal_budget,
             MemoryPressure::Constrained => normal_budget / 2,

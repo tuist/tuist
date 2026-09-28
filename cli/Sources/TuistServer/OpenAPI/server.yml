@@ -6203,6 +6203,15 @@ components:
           type: array
           x-struct:
           x-validate:
+        payment_failed:
+          description: The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         payment_required:
           description: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
           items:
@@ -23507,6 +23516,15 @@ paths:
                 description: Account-scoped and project-scoped cache access handles
                 properties:
                   accounts:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  payment_failed:
+                    description: The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
                     items:
                       type: string
                       x-struct:

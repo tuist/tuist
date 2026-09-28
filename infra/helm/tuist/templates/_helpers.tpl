@@ -132,6 +132,10 @@ green-field cluster.
 {{- .Values.rackFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-fleet")) -}}
 {{- end -}}
 
+{{- define "tuist.rackLinuxFleetName" -}}
+{{- .Values.rackLinuxFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-linux")) -}}
+{{- end -}}
+
 {{- define "tuist.buildersFleetName" -}}
 {{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
 {{- end -}}
@@ -1034,7 +1038,37 @@ profile change reaches the server only through a restart.
       <replication_alter_partitions_sync>0</replication_alter_partitions_sync>
       <max_table_size_to_drop>1000000000000</max_table_size_to_drop>
       <max_partition_size_to_drop>1000000000000</max_partition_size_to_drop>
+
+      <!--
+        Inserts write on several threads and feed materialized views in
+        parallel, as Cloud's default profile has them (26.4 reports
+        `parallel_view_processing = true` and `max_insert_threads = 4`).
+        The open-source defaults are one thread and one view at a time, and
+        `test_case_runs` feeds about twenty views: production's backfill
+        copied it at 31 to 55 thousand rows a second on one core of 30,
+        against 300 to 800 thousand for tables without views. The same
+        default governs the application's own buffer flushes once this
+        server is the system of record.
+      -->
+      <parallel_view_processing>1</parallel_view_processing>
+      <max_insert_threads>4</max_insert_threads>
     </default>
+
+    <!--
+      The backup CronJobs' own user, so a backup is bounded by its own
+      budget rather than the application's. ClickHouse enforces
+      `max_memory_usage_for_user` on one tracker per user, and the
+      application sets that tracker's ceiling on every query it sends. A
+      backup running as `default` therefore shares the application's
+      budget, which production's nightly incremental outgrew at 10 GiB
+      against 8.
+    -->
+    <backup>
+      <profile>default</profile>
+{{- with .backup.maxMemoryUsageForUserBytes }}
+      <max_memory_usage_for_user>{{ . }}</max_memory_usage_for_user>
+{{- end }}
+    </backup>
   </profiles>
   <users>
     <default>
@@ -1046,6 +1080,14 @@ profile change reaches the server only through a restart.
       <quota>default</quota>
       <access_management>1</access_management>
     </default>
+    <backup>
+      <password>{{ .password }}</password>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+      <profile>backup</profile>
+      <quota>default</quota>
+    </backup>
   </users>
 </clickhouse>
 {{- end }}
