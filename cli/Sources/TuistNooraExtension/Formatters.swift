@@ -1,13 +1,6 @@
 import Foundation
 
 public enum Formatters {
-    private static let byteCountFormatter: ByteCountFormatter = {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useAll]
-        formatter.countStyle = .file
-        return formatter
-    }()
-
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -16,7 +9,11 @@ public enum Formatters {
     }()
 
     public static func formatBytes(_ bytes: Int) -> String {
-        byteCountFormatter.string(fromByteCount: Int64(bytes))
+        // ByteCountFormatter mutates its internal NumberFormatter on every call on Linux, so it cannot be shared across threads.
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useAll]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 
     public static func formatDate(_ date: Date) -> String {
