@@ -1085,8 +1085,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
       assert ClaimSizing.evaluate(retention_context(current_claim_size: "16Gi", rollups: rollups)) == :none
 
+      assert {:shrink, "16Gi", _evidence} =
+               ClaimSizing.evaluate(retention_context(plan: :pro, current_claim_size: "20Gi", rollups: rollups))
+
       assert {:shrink, "8Gi", _evidence} =
-               ClaimSizing.evaluate(retention_context(plan: :pro, current_claim_size: "12Gi", rollups: rollups))
+               ClaimSizing.evaluate(retention_context(plan: :air, current_claim_size: "12Gi", rollups: rollups))
     end
 
     test "a day under three floors of retention breaks the window" do
