@@ -158,6 +158,9 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    # LiveView an operator opened under a grant (socket navigations have no
+    # request line of their own)
+    :live_view,
     # Operator reads through Atlas without a grant: who, and which customer
     # account a read used it for.
     :atlas_operator_email,

@@ -568,6 +568,69 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
     end
   end
 
+  describe "on_mount(:load, ...)" do
+    setup do
+      # The test logger level is :warning; the page view is an :info line.
+      Logger.put_module_level(OperatorGrant, :info)
+      on_exit(fn -> Logger.delete_module_level(OperatorGrant) end)
+
+      operator = operator_user()
+
+      grant = %{
+        tier: :read,
+        account_id: 1,
+        account_handle: "acme",
+        sub: operator.email,
+        jti: "grant-9",
+        exp: System.system_time(:second) + 600
+      }
+
+      {:ok, operator: operator, session: %{"operator_grants" => %{"acme" => grant}}}
+    end
+
+    defp live_socket(operator, transport_pid) do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, current_user: operator},
+        transport_pid: transport_pid,
+        view: TuistWeb.ProjectsLive
+      }
+    end
+
+    test "logs a page view when a connected LiveView mounts under a grant", %{operator: operator, session: session} do
+      log =
+        capture_log([level: :info], fn ->
+          assert {:cont, socket} =
+                   OperatorGrant.on_mount(:load, %{"account_handle" => "acme"}, session, live_socket(operator, self()))
+
+          assert socket.assigns.current_user.operator_grant.jti == "grant-9"
+        end)
+
+      assert log =~ "Operator grant page view"
+      assert log =~ "TuistWeb.ProjectsLive"
+    end
+
+    test "logs nothing on the disconnected mount, which is the logged HTTP request", %{
+      operator: operator,
+      session: session
+    } do
+      log =
+        capture_log([level: :info], fn ->
+          OperatorGrant.on_mount(:load, %{"account_handle" => "acme"}, session, live_socket(operator, nil))
+        end)
+
+      refute log =~ "Operator grant page view"
+    end
+
+    test "logs nothing without a grant for the account", %{operator: operator, session: session} do
+      log =
+        capture_log([level: :info], fn ->
+          OperatorGrant.on_mount(:load, %{"account_handle" => "other"}, session, live_socket(operator, self()))
+        end)
+
+      refute log =~ "Operator grant page view"
+    end
+  end
+
   defp operator_user do
     user =
       AccountsFixtures.user_fixture(

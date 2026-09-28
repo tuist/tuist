@@ -511,12 +511,27 @@ defmodule TuistWeb.OperatorGrant do
     socket =
       if match?(%User{}, current_user) and is_binary(account_handle) and is_map(claims) do
         log_grant_context(claims)
+        log_live_grant_view(socket, params)
         Phoenix.Component.assign(socket, :current_user, %{current_user | operator_grant: claims})
       else
         socket
       end
 
     {:cont, socket}
+  end
+
+  # Navigating between dashboard pages happens over the LiveView socket, which
+  # never produces a request line, so without this only the first page an
+  # operator opened under a grant would be recorded. The disconnected mount is
+  # the HTTP request, already logged.
+  defp log_live_grant_view(socket, params) do
+    if Phoenix.LiveView.connected?(socket) do
+      Logger.info("Operator grant page view",
+        live_view: inspect(socket.view),
+        selected_account_handle: params["account_handle"],
+        selected_project_handle: params["project_handle"]
+      )
+    end
   end
 
   @doc """
