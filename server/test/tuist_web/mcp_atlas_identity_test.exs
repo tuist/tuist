@@ -41,7 +41,12 @@ defmodule TuistWeb.MCPAtlasIdentityTest do
     token
   end
 
+  # Mirrors `Atlas.MCP.Proxy.with_session/3`: initialize, notifications/initialized,
+  # then the call, on separate connections, forwarding `mcp-session-id` only when
+  # the server returns one.
   defp get_project(conn, token, project, headers) do
+    headers = [{"mcp-protocol-version", "2025-03-26"} | headers]
+
     init_conn =
       conn
       |> mcp_conn(token, headers)
@@ -50,29 +55,42 @@ defmodule TuistWeb.MCPAtlasIdentityTest do
         "id" => 1,
         "method" => "initialize",
         "params" => %{
-          "protocolVersion" => "2025-06-18",
+          "protocolVersion" => "2025-03-26",
           "capabilities" => %{},
-          "clientInfo" => %{"name" => "test", "version" => "0.1.0"}
+          "clientInfo" => %{"name" => "atlas", "version" => "0.1.0"}
         }
       })
 
-    case get_resp_header(init_conn, "mcp-session-id") do
-      [session_id] ->
-        build_conn()
-        |> mcp_conn(token, [{"mcp-session-id", session_id} | headers])
-        |> post("/mcp", %{
-          "jsonrpc" => "2.0",
-          "id" => 2,
-          "method" => "tools/call",
-          "params" => %{
-            "name" => "get_project",
-            "arguments" => %{"account_handle" => project.account.name, "project_handle" => project.name}
-          }
-        })
+    if init_conn.status == 200, do: call_after_initialize(init_conn, token, project, headers), else: init_conn
+  end
 
-      [] ->
-        init_conn
-    end
+  defp call_after_initialize(init_conn, token, project, headers) do
+    assert %{"protocolVersion" => "2025-03-26"} = tool_result(init_conn)
+
+    headers =
+      case get_resp_header(init_conn, "mcp-session-id") do
+        [session_id] -> [{"mcp-session-id", session_id} | headers]
+        [] -> headers
+      end
+
+    initialized_conn =
+      build_conn()
+      |> mcp_conn(token, headers)
+      |> post("/mcp", %{"jsonrpc" => "2.0", "method" => "notifications/initialized"})
+
+    assert initialized_conn.status in 200..299
+
+    build_conn()
+    |> mcp_conn(token, headers)
+    |> post("/mcp", %{
+      "jsonrpc" => "2.0",
+      "id" => 2,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "get_project",
+        "arguments" => %{"account_handle" => project.account.name, "project_handle" => project.name}
+      }
+    })
   end
 
   defp mcp_conn(conn, token, headers) do
