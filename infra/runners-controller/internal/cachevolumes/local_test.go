@@ -390,3 +390,82 @@ func TestRestoreDeadlineCancelsFormatting(t *testing.T) {
 		t.Fatal("left partial format", err)
 	}
 }
+
+func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
+	b, remote := newLocal(t)
+	var observations []Observation
+	b.Observe = func(o Observation) { observations = append(observations, o) }
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(slot, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	masters, _ := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img"))
+	if len(masters) != 1 {
+		t.Fatal(masters)
+	}
+	slot.ID = second
+	slot.BaseGeneration = 1
+	slot.ContentDigest = strings.TrimSuffix(strings.SplitN(filepath.Base(masters[0]), "-", 2)[1], ".img")
+	remote.source = filepath.Join(t.TempDir(), "remote")
+	if err := os.WriteFile(remote.source, []byte("remote contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(masters[0]); err != nil {
+		t.Fatal(err)
+	}
+	slot.ID = third
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	var sources []string
+	for _, o := range observations {
+		if o.Operation == "attach" {
+			sources = append(sources, o.Source)
+			if o.Err != nil {
+				t.Fatal(o.Err)
+			}
+		}
+	}
+	if strings.Join(sources, ",") != "empty,local,remote" {
+		t.Fatal(sources)
+	}
+}
+
+func TestPrefetchOnlyInstallsMasterAndNextJobReusesIt(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodName: "job", PodUID: "pod"}
+	slot.BaseGeneration = 1
+	slot.ContentDigest = strings.Repeat("b", 64)
+	slot.ImageDigest = strings.Repeat("c", 40)
+	remote.source = filepath.Join(t.TempDir(), "published")
+	if err := os.WriteFile(remote.source, []byte("saved contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(b.image(slot)); !os.IsNotExist(err) {
+		t.Fatal("prefetch created a private image", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("prefetch published")
+	}
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if remote.downloads != 1 {
+		t.Fatal("did not reuse prefetched master", remote.downloads)
+	}
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
+	if remote.downloads != 1 {
+		t.Fatal("redownloaded existing master")
+	}
+}

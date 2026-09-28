@@ -5,11 +5,15 @@ package cachevolumes
 import (
 	"context"
 	"errors"
+	"fmt"
 	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 type diskTransfer struct {
@@ -203,5 +207,138 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 	out, err := exec.Command("debugfs", "-R", "cat payload", restored).Output()
 	if err != nil || string(out) != "saved contents" {
 		t.Fatal("prior master damaged", string(out), err)
+	}
+}
+
+type slowDiskTransfer struct {
+	*diskTransfer
+	delay time.Duration
+}
+
+func (d *slowDiskTransfer) Download(ctx context.Context, slot Slot, path string) error {
+	select {
+	case <-time.After(d.delay):
+		return d.diskTransfer.Download(ctx, slot, path)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires isolated reflink filesystem and loop/mount privileges")
+	}
+	root, err := os.MkdirTemp(cache, "recovery-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	remote := &diskTransfer{archive: filepath.Join(t.TempDir(), "remote.image")}
+	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+	if err := b.Probe(); err != nil {
+		t.Fatal(err)
+	}
+	seed := Slot{Identity: identity(first), PodName: "seed", PodUID: "seed"}
+	path := filepath.Join(root, "seed")
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Attach(context.Background(), seed, path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "sentinel"), []byte("published"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(seed, path); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Delete(seed, path); err != nil {
+		t.Fatal(err)
+	}
+	warm := seed
+	warm.ID = second
+	warm.BaseGeneration = remote.generation
+	warm.ContentDigest = remote.content
+	warm.ImageDigest = strings.Repeat("a", 40)
+	if err := os.Remove(b.master(warm)); err != nil {
+		t.Fatal(err)
+	}
+	b.Transfer = &slowDiskTransfer{remote, 100 * time.Millisecond}
+	store, err := Open(root, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	_, err = store.Acquire(ctx, warm.Identity, "timed-out", "timed-out")
+	cancel()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("restore did not time out", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(root, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	slots, err := store.slots()
+	if err != nil || len(slots) != 1 || slots[0].State != "allocated" {
+		t.Fatal("restart lost incomplete journal", slots, err)
+	}
+	if err := b.Prefetch(context.Background(), warm); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(b.image(warm)); !os.IsNotExist(err) {
+		t.Fatal("prefetch created private image", err)
+	}
+	var group sync.WaitGroup
+	for i := 3; i < 6; i++ {
+		group.Add(1)
+		go func(i int) {
+			defer group.Done()
+			x := warm
+			x.ID = fmt.Sprintf("00000000-0000-0000-0000-%012d", i)
+			x.PodName = fmt.Sprintf("job-%d", i)
+			x.PodUID = x.PodName
+			hit, err := store.Acquire(context.Background(), x.Identity, x.PodName, x.PodUID)
+			if err != nil || !hit {
+				t.Errorf("warm clone: %t %v", hit, err)
+				return
+			}
+			path := store.activePath(x)
+			data, err := os.ReadFile(filepath.Join(path, "sentinel"))
+			if err != nil || string(data) != "published" {
+				t.Errorf("restored sentinel: %s %v", data, err)
+			}
+			if err := os.WriteFile(filepath.Join(path, "sentinel"), []byte(x.PodName), 0644); err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	group.Wait()
+	slots, err = store.slots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, slot := range slots {
+		if slot.State == "active" {
+			data, err := os.ReadFile(filepath.Join(store.activePath(slot), "sentinel"))
+			if err != nil || string(data) != slot.PodName {
+				t.Error("clones share writable contents", string(data), err)
+			}
+		}
+	}
+	if err := store.Reconcile(func(string, string) (bool, error) { return true, nil }, func(Slot, bool) (string, error) { return "delete", nil }); err != nil {
+		t.Fatal(err)
+	}
+	slots, err = store.slots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, slot := range slots {
+		if slot.State != "deleted" {
+			t.Fatal("failed to reclaim", slot)
+		}
 	}
 }

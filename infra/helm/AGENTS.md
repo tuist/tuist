@@ -86,3 +86,6 @@ This node covers Helm assets under `infra/helm/`.
   agent image from the matching controller release through normal deployment.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
+- Cache-volume agents expose phase/source/result telemetry on a separate port
+  9091. Allow scraping only from `observability`, retain the series in staging,
+  and keep runner acquisition on 8090 under its existing pod selector.
