@@ -100,6 +100,24 @@ async fn request_page(
     Ok(page)
 }
 
+/// The `version_ms` a page cursor sits at: every row the ascending read
+/// scanned up to it has been listed and applied (foreign rows included,
+/// which never move the watermark).
+fn cursor_version_ms(after: &str) -> Option<u64> {
+    let key = hex::decode(after).ok()?;
+    let bytes = key.strip_prefix(crate::utils::BACKFILL_IDX_PREFIX.as_bytes())?;
+    let inverted: [u8; 8] = bytes.get(..8)?.try_into().ok()?;
+    Some(!u64::from_be_bytes(inverted))
+}
+
+/// Replication lag in origin version time (seconds): how far the newest
+/// record the remote gateway could list sits above the newest one this node
+/// has applied. Zero when caught up, and — unlike the watermark's age —
+/// zero while the remote region is simply idle.
+fn replication_lag_seconds(newest_version_ms: u64, applied_through_ms: u64) -> u64 {
+    newest_version_ms.saturating_sub(applied_through_ms) / 1000
+}
+
 /// The watermark to read from: the persisted one, else the highest legacy
 /// `backfill/wm/` row among the region's nodes (implementation decision
 /// D-4), else nothing.
@@ -127,7 +145,7 @@ async fn backward_pass(
     region: &str,
     cancel: &CancellationToken,
     status: &LinkStatusCell,
-) -> Result<(), String> {
+) -> Result<Option<u64>, String> {
     status.update(|status| status.phase = LinkPhase::Bootstrapping);
     let started = Instant::now();
     let probe = request_page(app, peer, region, 0, None, false).await?;
@@ -137,6 +155,10 @@ async fn backward_pass(
         app.metrics.set_peer_clock_skew(peer, skew / 1000);
     }
     let watermark = seed_watermark(app, region)?;
+    if let (Some(newest), Some(watermark)) = (probe.newest_version_ms, watermark) {
+        app.metrics
+            .set_region_replication_lag(region, replication_lag_seconds(newest, watermark));
+    }
     let buffered =
         watermark.map(|watermark| watermark.saturating_sub(app.config.sync_pass_start_buffer_ms));
     let window = compute_window(
@@ -174,7 +196,10 @@ async fn backward_pass(
             )
             .await?;
     }
-    Ok(())
+    // The pass listed the peer's whole index down to the window, so for the
+    // lag gauge everything the peer held at the probe is applied, even though
+    // the watermark is held back by the in-flight buffer.
+    Ok(peer_now)
 }
 
 pub async fn run(
@@ -185,21 +210,21 @@ pub async fn run(
     status: Arc<LinkStatusCell>,
     pass_failures: Arc<AtomicU32>,
 ) {
-    loop {
+    let covered_through_ms = loop {
         let outcome = tokio::select! {
             biased;
             _ = cancel.cancelled() => return,
             outcome = backward_pass(&app, &peer, &region, &cancel, &status) => outcome,
         };
         match outcome {
-            Ok(()) => {
+            Ok(covered) => {
                 pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
                     status.unsupported = false;
                     status.last_success = Some(Instant::now());
                 });
-                break;
+                break covered.unwrap_or_default();
             }
             Err(error) => {
                 if error == "cancelled" {
@@ -245,7 +270,7 @@ pub async fn run(
                 }
             }
         }
-    }
+    };
 
     status.update(|status| status.phase = LinkPhase::Forward);
     let mut after: Option<String> = None;
@@ -326,6 +351,7 @@ pub async fn run(
             .collect();
         let listed = entries.len() as u64;
         let highest = entries.iter().map(|entry| entry.version_ms).max();
+        let caught_up = page.entries.is_empty() && page.next_after.is_none();
         if !entries.is_empty() {
             let outcome = tokio::select! {
                 biased;
@@ -368,5 +394,46 @@ pub async fn run(
         if page.next_after.is_some() {
             after = page.next_after;
         }
+        if caught_up {
+            app.metrics.set_region_replication_lag(&region, 0);
+        } else if let Some(newest) = page.newest_version_ms {
+            let applied_through_ms = [
+                app.store.sync_watermark(&region).ok().flatten(),
+                after.as_deref().and_then(cursor_version_ms),
+                Some(covered_through_ms),
+            ]
+            .into_iter()
+            .flatten()
+            .max()
+            .unwrap_or_default();
+            app.metrics.set_region_replication_lag(
+                &region,
+                replication_lag_seconds(newest, applied_through_ms),
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::{BackfillRecordKind, backfill_index_key};
+
+    #[test]
+    fn a_page_cursor_decodes_to_its_version() {
+        let key = backfill_index_key(1_790_561_600_474, BackfillRecordKind::SegmentArtifact, "a");
+        assert_eq!(
+            cursor_version_ms(&hex::encode(key)),
+            Some(1_790_561_600_474)
+        );
+        assert_eq!(cursor_version_ms("not hex"), None);
+        assert_eq!(cursor_version_ms(&hex::encode(b"other/prefix")), None);
+    }
+
+    #[test]
+    fn lag_is_zero_at_or_past_the_newest_version() {
+        assert_eq!(replication_lag_seconds(10_000, 10_000), 0);
+        assert_eq!(replication_lag_seconds(10_000, 20_000), 0);
+        assert_eq!(replication_lag_seconds(310_000, 10_000), 300);
     }
 }

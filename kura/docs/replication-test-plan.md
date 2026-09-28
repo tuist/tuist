@@ -70,6 +70,7 @@ the same `A-n` tag):
 | A-35 | Self-hosted peer views do not expose managed pod roles | a self-hosted credential receives an empty `peer_roles` list even when the account has stored internal pod roles; the managed credential still receives them |
 | A-36 | Endpoint permission skew holds evacuation | a forbidden core Endpoints read returns “not served” without an error, so the controller retains the pod until its chart permissions catch up |
 | A-37 | Slow regional role reads do not serialize a tick | two blocked peer-role observations both start before either is released, under the reconciler's bounded worker group |
+| A-38 | The region link reports replication lag, not watermark age (D-37) | the ascending read carries `newest_version_ms` (origin-filtered, at or below the bound, foreign rows stepped over, none past the scan cap) only while it is not caught up; a region link held at its bodies fetch reports the gap from its watermark to the source's newest version, then zero once caught up while `kura_region_watermark_age_seconds` keeps ageing with the idle source |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 
@@ -93,6 +94,7 @@ cd kura && mise exec -- shellspec spec/e2e/discovery_spec.sh spec/e2e/backfill_s
 | B-9 | region of one + 2-replica region | co-located instance | region of one pulls from the gateway; no feed on the region of one |
 | B-10 | serverless 3 nodes, 2 regions, no server | roles derived locally | exactly one gateway per region in `/status/cluster` |
 | B-11 | 2 nodes, 1 region, one-way membership (d2 lists d1, d1 lists nobody) | §11.2 under the runner-region shape | a write on d1 reaches d2 by pull; d1 opens no link and nothing pushes to it, so d2's write reaches it only through the rest of a mesh it can see |
+| B-12 | 2 regions × 2 replicas, region 2 on the 5-segment floor ring, filled and evicting (`docker-compose.sync-restart.yml`, opt-in `KURA_E2E_SYNC_RESTART=1`) | region 1 writes a record every 100 ms and an 8 MiB module every second; region 2 restarts in place replica by replica, then goes down whole for 60 s | region 2's copy of region 1 is current again within seconds of each recovery; nothing written across either disruption is missing; no capacity skips; the lag gauge rises during the outage's catch-up and returns to zero (D-37) |
 
 ## Ring C — k01 clusters (tens of minutes per setup)
 

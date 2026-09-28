@@ -1222,3 +1222,218 @@ async fn a_remote_gateway_that_predates_pull_settles_the_region_link_as_unsuppor
     assert_eq!(catch_up.initial_cycle, crate::state::CatchUpMode::Complete);
     assert_eq!(catch_up.budget_exhausted_capability, 1);
 }
+
+async fn apply_with_origin(store: &Store, key: &str, version_ms: u64, origin: &str) {
+    store
+        .apply_replicated_inline_artifact_from_bytes_with(
+            ApplyProvenance {
+                origin_region: Some(origin),
+                content_sha256: None,
+                sync_feed_row: true,
+            },
+            ArtifactProducer::Xcode,
+            "ios",
+            key,
+            "application/octet-stream",
+            b"v",
+            version_ms,
+            None,
+            None,
+        )
+        .await
+        .expect("apply");
+}
+
+fn gauge_value(rendered: &str, name: &str, region: &str) -> Option<i64> {
+    let prefix = format!("{name}{{region=\"{region}\"}} ");
+    rendered
+        .lines()
+        .find_map(|line| line.strip_prefix(&prefix))
+        .map(|value| value.trim().parse().expect("gauge value"))
+}
+
+// The lag lookup finds the newest row of the origin at or below the bound,
+// stepping over foreign rows, and gives up past its scan cap.
+#[tokio::test]
+async fn newest_version_lookup_respects_origin_bound_and_cap() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    apply_with_origin(store, "local-old", base + 1, "local").await;
+    apply_with_origin(store, "local-new", base + 2, "local").await;
+    apply_with_origin(store, "eu-1", base + 3, "eu").await;
+    apply_with_origin(store, "eu-2", base + 4, "eu").await;
+    apply_with_origin(store, "local-young", base + 50_000, "local").await;
+
+    let bound = base + 10_000;
+    assert_eq!(
+        store
+            .backfill_index_newest_version(bound, Some("local"), 16)
+            .expect("lookup"),
+        Some(base + 2),
+        "foreign rows are stepped over and the young row sits above the bound"
+    );
+    assert_eq!(
+        store
+            .backfill_index_newest_version(bound, Some("eu"), 16)
+            .expect("lookup"),
+        Some(base + 4)
+    );
+    assert_eq!(
+        store
+            .backfill_index_newest_version(bound, Some("local"), 2)
+            .expect("lookup"),
+        None,
+        "two foreign rows exhaust a cap of two"
+    );
+    assert_eq!(
+        store
+            .backfill_index_newest_version(base, Some("local"), 16)
+            .expect("lookup"),
+        None,
+        "nothing at or below the bound"
+    );
+}
+
+// The ascending read reports the newest listable version whenever it is not
+// caught up, and leaves it out once it is.
+#[tokio::test]
+async fn ascending_read_reports_the_newest_listable_version_until_caught_up() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    apply_with_origin(store, "a", base + 1, "local").await;
+    apply_with_origin(store, "b", base + 2, "local").await;
+    apply_with_origin(store, "foreign", base + 3, "eu").await;
+    store.run_backfill_index_build().expect("index build");
+
+    let page = ascending(&context, &format!("&from_version_ms={base}&limit=1")).await;
+    assert_eq!(listed_versions(&page), vec![base + 1]);
+    assert_eq!(page["newest_version_ms"].as_u64(), Some(base + 2));
+
+    let cursor = page["next_after"].as_str().expect("cursor").to_owned();
+    let page = ascending(
+        &context,
+        &format!(
+            "&from_version_ms={base}&after={}",
+            crate::utils::url_encode(&cursor)
+        ),
+    )
+    .await;
+    assert_eq!(listed_versions(&page), vec![base + 2]);
+    let cursor = page["next_after"].as_str().expect("cursor").to_owned();
+    let page = ascending(
+        &context,
+        &format!(
+            "&from_version_ms={base}&after={}",
+            crate::utils::url_encode(&cursor)
+        ),
+    )
+    .await;
+    assert!(listed_versions(&page).is_empty());
+    assert!(page["next_after"].is_null(), "caught up: {page}");
+    assert!(
+        page.get("newest_version_ms").is_none(),
+        "a caught-up page carries no lag input: {page}"
+    );
+}
+
+// The region link reports lag in origin version time: the gap it has to
+// close while a pass is stuck, and zero once caught up even though the
+// remote region has since gone quiet and the watermark keeps ageing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_region_link_reports_replication_lag_not_watermark_age() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let address = listener.local_addr().expect("address");
+    let gateway_url = format!("http://{address}");
+    let source = test_context(|config| {
+        config.region = "eu-west".into();
+        config.node_url = gateway_url.clone();
+        config.peers = vec![gateway_url.clone()];
+    })
+    .await;
+    let base = now_ms() - 600_000;
+    for (key, offset) in [("one", 10_000), ("two", 20_000), ("three", 300_000)] {
+        apply_with_origin(&source.state.store, key, base + offset, "eu-west").await;
+    }
+    source
+        .state
+        .store
+        .run_backfill_index_build()
+        .expect("index build");
+
+    let (open, gate) = tokio::sync::watch::channel(false);
+    let app = internal_router(source.state.clone()).layer(axum::middleware::from_fn(
+        move |request: axum::extract::Request, next: axum::middleware::Next| {
+            let mut gate = gate.clone();
+            async move {
+                if request.uri().path() == "/_internal/backfill/bodies" {
+                    let _ = gate.wait_for(|open| *open).await;
+                }
+                next.run(request).await
+            }
+        },
+    ));
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+
+    let puller = test_context(|config| config.sync_long_poll_secs = 1).await;
+    puller
+        .state
+        .store
+        .advance_sync_watermark("eu-west", base)
+        .await
+        .expect("seed watermark");
+    puller
+        .state
+        .apply_peer_views(vec![crate::sync::roles::PeerView {
+            url: gateway_url.clone(),
+            region: "eu-west".to_owned(),
+            serving: true,
+            draining: false,
+        }]);
+    puller.state.sync.evaluate(&puller.state);
+
+    let lag = || {
+        gauge_value(
+            &puller.state.metrics.render(),
+            "kura_region_replication_lag_seconds",
+            "eu-west",
+        )
+    };
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while lag().is_none() {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the link never reported its lag"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(
+        lag(),
+        Some(300),
+        "held at the bodies fetch, the link is behind by the newest record's distance from the watermark"
+    );
+
+    open.send(true).expect("open the gate");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while lag() != Some(0) {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the link never reported itself caught up: {:?}",
+            lag()
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    puller.state.sync.evaluate(&puller.state);
+    let rendered = puller.state.metrics.render();
+    assert!(
+        gauge_value(&rendered, "kura_region_watermark_age_seconds", "eu-west")
+            .is_some_and(|age| age >= 290),
+        "the watermark still ages with the idle source: {rendered}"
+    );
+    assert_eq!(lag(), Some(0));
+}

@@ -23526,6 +23526,98 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-246": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (region) (kura_region_replication_lag_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{region}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "How far this region's gateway is behind a remote region, in origin version time: the newest record the remote gateway could list for its region minus the newest one applied here. Unlike `region_watermark_age_seconds` it stays at zero while the remote region is idle, so a non-zero value is real replication lag. Only the pod holding the gateway role reports a series (the role moves on restarts and membership blips), so the panel aggregates by region rather than by pod. It is sampled on each successful listing: read it beside `region_sync_last_success_age_seconds`, which is what grows when the link cannot reach the remote gateway at all. A remote gateway on a release without the `newest_version_ms` listing field reports only caught-up samples (zero).\n\nPrometheus name: `kura_region_replication_lag_seconds` · labels: region",
+          "id": 246,
+          "links": [],
+          "title": "region_replication_lag_seconds",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -26113,6 +26205,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-246"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 42
                       }
                     }
                   ]

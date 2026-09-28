@@ -575,6 +575,11 @@ pub struct BackfillEntriesPage {
     /// absent from an older peer's page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub now: Option<u64>,
+    /// Ascending reads that are not caught up: the highest `version_ms` the
+    /// same read could list right now, so the requester can tell how far
+    /// behind it is. Additive; absent from an older peer's page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_version_ms: Option<u64>,
 }
 
 /// One backfill index tuple on the wire. `record_kind` is a
@@ -604,6 +609,7 @@ impl From<BackfillIndexPage> for BackfillEntriesPage {
                 .collect(),
             next_after: page.next_after.map(hex::encode),
             now: Some(now_ms()),
+            newest_version_ms: None,
         }
     }
 }
@@ -2805,6 +2811,10 @@ async fn internal_backfill_entries(
     }
 }
 
+/// Index rows the lag lookup walks newest-first before giving up; foreign
+/// rows are what it skips, and a gateway's newest rows are mostly its own.
+const NEWEST_VERSION_SCAN_CAP: usize = 1024;
+
 /// The forward region read: ascending from the requester's watermark, never
 /// past the point where a lower version could still arrive here, long-polling
 /// while caught up (design §4.1).
@@ -2842,7 +2852,24 @@ async fn internal_backfill_entries_ascending(
         };
         let caught_up = page.entries.is_empty() && page.next_after.is_none();
         let Some(deadline) = deadline.filter(|_| caught_up) else {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            let newest_version_ms = if caught_up {
+                None
+            } else {
+                // A failed lookup only costs the requester one lag sample.
+                state
+                    .store
+                    .backfill_index_newest_version(
+                        max_version_ms,
+                        query.origin_region.as_deref(),
+                        NEWEST_VERSION_SCAN_CAP,
+                    )
+                    .unwrap_or_default()
+            };
+            return Json(BackfillEntriesPage {
+                newest_version_ms,
+                ..BackfillEntriesPage::from(page)
+            })
+            .into_response();
         };
         let now = Instant::now();
         let deadline = if state.runtime.is_draining() {
