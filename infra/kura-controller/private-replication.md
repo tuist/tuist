@@ -256,3 +256,49 @@ Provider permissions/product confirmation and the reviewed host cutover above
 are required before those observations can be made. The current change provides
 the opt-in runtime policy, tests and verification procedure; it does not claim
 that the requested provider networking has already been provisioned.
+
+### Staging deployment and E2E validation, 2026-09-28
+
+The [Linux Bazel image build](https://github.com/tuist/tuist/actions/runs/36412698258)
+succeeded for commit `dcb6a17aad0f`, publishing
+`ghcr.io/tuist/kura:sha-dcb6a17aad0f`. The isolated staging test mesh ran that
+image on the existing Dedibox, OVH BHS and Scaleway cache hosts. Synthetic
+`test-provider-a` / `test-provider-b` metadata exercised policy decisions;
+these hosts are **not** being claimed as one verified private routing domain.
+Staging has no Vultr host and no qualified OVH vRack pair.
+
+The [reusable fixture and validation instructions](../../kura/test/e2e/provider-topology/staging/README.md)
+and [recorded results](../../kura/test/e2e/provider-topology/staging/validation-2026-09-28.json)
+cover:
+
+- Four nodes / three origins, with same-region siblings and all-origin writes
+  arriving byte-for-byte at every node.
+- Batched bodies and a 33 MiB individual body; both canonical and private
+  entrances reject missing client certificates.
+- A NetworkPolicy blackhole of replica B's private port, while its canonical
+  endpoint remains reachable. Private probes reported failure, cross-provider
+  replication continued, and canonical audit logs contained **zero**
+  same-provider data requests. The audit observed 1,058 same-provider discovery
+  requests and 796 cross-provider data requests across the fixture run.
+- Recovery after lifting the blackhole; cold sibling restart and full backfill;
+  bidirectional overlap with previous staging image `sha-c07fa5b26287`; upgrading
+  that peer again and restoring all eight retained test objects.
+- Namespace deletion markers reaching every node. All four final reports were
+  ready, serving, initial catch-up complete, and at normal memory pressure.
+
+The initial Service-port fault was rejected by the test because pooled
+connections survived it. The policy blackhole replaced that ineffective
+injection; a successful data test without an observed failure was not counted.
+All disposable fixture resources were removed after retaining the evidence.
+
+Managed staging was pinned by changing only `TUIST_KURA_RUNTIME_IMAGE_TAG` on
+the existing `tuist-staging/tuist-tuist-server` Deployment from
+`sha-c07fa5b26287` to `sha-dcb6a17aad0f`. The server image, instance strategies
+and topology configuration were preserved. The server rollout completed; the
+normal reconciler started progressive rollout
+`3eef2a57-e7c8-471a-bef8-e13e6f94e265`, with wave 0 healthy from
+`2026-09-28T11:13:01Z`. Fleet completion is recorded separately after its existing
+soak gates finish. Topology remains unset on managed instances pending underlay
+qualification. A later Helm deployment must pass this runtime tag to retain the
+imperative staging pin. Rollback restores `sha-c07fa5b26287` through the same
+server runtime pin and normal rollout coordinator.
