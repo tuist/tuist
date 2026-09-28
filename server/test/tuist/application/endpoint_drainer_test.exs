@@ -138,8 +138,12 @@ defmodule Tuist.Application.EndpointDrainerTest do
     shutdown = Task.async(fn -> Application.stop(@application) end)
 
     wait_until(fn -> :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false], 100) end, fn
-      {:error, _reason} ->
+      {:error, reason} when reason in [:econnrefused, :econnreset] ->
         true
+
+      # A busy scheduler can time out a connect to a listener that is still open.
+      {:error, :timeout} ->
+        false
 
       {:ok, connection} ->
         :gen_tcp.close(connection)
