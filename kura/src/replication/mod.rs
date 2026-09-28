@@ -11,7 +11,10 @@ use tokio::{io::AsyncWriteExt, time::sleep};
 use tracing::{Instrument, warn};
 
 use crate::{
-    config::Config, constants::MEMBERSHIP_REMOVAL_GRACE, state::SharedState, sync::roles::PeerView,
+    config::Config,
+    constants::{MEMBERSHIP_REMOVAL_GRACE, MEMBERSHIP_STATUS_PROBE_BUDGET},
+    state::SharedState,
+    sync::roles::PeerView,
 };
 
 // How much of a staged peer body may accumulate in the page cache before the
@@ -127,48 +130,44 @@ async fn membership_task_loop(state: SharedState) {
             };
             let label = peer.label.clone();
             async move {
-                let result = match client {
-                    Ok(client) => client
-                        .get(url)
-                        .send()
-                        .await
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error),
+                let outcome = match client {
+                    Ok(client) => probe_status(&client, url, MEMBERSHIP_STATUS_PROBE_BUDGET).await,
+                    Err(error) => StatusProbe::Failed(error),
                 };
-                (label, result)
+                (label, outcome)
             }
         }))
         .await;
-        for (peer, result) in lookups {
-            match result {
-                Ok(response) if response.status().is_success() => {
-                    match response.json::<PeerStatusPayload>().await {
-                        Ok(payload) => {
-                            peer_status_successes += 1;
-                            if payload.tenant_id != state.config.tenant_id
-                                || is_self_or_own_gateway(
-                                    &payload.node_url,
-                                    &state.config.node_url,
-                                    state.config.peer_gateway_url.as_deref(),
-                                )
-                            {
-                                continue;
-                            }
-                            let traffic_state = payload.traffic_state.as_deref();
-                            views.push(PeerView {
-                                url: payload.node_url,
-                                region: payload.region,
-                                serving: traffic_state.is_none_or(|s| s == "serving"),
-                                draining: traffic_state == Some("draining"),
-                            });
-                        }
-                        Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
+        for (peer, outcome) in lookups {
+            match outcome {
+                StatusProbe::Status(payload) => {
+                    peer_status_successes += 1;
+                    if payload.tenant_id != state.config.tenant_id
+                        || is_self_or_own_gateway(
+                            &payload.node_url,
+                            &state.config.node_url,
+                            state.config.peer_gateway_url.as_deref(),
+                        )
+                    {
+                        continue;
                     }
+                    let traffic_state = payload.traffic_state.as_deref();
+                    views.push(PeerView {
+                        url: payload.node_url,
+                        region: payload.region,
+                        serving: traffic_state.is_none_or(|s| s == "serving"),
+                        draining: traffic_state == Some("draining"),
+                    });
                 }
-                Ok(response) => {
-                    warn!("peer status check failed for {peer}: {}", response.status())
+                StatusProbe::Refused(status) => {
+                    warn!("peer status check failed for {peer}: {status}")
                 }
-                Err(error) => warn!("peer status request failed for {peer}: {error}"),
+                StatusProbe::Undecodable(error) => {
+                    warn!("failed to decode peer status from {peer}: {error}")
+                }
+                StatusProbe::Failed(error) => {
+                    warn!("peer status request failed for {peer}: {error}")
+                }
             }
         }
 
@@ -190,6 +189,36 @@ async fn membership_task_loop(state: SharedState) {
         state.maybe_mark_serving().await;
         sleep(state.membership_poll_interval().await).await;
     }
+}
+
+#[derive(Debug)]
+enum StatusProbe {
+    Status(PeerStatusPayload),
+    Refused(reqwest::StatusCode),
+    Undecodable(String),
+    Failed(String),
+}
+
+/// One status probe, bounded as a whole. The body is read inside the budget,
+/// not after the pass's other probes finish: a body left unread until the
+/// slowest peer gives up would be read against a deadline that has passed.
+async fn probe_status(client: &reqwest::Client, url: String, budget: Duration) -> StatusProbe {
+    let probe = async {
+        let response = match client.get(url).send().await {
+            Ok(response) => response,
+            Err(error) => return StatusProbe::Failed(error.to_string()),
+        };
+        if !response.status().is_success() {
+            return StatusProbe::Refused(response.status());
+        }
+        match response.json::<PeerStatusPayload>().await {
+            Ok(payload) => StatusProbe::Status(payload),
+            Err(error) => StatusProbe::Undecodable(error.to_string()),
+        }
+    };
+    tokio::time::timeout(budget, probe)
+        .await
+        .unwrap_or_else(|_| StatusProbe::Failed(format!("no answer within {budget:?}")))
 }
 
 pub(crate) async fn read_bounded_body(
@@ -517,6 +546,44 @@ mod tests {
                 .expect("test server should run");
         });
         (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn a_silent_peer_does_not_hold_another_peers_status_past_the_budget() {
+        let status = || async {
+            axum::Json(serde_json::json!({
+                "region": "eu",
+                "tenant_id": "tenant",
+                "node_url": "https://fast.kura.internal:7443",
+                "traffic_state": "serving",
+            }))
+        };
+        let silent = || async {
+            sleep(Duration::from_secs(30)).await;
+            ""
+        };
+        let (fast_url, _fast) =
+            spawn_server(Router::new().route("/_internal/status", get(status))).await;
+        let (silent_url, _silent) =
+            spawn_server(Router::new().route("/_internal/status", get(silent))).await;
+        let client = reqwest::Client::new();
+        let budget = Duration::from_millis(300);
+
+        let started = Instant::now();
+        let (fast, silent) = tokio::join!(
+            probe_status(&client, format!("{fast_url}/_internal/status"), budget),
+            probe_status(&client, format!("{silent_url}/_internal/status"), budget),
+        );
+
+        assert!(
+            matches!(&fast, StatusProbe::Status(payload) if payload.node_url == "https://fast.kura.internal:7443"),
+            "the answering peer is observed even though its sibling probe ran out the budget, got {fast:?}"
+        );
+        assert!(
+            matches!(silent, StatusProbe::Failed(_)),
+            "the silent peer fails at the budget, got {silent:?}"
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 
     #[tokio::test]

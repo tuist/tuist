@@ -10,7 +10,7 @@
 #   B-3        the same pair with a 100-row feed cap (410 → backward pass)
 #   B-4        the same pair, drain gate of a departing replica
 #   B-5..B-7   two regions × two replicas (gateway links, tombstones, failover)
-#   B-12       the same four nodes, a remote gateway silent for 40 s (§2.5)
+#   B-12       the same four nodes, a remote gateway silent for 20 s (§2.5)
 #   B-9, B-10  a region of one beside a two-replica region, no server
 #   B-11       a pair whose membership is one-way (§11.2)
 #
@@ -738,19 +738,29 @@ Describe 'pull replication across two regions of two replicas'
   It 'holds a remote gateway that stops answering for seconds instead of moving its links'
     # Design §2.5: a silent peer stays in the view for the grace window, so a
     # short outage costs no link restart and no region backward pass. A
-    # paused peer accepts the probe's connection and never answers, so the
-    # probe fails at the peer client's 30 s idle timeout; 40 s is past that
-    # and well inside the 60 s window.
+    # paused peer accepts the probe's connection and never answers, so its
+    # probe fails at the 10 s status-probe budget; 20 s leaves room for a
+    # pass that started just before the pause, and is well inside the 60 s
+    # window. The other probes of the same passes must still land: a1 keeps
+    # observing a2 and b2, and only b1's probe fails.
     since="$(utc_now)"
     b1_container="$(service_container_id kura-b1)"
+    b1_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$b1_container" | awk '{ print $1 }')"
     docker pause "$b1_container" >/dev/null || return 1
-    sleep 38
+    sleep 18
     a1_links_during="$(node_links "${KURA_A1_URL}")"
     b2_gateway_during="$(node_gateway "${KURA_B2_URL}")"
+    a1_sees_siblings="$(cluster_eval "${KURA_A1_URL}" "str('${A2_NODE_URL}' in d['connected_nodes'] and '${B2_NODE_URL}' in d['connected_nodes']).lower()")"
+    a1_status_log="$(dc logs --no-color --since "$since" kura-a1 2>&1)"
     sleep 2
     docker unpause "$b1_container" >/dev/null || return 1
     The variable a1_links_during should eq "region:region-b>${B1_NODE_URL} replica:region-a>${A2_NODE_URL}"
     The variable b2_gateway_during should eq false
+    The variable a1_sees_siblings should eq true
+    b1_probe_failures="$(printf '%s\n' "$a1_status_log" | grep 'peer status request failed' | grep -c -F "//${b1_ip}:" || true)"
+    The variable b1_probe_failures should not eq 0
+    other_probe_failures="$(printf '%s\n' "$a1_status_log" | grep -e 'peer status request failed' -e 'peer status check failed' -e 'failed to decode peer status' | grep -v -c -F "//${b1_ip}:" || true)"
+    The variable other_probe_failures should eq 0
 
     # Replication resumes on the same link, without a backward pass.
     put_status="$(kv_put "${KURA_B2_URL}" "${SYNC_NAMESPACE}" b12-after b12-after-value)"
