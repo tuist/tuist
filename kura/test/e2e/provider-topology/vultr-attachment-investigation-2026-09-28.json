@@ -47,5 +47,13 @@
     "reboots": 0,
     "kubernetesWrites": 0
   },
-  "nextStep": "Inspect authenticated console attachment warnings, obtain provider confirmation if necessary, then qualify existing Chicago hosts under the appropriate operational scope. New hardware is optional, not a demonstrated requirement."
+  "nextStep": "Qualify the existing Chicago hosts through manual configuration of the secondary NIC in a human-granted production window. No additional server or planned reboot is required for this workflow.",
+  "consoleObservation": {
+    "observedAt": "2026-09-28T19:05:33Z",
+    "source": "Authenticated Vultr console; existing Chicago bare-metal server, Settings > VPC Networks > Enable VPC confirmation",
+    "manualAlternative": "The confirmation explicitly offers manual IP configuration on the new network interface as an alternative to restarting for automatic Cloud-Init configuration.",
+    "result": "Provider UI supports manual configuration without a required reboot. This resolves the documented workflow, not observed data-plane activation.",
+    "action": "Canceled the confirmation; no attachment submitted.",
+    "remainingValidation": "Observe boot identity, public endpoint continuity and private reachability across actual attachment and manual NIC configuration."
+  }
 }

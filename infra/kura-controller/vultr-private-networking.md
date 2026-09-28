@@ -42,12 +42,13 @@ provisioning exercise pass.
    Pod, Service, tailnet and runner routes. Preserve public NICs, default routes,
    node identities, ingress and BGP. Never move an existing VPC attachment.
 3. The [bare-metal guide](https://docs.vultr.com/products/compute/instances/bare-metal/networking/vpc)
-   documents a restart for cloud-init to configure the interface. Establish
-   whether the exact host supports safe manual configuration without a restart;
-   do not infer this from the API accepting an attachment. If a restart is
-   required, verify a serving off-host sibling or obtain a maintenance decision
-   for that instance. Two colocated replicas and one-host-at-a-time restarts
-   do not preserve regional endpoint availability.
+   documents a restart for cloud-init to configure the interface. The live
+   Chicago bare-metal console, inspected on 2026-09-28, explicitly offers manual
+   interface IP configuration as the alternative to that restart. Use the manual
+   path on existing hosts; do not reboot merely to run cloud-init. Configure only
+   the secondary NIC and verify continuity and private reachability. If observed
+   behavior contradicts the console, stop for an explicit maintenance decision.
+   Colocated replicas do not preserve endpoint availability across a host restart.
 4. Obtain a human-controlled production window explicitly scoped to Vultr
    qualification before host configuration, pod exec or fault tests. An earlier
    OVH qualification window does not authorize this separate host work. Follow
@@ -114,10 +115,9 @@ for these public-plus-private hosts.
 
 ## Chicago qualification using existing hosts
 
-Prefer the existing Chicago hosts. Extra hardware is an isolation option, not
-a prerequisite established by the provider documentation. Before attaching a
-serving host, establish whether the provider operation restarts it and whether
-the already-present secondary interface can be configured live.
+Use the existing Chicago hosts and the console-supported manual configuration
+path. Extra hardware is an isolation option, not a prerequisite. Record boot
+identity and endpoint health before attachment and verify continuity afterwards.
 
 Read-only telemetry on 2026-09-28 showed `enp1s0f1np1` on all three existing
 Vultr hosts, with zero receive/transmit bytes. This proves the interface is
@@ -132,7 +132,13 @@ does not state whether the attachment endpoint itself restarts the server.
 Absence of a client reboot call is not proof of backend behavior. The reboot
 note in the bare-metal guide explicitly concerns cloud-init reconfiguration;
 it does not establish that every manual interface configuration needs a reboot.
-Provider confirmation or a controlled observation is still required.
+The authenticated console resolves the documented workflow: its Enable VPC
+confirmation offers manual IP configuration or a restart for automatic Cloud-Init
+configuration. Thus the provider explicitly supports a manual alternative to
+rebooting. The dialog was canceled without submitting an attachment. Immediate
+private connectivity and unchanged boot identity still need live validation;
+the console observation is not an E2E result. See the
+[attachment investigation](../../kura/test/e2e/provider-topology/vultr-attachment-investigation-2026-09-28.json).
 
 If existing-host qualification cannot avoid disruption, choose an approved
 maintenance/evacuation plan or isolated capacity. An unadopted bare-metal host
