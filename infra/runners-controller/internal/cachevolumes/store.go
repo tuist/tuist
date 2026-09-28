@@ -223,7 +223,7 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 		if err = s.save(slot); err != nil {
 			return Slot{}, err
 		}
-		return Slot{}, errors.New("cache capacity reached")
+		return Slot{}, ErrCapacity
 	}
 	// Persist the remote resource identity before creating it. A lost response or
 	// restart resumes exactly this clone; it never reformats an exposed filesystem.

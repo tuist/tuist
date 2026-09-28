@@ -90,8 +90,11 @@ This node covers Helm assets under `infra/helm/`.
 - Staging custom-volume smoke validation uses the preallocated XFS mount at
   `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
   the root partition is too small for the default 200 GB backing file. Keep
-  its agent image pinned to a tested commit and retain the mount while any
+  its agent image aligned with the controller release and retain the mount while any
   private branches are live. Production enables provisioning and resolves the
   agent image from the matching controller release through normal deployment.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
+- Cache-volume agents expose phase/source/result telemetry on a separate port
+  9091. Allow scraping only from `observability`, retain the series in staging,
+  and keep runner acquisition on 8090 under its existing pod selector.

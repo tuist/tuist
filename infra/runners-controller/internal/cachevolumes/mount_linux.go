@@ -158,9 +158,14 @@ func MeasureFS(path string) (int64, int64, error) {
 }
 
 func FreeBytes(path string) (uint64, error) {
+	available, _, err := FilesystemSpace(path)
+	return available, err
+}
+
+func FilesystemSpace(path string) (available, capacity uint64, err error) {
 	var st unix.Statfs_t
 	if err := unix.Statfs(path, &st); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return st.Bavail * uint64(st.Bsize), nil
+	return st.Bavail * uint64(st.Bsize), st.Blocks * uint64(st.Bsize), nil
 }

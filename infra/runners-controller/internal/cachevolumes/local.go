@@ -32,6 +32,7 @@ type LocalImages struct {
 	SizeGB       int
 	MinFreeBytes uint64
 	Transfer     ImageTransfer
+	Observe      Observer
 	Run          func(context.Context, string, ...string) ([]byte, error)
 	Mount        func(string, string) error
 	Unmount      func(string, string) error
@@ -71,6 +72,12 @@ func (b *LocalImages) lockContext(ctx context.Context, scope string) (func(), er
 		return nil, err
 	}
 	return mu.Unlock, nil
+}
+func (b *LocalImages) operation(operation, source string, work func() error) error {
+	done := b.Observe.Start(operation, source)
+	err := work()
+	done(err)
+	return err
 }
 func (b *LocalImages) image(slot Slot) string { return filepath.Join(b.Root, "images", slot.ID+".img") }
 func (b *LocalImages) master(slot Slot) string {
@@ -193,14 +200,24 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 		}
 	}
 	if free < b.MinFreeBytes {
-		return errors.New("cache filesystem reserve exhausted")
+		return ErrCapacity
 	}
 	return nil
 }
-func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) error {
+func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err error) {
+	source := "empty"
+	if slot.BaseGeneration > 0 {
+		source = "unknown"
+	}
+	start := time.Now()
+	defer func() {
+		if b.Observe != nil {
+			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
+		}
+	}()
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err = b.reserve(ctx); err != nil {
+		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
 			return err
 		}
 		tmp := image + ".tmp"
@@ -209,27 +226,22 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) error 
 			if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(slot.ContentDigest) {
 				return errors.New("invalid master digest")
 			}
+			waited := b.Observe.Start("master_wait", "none")
 			unlock, lockErr := b.lockContext(ctx, slot.Scope)
+			waited(lockErr)
 			if lockErr != nil {
 				return lockErr
 			}
 			master := b.master(slot)
 			if _, err = os.Stat(master); os.IsNotExist(err) {
-				if err = os.MkdirAll(filepath.Dir(master), 0700); err == nil {
-					download := master + ".tmp"
-					_ = os.Remove(download)
-					err = b.Transfer.Download(ctx, slot, download)
-					if err == nil {
-						err = durableRename(download, master)
-						if err == nil {
-							err = b.recordMaster(slot, master)
-						}
-					}
-					_ = os.Remove(download)
-				}
+				source = "remote"
+				err = b.restoreMaster(ctx, slot, master)
 			}
 			if err == nil {
-				_, err = b.commandContext(ctx, "cp", "--reflink=always", "--", master, tmp)
+				if source == "unknown" {
+					source = "local"
+				}
+				err = b.operation("clone", "local", func() error { _, err := b.commandContext(ctx, "cp", "--reflink=always", "--", master, tmp); return err })
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
@@ -244,7 +256,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) error 
 				}
 			}
 			if err == nil {
-				_, err = b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp)
+				err = b.operation("format", "empty", func() error { _, err := b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp); return err })
 			}
 		}
 		if err != nil {
@@ -256,6 +268,9 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) error 
 		}
 	} else if err != nil {
 		return err
+	}
+	if source == "unknown" {
+		source = "local"
 	}
 	device, err := b.deviceContext(ctx, image)
 	if err != nil {
@@ -274,7 +289,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) error 
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = b.Mount(device, path); err != nil {
+	if err = b.operation("mount", "none", func() error { return b.Mount(device, path) }); err != nil {
 		return err
 	}
 	if err = ctx.Err(); err != nil {
@@ -367,17 +382,23 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 	}
 	return nil
 }
-func (b *LocalImages) Seal(slot Slot, path string) error {
+func (b *LocalImages) Seal(slot Slot, path string) (err error) {
+	done := b.Observe.Start("publish", "none")
+	defer func() { done(err) }()
 	if err := b.verify(slot, path); err != nil {
 		return err
 	}
 	archive := b.image(slot) + ".gz"
 	defer os.Remove(archive)
+	compressDone := b.Observe.Start("compress", "none")
 	digest, content, err := compressImage(b.image(slot), archive)
+	compressDone(err)
 	if err != nil {
 		return err
 	}
+	uploadDone := b.Observe.Start("upload", "none")
 	generation, err := b.Transfer.Publish(slot, archive, digest, content)
+	uploadDone(err)
 	if errors.Is(err, ErrConflict) {
 		return nil
 	}
@@ -538,4 +559,45 @@ func (b *LocalImages) Maintain() error {
 		}
 	}
 	return nil
+}
+
+// Prefetch restores only a validated immutable master. It cannot mount a job's
+// directory or publish that job's private changes after cold fallback.
+func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
+		return errors.New("invalid prefetch identity")
+	}
+	if err := b.reserve(ctx); err != nil {
+		return err
+	}
+	unlock, err := b.lockContext(ctx, slot.Scope)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	master := b.master(slot)
+	if _, err := os.Stat(master); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return b.restoreMaster(ctx, slot, master)
+}
+func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master string) error {
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		return err
+	}
+	download := master + ".tmp"
+	_ = os.Remove(download)
+	defer os.Remove(download)
+	if err := b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := durableRename(download, master); err != nil {
+		return err
+	}
+	return b.recordMaster(slot, master)
 }
