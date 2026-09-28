@@ -339,6 +339,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/get(getBuild (2))`.
     func getBuild_space__lpar_2_rpar_(_ input: Operations.getBuild_space__lpar_2_rpar_.Input) async throws -> Operations.getBuild_space__lpar_2_rpar_.Output
+    /// Upload Tuist app logs
+    ///
+    /// Uploads a batch of diagnostic log lines from the Tuist iOS or macOS app so the Tuist team can investigate issues without asking users to export logs.
+    ///
+    /// - Remark: HTTP `POST /api/app/logs`.
+    /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)`.
+    func uploadAppLogs(_ input: Operations.uploadAppLogs.Input) async throws -> Operations.uploadAppLogs.Output
     /// List cacheable tasks for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
@@ -1731,6 +1738,21 @@ extension APIProtocol {
         try await getBuild_space__lpar_2_rpar_(Operations.getBuild_space__lpar_2_rpar_.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Upload Tuist app logs
+    ///
+    /// Uploads a batch of diagnostic log lines from the Tuist iOS or macOS app so the Tuist team can investigate issues without asking users to export logs.
+    ///
+    /// - Remark: HTTP `POST /api/app/logs`.
+    /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)`.
+    public func uploadAppLogs(
+        headers: Operations.uploadAppLogs.Input.Headers = .init(),
+        body: Operations.uploadAppLogs.Input.Body? = nil
+    ) async throws -> Operations.uploadAppLogs.Output {
+        try await uploadAppLogs(Operations.uploadAppLogs.Input(
+            headers: headers,
+            body: body
         ))
     }
     /// List cacheable tasks for a given build.
@@ -12698,6 +12720,144 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsIndexPage`.
         public typealias TestCaseRunsIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/AppLogsUpload`.
+        public struct AppLogsUpload: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app`.
+            public struct appPayload: Codable, Hashable, Sendable {
+                /// The app's build number.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app/build`.
+                public var build: Swift.String
+                /// The operating system version.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app/os_version`.
+                public var os_version: Swift.String?
+                /// The app's platform.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app/platform`.
+                @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case ios = "ios"
+                    case macos = "macos"
+                }
+                /// The app's platform.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app/platform`.
+                public var platform: Components.Schemas.AppLogsUpload.appPayload.platformPayload
+                /// The app's marketing version.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app/version`.
+                public var version: Swift.String
+                /// Creates a new `appPayload`.
+                ///
+                /// - Parameters:
+                ///   - build: The app's build number.
+                ///   - os_version: The operating system version.
+                ///   - platform: The app's platform.
+                ///   - version: The app's marketing version.
+                public init(
+                    build: Swift.String,
+                    os_version: Swift.String? = nil,
+                    platform: Components.Schemas.AppLogsUpload.appPayload.platformPayload,
+                    version: Swift.String
+                ) {
+                    self.build = build
+                    self.os_version = os_version
+                    self.platform = platform
+                    self.version = version
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case build
+                    case os_version
+                    case platform
+                    case version
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AppLogsUpload/app`.
+            public var app: Components.Schemas.AppLogsUpload.appPayload
+            /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload`.
+            public struct entriesPayloadPayload: Codable, Hashable, Sendable {
+                /// Identifies the app launch that logged the line.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload/launch_id`.
+                public var launch_id: Swift.String?
+                /// The log level.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload/level`.
+                @frozen public enum levelPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case trace = "trace"
+                    case debug = "debug"
+                    case info = "info"
+                    case notice = "notice"
+                    case warning = "warning"
+                    case error = "error"
+                    case critical = "critical"
+                }
+                /// The log level.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload/level`.
+                public var level: Components.Schemas.AppLogsUpload.entriesPayloadPayload.levelPayload
+                /// The redacted log message.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload/message`.
+                public var message: Swift.String
+                /// The module that logged the line.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload/source`.
+                public var source: Swift.String
+                /// When the line was logged.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entriesPayload/timestamp`.
+                public var timestamp: Foundation.Date
+                /// Creates a new `entriesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - launch_id: Identifies the app launch that logged the line.
+                ///   - level: The log level.
+                ///   - message: The redacted log message.
+                ///   - source: The module that logged the line.
+                ///   - timestamp: When the line was logged.
+                public init(
+                    launch_id: Swift.String? = nil,
+                    level: Components.Schemas.AppLogsUpload.entriesPayloadPayload.levelPayload,
+                    message: Swift.String,
+                    source: Swift.String,
+                    timestamp: Foundation.Date
+                ) {
+                    self.launch_id = launch_id
+                    self.level = level
+                    self.message = message
+                    self.source = source
+                    self.timestamp = timestamp
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case launch_id
+                    case level
+                    case message
+                    case source
+                    case timestamp
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entries`.
+            public typealias entriesPayload = [Components.Schemas.AppLogsUpload.entriesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AppLogsUpload/entries`.
+            public var entries: Components.Schemas.AppLogsUpload.entriesPayload
+            /// Creates a new `AppLogsUpload`.
+            ///
+            /// - Parameters:
+            ///   - app:
+            ///   - entries:
+            public init(
+                app: Components.Schemas.AppLogsUpload.appPayload,
+                entries: Components.Schemas.AppLogsUpload.entriesPayload
+            ) {
+                self.app = app
+                self.entries = entries
+            }
+            public enum CodingKeys: String, CodingKey {
+                case app
+                case entries
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
@@ -42785,6 +42945,506 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Upload Tuist app logs
+    ///
+    /// Uploads a batch of diagnostic log lines from the Tuist iOS or macOS app so the Tuist team can investigate issues without asking users to export logs.
+    ///
+    /// - Remark: HTTP `POST /api/app/logs`.
+    /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)`.
+    public enum uploadAppLogs {
+        public static let id: Swift.String = "uploadAppLogs"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/app/logs/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadAppLogs.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadAppLogs.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.uploadAppLogs.Input.Headers
+            /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app`.
+                    public struct appPayload: Codable, Hashable, Sendable {
+                        /// The app's build number.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app/build`.
+                        public var build: Swift.String
+                        /// The operating system version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app/os_version`.
+                        public var os_version: Swift.String?
+                        /// The app's platform.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case ios = "ios"
+                            case macos = "macos"
+                        }
+                        /// The app's platform.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app/platform`.
+                        public var platform: Operations.uploadAppLogs.Input.Body.jsonPayload.appPayload.platformPayload
+                        /// The app's marketing version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app/version`.
+                        public var version: Swift.String
+                        /// Creates a new `appPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - build: The app's build number.
+                        ///   - os_version: The operating system version.
+                        ///   - platform: The app's platform.
+                        ///   - version: The app's marketing version.
+                        public init(
+                            build: Swift.String,
+                            os_version: Swift.String? = nil,
+                            platform: Operations.uploadAppLogs.Input.Body.jsonPayload.appPayload.platformPayload,
+                            version: Swift.String
+                        ) {
+                            self.build = build
+                            self.os_version = os_version
+                            self.platform = platform
+                            self.version = version
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case build
+                            case os_version
+                            case platform
+                            case version
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/app`.
+                    public var app: Operations.uploadAppLogs.Input.Body.jsonPayload.appPayload
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload`.
+                    public struct entriesPayloadPayload: Codable, Hashable, Sendable {
+                        /// Identifies the app launch that logged the line.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload/launch_id`.
+                        public var launch_id: Swift.String?
+                        /// The log level.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload/level`.
+                        @frozen public enum levelPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case trace = "trace"
+                            case debug = "debug"
+                            case info = "info"
+                            case notice = "notice"
+                            case warning = "warning"
+                            case error = "error"
+                            case critical = "critical"
+                        }
+                        /// The log level.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload/level`.
+                        public var level: Operations.uploadAppLogs.Input.Body.jsonPayload.entriesPayloadPayload.levelPayload
+                        /// The redacted log message.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload/message`.
+                        public var message: Swift.String
+                        /// The module that logged the line.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload/source`.
+                        public var source: Swift.String
+                        /// When the line was logged.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entriesPayload/timestamp`.
+                        public var timestamp: Foundation.Date
+                        /// Creates a new `entriesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - launch_id: Identifies the app launch that logged the line.
+                        ///   - level: The log level.
+                        ///   - message: The redacted log message.
+                        ///   - source: The module that logged the line.
+                        ///   - timestamp: When the line was logged.
+                        public init(
+                            launch_id: Swift.String? = nil,
+                            level: Operations.uploadAppLogs.Input.Body.jsonPayload.entriesPayloadPayload.levelPayload,
+                            message: Swift.String,
+                            source: Swift.String,
+                            timestamp: Foundation.Date
+                        ) {
+                            self.launch_id = launch_id
+                            self.level = level
+                            self.message = message
+                            self.source = source
+                            self.timestamp = timestamp
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case launch_id
+                            case level
+                            case message
+                            case source
+                            case timestamp
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entries`.
+                    public typealias entriesPayload = [Operations.uploadAppLogs.Input.Body.jsonPayload.entriesPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/json/entries`.
+                    public var entries: Operations.uploadAppLogs.Input.Body.jsonPayload.entriesPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - app:
+                    ///   - entries:
+                    public init(
+                        app: Operations.uploadAppLogs.Input.Body.jsonPayload.appPayload,
+                        entries: Operations.uploadAppLogs.Input.Body.jsonPayload.entriesPayload
+                    ) {
+                        self.app = app
+                        self.entries = entries
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case app
+                        case entries
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/requestBody/content/application\/json`.
+                case json(Operations.uploadAppLogs.Input.Body.jsonPayload)
+            }
+            public var body: Operations.uploadAppLogs.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.uploadAppLogs.Input.Headers = .init(),
+                body: Operations.uploadAppLogs.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// Creates a new `Accepted`.
+                public init() {}
+            }
+            /// The logs were accepted
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.uploadAppLogs.Output.Accepted)
+            /// The logs were accepted
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            public static var accepted: Self {
+                .accepted(.init())
+            }
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.uploadAppLogs.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadAppLogs.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadAppLogs.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request body is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.uploadAppLogs.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.uploadAppLogs.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadAppLogs.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadAppLogs.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.uploadAppLogs.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.uploadAppLogs.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadAppLogs.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadAppLogs.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only users can upload app logs
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.uploadAppLogs.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.uploadAppLogs.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadAppLogs.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadAppLogs.Output.TooManyRequests.Body) {
+                    self.body = body
+                }
+            }
+            /// Too many uploads
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.uploadAppLogs.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.uploadAppLogs.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/app/logs/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadAppLogs.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.uploadAppLogs.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// The logs could not be forwarded
+            ///
+            /// - Remark: Generated from `#/paths//api/app/logs/post(uploadAppLogs)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.uploadAppLogs.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.uploadAppLogs.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
                             response: self
                         )
                     }

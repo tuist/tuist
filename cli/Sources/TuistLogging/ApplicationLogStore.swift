@@ -37,6 +37,12 @@
             guard !Self.hasBootstrapped else { return }
             Self.hasBootstrapped = true
 
+            let uploadLogHandler = ApplicationLogUploadLogHandler(
+                launchID: UUID().uuidString,
+                queue: ApplicationLogUploadQueue.current,
+                lineTransformer: Self.redacted,
+                shouldLog: Self.shouldStore
+            )
             do {
                 var fileLogHandler = try await makeFileLogHandler()
                 fileLogHandler.logLevel = .debug
@@ -44,12 +50,16 @@
                 LoggingSystem.bootstrap { label in
                     MultiplexLogHandler([
                         fileLogHandler,
+                        uploadLogHandler,
                         StandardLogHandler(label: label, logLevel: .debug),
                     ])
                 }
             } catch {
                 LoggingSystem.bootstrap { label in
-                    StandardLogHandler(label: label, logLevel: .debug)
+                    MultiplexLogHandler([
+                        uploadLogHandler,
+                        StandardLogHandler(label: label, logLevel: .debug),
+                    ])
                 }
             }
         }
@@ -89,7 +99,7 @@
                 "App version: \(appVersion) (\(appBuild))",
                 "Operating system: \(operatingSystemVersion)",
                 "Included launches: \(sessions.count) of up to \(Self.maximumSessionCount) recent launches",
-                "Sensitive authentication values are redacted before logs are stored.",
+                "Credentials, email addresses, and URL query strings are redacted before logs are stored.",
                 "",
                 "Entries:",
             ] + (sessions.isEmpty ? ["No application logs recorded."] : sessions))
@@ -133,6 +143,10 @@
                     "$1[redacted]"
                 ),
                 ("\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b", "[redacted]"),
+                ("\\btuist_[A-Za-z0-9-]+_[A-Za-z0-9]{16,}", "[redacted]"),
+                ("(?i)\\b(https?://[^\\s?#\"'<>]+)\\?[^\\s\"'<>]*", "$1?[redacted]"),
+                ("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[redacted]"),
+                ("(/Users|/home)/[^/\\s\"']+", "$1/[redacted]"),
             ].reduce(value) { output, replacement in
                 output.replacingOccurrences(
                     of: replacement.0,

@@ -6329,6 +6329,102 @@ components:
       type: integer
       x-struct:
       x-validate:
+    AppLogsUpload:
+      properties:
+        app:
+          properties:
+            build:
+              description: The app's build number.
+              maxLength: 64
+              type: string
+              x-struct:
+              x-validate:
+            os_version:
+              description: The operating system version.
+              maxLength: 128
+              type: string
+              x-struct:
+              x-validate:
+            platform:
+              description: The app's platform.
+              enum:
+                - ios
+                - macos
+              type: string
+              x-struct:
+              x-validate:
+            version:
+              description: The app's marketing version.
+              maxLength: 64
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - platform
+            - version
+            - build
+          type: object
+          x-struct:
+          x-validate:
+        entries:
+          items:
+            properties:
+              launch_id:
+                description: Identifies the app launch that logged the line.
+                maxLength: 64
+                type: string
+                x-struct:
+                x-validate:
+              level:
+                description: The log level.
+                enum:
+                  - trace
+                  - debug
+                  - info
+                  - notice
+                  - warning
+                  - error
+                  - critical
+                type: string
+                x-struct:
+                x-validate:
+              message:
+                description: The redacted log message.
+                maxLength: 8192
+                type: string
+                x-struct:
+                x-validate:
+              source:
+                description: The module that logged the line.
+                maxLength: 256
+                type: string
+                x-struct:
+                x-validate:
+              timestamp:
+                description: When the line was logged.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - timestamp
+              - level
+              - source
+              - message
+            type: object
+            x-struct:
+            x-validate:
+          maxItems: 1000
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - app
+        - entries
+      title: AppLogsUpload
+      type: object
+      x-struct:
+      x-validate:
     BuildsIndexPage:
       default: 1
       description: The page number to return.
@@ -17938,6 +18034,149 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/app/logs:
+    post:
+      callbacks: {}
+      description: Uploads a batch of diagnostic log lines from the Tuist iOS or macOS app so the Tuist team can investigate issues without asking users to export logs.
+      operationId: uploadAppLogs
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                app:
+                  properties:
+                    build:
+                      description: The app's build number.
+                      maxLength: 64
+                      type: string
+                      x-struct:
+                      x-validate:
+                    os_version:
+                      description: The operating system version.
+                      maxLength: 128
+                      type: string
+                      x-struct:
+                      x-validate:
+                    platform:
+                      description: The app's platform.
+                      enum:
+                        - ios
+                        - macos
+                      type: string
+                      x-struct:
+                      x-validate:
+                    version:
+                      description: The app's marketing version.
+                      maxLength: 64
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - platform
+                    - version
+                    - build
+                  type: object
+                  x-struct:
+                  x-validate:
+                entries:
+                  items:
+                    properties:
+                      launch_id:
+                        description: Identifies the app launch that logged the line.
+                        maxLength: 64
+                        type: string
+                        x-struct:
+                        x-validate:
+                      level:
+                        description: The log level.
+                        enum:
+                          - trace
+                          - debug
+                          - info
+                          - notice
+                          - warning
+                          - error
+                          - critical
+                        type: string
+                        x-struct:
+                        x-validate:
+                      message:
+                        description: The redacted log message.
+                        maxLength: 8192
+                        type: string
+                        x-struct:
+                        x-validate:
+                      source:
+                        description: The module that logged the line.
+                        maxLength: 256
+                        type: string
+                        x-struct:
+                        x-validate:
+                      timestamp:
+                        description: When the line was logged.
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - timestamp
+                      - level
+                      - source
+                      - message
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 1000
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - app
+                - entries
+              title: AppLogsUpload
+              type: object
+              x-struct:
+              x-validate:
+        description: App logs
+        required: false
+      responses:
+        '202':
+          description: The logs were accepted
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request body is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only users can upload app logs
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many uploads
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The logs could not be forwarded
+      summary: Upload Tuist app logs
+      tags:
+        - AppLogs
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks:
     get:
       callbacks: {}
