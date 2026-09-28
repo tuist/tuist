@@ -18,4 +18,4 @@ The Xcode compilation-cache transport lives in `cas-plugin/`.
 - cas-plugin/AGENTS.md
 
 - Missing self-hosted endpoint overrides disable remote caching with a warning in ordinary builds and proxy startup; malformed overrides remain errors. Custom/registered hosted endpoints use the same explicit override contract. Do not reintroduce obsolete discovery errors or readiness polling.
-- `tuist cache config` returns a project-scoped exchanged cache token so the Xcode proxy carries signed placement origin. Only a 404 from an older self-hosted server retains raw-credential compatibility.
+- `tuist cache config` returns a project-scoped exchanged cache token so the Xcode proxy carries signed placement origin. The server is upgraded ahead of the CLI; exchange failures propagate, including 404, without returning raw credentials.

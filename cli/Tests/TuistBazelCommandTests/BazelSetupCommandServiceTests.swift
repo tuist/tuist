@@ -23,7 +23,12 @@ struct BazelSetupCommandServiceTests {
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
     private let fileSystem = FileSystem()
 
-    private func makeSubject(cacheURL: URL? = nil, cacheURLStoreError: CacheURLStoreError? = nil, cacheToken: String? = nil) -> (
+    private func makeSubject(
+        cacheURL: URL? = nil,
+        cacheURLStoreError: CacheURLStoreError? = nil,
+        cacheToken: String = "scoped-cache-token",
+        cacheTokenError: GetCacheTokenServiceError? = nil
+    ) -> (
         subject: BazelSetupCommandService,
         serverAuthenticationController: MockServerAuthenticationControlling,
         configLoader: MockConfigLoading,
@@ -33,12 +38,12 @@ struct BazelSetupCommandServiceTests {
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
         let tokenService = MockGetCacheTokenServicing()
-        if let cacheToken {
+        if let cacheTokenError {
             given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
-                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
+                .willThrow(cacheTokenError)
         } else {
             given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
-                .willThrow(GetCacheTokenServiceError.unknownError(404))
+                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
         }
         let remoteCacheProbeService = MockRemoteCacheProbing()
         let configLoader = MockConfigLoading()
@@ -96,6 +101,19 @@ struct BazelSetupCommandServiceTests {
 
     private func canonicalPathString(_ path: AbsolutePath) -> String {
         URL(fileURLWithPath: path.pathString).resolvingSymlinksInPath().path
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory, arguments: [404, 503])
+    func setup_propagates_exchange_failure_without_probing(status: Int) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let error = GetCacheTokenServiceError.unknownError(status)
+        let (subject, authentication, _, probe) = makeSubject(cacheTokenError: error)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        await #expect(throws: error) {
+            try await subject.run(directory: directory.pathString)
+        }
+        verify(probe).probe(endpoint: .any, accountHandle: .any, instanceName: .any, token: .any).called(0)
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
@@ -751,7 +769,7 @@ struct BazelSetupCommandServiceTests {
                 endpoint: .value(GRPCEndpoint(host: "cache.tuist.dev", explicitPort: nil, isTLS: true)),
                 accountHandle: .value("my-account"),
                 instanceName: .value("my-project"),
-                token: .value("token")
+                token: .value("scoped-cache-token")
             )
             .called(1)
     }

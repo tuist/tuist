@@ -28,10 +28,8 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     /// How far before a token's real expiry Bazel is asked to come back for a fresh
     /// credential. Bazel caches the credential we return until `expires` and only
     /// re-invokes this helper lazily, on the first request issued after that
-    /// timestamp. Bringing the reported expiry forward — and refreshing proactively
-    /// once the token is within this window — guarantees Bazel always rotates to a
-    /// fresh token before the current one is rejected by the server, covering
-    /// in-flight requests and clock skew between the developer machine and the cache.
+    /// timestamp. Each invocation exchanges a fresh cache token; bringing its reported
+    /// expiry forward leaves a margin for in-flight requests and clock skew.
     private static let expirySafetyMargin: TimeInterval = 60
 
     public init(
@@ -126,58 +124,16 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        guard var token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
-        else {
+        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             throw BazelCredentialHelperCommandServiceError.notAuthenticated
         }
 
-        if let fullHandle = config.fullHandle {
-            do {
-                let cacheToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: fullHandle)
-                return BazelCredentialHelperResponse(
-                    headers: ["Authorization": ["Bearer \(cacheToken.token)"]],
-                    expires: ISO8601DateFormatter().string(from: date().addingTimeInterval(
-                        max(0, TimeInterval(cacheToken.expiresIn) - Self.expirySafetyMargin)
-                    ))
-                )
-            } catch GetCacheTokenServiceError.unknownError(404) {
-                // Retain raw credentials for older self-hosted servers.
-            }
-        }
-
-        // If a refreshable user token is already within the safety margin of expiring,
-        // refresh it now so Bazel caches a token with a full lifetime ahead of it
-        // rather than one about to be rejected mid-build. Project tokens never expire
-        // and account tokens cannot be refreshed, so they are returned as-is.
-        if case let .user(accessToken, _) = token,
-           accessToken.expiryDate.timeIntervalSince(date()) <= Self.expirySafetyMargin
-        {
-            do {
-                try await serverAuthenticationController.refreshToken(serverURL: serverURL)
-                if let refreshedToken = try await serverAuthenticationController
-                    .authenticationToken(serverURL: serverURL)
-                {
-                    token = refreshedToken
-                }
-            } catch {
-                // Best effort: if the proactive refresh fails (e.g. a transient network
-                // error) fall back to the token we already have, which remains valid for
-                // up to the safety margin.
-            }
-        }
-
-        let expiryDate: Date? = switch token {
-        case let .user(accessToken: accessToken, refreshToken: _):
-            accessToken.expiryDate.addingTimeInterval(-Self.expirySafetyMargin)
-        case let .account(accessToken):
-            accessToken.expiryDate
-        case .project:
-            nil
-        }
-
+        let cacheToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: config.fullHandle)
         return BazelCredentialHelperResponse(
-            headers: ["Authorization": ["Bearer \(token.value)"]],
-            expires: expiryDate.map { ISO8601DateFormatter().string(from: $0) }
+            headers: ["Authorization": ["Bearer \(cacheToken.token)"]],
+            expires: ISO8601DateFormatter().string(from: date().addingTimeInterval(
+                max(0, TimeInterval(cacheToken.expiresIn) - Self.expirySafetyMargin)
+            ))
         )
     }
 }

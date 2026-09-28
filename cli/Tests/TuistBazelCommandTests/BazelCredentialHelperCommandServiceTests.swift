@@ -13,10 +13,10 @@ import TuistTesting
 struct BazelCredentialHelperCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
 
-    private struct RefreshError: Error {}
-
     private func makeSubject(
-        cacheToken: String? = nil,
+        cacheToken: String = "scoped-cache-token", cacheTokenError: GetCacheTokenServiceError? = nil,
+        fullHandle: String? = "account/project",
+        expiresIn: Int = 1800,
         date: @escaping () -> Date = { Date() }
     ) -> (
         subject: BazelCredentialHelperCommandService,
@@ -26,17 +26,17 @@ struct BazelCredentialHelperCommandServiceTests {
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let configLoader = MockConfigLoading()
         let tokenService = MockGetCacheTokenServicing()
-        if let cacheToken {
-            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
-                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
+        if let cacheTokenError {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .value(fullHandle))
+                .willThrow(cacheTokenError)
         } else {
-            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
-                .willThrow(GetCacheTokenServiceError.unknownError(404))
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .value(fullHandle))
+                .willReturn(CacheToken(token: cacheToken, expiresIn: expiresIn))
         }
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(Tuist.test(fullHandle: "account/project", url: serverURL))
+            .willReturn(Tuist.test(fullHandle: fullHandle, url: serverURL))
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
@@ -51,6 +51,34 @@ struct BazelCredentialHelperCommandServiceTests {
         )
 
         return (subject, serverAuthenticationController)
+    }
+
+    @Test(.withMockedEnvironment(), arguments: [404, 503])
+    func credentials_propagates_exchange_failure(status: Int) async throws {
+        let error = GetCacheTokenServiceError.unknownError(status)
+        let (subject, authentication) = makeSubject(cacheTokenError: error)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        await #expect(throws: error) {
+            try await subject.credentials(helperCommand: "get", directory: nil)
+        }
+    }
+
+    @Test(.withMockedEnvironment())
+    func credentials_exchanges_a_cache_token_without_a_project_handle() async throws {
+        let (subject, authentication) = makeSubject(fullHandle: nil)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        let response = try await subject.credentials(helperCommand: "get", directory: nil)
+        #expect(response.headers == ["Authorization": ["Bearer scoped-cache-token"]])
+        #expect(response.expires != nil)
+    }
+
+    @Test(.withMockedEnvironment(), arguments: [0, 30, 60])
+    func short_lived_tokens_are_not_cached_beyond_the_safety_margin(expiresIn: Int) async throws {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let (subject, authentication) = makeSubject(expiresIn: expiresIn, date: { now })
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        let response = try await subject.credentials(helperCommand: "get", directory: nil)
+        #expect(response.expires == ISO8601DateFormatter().string(from: now))
     }
 
     @Test(.withMockedEnvironment())
@@ -89,8 +117,8 @@ struct BazelCredentialHelperCommandServiceTests {
         // re-invokes the helper before the token is actually rejected by the server.
         #expect(
             response == BazelCredentialHelperResponse(
-                headers: ["Authorization": ["Bearer access-token"]],
-                expires: "2025-06-15T15:05:40Z"
+                headers: ["Authorization": ["Bearer scoped-cache-token"]],
+                expires: "2025-06-15T14:35:40Z"
             )
         )
         verify(serverAuthenticationController)
@@ -99,89 +127,11 @@ struct BazelCredentialHelperCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment())
-    func credentials_refreshes_user_token_within_safety_margin() async throws {
+    func credentials_returns_cache_token_expiry_for_project_tokens() async throws {
         // Given
         let (subject, serverAuthenticationController) = makeSubject(
-            date: { Date(timeIntervalSince1970: 1_750_000_000 - 10) }
+            date: { Date(timeIntervalSince1970: 1_750_000_000 - 3600) }
         )
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
-            .willReturn(
-                .user(
-                    accessToken: .test(
-                        token: "access-token",
-                        expiryDate: Date(timeIntervalSince1970: 1_750_000_000)
-                    ),
-                    refreshToken: .test(token: "refresh-token")
-                )
-            )
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
-            .willReturn(
-                .user(
-                    accessToken: .test(
-                        token: "fresh-access-token",
-                        expiryDate: Date(timeIntervalSince1970: 1_750_000_600)
-                    ),
-                    refreshToken: .test(token: "fresh-refresh-token")
-                )
-            )
-        given(serverAuthenticationController)
-            .refreshToken(serverURL: .value(serverURL))
-            .willReturn()
-
-        // When
-        let response = try await subject.credentials(helperCommand: "get", directory: nil)
-
-        // Then
-        #expect(
-            response == BazelCredentialHelperResponse(
-                headers: ["Authorization": ["Bearer fresh-access-token"]],
-                expires: "2025-06-15T15:15:40Z"
-            )
-        )
-        verify(serverAuthenticationController)
-            .refreshToken(serverURL: .value(serverURL))
-            .called(1)
-    }
-
-    @Test(.withMockedEnvironment())
-    func credentials_falls_back_to_current_token_when_proactive_refresh_fails() async throws {
-        // Given
-        let (subject, serverAuthenticationController) = makeSubject(
-            date: { Date(timeIntervalSince1970: 1_750_000_000 - 10) }
-        )
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
-            .willReturn(
-                .user(
-                    accessToken: .test(
-                        token: "access-token",
-                        expiryDate: Date(timeIntervalSince1970: 1_750_000_000)
-                    ),
-                    refreshToken: .test(token: "refresh-token")
-                )
-            )
-        given(serverAuthenticationController)
-            .refreshToken(serverURL: .value(serverURL))
-            .willThrow(RefreshError())
-
-        // When
-        let response = try await subject.credentials(helperCommand: "get", directory: nil)
-
-        // Then
-        #expect(
-            response == BazelCredentialHelperResponse(
-                headers: ["Authorization": ["Bearer access-token"]],
-                expires: "2025-06-15T15:05:40Z"
-            )
-        )
-    }
-
-    @Test(.withMockedEnvironment())
-    func credentials_returns_no_expiry_for_project_tokens() async throws {
-        // Given
-        let (subject, serverAuthenticationController) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(.project("project-token"))
@@ -192,8 +142,8 @@ struct BazelCredentialHelperCommandServiceTests {
         // Then
         #expect(
             response == BazelCredentialHelperResponse(
-                headers: ["Authorization": ["Bearer project-token"]],
-                expires: nil
+                headers: ["Authorization": ["Bearer scoped-cache-token"]],
+                expires: "2025-06-15T14:35:40Z"
             )
         )
     }
@@ -219,11 +169,11 @@ struct BazelCredentialHelperCommandServiceTests {
         let response = try await subject.credentials(helperCommand: "get", directory: nil)
 
         // Then
-        // Account tokens cannot be refreshed, so their exact expiry is reported unchanged.
+        // Report the exchanged cache token lifetime, independent of the account credential expiry.
         #expect(
             response == BazelCredentialHelperResponse(
-                headers: ["Authorization": ["Bearer account-token"]],
-                expires: "2025-06-15T15:06:40Z"
+                headers: ["Authorization": ["Bearer scoped-cache-token"]],
+                expires: "2025-06-15T14:35:40Z"
             )
         )
     }

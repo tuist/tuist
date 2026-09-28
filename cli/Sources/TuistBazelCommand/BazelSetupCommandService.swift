@@ -233,7 +233,7 @@ public struct BazelSetupCommandService {
             throw BazelSetupCommandServiceError.missingFullHandle
         }
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
-        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
+        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
         guard let cacheURL = try await cacheURL(serverURL: serverURL, accountHandle: accountHandle) else {
@@ -249,12 +249,7 @@ public struct BazelSetupCommandService {
         }
         let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
 
-        var probeToken = token.value
-        do {
-            probeToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: fullHandle).token
-        } catch GetCacheTokenServiceError.unknownError(404) {
-            // Older self-hosted servers may not implement cache-token exchange.
-        }
+        let probeToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: fullHandle).token
 
         try await remoteCacheProbeService.probe(
             endpoint: endpoint,

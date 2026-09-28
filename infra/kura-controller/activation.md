@@ -65,9 +65,9 @@ apply. The token reflects the exchange location for at most its 30-minute TTL.
 Bazel setup, its credential helper, and `tuist cache config` exchange scoped
 tokens too. The Xcode proxy keeps a separate token provider per project and
 refreshes each JWT near expiry; it never shares one project's grant with another.
-An older self-hosted server returning 404 keeps the raw-credential compatibility
-path. Direct proxy integrations without a CLI keep their explicitly supplied
-bearer and have no signed origin unless they supply an exchanged token.
+The server must be upgraded ahead of the CLI. Token-exchange failures, including
+404, propagate without falling back to raw credentials. Direct proxy integrations
+without a CLI keep their explicitly supplied bearer and have no signed origin unless they supply an exchanged token.
 
 Stable DNS intent is independent of the `kura_stable_hostname` flag. That flag
 now controls only legacy `/endpoints` hand-out. Disabling it must not withdraw

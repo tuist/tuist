@@ -77,17 +77,13 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             throw CacheConfigCommandServiceError.missingFullHandle
         }
 
-        var token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
+        try await ensureAuthenticated(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
         let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
 
-        do {
-            token = try await getCacheTokenService.getCacheToken(serverURL: resolvedServerURL, fullHandle: resolvedFullHandle)
-                .token
-        } catch GetCacheTokenServiceError.unknownError(404) {
-            // Older self-hosted servers may not implement cache-token exchange.
-        }
+        let token = try await getCacheTokenService.getCacheToken(serverURL: resolvedServerURL, fullHandle: resolvedFullHandle)
+            .token
 
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,
@@ -110,23 +106,23 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         }
     }
 
-    private func getAuthenticationToken(serverURL: URL, forceRefresh: Bool) async throws -> String {
+    private func ensureAuthenticated(serverURL: URL, forceRefresh: Bool) async throws {
         if forceRefresh {
             try await serverAuthenticationController.refreshToken(serverURL: serverURL)
         }
 
-        if let existingToken = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) {
-            return existingToken.value
+        if try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil {
+            return
         }
 
-        if Environment.current.isCI, let oidcToken = try? await authenticateWithOIDC(serverURL: serverURL) {
-            return oidcToken
+        if Environment.current.isCI, let _ = try? await authenticateWithOIDC(serverURL: serverURL) {
+            return
         }
 
         throw CacheConfigCommandServiceError.notAuthenticated
     }
 
-    private func authenticateWithOIDC(serverURL: URL) async throws -> String {
+    private func authenticateWithOIDC(serverURL: URL) async throws {
         let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
         let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
             oidcToken: oidcToken,
@@ -137,8 +133,6 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             credentials: ServerCredentials(accessToken: accessToken),
             serverURL: serverURL
         )
-
-        return accessToken
     }
 }
 

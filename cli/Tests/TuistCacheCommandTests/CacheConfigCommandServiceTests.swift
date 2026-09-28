@@ -21,7 +21,11 @@ import TuistTesting
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
-    private func makeSubject(cacheURLError: CacheURLStoreError? = nil, cacheToken: String? = nil) -> (
+    private func makeSubject(
+        cacheURLError: CacheURLStoreError? = nil,
+        cacheToken: String = "scoped-cache-token",
+        cacheTokenError: GetCacheTokenServiceError? = nil
+    ) -> (
         subject: CacheConfigCommandService,
         serverEnvironmentService: MockServerEnvironmentServicing,
         serverAuthenticationController: MockServerAuthenticationControlling,
@@ -35,12 +39,12 @@ struct CacheConfigCommandServiceTests {
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
         let tokenService = MockGetCacheTokenServicing()
-        if let cacheToken {
+        if let cacheTokenError {
             given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
-                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
+                .willThrow(cacheTokenError)
         } else {
             given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
-                .willThrow(GetCacheTokenServiceError.unknownError(404))
+                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
         }
         let fullHandleService = MockFullHandleServicing()
         let configLoader = MockConfigLoading()
@@ -90,6 +94,17 @@ struct CacheConfigCommandServiceTests {
             ciOIDCAuthenticator,
             exchangeOIDCTokenService
         )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [404, 503])
+    func run_propagates_exchange_failure_without_printing_credentials(status: Int) async throws {
+        let error = GetCacheTokenServiceError.unknownError(status)
+        let (subject, _, authentication, _, _, _, _, _) = makeSubject(cacheTokenError: error)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        await #expect(throws: error) {
+            try await subject.run(fullHandle: "my-account/my-project", json: true, forceRefresh: false, directory: nil, url: nil)
+        }
+        #expect(ui().isEmpty)
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
