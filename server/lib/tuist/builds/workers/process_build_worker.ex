@@ -27,6 +27,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     ]
 
   alias Tuist.Builds
+  alias Tuist.Builds.CacheRegion
+  alias Tuist.Kura.Telemetry, as: KuraTelemetry
   alias Tuist.Projects
   alias Tuist.Storage
 
@@ -131,7 +133,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     parsed = atomize_keys(parsed_data)
 
     attrs =
-      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
+      build_id
+      |> base_build_attrs(project_id, account_id, build_metadata)
+      |> Map.merge(%{
         project_id: parsed[:project_id],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
@@ -144,9 +148,36 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         machine_metrics: Enum.map(parsed[:machine_metrics] || [], &atomize_keys/1),
         build_steps: Stream.map(Map.get(parsed, :build_steps, []), &atomize_keys/1)
       })
+      |> Map.merge(CacheRegion.serving_attrs(parsed[:cache_serving]))
 
-    {:ok, _build} = Builds.create_build(attrs)
+    {:ok, build} = Builds.create_build(attrs)
+    record_cache_region(build)
     :ok
+  end
+
+  # Counted once per processed build: a retried job re-parses the same build,
+  # but only a job that got this far writes the replacement row, and it does so
+  # once.
+  defp record_cache_region(build) do
+    case CacheRegion.verdict(build) do
+      :unknown ->
+        :ok
+
+      verdict ->
+        account_handle =
+          if verdict == :mismatch do
+            case Projects.get_project_by_id(build.project_id) do
+              nil -> "unknown"
+              project -> project.account.name
+            end
+          end
+
+        KuraTelemetry.build_cache_region(verdict, %{
+          account: account_handle,
+          expected: build.cache_expected_region,
+          served: build.cache_serving_region
+        })
+    end
   end
 
   defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do

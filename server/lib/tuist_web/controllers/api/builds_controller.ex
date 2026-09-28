@@ -4,6 +4,7 @@ defmodule TuistWeb.API.BuildsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Builds
+  alias Tuist.Builds.CacheRegion
   alias Tuist.Builds.CASOutput
   alias Tuist.Storage
   alias Tuist.VCS.RemoteURL
@@ -18,6 +19,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -327,7 +329,8 @@ defmodule TuistWeb.API.BuildsController do
                  tags: %Schema{type: :array, items: %Schema{type: :string}},
                  values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
                }
-             }
+             },
+             cache_region: TuistWeb.API.Schemas.Builds.CacheRegion
            },
            required: [
              :id,
@@ -388,7 +391,8 @@ defmodule TuistWeb.API.BuildsController do
             custom_metadata: %{
               tags: build.custom_tags || [],
               values: build.custom_values || %{}
-            }
+            },
+            cache_region: CacheRegion.summary(build)
           })
         else
           conn
@@ -888,6 +892,7 @@ defmodule TuistWeb.API.BuildsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:origin, RemoteIp.origin(conn))
 
     case get_or_create_build(run_params) do
       {:ok, build} ->
@@ -925,6 +930,9 @@ defmodule TuistWeb.API.BuildsController do
 
       {:error, :not_found} ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
+        # The build is uploaded from the machine that ran it, so this request's
+        # origin is where the build came from.
+        cache_region = CacheRegion.client_attrs(params.project.account, params.origin)
 
         build_attrs = %{
           id: params.id,
@@ -955,7 +963,9 @@ defmodule TuistWeb.API.BuildsController do
           generation_id: Map.get(params, :generation_id),
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{}),
-          machine_metrics: Map.get(params, :machine_metrics, [])
+          machine_metrics: Map.get(params, :machine_metrics, []),
+          client_origin: cache_region.client_origin,
+          cache_expected_region: cache_region.cache_expected_region
         }
 
         result =
@@ -990,7 +1000,9 @@ defmodule TuistWeb.API.BuildsController do
                 git_remote_url_origin: Map.get(params, :git_remote_url_origin),
                 generation_id: Map.get(params, :generation_id),
                 custom_tags: Map.get(custom_metadata, :tags, []),
-                custom_values: Map.get(custom_metadata, :values, %{})
+                custom_values: Map.get(custom_metadata, :values, %{}),
+                client_origin: cache_region.client_origin,
+                cache_expected_region: cache_region.cache_expected_region
               },
               vcs_comment_params: %{
                 git_commit_sha: Map.get(params, :git_commit_sha),

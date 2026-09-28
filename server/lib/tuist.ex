@@ -107,6 +107,7 @@ defmodule Tuist do
       Registry,
       Builds,
       Builds.Build,
+      Builds.CacheRegion,
       Builds.CASOutput,
       Builds.Analytics,
       Builds.Steps,

@@ -80,7 +80,15 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count),
         custom_tags: Keyword.get(attrs, :custom_tags, []),
         custom_values: Keyword.get(attrs, :custom_values, %{}),
-        generation_id: Keyword.get(attrs, :generation_id)
+        generation_id: Keyword.get(attrs, :generation_id),
+        client_origin: Keyword.get(attrs, :client_origin, ""),
+        cache_expected_region: Keyword.get(attrs, :cache_expected_region, ""),
+        cache_serving_region: Keyword.get(attrs, :cache_serving_region, ""),
+        cache_serving_node: Keyword.get(attrs, :cache_serving_node, ""),
+        cache_serving_region_requests: Keyword.get(attrs, :cache_serving_region_requests, 0),
+        cache_observed_requests: Keyword.get(attrs, :cache_observed_requests, 0),
+        cache_connected_at: Keyword.get(attrs, :cache_connected_at),
+        cache_connected_before_build_seconds: Keyword.get(attrs, :cache_connected_before_build_seconds)
       })
 
     Tuist.Builds.Build.Buffer.flush()

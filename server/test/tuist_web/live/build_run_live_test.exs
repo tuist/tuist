@@ -714,6 +714,56 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute has_element?(lv, "[data-part=cas-outputs-list]")
   end
 
+  test "warns when the cache was served from a region other than the one expected", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        client_origin: "AU",
+        cache_expected_region: "ap-southeast",
+        cache_serving_region: "us-central",
+        cache_observed_requests: 10,
+        cache_serving_region_requests: 10
+      )
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache")
+
+    render_async(lv)
+
+    assert has_element?(
+             lv,
+             "#cache-region-mismatch",
+             "Cache served from US Central while you connected from AU; expected Asia Pacific Southeast."
+           )
+
+    assert has_element?(lv, "#widget-cache-region", "US Central")
+  end
+
+  test "does not warn when the cache was served from the expected region", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        client_origin: "AU",
+        cache_expected_region: "ap-southeast",
+        cache_serving_region: "ap-southeast"
+      )
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache")
+
+    render_async(lv)
+    refute has_element?(lv, "#cache-region-mismatch")
+    assert has_element?(lv, "#widget-cache-region", "Asia Pacific Southeast")
+  end
+
   test "keeps outputs while loading more and retries a failed batch", %{
     conn: conn,
     organization: organization,

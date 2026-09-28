@@ -95,6 +95,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     ])
   end
 
+  # Written through the real `Builds.create_build/1`, which needs targets with a
+  # project and no steps.
+  defp served_parsed_data(cache_serving) do
+    parsed_data()
+    |> Map.put("targets", [])
+    |> Map.put("build_steps", [])
+    |> Map.put("cache_serving", cache_serving)
+  end
+
   describe "perform/1 happy path" do
     test "downloads, parses and writes the build run", %{
       account: account,
@@ -160,6 +169,103 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+  end
+
+  describe "perform/1 cache region" do
+    setup %{account: account, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          status: "processing",
+          duration: 0,
+          client_origin: "AU",
+          cache_expected_region: "ap-southeast"
+        )
+
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      test_pid = self()
+
+      :telemetry.attach(
+        "cache-region-#{build.id}",
+        Tuist.Kura.Telemetry.event_name_build_cache_region(),
+        fn _event, measurements, metadata, _config -> send(test_pid, {:cache_region, measurements, metadata}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach("cache-region-#{build.id}") end)
+
+      %{region_build: build}
+    end
+
+    test "stores the region that served the build next to where it came from and counts a mismatch", %{
+      account: account,
+      project: project,
+      region_build: build
+    } do
+      expect(BuildProcessor, :process_build, fn _path, true, consume ->
+        consume.(
+          served_parsed_data(%{
+            "region" => "us-central",
+            "node" => "acme-us-central-0",
+            "connected_at" => "2026-09-28T09:00:00.000",
+            "connected_before_build_seconds" => 30,
+            "region_requests" => 90,
+            "observed_requests" => 100
+          })
+        )
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+      Build.Buffer.flush()
+
+      {:ok, processed} = Builds.get_build(build.id, project_id: project.id)
+      assert processed.client_origin == "AU"
+      assert processed.cache_expected_region == "ap-southeast"
+      assert processed.cache_serving_region == "us-central"
+      assert processed.cache_serving_node == "acme-us-central-0"
+      assert processed.cache_serving_region_requests == 90
+      assert processed.cache_observed_requests == 100
+      assert processed.cache_connected_at == ~N[2026-09-28 09:00:00.000]
+      assert processed.cache_connected_before_build_seconds == 30
+
+      account_name = project.account.name
+
+      assert_received {:cache_region, %{count: 1},
+                       %{
+                         outcome: "mismatch",
+                         account: ^account_name,
+                         expected: "ap-southeast",
+                         served: "us-central"
+                       }}
+    end
+
+    test "counts a build served from its expected region without naming the account", %{
+      account: account,
+      project: project,
+      region_build: build
+    } do
+      expect(BuildProcessor, :process_build, fn _path, true, consume ->
+        consume.(served_parsed_data(%{"region" => "ap-southeast", "observed_requests" => 3}))
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+
+      assert_received {:cache_region, %{count: 1}, %{outcome: "match", account: ""}}
+    end
+
+    test "counts nothing when the proxy recorded no serving region", %{
+      account: account,
+      project: project,
+      region_build: build
+    } do
+      expect(BuildProcessor, :process_build, fn _path, true, consume -> consume.(served_parsed_data(nil)) end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+
+      refute_received {:cache_region, _, _}
     end
   end
 

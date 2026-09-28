@@ -188,6 +188,51 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       assert result["archive_url"] == "https://storage.test/acme/app/builds/build-1/build.zip"
     end
 
+    test "returns where the build came from and which cache region served it" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn "build-1" ->
+        {:ok,
+         %Tuist.Builds.Build{
+           id: "build-1",
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           is_ci: false,
+           project_id: 1,
+           inserted_at: ~N[2026-09-28 09:10:00.000000],
+           client_origin: "AU",
+           cache_expected_region: "ap-southeast",
+           cache_serving_region: "us-central",
+           cache_serving_node: "acme-us-central-0",
+           cache_serving_region_requests: 10,
+           cache_observed_requests: 10,
+           cache_connected_at: ~N[2026-09-28 09:00:00.000],
+           cache_connected_before_build_seconds: 595
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> cas_output_metrics() end)
+
+      result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+
+      assert JSON.decode!(text)["cache_region"] == %{
+               "client_origin" => "AU",
+               "expected_region" => "ap-southeast",
+               "serving_region" => "us-central",
+               "serving_node" => "acme-us-central-0",
+               "serving_region_share" => 1.0,
+               "connected_at" => "2026-09-28T09:00:00.000Z",
+               "connected_before_build_seconds" => 595,
+               "verdict" => "mismatch"
+             }
+    end
+
     test "accepts a dashboard URL in place of the build ID" do
       project = %{id: 1, name: "app", account: %{name: "acme"}}
 

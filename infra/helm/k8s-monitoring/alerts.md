@@ -3333,6 +3333,83 @@ Limits: only processed builds count, so the rule lags a slow build by its
 duration plus processing time. Hits replayed straight from the local CAS never
 reach `cacheable_tasks`.
 
+### Kura account's builds served from an unexpected cache region
+
+```promql
+sum by (cluster, account, expected, served) (
+  increase(tuist_kura_cache_region_mismatched_builds_count{cluster="tuist-production"}[6h])
+)
+>= 3
+```
+
+- Threshold: the query already filters; `IS ABOVE 0` on `A`
+- Pending period: none, keep firing for 1 hour
+- Severity: warning
+- Not created yet. Create it in folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Error**.
+- Summary: `{{ $labels.account }}: builds served from {{ $labels.served }}
+  instead of {{ $labels.expected }} in the last 6 hours`
+- Description: `Processed Xcode builds of this account were served by a
+  compilation-cache region other than the one nearest where they were
+  uploaded from. The stable hostname is routed by the client's DNS resolver,
+  so a VPN or corporate resolver is the usual cause. Open one of the
+  account's recent builds: the Xcode cache tab names the origin and both
+  regions, and the build API's cache_region field has the same data.`
+
+Built on `Tuist.Builds.CacheRegion`, which records on every processed Xcode
+build where it came from (`client_origin`, the Cloudflare location of the
+upload request), which region should have served it (`cache_expected_region`,
+the account's serving managed region nearest that origin by
+`Tuist.Kura.OriginMap`), and which region Kura says did
+(`cache_serving_region`, from the `x-kura-region` header the CAS proxy records
+per request). `ProcessBuildWorker` emits one event per build where both are
+known and the serving region is public: `tuist_kura_cache_region_builds_count`
+by `outcome` (`match`/`mismatch`) for the fleet-wide rate, and
+`tuist_kura_cache_region_mismatched_builds_count` by `account`, `expected` and
+`served` for mismatches only. The second is bounded by accounts on managed
+regions and the region pairs they actually hit; `account`, `expected` and
+`served` must survive Adaptive Metrics or the rule collapses into one
+`<aggregated>` row.
+
+Why this exists: in September 2026 a developer building from Australia had
+their cache hits served by us-central instead of ap-southeast, at 200-400 ms
+per key, and it could only be inferred by cross-checking Kura read counters.
+The same case now reads as `expected=ap-southeast, served=us-central` on the
+account's row.
+
+Three mismatched builds in six hours keeps a single build uploaded over a
+different network from firing. It is per region pair, so an account whose
+developers sit in two places alerts only for the pair that is wrong. The rule
+does not fire for a stale connection on our side: the CAS proxy renews its
+connections after its ten-minute endpoint freshness window and on network
+changes, and the build's `cache_region.connected_before_build_seconds` shows
+how old the serving connection was. What it cannot distinguish is a customer's
+VPN from a resolver that is simply far away; both are the customer's network,
+and the build report says so. Builds from CAS proxies or Kura nodes older than
+the headers record no serving region and are not counted.
+
+**Runbook.** List the account's recent mismatched builds (replace
+`PROJECT_IDS` with the account's project ids; `build_runs.account_id` is who
+ran the build, not the account that owns the cache):
+
+```sql
+SELECT id, inserted_at, is_ci, client_origin, cache_expected_region,
+  cache_serving_region, cache_serving_node,
+  round(cache_serving_region_requests / nullIf(cache_observed_requests, 0), 2) AS share,
+  cache_connected_at
+FROM build_runs FINAL
+WHERE project_id IN (PROJECT_IDS)
+  AND inserted_at >= now() - INTERVAL 1 DAY
+  AND cache_serving_region != '' AND cache_expected_region != ''
+  AND cache_serving_region != cache_expected_region
+ORDER BY inserted_at DESC
+LIMIT 50
+```
+
+If every mismatch is CI (`is_ci`), the runner's network or DNS is at fault
+rather than a developer's VPN. `sum by` rather than `max by`: a build is
+counted on the one processor pod that processed it.
+
 ### Kura ingress returning malformed or 502 responses
 
 Data source: Loki `grafanacloud-logs`. This is rule `bfybzuvqgyzggc`, folder

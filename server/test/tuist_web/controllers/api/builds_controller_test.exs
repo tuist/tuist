@@ -7,6 +7,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
   alias Tuist.Builds.Workers.ProcessBuildWorker
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
@@ -353,6 +354,49 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["cacheable_task_remote_hits_count"] == 5
     end
 
+    test "returns where the build came from and which region served it", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          duration: 60_000,
+          client_origin: "AU",
+          cache_expected_region: "ap-southeast",
+          cache_serving_region: "us-central",
+          cache_serving_node: "acme-us-central-0",
+          cache_serving_region_requests: 95,
+          cache_observed_requests: 100,
+          cache_connected_at: ~N[2026-09-28 09:00:00.000]
+        )
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> zero_cas_output_metrics() end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "client_origin" => "AU",
+               "expected_region" => "ap-southeast",
+               "serving_region" => "us-central",
+               "serving_node" => "acme-us-central-0",
+               "serving_region_share" => 0.95,
+               "connected_at" => "2026-09-28T09:00:00.000Z",
+               "verdict" => "mismatch"
+             } = json_response(conn, 200)["cache_region"]
+    end
+
+    test "returns no cache region for a build that recorded none", %{conn: conn, user: user, project: project} do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> zero_cas_output_metrics() end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert json_response(conn, 200)["cache_region"] == nil
+    end
+
     test "returns the CAS transfer totals for the build", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
@@ -692,6 +736,68 @@ defmodule TuistWeb.API.BuildsControllerTest do
           "vcs_comment_params" => %{"git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
         }
       )
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/xcode/builds cache region" do
+    test "records where the build came from and the region expected to serve it", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      KuraFixtures.active_server_fixture(organization.account, region: "us-central")
+      KuraFixtures.active_server_fixture(organization.account, region: "ap-southeast")
+      build_id = UUIDv7.generate()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("x-forwarded-for", "203.0.113.10, 173.245.48.10")
+        |> put_req_header("cf-ipcountry", "AU")
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{organization.account.name}/#{project.name}/xcode/builds", %{
+          id: build_id,
+          status: "processing",
+          is_ci: false
+        })
+
+      assert json_response(conn, 200)
+      Build.Buffer.flush()
+
+      {:ok, build} = Builds.get_build(build_id, project_id: project.id)
+      assert build.client_origin == "AU"
+      assert build.cache_expected_region == "ap-southeast"
+
+      assert_enqueued(
+        worker: ProcessBuildWorker,
+        args: %{
+          "build_id" => build_id,
+          "build_metadata" => %{"client_origin" => "AU", "cache_expected_region" => "ap-southeast"}
+        }
+      )
+    end
+
+    test "records nothing for a request the edge did not locate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      KuraFixtures.active_server_fixture(user.account, region: "us-central")
+      build_id = UUIDv7.generate()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/xcode/builds", %{
+          id: build_id,
+          status: "success",
+          is_ci: false
+        })
+
+      assert json_response(conn, 200)
+      Build.Buffer.flush()
+
+      {:ok, build} = Builds.get_build(build_id, project_id: project.id)
+      assert build.client_origin == ""
+      assert build.cache_expected_region == ""
     end
   end
 

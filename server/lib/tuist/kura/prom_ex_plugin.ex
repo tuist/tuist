@@ -189,6 +189,23 @@ defmodule Tuist.Kura.PromExPlugin do
                 "An edge that stops reporting locations otherwise looks exactly like a quiet " <>
                 "fleet, with placement silently falling back to the default region.",
             tags: [:signal, :attributed, :reason]
+          ),
+          counter(
+            [:tuist, :kura, :cache_region, :builds, :count],
+            event_name: Telemetry.event_name_build_cache_region(),
+            description:
+              "Processed builds whose serving cache region could be compared with the region expected " <>
+                "for where the build came from, by outcome.",
+            tags: [:outcome]
+          ),
+          counter(
+            [:tuist, :kura, :cache_region, :mismatched_builds, :count],
+            event_name: Telemetry.event_name_build_cache_region(),
+            description:
+              "Processed builds served from a cache region other than the one expected for where the " <>
+                "build came from, by account and region pair.",
+            keep: &(&1.outcome == "mismatch"),
+            tags: [:account, :expected, :served]
           )
         ]
       )

@@ -51,6 +51,7 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_origin_attribution, do: @prefix ++ [:origin_attribution]
   def event_name_claim_apply_refused, do: @prefix ++ [:claim_apply_refused]
   def event_name_provision_refused, do: @prefix ++ [:provision_refused]
+  def event_name_build_cache_region, do: @prefix ++ [:build_cache_region]
 
   # Every capacity refusal carries an atom reason (`:capacity_exhausted`,
   # `:capacity_unplaceable`, `:capacity_unknown`). Anything else is bucketed
@@ -211,6 +212,22 @@ defmodule Tuist.Kura.Telemetry do
       signal: to_string(signal),
       attributed: to_string(reason == :ok),
       reason: to_string(reason)
+    })
+  end
+
+  @doc """
+  Counts a processed build whose serving cache region could be compared with
+  the region expected for where it came from. A mismatch carries the account
+  handle, so a customer whose network routes them to a far region shows up
+  before they report it. Bounded: only accounts on managed Kura regions ever
+  produce one, and only for the region pairs they actually hit.
+  """
+  def build_cache_region(verdict, %{expected: expected, served: served} = labels) when verdict in [:match, :mismatch] do
+    :telemetry.execute(event_name_build_cache_region(), %{count: 1}, %{
+      outcome: to_string(verdict),
+      account: if(verdict == :mismatch, do: Map.get(labels, :account) || "unknown", else: ""),
+      expected: expected,
+      served: served
     })
   end
 end

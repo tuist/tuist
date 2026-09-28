@@ -18,6 +18,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Noora.Filter
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds
+  alias Tuist.Builds.CacheRegion
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
   alias Tuist.Gradle.Build
@@ -126,6 +127,7 @@ defmodule TuistWeb.BuildRunLive do
     ci_context = build_ci_context(run, socket.assigns.selected_account, ci_run_url)
 
     socket
+    |> assign(:cache_region, CacheRegion.summary(run))
     |> assign(:command_event, command_event)
     |> assign(:binary_cache_command_event, binary_cache_command_event)
     |> assign(:has_binary_cache_data, has_binary_cache_data)

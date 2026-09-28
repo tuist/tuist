@@ -15,4 +15,6 @@ public struct BuildData: Encodable, Sendable {
     public let cacheable_tasks: [CacheableTask]
     public let cas_outputs: [CASOutput]
     public let build_steps: [BuildStepData]
+    /// Nil when no recorded request named the region that answered it.
+    public var cache_serving: CacheServing? = nil
 }

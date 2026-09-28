@@ -83,6 +83,26 @@ struct CASMetadataReader: Sendable {
         return try? await fileSystem.readJSONFile(at: path)
     }
 
+    /// Who answered the op, when the CAS proxy recorded it. Databases written
+    /// before the proxy recorded it (or by the legacy writer) have no table,
+    /// which reads as unknown.
+    func readServedBy(key: String, operationType: String) async -> ServedByEntry? {
+        guard let db,
+              let row = try? db.pluck(
+                  ServedBySchema.table.filter(
+                      ServedBySchema.key == key && ServedBySchema.operationType == operationType
+                  )
+              ),
+              let region = try? row.get(ServedBySchema.region),
+              !region.isEmpty
+        else { return nil }
+        return ServedByEntry(
+            region: region,
+            node: (try? row.get(ServedBySchema.node)) ?? "",
+            connectedAt: (try? row.get(ServedBySchema.connectedAt)) ?? ""
+        )
+    }
+
     private func sanitize(_ value: String) -> String {
         value.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")

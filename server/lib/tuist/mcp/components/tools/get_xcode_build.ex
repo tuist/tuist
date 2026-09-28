@@ -41,7 +41,23 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "cas_output_download_bytes" => %{"type" => "integer"},
         "cas_output_upload_bytes" => %{"type" => "integer"},
         "inserted_at" => %{"type" => "string"},
-        "archive_url" => %{"type" => "string"}
+        "archive_url" => %{"type" => "string"},
+        "cache_region" => %{
+          "type" => ["object", "null"],
+          "description" =>
+            "Where the build came from and which remote cache region served it. A mismatch usually means a " <>
+              "VPN or DNS resolver routes the machine to a far region. Null when the build recorded none of this.",
+          "properties" => %{
+            "client_origin" => %{"type" => ["string", "null"]},
+            "expected_region" => %{"type" => ["string", "null"]},
+            "serving_region" => %{"type" => ["string", "null"]},
+            "serving_node" => %{"type" => ["string", "null"]},
+            "serving_region_share" => %{"type" => ["number", "null"]},
+            "connected_at" => %{"type" => ["string", "null"]},
+            "connected_before_build_seconds" => %{"type" => ["integer", "null"]},
+            "verdict" => %{"type" => "string", "enum" => ["match", "mismatch", "unknown"]}
+          }
+        }
       },
       "required" => [
         "id",
@@ -65,12 +81,14 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "cas_output_download_bytes",
         "cas_output_upload_bytes",
         "inserted_at",
-        "archive_url"
+        "archive_url",
+        "cache_region"
       ],
       "additionalProperties" => false
     }
 
   alias Tuist.Builds
+  alias Tuist.Builds.CacheRegion
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Storage
@@ -125,8 +143,16 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
          cas_output_download_bytes: cas_output_metrics.download_bytes,
          cas_output_upload_bytes: cas_output_metrics.upload_bytes,
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc),
-         archive_url: archive_url(build, project)
+         archive_url: archive_url(build, project),
+         cache_region: cache_region(build)
        }}
+    end
+  end
+
+  defp cache_region(build) do
+    case CacheRegion.summary(build) do
+      nil -> nil
+      summary -> %{summary | connected_at: Formatter.iso8601(summary.connected_at)}
     end
   end
 

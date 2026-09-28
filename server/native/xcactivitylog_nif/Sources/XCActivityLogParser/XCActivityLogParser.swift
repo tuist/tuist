@@ -61,12 +61,19 @@ public struct XCActivityLogParser: Sendable {
             casReader: casReader
         )
 
+        let cacheServing = await analyzeCacheServing(
+            cacheableTasks: cacheableTasks,
+            casOutputs: casOutputs,
+            casReader: casReader,
+            buildStartedAt: activityLog.mainSection.timeStartedRecording + Date.timeIntervalBetween1970AndReferenceDate
+        )
+
         let duration = SafeNumeric.milliseconds(
             activityLog.mainSection.timeStoppedRecording - activityLog.mainSection.timeStartedRecording,
             rounding: .towardZero
         )
 
-        return BuildData(
+        var buildData = BuildData(
             unique_identifier: activityLog.mainSection.uniqueIdentifier,
             version: activityLog.version,
             time_started_recording: activityLog.mainSection.timeStartedRecording,
@@ -82,6 +89,31 @@ public struct XCActivityLogParser: Sendable {
             cas_outputs: casOutputs,
             build_steps: try extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog, onBuildStep: onBuildStep)
         )
+        buildData.cache_serving = cacheServing
+        return buildData
+    }
+
+    // MARK: - Cache Serving
+
+    /// The region that served this build's remote cache traffic: every lookup
+    /// and publication the build log shows reaching the remote, and every
+    /// output transferred, looked up in the proxy's `served_by` rows.
+    private func analyzeCacheServing(
+        cacheableTasks: [CacheableTask],
+        casOutputs: [CASOutput],
+        casReader: CASMetadataReader,
+        buildStartedAt: Double
+    ) async -> CacheServing? {
+        var lookups = [(key: String, operationType: String)]()
+        for task in cacheableTasks {
+            if task.status == "hit_remote" || task.status == "miss" { lookups.append((task.key, "read")) }
+            if task.write_duration != nil { lookups.append((task.key, "write")) }
+        }
+        lookups += Set(casOutputs.map(\.checksum)).map { ($0, "output") }
+        let entries = (try? await lookups.concurrentCompactMap(maxConcurrentTasks: 50) { lookup in
+            await casReader.readServedBy(key: lookup.key, operationType: lookup.operationType)
+        }) ?? []
+        return CacheServing.summarize(entries, buildStartedAt: buildStartedAt)
     }
 
     // MARK: - Build Steps

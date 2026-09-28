@@ -867,6 +867,22 @@
     <% end %>
     <%= if @selected_tab == "xcode-cache" and @run.status != "processing" do %>
       <div data-part="cache">
+        <.alert
+          :if={@cache_region && @cache_region.verdict == "mismatch"}
+          id="cache-region-mismatch"
+          status="warning"
+          size="large"
+          title={dgettext("dashboard_builds", "Cache served from a distant region")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Cache served from %{serving} while you connected from %{origin}; expected %{expected}. Something on your network, such as a VPN or a DNS resolver, is routing this machine to a distant cache region. Check your VPN and DNS settings.",
+              serving: CacheRegion.region_name(@cache_region.serving_region),
+              origin: @cache_region.client_origin,
+              expected: CacheRegion.region_name(@cache_region.expected_region)
+            )
+          }
+        />
         <.card
           title={dgettext("dashboard_builds", "Cache Summary")}
           icon="chart_arcs"
@@ -933,6 +949,18 @@
               }
               value={Tuist.Utilities.ByteFormatter.format_bytes(@cas_metrics.upload_bytes)}
               id="widget-binary-cache-uploads"
+            />
+            <.widget
+              :if={@cache_region && @cache_region.serving_region}
+              title={dgettext("dashboard_builds", "Cache region")}
+              description={
+                dgettext(
+                  "dashboard_builds",
+                  "The remote cache region that served this build, as reported by the cache itself."
+                )
+              }
+              value={CacheRegion.region_name(@cache_region.serving_region)}
+              id="widget-cache-region"
             />
           </.card_section>
         </.card>

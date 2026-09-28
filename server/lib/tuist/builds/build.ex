@@ -74,6 +74,16 @@ defmodule Tuist.Builds.Build do
     field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :xcode_cache_upload_enabled, :boolean, default: false
     field :generation_id, Ch, type: "Nullable(UUID)"
+    # Where the build came from and which cache region served it; see
+    # `Tuist.Builds.CacheRegion`. Region and origin labels only.
+    field :client_origin, Ch, type: "LowCardinality(String)", default: ""
+    field :cache_expected_region, Ch, type: "LowCardinality(String)", default: ""
+    field :cache_serving_region, Ch, type: "LowCardinality(String)", default: ""
+    field :cache_serving_node, :string, default: ""
+    field :cache_serving_region_requests, Ch, type: "UInt32", default: 0
+    field :cache_observed_requests, Ch, type: "UInt32", default: 0
+    field :cache_connected_at, Ch, type: "Nullable(DateTime64(3))"
+    field :cache_connected_before_build_seconds, Ch, type: "Nullable(UInt32)"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
 
@@ -102,7 +112,11 @@ defmodule Tuist.Builds.Build do
       :git_ref,
       :ci_run_id,
       :ci_project_handle,
-      :ci_host
+      :ci_host,
+      :client_origin,
+      :cache_expected_region,
+      :cache_serving_region,
+      :cache_serving_node
     ])
     |> then(fn attrs ->
       build
@@ -134,7 +148,15 @@ defmodule Tuist.Builds.Build do
         :custom_tags,
         :custom_values,
         :xcode_cache_upload_enabled,
-        :generation_id
+        :generation_id,
+        :client_origin,
+        :cache_expected_region,
+        :cache_serving_region,
+        :cache_serving_node,
+        :cache_serving_region_requests,
+        :cache_observed_requests,
+        :cache_connected_at,
+        :cache_connected_before_build_seconds
       ])
       |> validate_required([
         :id,
