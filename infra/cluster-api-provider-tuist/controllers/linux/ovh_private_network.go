@@ -273,6 +273,28 @@ func renderPrivateNetworkScript(mac, address string, bits int, public string, pe
 set -euo pipefail
 sudo bash -s <<'TUIST_PRIVATE_ROOT'
 set -euo pipefail
+# Prepare addresses on every host before publishing a new route membership.
+# A partial initial rollout must not blackhole peers that are still public.
+# Leave any previously installed guards and repair timer intact on failure.
+iface=
+for path in /sys/class/net/*/address; do
+ if [ "$(cat "$path")" = '%[1]s' ]; then iface=$(basename "$(dirname "$path")"); break; fi
+done
+[ -n "$iface" ] || { echo 'private NIC missing' >&2; exit 1; }
+if ip -4 route show default | grep -Eq "(^| )dev $iface( |$)"; then echo 'refusing to configure default-route interface' >&2; exit 1; fi
+ip link set dev "$iface" up
+ip address replace '%[2]s/%[3]d' dev "$iface"
+echo 2 > "/proc/sys/net/ipv4/conf/$iface/rp_filter"
+prepared=1
+while read -r destination gateway; do
+ [ -n "$destination" ] || continue
+ if ! ping -n -c 1 -W 2 -I '%[2]s' "$gateway" >/dev/null 2>&1; then
+  echo "waiting for private address preparation on $destination" >&2
+  prepared=0
+ fi
+done <<'TUIST_PRIVATE_PREFLIGHT'
+%[5]sTUIST_PRIVATE_PREFLIGHT
+[ "$prepared" -eq 1 ] || exit 1
 install -d -m 0755 /etc/tuist /usr/local/sbin /etc/systemd/system/kubelet.service.d /etc/systemd/system/containerd.service.d
 cat > /etc/tuist/private-network-peers.new <<'TUIST_PRIVATE_PEERS'
 %[5]sTUIST_PRIVATE_PEERS

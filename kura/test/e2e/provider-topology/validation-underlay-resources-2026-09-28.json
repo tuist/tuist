@@ -1,0 +1,149 @@
+{
+  "date": "2026-09-28",
+  "baselineMergeBase": "9abf2c87f8da51ae566d7f80f203d424e4b6b970",
+  "changedCommit": "ca19e8eec7d0abeffb73446cc117c08a9e71fb64",
+  "images": {
+    "kura:private-topology-before": "sha256:9d79b7a47deffd9715199f38701abdb12025fe70c7c9897037d9a775c7e46484",
+    "kura:private-underlay-reviewed": "sha256:78d954718eedfefb4b2b5af2326807d39b142bfd26597e8609ee73734faf72b9"
+  },
+  "method": "Existing resources.mjs harness, changing only private_url to equal KURA_NODE_URL on all peers, identically for baseline and changed image. Sequential before/after pairs on the same local Docker host, release builds completed before measurement. Repeated because first pair showed higher changed-image cooldown anonymous memory.",
+  "runs": [
+    {
+      "baseline": {
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63782,
+          "loadEndSample": 36
+        },
+        "cpuSeconds": 24.18,
+        "cpuSecondsPerClientGiB": 19.344,
+        "anonymous": {
+          "peakBytes": 415956992,
+          "cooldownBytes": 278908928
+        },
+        "allocated": {
+          "peakBytes": 53691936,
+          "cooldownBytes": 29322048
+        },
+        "resident": {
+          "peakBytes": 183549952,
+          "cooldownBytes": 69345280
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 8390272,
+        "diskBytes": 1008069841,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1703143241
+      },
+      "changed": {
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63787,
+          "loadEndSample": 36
+        },
+        "cpuSeconds": 18.25,
+        "cpuSecondsPerClientGiB": 14.6,
+        "anonymous": {
+          "peakBytes": 401907712,
+          "cooldownBytes": 321433600
+        },
+        "allocated": {
+          "peakBytes": 54322168,
+          "cooldownBytes": 29190216
+        },
+        "resident": {
+          "peakBytes": 170586112,
+          "cooldownBytes": 68931584
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 5243504,
+        "diskBytes": 1008067785,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1703473403
+      }
+    },
+    {
+      "baseline": {
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63787,
+          "loadEndSample": 35
+        },
+        "cpuSeconds": 19.45,
+        "cpuSecondsPerClientGiB": 15.559999999999999,
+        "anonymous": {
+          "peakBytes": 371081216,
+          "cooldownBytes": 274976768
+        },
+        "allocated": {
+          "peakBytes": 51544280,
+          "cooldownBytes": 29432264
+        },
+        "resident": {
+          "peakBytes": 157999104,
+          "cooldownBytes": 68071424
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 36700160,
+        "diskBytes": 1008068034,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1702932107
+      },
+      "changed": {
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63798,
+          "loadEndSample": 35
+        },
+        "cpuSeconds": 19.82,
+        "cpuSecondsPerClientGiB": 15.856,
+        "anonymous": {
+          "peakBytes": 360206336,
+          "cooldownBytes": 269447168
+        },
+        "allocated": {
+          "peakBytes": 49265312,
+          "cooldownBytes": 28775960
+        },
+        "resident": {
+          "peakBytes": 160743424,
+          "cooldownBytes": 66965504
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 21495808,
+        "diskBytes": 1008067900,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1703038364
+      }
+    }
+  ],
+  "limitations": "Bounded local runtime comparison, not physical provider bandwidth, production retention/compaction or N-1 rebuild capacity. First pair showed higher cooldown anonymous memory without a corresponding allocator increase; repeat did not reproduce it. No statistically significant improvement is claimed."
+}

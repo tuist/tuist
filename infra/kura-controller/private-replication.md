@@ -273,9 +273,21 @@ The staging OVH pair has demonstrated bidirectional physical private reachabilit
 fail-closed host routing. Disabling the private NIC produced no public peer
 packets; the persistent unreachable route prevented fallback, and connectivity
 recovered after restoration. These are host-network observations, not yet a
-Cilium/Kura end-to-end qualification. Sustained bandwidth, N-1 headroom, actual
-pod replication on this underlay and canary/production qualification remain open.
-The canary and production zero-cost vRack orders are pending provider delivery.
+Cilium/Kura end-to-end qualification. A bounded 15-second TCP test in each
+direction sustained approximately 199 Mbps at a 200 Mbps cap with zero TCP
+retransmissions. This is a tested rate, not maximum capacity or N-1 headroom.
+An unreachable preparation peer left existing route configuration unchanged and
+healthy traffic working. Actual pod replication on this underlay and
+canary/production qualification remain open. Both new zero-cost vRacks have been
+delivered; attachment and host qualification remain separate rollout steps.
+
+The equal-canonical/private-URL runtime correction also passed two sequential
+before/after resource comparisons, recorded in
+[the resource evidence](../../kura/test/e2e/provider-topology/validation-underlay-resources-2026-09-28.json).
+Each run completed the same 320 writes and 768 load reads with zero failures,
+normal memory pressure, no shedding and identical payload totals. The first
+pair's higher cooldown anonymous memory did not recur in the repeat; both runs
+are retained, and no statistically significant improvement is claimed.
 
 ### Staging deployment and E2E validation, 2026-09-28
 

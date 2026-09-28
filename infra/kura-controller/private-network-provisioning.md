@@ -18,6 +18,12 @@ attachment, it finds the interface by MAC and installs a private address,
 peer-specific routes, and a systemd repair timer. Node public identities and
 default routes remain unchanged.
 
+Address preparation runs before route publication. Every selected peer's private
+next hop must answer before a new route membership is installed. While hosts are
+being prepared, existing public routes remain available and previously installed
+guards/timers stay intact. This avoids cutting off peers during a partial initial
+rollout. Runtime topology remains unpublished until all route attestations agree.
+
 Every selected peer public `/32` has both a preferred route through its private
 next hop and a less-preferred unreachable route. The guard lives in the main
 routing table because direct Cilium FIB lookups can skip policy-routing rules.
