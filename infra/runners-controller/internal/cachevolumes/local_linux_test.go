@@ -51,6 +51,10 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(root) })
+	available, capacity, err := FilesystemSpace(root)
+	if err != nil || available == 0 || capacity <= available {
+		t.Fatalf("backing filesystem space: available=%d capacity=%d err=%v", available, capacity, err)
+	}
 	remote := &diskTransfer{archive: filepath.Join(root, "remote.image")}
 	makeBackend := func(host string) *LocalImages {
 		b := &LocalImages{Root: filepath.Join(root, host), SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}

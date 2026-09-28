@@ -220,10 +220,8 @@ func main() {
 			start := time.Now()
 			err := a.reconcile()
 			metrics.observe(cachevolumes.Observation{Operation: "maintenance", Source: "none", Duration: time.Since(start), Err: err})
-			if available, e := cachevolumes.FreeBytes(*root); e == nil {
+			if available, capacity, e := cachevolumes.FilesystemSpace(*root); e == nil {
 				metrics.free.Set(float64(available))
-			}
-			if _, capacity, e := cachevolumes.MeasureFS(*root); e == nil {
 				metrics.capacity.Set(float64(capacity))
 			}
 			if err != nil {
