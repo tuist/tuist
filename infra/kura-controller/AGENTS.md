@@ -27,7 +27,7 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Deployment Topology
 
-- Proposed public EU-West provider migration: [Dedibox to OVH plan](eu-west-ovh-migration.md).
+- Production public EU-West workloads now run on OVH; staging/canary still use Dedibox. Follow the [DNS withdrawal, soak and retirement gates](eu-west-ovh-migration.md) before releasing old production hosts. Keep the Mac runner cache and the historical scheduling/storage names intact.
   It retains the current pool selector and StorageClass during evacuation;
   vRack traffic enablement and pool renaming are separate changes.
 
