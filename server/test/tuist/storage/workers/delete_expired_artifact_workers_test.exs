@@ -565,7 +565,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
                })
     end
 
-    test "the shard bundle worker deletes expired shard bundles according to the account plan" do
+    test "the shard bundle worker deletes every artifact of expired shard plans according to the account plan" do
       project = project_fixture()
       account = project.account
       subscription_fixture(account_id: account.id, plan: :air)
@@ -581,11 +581,11 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
         inserted_at: DateTime.utc_now() |> DateTime.add(-6, :day) |> DateTime.to_naive()
       )
 
-      expired_shard_key = Shards.bundle_object_key(account, project, expired_shard_plan.id)
+      expired_shard_prefix = Shards.plan_object_prefix(account, project, expired_shard_plan.id)
 
-      stub(Storage, :delete_objects, fn object_keys, %{id: account_id} ->
+      stub(Storage, :delete_all_objects, fn prefix, %{id: account_id} ->
         assert account_id == account.id
-        send(self(), {:deleted, object_keys})
+        send(self(), {:deleted, prefix})
         :ok
       end)
 
@@ -595,8 +595,8 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
                  "batch_size" => 20
                })
 
-      assert_received {:deleted, object_keys}
-      assert expired_shard_key in object_keys
+      assert_received {:deleted, ^expired_shard_prefix}
+      refute_received {:deleted, _prefix}
     end
   end
 

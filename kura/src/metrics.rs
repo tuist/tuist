@@ -61,6 +61,7 @@ pub struct MetricsInner {
     // being written an artifact can be shed under size pressure. The claim
     // sizing signal, mirrored to the control plane through the usage batch.
     segment_shed_age_seconds: Histogram,
+    disk_pressure_reclaimed_bytes: Counter,
     capacity_eviction_reports_dropped: Counter,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
@@ -559,8 +560,12 @@ pub mod shed_kind {
     // query operators are told to reach for first.
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+    // One request asking for more response bytes than a single response may
+    // carry at normal memory pressure. It sheds on an idle pool, so it stays
+    // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
+    pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
 
-    pub const ALL: [&str; 8] = [
+    pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -569,6 +574,7 @@ pub mod shed_kind {
         MEMORY_PRESSURE_WRITE,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
+        REAPI_REQUEST_BUDGET,
     ];
 }
 
@@ -623,6 +629,7 @@ impl Metrics {
         // One hour up to 30 days: below the first bucket the ring is churning
         // artifacts it just stored; the top buckets distinguish rings holding
         // days of history, which is what per-plan retention floors care about.
+        let disk_pressure_reclaimed_bytes = Counter::default();
         let segment_shed_age_seconds = Histogram::new([
             3_600.0,
             21_600.0,
@@ -1060,6 +1067,11 @@ impl Metrics {
             "kura_segment_evicted_artifacts_total",
             "Artifacts removed when old segments are evicted",
             segment_evicted_artifacts.clone(),
+        );
+        registry.register(
+            "kura_disk_pressure_reclaimed_bytes_total",
+            "Segment bytes unlinked by quota pressure reclamation",
+            disk_pressure_reclaimed_bytes.clone(),
         );
         registry.register(
             "kura_segment_shed_age_seconds",
@@ -1900,6 +1912,7 @@ impl Metrics {
                 segment_refresh_duration,
                 segment_evicted_artifacts,
                 segment_shed_age_seconds,
+                disk_pressure_reclaimed_bytes,
                 capacity_eviction_reports_dropped,
                 replication_requests,
                 replication_request_duration,
@@ -2367,6 +2380,10 @@ impl Metrics {
                 result: result.to_owned(),
             })
             .inc_by(artifacts);
+    }
+
+    pub fn record_disk_pressure_reclamation(&self, bytes: u64) {
+        self.disk_pressure_reclaimed_bytes.inc_by(bytes);
     }
 
     pub fn record_segment_shed_age(&self, seconds: f64) {

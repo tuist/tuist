@@ -451,6 +451,26 @@ impl SyncFeedState {
         self.insert_consumer(peer, cursor, true);
     }
 
+    /// Marks an already registered consumer as seen without moving its
+    /// cursor. A sibling in its bootstrap backward pass reads the backfill
+    /// endpoints, not this feed, for as long as the pass runs; without this
+    /// the stale-peer window would switch the feed off under it. Unknown
+    /// peers are ignored so a cross-region requester can never pin the feed.
+    pub fn refresh_consumer(&self, peer: &str) -> bool {
+        match self
+            .consumers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(peer)
+        {
+            Some(consumer) => {
+                consumer.seen_at = Instant::now();
+                true
+            }
+            None => false,
+        }
+    }
+
     fn insert_consumer(&self, peer: &str, cursor: u64, pinned: bool) {
         self.consumers
             .lock()
@@ -666,6 +686,23 @@ mod tests {
         let (head, frontier) = feed.head_and_frontier();
         assert_eq!(head, 2);
         assert!(frontier >= now_ms().saturating_sub(1));
+    }
+
+    #[test]
+    fn refresh_keeps_a_registered_consumer_live_without_moving_it() {
+        let feed = SyncFeedState::new(1, 20, 0, true, 1000);
+        feed.note_consumer_snapshot("sibling", 12);
+        let before = feed.consumers()[0].1.seen_at;
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        assert!(feed.refresh_consumer("sibling"));
+        let (_, sibling) = feed.consumers().remove(0);
+        assert!(sibling.seen_at > before);
+        assert_eq!(sibling.cursor, 12);
+        assert!(sibling.pinned);
+
+        assert!(!feed.refresh_consumer("stranger"));
+        assert_eq!(feed.consumers().len(), 1);
     }
 
     #[test]

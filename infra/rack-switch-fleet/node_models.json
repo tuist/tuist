@@ -6,22 +6,27 @@
         "media": "copper",
         "speed": "2.5G",
         "out_of_band": "amt",
-        "note": "The only port with AMT. A host OS that bridges it or changes its MAC kills out-of-band access without touching anything that looks related."
+        "note": "The only port with AMT. A host OS that bridges it or changes its MAC kills out-of-band access without touching anything that looks related.",
+        "os_name": "enp89s0"
       },
       "i226-v": {
         "media": "copper",
         "speed": "2.5G",
-        "note": "No AMT. Identical-looking socket next to the one that has it."
+        "note": "No AMT. Identical-looking socket next to the one that has it.",
+        "os_name": "enp87s0"
       },
       "sfp28-1": {
         "media": "dac",
         "speed": "10G",
-        "controller": "x710"
+        "controller": "x710",
+        "os_name": "enp2s0f1np1",
+        "note": "Ubuntu names it for the X710's second function, and sfp28-2 for its first: LLDP on the ToRs showed ber1-edge's and ber1-svc's sfp28-1 DACs arriving from enp2s0f1np1 (2026-09-24)."
       },
       "sfp28-2": {
         "media": "dac",
         "speed": "10G",
-        "controller": "x710"
+        "controller": "x710",
+        "os_name": "enp2s0f0np0"
       }
     }
   },

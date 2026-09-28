@@ -127,6 +127,24 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, @dispatch_audience, opts)
   end
 
+  # Audience of the token a macOS runner host mints for its own per-machine
+  # ServiceAccount to list the cache masters it should prefetch. Distinct from
+  # the dispatch audience, which every guest holds a token for: the list carries
+  # download URLs for every account on the host's fleet. Must match
+  # `RunnerHostAudience` in tart-kubelet.
+  @runner_host_audience "tuist-runner-host"
+
+  def runner_host_audience, do: @runner_host_audience
+
+  @doc """
+  TokenReview for a runner host's own ServiceAccount token, which must claim
+  the `tuist-runner-host` audience. Returns the same shape as
+  `create_token_review/2`.
+  """
+  def create_runner_host_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @runner_host_audience, opts)
+  end
+
   defp create_audience_token_review(token, audience, opts) do
     body =
       JSON.encode!(%{

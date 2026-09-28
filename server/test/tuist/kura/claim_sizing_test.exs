@@ -141,6 +141,21 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end)
   end
 
+  test "pressure days cannot justify growing or shrinking the configured claim" do
+    for occupancy <- [10, 98], capacity_bytes <- [0, 100 * @gibibyte] do
+      days =
+        fitting_days(30, @today,
+          eviction_count: 1,
+          evicted_bytes: capacity_bytes,
+          median_shed_age_seconds: nil,
+          median_ring_span_seconds: nil,
+          max_occupancy_percent: occupancy
+        )
+
+      assert ClaimSizing.evaluate(context(rollups: days)) == :none
+    end
+  end
+
   describe "evaluate/2 growth" do
     test "proposes growth after a sustained streak of churn under the retention floor" do
       # Pro floor is 3 days and the shedding sits just under it, so only the

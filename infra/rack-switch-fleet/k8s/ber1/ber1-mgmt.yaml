@@ -13,7 +13,7 @@ spec:
   managedBy: controller
   managementAddress: 192.168.0.13
   applyOrder: 3
-  applyNote: There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.
+  applyNote: There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to the edges and never through a ToR, so a ToR change cannot isolate it.
   credentialItem: ber1-mgmt switch admin
   configRevision: 3f72d9a23382e294
   config:
@@ -287,3 +287,20 @@ spec:
         spanningTree: true
         nativeVlan: 1
         taggedVlans: []
+  ports:
+    - port: 1
+      purpose: management
+      peer: ber1-edge-a
+      detail: edge/i226-lm
+    - port: 2
+      purpose: management
+      peer: ber1-edge-b
+      detail: edge/i226-lm
+    - port: 47
+      purpose: edge
+      peer: ber1-edge-b
+      detail: edge/i226-v
+    - port: 48
+      purpose: edge
+      peer: ber1-edge-a
+      detail: edge/i226-v

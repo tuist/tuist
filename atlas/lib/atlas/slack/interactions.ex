@@ -17,6 +17,8 @@ defmodule Atlas.Slack.Interactions do
   alias Atlas.Slack
   alias Atlas.Slack.API
   alias Atlas.Slack.User
+  alias Atlas.Tasks
+  alias Atlas.Tasks.SlackNotifier, as: TasksSlackNotifier
   alias Atlas.Users
   alias Atlas.Users.User, as: AtlasUser
 
@@ -73,7 +75,8 @@ defmodule Atlas.Slack.Interactions do
       &recommendation_action/3,
       &gtm_opportunity_action/3,
       &poc_access_action/3,
-      &nudge_action/3
+      &nudge_action/3,
+      &task_snooze_action/3
     ]
 
     Enum.find_value(resolvers, &apply(&1, [action_id, target_id, opts])) || :ignored
@@ -116,6 +119,47 @@ defmodule Atlas.Slack.Interactions do
       {:ok, action} -> NudgesSlackActions.handle_slack_action(action, target_id, opts)
       :error -> nil
     end
+  end
+
+  defp task_snooze_action(action_id, task_id, opts) do
+    with {:ok, snooze} <- TasksSlackNotifier.parse_snooze_action_id(action_id),
+         email when is_binary(email) and email != "" <- opts[:actor_email],
+         %AtlasUser{} = actor <- Users.get_user_by_email(email) do
+      apply_task_snooze(task_id, snooze, actor, opts)
+    else
+      :error -> nil
+      _ -> {:error, :task_snooze_actor_required}
+    end
+  end
+
+  defp apply_task_snooze(task_id, snooze, actor, opts) do
+    case Tasks.get_task(task_id) do
+      nil ->
+        {:error, :task_not_found}
+
+      task ->
+        interface = Keyword.get(opts, :interface, "slack")
+
+        case Tasks.snooze_reminder(task, snooze, actor, interface: interface) do
+          {:ok, updated} ->
+            {:ok, %{message: snooze_confirmation(updated, snooze)}}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp snooze_confirmation(task, snooze) do
+    when_label =
+      case snooze do
+        :tomorrow -> "tomorrow"
+        :end_of_week -> "the end of the week"
+        :next_week -> "next week"
+      end
+
+    remind_on = task.remind_at |> DateTime.to_date() |> Date.to_iso8601()
+    "Reminder for \"#{task.title}\" snoozed until #{when_label} (#{remind_on})."
   end
 
   defp parse_poc_access_action("poc_access:approve:" <> request_id), do: {:ok, :approve, request_id}
@@ -216,5 +260,8 @@ defmodule Atlas.Slack.Interactions do
   defp action_error_message(:score_below_threshold), do: "Opportunity score is below the Slack notification threshold."
   defp action_error_message(:poc_access_actor_required), do: "Atlas could not match your Slack email to a user."
   defp action_error_message(:already_denied), do: "That POC access request was already denied."
+  defp action_error_message(:task_snooze_actor_required), do: "Atlas could not match your Slack email to a user."
+  defp action_error_message(:task_not_found), do: "That task no longer exists."
+  defp action_error_message(:not_snoozable), do: "That task can no longer be snoozed."
   defp action_error_message(reason), do: "GTM action failed: #{inspect(reason)}"
 end

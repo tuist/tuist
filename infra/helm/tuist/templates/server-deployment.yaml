@@ -257,6 +257,11 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            # The macOS host operator creates each host's `tart-kubelet-<machine>`
+            # ServiceAccount here (`--secrets-namespace`). A host authenticates as
+            # it to list the cache masters it should prefetch.
+            - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address

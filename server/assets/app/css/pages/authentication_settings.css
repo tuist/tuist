@@ -293,58 +293,95 @@
     }
   }
 
+  & [data-part="sso-card"] [data-part="section"][data-section="login-domain"] {
+    flex-wrap: wrap;
+    align-items: center;
+
+    @media (max-width: 768px) {
+      flex-wrap: nowrap;
+      align-items: stretch;
+    }
+
+    & > [data-part="label"] > [data-part="title-row"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="field"] > .noora-button {
+      align-self: flex-end;
+      white-space: nowrap;
+
+      &.phx-click-loading {
+        opacity: 0.6;
+        cursor: progress;
+      }
+    }
+  }
+
+  & [data-part="domain-verification-status"] {
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-1) var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &[data-status="verified"] {
+      background: var(--noora-badge-light-fill-success-background);
+      color: var(--noora-badge-light-fill-success-label);
+    }
+
+    &[data-status="pending"] {
+      background: var(--noora-badge-light-fill-warning-background);
+      color: var(--noora-badge-light-fill-warning-label);
+    }
+
+    &[data-status="expiring"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+      color: var(--noora-badge-light-fill-destructive-label);
+    }
+  }
+
   & [data-part="domain-verification"] {
     display: flex;
     flex-direction: column;
-    /* Settles on the trailing edge, with the controls it belongs to. */
-    align-items: flex-end;
-    gap: var(--noora-spacing-4);
-    text-align: right;
+    gap: var(--noora-spacing-5);
+    margin-left: auto;
+    padding-top: var(--noora-spacing-7);
+    width: calc(60% - var(--noora-spacing-8));
 
-    /* The record reads left to right, label over value, since it is copied
-       out character by character, and wraps rather than running past the
-       column. */
-    & [data-part="domain-record"] {
-      text-align: left;
+    @media (max-width: 768px) {
+      width: 100%;
+    }
+
+    & > [data-part="domain-verification-error"].phx-click-loading {
+      display: none;
+    }
+
+    & > [data-part="domain-records"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="domain-record"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+      }
+
+      & [data-part="domain-record-label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
 
       & [data-part="read-only-value"] > code {
         white-space: normal;
         overflow-wrap: anywhere;
       }
-    }
-
-    & > [data-part="domain-verification-status"] {
-      border-radius: var(--noora-radius-4);
-      padding: var(--noora-spacing-1) var(--noora-spacing-3);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-
-      &[data-status="verified"] {
-        background: var(--noora-badge-light-fill-success-background);
-        color: var(--noora-badge-light-fill-success-label);
-      }
-
-      &[data-status="pending"] {
-        background: var(--noora-badge-light-fill-warning-background);
-        color: var(--noora-badge-light-fill-warning-label);
-      }
-
-      &[data-status="expiring"] {
-        background: var(--noora-badge-light-fill-destructive-background);
-        color: var(--noora-badge-light-fill-destructive-label);
-      }
-    }
-
-    & > [data-part="domain-verification-description"],
-    & [data-part="domain-record-label"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-    }
-
-    & > [data-part="domain-record"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-      width: 100%;
     }
   }
 

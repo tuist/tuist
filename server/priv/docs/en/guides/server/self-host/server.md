@@ -226,6 +226,11 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
 | `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
 
+> [!WARNING]
+> **Serve the app over HTTPS**
+>
+> Session cookies are flagged `Secure`, so browsers drop them over plain `http://` and users cannot sign in. Terminate TLS in front of the server (a reverse proxy with a certificate from your internal CA is enough) and set `TUIST_APP_URL` to the `https://` URL, even for internal or VPN-only deployments.
+
 ### Database configuration {#database-configuration}
 
 The following environment variables are used to configure the database connection:

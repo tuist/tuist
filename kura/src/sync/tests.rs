@@ -42,18 +42,33 @@ async fn write_inline(store: &Store, key: &str, body: &[u8]) -> String {
     artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", key)
 }
 
-async fn forward(context: &TestContext, query: &str) -> axum::response::Response {
+async fn internal_request(
+    context: &TestContext,
+    method: &str,
+    uri: &str,
+    body: Body,
+) -> axum::response::Response {
     internal_router(context.state.clone())
         .oneshot(
             Request::builder()
-                .uri(format!(
-                    "/_internal/sync/forward?peer=http://sibling:7443&region=local{query}"
-                ))
-                .body(Body::empty())
+                .method(method)
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(body)
                 .expect("request should build"),
         )
         .await
         .expect("route should respond")
+}
+
+async fn forward(context: &TestContext, query: &str) -> axum::response::Response {
+    internal_request(
+        context,
+        "GET",
+        &format!("/_internal/sync/forward?peer=http://sibling:7443&region=local{query}"),
+        Body::empty(),
+    )
+    .await
 }
 
 async fn snapshot(context: &TestContext) -> SyncForwardHead {
@@ -339,6 +354,127 @@ async fn feed_trims_below_the_lowest_consumer_cursor_in_batches() {
     );
     let rows = store.sync_feed_page(0, 10).expect("page");
     assert_eq!(rows[0].seq, 1_041, "rows at or below the floor are gone");
+}
+
+fn sibling_seen_at(context: &TestContext) -> std::time::Instant {
+    context
+        .state
+        .store
+        .sync_feed()
+        .consumers()
+        .into_iter()
+        .find(|(peer, _)| peer == "http://sibling:7443")
+        .expect("the sibling is registered")
+        .1
+        .seen_at
+}
+
+// A sibling in its backward pass only reads the backfill endpoints; that
+// traffic has to keep its snapshot registration live, or the stale-peer
+// window switches the feed off before the pass ends and its first forward
+// read answers 410.
+#[tokio::test]
+async fn backfill_traffic_keeps_a_bootstrapping_sibling_registered() {
+    let context = test_context(|_| {}).await;
+    let feed = context.state.store.sync_feed().clone();
+    write_inline(&context.state.store, "before", b"v").await;
+    let head = snapshot(&context).await.head;
+    let stale = Duration::from_millis(100);
+
+    for (method, uri, body) in [
+        (
+            "GET",
+            "/_internal/backfill/entries?limit=1&peer=http%3A%2F%2Fsibling%3A7443",
+            Body::empty(),
+        ),
+        (
+            "POST",
+            "/_internal/backfill/bodies?peer=http%3A%2F%2Fsibling%3A7443",
+            Body::from(r#"{"entries":[]}"#),
+        ),
+        (
+            "GET",
+            "/_internal/backfill/artifacts/missing?peer=http%3A%2F%2Fsibling%3A7443",
+            Body::empty(),
+        ),
+    ] {
+        tokio::time::sleep(stale + Duration::from_millis(20)).await;
+        assert_eq!(
+            feed.lowest_live_cursor(stale),
+            None,
+            "{uri}: stale before the request"
+        );
+        let before = sibling_seen_at(&context);
+        internal_request(&context, method, uri, body).await;
+        assert!(
+            sibling_seen_at(&context) > before,
+            "{uri} refreshes the sibling"
+        );
+        assert_eq!(
+            feed.lowest_live_cursor(stale),
+            Some(head),
+            "{uri}: live again, at its snapshot cursor"
+        );
+    }
+    let (_, sibling) = feed
+        .consumers()
+        .into_iter()
+        .find(|(peer, _)| peer == "http://sibling:7443")
+        .expect("the sibling is registered");
+    assert!(
+        sibling.pinned,
+        "a refresh keeps the snapshot pin out of the drain gate"
+    );
+
+    internal_request(
+        &context,
+        "GET",
+        "/_internal/backfill/entries?limit=1&peer=http%3A%2F%2Fremote%3A7443",
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(
+        feed.consumers().len(),
+        1,
+        "an unregistered requester, such as a remote region, registers nothing"
+    );
+}
+
+// The decision the refresh exists for: the coordinator's stale-peer check
+// leaves the feed on while a bootstrapping sibling only reads backfill
+// endpoints, and still switches it off once that sibling goes silent.
+#[tokio::test]
+async fn the_coordinator_keeps_the_feed_on_through_a_backward_pass() {
+    let context = test_context(|config| config.sync_feed_stale_peer_secs = 1).await;
+    let app = &context.state;
+    snapshot(&context).await;
+
+    for _ in 0..6 {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        internal_request(
+            &context,
+            "GET",
+            "/_internal/backfill/entries?limit=1&peer=http%3A%2F%2Fsibling%3A7443",
+            Body::empty(),
+        )
+        .await;
+        app.sync.evaluate(app);
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(
+        app.store.sync_feed().enabled(),
+        "backfill traffic kept the feed on past the stale window"
+    );
+
+    tokio::time::sleep(Duration::from_millis(1_100)).await;
+    app.sync.evaluate(app);
+    for _ in 0..50 {
+        if !app.store.sync_feed().enabled() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("a silent sibling still lets the feed switch off");
 }
 
 // A-5: the cap drops oldest and never refuses a write.
@@ -869,17 +1005,13 @@ async fn server_generated_versions_come_from_the_feed_ticket() {
 }
 
 async fn ascending(context: &TestContext, query: &str) -> Value {
-    let response = internal_router(context.state.clone())
-        .oneshot(
-            Request::builder()
-                .uri(format!(
-                    "/_internal/backfill/entries?order=asc&origin_region=local&limit=10{query}"
-                ))
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("route");
+    let response = internal_request(
+        context,
+        "GET",
+        &format!("/_internal/backfill/entries?order=asc&origin_region=local&limit=10{query}"),
+        Body::empty(),
+    )
+    .await;
     assert_eq!(response.status(), StatusCode::OK);
     body_json(response).await
 }

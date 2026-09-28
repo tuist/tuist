@@ -377,6 +377,14 @@ struct CacheStorageFactoryTests {
         #expect(result is BinaryCacheStorage)
         #expect((await payloadStorage(result))?.remoteStorage != nil)
         #expect(AlertController.current.warnings().count == (disabled ? 0 : 1))
+        if !disabled {
+            #expect(AlertController.current.warnings().first?.message.plain().hasPrefix(
+                "Remote module caching is unavailable at 127.0.0.1: "
+                    + "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities failed: "
+                    + "The cache endpoint does not advertise REAPI caching with SHA-256. "
+                    + "Configure a REAPI-capable endpoint. Using the local module cache."
+            ) == true)
+        }
     }
 
     private func payloadStorage(_ storage: CacheStoring) async -> CacheStorage? {

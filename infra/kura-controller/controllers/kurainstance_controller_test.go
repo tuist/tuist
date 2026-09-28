@@ -2457,6 +2457,7 @@ func TestRolloutStatusRequiresUpdatedReadyReplicas(t *testing.T) {
 	}
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Generation: 2},
+		Spec:       statefulSetSpecWithImage(instance.Spec.Image, ""),
 		Status: appsv1.StatefulSetStatus{
 			ObservedGeneration: 2,
 			ReadyReplicas:      3,
@@ -2488,6 +2489,7 @@ func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
 	}
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Generation: 2},
+		Spec:       statefulSetSpecWithImage(instance.Spec.Image, ""),
 		Status: appsv1.StatefulSetStatus{
 			ObservedGeneration: 2,
 			ReadyReplicas:      3,
@@ -2504,6 +2506,40 @@ func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
 	}
 	if status.observedImage != "ghcr.io/tuist/kura:0.5.3" {
 		t.Fatalf("expected observed image to advance, got %q", status.observedImage)
+	}
+}
+
+func TestRolloutStatusIgnoresStatefulSetOnPreviousTemplate(t *testing.T) {
+	for _, strategy := range []appsv1.StatefulSetUpdateStrategyType{
+		appsv1.RollingUpdateStatefulSetStrategyType,
+		appsv1.OnDeleteStatefulSetStrategyType,
+	} {
+		t.Run(string(strategy), func(t *testing.T) {
+			instance := &kurav1alpha1.KuraInstance{
+				Spec:   kurav1alpha1.KuraInstanceSpec{Image: "ghcr.io/tuist/kura:new", Replicas: ptr(int32(2))},
+				Status: kurav1alpha1.KuraInstanceStatus{ObservedImage: "ghcr.io/tuist/kura:old"},
+			}
+			sts := &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{Generation: 1},
+				Spec:       statefulSetSpecWithImage("ghcr.io/tuist/kura:old", strategy),
+				Status:     appsv1.StatefulSetStatus{ObservedGeneration: 1, Replicas: 2, ReadyReplicas: 2, UpdatedReplicas: 2, CurrentRevision: "old", UpdateRevision: "old"},
+			}
+
+			status := rolloutStatusFromStatefulSet(instance, sts)
+
+			if status.phase != "Pending" || status.observedImage != "ghcr.io/tuist/kura:old" {
+				t.Fatalf("got phase=%q image=%q; want Pending on the previous image", status.phase, status.observedImage)
+			}
+		})
+	}
+}
+
+func statefulSetSpecWithImage(image string, strategy appsv1.StatefulSetUpdateStrategyType) appsv1.StatefulSetSpec {
+	return appsv1.StatefulSetSpec{
+		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{Type: strategy},
+		Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{
+			{Name: kuraContainerName, Image: image},
+		}}},
 	}
 }
 
@@ -4766,7 +4802,7 @@ func TestRolloutStatusOnDelete(t *testing.T) {
 			}
 			sts := &appsv1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{Generation: 2},
-				Spec:       appsv1.StatefulSetSpec{UpdateStrategy: appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}},
+				Spec:       statefulSetSpecWithImage(instance.Spec.Image, appsv1.OnDeleteStatefulSetStrategyType),
 				Status:     appsv1.StatefulSetStatus{ObservedGeneration: 2, Replicas: 2, ReadyReplicas: 2, UpdatedReplicas: 2, CurrentRevision: "old", UpdateRevision: "new"},
 			}
 			if tt.mutate != nil {
