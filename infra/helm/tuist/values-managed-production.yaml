@@ -636,6 +636,9 @@ clickhouse:
       tags: tag:tuist-k8s-production
     backup:
       enabled: true
+      # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
+      # 2026-09-27 and grows with the dataset.
+      maxMemoryUsageForUserBytes: "25769803776"
     # Step 4 for production: mirror every ClickHouse write onto the in-cluster
     # server as well as Cloud.
     #
