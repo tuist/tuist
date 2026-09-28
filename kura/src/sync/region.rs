@@ -100,22 +100,12 @@ async fn request_page(
     Ok(page)
 }
 
-/// The `version_ms` a page cursor sits at: every row the ascending read
-/// scanned up to it has been listed and applied (foreign rows included,
-/// which never move the watermark).
-fn cursor_version_ms(after: &str) -> Option<u64> {
-    let key = hex::decode(after).ok()?;
-    let bytes = key.strip_prefix(crate::utils::BACKFILL_IDX_PREFIX.as_bytes())?;
-    let inverted: [u8; 8] = bytes.get(..8)?.try_into().ok()?;
-    Some(!u64::from_be_bytes(inverted))
-}
-
-/// Replication lag in origin version time (seconds): how far the newest
-/// record the remote gateway could list sits above the newest one this node
-/// has applied. Zero when caught up, and — unlike the watermark's age —
-/// zero while the remote region is simply idle.
-fn replication_lag_seconds(newest_version_ms: u64, applied_through_ms: u64) -> u64 {
-    newest_version_ms.saturating_sub(applied_through_ms) / 1000
+/// Whether a forward page read to the end of what the remote gateway could
+/// list: a page short of the limit, the caught-up long-poll answer included.
+/// A full page means more is waiting. (A page the source cut short on its
+/// scan cap over foreign rows also reads as the end; the next page corrects.)
+fn reached_the_end(page: &BackfillEntriesPage) -> bool {
+    page.entries.len() < crate::constants::MAX_PEER_PAGE_ITEMS
 }
 
 /// The watermark to read from: the persisted one, else the highest legacy
@@ -145,7 +135,7 @@ async fn backward_pass(
     region: &str,
     cancel: &CancellationToken,
     status: &LinkStatusCell,
-) -> Result<Option<u64>, String> {
+) -> Result<(), String> {
     status.update(|status| status.phase = LinkPhase::Bootstrapping);
     let started = Instant::now();
     let probe = request_page(app, peer, region, 0, None, false).await?;
@@ -155,10 +145,6 @@ async fn backward_pass(
         app.metrics.set_peer_clock_skew(peer, skew / 1000);
     }
     let watermark = seed_watermark(app, region)?;
-    if let (Some(newest), Some(watermark)) = (probe.newest_version_ms, watermark) {
-        app.metrics
-            .set_region_replication_lag(region, replication_lag_seconds(newest, watermark));
-    }
     let buffered =
         watermark.map(|watermark| watermark.saturating_sub(app.config.sync_pass_start_buffer_ms));
     let window = compute_window(
@@ -196,10 +182,7 @@ async fn backward_pass(
             )
             .await?;
     }
-    // The pass listed the peer's whole index down to the window, so for the
-    // lag gauge everything the peer held at the probe is applied, even though
-    // the watermark is held back by the in-flight buffer.
-    Ok(peer_now)
+    Ok(())
 }
 
 pub async fn run(
@@ -210,21 +193,25 @@ pub async fn run(
     status: Arc<LinkStatusCell>,
     pass_failures: Arc<AtomicU32>,
 ) {
-    let covered_through_ms = loop {
+    loop {
+        // The backward pass walks the remote listing from the top, so on
+        // success everything listable when it started has been applied.
+        let attempt_started = Instant::now();
         let outcome = tokio::select! {
             biased;
             _ = cancel.cancelled() => return,
             outcome = backward_pass(&app, &peer, &region, &cancel, &status) => outcome,
         };
         match outcome {
-            Ok(covered) => {
+            Ok(()) => {
                 pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
                     status.unsupported = false;
                     status.last_success = Some(Instant::now());
+                    status.caught_up_at = Some(attempt_started);
                 });
-                break covered.unwrap_or_default();
+                break;
             }
             Err(error) => {
                 if error == "cancelled" {
@@ -270,7 +257,7 @@ pub async fn run(
                 }
             }
         }
-    };
+    }
 
     status.update(|status| status.phase = LinkPhase::Forward);
     let mut after: Option<String> = None;
@@ -334,6 +321,7 @@ pub async fn run(
             }
         };
         failures = 0;
+        let received = Instant::now();
         status.update(|status| {
             status.unsupported = false;
             status.phase = LinkPhase::Forward;
@@ -351,7 +339,6 @@ pub async fn run(
             .collect();
         let listed = entries.len() as u64;
         let highest = entries.iter().map(|entry| entry.version_ms).max();
-        let caught_up = page.entries.is_empty() && page.next_after.is_none();
         if !entries.is_empty() {
             let outcome = tokio::select! {
                 biased;
@@ -389,27 +376,13 @@ pub async fn run(
                 );
             }
         }
+        if reached_the_end(&page) {
+            status.update(|status| status.caught_up_at = Some(received));
+        }
         // The page cursor only moves when the peer scanned something; a
         // caught-up long-poll answers without one and we keep ours.
         if page.next_after.is_some() {
             after = page.next_after;
-        }
-        if caught_up {
-            app.metrics.set_region_replication_lag(&region, 0);
-        } else if let Some(newest) = page.newest_version_ms {
-            let applied_through_ms = [
-                app.store.sync_watermark(&region).ok().flatten(),
-                after.as_deref().and_then(cursor_version_ms),
-                Some(covered_through_ms),
-            ]
-            .into_iter()
-            .flatten()
-            .max()
-            .unwrap_or_default();
-            app.metrics.set_region_replication_lag(
-                &region,
-                replication_lag_seconds(newest, applied_through_ms),
-            );
         }
     }
 }
@@ -417,23 +390,28 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{BackfillRecordKind, backfill_index_key};
+    use crate::constants::MAX_PEER_PAGE_ITEMS;
+    use crate::http::BackfillEntry;
 
-    #[test]
-    fn a_page_cursor_decodes_to_its_version() {
-        let key = backfill_index_key(1_790_561_600_474, BackfillRecordKind::SegmentArtifact, "a");
-        assert_eq!(
-            cursor_version_ms(&hex::encode(key)),
-            Some(1_790_561_600_474)
-        );
-        assert_eq!(cursor_version_ms("not hex"), None);
-        assert_eq!(cursor_version_ms(&hex::encode(b"other/prefix")), None);
+    fn page(entries: usize) -> BackfillEntriesPage {
+        BackfillEntriesPage {
+            entries: (0..entries)
+                .map(|index| BackfillEntry {
+                    record_kind: "segment".to_owned(),
+                    record_id: format!("r{index}"),
+                    version_ms: index as u64,
+                    size: Some(1),
+                })
+                .collect(),
+            next_after: (entries > 0).then(|| "cursor".to_owned()),
+            now: Some(1),
+        }
     }
 
     #[test]
-    fn lag_is_zero_at_or_past_the_newest_version() {
-        assert_eq!(replication_lag_seconds(10_000, 10_000), 0);
-        assert_eq!(replication_lag_seconds(10_000, 20_000), 0);
-        assert_eq!(replication_lag_seconds(310_000, 10_000), 300);
+    fn only_a_full_page_leaves_records_waiting() {
+        assert!(reached_the_end(&page(0)));
+        assert!(reached_the_end(&page(MAX_PEER_PAGE_ITEMS - 1)));
+        assert!(!reached_the_end(&page(MAX_PEER_PAGE_ITEMS)));
     }
 }

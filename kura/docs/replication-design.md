@@ -1069,13 +1069,11 @@ names below are the shipped ones.
   successful forward read from that region, empty reads included. The primary
   inter-region health signal (§2.2).
 - `kura_region_watermark_age_seconds{region}` — age of the newest applied
-  version; it grows while the remote region is idle, so it is not lag and
-  not a health signal on its own.
-- `kura_region_replication_lag_seconds{region}` — replication lag in origin
-  version time: the newest version the remote gateway could list (the
-  additive `newest_version_ms` on a listing page that is not caught up) minus
-  the newest one applied here; zero on a caught-up page. Only the gateway
-  reports it, so read it by region, not by pod.
+  version; it grows while the remote region is idle, so it is not lag.
+- `kura_region_sync_caught_up_age_seconds{region}` — seconds since the link
+  last read to the end of the remote listing (a page shorter than the limit):
+  an upper bound on replication lag that stays near zero while the remote
+  region is idle. Only the gateway reports it, so read it by region.
 - `kura_region_sync_last_cycle_duration_seconds`, `_entries_listed_total`,
   `_bytes_fetched_total{region}` — cost and progress per cycle.
 - `kura_peer_clock_skew_seconds{peer}` — peer `now` minus local `now` from

@@ -121,7 +121,7 @@ pub struct MetricsInner {
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
-    region_replication_lag_seconds: Family<SyncRegionLabels, Gauge>,
+    region_sync_caught_up_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_listing_bound_lag_seconds: Gauge,
     region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
     region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
@@ -697,7 +697,7 @@ impl Metrics {
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
-        let region_replication_lag_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_sync_caught_up_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_listing_bound_lag_seconds = Gauge::default();
         let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
@@ -1301,9 +1301,9 @@ impl Metrics {
             region_watermark_age_seconds.clone(),
         );
         registry.register(
-            "kura_region_replication_lag_seconds",
-            "Seconds of origin version time between the newest record the remote gateway lists for its region and the newest one this node has applied, by origin region",
-            region_replication_lag_seconds.clone(),
+            "kura_region_sync_caught_up_age_seconds",
+            "Seconds since the region link last read to the end of the remote gateway's listing, by origin region",
+            region_sync_caught_up_age_seconds.clone(),
         );
         registry.register(
             "kura_region_listing_bound_lag_seconds",
@@ -1962,7 +1962,7 @@ impl Metrics {
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
-                region_replication_lag_seconds,
+                region_sync_caught_up_age_seconds,
                 region_listing_bound_lag_seconds,
                 region_sync_entries_listed,
                 region_sync_bytes_fetched,
@@ -2744,8 +2744,8 @@ impl Metrics {
             .set(seconds as i64);
     }
 
-    pub fn set_region_replication_lag(&self, region: &str, seconds: u64) {
-        self.region_replication_lag_seconds
+    pub fn set_region_sync_caught_up_age(&self, region: &str, seconds: u64) {
+        self.region_sync_caught_up_age_seconds
             .get_or_create(&SyncRegionLabels {
                 region: region.to_owned(),
             })
@@ -2762,7 +2762,7 @@ impl Metrics {
         };
         self.region_sync_last_success_age_seconds.remove(&labels);
         self.region_watermark_age_seconds.remove(&labels);
-        self.region_replication_lag_seconds.remove(&labels);
+        self.region_sync_caught_up_age_seconds.remove(&labels);
         self.region_sync_last_cycle_duration_seconds.remove(&labels);
     }
 

@@ -8661,45 +8661,6 @@ impl Store {
         })
     }
 
-    /// The highest `version_ms` an ascending read bounded at `max_version_ms`
-    /// and filtered to `origin_region` could list, found by walking the index
-    /// newest-first from the bound. `None` when no such row sits within the
-    /// first `scan_cap` rows, which the requester reads as "not reported".
-    pub fn backfill_index_newest_version(
-        &self,
-        max_version_ms: u64,
-        origin_region: Option<&str>,
-        scan_cap: usize,
-    ) -> Result<Option<u64>, String> {
-        let prefix = BACKFILL_IDX_PREFIX.as_bytes();
-        let mut start = prefix.to_vec();
-        start.extend_from_slice(&(!max_version_ms).to_be_bytes());
-        let mut read_options = ReadOptions::default();
-        read_options.fill_cache(false);
-        let iter = self.db.iterator_cf_opt(
-            self.cf(ROCKSDB_CF_KEY_VALUE),
-            read_options,
-            IteratorMode::From(&start, rocksdb::Direction::Forward),
-        );
-        for item in iter.take(scan_cap) {
-            let (key, value) =
-                item.map_err(|error| format!("failed to iterate backfill index: {error}"))?;
-            if !key.starts_with(prefix) {
-                break;
-            }
-            let row = decode_backfill_index_row(&key, &value)?;
-            if let Some(origin) = origin_region
-                && row.kind != BackfillRecordKind::NamespaceTombstone
-                && let Some(Some(actual)) = self.manifest_origin_region(&row.record_id)?
-                && actual != origin
-            {
-                continue;
-            }
-            return Ok(Some(row.version_ms));
-        }
-        Ok(None)
-    }
-
     // ---- Backfill per-peer watermarks (`backfill/wm/` keyspace) ----
 
     /// Reads a peer's persisted backfill watermark. An unreadable row decodes

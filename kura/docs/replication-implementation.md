@@ -1098,67 +1098,22 @@ Decisions:
   `unsupported`, in both the backward pass and the forward loop.
 
 
-## 6. An in-place restart that looked like a stall (2026-09-28)
+## 6. Region-link lag (2026-09-28)
 
-A managed account runs two regions of two replicas: region W takes every
-client write, region R only reads. Both R replicas restarted in place (a
-StatefulSet roll from a resource-request change, same image, volumes kept),
-and afterwards `kura_region_sync_bytes_fetched_total` on R's ordinal 0 stayed
-flat for about two and a half hours. It read as a multi-hour cross-region
-stall. It was not one: cross-region pulls followed W's writes throughout, and
-the counter was flat because of what it measures.
-
-**What the data says.** Summed over both R replicas, the region bytes fetched
-per 5-minute bucket track W's client write bytes bucket for bucket, within a
-few percent. W simply wrote nothing for about an hour after the restart, and
-the next bursts were pulled by whichever R replica held the gateway role at
-the time. `kura_backfill_listed_tuples_total{decision="capacity_skipped"}` has
-no series on either R replica over the whole window, so the full ring dropped
-nothing, and W's `kura_region_listing_bound_lag_seconds` stayed at 0–1 s, so
-W never held its listing back.
-
-**Timeline, reconstructed from both R replicas' logs.**
-
-- R-1 was the gateway before the roll and caught up: its last forward pages
-  before the drain were single-entry.
-- R-1 drains and returns within half a minute, takes the gateway role while
-  R-0 is draining, and its backward pass from its persisted watermark
-  completes in 5 s.
-- R-0 returns 90 s later and takes the role by the lowest-URL rule; its
-  backward pass from the watermark it inherited over the feed (6 s old)
-  completes in 8 s. R-1 keeps its region link for another 33 s — two
-  gateways at once, a membership-hysteresis matter tracked separately, not a
-  gap.
-- For the next ten minutes forward pages carry what W writes. Then W goes
-  quiet.
-- Three DNS and status-probe blips over the following hour drop peers from the
-  view; each reopen runs a backward pass that lists **0 entries** — correct,
-  W had nothing newer than the window — and, per D-12, advances the watermark
-  to W's clock less the buffer. That is why `kura_region_watermark_age_seconds`
-  looked healthy right after each blip and aged again after.
-- After the last blip R-1 derives the gateway role and R-0 gives it up (the
-  role-flap side of the blips, tracked with membership hysteresis). R-1 pulls
-  W's next bursts; R-0's counter only moves again once it holds the role,
-  about two hours later. The per-pod counter follows the role, not the region.
-
-**The actual defect is observability.** Nothing reported replication lag:
-`kura_region_watermark_age_seconds` grows through every idle stretch of the
-remote region, and the bytes counter is per pod while the role moves between
-pods. **D-37 — The region link reports replication lag in origin version
-time.** An ascending listing page that is not caught up carries an additive
-`newest_version_ms` — the highest `version_ms` the same read (same origin
-filter, same serving bound) could list, found by walking the index
-newest-first from the bound with a 1,024-row cap — and the link sets
-`kura_region_replication_lag_seconds{region}` to that minus the newest
-version it has applied (the watermark, the page cursor's version, or the
-source's clock at the start of a completed backward pass, whichever is
-highest). A caught-up page sets it to zero; an older source, which sends no
-`newest_version_ms`, only ever produces caught-up samples. The backward pass
-probe sets it before the pass runs, so a link stuck in its bootstrap shows
-the gap it has to close. Only the gateway reports it and the series is
-removed when the link closes, so the dashboard reads it by region.
-
-The in-place restart itself is covered by B-12 (`sync_spec.sh`, opt-in with
-`KURA_E2E_SYNC_RESTART=1`): region-b on the 5-segment floor ring, filled and
-evicting, region-a writing a record every 100 ms and an 8 MiB module every
-second, region-b restarted in place replica by replica.
+**D-37 — The region link reports how long ago it last caught up.** An
+in-place restart of a region's replicas looked like a multi-hour stall
+because nothing reported cross-region lag: `kura_region_watermark_age_seconds`
+grows through every idle stretch of the remote region, and
+`kura_region_sync_bytes_fetched_total` is per pod while the gateway role moves
+between pods. Pulls had in fact tracked the remote region's writes throughout.
+Unlike the replica link, whose feed carries a `head` to count against, the
+ascending listing has no head, so the link cannot count what is left. It can
+tell when it reached the end: a page shorter than the limit (the caught-up
+long-poll answer included) means everything the remote gateway could list
+at that moment has been applied, and a completed backward pass means the same
+as of its start. `kura_region_sync_caught_up_age_seconds{region}` is the time
+since then. It is an upper bound on lag, near zero while the remote region is
+idle (the long-poll reaches the end at least every
+`KURA_SYNC_LONG_POLL_SECS`) or writing at a pace one page absorbs, and it
+climbs only while pages come back full. No protocol change: it is computed on
+the puller alone.

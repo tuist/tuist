@@ -23545,7 +23545,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (region) (kura_region_replication_lag_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "expr": "max by (region) (kura_region_sync_caught_up_age_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
                         "instant": false,
                         "legendFormat": "{{region}}",
                         "range": true
@@ -23560,10 +23560,10 @@
               "transformations": []
             }
           },
-          "description": "How far this region's gateway is behind a remote region, in origin version time: the newest record the remote gateway could list for its region minus the newest one applied here. Unlike `region_watermark_age_seconds` it stays at zero while the remote region is idle, so a non-zero value is real replication lag. Only the pod holding the gateway role reports a series (the role moves on restarts and membership blips), so the panel aggregates by region rather than by pod. It is sampled on each successful listing: read it beside `region_sync_last_success_age_seconds`, which is what grows when the link cannot reach the remote gateway at all. A remote gateway on a release without the `newest_version_ms` listing field reports only caught-up samples (zero).\n\nPrometheus name: `kura_region_replication_lag_seconds` · labels: region",
+          "description": "Replication lag of the cross-region link, as an upper bound: seconds since the gateway last read to the end of the remote gateway's listing (a page shorter than the page limit, the caught-up long-poll answer included). Unlike `region_watermark_age_seconds` it stays near zero while the remote region is idle, because the idle long-poll keeps reaching the end every `KURA_SYNC_LONG_POLL_SECS` at most. It only climbs while pages come back full, i.e. while records are actually waiting. Only the pod holding the gateway role reports it (the role moves on restarts and membership blips), so the panel aggregates by region; a new link reports nothing until its first backward pass completes, and `region_sync_last_success_age_seconds` is what grows when the link cannot reach the remote gateway at all.\n\nPrometheus name: `kura_region_sync_caught_up_age_seconds` · labels: region",
           "id": 246,
           "links": [],
-          "title": "region_replication_lag_seconds",
+          "title": "region_sync_caught_up_age_seconds",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
