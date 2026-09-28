@@ -48,8 +48,8 @@ kuraController:
   telemetry:
     deploymentEnvironment: staging
 
-# Shared per-node egress HTB tree on the kura bare-metal pools. Both staging
-# boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
+# Shared per-node egress HTB tree on the surviving OVH ca-east pool. Its
+# box advertises tuist.dev/egress-mbps (1000), and the staging region sets
 # egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
 # annotation the agent consumes. The image tag is resolved at deploy time
 # from the highest reachable egress-tree-agent@<semver> tag; pin an in-flight
@@ -57,7 +57,7 @@ kuraController:
 # input.
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-ca-east]
+  nodePools: [kura-ca-east]
 
 registry:
   publicHost: registry-staging.tuist.dev
@@ -593,13 +593,13 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Retain Dedibox hosts for instance teardown; OVH ca-east is the public region.
-# Keep enabled so the provider reconciler can complete host release/reinstall.
+# Retire Dedibox after old EU-West instances are destroyed through the server
+# lifecycle. Public validation uses OVH ca-east; the Mac runner cache stays.
 dediboxFleet:
+  # Keep the reconciler and credentials until all release finalizers finish.
   enabled: true
-  # Hold hosts until instance teardown and DNS withdrawal/drain are complete.
-  # A later reviewed change sets zero; zero immediately starts provider release.
-  replicas: 1
+  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
+  replicas: 0
   machine:
     # Exact tag match (not a prefix), so this is the shared pool tag every
     # staging Dedibox carries; per-box identity is the server id, not the tag.

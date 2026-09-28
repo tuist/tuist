@@ -981,16 +981,15 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Retain the evacuated public EU-West Dedibox gateways through DNS withdrawal
-# and soak. The zero-replica retirement requires a later reviewed change after
-# the gates in infra/kura-controller/eu-west-ovh-migration.md have passed.
-# Keep the provider reconciler and credentials until release finalizers finish.
+# Retire the evacuated public EU-West Dedibox fleet after the production DNS
+# soak and health gates in infra/kura-controller/eu-west-ovh-migration.md.
+# Release does not cancel provider billing; cancel the contracts separately.
 # The separate kuraFleet above remains the Scaleway Mac runner cache.
 dediboxFleet:
+  # Keep the reconciler and credentials until all release finalizers finish.
   enabled: true
-  # Hold hosts until instance teardown and DNS withdrawal/drain are complete.
-  # A later reviewed change sets zero; zero immediately starts provider release.
-  replicas: 3
+  # Zero retires every managed Dedibox host; release reinstalls/wipes the box.
+  replicas: 0
   machine:
     adoptTag: tuist-kura-production
     datacenter: DC5
