@@ -83,6 +83,22 @@ struct CASMetadataReader: Sendable {
         return try? await fileSystem.readJSONFile(at: path)
     }
 
+    /// The region that answered the op, when the CAS proxy recorded it.
+    /// Databases written before the proxy recorded it (or by the legacy writer)
+    /// have no table, which reads as unknown.
+    func readServedRegion(key: String, operationType: String) async -> String? {
+        guard let db,
+              let row = try? db.pluck(
+                  ServedBySchema.table.select(ServedBySchema.region).filter(
+                      ServedBySchema.key == key && ServedBySchema.operationType == operationType
+                  )
+              ),
+              let region = try? row.get(ServedBySchema.region),
+              !region.isEmpty
+        else { return nil }
+        return region
+    }
+
     private func sanitize(_ value: String) -> String {
         value.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")

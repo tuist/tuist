@@ -1,3 +1,4 @@
+import CASAnalyticsDatabase
 import FileSystem
 import Foundation
 import Path
@@ -227,6 +228,30 @@ struct XCActivityLogParserTests {
             #expect(task.type == "swift" || task.type == "clang")
             #expect(task.status == "miss" || task.status == "hit_remote" || task.status == "hit_local")
             #expect(!task.key.isEmpty)
+        }
+    }
+
+    @Test func buildWithCache_reportsTheRegionThatServedIt() async throws {
+        let url = try fixtureURL("xcode_26_4_clean_build_with_cache")
+        let unrecorded = try await parseFixture("xcode_26_4_clean_build_with_cache")
+        #expect(unrecorded.cache_serving_region == nil, "nothing recorded who answered")
+
+        let queried = unrecorded.cacheable_tasks.filter { $0.status == "hit_remote" || $0.status == "miss" }
+        try #require(queried.count >= 2)
+        try await fileSystem.runInTemporaryDirectory(prefix: "served-by") { tempDir in
+            let path = tempDir.appending(component: "cas_analytics.db")
+            let db = try Connection(path.pathString)
+            try db.execute("CREATE TABLE served_by (key TEXT, operation_type TEXT, region TEXT, created_at TEXT);")
+            for (index, task) in queried.enumerated() {
+                let region = index == 0 ? "ap-southeast" : "us-central"
+                try db.run(
+                    "INSERT INTO served_by VALUES (?, 'read', ?, '2026-09-28T09:30:00.000')",
+                    task.key, region
+                )
+            }
+            let result = try await parser.parse(xcactivitylogURL: url, casAnalyticsDatabasePath: path)
+            #expect(result.cache_serving_region == "us-central")
+            withExtendedLifetime(db) {}
         }
     }
 

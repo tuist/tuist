@@ -142,7 +142,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         cacheable_tasks: Enum.map(parsed[:cacheable_tasks] || [], &atomize_keys/1),
         cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1),
         machine_metrics: Enum.map(parsed[:machine_metrics] || [], &atomize_keys/1),
-        build_steps: Stream.map(Map.get(parsed, :build_steps, []), &atomize_keys/1)
+        build_steps: Stream.map(Map.get(parsed, :build_steps, []), &atomize_keys/1),
+        cache_serving_region: parsed[:cache_serving_region]
       })
 
     {:ok, _build} = Builds.create_build(attrs)

@@ -36,4 +36,34 @@ struct CASMetadataReaderTests {
             withExtendedLifetime(writer) {}
         }
     }
+
+    @Test func readsTheServingRegionAndTreatsAMissingTableAsUnknown() async throws {
+        try await FileSystem().runInTemporaryDirectory(prefix: "cas-served-by") { directory in
+            let withTable = directory.appending(component: "proxy.db")
+            let writer = try Connection(withTable.pathString)
+            try writer.execute("""
+                CREATE TABLE served_by (key TEXT, operation_type TEXT, region TEXT, created_at TEXT);
+                INSERT INTO served_by VALUES ('0~action', 'read', 'us-central', '2026-09-28T09:30:00.000');
+                INSERT INTO served_by VALUES ('0~empty', 'read', '', '2026-09-28T09:30:00.000');
+                """)
+            let reader = CASMetadataReader(databasePath: withTable, legacyCASMetadataPath: nil)
+            #expect(await reader.readServedRegion(key: "0~action", operationType: "read") == "us-central")
+            #expect(await reader.readServedRegion(key: "0~action", operationType: "write") == nil)
+            #expect(await reader.readServedRegion(key: "0~empty", operationType: "read") == nil)
+            withExtendedLifetime(writer) {}
+
+            let withoutTable = directory.appending(component: "swift.db")
+            let legacy = try Connection(withoutTable.pathString)
+            try legacy.execute("CREATE TABLE keyvalue_metadata (key TEXT, operation_type TEXT, duration REAL);")
+            let legacyReader = CASMetadataReader(databasePath: withoutTable, legacyCASMetadataPath: nil)
+            #expect(await legacyReader.readServedRegion(key: "0~action", operationType: "read") == nil)
+            withExtendedLifetime(legacy) {}
+        }
+    }
+
+    @Test func picksTheRegionThatAnsweredMostRequests() {
+        #expect(XCActivityLogParser.dominantRegion(["us-central", "ap-southeast", "us-central"]) == "us-central")
+        #expect(XCActivityLogParser.dominantRegion(["us-central", "ap-southeast"]) == "ap-southeast")
+        #expect(XCActivityLogParser.dominantRegion([]) == nil)
+    }
 }

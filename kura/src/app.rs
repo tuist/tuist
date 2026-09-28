@@ -2037,6 +2037,101 @@ mod tests {
         let _ = server.await;
     }
 
+    // The CAS proxy reads this off every call to report which region served a
+    // build, so it must reach a real client through the production listener,
+    // on answers and on trailers-only errors alike.
+    #[tokio::test]
+    async fn cohosted_grpc_responses_name_the_serving_region() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            Digest, GetActionResultRequest, GetCapabilitiesRequest,
+            action_cache_client::ActionCacheClient, capabilities_client::CapabilitiesClient,
+        };
+
+        let context = test_context(|config| config.region = "us-central".into()).await;
+        let state = context.state.clone();
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind co-hosted test listener");
+        let addr = listener.local_addr().expect("co-hosted listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            configure_http_builder,
+        ));
+
+        let mut grpc_client = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
+                .expect("valid gRPC endpoint")
+                .connect()
+                .await
+            {
+                Ok(channel) => {
+                    grpc_client = Some(CapabilitiesClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let response = grpc_client
+            .expect("co-hosted port should accept gRPC (h2c) connections")
+            .get_capabilities(GetCapabilitiesRequest {
+                instance_name: String::new(),
+            })
+            .await
+            .expect("co-hosted port should answer REAPI GetCapabilities");
+        assert_eq!(
+            response
+                .metadata()
+                .get("x-kura-region")
+                .and_then(|value| value.to_str().ok()),
+            Some("us-central")
+        );
+
+        let miss = ActionCacheClient::new(
+            tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
+                .expect("valid gRPC endpoint")
+                .connect()
+                .await
+                .expect("co-hosted port should accept gRPC (h2c) connections"),
+        )
+        .get_action_result(GetActionResultRequest {
+            instance_name: "acme/app".into(),
+            action_digest: Some(Digest {
+                hash: "0".repeat(64),
+                size_bytes: 1,
+            }),
+            ..Default::default()
+        })
+        .await
+        .expect_err("an absent action result is an error status");
+        assert_eq!(miss.code(), tonic::Code::NotFound);
+        assert_eq!(
+            miss.metadata()
+                .get("x-kura-region")
+                .and_then(|value| value.to_str().ok()),
+            Some("us-central"),
+            "a trailers-only gRPC error names its region too"
+        );
+
+        let http = reqwest::Client::new()
+            .get(format!("http://{addr}/up"))
+            .send()
+            .await
+            .expect("co-hosted port should answer the HTTP /up probe");
+        assert!(
+            http.headers().get("x-kura-region").is_none(),
+            "only the gRPC surface is stamped"
+        );
+
+        shutdown_tx.send(true).expect("signal shutdown");
+        let _ = server.await;
+    }
+
     #[tokio::test]
     async fn gateway_grpc_listener_serves_grpc_and_refuses_http() {
         use bazel_remote_apis::build::bazel::remote::execution::v2::{

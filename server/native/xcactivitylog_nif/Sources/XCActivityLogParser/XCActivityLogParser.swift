@@ -61,12 +61,18 @@ public struct XCActivityLogParser: Sendable {
             casReader: casReader
         )
 
+        let cacheServingRegion = await analyzeCacheServingRegion(
+            cacheableTasks: cacheableTasks,
+            casOutputs: casOutputs,
+            casReader: casReader
+        )
+
         let duration = SafeNumeric.milliseconds(
             activityLog.mainSection.timeStoppedRecording - activityLog.mainSection.timeStartedRecording,
             rounding: .towardZero
         )
 
-        return BuildData(
+        var buildData = BuildData(
             unique_identifier: activityLog.mainSection.uniqueIdentifier,
             version: activityLog.version,
             time_started_recording: activityLog.mainSection.timeStartedRecording,
@@ -82,6 +88,39 @@ public struct XCActivityLogParser: Sendable {
             cas_outputs: casOutputs,
             build_steps: try extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog, onBuildStep: onBuildStep)
         )
+        buildData.cache_serving_region = cacheServingRegion
+        return buildData
+    }
+
+    // MARK: - Cache Serving Region
+
+    /// The region that answered most of this build's remote cache traffic:
+    /// every lookup and publication the build log shows reaching the remote,
+    /// and every output transferred, looked up in the proxy's `served_by` rows.
+    private func analyzeCacheServingRegion(
+        cacheableTasks: [CacheableTask],
+        casOutputs: [CASOutput],
+        casReader: CASMetadataReader
+    ) async -> String? {
+        var lookups = [(key: String, operationType: String)]()
+        for task in cacheableTasks {
+            if task.status == "hit_remote" || task.status == "miss" { lookups.append((task.key, "read")) }
+            if task.write_duration != nil { lookups.append((task.key, "write")) }
+        }
+        lookups += Set(casOutputs.map(\.checksum)).map { ($0, "output") }
+        let regions = (try? await lookups.concurrentCompactMap(maxConcurrentTasks: 50) { lookup in
+            await casReader.readServedRegion(key: lookup.key, operationType: lookup.operationType)
+        }) ?? []
+        return Self.dominantRegion(regions)
+    }
+
+    /// The most frequent region, ties broken by name so the answer is stable.
+    static func dominantRegion(_ regions: [String]) -> String? {
+        Dictionary(grouping: regions, by: { $0 })
+            .max { lhs, rhs in
+                lhs.value.count == rhs.value.count ? lhs.key > rhs.key : lhs.value.count < rhs.value.count
+            }?
+            .key
     }
 
     // MARK: - Build Steps
