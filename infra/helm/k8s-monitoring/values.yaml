@@ -2119,6 +2119,10 @@ k8s-monitoring:
       # already holds. `loki.source.api` serves the same
       # /loki/api/v1/push contract the app's handler speaks, so no client-side
       # auth is involved and the tailnet ACL is the access control.
+      #
+      # The server also forwards log lines uploaded by the Tuist iOS and macOS
+      # apps here over the in-cluster Service (`service_name="tuist-app"`,
+      # tuist chart `server.appLogs`), after authenticating the user.
       alloy:
         extraPorts:
           - name: otlp-grpc

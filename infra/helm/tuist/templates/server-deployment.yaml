@@ -184,6 +184,10 @@ spec:
             - name: TUIST_FARO_RECEIVER_URL
               value: {{ printf "http://%s:%v/collect" .Values.server.faro.receiverHost .Values.server.faro.receiverPort | quote }}
             {{- end }}
+            {{- with .Values.server.appLogs.receiverUrl }}
+            - name: TUIST_APP_LOGS_RECEIVER_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
               value: {{ . | quote }}
