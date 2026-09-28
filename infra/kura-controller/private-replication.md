@@ -1,10 +1,11 @@
 # Provider-private Kura replication
 
 This is the private-network slice of [Atlas spec 98](https://atlas.tuist.dev/engineering/specs/98).
-Spec 95 is already shipped. Ingress, BGP, physical-host placement and host
-migrations are outside this change. **No production network or workload has
-been changed by this work. Private routing is disabled until the gates below
-are satisfied.**
+Spec 95 is already shipped. This change adds managed OVH attachment, persistent
+private host routes and automatic runtime topology publication. It also adopts
+an already-prepared staging cache host to qualify the physical path. Ingress,
+BGP and host migrations remain outside this change. **Production workloads have
+not changed. Runtime activation remains gated on physical qualification.**
 
 ## Operational inventory
 
@@ -104,9 +105,12 @@ The standalone chart exposes `peerTopology` and rejects it without peer TLS.
 For managed instances use `spec.extraEnv` with the same JSON and Kubernetes
 `$(POD_NAME)`/`$(POD_NAMESPACE)` expansion. Enable only on a homogeneous,
 verified node selector: a pool name is insufficient during a provider migration.
-The controller/server do not yet derive these fields from live node networking;
-automatic publication is pending the provider/underlay model. Production chart
-values intentionally do not enable the feature.
+The managed controller can derive these fields from actual Node provider IDs and
+the CAPI controller's converged private-route attestations. The environment
+settings and fail-closed host routing are described in
+[private-network-provisioning.md](private-network-provisioning.md). Staging
+enables host reconciliation first; automatic runtime publication and the
+canary/production host settings remain disabled pending qualification.
 
 Provider-only configuration is rejected at startup: opting in requires both
 `private_network` and `private_url`. Same-provider peers advertising absent or
@@ -264,12 +268,14 @@ retest or persistent staging pin is planned; ordinary deployments may replace it
 
 ### Evidence still required
 
-No private reachability, interface capture, sustained bandwidth, MTU, N-1 headroom,
-or production deployment has been completed yet.
-Provider permissions/product confirmation and the reviewed host cutover above
-are required before those observations can be made. The current change provides
-the opt-in runtime policy, tests and verification procedure; it does not claim
-that the requested provider networking has already been provisioned.
+The staging OVH pair has demonstrated bidirectional physical private reachability,
+1500-byte IP MTU without fragmentation, private/public interface captures and
+fail-closed host routing. Disabling the private NIC produced no public peer
+packets; the persistent unreachable route prevented fallback, and connectivity
+recovered after restoration. These are host-network observations, not yet a
+Cilium/Kura end-to-end qualification. Sustained bandwidth, N-1 headroom, actual
+pod replication on this underlay and canary/production qualification remain open.
+The canary and production zero-cost vRack orders are pending provider delivery.
 
 ### Staging deployment and E2E validation, 2026-09-28
 
@@ -279,7 +285,7 @@ succeeded for commit `dcb6a17aad0f`, publishing
 image on the existing Dedibox, OVH BHS and Scaleway cache hosts. Synthetic
 `test-provider-a` / `test-provider-b` metadata exercised policy decisions;
 these hosts are **not** being claimed as one verified private routing domain.
-Staging has no Vultr host and no qualified OVH vRack pair.
+That initial test had no Vultr host or qualified OVH vRack pair.
 
 The [reusable fixture and validation instructions](../../kura/test/e2e/provider-topology/staging/README.md)
 and [recorded results](../../kura/test/e2e/provider-topology/staging/validation-2026-09-28.json)

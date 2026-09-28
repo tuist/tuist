@@ -10,6 +10,12 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
+- `capi.ovhPrivateNetwork` declares the environment's provisioned vRack and
+  reserved CIDR. `kuraController.privateReplication` consumes Node route
+  attestations; both default off for self-hosting. Address reservations are
+  controller-owned and must not be placed in Helm-owned data or garbage-collected
+  with a Machine. See `../kura-controller/private-network-provisioning.md`.
+
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Retire
   the evacuated Dedibox fleet with a subsequent `replicas: 0` change only after
   DNS withdrawal/soak and non-production teardown. Until then retain 3/1/1

@@ -69,10 +69,11 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr          string
-		probeAddr            string
-		enableLeaderElection bool
-		secretsNamespace     string
+		metricsAddr             string
+		probeAddr               string
+		enableLeaderElection    bool
+		secretsNamespace        string
+		ovhPrivateNetworkConfig string
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
@@ -124,6 +125,8 @@ func main() {
 		"Single-leader election; required when running >1 replica")
 	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
 		"Namespace where the operator stores per-fleet SSH key Secrets")
+	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
 		"External API server URL Mac minis dial when joining (https://...). "+
@@ -824,16 +827,18 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&linux.OVHDedicatedMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			OVHClient:          ovhClient,
-			Recorder:           mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
-			CredentialsManager: credsManager,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultDatacenter:  "vin",
-			DefaultOS:          "ubuntu_24.04",
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			OVHClient:                ovhClient,
+			Recorder:                 mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultDatacenter:        "vin",
+			DefaultOS:                "ubuntu_24.04",
+			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)

@@ -1,5 +1,11 @@
 # cluster-api-provider-tuist
 
+- OVH cache vRack reconciliation is additive on the Ready path, scoped by the
+  environment ConfigMap and cache taint. Persist address reservations across
+  Machine deletion, preserve main-table unreachable guards, and advertise
+  private topology only after every participant installs the same membership.
+  See [managed private networking](../kura-controller/private-network-provisioning.md).
+
 Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
 CAPI's standard Machine/MachineDeployment shape. It manages these

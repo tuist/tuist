@@ -178,7 +178,15 @@ async fn probe_private_path(state: &SharedState, peer: &PeerStatusPayload) -> bo
     let own = state.config.peer_topology.as_ref();
     let selected = crate::peer_topology::endpoint(own, peer.topology.as_ref(), &peer.node_url);
     let private = match selected {
-        Ok(url) if url != peer.node_url => url,
+        Ok(url)
+            if own
+                .zip(peer.topology.as_ref())
+                .is_some_and(|(local, remote)| {
+                    local.same_provider(remote) && local.private_network == remote.private_network
+                }) =>
+        {
+            url
+        }
         Ok(_) => return true,
         Err(error) => {
             warn!(peer = %peer.node_url, %error, "peer private route unavailable");
@@ -543,6 +551,25 @@ mod tests {
                 .connected_nodes
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn private_probe_checks_canonical_url_on_private_underlay() {
+        let canonical = "https://127.0.0.1:9";
+        let topology = crate::peer_topology::PeerTopology {
+            provider: "ovh".into(),
+            private_network: Some("verified-domain".into()),
+            private_url: Some(canonical.into()),
+        };
+        let ctx = test_context(|config| config.peer_topology = Some(topology.clone())).await;
+        let peer = serde_json::from_value(serde_json::json!({
+            "tenant_id": "test-tenant",
+            "region": "remote",
+            "node_url": canonical,
+            "topology": topology
+        }))
+        .unwrap();
+        assert!(!super::probe_private_path(&ctx.state, &peer).await);
     }
 
     #[tokio::test]
