@@ -220,6 +220,17 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
     }
 
+    /// The message a cache node refused the account with for billing reasons, such as an exhausted free tier or
+    /// a failed subscription payment. gRPC has no status for payment required, so the node marks the permission
+    /// denial with a `tuist-refusal-reason` metadata entry. `nil` for every other error.
+    public static func billingRefusalMessage(of error: Error) -> String? {
+        guard let error = error as? RPCError, error.code == .permissionDenied,
+              error.metadata[stringValues: "tuist-refusal-reason"].contains(where: { $0 == "payment_required" }),
+              !error.message.isEmpty
+        else { return nil }
+        return error.message
+    }
+
     public func validateCapabilities() async throws {
         var options = options
         options.timeout = .seconds(10)
