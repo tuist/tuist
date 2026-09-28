@@ -10,10 +10,10 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
-- Production public EU-West runs on three `ovhFleets.eu-west` nodes. Retire
-  the evacuated Dedibox fleet with a subsequent `replicas: 0` change only after
-  DNS withdrawal/soak and non-production teardown. Until then retain 3/1/1
-  production/staging/canary hosts. Retain its reconciler and
+- Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
+  Dedibox fleets now declare `replicas: 0` in all three environments. Deploy
+  retirement only after production DNS withdrawal/soak and non-production
+  instance teardown. Retain the Dedibox reconciler and
   credentials until all Machine finalizers complete. Follow the DNS withdrawal
   and soak gates in [the migration runbook](../kura-controller/eu-west-ovh-migration.md)
   before deploying retirement. Staging/canary Dedibox retirement also requires decommissioning their
@@ -23,6 +23,10 @@ This node covers Helm assets under `infra/helm/`.
   Production EU-West ingress temporarily pins `publish-status-address` to the
   three OVH IPs while retaining gateways on Dedibox for DNS drain. Update that
   list on any OVH replacement, then remove the override after Dedibox retirement.
+  Non-production EU-West ingress and egress-tree pool entries are removed;
+  public staging/canary validation uses OVH `ca-east`. Provider release wipes
+  the boxes but does not cancel their monthly subscriptions. Remove retained
+  zero-replica definitions and credentials only after every finalizer completes.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
 - OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound

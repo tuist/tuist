@@ -7,15 +7,14 @@ strategies restored. The three Dedibox sources remain cordoned and retained,
 with no Kura runtime pods or live cache claims. Their gateways still serve old
 addresses. Hardware retirement and provider billing cancellation are outstanding.
 
-Fleet retirement is **held at three production hosts and one each in staging
-and canary** until instance teardown and DNS withdrawal/drain complete. PR #13671
-set those counts to zero prematurely; its queued deployment was cancelled before
-it started after live inspection confirmed eight Ready canary runtime pods still
-on Dedibox. The corrective change restores the counts and retains the removal of
-EU-West from staging/canary's available-region lists, so normal deployment can
-stop new provisioning without immediately wiping their hosts. Existing instances
-still require explicit lifecycle teardown. Preserve the Scaleway Elastic Metal
-Mac runner cache in every environment.
+Live fleets were retained at three production hosts and one each in staging
+and canary while instance teardown and DNS withdrawal completed. PR #13671
+prematurely declared zero; its deployment was cancelled and #13673 restored
+those counts. The retirement values now declare zero again, with the deployment
+gates and current handoff recorded below. Do not deploy them before production's
+DNS soak passes. EU-West is already excluded from staging/canary's available
+regions; its remaining staging instance still requires explicit lifecycle
+teardown. Preserve the Scaleway Elastic Metal Mac runner cache in every environment.
 
 Fleet configuration changes go through a pull request and the normal production
 deployment workflow. Do not apply the rendered fleet objects directly. Subsequent
@@ -357,7 +356,9 @@ not proof of the subsequent soak. A fresh September 28 read confirmed
 status still advertised **all six** OVH and Dedibox IPs. Cordoning the Dedibox
 nodes does not withdraw gateway addresses. A wait alone is not DNS withdrawal.
 
-Before preparing and deploying the subsequent zero-replica retirement change:
+The managed values now declare zero Dedibox replicas in all three environments.
+Preparing the retirement PR does not complete the live gates below. Before
+merging and deploying it:
 
 1. Withdraw `195.154.208.26`, `195.154.208.48`, and `51.159.17.45` from
    production regional DNS publication in a separate reviewed platform change,
@@ -438,6 +439,41 @@ non-production EU-West gateway overlays and egress-agent pool entries, and the
 shared Dedibox templates, CRDs, provider code and credentials in the final
 cleanup. Production's EU-West gateways and pool remain necessary for OVH.
 The runbook's DNS/soak gates still apply to production independently.
+
+#### September 28 retirement handoff
+
+The retirement values remove all five managed Dedibox hosts (production
+`184798`, `184776`, `148144`; staging `188785`; canary `189167`) through CAPI by
+setting each fleet to zero. They also disable non-production EU-West ingress
+and remove that pool from the non-production egress agent. The production
+EU-West gateway, OVH-only address override, and historical `kura-dedibox` pool
+remain unchanged because OVH still uses them.
+
+Production DNS withdrawal was verified at **2026-09-28 15:40 UTC**. The earliest
+48-hour-soak review is **2026-09-30 15:40 UTC (17:40 Berlin)**, with a healthy
+representative busy period and fresh DNS, runtime, backfill, and claim checks.
+This is a deployment gate, not an assumption that elapsed time proves health.
+
+Canary source-instance teardown is complete. Staging's last dedicated smoke
+replacement is active on OVH with both replicas Ready and initial backfill
+complete; its old EU-West placement entered drain at 2026-09-28 16:12 UTC.
+The ordinary placement drain ends at 17:14 UTC. The operator explicitly accepts
+staging test-cache disruption, so staging stability is not an additional soak
+gate. Still retire its exact server row through `Tuist.Kura.destroy_server/1`
+and verify workload/claim cleanup before releasing its host; do not leave an
+active server record behind by deleting its Kubernetes resources directly.
+This exception does not shorten production's DNS soak or authorize losing the
+separate Mac runner cache.
+
+Keep `dediboxFleet.enabled: true`, both ExternalSecrets, provider RBAC, CRDs and
+the Dedibox reconciler during release. Disabling them at the same time as scale
+down prevents finalizer completion. After all five releases finish, remove this
+remaining deletion support and zero-replica configuration in a cleanup PR,
+explicitly delete the orphaned IAM ExternalSecret hook, and restore dynamic
+OVH-only ingress address publication. Provider release reinstalls the boxes;
+separately cancel the five subscriptions after matching provider server IDs.
+The previously unaccounted-for server `133116` is not owned by these fleets and
+is not cancelled or wiped by this change.
 
 Keep `kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache
 pool), its private network, and the Apple Silicon fleet intact. Keep the existing
