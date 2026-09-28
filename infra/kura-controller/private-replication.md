@@ -296,9 +296,22 @@ the existing `tuist-staging/tuist-tuist-server` Deployment from
 `sha-c07fa5b26287` to `sha-dcb6a17aad0f`. The server image, instance strategies
 and topology configuration were preserved. The server rollout completed; the
 normal reconciler started progressive rollout
-`3eef2a57-e7c8-471a-bef8-e13e6f94e265`, with wave 0 healthy from
-`2026-09-28T11:13:01Z`. Fleet completion is recorded separately after its existing
-soak gates finish. Topology remains unset on managed instances pending underlay
-qualification. A later Helm deployment must pass this runtime tag to retain the
-imperative staging pin. Rollback restores `sha-c07fa5b26287` through the same
-server runtime pin and normal rollout coordinator.
+`3eef2a57-e7c8-471a-bef8-e13e6f94e265`. Its three first-wave instances converged
+and became soak-eligible. A CPU autosize from 100m to 600m caused an ordinary
+replica roll; the continuous-health clock restarted at
+`2026-09-28T11:18:01Z`.
+
+Before that soak completed, concurrent
+[Server Deployment 36413863337](https://github.com/tuist/tuist/actions/runs/36413863337)
+replaced the server and Kura runtime pin with `sha-0b93604a05fb`. The rollout above
+is **superseded**, not completed; later waves did not run on this task's image.
+That release includes the Dedibox host-retention change from #13673. It was left
+intact pending coordination of the staging runtime pin. The completed isolated
+E2E evidence remains valid for `sha-dcb6a17aad0f`.
+
+Topology remains unset on managed instances pending underlay qualification.
+Retaining this image through a Helm deployment requires the explicit
+`kura_runtime_image_tag=sha-dcb6a17aad0f` input. Do not restore the old server or
+infrastructure to re-pin Kura: preserve the concurrent deployment and change only
+the chosen runtime pin after coordinating it. The original pre-test Kura runtime
+was `sha-c07fa5b26287`, but rollback must account for subsequent deployments too.
