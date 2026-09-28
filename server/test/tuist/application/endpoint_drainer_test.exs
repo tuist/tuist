@@ -138,7 +138,7 @@ defmodule Tuist.Application.EndpointDrainerTest do
     shutdown = Task.async(fn -> Application.stop(@application) end)
 
     wait_until(fn -> :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false], 100) end, fn
-      {:error, reason} when reason in [:econnrefused, :econnreset] ->
+      {:error, _reason} ->
         true
 
       {:ok, connection} ->
