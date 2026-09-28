@@ -112,18 +112,39 @@ Vultr. Vultr's [published pricing comparison](https://marketing-sales-files.sjc1
 lists VPC as free. A NAT gateway is a separate paid product and is unnecessary
 for these public-plus-private hosts.
 
-## Isolated Chicago qualification
+## Chicago qualification using existing hosts
 
-Use an unadopted Chicago bare-metal host matching the existing
-`vbm-6c-32gb-amd` plan and a temporary `vc2-1c-2gb` VM in the same ORD VPC.
-Both run Ubuntu 24.04, retain their public interface and have no fleet adoption
-tag. This pair establishes the bare-metal-to-VM data path without attaching or
-restarting a serving node. It does not by itself qualify every bare-metal pair
-or the Santiago location.
+Prefer the existing Chicago hosts. Extra hardware is an isolation option, not
+a prerequisite established by the provider documentation. Before attaching a
+serving host, establish whether the provider operation restarts it and whether
+the already-present secondary interface can be configured live.
+
+Read-only telemetry on 2026-09-28 showed `enp1s0f1np1` on all three existing
+Vultr hosts, with zero receive/transmit bytes. This proves the interface is
+already registered in the running OS, not that the provider has activated its
+VPC path. Per-host operational state could not be recovered from
+`node_network_up`, whose labels were aggregated downstream.
+
+The official [SDK attachment method](https://github.com/vultr/govultr/blob/master/bare_metal_server.go)
+and [Terraform VPC update path](https://github.com/vultr/terraform-provider-vultr/blob/master/vultr/resource_vultr_bare_metal_server.go)
+do not issue a reboot call. The [API specification](https://github.com/vultr/vultr-mcp/blob/main/openapi.json)
+does not state whether the attachment endpoint itself restarts the server.
+Absence of a client reboot call is not proof of backend behavior. The reboot
+note in the bare-metal guide explicitly concerns cloud-init reconfiguration;
+it does not establish that every manual interface configuration needs a reboot.
+Provider confirmation or a controlled observation is still required.
+
+If existing-host qualification cannot avoid disruption, choose an approved
+maintenance/evacuation plan or isolated capacity. An unadopted bare-metal host
+and small VM in the same VPC are one optional test setup; that result alone
+would not qualify all bare-metal pairs or Santiago. Keep isolated hosts outside
+fleet adoption and retain their public management interfaces.
 
 1. Record both provider-assigned private addresses/MACs, host routes, interface
-   state and path MTU. Confirm the fresh host's VPC setup survives a restart
-   before it has any workloads.
+   state, boot identity and path MTU. Measure continuity across attachment and
+   configure only the private interface. Validate persistence during an approved
+   maintenance restart or on an isolated host, not by restarting serving hosts
+   solely to exercise persistence.
 2. Check private reachability both ways, then the public-node-source behavior
    used by the OVH design. Test unfragmented payloads and encapsulated traffic;
    do not publish a route attestation from small private-source pings alone.

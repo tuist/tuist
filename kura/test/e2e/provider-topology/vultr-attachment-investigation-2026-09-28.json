@@ -1,0 +1,51 @@
+{
+  "date": "2026-09-28",
+  "kind": "Read-only investigation; no attachment attempted",
+  "observedAt": "2026-09-28T18:58:18.902Z",
+  "telemetry": {
+    "source": "Grafana Cloud node-exporter metrics",
+    "hosts": 3,
+    "locations": {
+      "ord": 2,
+      "scl": 1
+    },
+    "secondaryInterface": "enp1s0f1np1",
+    "hostsReportingInterface": 3,
+    "receiveBytes": [
+      0,
+      0,
+      0
+    ],
+    "transmitBytes": [
+      0,
+      0,
+      0
+    ],
+    "carrierChanges": [
+      1,
+      1,
+      1
+    ],
+    "interpretation": "The running OS already exposes the secondary interface. Zero byte counters do not prove attachment readiness or private connectivity.",
+    "limitation": "node_network_up device and instance labels are aggregated downstream, so this query could not establish per-host link operational state."
+  },
+  "clientSourceReview": {
+    "sdk": "AttachVPC sends one POST /bare-metals/{id}/vpcs/attach and does not call Reboot.",
+    "terraform": "VPC changes use ListVPCInfo, conditional DetachVPC and AttachVPC; no reboot call in that update path.",
+    "apiSpecification": "Attachment accepts vpc_id and documents HTTP 204. It does not state whether the backend restarts the host.",
+    "interpretation": "No client-triggered reboot in the inspected SDK/Terraform paths. Backend-triggered reboot and immediate private NIC activation remain unverified."
+  },
+  "sources": [
+    "https://github.com/vultr/govultr/blob/master/bare_metal_server.go",
+    "https://github.com/vultr/terraform-provider-vultr/blob/master/vultr/resource_vultr_bare_metal_server.go",
+    "https://github.com/vultr/vultr-mcp/blob/main/openapi.json",
+    "https://docs.vultr.com/products/compute/instances/bare-metal/networking/vpc"
+  ],
+  "mutations": {
+    "attachments": 0,
+    "hostConfigurationChanges": 0,
+    "reboots": 0,
+    "kubernetesWrites": 0
+  },
+  "nextStep": "Inspect authenticated console attachment warnings, obtain provider confirmation if necessary, then qualify existing Chicago hosts under the appropriate operational scope. New hardware is optional, not a demonstrated requirement."
+}
