@@ -30,12 +30,11 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
   end
 
   describe "handle_event/1 for invoice.payment_failed" do
-    test "queues the failed-payment email, counting the plan's grace from when the charge failed" do
+    test "queues the failed-payment email" do
       user = AccountsFixtures.user_fixture(customer_id: "cus_#{System.unique_integer([:positive])}", preload: [:account])
 
       event = %Stripe.Event{
         type: "invoice.payment_failed",
-        created: DateTime.to_unix(~U[2026-09-27 10:00:00Z]),
         data: %{
           object: %Stripe.Invoice{
             id: "in_failed",
@@ -51,7 +50,7 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
 
       assert_enqueued(
         worker: PaymentFailedNotificationWorker,
-        args: %{invoice_id: "in_failed", user_id: user.id, plan_active_until: "2026-10-11T10:00:00Z"}
+        args: %{invoice_id: "in_failed", user_id: user.id}
       )
     end
   end

@@ -10,21 +10,12 @@ defmodule Tuist.Billing.Workers.PaymentFailedNotificationWorker do
   alias Tuist.Accounts.UserNotifier
 
   @impl Oban.Worker
-  def perform(%Oban.Job{
-        args: %{
-          "invoice_id" => invoice_id,
-          "account_id" => account_id,
-          "user_id" => user_id,
-          "plan_active_until" => plan_active_until
-        }
-      }) do
+  def perform(%Oban.Job{args: %{"invoice_id" => invoice_id, "account_id" => account_id, "user_id" => user_id}}) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          %User{} = user <- Accounts.get_user_by_id(user_id),
          true <- Accounts.owns_account_or_is_admin_to_account_organization?(user, account),
          true <- invoice_open?(invoice_id) do
-      {:ok, plan_active_until, _offset} = DateTime.from_iso8601(plan_active_until)
-
-      case UserNotifier.deliver_payment_failed_notification(user, account, plan_active_until) do
+      case UserNotifier.deliver_payment_failed_notification(user, account) do
         {:ok, _email} -> :ok
         {:error, reason} -> {:error, reason}
       end

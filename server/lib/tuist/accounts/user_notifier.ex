@@ -525,21 +525,18 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
-  Tells an account admin that a subscription payment failed, and until when
-  the account keeps its plan while the payment is retried.
+  Tells an account admin that a subscription payment failed. It makes no
+  promise about how long the plan is kept: that is how long Stripe keeps
+  retrying, a setting that can change.
   """
-  def deliver_payment_failed_notification(user, account, %DateTime{} = plan_active_until) do
-    user |> payment_failed_email(account, plan_active_until) |> Mailer.deliver_now()
+  def deliver_payment_failed_notification(user, account) do
+    user |> payment_failed_email(account) |> Mailer.deliver_now()
   end
 
-  def payment_failed_email(user, account, %DateTime{} = plan_active_until) do
+  def payment_failed_email(user, account) do
     locale = Map.get(user, :preferred_locale) || "en"
 
     Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
-      date_format =
-        if locale in Timex.Gettext.__gettext__(:known_locales), do: "{Mfull} {D}, {YYYY}", else: "{YYYY}-{0M}-{0D}"
-
-      date = Timex.lformat!(plan_active_until, date_format, locale)
       pay_url = Environment.app_url(path: "/#{account.name}/billing/pay")
 
       subject =
@@ -557,8 +554,7 @@ defmodule Tuist.Accounts.UserNotifier do
           ),
           dgettext(
             "dashboard_account",
-            "Your plan stays active until %{date} (UTC). If the invoice is still unpaid by then, %{account_name} is limited to the free tier of the Air plan until the invoice is paid.",
-            date: date,
+            "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid.",
             account_name: account.name
           ),
           dgettext("dashboard_account", "Pay the open invoice or update your payment method to keep your plan:")
