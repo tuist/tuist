@@ -139,18 +139,10 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # `eu-west` is the public region, now on the Dedibox bare-metal
-      # `kura-dedibox` pool (the eu-west cutover). `scw-fr-par-runners` is the
-      # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
-      # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
-      # the Macs' cache traffic never crosses the WAN. Linux runners have no
-      # private cache region: the former `hetzner-staging-runners` lived on the
-      # Hetzner ccx13 `kura` pool the cutover deleted, no customers used the
-      # staging Linux runner cache, and the region spec is gone with the pool.
-      # `ca-east` (Canada East / OVHcloud BHS) is
-      # the OVH bare-metal validation region — a geographic id; OVH is an
-      # implementation detail behind it (ovhFleet below, replicas 1).
-      value: eu-west,scw-fr-par-runners,ca-east
+      # Public validation uses the existing OVH ca-east fleet. Retire the
+      # Dedibox EU-West instances before the later fleet-retirement change.
+      # Preserve the Scaleway private cache beside the Mac mini fleet.
+      value: scw-fr-par-runners,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -601,14 +593,13 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
-# adopts a pre-ordered Dedibox carrying the tuist-staging tag (the env boundary,
-# since all Dedibox share the org's default project) and self-joins it. The tag
-# is the env pool marker, not a workload one — the node is dedicated to Kura by
-# its taint + pool label, not by this name. Prereqs met: the DEDIBOX_SCW_API
-# 1Password item exists, and Start-9-M sd-188785 (DC5) is delivered and tagged.
+# Retain Dedibox hosts for instance teardown; OVH ca-east is the public region.
+# Keep enabled so the provider reconciler can complete host release/reinstall.
 dediboxFleet:
   enabled: true
+  # Hold hosts until instance teardown and DNS withdrawal/drain are complete.
+  # A later reviewed change sets zero; zero immediately starts provider release.
+  replicas: 1
   machine:
     # Exact tag match (not a prefix), so this is the shared pool tag every
     # staging Dedibox carries; per-box identity is the server id, not the tag.

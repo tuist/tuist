@@ -32,7 +32,7 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
   until provider attachments, both underlay directions and fail-closed routing
   are verified. Do not infer provider identity from a pool during migration.
 
-- Proposed public EU-West provider migration: [Dedibox to OVH plan](eu-west-ovh-migration.md).
+- Production public EU-West workloads now run on OVH; staging/canary EU-West instances must be decommissioned before their Dedibox fleets retire. Public validation remains on OVH `ca-east`. Follow the [DNS withdrawal, soak and retirement gates](eu-west-ovh-migration.md) before releasing old production hosts. Keep the Mac runner cache and the historical scheduling/storage names intact.
   It retains the current pool selector and StorageClass during evacuation;
   vRack traffic enablement and pool renaming are separate changes.
 

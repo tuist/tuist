@@ -23,6 +23,7 @@ defmodule Atlas.MCP.Proxy.Server do
     read_only: false,
     tool_allowlist: [],
     operator_grant_header: nil,
+    atlas_identity_header: nil,
     bearer_token: nil,
     receive_timeout: 15_000
   ]
