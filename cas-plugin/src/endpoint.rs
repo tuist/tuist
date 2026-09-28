@@ -12,7 +12,7 @@
 //! Asked of the CLI rather than of the API directly, so "which endpoint" has
 //! one implementation. Current CLIs derive a stable hostname locally or use
 //! an explicit override; older CLIs may still discover regional addresses.
-//! Keep their relocation and preparation compatibility here.
+//! Endpoint resolution does not report or poll cache provisioning readiness.
 
 use std::process::Command;
 
@@ -41,17 +41,10 @@ pub fn same_endpoint(a: &str, b: &str) -> bool {
     a.trim_end_matches('/') == b.trim_end_matches('/')
 }
 
-/// The status `tuist cache config` exits with while the account's cache is
-/// being prepared and has no endpoint yet (`EX_TEMPFAIL`, older CLIs only).
-pub const BEING_PREPARED_EXIT_CODE: i32 = 75;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resolution {
     /// The endpoint the CLI would use right now.
     Endpoint(ResolvedEndpoint),
-    /// The account's cache has no endpoint yet and is being prepared, which
-    /// takes seconds.
-    BeingPrepared,
     /// The CLI could not be asked or gave no usable answer. Not "no endpoint":
     /// a CLI that is missing, unauthenticated or offline says nothing about
     /// where the cache moved, so the caller keeps what it has.
@@ -83,7 +76,6 @@ pub fn resolve(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> 
 fn resolution_from_output(exit_code: Option<i32>, stdout: &str) -> Resolution {
     match exit_code {
         Some(0) => resolution_from_json(stdout).map_or(Resolution::Unknown, Resolution::Endpoint),
-        Some(BEING_PREPARED_EXIT_CODE) => Resolution::BeingPrepared,
         _ => Resolution::Unknown,
     }
 }
@@ -228,15 +220,12 @@ mod tests {
     }
 
     #[test]
-    fn tells_a_cache_being_prepared_apart_from_a_failure() {
+    fn only_a_successful_command_with_a_valid_endpoint_resolves() {
         let stdout = r#"{"url":"https://acme.kura.tuist.dev"}"#;
 
-        assert_eq!(
-            resolution_from_output(Some(BEING_PREPARED_EXIT_CODE), ""),
-            Resolution::BeingPrepared
-        );
-        assert_eq!(resolution_from_output(Some(1), ""), Resolution::Unknown);
-        assert_eq!(resolution_from_output(None, ""), Resolution::Unknown);
+        for exit_code in [Some(1), Some(75), None] {
+            assert_eq!(resolution_from_output(exit_code, stdout), Resolution::Unknown);
+        }
         assert_eq!(
             resolution_from_output(Some(0), "not json"),
             Resolution::Unknown
