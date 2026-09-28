@@ -12,4 +12,4 @@ This package is a stateless HTTP/gRPC streaming proxy for the wildcard DNS fallb
 
 - Activation waits and proxy streams have separate bounded admission pools. Release the activation slot before streaming. Resolve each request afresh; a host-only routing cache loses origin selection and can retain drained targets.
 
-- Custom-account conflicts direct clients to server endpoint discovery; `TUIST_CACHE_ENDPOINT` is an optional override, not a requirement.
+- Hosted custom-account conflicts direct clients to `TUIST_CACHE_ENDPOINT`: known hosted URLs bypass discovery. Self-hosted servers discover their main endpoint separately.

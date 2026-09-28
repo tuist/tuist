@@ -8,14 +8,11 @@ import TuistTesting
 @testable import TuistCAS
 
 struct CacheURLStoreTests {
-    private let service = MockGetCacheEndpointsServicing()
+    private let service = MockGetCacheEndpointServicing()
     private let subject: CacheURLStore
 
     init() {
-        subject = CacheURLStore(getCacheEndpointsService: service, configurationCache: CachedValueStore())
-        service.reset()
-        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 60, deriveStableHostname: true))
+        subject = CacheURLStore(getCacheEndpointService: service, configurationCache: CachedValueStore())
     }
 
     @Test(.withMockedEnvironment(), arguments: [
@@ -30,18 +27,20 @@ struct CacheURLStoreTests {
         let result = try await subject.getCacheURL(for: serverURL, accountHandle: "Acme")
         #expect(result.absoluteString == "https://\(host)")
         #expect(try await subject.getCacheURL(for: serverURL, accountHandle: "Acme") == result)
-        verify(service).getCacheEndpoints(serverURL: .any, accountHandle: .any).called(1)
+        verify(service).getCacheEndpoint(serverURL: .any).called(0)
     }
 
     @Test(.withMockedEnvironment(), arguments: [
         "https://self-hosted.example.com", "http://localhost:8080", "https://tuist.dev.example.com",
         "https://tuist.dev:8080", "https://tuist.dev/custom", "http://tuist.dev",
     ])
-    func rejectsDerivationForOtherServers(server: String) async throws {
-        let serverURL = try #require(URL(string: server))
-        await #expect(throws: CacheURLStoreError.invalidURL(server)) {
-            try await subject.getCacheURL(for: serverURL, accountHandle: "acme")
-        }
+    func discoversMainEndpointForOtherServers(server: String) async throws {
+        given(service).getCacheEndpoint(serverURL: .value(URL(string: server)!))
+            .willReturn(CacheEndpointResolution(endpoint: "https://main.example.com/cache", maxAge: 60))
+        let result = try await subject.getCacheURL(for: URL(string: server)!, accountHandle: nil)
+        #expect(result.absoluteString == "https://main.example.com/cache")
+        #expect(try await subject.getCacheURL(for: URL(string: server)!, accountHandle: "another-account") == result)
+        verify(service).getCacheEndpoint(serverURL: .any).called(1)
     }
 
     @Test(.withMockedEnvironment(), arguments: [
@@ -65,7 +64,7 @@ struct CacheURLStoreTests {
         Environment.mocked?.variables["TUIST_CACHE_ENDPOINT"] = endpoint
         let url = try await subject.getCacheURL(for: URL(string: "https://tuist.dev")!, accountHandle: nil)
         #expect(url.absoluteString == endpoint)
-        verify(service).getCacheEndpoints(serverURL: .any, accountHandle: .any).called(0)
+        verify(service).getCacheEndpoint(serverURL: .any).called(0)
         #expect(try await subject
             .getCacheURL(for: URL(string: "https://private.example.com")!, accountHandle: nil) == url)
     }
@@ -78,59 +77,47 @@ struct CacheURLStoreTests {
         }
     }
 
-    @Test(
-        .withMockedEnvironment(),
-        arguments: ["https://tuist.dev", "http://localhost:8080", "https://private.example.com/tuist"]
-    )
-    func discoversCustomAndSelfHostedEndpoints(server: String) async throws {
-        service.reset()
-        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willReturn(CacheEndpointsResolution(endpoints: ["https://z.example.com", "https://a.example.com/cache"], maxAge: 60))
-        let result = try await subject.getCacheURL(for: URL(string: server)!, accountHandle: "acme")
-        #expect(result.absoluteString == "https://a.example.com/cache")
-    }
-
     @Test(.withMockedEnvironment())
     func emptyDiscoveryUsesLocalFallbackWithoutDerivingManagedURL() async throws {
         service.reset()
-        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willReturn(CacheEndpointsResolution(endpoints: [], maxAge: 5))
+        given(service).getCacheEndpoint(serverURL: .any)
+            .willReturn(CacheEndpointResolution(endpoint: nil, maxAge: 5))
         for _ in 0 ..< 2 {
             await #expect(throws: CacheURLStoreError.noEndpointsAvailable) {
-                try await subject.getCacheURL(for: URL(string: "https://tuist.dev")!, accountHandle: "acme")
+                try await subject.getCacheURL(for: URL(string: "https://self-hosted.example.com")!, accountHandle: "acme")
             }
         }
-        verify(service).getCacheEndpoints(serverURL: .any, accountHandle: .any).called(1)
+        verify(service).getCacheEndpoint(serverURL: .any).called(1)
     }
 
     @Test(.withMockedEnvironment())
     func refreshesExpiredConfiguration() async throws {
         service.reset()
-        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willReturn(CacheEndpointsResolution(endpoints: ["https://cache.example.com"], maxAge: 0))
+        given(service).getCacheEndpoint(serverURL: .any)
+            .willReturn(CacheEndpointResolution(endpoint: "https://cache.example.com", maxAge: 0))
         for _ in 0 ..< 2 {
-            _ = try await subject.getCacheURL(for: URL(string: "https://tuist.dev")!, accountHandle: "acme")
+            _ = try await subject.getCacheURL(for: URL(string: "https://self-hosted.example.com")!, accountHandle: "acme")
         }
-        verify(service).getCacheEndpoints(serverURL: .any, accountHandle: .any).called(2)
+        verify(service).getCacheEndpoint(serverURL: .any).called(2)
     }
 
     @Test(.withMockedEnvironment(), arguments: [404, 503])
     func discoveryFailureDoesNotDeriveManagedURL(status: Int) async throws {
         service.reset()
-        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willThrow(GetCacheEndpointsServiceError.unknownError(status))
-        await #expect(throws: GetCacheEndpointsServiceError.unknownError(status)) {
-            try await subject.getCacheURL(for: URL(string: "https://tuist.dev")!, accountHandle: "acme")
+        given(service).getCacheEndpoint(serverURL: .any)
+            .willThrow(GetCacheEndpointServiceError.unknownError(status))
+        await #expect(throws: GetCacheEndpointServiceError.unknownError(status)) {
+            try await subject.getCacheURL(for: URL(string: "https://self-hosted.example.com")!, accountHandle: "acme")
         }
     }
 
     @Test(.withMockedEnvironment())
     func rejectsInvalidDiscoveredEndpoint() async throws {
         service.reset()
-        given(service).getCacheEndpoints(serverURL: .any, accountHandle: .any)
-            .willReturn(CacheEndpointsResolution(endpoints: ["ftp://cache.example.com"], maxAge: 60))
+        given(service).getCacheEndpoint(serverURL: .any)
+            .willReturn(CacheEndpointResolution(endpoint: "ftp://cache.example.com", maxAge: 60))
         await #expect(throws: CacheURLStoreError.invalidURL("ftp://cache.example.com")) {
-            try await subject.getCacheURL(for: URL(string: "https://tuist.dev")!, accountHandle: "acme")
+            try await subject.getCacheURL(for: URL(string: "https://self-hosted.example.com")!, accountHandle: "acme")
         }
     }
 }

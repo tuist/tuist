@@ -10,6 +10,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
+  alias Tuist.CacheEndpoints
   alias Tuist.Kura
   alias Tuist.Kura.Identity
   alias Tuist.Storage
@@ -31,7 +32,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -39,27 +40,58 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:access, :endpoints, :token]
+       when action not in [:access, :endpoint, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug :sign
 
   tags(["Cache"])
 
+  operation(:endpoint,
+    summary: "Get the main self-hosted cache endpoint.",
+    description:
+      "Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.",
+    operation_id: "getCacheEndpoint",
+    responses: %{
+      ok: %OpenApiSpex.Response{
+        description: "Main cache endpoint",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description: "How long the endpoint configuration can be cached.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoint",
+              type: :object,
+              required: [:endpoint],
+              properties: %{endpoint: %Schema{type: :string, nullable: true}}
+            }
+          }
+        }
+      }
+    }
+  )
+
+  def endpoint(conn, _params) do
+    endpoint = CacheEndpoints.primary_endpoint_url()
+    max_age = if endpoint, do: 60, else: 5
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoint: endpoint})
+  end
+
   operation(:endpoints,
     summary: "Get cache endpoints.",
     description:
-      "Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.",
+      "Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.",
+    deprecated: true,
     operation_id: "getCacheEndpoints",
     parameters: [
-      {:configuration_only,
-       [
-         in: :query,
-         type: :boolean,
-         required: false,
-         description: "Read routing configuration without activating managed cache capacity."
-       ]},
       {:account_handle,
        [
          in: :query,
@@ -89,11 +121,6 @@ defmodule TuistWeb.API.CacheController do
                 endpoints: %Schema{
                   type: :array,
                   items: %Schema{type: :string}
-                },
-                derive_stable_hostname: %Schema{
-                  type: :boolean,
-                  description:
-                    "Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints."
                 },
                 provisioning: %Schema{
                   type: :boolean,
@@ -142,22 +169,12 @@ defmodule TuistWeb.API.CacheController do
     account_handle = params[:account_handle]
     authorized_account_handle = authorized_account_handle(account_handle, conn)
 
-    if is_binary(account_handle) and is_nil(authorized_account_handle) and
-         (params[:configuration_only] == true or handles_forbidden_endpoints?(conn)) do
+    if is_binary(account_handle) and is_nil(authorized_account_handle) and handles_forbidden_endpoints?(conn) do
       conn
       |> put_status(:forbidden)
       |> json(%{message: forbidden_endpoints_message(conn, account_handle)})
     else
-      if params[:configuration_only] == true do
-        configuration = Accounts.get_cache_configuration_for_handle(authorized_account_handle)
-        max_age = if configuration.derive_stable_hostname or configuration.endpoints != [], do: 60, else: 5
-
-        conn
-        |> put_resp_header("cache-control", "private, max-age=#{max_age}")
-        |> json(configuration)
-      else
-        render_endpoints(conn, authorized_account_handle, technology)
-      end
+      render_endpoints(conn, authorized_account_handle, technology)
     end
   end
 

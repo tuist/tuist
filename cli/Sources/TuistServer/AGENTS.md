@@ -26,4 +26,4 @@ This module handles CLI integration with the Tuist Server APIs.
   Retry-After. Noora presentation and project/account resolution belong to the
   runner command module.
 
-- Preserve legacy endpoint discovery for older clients. New clients use `configuration_only=true` to discover custom/self-hosted routing or learn that TuistCAS should derive a managed hostname. This mode never records demand or provisions capacity.
+- Preserve the deprecated `/api/cache/endpoints` API for older clients. Self-hosted clients use `/api/cache/endpoint` to retrieve one main server-configured URL, without demand or provisioning. Hosted URL derivation in TuistCAS never calls discovery.

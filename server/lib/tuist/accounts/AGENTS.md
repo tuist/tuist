@@ -30,5 +30,3 @@ This context owns business logic and data related to accounts, users, organizati
   endpoints only after stable hand-out succeeds, so absent managed instances
   still trigger provisioning and the existing client-specific fallback.
 - Account handles are reserved for the account lifetime, including retired names. The database initializes and protects `kura_tenant_id`; do not cast or update it from account attributes. `Accounts.update_account/2` gates Kura account renames until compatible runtimes are deployed. See `../kura/AGENTS.md`.
-
-- Configuration-only cache discovery distinguishes managed hostname derivation from custom/registered and self-hosted static URLs. It never records demand or enqueues provisioning. Empty custom routing must not fall back to managed storage.

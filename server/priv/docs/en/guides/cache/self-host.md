@@ -47,17 +47,15 @@ The key difference in configuration is that the **bridged** topology uses **enro
 
 ## Configure the CLI endpoint {#cli-endpoint}
 
-New Tuist CLIs derive the managed cache URL from the account handle, for example `https://acme.cache.tuist.dev`. They retain configuration-only discovery through `/api/cache/endpoints` for custom and self-hosted setups, without comparing node latency or provisioning managed storage.
+New Tuist CLIs recognize the hosted server URL and derive `https://<account>.cache.tuist.dev` locally without discovery. When using a self-hosted Tuist server, they instead call `/api/cache/endpoint` to retrieve its main cache URL: the first URL in `TUIST_CACHE_ENDPOINTS`. No latency probes run and discovery never provisions capacity. Put your main cache server or load balancer first in that setting.
 
-The CLI discovers configured or registered cache nodes automatically. To override that choice in developer shells and CI:
+When connecting private/custom cache nodes to the **hosted Tuist server**, configure an explicit endpoint in developer shells and CI:
 
 ```sh
 export TUIST_CACHE_ENDPOINT=https://cache.example.com
 ```
 
-For the Xcode cache daemon, rerun `tuist setup cache` after setting the override so its LaunchAgent receives the updated environment.
-
-This override is optional and takes precedence over discovery on both hosted and self-hosted servers. With multiple discovered nodes, the CLI chooses a URL deterministically without latency probes. To control routing across nodes, advertise your load balancer or DNS routing name.
+This override takes precedence on either server type and is optional for a self-hosted Tuist server. For the Xcode cache daemon, rerun `tuist setup cache` after setting it so the LaunchAgent receives the updated environment. For multiple nodes, use your load balancer or DNS routing name. Older CLIs retain the plural `/api/cache/endpoints` discovery API.
 
 ## Prerequisites {#prerequisites}
 
@@ -91,7 +89,7 @@ With a valid deployment-level control-plane credential, registration and peer di
 
 ## How clients reach your nodes {#routing}
 
-Node registration provides dashboard visibility and CLI discovery: configure `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node. Clients using endpoint discovery receive ready, non-expired endpoints from the server.
+For hosted private nodes, set the CLI override [above](#cli-endpoint). Node registration provides dashboard visibility and discovery for older CLIs: configure `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node. Older clients using endpoint discovery receive ready, non-expired endpoints from the server.
 
 ## Bridged setup {#bridged-setup}
 

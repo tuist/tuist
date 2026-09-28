@@ -1508,11 +1508,6 @@ components:
     CacheEndpoints:
       description: List of available cache endpoints
       properties:
-        derive_stable_hostname:
-          description: "Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints."
-          type: boolean
-          x-struct:
-          x-validate:
         endpoints:
           items:
             type: string
@@ -4060,6 +4055,19 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
+      x-validate:
+    CacheEndpoint:
+      properties:
+        endpoint:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - endpoint
+      title: CacheEndpoint
+      type: object
+      x-struct:
       x-validate:
     RunnerWorkflow:
       properties:
@@ -10275,17 +10283,10 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Discovers self-hosted and custom cache endpoints. With configuration_only=true, managed hosted accounts return derive_stable_hostname=true so clients derive their URL locally. Configuration-only requests never record demand or provision capacity. Requests without this option retain legacy discovery behavior.
+      deprecated: true
+      description: Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
       operationId: getCacheEndpoints
       parameters:
-        - description: Read routing configuration without activating managed cache capacity.
-          in: query
-          name: configuration_only
-          required: false
-          schema:
-            type: boolean
-            x-struct:
-            x-validate:
         - description: The name of the account to get custom cache endpoints for.
           in: query
           name: account_handle
@@ -10301,11 +10302,6 @@ paths:
               schema:
                 description: List of available cache endpoints
                 properties:
-                  derive_stable_hostname:
-                    description: "Configuration-only responses: derive the account's managed stable hostname instead of selecting from endpoints."
-                    type: boolean
-                    x-struct:
-                    x-validate:
                   endpoints:
                     items:
                       type: string
@@ -12463,6 +12459,41 @@ paths:
       summary: Create a new test run.
       tags:
         - Tests
+  /api/cache/endpoint:
+    get:
+      callbacks: {}
+      description: Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+      operationId: getCacheEndpoint
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  endpoint:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - endpoint
+                title: CacheEndpoint
+                type: object
+                x-struct:
+                x-validate:
+          description: Main cache endpoint
+          headers:
+            cache-control:
+              description: How long the endpoint configuration can be cached.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get the main self-hosted cache endpoint.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan:
     post:
       callbacks: {}

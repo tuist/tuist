@@ -8,15 +8,14 @@ import TuistHTTP
 struct ServerErrorClassifierTests {
     @Test(arguments: [408, 429, 500, 503])
     func discoveryFailuresAreTransient(status: Int) {
-        #expect(ServerErrorClassifier.isTransient(GetCacheEndpointsServiceError.unknownError(status)))
-        #expect(ServerErrorClassifier.isRetryable(GetCacheEndpointsServiceError.unknownError(status)))
+        #expect(ServerErrorClassifier.isTransient(GetCacheEndpointServiceError.unknownError(status)))
+        #expect(ServerErrorClassifier.isRetryable(GetCacheEndpointServiceError.unknownError(status)))
     }
 
     @Test(arguments: [401, 403, 404])
     func discoveryRejectionsAreNotTransient(status: Int) {
-        #expect(!ServerErrorClassifier.isTransient(GetCacheEndpointsServiceError.unknownError(status)))
-        #expect(!ServerErrorClassifier.isRetryable(GetCacheEndpointsServiceError.unknownError(status)))
-        #expect(!ServerErrorClassifier.isTransient(GetCacheEndpointsServiceError.forbidden("Forbidden")))
+        #expect(!ServerErrorClassifier.isTransient(GetCacheEndpointServiceError.unknownError(status)))
+        #expect(!ServerErrorClassifier.isRetryable(GetCacheEndpointServiceError.unknownError(status)))
     }
 
     @Test(

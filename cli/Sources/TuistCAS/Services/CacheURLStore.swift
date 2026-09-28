@@ -19,14 +19,14 @@ public enum CacheProvisioningWait: Equatable, Sendable {
 
 public struct CacheURLStore: CacheURLStoring {
     private static let configurations = CachedValueStore()
-    private let getCacheEndpointsService: any GetCacheEndpointsServicing
+    private let getCacheEndpointService: any GetCacheEndpointServicing
     private let configurationCache: any CachedValueStoring
 
     public init(
-        getCacheEndpointsService: any GetCacheEndpointsServicing = GetCacheEndpointsService(),
+        getCacheEndpointService: any GetCacheEndpointServicing = GetCacheEndpointService(),
         configurationCache: (any CachedValueStoring)? = nil
     ) {
-        self.getCacheEndpointsService = getCacheEndpointsService
+        self.getCacheEndpointService = getCacheEndpointService
         self.configurationCache = configurationCache ?? Self.configurations
     }
 
@@ -40,29 +40,30 @@ public struct CacheURLStore: CacheURLStoring {
             return try validatedURL(overrideEndpoint)
         }
 
-        let configuration: CacheEndpointsResolution? = try await configurationCache.getValue(
-            key: "cache-configuration:\(serverURL.absoluteString):\(accountHandle ?? "")"
-        ) {
-            let value = try await getCacheEndpointsService.getCacheEndpoints(serverURL: serverURL, accountHandle: accountHandle)
-            return (value, Date().addingTimeInterval(max(0, min(value.maxAge ?? 60, 60))))
+        let suffix: String?
+        if serverURL.scheme?.lowercased() == "https",
+           serverURL.port == nil || serverURL.port == 443,
+           serverURL.path.isEmpty || serverURL.path == "/"
+        {
+            switch serverURL.host?.lowercased() {
+            case "tuist.dev", "tuist.io": suffix = ""
+            case "canary.tuist.dev": suffix = "-canary"
+            case "staging.tuist.dev": suffix = "-staging"
+            default: suffix = nil
+            }
+        } else {
+            suffix = nil
         }
-        guard let configuration else { throw CacheURLStoreError.noEndpointsAvailable }
-        if !configuration.deriveStableHostname {
-            guard let endpoint = configuration.endpoints.sorted().first else { throw CacheURLStoreError.noEndpointsAvailable }
+
+        guard let suffix else {
+            let configuration: CacheEndpointResolution? = try await configurationCache.getValue(
+                key: "cache-endpoint:\(serverURL.absoluteString)"
+            ) {
+                let value = try await getCacheEndpointService.getCacheEndpoint(serverURL: serverURL)
+                return (value, Date().addingTimeInterval(max(0, min(value.maxAge ?? 60, 60))))
+            }
+            guard let endpoint = configuration?.endpoint else { throw CacheURLStoreError.noEndpointsAvailable }
             return try validatedURL(endpoint)
-        }
-
-        guard serverURL.scheme?.lowercased() == "https",
-              serverURL.port == nil || serverURL.port == 443,
-              serverURL.path.isEmpty || serverURL.path == "/"
-        else { throw CacheURLStoreError.invalidURL(serverURL.absoluteString) }
-
-        let suffix: String
-        switch serverURL.host?.lowercased() {
-        case "tuist.dev", "tuist.io": suffix = ""
-        case "canary.tuist.dev": suffix = "-canary"
-        case "staging.tuist.dev": suffix = "-staging"
-        default: throw CacheURLStoreError.invalidURL(serverURL.absoluteString)
         }
 
         guard let handle = accountHandle?.lowercased(),

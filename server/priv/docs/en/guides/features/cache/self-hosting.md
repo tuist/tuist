@@ -17,15 +17,15 @@ The goal is low-latency caching everywhere, not only in the one environment wher
 
 ## How self-hosted cache fits with Tuist {#how-self-hosted-cache-fits-with-tuist}
 
-New Tuist CLIs derive managed cache URLs from the account handle, for example `https://acme.cache.tuist.dev`. Custom and self-hosted cache nodes are discovered automatically from server configuration or registration. You can optionally override discovery in developer shells and CI:
+New Tuist CLIs recognize hosted server URLs and derive `https://<account>.cache.tuist.dev` locally, without discovery. With a self-hosted Tuist server, they call `/api/cache/endpoint` to retrieve one main cache URL: the first entry in `TUIST_CACHE_ENDPOINTS`. Put your main cache server, load balancer, or DNS routing name first. Discovery never provisions capacity, and clients do not probe node latency.
+
+For private/custom cache nodes connected to the **hosted Tuist server**, set an explicit endpoint in developer shells and CI:
 
 ```sh
 export TUIST_CACHE_ENDPOINT=https://cache.example.com
 ```
 
-For the Xcode cache daemon, rerun `tuist setup cache` after setting the override so its LaunchAgent receives the updated environment.
-
-This override takes precedence on both hosted and self-hosted servers. The CLI selects discovered URLs deterministically without latency probes. For routing across multiple nodes, advertise a load balancer or DNS routing name you operate. New CLIs use configuration-only `/api/cache/endpoints` requests, which never provision managed capacity; older CLI discovery remains supported.
+This override takes precedence on both server types and is optional for self-hosted Tuist servers. For the Xcode cache daemon, rerun `tuist setup cache` after setting it so the LaunchAgent receives the updated environment. The plural `/api/cache/endpoints` API remains available for older CLIs.
 
 A self-hosted Tuist server takes endpoints from static configuration. On the Tuist-hosted server, nodes authenticate with a credential and register themselves. Deploy a node first with one of the two sections below, then see [Connect nodes to Tuist](#connect-nodes-to-tuist).
 
@@ -49,7 +49,7 @@ server:
   cacheEndpointUrl: "http://kura.kura.svc.cluster.local:4000"
 ```
 
-This renders `TUIST_CACHE_ENDPOINTS` in the server pod. On a self-hosted server CLIs discover whatever `TUIST_CACHE_ENDPOINTS` lists, so point it at your Kura service. For multiple nodes, use a comma-separated list.
+This renders `TUIST_CACHE_ENDPOINTS` in the server pod. New CLIs discover the first URL in `TUIST_CACHE_ENDPOINTS`, so point it at your main Kura service or load balancer. Older CLIs still receive the full comma-separated list.
 
 > [!IMPORTANT]
 > Every Kura node must own its own `KURA_DATA_DIR`. Kura takes an application-level writer lock on the data directory and expects exactly one process to own it. In Kubernetes, use one persistent volume per pod. Outside Kubernetes, do not point multiple processes at the same mounted directory.
@@ -84,9 +84,9 @@ TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 
 ## Connect nodes to Tuist {#connect-nodes-to-tuist}
 
-Registering nodes provides dashboard visibility and provides CLI endpoint discovery. How that happens depends on which Tuist server you use.
+Registering nodes provides dashboard visibility and endpoint discovery for older CLIs. How that happens depends on which Tuist server you use.
 
-On a **self-hosted Tuist server**, you declare endpoints statically with `TUIST_CACHE_ENDPOINTS`, as shown in the deployment sections above. The server returns the endpoints you list to the CLI. `TUIST_CACHE_ENDPOINT` remains an optional client override.
+On a **self-hosted Tuist server**, you declare endpoints statically with `TUIST_CACHE_ENDPOINTS`, as shown in the deployment sections above. The server returns the first configured endpoint to new CLIs and the full list to older CLIs. `TUIST_CACHE_ENDPOINT` remains an optional client override.
 
 On the **Tuist-hosted server**, endpoints are not configured by hand. Each node authenticates with a credential you generate, then registers itself and reports its own liveness. This section covers that flow.
 

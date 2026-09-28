@@ -2860,34 +2860,6 @@ defmodule Tuist.Accounts do
     end
   end
 
-  @doc "Cache routing configuration without recording demand or provisioning capacity."
-  def get_cache_configuration_for_handle(account_handle) do
-    if Environment.tuist_hosted?() do
-      account = if is_binary(account_handle), do: get_account_by_handle(account_handle)
-
-      case account do
-        %Account{} = account -> hosted_cache_configuration(account)
-        _ -> %{endpoints: [], derive_stable_hostname: false}
-      end
-    else
-      %{endpoints: CacheEndpoints.active_endpoint_urls(), derive_stable_hostname: false}
-    end
-  end
-
-  defp hosted_cache_configuration(account) do
-    registered = Registrations.list_endpoints(account)
-
-    if account.custom_cache_endpoints_enabled or registered != [] do
-      urls = Enum.map(custom_cache_endpoints(account), & &1.url) ++ registered_kura_endpoint_urls(account)
-      %{endpoints: Enum.sort(Enum.uniq(urls)), derive_stable_hostname: false}
-    else
-      case StableEndpoint.host(account) do
-        nil -> %{endpoints: Enum.map(Kura.managed_cache_endpoints(account), & &1.url), derive_stable_hostname: false}
-        _ -> %{endpoints: [], derive_stable_hostname: true}
-      end
-    end
-  end
-
   # Resolved in one pass so `provisioning` is derived from the same Kura
   # endpoint lookup that produced `endpoints`, rather than a second query that
   # could disagree with it.

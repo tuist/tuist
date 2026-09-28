@@ -19,7 +19,7 @@ public enum ServerErrorClassifier {
 
     public static func isTransient(_ error: Error) -> Bool {
         switch error {
-        case let error as GetCacheEndpointsServiceError:
+        case let error as GetCacheEndpointServiceError:
             guard case let .unknownError(statusCode) = error else { return false }
             return isTransient(statusCode: statusCode)
         case let error as RefreshAuthTokenServiceError:
