@@ -1109,6 +1109,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "every registered region derives a budget Kura can honour" do
+      # This unpersisted account has no placement. Keep the catalog-wide
+      # capacity check independent of the placement database.
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 

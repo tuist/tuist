@@ -115,7 +115,8 @@ defmodule Tuist.Cache do
 
     cache_token_signer().encode_and_sign(
       subject,
-      billing_refusal_claims(subject)
+      subject
+      |> billing_refusal_claims()
       |> Map.put("cache_grants", grants)
       |> Map.put("cache_origin", Keyword.get(opts, :origin))
       |> Map.reject(fn {_key, value} -> is_nil(value) end),
