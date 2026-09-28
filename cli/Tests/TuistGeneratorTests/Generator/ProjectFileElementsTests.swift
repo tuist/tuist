@@ -77,6 +77,34 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ]))
     }
 
+    func test_projectFiles_includesTestPlans() throws {
+        // Given
+        let generatedPlanPath = try AbsolutePath(validating: "/project/Derived/TestPlans/UnitTests.xctestplan")
+        let referencedPlanPath = try AbsolutePath(validating: "/project/TestPlans/Legacy.xctestplan")
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/project/"),
+            schemes: [
+                .test(
+                    testAction: .test(
+                        testPlans: [
+                            TestPlan(path: generatedPlanPath, testTargets: [], isDefault: true, kind: .generated),
+                            TestPlan(path: referencedPlanPath, testTargets: [], isDefault: false, kind: .referenced),
+                        ]
+                    )
+                ),
+            ]
+        )
+
+        // When
+        let files = subject.projectFiles(project: project)
+
+        // Then
+        XCTAssertTrue(files.isSuperset(of: [
+            GroupFileElement.file(path: generatedPlanPath, group: project.filesGroup),
+            GroupFileElement.file(path: referencedPlanPath, group: project.filesGroup),
+        ]))
+    }
+
     func test_addElement() throws {
         // Given
         let element = GroupFileElement.file(

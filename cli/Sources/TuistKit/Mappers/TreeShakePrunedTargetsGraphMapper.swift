@@ -41,6 +41,10 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         var reparentedSchemes: [(projectPath: AbsolutePath, scheme: Scheme)] = []
         var removedProjectsDeclaringPackages: [AbsolutePath: Project] = [:]
 
+        // Every target reference the graph held before pruning, which is what tells a plan entry
+        // that this mapper removed apart from one that never resolved to a target at all.
+        let originalTargets = sourceTargets.union(prunedTargets)
+
         for (projectPath, project) in graph.projects {
             let (treeShakenTargets, projecttreeShakenDependencies) = treeShake(
                 targets: Array(project.targets.values),
@@ -52,7 +56,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             let schemes = treeShake(
                 schemes: project.schemes,
                 sourceTargets: sourceTargets,
-                prunedTargets: prunedTargets
+                prunedTargets: prunedTargets,
+                originalTargets: originalTargets
             )
             if treeShakenTargets.isEmpty {
                 reparentedSchemes.append(contentsOf: schemes.map { (projectPath, $0) })
@@ -89,6 +94,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             projects: Array(treeShakenProjects.values),
             sourceTargets: sourceTargets,
             prunedTargets: prunedTargets,
+            originalTargets: originalTargets,
             reparentedSchemes: reparentedSchemes
                 .sorted { ($0.scheme.name, $0.projectPath.pathString) < ($1.scheme.name, $1.projectPath.pathString) }
                 .map(\.scheme)
@@ -124,6 +130,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         projects: [Project],
         sourceTargets: Set<TargetReference>,
         prunedTargets: Set<TargetReference>,
+        originalTargets: Set<TargetReference>,
         reparentedSchemes: [Scheme]
     ) -> Workspace {
         let projectPaths = Set(projects.map(\.path))
@@ -131,7 +138,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         var schemes = treeShake(
             schemes: workspace.schemes,
             sourceTargets: sourceTargets,
-            prunedTargets: prunedTargets
+            prunedTargets: prunedTargets,
+            originalTargets: originalTargets
         )
         // A workspace can only hold one scheme per name, so a reparented scheme yields to a
         // workspace scheme that already owns its name, and to the reparented scheme that sorts
@@ -225,7 +233,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
     fileprivate func treeShake(
         schemes: [Scheme],
         sourceTargets: Set<TargetReference>,
-        prunedTargets: Set<TargetReference>
+        prunedTargets: Set<TargetReference>,
+        originalTargets: Set<TargetReference>
     ) -> [Scheme] {
         schemes.compactMap { scheme -> Scheme? in
             var scheme = scheme
@@ -250,7 +259,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                     sourceTargets.contains
                 )
                 testAction.testPlans = testAction.testPlans?.compactMap {
-                    treeShake(testPlan: $0, sourceTargets: sourceTargets)
+                    treeShake(testPlan: $0, sourceTargets: sourceTargets, originalTargets: originalTargets)
                 }
                 // Fall back to a surviving testable in the test action; if there's only a
                 // surviving test plan, use its first surviving testable; otherwise fall back
@@ -323,11 +332,17 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
     private func treeShake(
         testPlan: TestPlan,
-        sourceTargets: Set<TargetReference>
+        sourceTargets: Set<TargetReference>,
+        originalTargets: Set<TargetReference>
     ) -> TestPlan? {
         let testTargets = testPlan.testTargets.filter { sourceTargets.contains($0.target) }
         if testTargets.isEmpty {
-            return nil
+            // A referenced plan is the user's own file. When none of its entries were in the graph
+            // to begin with, nothing was pruned and dropping the plan would only hide the mistake:
+            // the scheme would silently carry no test plans. Keep it, and let the GraphLinter
+            // warning about the unresolved entries be what the user sees.
+            let wasPruned = testPlan.testTargets.contains { originalTargets.contains($0.target) }
+            return testPlan.kind == .referenced && !wasPruned ? testPlan : nil
         } else {
             return TestPlan(
                 path: testPlan.path,

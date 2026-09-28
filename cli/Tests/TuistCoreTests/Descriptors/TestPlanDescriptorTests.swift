@@ -123,4 +123,68 @@ struct TestPlanDescriptorTests {
         #expect(try parallelizable(descriptor(parallelization: .none)) as? Bool == false)
         #expect(try parallelizable(descriptor(parallelization: .swiftTestingOnly)) == nil)
     }
+
+    @Test func encode_writes_selected_tags() throws {
+        // Given
+        let descriptor = try Self.descriptor(selectedTags: [".contract"])
+
+        // When
+        let testTarget = try Self.firstTestTarget(of: descriptor)
+
+        // Then
+        #expect(testTarget["selectedTags"] as? [String: [String]] == ["tags": [".contract"]])
+        #expect(testTarget["skippedTags"] == nil)
+    }
+
+    @Test func encode_writes_skipped_tags() throws {
+        // Given
+        let descriptor = try Self.descriptor(skippedTags: [".slow"])
+
+        // When
+        let testTarget = try Self.firstTestTarget(of: descriptor)
+
+        // Then
+        #expect(testTarget["skippedTags"] as? [String: [String]] == ["tags": [".slow"]])
+        #expect(testTarget["selectedTags"] == nil)
+    }
+
+    @Test func encode_omits_tag_keys_when_tags_are_empty() throws {
+        // Given
+        let descriptor = try Self.descriptor()
+
+        // When
+        let data = try descriptor.encode()
+        let json = try #require(String(data: data, encoding: .utf8))
+        let testTarget = try Self.firstTestTarget(of: descriptor)
+
+        // Then
+        #expect(!json.contains("selectedTags"))
+        #expect(!json.contains("skippedTags"))
+        #expect(Set(testTarget.keys) == ["target"])
+    }
+
+    private static func descriptor(
+        selectedTags: [String] = [],
+        skippedTags: [String] = []
+    ) throws -> TestPlanDescriptor {
+        TestPlanDescriptor(
+            path: try AbsolutePath(validating: "/tmp/Plan.xctestplan"),
+            testTargets: [
+                TestPlanDescriptor.TestTarget(
+                    pbxTarget: PBXNativeTarget(name: "AppTests"),
+                    containerPath: "container:App.xcodeproj",
+                    isEnabled: true,
+                    parallelization: .swiftTestingOnly,
+                    selectedTags: selectedTags,
+                    skippedTags: skippedTags
+                ),
+            ]
+        )
+    }
+
+    private static func firstTestTarget(of descriptor: TestPlanDescriptor) throws -> [String: Any] {
+        let json = try JSONSerialization.jsonObject(with: try descriptor.encode()) as? [String: Any]
+        let testTargets = try #require(json?["testTargets"] as? [[String: Any]])
+        return try #require(testTargets.first)
+    }
 }
