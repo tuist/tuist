@@ -284,7 +284,7 @@
 			// addressed by its own VIP, which the tag grant above does not
 			// cover, so the xcresult processor needs this one to connect.
 			"src": ["tag:tuist-macmini-production"],
-			"dst": ["svc:tuist-clickhouse-production"],
+			"dst": ["svc:tuist-clickhouse-production-svc"],
 			"ip":  ["tcp:8123"],
 		},
 
@@ -541,7 +541,7 @@
 		// proxies re-advertise it on every restart, so hand approval would
 		// take it offline on each rollout.
 		"services": {
-			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
+			"svc:tuist-clickhouse-production-svc": ["tag:tuist-k8s-production"],
 		},
 	},
 

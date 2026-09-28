@@ -33,6 +33,11 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- if and .Values.clickhouse.managed.enabled .Values.clickhouse.managed.tailscale.enabled }}
+        # The processor reads `url-tailnet` only at startup, so a change to the
+        # name it dials has to restart it to take effect.
+        tuist.dev/clickhouse-tailnet-host: {{ include "tuist.clickhouseTailnetUrlHostname" . | quote }}
+        {{- end }}
         # tart-kubelet honours these by spinning up a host-side HTTP
         # reverse proxy on <node_ip>:9091 → <vm_ip>:9091 for the Tart
         # VM and rewriting Pod.Status.PodIP to the Mac mini's host

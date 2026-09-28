@@ -3472,6 +3472,10 @@ clickhouse:
       # `svc:<hostname>` for the ProxyGroup's tag and grant the peers access
       # to it.
       proxyGroup: ""
+      # The name writers off the pod network dial, when it has to differ from
+      # `hostname` while the tailnet Service moves to a new one. Empty means
+      # `hostname`.
+      urlHostname: ""
     persistence:
       size: 200Gi
       storageClassName: clickhouse-local

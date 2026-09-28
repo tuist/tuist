@@ -632,7 +632,12 @@ clickhouse:
     # leaving no proxy and a hostname that never resolves.
     tailscale:
       enabled: true
-      hostname: tuist-clickhouse-production
+      # A new name for the Tailscale Service, because the standalone proxy's
+      # device still holds `tuist-clickhouse-production` and a Service cannot
+      # take a name a device has. The processors keep dialing the old name
+      # through `urlHostname` until the new path is verified, then move over.
+      hostname: tuist-clickhouse-production-svc
+      urlHostname: tuist-clickhouse-production
       tags: tag:tuist-k8s-production
       # The xcresult-processor VMs never got a direct path to the standalone
       # proxy and wrote through DERP; see `tailnetIngress` in

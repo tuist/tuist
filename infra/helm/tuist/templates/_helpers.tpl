@@ -863,6 +863,16 @@ it.
 {{- end }}
 {{- end }}
 
+{{/*
+The tailnet name writers off the pod network dial the in-cluster ClickHouse
+at: `clickhouse.managed.tailscale.urlHostname` when set, otherwise the name
+the tailnet Service is exposed under.
+*/}}
+{{- define "tuist.clickhouseTailnetUrlHostname" -}}
+{{- $t := .Values.clickhouse.managed.tailscale }}
+{{- $t.urlHostname | default (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $t.hostname) }}
+{{- end }}
+
 {{- define "tuist.clickhouseManagedEnvForKey" -}}
 {{- $key := .key }}
 {{- with .root }}
