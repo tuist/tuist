@@ -3345,6 +3345,10 @@ clickhouse:
       # Six hours. Long enough for a full of a dataset this size, short enough
       # that a wedged backup does not block the next one indefinitely.
       timeoutSeconds: 21600
+      # Memory budget for the `backup` user the jobs run as, which is separate
+      # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
+      # leaves the user unbounded below the server's own ceiling.
+      maxMemoryUsageForUserBytes: ""
       resources:
         requests:
           cpu: 100m
@@ -3466,6 +3470,13 @@ clickhouse:
       enabled: false
       hostname: ""
       tags: ""
+      # Name of a Tailscale ProxyGroup of type `ingress` to serve this Service
+      # instead of a standalone proxy. Needed where the tailnet peers sit
+      # behind NATs that keep them on a DERP relay; see `tailnetIngress` in
+      # infra/helm/tailscale-operator. The tailnet policy must auto-approve
+      # `svc:<hostname>` for the ProxyGroup's tag and grant the peers access
+      # to it.
+      proxyGroup: ""
     persistence:
       size: 200Gi
       storageClassName: clickhouse-local

@@ -44,14 +44,14 @@ func (t *imageTransfer) request(ctx context.Context, slot cachevolumes.Slot, ope
 	req.Header.Set("Content-Type", "application/json")
 	response, err := t.Client.Do(req)
 	if err != nil {
-		return transferResponse{}, errors.New("image metadata request failed")
+		return transferResponse{}, fmt.Errorf("image metadata request failed: %w", transferError(err))
 	}
 	defer response.Body.Close()
 	if response.StatusCode == 409 {
 		return transferResponse{}, cachevolumes.ErrConflict
 	}
 	if response.StatusCode != 200 {
-		return transferResponse{}, fmt.Errorf("image metadata status %d", response.StatusCode)
+		return transferResponse{}, &cachevolumes.RemoteError{Operation: "metadata", StatusCode: response.StatusCode}
 	}
 	var result transferResponse
 	if err = json.NewDecoder(io.LimitReader(response.Body, 16384)).Decode(&result); err != nil {
@@ -76,11 +76,11 @@ func (t *imageTransfer) Download(ctx context.Context, slot cachevolumes.Slot, pa
 	}
 	response, err := t.Client.Do(req)
 	if err != nil {
-		return errors.New("image download failed")
+		return fmt.Errorf("image download failed: %w", transferError(err))
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return fmt.Errorf("image download status %d", response.StatusCode)
+		return &cachevolumes.RemoteError{Operation: "download", StatusCode: response.StatusCode}
 	}
 	return cachevolumes.RestoreImage(ctx, response.Body, path, slot.ContentDigest, t.MaxBytes)
 }
@@ -111,11 +111,11 @@ func (t *imageTransfer) Publish(slot cachevolumes.Slot, path, digest, content st
 	}
 	response, err := t.Client.Do(req)
 	if err != nil {
-		return 0, errors.New("image upload failed")
+		return 0, fmt.Errorf("image upload failed: %w", transferError(err))
 	}
 	response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return 0, fmt.Errorf("image upload status %d", response.StatusCode)
+		return 0, &cachevolumes.RemoteError{Operation: "upload", StatusCode: response.StatusCode}
 	}
 	result, err = t.request(context.Background(), slot, "publish", digest, content)
 	if err == nil && result.Generation <= slot.BaseGeneration {
@@ -130,4 +130,15 @@ func (t *imageTransfer) IsCurrent(slot cachevolumes.Slot) (bool, error) {
 		return false, nil
 	}
 	return result.Generation == slot.BaseGeneration, err
+}
+
+// Preserve cancellation for classification without logging credential-bearing URLs.
+func transferError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	return errors.New("transport error")
 }

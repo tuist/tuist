@@ -914,6 +914,119 @@ struct ResolveTests {
     }
 
     @Test
+    func resolveAddsADependencyALocalPackageStartsDeclaringWhileTheRootManifestIsUnchanged() async throws {
+        // The resolved file's originHash only covers the root Package.swift, so a
+        // local package that starts declaring a remote dependency (an edit, or a
+        // `Context.environment` branch) must not keep the previous pins.
+        try await withTemporaryDirectory { root in
+            let kept = root.appendingPathComponent("Kept")
+            try await writeLibraryPackageManifest(at: kept, name: "Kept")
+            try await initGitDependency(at: kept, tags: ["1.0.0"])
+
+            let extra = root.appendingPathComponent("Extra")
+            try await writeLibraryPackageManifest(at: extra, name: "Extra")
+            try await initGitDependency(at: extra, tags: ["1.0.0"])
+
+            let feature = root.appendingPathComponent("Feature")
+            try await writeLocalFeaturePackageManifest(at: feature, dependencyURL: nil)
+
+            let package = root.appendingPathComponent("App")
+            try await fileSystem.makeDirectory(
+                at: package.absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+
+                let package = Package(
+                    name: "App",
+                    dependencies: [
+                        .package(path: "../Feature"),
+                        .package(url: "\(kept.path)", exact: "1.0.0"),
+                    ]
+                )
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+            _ = try await SwifterPM().resolve(request)
+
+            try await writeLocalFeaturePackageManifest(at: feature, dependencyURL: extra.path)
+
+            let reresolved = try await SwifterPM().resolve(request)
+            #expect(Set(reresolved.pins.map(\.identity)) == ["extra", "kept"])
+
+            let onDisk = try await ResolvedFile.read(packageDir: package)
+            #expect(Set(onDisk.pins.map(\.identity)) == ["extra", "kept"])
+        }
+    }
+
+    @Test
+    func resolveOrLoadKeepsTheResolvedFileWhenALocalPackageOnlyTestsAgainstAnUnpinnedDependency() async throws {
+        // SwiftPM does not pin a local package's test-only dependencies. The
+        // unreachable location makes a fall-through to `swift package resolve` fail.
+        try await withTemporaryDirectory { root in
+            let package = try await writeCurrentResolvedFileWithLocalFeature(
+                at: root,
+                featureDependencies: #".package(url: "https://example.invalid/tuist/test-only", exact: "1.0.0"),"#,
+                featureTargets: """
+                .target(name: "Feature"),
+                .testTarget(name: "FeatureTests", dependencies: [
+                    "Feature",
+                    .product(name: "TestOnly", package: "test-only"),
+                ]),
+                """,
+                pins: []
+            )
+
+            let resolved = try await resolveOrLoadPreferringTheResolvedFile(packageDir: package, root: root)
+
+            #expect(resolved.pins.map(\.identity) == ["kept"])
+        }
+    }
+
+    @Test
+    func resolveOrLoadMatchesARegistryPinToTheSourceControlDependencyItReplaced() async throws {
+        // SwiftPM does not always record `originalLocation` on a registry pin that
+        // replaced a source-control dependency. The unreachable location makes a
+        // fall-through to `swift package resolve` fail.
+        try await withTemporaryDirectory { root in
+            let package = try await writeCurrentResolvedFileWithLocalFeature(
+                at: root,
+                featureDependencies: #".package(url: "https://example.invalid/tuist/replaced", from: "1.0.0"),"#,
+                featureTargets: """
+                .target(name: "Feature", dependencies: [
+                    .product(name: "Replaced", package: "replaced"),
+                ]),
+                """,
+                pins: [
+                    ResolvedPin(
+                        identity: "tuist.replaced",
+                        kind: "registry",
+                        location: "",
+                        state: ResolvedState(branch: nil, revision: nil, version: "1.2.0")
+                    ),
+                ]
+            )
+
+            let resolved = try await resolveOrLoadPreferringTheResolvedFile(packageDir: package, root: root)
+
+            #expect(resolved.pins.map(\.identity) == ["kept", "tuist.replaced"])
+        }
+    }
+
+    @Test
     func nativeColdPathIsUsedWhenTheSharedCacheOnlyContainsOtherPackages() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
@@ -1323,6 +1436,131 @@ struct ResolveTests {
         try await fileSystem.atomicWrite(
             "import Transitive\npublic struct \(name) {}\n",
             to: packageDir.appendingPathComponent("Sources/\(name)/\(name).swift")
+        )
+    }
+
+    private func writeCurrentResolvedFileWithLocalFeature(
+        at root: URL,
+        featureDependencies: String,
+        featureTargets: String,
+        pins: [ResolvedPin]
+    ) async throws -> URL {
+        let feature = root.appendingPathComponent("Feature")
+        try await fileSystem.makeDirectory(
+            at: feature.appendingPathComponent("Sources/Feature").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "Feature",
+                products: [
+                    .library(name: "Feature", targets: ["Feature"]),
+                ],
+                dependencies: [
+                    \(featureDependencies)
+                ],
+                targets: [
+                    \(featureTargets)
+                ]
+            )
+            """,
+            to: feature.appendingPathComponent("Package.swift")
+        )
+
+        let package = root.appendingPathComponent("App")
+        try await fileSystem.makeDirectory(
+            at: package.absolutePath, options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "App",
+                dependencies: [
+                    .package(path: "../Feature"),
+                    .package(url: "https://example.invalid/tuist/kept", exact: "1.0.0"),
+                ]
+            )
+            """,
+            to: package.appendingPathComponent("Package.swift")
+        )
+        let kept = ResolvedPin(
+            identity: "kept",
+            kind: "remoteSourceControl",
+            location: "https://example.invalid/tuist/kept",
+            state: ResolvedState(
+                branch: nil,
+                revision: "0000000000000000000000000000000000000000",
+                version: "1.0.0"
+            )
+        )
+        try await ResolvedFile.write(
+            packageDir: package,
+            resolved: ResolvedPins(
+                originHash: try await ResolvedFile.packageOriginHash(packageDir: package),
+                pins: [kept] + pins,
+                version: 3
+            )
+        )
+        return package
+    }
+
+    private func resolveOrLoadPreferringTheResolvedFile(packageDir: URL, root: URL) async throws -> ResolvedPins {
+        try await PackageResolver.resolveOrLoad(
+            packageDir: packageDir,
+            scratchDir: root.appendingPathComponent("scratch"),
+            cache: Cache(root: root.appendingPathComponent("cache")),
+            registryConfig: RegistryConfig(),
+            disableSandbox: true,
+            scmToRegistryTransformation: .disabled,
+            preferResolvedFile: true,
+            readOnly: false,
+            skipUpdate: false,
+            writeResolvedFile: false,
+            progress: nil
+        )
+    }
+
+    private func writeLocalFeaturePackageManifest(at packageDir: URL, dependencyURL: String?) async throws {
+        try await fileSystem.makeDirectory(
+            at: packageDir.appendingPathComponent("Sources/Feature").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        let dependencies = dependencyURL.map { #".package(url: "\#($0)", exact: "1.0.0"),"# } ?? ""
+        let productDependencies = dependencyURL == nil
+            ? ""
+            : #".product(name: "Extra", package: "Extra"),"#
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "Feature",
+                products: [
+                    .library(name: "Feature", targets: ["Feature"]),
+                ],
+                dependencies: [
+                    \(dependencies)
+                ],
+                targets: [
+                    .target(name: "Feature", dependencies: [
+                        \(productDependencies)
+                    ]),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "public struct Feature {}\n",
+            to: packageDir.appendingPathComponent("Sources/Feature/Feature.swift")
         )
     }
 
