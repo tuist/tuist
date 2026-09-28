@@ -160,6 +160,8 @@ A node finds peers in three ways:
 
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
 
+The probes of a pass run concurrently and the pass waits for all of them before it re-derives roles and links, so each probe has a 10-second total budget (`MEMBERSHIP_STATUS_PROBE_BUDGET`), connection through the decoded body. Without it, a peer that accepts the connection and then goes silent (a paused or wedged process, a blackholed established connection) held the whole pass, and every other peer's observation, until the peer client's 30-second idle timeout. Each probe reads its body inside its own budget: reading bodies only after the slowest probe returned would run the healthy peers' reads against a deadline one silent peer had already used up, and the pass would observe nobody.
+
 Admission is immediate; removal is not (design §2.5). A peer that stops answering stays in the view, with its last traffic state, for `MEMBERSHIP_REMOVAL_GRACE` (60 s). Removing a peer closes its pull links, and reopening a region link costs a backward pass, while most production probe outages, DNS ones included, are over within a minute. A peer last seen `draining` leaves on its first missed pass; the orchestrator's `preStop` announces the drain 20 s before SIGTERM. The cost is detection time: a peer that dies without draining keeps its links retrying on their 5-second backoff, and keeps its gateway role in every view, for up to the window.
 
 Mesh heartbeats and managed peer-view fetches use `src/control_plane_http.rs`

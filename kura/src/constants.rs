@@ -361,6 +361,13 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 /// region link restart its backward pass. A peer last seen draining leaves
 /// on its first missed pass instead.
 pub const MEMBERSHIP_REMOVAL_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
+/// Total time one membership status probe may take, connection through the
+/// decoded body. The probes of a pass run concurrently and the pass waits for
+/// all of them, so a peer that accepts the connection and then goes silent
+/// would otherwise hold every other peer's observation until the peer client's
+/// 30 s idle timeout. Covers a cross-region TLS handshake plus the response,
+/// and stays well inside `MEMBERSHIP_REMOVAL_GRACE`.
+pub const MEMBERSHIP_STATUS_PROBE_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
 /// `KURA_SYNC_DRAIN_MARGIN_MS` default: what the departing node keeps back
 /// from the drain timeout so the sibling wait never eats the process exit.
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
