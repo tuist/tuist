@@ -194,11 +194,14 @@ defmodule Tuist.Kura.RegionsTest do
         assert ceiling_mib > floor_mib
       end
 
-      # Floors are what decide how many tenants fit on a box, so the ladder has
-      # to actually descend to be worth tiering at all.
+      # Floors are standing reservations and decide how many tenants fit on a
+      # box, so the ladder descends. Ceilings are bursts, and the paid plans
+      # share theirs.
       floors = Enum.map([:enterprise, :pro, :air], &Regions.memory_profile(&1).floor_mib)
       assert floors == Enum.sort(floors, :desc)
       assert Enum.uniq(floors) == floors
+      assert Regions.memory_profile(:pro).ceiling_mib == Regions.memory_profile(:enterprise).ceiling_mib
+      assert Regions.memory_profile(:air).ceiling_mib < Regions.memory_profile(:pro).ceiling_mib
 
       # Each ceiling has to clear its plan's measured peak by more than the
       # runtime's 0.9x recovery hysteresis, or a burst that trips shedding stays
@@ -227,9 +230,8 @@ defmodule Tuist.Kura.RegionsTest do
         assert Regions.cpu_ceiling_milli(plan) < smallest_box_milli / 2
       end
 
-      ceilings = Enum.map([:enterprise, :pro, :air], &Regions.cpu_ceiling_milli/1)
-      assert ceilings == Enum.sort(ceilings, :desc)
-      assert Enum.uniq(ceilings) == ceilings
+      assert Regions.cpu_ceiling_milli(:pro) == Regions.cpu_ceiling_milli(:enterprise)
+      assert Regions.cpu_ceiling_milli(:air) < Regions.cpu_ceiling_milli(:pro)
 
       # An unknown plan lands on the smallest, which is the safe side of a
       # shared box.
