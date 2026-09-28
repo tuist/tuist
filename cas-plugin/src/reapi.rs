@@ -127,6 +127,15 @@ const PRESSURE_BACKOFF_MS: u64 = 30_000;
 // blocking on it, it is the proxy's 10s sweep: at 5s every sweep re-probes, so
 // a node that recovers is picked up on the next one rather than waited out.
 const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
+/// How long a channel is used before the next call opens a fresh one, which
+/// resolves the hostname again. The client's side of a connection to a
+/// managed region ends at its gateway, not at Kura, so Kura's own GOAWAY
+/// rotation never reaches it and a connection opened on a network the machine
+/// has since left would otherwise keep going to the region that network's
+/// resolver chose. Matches the proxy's endpoint freshness window
+/// (`ENDPOINT_REFRESH_INTERVAL`): calls already in flight finish on the old
+/// channel, and the handshake this costs is once per window.
+pub const CONNECTION_MAX_AGE: Duration = Duration::from_secs(600);
 
 pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -414,7 +423,8 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 pub struct Remote {
     config: RemoteConfig,
     tokens: Arc<TokenProvider>,
-    channel: OnceLock<Result<Channel, String>>,
+    channel: std::sync::Mutex<Option<(Result<Channel, String>, Instant)>>,
+    served: Arc<crate::served_by::ServedByCell>,
     chunking: std::sync::Mutex<Option<(Instant, bool)>>,
     chunking_disabled_until_ms: AtomicU64,
     uploaded_blob_bytes: AtomicU64,
@@ -792,7 +802,8 @@ impl Remote {
         Arc::new(Self {
             config,
             tokens,
-            channel: OnceLock::new(),
+            channel: std::sync::Mutex::new(None),
+            served: Arc::default(),
             chunking: std::sync::Mutex::new(None),
             chunking_disabled_until_ms: AtomicU64::new(0),
             uploaded_blob_bytes: AtomicU64::new(0),
@@ -806,6 +817,22 @@ impl Remote {
             write_pressure_backoff_until_ms: AtomicU64::new(0),
             shed_writes: AtomicU64::new(0),
         })
+    }
+
+    /// The region and node that last answered this `Remote`, and when their
+    /// connection was established. `None` until a Kura that names itself has
+    /// answered on the current connection.
+    pub fn served_by(&self) -> Option<crate::served_by::ServedBy> {
+        self.served.current()
+    }
+
+    /// Makes the next call open a new channel, resolving the hostname again.
+    /// Calls in flight finish on the channel they started on.
+    pub fn renew_connection(&self) {
+        let mut slot = self.channel.lock().unwrap();
+        if matches!(slot.as_ref(), Some((Ok(_), _))) {
+            *slot = None;
+        }
     }
 
     /// Whether this `Remote` is inside a window in which the server was last
@@ -905,48 +932,62 @@ impl Remote {
     }
 
     fn channel(&self) -> Result<Channel, String> {
-        self.channel
-            .get_or_init(|| {
-                // connect_lazy wires the hyper connection pool and the h2
-                // keepalive timers to the *current* Tokio runtime. This runs from
-                // a proxy handler thread (outside the runtime), so without
-                // entering the runtime here the first RPC panics with "there is
-                // no reactor running" on a detached connection task; the panic is
-                // swallowed at the FFI boundary and every resolve silently
-                // degrades to a local miss (0% remote cache).
-                let _runtime_guard = runtime().enter();
-                let mut endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
-                    .map_err(|e| format!("bad grpc url: {e}"))?
-                    .connect_timeout(Duration::from_secs(5))
-                    .timeout(RPC_TIMEOUT)
-                    // h2 keepalive prevents the stale-idle-connection class
-                    // that plagued the HTTP/1.1 transport.
-                    .http2_keep_alive_interval(Duration::from_secs(20))
-                    .keep_alive_while_idle(true)
-                    .keep_alive_timeout(Duration::from_secs(10))
-                    // Bulk-transfer windows: with default ~64KB stream
-                    // windows, a 500KB batch response costs ~8 window-update
-                    // round trips, which dominates on links with real RTT
-                    // (measured ~31ms per 30-blob resolve over the VM bridge
-                    // vs ~1ms server-side).
-                    .initial_stream_window_size(Some(16 * 1024 * 1024))
-                    .initial_connection_window_size(Some(64 * 1024 * 1024));
-                // Public kura endpoints are https (TLS with the system trust
-                // store); private-network endpoints stay plaintext h2c.
-                if self.config.grpc_url.starts_with("https://") {
-                    endpoint = endpoint
-                        .tls_config(ClientTlsConfig::new().with_native_roots())
-                        .map_err(|e| format!("tls config: {e}"))?;
-                }
-                // connect_lazy establishes (and transparently re-establishes)
-                // the connection per request, so a Kura restart or transient
-                // unreachability during the proxy's first call no longer gets
-                // cached as a permanent Err that poisons every later RPC. The
-                // only errors cached here are deterministic endpoint/TLS config
-                // errors, which will never succeed on retry anyway.
-                Ok(endpoint.connect_lazy())
-            })
-            .clone()
+        let mut slot = self.channel.lock().unwrap();
+        let expired = matches!(
+            slot.as_ref(),
+            Some((Ok(_), built)) if built.elapsed() >= CONNECTION_MAX_AGE
+        );
+        if slot.is_none() || expired {
+            *slot = Some((self.build_channel(), Instant::now()));
+        }
+        slot.as_ref().unwrap().0.clone()
+    }
+
+    fn build_channel(&self) -> Result<Channel, String> {
+        // connect_lazy wires the hyper connection pool and the h2
+        // keepalive timers to the *current* Tokio runtime. This runs from
+        // a proxy handler thread (outside the runtime), so without
+        // entering the runtime here the first RPC panics with "there is
+        // no reactor running" on a detached connection task; the panic is
+        // swallowed at the FFI boundary and every resolve silently
+        // degrades to a local miss (0% remote cache).
+        let _runtime_guard = runtime().enter();
+        let mut endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
+            .map_err(|e| format!("bad grpc url: {e}"))?
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(RPC_TIMEOUT)
+            // h2 keepalive prevents the stale-idle-connection class
+            // that plagued the HTTP/1.1 transport.
+            .http2_keep_alive_interval(Duration::from_secs(20))
+            .keep_alive_while_idle(true)
+            .keep_alive_timeout(Duration::from_secs(10))
+            // Bulk-transfer windows: with default ~64KB stream
+            // windows, a 500KB batch response costs ~8 window-update
+            // round trips, which dominates on links with real RTT
+            // (measured ~31ms per 30-blob resolve over the VM bridge
+            // vs ~1ms server-side).
+            .initial_stream_window_size(Some(16 * 1024 * 1024))
+            .initial_connection_window_size(Some(64 * 1024 * 1024));
+        // Public kura endpoints are https (TLS with the system trust
+        // store); private-network endpoints stay plaintext h2c.
+        if self.config.grpc_url.starts_with("https://") {
+            endpoint = endpoint
+                .tls_config(ClientTlsConfig::new().with_native_roots())
+                .map_err(|e| format!("tls config: {e}"))?;
+        }
+        // connect_lazy establishes (and transparently re-establishes)
+        // the connection per request, so a Kura restart or transient
+        // unreachability during the proxy's first call no longer gets
+        // cached as a permanent Err that poisons every later RPC. The
+        // only errors cached here are deterministic endpoint/TLS config
+        // errors, which will never succeed on retry anyway.
+        //
+        // The connector is tonic's own with a stamp on each connection
+        // it opens, so a build report can say how old the connection
+        // that served it was.
+        let connector =
+            crate::served_by::StampingConnector::new(self.served.clone(), Duration::from_secs(5));
+        Ok(endpoint.connect_with_connector_lazy(connector))
     }
 
     fn cas_client(&self) -> Result<ContentAddressableStorageClient<Channel>, String> {
@@ -1021,6 +1062,7 @@ impl Remote {
             });
             match response {
                 Ok(response) => {
+                    self.served.observe(response.metadata());
                     let manifest = response
                         .into_inner()
                         .output_files
@@ -1040,7 +1082,10 @@ impl Remote {
                         .collect();
                     Ok(Some(manifest))
                 }
-                Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+                Err(status) if status.code() == tonic::Code::NotFound => {
+                    self.served.observe(status.metadata());
+                    Ok(None)
+                }
                 Err(status) => {
                     note_payment_required(&status);
                     Err(format!("get_action: {status}"))
@@ -1083,6 +1128,7 @@ impl Remote {
         });
         match response {
             Ok(response) => {
+                self.served.observe(response.metadata());
                 let Some(file) = response.into_inner().output_files.into_iter().next() else {
                     return Ok(None);
                 };
@@ -1400,6 +1446,7 @@ impl Remote {
             for chunk in &chunks {
                 let client = client.clone();
                 let auth = auth.clone();
+                let served = self.served.clone();
                 let request = reapi::BatchReadBlobsRequest {
                     instance_name: instance.clone(),
                     digests: chunk.to_vec(),
@@ -1417,7 +1464,10 @@ impl Remote {
                         }
                     })
                     .await
-                    .map(|response| response.into_inner().responses)
+                    .map(|response| {
+                        served.observe(response.metadata());
+                        response.into_inner().responses
+                    })
                     .map_err(|status| format!("batch_read: {status}"))
                 });
             }
@@ -1463,6 +1513,7 @@ impl Remote {
                 runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
             })
             .map_err(|status| format!("find_missing: {status}"))?;
+            self.served.observe(response.metadata());
             Ok(response.into_inner().missing_blob_digests)
         })();
         self.get_stats.record(started.elapsed());
@@ -1759,6 +1810,7 @@ impl Remote {
                     runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
+                self.served.observe(response.metadata());
                 for entry in response.into_inner().responses {
                     if validate_responses {
                         let digest = entry
@@ -1852,7 +1904,8 @@ impl Remote {
                 }
                 runtime().block_on(client.update_action_result(request))
             })
-            .map_err(|status| format!("update_action: {status}"))?;
+            .map_err(|status| format!("update_action: {status}"))
+            .map(|response| self.served.observe(response.metadata()))?;
             Ok(())
         })();
         self.post_stats.record(started.elapsed());

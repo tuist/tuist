@@ -11,6 +11,12 @@
 //! serialization is not present in the compiler nodes we upload.
 //! `keyvalue_metadata` records per action-cache op durations.
 //!
+//! `served_by` is the proxy's own table: which Kura region and node answered a
+//! key's lookup or publication (`read`/`write`, keyed like `keyvalue_metadata`)
+//! or an output's transfer (`output`, keyed like `cas_outputs`), and when the
+//! connection that carried it was established. The Swift writer never creates
+//! it, so readers must treat it as optional. Labels only, never addresses.
+//!
 //! All durations are MILLISECONDS, matching the schema the Swift
 //! `CASAnalyticsDatabase` established and the units the server renders.
 //!
@@ -50,7 +56,18 @@ CREATE TABLE IF NOT EXISTS keyvalue_metadata (
     created_at TEXT NOT NULL,
     PRIMARY KEY (key, operation_type)
 );
+CREATE TABLE IF NOT EXISTS served_by (
+    key TEXT NOT NULL,
+    operation_type TEXT NOT NULL,
+    region TEXT NOT NULL,
+    node TEXT NOT NULL,
+    connected_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (key, operation_type)
+);
 ";
+
+use crate::served_by::ServedBy;
 
 enum Record {
     CasOutput {
@@ -61,11 +78,13 @@ enum Record {
         duration: f64,
         transfer: f64,
         codec: f64,
+        served_by: Option<ServedBy>,
     },
     KeyValue {
         key: String,
         operation_type: String,
         duration: f64,
+        served_by: Option<ServedBy>,
     },
 }
 
@@ -92,7 +111,9 @@ impl Analytics {
     /// Record a transferred node and its lookup mapping atomically. `node_id`
     /// comes from llcas_digest_print, not base64 of the internal digest (which
     /// includes a version byte the printed payload omits). `checksum` names the
-    /// encoded REAPI blob we actually transferred.
+    /// encoded REAPI blob we actually transferred. `served_by` is who answered
+    /// the transfer, when the remote named itself.
+    #[allow(clippy::too_many_arguments)]
     pub fn record_cas_output(
         &self,
         node_id: String,
@@ -101,6 +122,7 @@ impl Analytics {
         compressed_size: i64,
         transfer: f64,
         codec: f64,
+        served_by: Option<ServedBy>,
     ) {
         let _ = self.sender.send(Record::CasOutput {
             node_id,
@@ -110,17 +132,25 @@ impl Analytics {
             duration: transfer + codec,
             transfer,
             codec,
+            served_by,
         });
     }
 
     /// A `keyvalue_metadata` row for an action-cache op. `operation_type` is
     /// "read" (resolve) or "write" (publish); the key is encoded for the server
     /// reader by `keyvalue_key_for`. `duration` is milliseconds.
-    pub fn record_keyvalue(&self, key: &[u8], operation_type: &str, duration: f64) {
+    pub fn record_keyvalue(
+        &self,
+        key: &[u8],
+        operation_type: &str,
+        duration: f64,
+        served_by: Option<ServedBy>,
+    ) {
         let _ = self.sender.send(Record::KeyValue {
             key: keyvalue_key_for(key),
             operation_type: operation_type.to_string(),
             duration,
+            served_by,
         });
     }
 }
@@ -217,7 +247,7 @@ fn writer_loop_with_interval(
 
 fn prune_old_entries(conn: &mut Connection, cutoff: &str) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
-    for table in ["nodes", "cas_outputs", "keyvalue_metadata"] {
+    for table in ["nodes", "cas_outputs", "keyvalue_metadata", "served_by"] {
         tx.execute(
             &format!("DELETE FROM {table} WHERE created_at < ?1"),
             [cutoff],
@@ -253,28 +283,82 @@ fn write_record(
             duration,
             transfer,
             codec,
+            served_by,
         } => {
             tx.execute(
                 "INSERT OR REPLACE INTO nodes (key, checksum, created_at) VALUES (?1, ?2, ?3)",
                 rusqlite::params![node_id, checksum, created_at],
             )?;
-            tx.execute(
+            let written = tx.execute(
                 "INSERT OR REPLACE INTO cas_outputs \
                  (key, size, duration, compressed_size, created_at, transfer_duration, codec_duration) \
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 rusqlite::params![checksum, size, duration, compressed_size, created_at, transfer, codec],
-            )
+            )?;
+            write_served_by(tx, checksum, "output", served_by.as_ref(), created_at);
+            Ok(written)
         }
         Record::KeyValue {
             key,
             operation_type,
             duration,
-        } => tx.execute(
-            "INSERT OR REPLACE INTO keyvalue_metadata (key, operation_type, duration, created_at) \
-             VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![key, operation_type, duration, created_at],
-        ),
+            served_by,
+        } => {
+            let written = tx.execute(
+                "INSERT OR REPLACE INTO keyvalue_metadata (key, operation_type, duration, created_at) \
+                 VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![key, operation_type, duration, created_at],
+            )?;
+            write_served_by(tx, key, operation_type, served_by.as_ref(), created_at);
+            Ok(written)
+        }
     }
+}
+
+/// Replaces the key's `served_by` row, or removes a stale one when this op's
+/// answerer is unknown, so a key never carries the region of an earlier op.
+/// Best-effort and after the row it describes: a database created by a writer
+/// that predates the table still records durations.
+fn write_served_by(
+    tx: &rusqlite::Transaction,
+    key: &str,
+    operation_type: &str,
+    served_by: Option<&ServedBy>,
+    created_at: &str,
+) {
+    let _ = replace_served_by(tx, key, operation_type, served_by, created_at);
+}
+
+fn replace_served_by(
+    tx: &rusqlite::Transaction,
+    key: &str,
+    operation_type: &str,
+    served_by: Option<&ServedBy>,
+    created_at: &str,
+) -> rusqlite::Result<usize> {
+    let Some(served_by) = served_by else {
+        return tx.execute(
+            "DELETE FROM served_by WHERE key = ?1 AND operation_type = ?2",
+            rusqlite::params![key, operation_type],
+        );
+    };
+    let connected_at = match served_by.connected_at_ms {
+        0 => String::new(),
+        ms => iso8601_from_unix(ms / 1_000, (ms % 1_000) as u32),
+    };
+    tx.execute(
+        "INSERT OR REPLACE INTO served_by \
+         (key, operation_type, region, node, connected_at, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![
+            key,
+            operation_type,
+            &*served_by.region,
+            &*served_by.node,
+            connected_at,
+            created_at
+        ],
+    )
 }
 
 #[cfg(test)]
@@ -293,6 +377,7 @@ mod tests {
                 duration: 3.5,
                 transfer: 3.0,
                 codec: 0.5,
+                served_by: None,
             },
             created_at,
         )
@@ -303,11 +388,95 @@ mod tests {
                 key: key.into(),
                 operation_type: "read".into(),
                 duration: 2.5,
+                served_by: Some(served("us-central", 1_758_000_000_000)),
             },
             created_at,
         )
         .unwrap();
         tx.commit().unwrap();
+    }
+
+    fn served(region: &str, connected_at_ms: u64) -> ServedBy {
+        ServedBy {
+            region: region.into(),
+            node: format!("acme-{region}-0").into(),
+            connected_at_ms,
+        }
+    }
+
+    #[test]
+    fn records_who_answered_each_op_and_forgets_it_when_unknown() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        let row = |conn: &Connection, key: &str, op: &str| -> Option<(String, String, String)> {
+            conn.query_row(
+                "SELECT region, node, connected_at FROM served_by WHERE key = ?1 AND operation_type = ?2",
+                [key, op],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .ok()
+        };
+
+        let tx = conn.transaction().unwrap();
+        write_record(
+            &tx,
+            &Record::KeyValue {
+                key: "0~k".into(),
+                operation_type: "read".into(),
+                duration: 1.0,
+                served_by: Some(served("us-central", 1_758_000_000_123)),
+            },
+            "2026-09-28T10:00:00.000",
+        )
+        .unwrap();
+        write_record(
+            &tx,
+            &Record::CasOutput {
+                node_id: "0~n".into(),
+                checksum: "ABC".into(),
+                size: 1,
+                compressed_size: 1,
+                duration: 1.0,
+                transfer: 1.0,
+                codec: 0.0,
+                served_by: Some(served("ap-southeast", 0)),
+            },
+            "2026-09-28T10:00:00.000",
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        assert_eq!(
+            row(&conn, "0~k", "read"),
+            Some((
+                "us-central".into(),
+                "acme-us-central-0".into(),
+                "2025-09-16T05:20:00.123".into()
+            ))
+        );
+        assert_eq!(
+            row(&conn, "ABC", "output"),
+            Some((
+                "ap-southeast".into(),
+                "acme-ap-southeast-0".into(),
+                String::new()
+            ))
+        );
+
+        let tx = conn.transaction().unwrap();
+        write_record(
+            &tx,
+            &Record::KeyValue {
+                key: "0~k".into(),
+                operation_type: "read".into(),
+                duration: 1.0,
+                served_by: None,
+            },
+            "2026-09-28T10:01:00.000",
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        assert_eq!(row(&conn, "0~k", "read"), None);
     }
 
     fn retention_database(label: &str) -> (std::path::PathBuf, Connection) {
@@ -338,7 +507,7 @@ mod tests {
 
         prune_old_entries(&mut conn, "2026-09-17T12:00:00.000").unwrap();
 
-        for table in ["nodes", "cas_outputs", "keyvalue_metadata"] {
+        for table in ["nodes", "cas_outputs", "keyvalue_metadata", "served_by"] {
             let count: i64 = conn
                 .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
                     row.get(0)
@@ -387,8 +556,8 @@ mod tests {
             .unwrap();
         wait_until_empty();
         let analytics = Analytics { sender };
-        analytics.record_cas_output("0~new".into(), "new", 100, 40, 3.0, 0.5);
-        analytics.record_keyvalue(&[0, 1], "read", 2.5);
+        analytics.record_cas_output("0~new".into(), "new", 100, 40, 3.0, 0.5, None);
+        analytics.record_keyvalue(&[0, 1], "read", 2.5, None);
         drop(analytics);
         writer.join().unwrap();
         let size: i64 = observer.query_row(
@@ -428,6 +597,7 @@ mod tests {
                     key: index.to_string(),
                     operation_type: "read".into(),
                     duration: 1.0,
+                    served_by: None,
                 })
                 .unwrap();
         }
@@ -517,8 +687,23 @@ mod tests {
         {
             let (sender, receiver) = std::sync::mpsc::channel();
             let analytics = Analytics { sender };
-            analytics.record_cas_output("0~3q2-7w==".into(), "abc123", 100, 40, 0.3, 0.2);
-            analytics.record_keyvalue(&[0x00, 0xFB, 0xFF], "write", 0.1);
+            // The Swift writer has no `served_by` table; naming who answered
+            // must not cost the rows it describes.
+            analytics.record_cas_output(
+                "0~3q2-7w==".into(),
+                "abc123",
+                100,
+                40,
+                0.3,
+                0.2,
+                Some(served("us-central", 1)),
+            );
+            analytics.record_keyvalue(
+                &[0x00, 0xFB, 0xFF],
+                "write",
+                0.1,
+                Some(served("us-central", 1)),
+            );
             drop(analytics);
             writer_loop(Connection::open(&path).unwrap(), receiver);
         }
@@ -562,6 +747,7 @@ mod tests {
                     duration: 3.5,
                     transfer: 3.0,
                     codec: 0.5,
+                    served_by: None,
                 },
                 "2026-09-17T00:00:00.000",
             )

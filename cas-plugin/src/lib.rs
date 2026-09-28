@@ -15,11 +15,13 @@
 
 pub mod analytics;
 pub mod endpoint;
+pub mod network;
 pub mod proxy;
 pub mod proxy_failure;
 pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
+pub mod served_by;
 pub mod chunk_cache;
 pub mod token;
 pub mod types;

@@ -26,6 +26,9 @@ tonic = { version = "0.14.2", features = ["tls-ring", "tls-native-roots"] }
 # `transport_caused` in src/reapi.rs).
 h2 = "0.4"
 hyper = "1"
+# tonic's own connector, wrapped to stamp when each connection opens (see
+# `src/served_by.rs`).
+hyper-util = { version = "0.1", features = ["client-legacy", "tokio"] }
 prost = "0.14.1"
 sha2 = "0.10"
 fastcdc = "3.2"

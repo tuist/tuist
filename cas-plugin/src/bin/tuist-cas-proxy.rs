@@ -251,9 +251,12 @@ fn main() {
 
     // Endpoint resolution on a tick of its own, shorter than the sweep's: a
     // cache being prepared is asked about every second. `refresh_endpoint`
-    // resolves only once its interval has passed.
+    // resolves only once its interval has passed. A network change renews the
+    // connections first, so the resolution right after it runs on the new
+    // network.
     std::thread::spawn(move || loop {
         std::thread::sleep(tuist_cas_plugin::proxy::ENDPOINT_RESOLUTION_TICK);
+        proxy.watch_network();
         proxy.refresh_endpoint();
     });
 

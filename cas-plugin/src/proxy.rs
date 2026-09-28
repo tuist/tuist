@@ -65,6 +65,10 @@ pub const ENDPOINT_PREPARING_WINDOW: Duration = Duration::from_secs(120);
 /// How often the proxy checks whether an endpoint resolution is due.
 pub const ENDPOINT_RESOLUTION_TICK: Duration = Duration::from_millis(250);
 
+/// How often the proxy lists the machine's interface addresses to notice a
+/// network change (see `watch_network`). Listing them is one `getifaddrs`.
+pub const NETWORK_CHECK_INTERVAL: Duration = Duration::from_secs(2);
+
 #[derive(Debug, PartialEq, Eq)]
 enum EndpointVerdict {
     Keep,
@@ -2424,6 +2428,9 @@ pub struct Proxy {
     // An endpoint the last resolution preferred over a healthy current one,
     // awaiting a second resolution that agrees. See `endpoint_verdict`.
     endpoint_candidate: Mutex<Option<String>>,
+    // The last network fingerprint seen and when it was taken. See
+    // `watch_network`.
+    network: Mutex<(Option<u64>, Option<Instant>)>,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
@@ -2555,6 +2562,7 @@ impl Proxy {
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
+            network: Mutex::new((None, None)),
             endpoint_preparing_since_ms: AtomicU64::new(0),
             endpoint_generation: AtomicU64::new(0),
             endpoint_candidate: Mutex::new(None),
@@ -3146,6 +3154,7 @@ impl Proxy {
                         key,
                         "read",
                         crate::analytics::millis(op_start.elapsed()),
+                        remote.served_by(),
                     );
                 }
                 return Ok(None);
@@ -3164,7 +3173,12 @@ impl Proxy {
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", crate::analytics::millis(op_start.elapsed()));
+            analytics.record_keyvalue(
+                key,
+                "read",
+                crate::analytics::millis(op_start.elapsed()),
+                remote.served_by(),
+            );
         }
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
@@ -3425,6 +3439,7 @@ impl Proxy {
                                 compressed,
                                 transfer,
                                 codec,
+                                remote.served_by(),
                             );
                         }
                     }
@@ -3858,6 +3873,9 @@ impl Proxy {
         let blob = pending.blob.clone();
         let inlined = pending.contents.is_some();
         let fetch_started = Instant::now();
+        // Bytes that arrived inline with an earlier lookup were answered by
+        // whoever answered that lookup, which its own row records.
+        let mut served_by = None;
         let blob_bytes = match pending.contents {
             Some(bytes) => bytes,
             None => {
@@ -3866,7 +3884,10 @@ impl Proxy {
                 };
                 let remote = self.remote_for(&instance);
                 match self.demand_fetch(&instance, &remote, &blob)? {
-                    Some(bytes) => bytes,
+                    Some(bytes) => {
+                        served_by = remote.served_by();
+                        bytes
+                    }
                     None => {
                         if !remote.declining_reads() {
                             self.distrust_snapshots_advertising(&confirmed_evicted(
@@ -3924,6 +3945,7 @@ impl Proxy {
                     blob.size_bytes,
                     transfer,
                     codec,
+                    served_by,
                 );
             }
         }
@@ -4499,6 +4521,7 @@ impl Proxy {
                         compressed,
                         transfer,
                         0.0,
+                        remote.served_by(),
                     );
                 }
             }
@@ -4509,6 +4532,7 @@ impl Proxy {
                 &record.key,
                 "write",
                 crate::analytics::millis(op_start.elapsed()),
+                remote.served_by(),
             );
         }
         result
@@ -5058,6 +5082,74 @@ impl Proxy {
         }
         self.endpoint_resolved_at_ms.store(now, Ordering::Relaxed);
         true
+    }
+
+    /// Renews every client's connection when the machine's network changed.
+    ///
+    /// An HTTP/2 connection can outlive the network it was opened on: a
+    /// laptop that leaves a VPN whose resolver sent the stable hostname to a
+    /// far region can keep talking to that region, and a build report would
+    /// then blame the customer's network for our stale connection. Each client
+    /// opens a fresh channel on its next call, which resolves the hostname
+    /// through the network the machine is on now, and the endpoint is asked of
+    /// the CLI again on the next tick. Calls in flight finish where they are.
+    pub fn watch_network(&self) {
+        {
+            let network = self.network.lock().unwrap();
+            if network
+                .1
+                .is_some_and(|checked| checked.elapsed() < NETWORK_CHECK_INTERVAL)
+            {
+                return;
+            }
+        }
+        self.note_network(crate::network::fingerprint());
+    }
+
+    /// Records `fingerprint`, renewing connections when it differs from the
+    /// previous one. An unlisted network changes nothing: failing to list the
+    /// interfaces says nothing about whether they moved.
+    fn note_network(&self, fingerprint: Option<u64>) -> bool {
+        let changed = {
+            let mut network = self.network.lock().unwrap();
+            network.1 = Some(Instant::now());
+            let Some(fingerprint) = fingerprint else {
+                return false;
+            };
+            let previous = network.0.replace(fingerprint);
+            previous.is_some_and(|previous| previous != fingerprint)
+        };
+        if changed {
+            self.renew_connections("the network changed");
+        }
+        changed
+    }
+
+    fn renew_connections(&self, reason: &str) {
+        let remotes: Vec<Arc<Remote>> = self
+            .remotes
+            .lock()
+            .unwrap()
+            .values()
+            .map(|(_, remote)| remote.clone())
+            .collect();
+        for remote in &remotes {
+            remote.renew_connection();
+        }
+        // Asking the CLI again costs a process. Interfaces come and go in
+        // bursts (a VPN, a container runtime's bridges), and the renewed
+        // connections already resolve the hostname anew, so the CLI is asked
+        // at most once per confirmation interval on account of the network.
+        let last = self.endpoint_resolved_at_ms.load(Ordering::Relaxed);
+        if crate::reapi::now_ms().saturating_sub(last)
+            >= ENDPOINT_CONFIRM_INTERVAL.as_millis() as u64
+        {
+            self.endpoint_resolved_at_ms.store(0, Ordering::Relaxed);
+        }
+        crate::log_line(&format!(
+            "proxy renewing {} cache connection(s): {reason}",
+            remotes.len()
+        ));
     }
 
     /// Points the proxy at `resolved`, returning whether it was a move.
@@ -5899,9 +5991,23 @@ impl Proxy {
             ));
         }
         drop(paths);
+        let now = crate::reapi::now_ms();
         for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
-            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
-                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
+            let served_by = match remote.served_by() {
+                Some(served) if served.connected_at_ms > 0 => format!(
+                    "{}/{} connected_for_s={}",
+                    served.region,
+                    served.node,
+                    now.saturating_sub(served.connected_at_ms) / 1_000
+                ),
+                Some(served) => format!("{}/{}", served.region, served.node),
+                None => "unknown".to_string(),
+            };
+            parts.push(format!(
+                "{instance}: batch_download_bytes={} reused_chunk_bytes={} served_by={served_by}",
+                remote.downloaded_blob_bytes(),
+                remote.reused_chunk_bytes()
+            ));
         }
         parts.join(" | ")
     }
@@ -8902,6 +9008,59 @@ mod tests {
         assert!(
             proxy.remotes.lock().unwrap().is_empty(),
             "clients bound to the old endpoint must not survive the move"
+        );
+    }
+
+    #[test]
+    fn a_network_change_renews_connections_and_re_resolves_the_endpoint() {
+        let proxy = test_proxy();
+        let _ = proxy.remote_for("acme/app");
+        let resolved_a_while_ago =
+            crate::reapi::now_ms() - ENDPOINT_CONFIRM_INTERVAL.as_millis() as u64;
+        proxy
+            .endpoint_resolved_at_ms
+            .store(resolved_a_while_ago, Ordering::Relaxed);
+
+        assert!(
+            !proxy.note_network(Some(1)),
+            "the first sighting is a baseline"
+        );
+        assert!(!proxy.note_network(Some(1)));
+        assert!(
+            !proxy.note_network(None),
+            "an unlisted network is not a change"
+        );
+        assert_ne!(proxy.endpoint_resolved_at_ms.load(Ordering::Relaxed), 0);
+
+        assert!(proxy.note_network(Some(2)));
+        assert_eq!(
+            proxy.endpoint_resolved_at_ms.load(Ordering::Relaxed),
+            0,
+            "the endpoint is asked of the CLI again on the next tick"
+        );
+        assert_eq!(
+            proxy.remotes.lock().unwrap().len(),
+            1,
+            "clients keep their state; only their connections are renewed"
+        );
+    }
+
+    #[test]
+    fn a_burst_of_network_changes_asks_the_cli_once() {
+        let proxy = test_proxy();
+        let _ = proxy.remote_for("acme/app");
+        let just_now = crate::reapi::now_ms();
+        proxy
+            .endpoint_resolved_at_ms
+            .store(just_now, Ordering::Relaxed);
+
+        assert!(!proxy.note_network(Some(1)));
+        assert!(proxy.note_network(Some(2)));
+
+        assert_eq!(
+            proxy.endpoint_resolved_at_ms.load(Ordering::Relaxed),
+            just_now,
+            "a resolution this recent is not repeated for a network change"
         );
     }
 
