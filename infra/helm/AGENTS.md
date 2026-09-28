@@ -11,7 +11,9 @@ This node covers Helm assets under `infra/helm/`.
 ## Conventions
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Retire
-  the evacuated Dedibox fleet with `replicas: 0`, retaining its reconciler and
+  the evacuated Dedibox fleet with a subsequent `replicas: 0` change only after
+  DNS withdrawal/soak and non-production teardown. Until then retain 3/1/1
+  production/staging/canary hosts. Retain its reconciler and
   credentials until all Machine finalizers complete. Follow the DNS withdrawal
   and soak gates in [the migration runbook](../kura-controller/eu-west-ovh-migration.md)
   before deploying retirement. Staging/canary Dedibox retirement also requires decommissioning their
