@@ -491,7 +491,10 @@ enum PackageResolver {
             return try await ResolvedFile.read(packageDir: packageDir)
         }
         if preferResolvedFile,
-           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir)
+           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
+           try await localPackageDependenciesArePinned(
+               by: existing, packageDir: packageDir, disableSandbox: disableSandbox
+           )
         {
             return try await normalizeLoadedResolvedFile(
                 existing, packageDir: packageDir, writeResolvedFile: writeResolvedFile
@@ -523,6 +526,55 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             progress: progress
         )
+    }
+
+    /// The `originHash` only covers the root `Package.swift`, so it stays the same
+    /// when a local package declares different dependencies, whether its manifest
+    /// was edited or branches on `Context.environment`. Every remote dependency a
+    /// local package declares must have a pin that satisfies its requirement for
+    /// the resolved file to be current.
+    private static func localPackageDependenciesArePinned(
+        by resolved: ResolvedPins,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            for dependency in try ManifestParser.dependencies(localPackage.manifest) {
+                guard resolved.pins.contains(where: { pin($0, satisfies: dependency) }) else {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private static func pin(_ pin: ResolvedPin, satisfies dependency: ManifestDependency) -> Bool {
+        let identity = dependency.identity.lowercased()
+        let originalIdentity = pin.originalLocation.map {
+            ResolvedPin.identity(package: nil, location: $0)
+        }
+        guard pin.identity.lowercased() == identity || originalIdentity == identity else {
+            return false
+        }
+        switch dependency.requirement {
+        case let .branch(branch):
+            return pin.state.branch == branch
+        case let .revision(revision):
+            return pin.state.revision == revision
+        case .exact, .range:
+            guard let range = ManifestParser.versionRange(for: dependency.requirement),
+                  let version = pin.state.version.flatMap({ try? SemVer($0) })
+            else { return false }
+            return range.contains(version)
+        }
     }
 
     /// Reject an out-of-date `Package.resolved` under `--force-resolved-versions`

@@ -105,7 +105,7 @@ struct ResolvedPin: Codable, Equatable, Sendable {
         try container.encode(state, forKey: .state)
     }
 
-    private static func identity(package: String?, location: String) -> String {
+    static func identity(package: String?, location: String) -> String {
         if !location.isEmpty {
             let trimmed = location.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let withoutGit = trimmed.hasSuffix(".git") ? String(trimmed.dropLast(4)) : trimmed
