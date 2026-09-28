@@ -604,7 +604,7 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
 
-      assert returned.storage_claim_size == "16Gi"
+      assert returned.storage_claim_size == "8Gi"
     end
 
     test "leaves a serving instance on the footprint it was built with", %{account: account} do

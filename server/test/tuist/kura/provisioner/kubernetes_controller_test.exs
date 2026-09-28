@@ -361,13 +361,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"], spec["cpuCeilingMilli"]}
       end
 
-      # The floor is the standing reservation, so the paid tiers get the larger
-      # one. The ceiling — how large a burst Kura admits before shedding —
-      # moves with it. The CPU ceiling is the same grant for the other
-      # compressible resource; its floor is absent because the controller
-      # observes that per instance.
+      # The floor is the standing reservation, so only Enterprise, the tier that
+      # pays for a guarantee, gets the larger one. The ceiling — how large a
+      # burst Kura admits before shedding — is shared by the paid tiers. The CPU ceiling is
+      # the same grant for the other compressible resource; its floor is absent
+      # because the controller observes that per instance.
       assert profile.(:enterprise) == {1024, 4096, true, 4000}
-      assert profile.(:pro) == {1024, 4096, true, 4000}
+      assert profile.(:pro) == {256, 4096, true, 4000}
       assert profile.(:air) == {256, 768, true, 1000}
     end
 
@@ -1620,12 +1620,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
       enterprise = KubernetesController.manifest_revision(%Server{account: account}, region)
 
-      # The paid plans share a profile, so moving between them keeps the
-      # revision, and moving to or from Air crosses it.
-      assert air != pro
-      assert pro == enterprise
+      assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
       assert String.contains?(air, "+mem256-768")
-      assert String.contains?(pro, "+mem1024-4096")
+      assert String.contains?(pro, "+mem256-4096")
+      assert String.contains?(enterprise, "+mem1024-4096")
     end
 
     test "crosses a revision boundary on the bin-pack flag so both flip directions re-apply" do

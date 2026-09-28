@@ -837,10 +837,10 @@ defmodule Tuist.Kura.Capacity do
     Regions.memory_ceiling_bin_packed?(region) and advertised?
   end
 
-  # The paid plans are entitled to the guaranteed floor
-  # (`Tuist.Billing.Entitlements`); Air reserves none and runs best-effort under
-  # the burst ceiling.
-  defp egress_floor_mbps(region, plan) when plan in [:pro, :enterprise], do: Regions.egress_guaranteed_mbps(region) || 0
+  # Enterprise alone is entitled to the guaranteed floor
+  # (`Tuist.Billing.Entitlements`); every other plan reserves none and runs
+  # best-effort under the burst ceiling.
+  defp egress_floor_mbps(region, :enterprise), do: Regions.egress_guaranteed_mbps(region) || 0
   defp egress_floor_mbps(_region, _plan), do: 0
 
   # Per Ready, schedulable node of the region's pool: what it makes allocatable,

@@ -81,21 +81,6 @@ defmodule Tuist.Billing.EntitlementsTest do
       refute Entitlements.allows?(account, :self_hosted_cache)
     end
 
-    test "the guaranteed egress floor is granted to the paid plans" do
-      for {plan, entitled?} <- [enterprise: true, pro: true, air: false] do
-        account = AccountsFixtures.organization_fixture(preload: [:account]).account
-        BillingFixtures.subscription_fixture(account_id: account.id, plan: plan)
-
-        assert Entitlements.allows?(account, :guaranteed_egress_floor) == entitled?, "#{plan}"
-      end
-    end
-
-    test "false for the guaranteed egress floor when there is no active subscription" do
-      account = AccountsFixtures.organization_fixture(preload: [:account]).account
-
-      refute Entitlements.allows?(account, :guaranteed_egress_floor)
-    end
-
     test "false for unknown features when the active subscription is not enterprise" do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)

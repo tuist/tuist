@@ -131,9 +131,9 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end
 
-    test "starts the paid plans a step above air and floors the ladder at air" do
+    test "descends the storage ladder and floors it at air" do
       claims = Enum.map([:enterprise, :pro, :air], &Regions.storage_profile(&1).claim_size)
-      assert claims == ["16Gi", "16Gi", "8Gi"]
+      assert claims == ["16Gi", "8Gi", "8Gi"]
 
       # Air is the floor, and unknown plans land on it.
       assert Regions.storage_profile(:open_source) == Regions.storage_profile(:air)
@@ -194,11 +194,12 @@ defmodule Tuist.Kura.RegionsTest do
         assert ceiling_mib > floor_mib
       end
 
-      # The paid plans share one profile, so a busy Pro account absorbs the same
-      # burst an Enterprise one does, and Air sits below it: floors are what
-      # decide how many tenants fit on a box.
-      assert Regions.memory_profile(:pro) == Regions.memory_profile(:enterprise)
-      assert Regions.memory_profile(:air).floor_mib < Regions.memory_profile(:pro).floor_mib
+      # Floors are standing reservations and decide how many tenants fit on a
+      # box, so Pro reserves what Air does and only Enterprise reserves more.
+      # Ceilings are bursts, and the paid plans share theirs.
+      assert Regions.memory_profile(:pro).floor_mib == Regions.memory_profile(:air).floor_mib
+      assert Regions.memory_profile(:enterprise).floor_mib > Regions.memory_profile(:pro).floor_mib
+      assert Regions.memory_profile(:pro).ceiling_mib == Regions.memory_profile(:enterprise).ceiling_mib
       assert Regions.memory_profile(:air).ceiling_mib < Regions.memory_profile(:pro).ceiling_mib
 
       # Each ceiling has to clear its plan's measured peak by more than the

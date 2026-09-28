@@ -75,15 +75,15 @@ defmodule Tuist.Kura.Regions do
   # listener. Never CLI-facing — only runner dispatch hands it out
   # (`Tuist.Kura.runner_cache_endpoint_url/2`).
   @in_cluster_url_template "http://{instance}.kura.svc.cluster.local:4000"
-  # The guaranteed egress floor a paid tenant reserves on a shared
+  # The guaranteed egress floor an enterprise tenant reserves on a shared
   # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
   # scheduler bin-packs against the node's budget. Uniform across regions — a
   # tenant's guaranteed minimum shouldn't depend on which box it lands on.
-  # Deliberately low: at 25 Mbps even a ~1 Gbit/s box admits ~40 paid tenants;
-  # the per-region burst ceiling does the real sharing. Bump as real per-tenant
-  # usage data lands. An Air tenant reserves nothing (best-effort under the burst
-  # ceiling).
-  @paid_egress_floor_mbps 25
+  # Deliberately low to start: at 25 Mbps all ~20 enterprise tenants pack onto a
+  # single box (even a ~1 Gbit/s one would still admit ~40); the per-region burst
+  # ceiling does the real sharing. Bump as real per-tenant usage data lands. The
+  # default bursty tenant reserves nothing (best-effort under the burst ceiling).
+  @enterprise_egress_floor_mbps 25
   # Memory profile for a cache instance, as (floor, ceiling) in MiB. The floor
   # is the pod's requests.memory: a standing reservation the scheduler bin-packs
   # against node allocatable, and the pod's unreclaimable cgroup memory.min once
@@ -119,9 +119,10 @@ defmodule Tuist.Kura.Regions do
   #
   # Measured peaks: enterprise instances run at whatever ceiling they are given
   # (1900-2025 MiB against the current 2Gi), the busiest pro instance reaches
-  # ~1220 MiB, and air instances sit at ~150 MiB. Pro and Enterprise share one
-  # profile, so a busy Pro account absorbs the same burst an Enterprise one does.
-  @paid_memory_floor_mib 1024
+  # ~1220 MiB, and air instances sit at ~150 MiB.
+  @enterprise_memory_floor_mib 1024
+  # Pro and Enterprise share the paid ceiling, so a busy Pro account absorbs
+  # the same burst an Enterprise one does; Pro reserves Air's floor.
   @paid_memory_ceiling_mib 4096
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
@@ -131,8 +132,9 @@ defmodule Tuist.Kura.Regions do
   # burst bound. Each sits several times over its plan's measured 14-day peak
   # (631m enterprise, 53m pro, 1-2m air, all 15-second averages) because a CFS
   # quota is not work-conserving: one set near real use stalls a burst on an
-  # otherwise idle box. Pro takes the enterprise ceiling so the paid plans burst
-  # alike. As a share of the smallest managed box, 11 cores: 36% paid, 9% Air.
+  # otherwise idle box. Pro shares the enterprise ceiling so the paid plans
+  # burst alike. As a share of the smallest managed box, 11 cores: 36% paid,
+  # 9% Air.
   @paid_cpu_ceiling_milli 4000
   @standard_cpu_ceiling_milli 1000
   # Filesystem quota one replica of a cache instance reserves, per plan. The
@@ -140,7 +142,7 @@ defmodule Tuist.Kura.Regions do
   # shares it with the upload staging directory and the RocksDB index, and the
   # provisioner reserves those before deriving the ring budget it hands the pod
   # (see `cas_capacity_bytes/1` in the Kubernetes controller provisioner). The
-  # rings these leave are 13.1 GiB for the paid plans and 5.3 GiB for Air.
+  # rings these leave are 13.1 GiB for enterprise and 5.3 GiB for the rest.
   #
   # These are where an account starts, not what it ends up with:
   # `Tuist.Kura.ClaimSizing` grows the claim from measured shedding, and it
@@ -150,11 +152,11 @@ defmodule Tuist.Kura.Regions do
   # `ephemeral-storage`, so an oversized quota does not waste disk, it refuses
   # to place instances that would have fitted.
   #
-  # Paid plans start a step above Air and `Tuist.Kura.ClaimSizing` lets them
-  # grow four times further: an account that needs more disk still gets it by
-  # proving so, but a paid account that proves it is not stopped at the size
-  # the free plan tops out at. Paid accounts are billed on what they use, so
-  # the ones that cache the most are also the ones paying the most for it.
+  # Air and Pro therefore start in the same place: what a paid plan buys is not
+  # a bigger cache on day one, it is room to grow. An account that needs more
+  # disk gets it by proving so, and `Tuist.Kura.ClaimSizing` lets a paid account
+  # that proves it grow four times past where Air stops. Enterprise starts a step higher only because it is
+  # the plan whose accounts predictably arrive with a working set already.
   #
   # They are also powers of two so that growth lands squarely. Sizing clamps a
   # step at twice the current claim, so a ladder of doubles reaches each plan's
@@ -180,7 +182,7 @@ defmodule Tuist.Kura.Regions do
   # 8 GiB default (see `staging_bytes/1` in the Kubernetes controller
   # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
   # at all.
-  @paid_storage_claim "16Gi"
+  @enterprise_storage_claim "16Gi"
   @air_storage_claim "8Gi"
 
   # Which countries `accounts.region == :europe` accepts a datacenter in. The
@@ -215,7 +217,7 @@ defmodule Tuist.Kura.Regions do
       # the enterprise per-tenant floor (uniform across regions) is bin-packed as
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
       # ceiling (~half the NIC) every tenant gets.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 1500,
       # OVH Vint Hill, Virginia.
       country: "US",
@@ -235,7 +237,7 @@ defmodule Tuist.Kura.Regions do
       # the enterprise per-tenant floor (uniform across regions) is bin-packed as
       # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
       # ceiling (~half the NIC) every tenant gets.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 1500,
       # OVH Hillsboro, Oregon.
       country: "US",
@@ -270,7 +272,7 @@ defmodule Tuist.Kura.Regions do
       # Egress governance on the shared box (~1 Gbit/s NIC): the enterprise
       # per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
       # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both sit
       # in the Paris region.
@@ -297,7 +299,7 @@ defmodule Tuist.Kura.Regions do
       # Egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
       # enterprise per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
       # OVHcloud BHS, Beauharnois, Quebec.
       country: "CA",
@@ -349,7 +351,7 @@ defmodule Tuist.Kura.Regions do
       # public bandwidth. Public is the number that matters: the NIC links at
       # 25 Gbit/s, but that is the vRack side, and a cache serves the 1 Gbit/s
       # public path. Same shape as ca-east, the other ~1 Gbit region.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
       # OVHcloud SGP, Singapore. No subdivision: Singapore is a city-state whose
       # ISO 3166-2 codes are the five CDC statistical districts rather than
@@ -392,7 +394,7 @@ defmodule Tuist.Kura.Regions do
       # ap-southeast and ca-east carry, and it is provisional until the region
       # serves enough traffic to measure. South America moved ~150 GiB a month on
       # the legacy lane, so the quota has roughly 68x headroom at today's volume.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
       # Vultr Santiago, Chile. Región Metropolitana de Santiago, where the
       # datacenter sits.
@@ -425,7 +427,7 @@ defmodule Tuist.Kura.Regions do
       replicas: 2,
       # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC), the
       # same shape us-east and us-west carry on the same range.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 1500,
       # OVHcloud WAW, Warsaw, Masovian Voivodeship.
       country: "PL",
@@ -458,7 +460,7 @@ defmodule Tuist.Kura.Regions do
       # than the link binds. Vultr pools the quota account-wide, so sa-west's
       # unused allowance covers a burst here. 500 Mbps matches sa-west and is
       # provisional until the region serves enough to measure.
-      egress_guaranteed_mbps: @paid_egress_floor_mbps,
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
       # Vultr ORD, Chicago, Illinois.
       country: "US",
@@ -605,12 +607,14 @@ defmodule Tuist.Kura.Regions do
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
-  grant. `:enterprise` and `:pro` share the paid profile; every other plan, `:air`
-  included, takes the smallest. Unknown plans fall there too, which is the safe
-  side on a shared box.
+  grant. The paid plans share the larger ceiling, which sets how large a burst
+  an instance absorbs; `:enterprise` alone reserves a larger floor, and every
+  other plan, `:pro` and `:air` included, reserves the smallest. Unknown plans
+  take the smallest profile, which is the safe side on a shared box.
   """
-  def memory_profile(plan) when plan in [:enterprise, :pro],
-    do: %{floor_mib: @paid_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
+  def memory_profile(:enterprise), do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
+
+  def memory_profile(:pro), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
 
@@ -641,12 +645,12 @@ defmodule Tuist.Kura.Regions do
   The `%{claim_size:}` storage profile for a billing plan: the filesystem quota
   each replica of that plan's cache instance reserves.
 
-  Every plan gets a profile, the same way memory does. `:enterprise` and `:pro`
-  share the paid one; every other plan takes air's, which is also the floor no
+  Every plan gets a profile, the same way memory does. `:enterprise` has its own;
+  every other plan, `:pro` included, takes air's, which is also the floor no
   instance is sized below. Unknown plans land there too, which is the side that
   admits rather than the side that refuses.
   """
-  def storage_profile(plan) when plan in [:enterprise, :pro], do: %{claim_size: @paid_storage_claim}
+  def storage_profile(:enterprise), do: %{claim_size: @enterprise_storage_claim}
 
   def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
 

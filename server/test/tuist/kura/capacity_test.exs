@@ -490,10 +490,10 @@ defmodule Tuist.Kura.CapacityTest do
     end
   end
 
-  # us-east sizes per plan, bin-packs the memory ceiling, reserves the paid
-  # plans' egress floor and runs two replicas, so a paid instance asks the pool
-  # for two replicas of: 16Gi of disk, 1024 MiB of memory and a 4096 MiB
-  # ceiling, 100m of CPU and 25 Mbps.
+  # us-east sizes per plan, bin-packs the memory ceiling, reserves the
+  # Enterprise egress floor and runs two replicas, so an Enterprise instance
+  # asks the pool for two replicas of: 16Gi of disk, 1024 MiB of memory and a
+  # 4096 MiB ceiling, 100m of CPU and 25 Mbps.
   describe "room_for?/2" do
     test "has room when one node covers every replica of the instance" do
       stub_pool([pool_box("box-1")])
@@ -502,8 +502,8 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "counts the claim once per replica, as the disk will" do
-      # 30 GiB left takes one paid replica, and there is no other node for the
-      # second. Air's two 8Gi claims fit.
+      # 30 GiB left takes one Enterprise replica, and there is no other node
+      # for the second. Pro's two 8Gi claims fit.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"ephemeral-storage" => "100Gi"},
@@ -512,8 +512,7 @@ defmodule Tuist.Kura.CapacityTest do
       ])
 
       assert Capacity.room_for?(@region, :enterprise) == false
-      assert Capacity.room_for?(@region, :pro) == false
-      assert Capacity.room_for?(@region, :air) == true
+      assert Capacity.room_for?(@region, :pro) == true
     end
 
     test "places replicas split across nodes, since the affinity only prefers co-location" do
@@ -594,17 +593,16 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "reserves the plan's memory floor" do
-      # 1536 MiB left: the paid plans' two 1024 MiB floors do not fit, Air's two
-      # 256 MiB floors do.
+      # 1536 MiB left: Enterprise's two 1024 MiB floors do not fit, Pro's two
+      # 512 MiB floors do.
       stub_pool([pool_box("box-1", allocatable: %{"memory" => "3Gi"}, pods: [pool_pod(%{"memory" => "1536Mi"})])])
 
       assert Capacity.room_for?(@region, :enterprise) == false
-      assert Capacity.room_for?(@region, :pro) == false
-      assert Capacity.room_for?(@region, :air) == true
+      assert Capacity.room_for?(@region, :pro) == true
     end
 
-    test "reserves the egress floor for the paid plans" do
-      # 35 Mbps left against two 25 Mbps floors. Air reserves none.
+    test "reserves the egress floor for Enterprise alone" do
+      # 35 Mbps left against two 25 Mbps floors. Pro reserves none.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"tuist.dev/egress-mbps" => "60"},
@@ -613,8 +611,7 @@ defmodule Tuist.Kura.CapacityTest do
       ])
 
       assert Capacity.room_for?(@region, :enterprise) == false
-      assert Capacity.room_for?(@region, :pro) == false
-      assert Capacity.room_for?(@region, :air) == true
+      assert Capacity.room_for?(@region, :pro) == true
     end
 
     test "bin-packs the memory ceiling only where a node advertises it" do
