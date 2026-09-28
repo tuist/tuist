@@ -106,6 +106,11 @@ fn lag_seconds(newest_version_ms: u64, applied_through_ms: u64) -> u64 {
     newest_version_ms.saturating_sub(applied_through_ms) / 1000
 }
 
+fn record_lag(app: &SharedState, status: &LinkStatusCell, region: &str, lag_seconds: u64) {
+    status.update(|status| status.lag_seconds = Some(lag_seconds));
+    app.metrics.set_region_sync_lag(region, lag_seconds);
+}
+
 /// The watermark to read from: the persisted one, else the highest legacy
 /// `backfill/wm/` row among the region's nodes (implementation decision
 /// D-4), else nothing.
@@ -144,8 +149,7 @@ async fn backward_pass(
     }
     let watermark = seed_watermark(app, region)?;
     if let (Some(newest), Some(watermark)) = (probe.newest_version_ms, watermark) {
-        app.metrics
-            .set_region_sync_lag(region, lag_seconds(newest, watermark));
+        record_lag(app, status, region, lag_seconds(newest, watermark));
     }
     let buffered =
         watermark.map(|watermark| watermark.saturating_sub(app.config.sync_pass_start_buffer_ms));
@@ -375,13 +379,17 @@ pub async fn run(
                 );
             }
         }
-        if page.entries.is_empty() && page.next_after.is_none() {
-            app.metrics.set_region_sync_lag(&region, 0);
-        } else if let Some(newest) = page.newest_version_ms {
-            let watermark = app.store.sync_watermark(&region).ok().flatten();
-            let applied = watermark.unwrap_or_default().max(covered_through_ms);
-            app.metrics
-                .set_region_sync_lag(&region, lag_seconds(newest, applied));
+        let applied = from_version_ms
+            .max(highest.unwrap_or_default())
+            .max(covered_through_ms);
+        match page.newest_version_ms {
+            Some(newest) => record_lag(&app, &status, &region, lag_seconds(newest, applied)),
+            // An older source reports nothing; a caught-up page is all it
+            // can tell.
+            None if page.entries.is_empty() && page.next_after.is_none() => {
+                record_lag(&app, &status, &region, 0);
+            }
+            None => {}
         }
         // The page cursor only moves when the peer scanned something; a
         // caught-up long-poll answers without one and we keep ours.

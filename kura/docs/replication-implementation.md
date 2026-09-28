@@ -1114,9 +1114,13 @@ tombstones) in an atomic, raised by `fetch_max` in the post-commit hooks of
 both apply paths and after a namespace delete commits — never on staging, so
 a failed batch is never reported. After a restart the first listing request
 seeds it from the newest index rows. Every ascending page for the node's own
-region carries it as the additive `newest_version_ms`, capped at the serving
-bound, and the link sets `kura_region_sync_lag_seconds{region}` to that minus
-the newest version it has applied (the watermark, or the source's clock at the
-start of a completed backward pass, whose watermark sits a buffer below what
-it applied). A caught-up page sets it to zero. An older source sends no field
-and yields only caught-up samples; an older puller ignores it.
+region carries it as the additive `newest_version_ms`, deliberately not capped
+at the serving bound: a write the source still holds back (a sibling link with
+no frontier yet, D-24) is lag the reader should see, not a caught-up page. The
+link sets `kura_region_sync_lag_seconds{region}` to that minus the newest
+version it has applied (the watermark, or the source's clock at the start of a
+completed backward pass, whose watermark sits a buffer below what it
+applied), on every answer. While the link cannot reach the remote gateway it
+has no fresh sample, so the coordinator adds the silence beyond one long-poll
+to the last one instead of letting it stand. An older source sends no field
+and yields only caught-up samples of zero; an older puller ignores it.

@@ -8662,9 +8662,7 @@ impl Store {
             scanned += 1;
             last_key = Some(key.to_vec());
             if let Some(origin) = origin_region
-                && row.kind != BackfillRecordKind::NamespaceTombstone
-                && let Some(Some(actual)) = self.manifest_origin_region(&row.record_id)?
-                && actual != origin
+                && !self.listed_to_origin(&row, origin)?
             {
                 continue;
             }
@@ -8687,15 +8685,25 @@ impl Store {
         }
     }
 
-    /// The newest version an ascending read filtered to `origin_region` could
-    /// list at `max_version_ms`, when that origin is this node's region
-    /// (design §4.1, D-37). The first call after a restart seeds it from the
-    /// newest index rows; later commits keep it current.
-    pub fn newest_listed_version(
-        &self,
-        origin_region: &str,
-        max_version_ms: u64,
-    ) -> Result<Option<u64>, String> {
+    /// Whether an ascending read filtered to `origin` lists `row`: tombstones
+    /// and records with no origin go to every region (design §4.1).
+    fn listed_to_origin(&self, row: &BackfillIndexRow, origin: &str) -> Result<bool, String> {
+        if row.kind == BackfillRecordKind::NamespaceTombstone {
+            return Ok(true);
+        }
+        Ok(match self.manifest_origin_region(&row.record_id)? {
+            Some(Some(actual)) => actual == origin,
+            _ => true,
+        })
+    }
+
+    /// The newest committed version an ascending read filtered to
+    /// `origin_region` lists, once the serving bound passes it, when that
+    /// origin is this node's region (design §4.1, D-37). Not capped at the
+    /// bound: a record the listing still holds back is lag. The first call
+    /// after a restart seeds it from the newest index rows; later commits
+    /// keep it current.
+    pub fn newest_listed_version(&self, origin_region: &str) -> Result<Option<u64>, String> {
         const SEED_SCAN_CAP: usize = 4 * MAX_PEER_PAGE_ITEMS;
         if origin_region != self.region {
             return Ok(None);
@@ -8715,12 +8723,7 @@ impl Store {
                     break;
                 }
                 let row = decode_backfill_index_row(&key, &value)?;
-                let origin = if row.kind == BackfillRecordKind::NamespaceTombstone {
-                    None
-                } else {
-                    self.manifest_origin_region(&row.record_id)?.flatten()
-                };
-                if origin.as_deref().is_none_or(|origin| origin == self.region) {
+                if self.listed_to_origin(&row, &self.region)? {
                     self.note_listed_version(None, row.version_ms);
                     break;
                 }
@@ -8729,7 +8732,7 @@ impl Store {
                 .store(true, Ordering::Release);
         }
         let newest = self.newest_listed_version_ms.load(Ordering::Relaxed);
-        Ok((newest > 0).then(|| newest.min(max_version_ms)))
+        Ok((newest > 0).then_some(newest))
     }
 
     // ---- Backfill per-peer watermarks (`backfill/wm/` keyspace) ----

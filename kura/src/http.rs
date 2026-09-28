@@ -575,9 +575,10 @@ pub struct BackfillEntriesPage {
     /// absent from an older peer's page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub now: Option<u64>,
-    /// Ascending reads of the serving node's own region: the newest version
-    /// the same read could list, so the requester can tell how far behind
-    /// it is (D-37). Additive; absent from an older peer's page.
+    /// Ascending reads of the serving node's own region: the newest committed
+    /// version the read lists once the serving bound passes it, so the
+    /// requester can tell how far behind it is (D-37). Additive; absent from
+    /// an older peer's page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub newest_version_ms: Option<u64>,
 }
@@ -2852,12 +2853,7 @@ async fn internal_backfill_entries_ascending(
             let newest_version_ms = query
                 .origin_region
                 .as_deref()
-                .and_then(|origin| {
-                    state
-                        .store
-                        .newest_listed_version(origin, max_version_ms)
-                        .ok()
-                })
+                .and_then(|origin| state.store.newest_listed_version(origin).ok())
                 .flatten();
             Json(BackfillEntriesPage {
                 newest_version_ms,
