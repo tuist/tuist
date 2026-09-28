@@ -38,6 +38,8 @@ capi:
     cidr: 172.30.241.0/24
 
 kuraController:
+  privateReplication:
+    enabled: true
   stableDNS:
     enabled: true
     hostedZoneId: Z046862130S1WUMPV7Z3P

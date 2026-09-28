@@ -5,7 +5,8 @@ Spec 95 is already shipped. This change adds managed OVH attachment, persistent
 private host routes and automatic runtime topology publication. It also adopts
 an already-prepared staging cache host to qualify the physical path. Ingress,
 BGP and host migrations remain outside this change. **Production workloads have
-not changed. Runtime activation remains gated on physical qualification.**
+not changed. Staging has passed physical qualification and enables automatic
+runtime topology; canary and production remain gated on their own qualification.**
 
 ## Operational inventory
 
@@ -109,8 +110,9 @@ The managed controller can derive these fields from actual Node provider IDs and
 the CAPI controller's converged private-route attestations. The environment
 settings and fail-closed host routing are described in
 [private-network-provisioning.md](private-network-provisioning.md). Staging
-enables host reconciliation first; automatic runtime publication and the
-canary/production host settings remain disabled pending qualification.
+enables both host reconciliation and automatic runtime publication after its
+physical qualification. Canary/production settings remain disabled pending
+their environment-specific host qualification.
 
 Provider-only configuration is rejected at startup: opting in requires both
 `private_network` and `private_url`. Same-provider peers advertising absent or
@@ -277,9 +279,17 @@ Cilium/Kura end-to-end qualification. A bounded 15-second TCP test in each
 direction sustained approximately 199 Mbps at a 200 Mbps cap with zero TCP
 retransmissions. This is a tested rate, not maximum capacity or N-1 headroom.
 An unreachable preparation peer left existing route configuration unchanged and
-healthy traffic working. Actual pod replication on this underlay and
-canary/production qualification remain open. Both new zero-cost vRacks have been
-delivered; attachment and host qualification remain separate rollout steps.
+healthy traffic working. Both new zero-cost vRacks have been delivered;
+canary/production attachment and qualification remain separate rollout steps.
+
+The [physical staging evidence](../../kura/test/e2e/provider-topology/staging/validation-private-underlay-2026-09-28.json)
+records all 12 fixture checks passing across the actual OVH BHS/GRA pair and a
+Scaleway peer. Both physical hosts captured bidirectional Cilium VXLAN on their
+private NICs and zero matching public peer packets. Taking down the GRA private
+NIC broke direct private mTLS while cross-provider replication advanced; captures
+still contained zero public peer packets. Direct private mTLS recovered after
+restoring the interface and repair timer. No production edge or Vultr VPC is
+qualified by those staging observations.
 
 The equal-canonical/private-URL runtime correction also passed two sequential
 before/after resource comparisons, recorded in
