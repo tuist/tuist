@@ -430,10 +430,21 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: clickhouse
   annotations:
+{{- if $m.tailscale.proxyGroup }}
+    tailscale.com/proxy-group: {{ $m.tailscale.proxyGroup | quote }}
+{{- else }}
     tailscale.com/expose: "true"
+{{- end }}
     tailscale.com/hostname: {{ required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname | quote }}
     tailscale.com/tags: {{ required "clickhouse.managed.tailscale.tags is required when tailscale.enabled is true" $m.tailscale.tags | quote }}
 spec:
+{{- if $m.tailscale.proxyGroup }}
+  # Served by the ProxyGroup as a Tailscale Service rather than by a proxy of
+  # its own, so the VMs reach it over a direct path instead of a DERP relay.
+  # See `tailnetIngress` in infra/helm/tailscale-operator.
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+{{- end }}
   selector:
     {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
   ports:

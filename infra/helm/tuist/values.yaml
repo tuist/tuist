@@ -3465,6 +3465,13 @@ clickhouse:
       enabled: false
       hostname: ""
       tags: ""
+      # Name of a Tailscale ProxyGroup of type `ingress` to serve this Service
+      # instead of a standalone proxy. Needed where the tailnet peers sit
+      # behind NATs that keep them on a DERP relay; see `tailnetIngress` in
+      # infra/helm/tailscale-operator. The tailnet policy must auto-approve
+      # `svc:<hostname>` for the ProxyGroup's tag and grant the peers access
+      # to it.
+      proxyGroup: ""
     persistence:
       size: 200Gi
       storageClassName: clickhouse-local
