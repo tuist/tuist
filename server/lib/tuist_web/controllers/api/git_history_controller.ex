@@ -172,7 +172,16 @@ defmodule TuistWeb.API.GitHistoryController do
              maxItems: 100,
              items: %Schema{
                type: :object,
-               properties: %{branch: %Schema{type: :string}, sha: @sha},
+               properties: %{
+                 branch: %Schema{type: :string},
+                 sha: @sha,
+                 observed_at: %Schema{
+                   type: :string,
+                   format: :"date-time",
+                   description:
+                     "When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent."
+                 }
+               },
                required: [:branch, :sha]
              },
              description: "The newest commit the client saw on each branch."
@@ -197,7 +206,13 @@ defmodule TuistWeb.API.GitHistoryController do
         GitHistory.record_commits(repository_id, body.object_format, commits)
 
         for head <- Map.get(body, :branch_heads) || [] do
-          GitHistory.record_branch_head(repository_id, head.branch, head.sha, project.default_branch)
+          GitHistory.record_branch_head(
+            repository_id,
+            head.branch,
+            head.sha,
+            project.default_branch,
+            Map.get(head, :observed_at)
+          )
         end
 
         send_resp(conn, :no_content, "")

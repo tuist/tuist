@@ -184,18 +184,19 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # The refs the commit's runs reported move to it: a pull request's under
   # `pull/<number>`, a push's under its branch, each forking from the default
-  # branch. A commit a ref already holds leaves it where it is, so a late
-  # fold of an older commit never moves a ref back, and a commit the graph
-  # does not know yet names no head.
+  # branch. Each move is observed at the newest run that reported the ref, so
+  # neither a late fold of an older commit nor a refold (after the excluded
+  # paths changed, say) moves a ref back, and a commit the graph does not
+  # know yet names no head.
   defp advance_refs(project, sha, runs) do
     runs
     |> Enum.filter(&(&1.git_repository_id > 0))
-    |> Enum.map(&{&1.git_repository_id, ref_name(&1)})
-    |> Enum.reject(fn {repository_id, ref} -> is_nil(ref) or not GitHistory.known?(repository_id, sha) end)
-    |> Enum.uniq()
-    |> Enum.each(fn {repository_id, ref} ->
+    |> Enum.group_by(&{&1.git_repository_id, ref_name(&1)}, & &1.ran_at)
+    |> Enum.reject(fn {{repository_id, ref}, _ran_at} -> is_nil(ref) or not GitHistory.known?(repository_id, sha) end)
+    |> Enum.each(fn {{repository_id, ref}, ran_at} ->
       parent = if ref == project.default_branch, do: nil, else: project.default_branch
-      GitHistory.advance_ref(repository_id, ref, parent, sha, only_forward: true)
+      observed_at = Enum.max(ran_at, NaiveDateTime)
+      GitHistory.advance_ref(repository_id, ref, parent, sha, only_forward: true, observed_at: observed_at)
     end)
   end
 

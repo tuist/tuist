@@ -296,6 +296,110 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.ref(repository, "develop").fork_position == 6
     end
 
+    test "never move back on a late report of a commit a force-push rewrote", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("x1", ["d"], 10), commit("y1", ["d"], 11)])
+      before = ~U[2026-09-01 10:00:00.000000Z]
+      later = ~U[2026-09-01 11:00:00.000000Z]
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "feature", "main", "x1", only_forward: true, observed_at: before)
+      GitHistory.advance_ref(repository, "feature", "main", "y1", only_forward: true, observed_at: later)
+      assert owned(repository, "feature") == [{"y1", 5}]
+
+      # x1 is no ancestor of y1, so only when it was seen can tell the report is late.
+      GitHistory.advance_ref(repository, "feature", "main", "x1", only_forward: true, observed_at: before)
+      assert CoverageFixtures.branch_head(repository, "feature") == "y1"
+      assert owned(repository, "feature") == [{"y1", 5}]
+      assert GitHistory.ref(repository, "feature").head_observed_at == later
+
+      # A newer observation moves it, as a force-push back to x1 would.
+      GitHistory.advance_ref(repository, "feature", "main", "x1",
+        only_forward: true,
+        observed_at: ~U[2026-09-01 12:00:00Z]
+      )
+
+      assert owned(repository, "feature") == [{"x1", 5}]
+    end
+
+    test "take a branch head the client saw no later than now", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_branch_head(repository, "main", "c", "main", DateTime.add(DateTime.utc_now(), 3600))
+
+      assert DateTime.compare(GitHistory.ref(repository, "main").head_observed_at, DateTime.utc_now()) != :gt
+
+      GitHistory.record_branch_head(repository, "main", "d", "main")
+      assert CoverageFixtures.branch_head(repository, "main") == "d"
+    end
+
+    test "rebuild from the parent edges and the heads to what advancing incrementally left", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+
+      GitHistory.record_commits(repository, "sha1", [
+        commit("p1", ["b"], 10),
+        commit("p2", ["p1"], 11),
+        commit("r1", ["d"], 12),
+        commit("r2", ["r1"], 13),
+        commit("f1", ["d"], 14),
+        commit("f2", ["f1"], 15),
+        commit("x1", ["f2"], 16),
+        commit("y1", ["f2"], 17),
+        commit("g1", ["f2"], 18)
+      ])
+
+      measure(project, repository, ["c", "d", "p1", "r2", "f2", "y1", "g1"])
+
+      # A fork, a rebase, a fast-forward of the default branch, a force-push,
+      # and a branch off the fast-forwarded commits.
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "pull/1", "main", "p2")
+      GitHistory.advance_ref(repository, "pull/1", "main", "r2")
+      GitHistory.advance_ref(repository, "develop", "main", "x1")
+      GitHistory.advance_ref(repository, "main", nil, "f2")
+      GitHistory.advance_ref(repository, "develop", "main", "y1")
+      GitHistory.advance_ref(repository, "pull/2", "main", "g1")
+
+      snapshot = fn ->
+        places =
+          Repo.all(
+            from(c in GitHistory.Commit,
+              left_join: r in GitHistory.Ref,
+              on: r.id == c.ref_id,
+              where: c.repository_id == ^repository,
+              order_by: c.sha,
+              select: {c.sha, r.name, c.position}
+            )
+          )
+
+        forks =
+          Repo.all(
+            from(r in GitHistory.Ref,
+              where: r.repository_id == ^repository,
+              order_by: r.name,
+              select: {r.name, r.fork_position}
+            )
+          )
+
+        {places, forks, coverage_places(project)}
+      end
+
+      incremental = snapshot.()
+
+      # Scramble the index and the coverage copies, then rebuild.
+      Repo.update_all(from(c in GitHistory.Commit, where: c.repository_id == ^repository),
+        set: [ref_id: nil, position: nil]
+      )
+
+      Repo.update_all(from(r in GitHistory.Ref, where: r.repository_id == ^repository), set: [fork_position: 99])
+      Repo.update_all(from(c in CoverageCommit, where: c.repository_id == ^repository), set: [ref_id: nil, position: 7])
+
+      assert %{refs: 4, commits: 10} = GitHistory.rebuild_refs(repository)
+      assert snapshot.() == incremental
+    end
+
     test "take a fast-forwarded pull request's commits onto the default branch", %{repository: repository} do
       seed(repository)
       GitHistory.record_commits(repository, "sha1", [commit("p1", ["d"], 10), commit("p2", ["p1"], 11)])

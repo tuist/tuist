@@ -137,6 +137,35 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
            |> json_response(:ok) == %{"missing" => [sha]}
   end
 
+  test "moves a branch only on a head seen no earlier than the one it holds", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    commits = [
+      %{sha: @a, parents: [], committed_at: "2026-09-01T00:00:00Z"},
+      %{sha: @b, parents: [@a], committed_at: "2026-09-01T00:01:00Z"},
+      %{sha: @c, parents: [@a], committed_at: "2026-09-01T00:02:00Z"}
+    ]
+
+    upload = fn sha, observed_at ->
+      post(conn, git_history_url(user, project, "/commits"), %{
+        repository_url: @remote,
+        object_format: "sha1",
+        commits: commits,
+        branch_heads: [%{branch: "feature", sha: sha, observed_at: observed_at}]
+      })
+    end
+
+    assert @b |> upload.("2026-09-01T10:00:00Z") |> response(:no_content)
+    assert @c |> upload.("2026-09-01T11:00:00Z") |> response(:no_content)
+    # b was force-pushed away; a late upload of what a job saw before is ignored.
+    assert @b |> upload.("2026-09-01T10:00:00Z") |> response(:no_content)
+
+    repository = GitHistory.repository_id(user.account.id, "git@github.com:acme/app.git")
+    assert GitHistory.ref(repository, "feature").head_sha == @c
+  end
+
   test "rejects more parents or branch heads than a commit upload may carry", %{
     conn: conn,
     user: user,

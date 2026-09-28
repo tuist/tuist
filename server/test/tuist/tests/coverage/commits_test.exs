@@ -403,6 +403,45 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     end
   end
 
+  describe "folding a commit" do
+    test "moves its branch only on runs newer than what last moved it, so a refold never moves it back", %{
+      account: account,
+      project: project
+    } do
+      repository_id =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("d", [], 0),
+          CoverageFixtures.commit("x1", ["d"], 1),
+          CoverageFixtures.commit("y1", ["d"], 2)
+        ])
+
+      now = NaiveDateTime.utc_now()
+      file = [CoverageFixtures.file("Sources/A.swift", [1, 0])]
+
+      CoverageFixtures.run_with_coverage(project, account, file, %{
+        git_commit_sha: "x1",
+        git_branch: "feature",
+        ran_at: NaiveDateTime.add(now, -7200)
+      })
+
+      assert CoverageFixtures.branch_head(repository_id, "feature") == "x1"
+
+      # The branch was force-pushed to y1, whose run came later.
+      CoverageFixtures.run_with_coverage(project, account, file, %{
+        git_commit_sha: "y1",
+        git_branch: "feature",
+        ran_at: NaiveDateTime.add(now, -3600)
+      })
+
+      assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
+
+      # A refold of x1 (after the excluded paths changed, say) is observed at
+      # x1's own run, older than y1's.
+      Commits.recompute(project, "x1")
+      assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
+    end
+  end
+
   describe "nearest_measured_ancestor/3" do
     # main: a → b → c → m → d, where m merges the feature branch b → f1 → f2;
     # x is a commit on top of d that no ref placed yet.

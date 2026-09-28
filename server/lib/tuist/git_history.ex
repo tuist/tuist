@@ -23,6 +23,14 @@ defmodule Tuist.GitHistory do
   looking for one of a set of commits stop descending below the lowest of
   them.
 
+  The parent edges are the source of truth: merge bases, ancestry and every
+  walk read them. A ref's `ref_id`/`position` on its commits is an index of
+  the first-parent tree, derived from the edges and the refs' heads, that
+  makes a branch's history and a commit's nearest measured ancestor range
+  queries; `rebuild_refs/1` recomputes it from the edges alone. Commit
+  coverage keeps copies of a commit's place so trends outlive the graph's
+  window; past it those copies are a snapshot that nothing can rebuild.
+
   A commit's file listing (`Tuist.GitHistory.CommitFile`) is uploaded once per
   commit by the first clean checkout that measured it, and answers what files
   exist at the commit, which of them the project tracks
@@ -305,14 +313,21 @@ defmodule Tuist.GitHistory do
   first-parent tree, any other branch as forking from it. The head is the
   checkout's commit, and a re-run of an older commit's job checks out that
   commit, so a head the branch already holds leaves it where it is.
+  `observed_at` is when the client saw the head (now when it does not say),
+  never later than now: a client clock running ahead would otherwise hold
+  the ref against every honest observation.
   """
-  def record_branch_head(repository_id, branch, sha, default_branch)
+  def record_branch_head(repository_id, branch, sha, default_branch, observed_at \\ nil)
+
+  def record_branch_head(repository_id, branch, sha, default_branch, observed_at)
       when is_binary(branch) and branch != "" and is_binary(sha) and sha != "" do
     parent = if branch == default_branch or default_branch in [nil, ""], do: nil, else: default_branch
-    advance_ref(repository_id, branch, parent, sha, only_forward: true)
+    now = DateTime.utc_now()
+    observed_at = if observed_at && DateTime.before?(observed_at, now), do: observed_at, else: now
+    advance_ref(repository_id, branch, parent, sha, only_forward: true, observed_at: observed_at)
   end
 
-  def record_branch_head(_repository_id, _branch, _sha, _default_branch), do: :ok
+  def record_branch_head(_repository_id, _branch, _sha, _default_branch, _observed_at), do: :ok
 
   @doc "The ref of a repository by name (a branch, or `pull/<number>`), or nil."
   def ref(repository_id, name), do: Repo.one(from(r in Ref, where: r.repository_id == ^repository_id and r.name == ^name))
@@ -405,27 +420,40 @@ defmodule Tuist.GitHistory do
   `parent` names the ref this one forks from (nil for the default branch).
   With `only_forward: true` a head the ref already owns, or an ancestor of
   its current head, leaves it as it is: a late report of an older commit
-  does not move the ref back, even once another ref took that commit over. The walk is
-  bounded by `:max_depth` (the default `window_commits`). A head the graph
-  does not know yet is recorded without positions.
+  does not move the ref back, even once another ref took that commit over.
+
+  `:observed_at` is when the head was seen on the ref: a run's time for a
+  fold, the client's for a branch head. An observation older than the one
+  that last moved the ref leaves it as it is, so neither a late report of a
+  commit a force-push rewrote (which is no ancestor of the new head) nor a
+  refold of an old commit moves the ref back. The walk is bounded by
+  `:max_depth` (the default `window_commits`). A head the graph does not
+  know yet is recorded without positions.
   """
   def advance_ref(repository_id, name, parent, head_sha, opts \\ []) do
+    observed_at = opts |> Keyword.get(:observed_at) |> utc_usec()
+
     {:ok, :ok} =
       Repo.transaction(
         fn ->
-          Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
+          lock_refs(repository_id)
           parent_ref = parent && upsert_ref(repository_id, parent, nil)
           ref = upsert_ref(repository_id, name, parent_ref && parent_ref.id)
 
           cond do
+            stale?(ref, observed_at) ->
+              :ok
+
             not known?(repository_id, head_sha) ->
               Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [head_sha: head_sha, updated_at: now()])
+              observe(ref, observed_at)
 
             Keyword.get(opts, :only_forward, false) and behind?(repository_id, ref, head_sha) ->
               :ok
 
             true ->
               touched = advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
+              observe(ref, observed_at)
               sync_coverage(repository_id, touched)
           end
 
@@ -436,6 +464,81 @@ defmodule Tuist.GitHistory do
 
     :ok
   end
+
+  @doc """
+  Recomputes every ref's commits and positions from the parent edges and the
+  refs' heads, the index `advance_ref/5` keeps as heads move: every position
+  is released and each ref is advanced again to its head through the same
+  path, the default branch first (it takes over what its first parents
+  reach) and then the other refs in the order they were created, which is
+  the order they first claimed commits in. The copies commit coverage keeps
+  follow. Returns how many refs were placed and how many commits they own.
+
+  For repairing the index after a bug or a change to how refs are placed,
+  in a release with `bin/tuist eval "Tuist.GitHistory.rebuild_refs(<repository id>)"`.
+  """
+  def rebuild_refs(repository_id, opts \\ []) do
+    {:ok, result} =
+      Repo.transaction(
+        fn ->
+          lock_refs(repository_id)
+
+          Repo.update_all(from(c in Commit, where: c.repository_id == ^repository_id and not is_nil(c.ref_id)),
+            set: [ref_id: nil, position: nil]
+          )
+
+          Repo.update_all(from(r in Ref, where: r.repository_id == ^repository_id), set: [fork_position: 0])
+
+          refs =
+            Repo.all(
+              from(r in Ref,
+                where: r.repository_id == ^repository_id and not is_nil(r.head_sha),
+                order_by: [asc: not is_nil(r.parent_ref_id), asc: r.id],
+                select: r.id
+              )
+            )
+
+          placed =
+            Enum.count(refs, fn ref_id ->
+              ref = get_ref(ref_id)
+
+              if known?(repository_id, ref.head_sha) do
+                advance(repository_id, ref, ref.head_sha, is_nil(ref.parent_ref_id), opts)
+                true
+              end
+            end)
+
+          sync_coverage(repository_id)
+
+          owned =
+            Repo.aggregate(from(c in Commit, where: c.repository_id == ^repository_id and not is_nil(c.ref_id)), :count)
+
+          %{refs: placed, commits: owned}
+        end,
+        timeout: Keyword.get(opts, :timeout, to_timeout(minute: 10))
+      )
+
+    result
+  end
+
+  defp lock_refs(repository_id),
+    do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
+
+  defp stale?(%Ref{head_observed_at: %DateTime{} = current}, %DateTime{} = observed_at),
+    do: DateTime.before?(observed_at, current)
+
+  defp stale?(_ref, _observed_at), do: false
+
+  defp observe(_ref, nil), do: :ok
+
+  defp observe(ref, observed_at),
+    do: Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [head_observed_at: observed_at])
+
+  defp utc_usec(nil), do: nil
+  defp utc_usec(%DateTime{} = at), do: at |> DateTime.shift_zone!("Etc/UTC") |> usec()
+  defp utc_usec(%NaiveDateTime{} = at), do: at |> DateTime.from_naive!("Etc/UTC") |> usec()
+
+  defp usec(%DateTime{microsecond: {value, _precision}} = at), do: %{at | microsecond: {value, 6}}
 
   # The ref already holds the commit, or had it in its history before
   # another ref took it over (a fast-forward of the default branch).
@@ -589,7 +692,20 @@ defmodule Tuist.GitHistory do
 
   # A commit's coverage keeps a copy of its place, so a branch's history
   # outlives the graph's window; it follows every move while the commit is in
-  # the graph. Only the commits an advance touched can have moved.
+  # the graph. Only the commits an advance touched can have moved; a rebuild
+  # may have moved any of them.
+  defp sync_coverage(repository_id) do
+    Repo.query!(
+      """
+      UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
+      FROM git_commits c
+      WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+        AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
+      """,
+      [repository_id]
+    )
+  end
+
   defp sync_coverage(_repository_id, []), do: :ok
 
   defp sync_coverage(repository_id, shas) do

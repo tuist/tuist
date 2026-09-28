@@ -5,7 +5,8 @@ defmodule Tuist.GitHistory.Ref do
   other ref forks from its parent at `fork_position` and owns the commits it
   added above it (`Tuist.GitHistory.Commit`'s `ref_id` and `position`). A pull
   request is named `pull/<number>`, since its branch name is reused.
-  `head_sha` is the newest commit the ref was advanced to.
+  `head_sha` is the newest commit the ref was advanced to, and
+  `head_observed_at` when the observation that moved it there was made.
   """
   use Ecto.Schema
 
@@ -15,6 +16,7 @@ defmodule Tuist.GitHistory.Ref do
     field :parent_ref_id, :integer
     field :fork_position, :integer, default: 0
     field :head_sha, :string
+    field :head_observed_at, :utc_datetime_usec
     timestamps(type: :utc_datetime)
   end
 end
