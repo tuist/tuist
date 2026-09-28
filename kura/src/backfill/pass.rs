@@ -561,11 +561,16 @@ async fn fetch_listing_page(
             url.push_str(&url_encode(after));
         }
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill entries request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill entries request failed: {error:?}")))?;
         match classify_backfill_response(response, "backfill entries")
             .await
             .map_err(PassAbort::Hard)?
@@ -840,8 +845,8 @@ async fn send_bodies_request(
             context,
             context
                 .state
-                .client()
-                .post(&url)
+                .peer_request(reqwest::Method::POST, context.peer, &url)
+                .map_err(PassAbort::Hard)?
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(body.clone())
                 .send(),
@@ -1364,11 +1369,16 @@ async fn fetch_individual(context: &PassContext<'_>, key: &ClaimKey) -> Result<(
     let mut attempt = 0_u32;
     loop {
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill artifact request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill artifact request failed: {error:?}")))?;
         // Unlike the listing/bodies routes, a 404 here is the record being
         // gone, not a pre-AB peer: the pass only reaches this endpoint after
         // the same peer served backfill listings.

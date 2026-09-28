@@ -25,6 +25,8 @@ struct PeerStatusPayload {
     /// serving.
     #[serde(default)]
     traffic_state: Option<String>,
+    #[serde(default)]
+    topology: Option<crate::peer_topology::PeerTopology>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -100,49 +102,57 @@ async fn membership_task_loop(state: SharedState) {
                 DiscoveryScope::Global => format!("{}/_internal/status?scope=global", peer.url),
             };
             let label = peer.label.clone();
+            let app = &state;
             async move {
-                let result = match client {
-                    Ok(client) => client
+                let result = async {
+                    let response = client?
                         .get(url)
+                        .timeout(Duration::from_secs(5))
                         .send()
                         .await
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error),
-                };
+                        .map_err(|e| e.to_string())?
+                        .error_for_status()
+                        .map_err(|e| e.to_string())?;
+                    let payload = response
+                        .json::<PeerStatusPayload>()
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let healthy = if payload.tenant_id == app.config.tenant_id {
+                        probe_private_path(app, &payload).await
+                    } else {
+                        false
+                    };
+                    Ok::<_, String>((payload, healthy))
+                }
+                .await;
                 (label, result)
             }
         }))
         .await;
         for (peer, result) in lookups {
             match result {
-                Ok(response) if response.status().is_success() => {
-                    match response.json::<PeerStatusPayload>().await {
-                        Ok(payload) => {
-                            peer_status_successes += 1;
-                            if payload.tenant_id != state.config.tenant_id
-                                || is_self_or_own_gateway(
-                                    &payload.node_url,
-                                    &state.config.node_url,
-                                    state.config.peer_gateway_url.as_deref(),
-                                )
-                            {
-                                continue;
-                            }
-                            members.insert(payload.region.clone());
-                            let traffic_state = payload.traffic_state.as_deref();
-                            views.push(PeerView {
-                                url: payload.node_url.clone(),
-                                region: payload.region.clone(),
-                                serving: traffic_state.is_none_or(|s| s == "serving"),
-                                draining: traffic_state == Some("draining"),
-                            });
-                            peer_nodes.insert(payload.node_url, payload.region);
-                        }
-                        Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
+                Ok((payload, private_healthy)) => {
+                    if payload.tenant_id != state.config.tenant_id {
+                        continue;
                     }
-                }
-                Ok(response) => {
-                    warn!("peer status check failed for {peer}: {}", response.status())
+                    peer_status_successes += 1;
+                    if is_self_or_own_gateway(
+                        &payload.node_url,
+                        &state.config.node_url,
+                        state.config.peer_gateway_url.as_deref(),
+                    ) {
+                        continue;
+                    }
+                    members.insert(payload.region.clone());
+                    let traffic_state = payload.traffic_state.as_deref();
+                    views.push(PeerView {
+                        url: payload.node_url.clone(),
+                        region: payload.region.clone(),
+                        topology: payload.topology,
+                        serving: private_healthy && traffic_state.is_none_or(|s| s == "serving"),
+                        draining: !private_healthy || traffic_state == Some("draining"),
+                    });
+                    peer_nodes.insert(payload.node_url, payload.region);
                 }
                 Err(error) => warn!("peer status request failed for {peer}: {error}"),
             }
@@ -162,6 +172,44 @@ async fn membership_task_loop(state: SharedState) {
         state.maybe_mark_serving().await;
         sleep(state.membership_poll_interval().await).await;
     }
+}
+
+async fn probe_private_path(state: &SharedState, peer: &PeerStatusPayload) -> bool {
+    let own = state.config.peer_topology.as_ref();
+    let selected = crate::peer_topology::endpoint(own, peer.topology.as_ref(), &peer.node_url);
+    let private = match selected {
+        Ok(url) if url != peer.node_url => url,
+        Ok(_) => return true,
+        Err(error) => {
+            warn!(peer = %peer.node_url, %error, "peer private route unavailable");
+            return false;
+        }
+    };
+    let result = async {
+        let status = state
+            .client()
+            .get(format!(
+                "{}/_internal/status",
+                private.trim_end_matches('/')
+            ))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<PeerStatusPayload>()
+            .await?;
+        Ok::<bool, reqwest::Error>(
+            status.tenant_id == peer.tenant_id
+                && status.region == peer.region
+                && status.topology == peer.topology,
+        )
+    }
+    .await;
+    if !matches!(result, Ok(true)) {
+        warn!(peer = %peer.node_url, private, "peer private probe failed; public replication fallback is disabled");
+        return false;
+    }
+    true
 }
 
 pub(crate) async fn read_bounded_body(

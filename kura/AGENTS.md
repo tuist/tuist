@@ -30,6 +30,12 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Mesh and usage HTTP timeout policy: `src/control_plane_http.rs`, used by `src/mesh_heartbeat.rs` and `src/usage.rs` — 3 seconds for connection setup including DNS, within a 5-second total request deadline. `src/telemetry.rs` builds the OTLP span exporter's HTTP client from the same two budgets; that client must stay blocking, because the batch span processor drives exports on a thread with no Tokio reactor. Enrollment, registration, analytics, and authentication configure their clients separately. Keep the initial peer-view serving gate intact.
 - Peer TLS support: `src/peer_tls.rs`
+- Provider/domain-aware peer routing: `src/peer_topology.rs`. Private metadata is
+  a deployment attestation of the underlay, never inferred from a provider name.
+  Keep all pull body/listing/feed requests on `AppState::peer_request`, canonical
+  identities unchanged, and cross-provider/published replication coverage intact.
+  Rollout gates and unresolved provider setup are in
+  [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.

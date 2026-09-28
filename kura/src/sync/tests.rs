@@ -927,6 +927,7 @@ async fn the_ascending_listing_stops_at_the_replica_link_frontier() {
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            topology: None,
             url: sibling.to_owned(),
             region: "local".to_owned(),
             serving: true,
@@ -1054,6 +1055,7 @@ async fn status_advertises_the_membership_view_node_urls() {
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            topology: None,
             url: "http://sibling:7443".into(),
             region: "local".into(),
             serving: true,
@@ -1068,6 +1070,7 @@ async fn status_advertises_the_membership_view_node_urls() {
 async fn the_peer_serving_aggregate_follows_the_membership_view() {
     use crate::sync::roles::PeerView;
     let view = |index: usize| PeerView {
+        topology: None,
         url: format!("http://peer-{index}.kura.internal:7443"),
         region: "local".to_owned(),
         serving: true,
@@ -1119,6 +1122,7 @@ async fn a_sibling_that_predates_pull_settles_the_link_as_unsupported() {
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            topology: None,
             url: sibling.clone(),
             region: "local".to_owned(),
             serving: true,
@@ -1192,6 +1196,7 @@ async fn a_remote_gateway_that_predates_pull_settles_the_region_link_as_unsuppor
     context
         .state
         .apply_peer_views(vec![crate::sync::roles::PeerView {
+            topology: None,
             url: gateway.clone(),
             region: "eu-west".to_owned(),
             serving: true,

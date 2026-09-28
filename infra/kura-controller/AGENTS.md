@@ -27,6 +27,11 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Deployment Topology
 
+- Provider-private replication qualification and staged rollout:
+  [private-replication.md](private-replication.md). Runtime topology remains opt-in
+  until provider attachments, both underlay directions and fail-closed routing
+  are verified. Do not infer provider identity from a pool during migration.
+
 - Proposed public EU-West provider migration: [Dedibox to OVH plan](eu-west-ovh-migration.md).
   It retains the current pool selector and StorageClass during evacuation;
   vRack traffic enablement and pool renaming are separate changes.

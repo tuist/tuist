@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeerView {
     pub url: String,
+    pub topology: Option<crate::peer_topology::PeerTopology>,
     pub region: String,
     /// `serving` in the peer's traffic state.
     pub serving: bool,
@@ -46,6 +47,7 @@ pub struct Roles {
 
 pub struct RoleInputs<'a> {
     pub own_url: &'a str,
+    pub own_topology: Option<&'a crate::peer_topology::PeerTopology>,
     pub own_region: &'a str,
     pub own_serving: bool,
     pub own_draining: bool,
@@ -60,6 +62,7 @@ fn region_gateways(
     candidates: &[&PeerView],
     published: &[PublishedRole],
     region: &str,
+    prefer: Option<&crate::peer_topology::PeerTopology>,
 ) -> Vec<String> {
     let published_present: Vec<String> = published
         .iter()
@@ -77,7 +80,16 @@ fn region_gateways(
     };
     candidates
         .iter()
-        .min_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.url.cmp(&b.url)))
+        .min_by_key(|peer| {
+            let preferred = prefer.is_some_and(|own| {
+                peer.topology.as_ref().is_some_and(|remote| {
+                    own.same_provider(remote)
+                        && crate::peer_topology::endpoint(Some(own), Some(remote), &peer.url)
+                            .is_ok()
+                })
+            });
+            (rank(peer), !preferred, &peer.url)
+        })
         .map(|peer| vec![peer.url.clone()])
         .unwrap_or_default()
 }
@@ -96,6 +108,7 @@ pub fn derive_roles(inputs: &RoleInputs<'_>) -> Roles {
     };
 
     let own = PeerView {
+        topology: None,
         url: inputs.own_url.to_owned(),
         region: inputs.own_region.to_owned(),
         serving: inputs.own_serving,
@@ -114,6 +127,7 @@ pub fn derive_roles(inputs: &RoleInputs<'_>) -> Roles {
         &by_region[inputs.own_region],
         inputs.published,
         inputs.own_region,
+        None,
     );
     roles.own_gateway = own_gateways.iter().any(|url| url == inputs.own_url);
     if roles.own_gateway {
@@ -121,7 +135,7 @@ pub fn derive_roles(inputs: &RoleInputs<'_>) -> Roles {
             if *region == inputs.own_region {
                 continue;
             }
-            for url in region_gateways(candidates, inputs.published, region) {
+            for url in region_gateways(candidates, inputs.published, region, inputs.own_topology) {
                 roles.remote_gateways.push((url, (*region).to_owned()));
             }
         }
@@ -136,6 +150,7 @@ mod tests {
 
     fn peer(url: &str, region: &str, serving: bool, draining: bool) -> PeerView {
         PeerView {
+            topology: None,
             url: url.into(),
             region: region.into(),
             serving,
@@ -150,6 +165,7 @@ mod tests {
         published: &'a [PublishedRole],
     ) -> RoleInputs<'a> {
         RoleInputs {
+            own_topology: None,
             own_url,
             own_region,
             own_serving: true,
@@ -283,6 +299,73 @@ mod tests {
                 siblings: vec![],
                 remote_gateways: vec![],
             }
+        );
+    }
+
+    #[test]
+    fn provider_preference_preserves_siblings_origins_and_published_gateways() {
+        let own = crate::peer_topology::PeerTopology {
+            provider: "ovh".into(),
+            private_network: Some("verified-vrack".into()),
+            private_url: Some("https://private.example:7443".into()),
+        };
+        let mut preferred = peer("https://z.eu", "eu", true, false);
+        preferred.topology = Some(own.clone());
+        let mut peers = vec![
+            peer("https://a.eu", "eu", true, false),
+            preferred,
+            peer("https://a.ap", "ap", true, false),
+            peer("https://b.us", "us", true, false),
+        ];
+        let derive = |peers: &[PeerView], published: &[PublishedRole]| {
+            derive_roles(&RoleInputs {
+                own_topology: Some(&own),
+                ..inputs("https://a.us", "us", peers, published)
+            })
+        };
+        let roles = derive(&peers, &[]);
+        assert!(roles.own_gateway);
+        assert_eq!(roles.siblings, vec!["https://b.us"]);
+        assert_eq!(
+            roles.remote_gateways,
+            vec![
+                ("https://a.ap".into(), "ap".into()),
+                ("https://z.eu".into(), "eu".into())
+            ]
+        );
+        peers[1].serving = false;
+        peers[1].draining = true;
+        assert!(
+            derive(&peers, &[])
+                .remote_gateways
+                .contains(&("https://a.eu".into(), "eu".into())),
+            "failed private peer cannot displace healthy alternatives"
+        );
+        peers[1].serving = true;
+        peers[1].draining = false;
+        peers[1].topology.as_mut().unwrap().private_network = Some("another-vrack".into());
+        assert!(
+            derive(&peers, &[])
+                .remote_gateways
+                .contains(&("https://a.eu".into(), "eu".into())),
+            "unsupported topology gets no preference"
+        );
+        let published = [
+            PublishedRole {
+                url: "https://a.eu".into(),
+                region: "eu".into(),
+                gateway: true,
+            },
+            PublishedRole {
+                url: "https://z.eu".into(),
+                region: "eu".into(),
+                gateway: true,
+            },
+        ];
+        assert_eq!(
+            derive(&peers, &published).remote_gateways.len(),
+            3,
+            "published coverage is never reduced by preference"
         );
     }
 }

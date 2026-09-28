@@ -236,6 +236,7 @@ impl SyncCoordinator {
         let published = app.published_roles.load();
         let roles = derive_roles(&RoleInputs {
             own_url: &app.config.node_url,
+            own_topology: app.config.peer_topology.as_ref(),
             own_region: &app.config.region,
             own_serving: app.runtime.is_serving(),
             own_draining: app.runtime.is_draining(),

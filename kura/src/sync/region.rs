@@ -46,6 +46,18 @@ async fn run_pass(
     source: PassSource,
     window: BackfillWindow,
 ) -> BackfillPassOutcome {
+    if !app.prefers_peer(peer)
+        && app
+            .peer_views
+            .load()
+            .iter()
+            .any(|view| app.prefers_peer(&view.url))
+    {
+        tokio::select! {
+            _ = cancel.cancelled() => {}
+            _ = tokio::time::sleep(Duration::from_millis(200)) => {}
+        }
+    }
     let guard = app.backfill_claims.register_pass();
     run_backfill_pass_with_tuning(app, peer, window, guard, cancel, tuning(app, source)).await
 }
@@ -73,8 +85,7 @@ async fn request_page(
         url.push_str(&format!("&wait={}", app.config.sync_long_poll_secs));
     }
     let response = app
-        .client()
-        .get(&url)
+        .peer_request(reqwest::Method::GET, peer, &url)?
         .send()
         .await
         .map_err(|error| format!("region listing request failed: {error}"))?;

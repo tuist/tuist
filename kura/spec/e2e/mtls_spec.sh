@@ -17,15 +17,15 @@ Describe 'peer mTLS'
     generate_peer_tls_material
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    compose_up || return 1
+    compose_up kura-us kura-eu kura-ap || return 1
 
     resolve_http_node KURA_US kura-us
     resolve_http_node KURA_EU kura-eu
     resolve_http_node KURA_AP kura-ap
 
-    wait_for_http "${KURA_US_URL}/up"
-    wait_for_http "${KURA_EU_URL}/up"
-    wait_for_http "${KURA_AP_URL}/up"
+    wait_for_node_ready "${KURA_US_URL}"
+    wait_for_node_ready "${KURA_EU_URL}"
+    wait_for_node_ready "${KURA_AP_URL}"
     capture_into us_up wait_for_contains "${KURA_US_URL}/status/cluster" '"ring_members":3' || return 1
     capture_into eu_up wait_for_contains "${KURA_EU_URL}/status/cluster" '"ring_members":3' || return 1
     capture_into ap_up wait_for_contains "${KURA_AP_URL}/status/cluster" '"ring_members":3' || return 1
@@ -57,6 +57,8 @@ Describe 'peer mTLS'
       docker exec "${kura_us_container}" sh -lc \
       "curl --fail --silent --show-error --cacert /etc/kura/mtls/ca.pem --cert /etc/kura/mtls/peer.pem --key /etc/kura/mtls/peer.key https://kura-eu.kura.internal:7443/_internal/status" || return 1
     The variable peer_status_output should include '"node_url":"https://kura-eu.kura.internal:7443"'
+    The variable peer_status_output should include '"provider":"ovh"'
+    The variable peer_status_output should include '"private_url":"https://private-eu.kura.internal:7443"'
 
     artifact_status="$(status_only -X POST \
       "${KURA_US_URL}/api/cache/cas/mtls-artifact?tenant_id=acme&namespace_id=ios" \
@@ -69,5 +71,26 @@ Describe 'peer mTLS'
       "${KURA_EU_URL}/api/cache/cas/mtls-artifact?tenant_id=acme&namespace_id=ios" \
       'mtls-binary' || return 1
     The variable replicated_artifact should eq 'mtls-binary'
+  End
+
+  all_origins_replicate() {
+    local origin=0 source target body
+    for source in "${KURA_US_URL}" "${KURA_EU_URL}" "${KURA_AP_URL}"; do
+      body="topology-origin-${origin}"
+      curl -fsS -X POST \
+        "${source}/api/cache/cas/${body}?tenant_id=acme&namespace_id=ios" \
+        -H 'content-type: application/octet-stream' --data-binary "$body" || return 1
+      for target in "${KURA_US_URL}" "${KURA_EU_URL}" "${KURA_AP_URL}"; do
+        wait_for_contains "${target}/api/cache/cas/${body}?tenant_id=acme&namespace_id=ios" "$body" >/dev/null || return 1
+      done
+      origin=$((origin + 1))
+    done
+    printf 'replicated'
+  }
+
+  It 'retains all origins and both directions across providers with private peers preferred'
+    When call all_origins_replicate
+    The status should be success
+    The output should eq replicated
   End
 End
