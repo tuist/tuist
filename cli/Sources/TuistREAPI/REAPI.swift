@@ -98,7 +98,8 @@ public enum REAPICall: String, Sendable {
             return "\(rawValue) is not served by the cache endpoint (\(error.message)), "
                 + "so if a proxy or ingress sits in front of the cache, it must route \(service) to the cache's gRPC API"
         }
-        return "\(rawValue) failed with \(error.code): \(error.message)"
+        let cause = error.cause.map { " (\(REAPI.describe($0)))" } ?? ""
+        return "\(rawValue) failed with \(error.code): \(error.message)\(cause)"
     }
 }
 

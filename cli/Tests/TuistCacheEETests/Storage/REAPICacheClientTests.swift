@@ -328,6 +328,19 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test func failureDescriptionKeepsTheConnectionCause() {
+        let error = RPCError(
+            code: .unavailable,
+            message: "Could not establish a connection",
+            cause: REAPICacheError.proxyConnectionFailed
+        )
+
+        #expect(REAPICall.getCapabilities.describeFailure(error) == """
+        /build.bazel.remote.execution.v2.Capabilities/GetCapabilities failed with unavailable: \
+        Could not establish a connection (The proxy could not establish a connection to the REAPI cache.)
+        """)
+    }
+
     @Test(.inTemporaryDirectory)
     func uploadReportsTheFailureThatEndedTheRetriesNotAnEarlierRejection() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
