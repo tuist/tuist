@@ -100,12 +100,10 @@ async fn request_page(
     Ok(page)
 }
 
-/// Whether a forward page read to the end of what the remote gateway could
-/// list: a page short of the limit, the caught-up long-poll answer included.
-/// A full page means more is waiting. (A page the source cut short on its
-/// scan cap over foreign rows also reads as the end; the next page corrects.)
-fn reached_the_end(page: &BackfillEntriesPage) -> bool {
-    page.entries.len() < crate::constants::MAX_PEER_PAGE_ITEMS
+/// Replication lag in seconds of origin version time: how far the newest
+/// version the remote gateway lists sits above the newest one applied here.
+fn lag_seconds(newest_version_ms: u64, applied_through_ms: u64) -> u64 {
+    newest_version_ms.saturating_sub(applied_through_ms) / 1000
 }
 
 /// The watermark to read from: the persisted one, else the highest legacy
@@ -135,7 +133,7 @@ async fn backward_pass(
     region: &str,
     cancel: &CancellationToken,
     status: &LinkStatusCell,
-) -> Result<(), String> {
+) -> Result<Option<u64>, String> {
     status.update(|status| status.phase = LinkPhase::Bootstrapping);
     let started = Instant::now();
     let probe = request_page(app, peer, region, 0, None, false).await?;
@@ -145,6 +143,10 @@ async fn backward_pass(
         app.metrics.set_peer_clock_skew(peer, skew / 1000);
     }
     let watermark = seed_watermark(app, region)?;
+    if let (Some(newest), Some(watermark)) = (probe.newest_version_ms, watermark) {
+        app.metrics
+            .set_region_sync_lag(region, lag_seconds(newest, watermark));
+    }
     let buffered =
         watermark.map(|watermark| watermark.saturating_sub(app.config.sync_pass_start_buffer_ms));
     let window = compute_window(
@@ -182,7 +184,9 @@ async fn backward_pass(
             )
             .await?;
     }
-    Ok(())
+    // The pass applied everything the peer listed when it started; the
+    // watermark sits a buffer below that, which is not lag.
+    Ok(peer_now)
 }
 
 pub async fn run(
@@ -193,25 +197,21 @@ pub async fn run(
     status: Arc<LinkStatusCell>,
     pass_failures: Arc<AtomicU32>,
 ) {
-    loop {
-        // The backward pass walks the remote listing from the top, so on
-        // success everything listable when it started has been applied.
-        let attempt_started = Instant::now();
+    let covered_through_ms = loop {
         let outcome = tokio::select! {
             biased;
             _ = cancel.cancelled() => return,
             outcome = backward_pass(&app, &peer, &region, &cancel, &status) => outcome,
         };
         match outcome {
-            Ok(()) => {
+            Ok(covered_through_ms) => {
                 pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
                     status.unsupported = false;
                     status.last_success = Some(Instant::now());
-                    status.caught_up_at = Some(attempt_started);
                 });
-                break;
+                break covered_through_ms.unwrap_or_default();
             }
             Err(error) => {
                 if error == "cancelled" {
@@ -257,7 +257,7 @@ pub async fn run(
                 }
             }
         }
-    }
+    };
 
     status.update(|status| status.phase = LinkPhase::Forward);
     let mut after: Option<String> = None;
@@ -321,7 +321,6 @@ pub async fn run(
             }
         };
         failures = 0;
-        let received = Instant::now();
         status.update(|status| {
             status.unsupported = false;
             status.phase = LinkPhase::Forward;
@@ -376,8 +375,13 @@ pub async fn run(
                 );
             }
         }
-        if reached_the_end(&page) {
-            status.update(|status| status.caught_up_at = Some(received));
+        if page.entries.is_empty() && page.next_after.is_none() {
+            app.metrics.set_region_sync_lag(&region, 0);
+        } else if let Some(newest) = page.newest_version_ms {
+            let watermark = app.store.sync_watermark(&region).ok().flatten();
+            let applied = watermark.unwrap_or_default().max(covered_through_ms);
+            app.metrics
+                .set_region_sync_lag(&region, lag_seconds(newest, applied));
         }
         // The page cursor only moves when the peer scanned something; a
         // caught-up long-poll answers without one and we keep ours.
@@ -390,28 +394,11 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::MAX_PEER_PAGE_ITEMS;
-    use crate::http::BackfillEntry;
-
-    fn page(entries: usize) -> BackfillEntriesPage {
-        BackfillEntriesPage {
-            entries: (0..entries)
-                .map(|index| BackfillEntry {
-                    record_kind: "segment".to_owned(),
-                    record_id: format!("r{index}"),
-                    version_ms: index as u64,
-                    size: Some(1),
-                })
-                .collect(),
-            next_after: (entries > 0).then(|| "cursor".to_owned()),
-            now: Some(1),
-        }
-    }
 
     #[test]
-    fn only_a_full_page_leaves_records_waiting() {
-        assert!(reached_the_end(&page(0)));
-        assert!(reached_the_end(&page(MAX_PEER_PAGE_ITEMS - 1)));
-        assert!(!reached_the_end(&page(MAX_PEER_PAGE_ITEMS)));
+    fn lag_is_zero_at_or_past_the_newest_version() {
+        assert_eq!(lag_seconds(10_000, 10_000), 0);
+        assert_eq!(lag_seconds(10_000, 20_000), 0);
+        assert_eq!(lag_seconds(310_000, 10_000), 300);
     }
 }

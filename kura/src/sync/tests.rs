@@ -1231,11 +1231,95 @@ fn gauge_value(rendered: &str, name: &str, region: &str) -> Option<i64> {
         .map(|value| value.trim().parse().expect("gauge value"))
 }
 
-// The region link's caught-up age: absent while its first pass is held,
-// near zero once it has read to the end of the remote listing, and still near
-// zero while the remote region stays idle and the watermark keeps ageing.
+async fn apply_with_origin(store: &Store, key: &str, version_ms: u64, origin: &str) {
+    store
+        .apply_replicated_inline_artifact_from_bytes_with(
+            ApplyProvenance {
+                origin_region: Some(origin),
+                content_sha256: None,
+                sync_feed_row: true,
+            },
+            ArtifactProducer::Xcode,
+            "ios",
+            key,
+            "application/octet-stream",
+            b"v",
+            version_ms,
+            None,
+            None,
+        )
+        .await
+        .expect("apply");
+}
+
+// D-37: the newest listed version follows commits of this region's records
+// only, is capped at the serving bound, and is answered for this region's
+// reads alone.
+#[tokio::test]
+async fn newest_listed_version_follows_own_origin_commits() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    apply_with_origin(store, "own", base + 10, "local").await;
+    apply_with_origin(store, "foreign", base + 20, "eu").await;
+    assert_eq!(
+        store
+            .newest_listed_version("local", now_ms())
+            .expect("read"),
+        Some(base + 10),
+        "a record another region originated is not listed to its readers"
+    );
+    assert_eq!(
+        store
+            .newest_listed_version("local", base + 5)
+            .expect("read"),
+        Some(base + 5),
+        "never past what the read may list"
+    );
+    assert_eq!(
+        store.newest_listed_version("eu", now_ms()).expect("read"),
+        None,
+        "only this node's own region is tracked"
+    );
+    write_inline(store, "client", b"v").await;
+    assert!(
+        store
+            .newest_listed_version("local", now_ms() + 1_000)
+            .expect("read")
+            .is_some_and(|newest| newest > base + 10),
+        "a client write counts once it commits"
+    );
+}
+
+// After a restart the value is seeded from the newest listable index row,
+// stepping over rows another region originated.
+#[tokio::test]
+async fn newest_listed_version_seeds_from_the_index() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    store
+        .insert_backfill_index_row_for_testing(
+            base + 10,
+            BackfillRecordKind::NamespaceTombstone,
+            "doomed",
+            None,
+        )
+        .expect("index row");
+    apply_with_origin(store, "foreign", base + 20, "eu").await;
+    assert_eq!(
+        store
+            .newest_listed_version("local", now_ms())
+            .expect("read"),
+        Some(base + 10)
+    );
+}
+
+// The region link reports lag in origin version time: the gap it has to
+// close while its first pass is held, and zero once caught up even though
+// the remote region has gone quiet and the watermark keeps ageing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_region_link_reports_caught_up_age_not_watermark_age() {
+async fn the_region_link_reports_lag_not_watermark_age() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind");
@@ -1249,26 +1333,7 @@ async fn the_region_link_reports_caught_up_age_not_watermark_age() {
     .await;
     let base = now_ms() - 600_000;
     for (key, offset) in [("one", 10_000), ("two", 20_000), ("three", 300_000)] {
-        source
-            .state
-            .store
-            .apply_replicated_inline_artifact_from_bytes_with(
-                ApplyProvenance {
-                    origin_region: Some("eu-west"),
-                    content_sha256: None,
-                    sync_feed_row: true,
-                },
-                ArtifactProducer::Xcode,
-                "ios",
-                key,
-                "application/octet-stream",
-                b"v",
-                base + offset,
-                None,
-                None,
-            )
-            .await
-            .expect("apply");
+        apply_with_origin(&source.state.store, key, base + offset, "eu-west").await;
     }
     source
         .state
@@ -1307,46 +1372,39 @@ async fn the_region_link_reports_caught_up_age_not_watermark_age() {
             serving: true,
             draining: false,
         }]);
+    puller.state.sync.evaluate(&puller.state);
     let gauge = |name: &str| {
         puller.state.sync.evaluate(&puller.state);
         gauge_value(&puller.state.metrics.render(), name, "eu-west")
     };
-    let caught_up_age = || gauge("kura_region_sync_caught_up_age_seconds");
-    puller.state.sync.evaluate(&puller.state);
+    let lag = || gauge("kura_region_sync_lag_seconds");
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
-    while !puller
-        .state
-        .sync
-        .link_statuses()
-        .iter()
-        .any(|link| link.peer == gateway_url)
-    {
-        assert!(tokio::time::Instant::now() < deadline, "no region link");
+    while lag().is_none() {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the link never reported its lag"
+        );
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(
-        caught_up_age(),
-        None,
-        "held at the bodies fetch, the link has not read to the end yet"
+        lag(),
+        Some(300),
+        "held at its first bodies fetch, the link is as far behind as the newest record is above its watermark"
     );
 
     open.send(true).expect("open the gate");
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
-    while caught_up_age().is_none() {
+    while lag() != Some(0) {
         assert!(
             tokio::time::Instant::now() < deadline,
-            "the link never reported reaching the end"
+            "the link never reported itself caught up: {:?}",
+            lag()
         );
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     tokio::time::sleep(Duration::from_secs(3)).await;
-    assert!(
-        caught_up_age().is_some_and(|age| age <= 1),
-        "idle long-polls keep reaching the end: {:?}",
-        caught_up_age()
-    );
+    assert_eq!(lag(), Some(0), "idle long-polls stay caught up");
     assert!(
         gauge("kura_region_watermark_age_seconds").is_some_and(|age| age >= 290),
         "while the watermark ages with the idle source"

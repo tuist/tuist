@@ -117,9 +117,6 @@ pub struct LinkStatus {
     /// was spent (ready-but-cold, as the backfill cycle already allows).
     pub settled: bool,
     pub last_success: Option<Instant>,
-    /// Region links: when the link last read to the end of the remote
-    /// gateway's listing, so everything listable then has been applied.
-    pub caught_up_at: Option<Instant>,
     /// Replica links: rows between our cursor and the sibling's head.
     pub lag_entries: u64,
     /// Replica links: how far this link lets the serving listing go (D-24).
@@ -320,12 +317,6 @@ impl SyncCoordinator {
                 .map_or(u64::MAX / 2, |at| at.elapsed().as_secs());
             app.metrics
                 .set_region_sync_last_success_age(&status.region, age);
-            if let Some(caught_up_at) = status.caught_up_at {
-                app.metrics.set_region_sync_caught_up_age(
-                    &status.region,
-                    caught_up_at.elapsed().as_secs(),
-                );
-            }
             if let Ok(Some(watermark)) = app.store.sync_watermark(&status.region) {
                 app.metrics.set_region_watermark_age(
                     &status.region,
@@ -528,7 +519,6 @@ fn spawn_link(
         phase: LinkPhase::Bootstrapping,
         settled: false,
         last_success: None,
-        caught_up_at: None,
         lag_entries: 0,
         frontier: LinkFrontier::Pending,
         unsupported: false,

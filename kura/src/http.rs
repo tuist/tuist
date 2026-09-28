@@ -575,6 +575,11 @@ pub struct BackfillEntriesPage {
     /// absent from an older peer's page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub now: Option<u64>,
+    /// Ascending reads of the serving node's own region: the newest version
+    /// the same read could list, so the requester can tell how far behind
+    /// it is (D-37). Additive; absent from an older peer's page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_version_ms: Option<u64>,
 }
 
 /// One backfill index tuple on the wire. `record_kind` is a
@@ -604,6 +609,7 @@ impl From<BackfillIndexPage> for BackfillEntriesPage {
                 .collect(),
             next_after: page.next_after.map(hex::encode),
             now: Some(now_ms()),
+            newest_version_ms: None,
         }
     }
 }
@@ -2841,8 +2847,26 @@ async fn internal_backfill_entries_ascending(
             }
         };
         let caught_up = page.entries.is_empty() && page.next_after.is_none();
+        let respond = |page| {
+            // Only a lag hint: a failed seed read leaves the field out.
+            let newest_version_ms = query
+                .origin_region
+                .as_deref()
+                .and_then(|origin| {
+                    state
+                        .store
+                        .newest_listed_version(origin, max_version_ms)
+                        .ok()
+                })
+                .flatten();
+            Json(BackfillEntriesPage {
+                newest_version_ms,
+                ..BackfillEntriesPage::from(page)
+            })
+            .into_response()
+        };
         let Some(deadline) = deadline.filter(|_| caught_up) else {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            return respond(page);
         };
         let now = Instant::now();
         let deadline = if state.runtime.is_draining() {
@@ -2851,7 +2875,7 @@ async fn internal_backfill_entries_ascending(
             deadline
         };
         if now >= deadline {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            return respond(page);
         }
         let recheck = Duration::from_millis(SYNC_LONG_POLL_RECHECK_MS).min(deadline - now);
         let _ = tokio::time::timeout(recheck, notified).await;

@@ -315,6 +315,12 @@ pub struct Store {
     /// `KURA_REGION`, stamped as `origin_region` on every write this node
     /// first accepts (design §4.1).
     region: String,
+    /// The newest effective version among committed records a region read
+    /// filtered to this node's region lists (its own origin, no origin, and
+    /// namespace tombstones), so the reader can tell how far behind it is.
+    /// Raised after each commit; seeded once from the index after a restart.
+    newest_listed_version_ms: AtomicU64,
+    newest_listed_version_seeded: AtomicBool,
     /// The intra-region arrival feed's in-memory state (design §3.1).
     sync_feed: Arc<SyncFeedState>,
     /// How long a feed consumer's last request pins the trim floor.
@@ -1452,6 +1458,8 @@ impl Store {
             action_cache_blob_refs_ready: AtomicBool::new(false),
             backfill_index_built: AtomicBool::new(false),
             region: config.region.clone(),
+            newest_listed_version_ms: AtomicU64::new(0),
+            newest_listed_version_seeded: AtomicBool::new(false),
             sync_feed: Arc::new(sync_feed),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: AtomicU64::new(0),
@@ -2145,6 +2153,10 @@ impl Store {
             .await?;
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&manifest.artifact_id);
+        self.note_listed_version(
+            manifest.origin_region.as_deref(),
+            manifest_version_ms(manifest),
+        );
         Ok(())
     }
 
@@ -3072,6 +3084,10 @@ impl Store {
         }
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&manifest.artifact_id);
+        self.note_listed_version(
+            manifest.origin_region.as_deref(),
+            manifest_version_ms(manifest),
+        );
     }
 
     pub(crate) fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
@@ -6149,6 +6165,9 @@ impl Store {
         .await?;
         commit_sync_feed_tickets(feed);
         self.remove_manifest_cache_keys(&removed_artifact_ids);
+        if !delete_everything {
+            self.note_listed_version(None, version_ms);
+        }
 
         for path in blob_paths {
             self.remove_blob_handle(&path).await;
@@ -8659,6 +8678,58 @@ impl Store {
             entries,
             next_after: last_key,
         })
+    }
+
+    fn note_listed_version(&self, origin_region: Option<&str>, version_ms: u64) {
+        if origin_region.is_none_or(|origin| origin == self.region) {
+            self.newest_listed_version_ms
+                .fetch_max(version_ms, Ordering::Relaxed);
+        }
+    }
+
+    /// The newest version an ascending read filtered to `origin_region` could
+    /// list at `max_version_ms`, when that origin is this node's region
+    /// (design §4.1, D-37). The first call after a restart seeds it from the
+    /// newest index rows; later commits keep it current.
+    pub fn newest_listed_version(
+        &self,
+        origin_region: &str,
+        max_version_ms: u64,
+    ) -> Result<Option<u64>, String> {
+        const SEED_SCAN_CAP: usize = 4 * MAX_PEER_PAGE_ITEMS;
+        if origin_region != self.region {
+            return Ok(None);
+        }
+        if !self.newest_listed_version_seeded.load(Ordering::Acquire) {
+            let mut read_options = ReadOptions::default();
+            read_options.fill_cache(false);
+            let iter = self.db.iterator_cf_opt(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                read_options,
+                IteratorMode::From(BACKFILL_IDX_PREFIX.as_bytes(), rocksdb::Direction::Forward),
+            );
+            for item in iter.take(SEED_SCAN_CAP) {
+                let (key, value) =
+                    item.map_err(|error| format!("failed to iterate backfill index: {error}"))?;
+                if !key.starts_with(BACKFILL_IDX_PREFIX.as_bytes()) {
+                    break;
+                }
+                let row = decode_backfill_index_row(&key, &value)?;
+                let origin = if row.kind == BackfillRecordKind::NamespaceTombstone {
+                    None
+                } else {
+                    self.manifest_origin_region(&row.record_id)?.flatten()
+                };
+                if origin.as_deref().is_none_or(|origin| origin == self.region) {
+                    self.note_listed_version(None, row.version_ms);
+                    break;
+                }
+            }
+            self.newest_listed_version_seeded
+                .store(true, Ordering::Release);
+        }
+        let newest = self.newest_listed_version_ms.load(Ordering::Relaxed);
+        Ok((newest > 0).then(|| newest.min(max_version_ms)))
     }
 
     // ---- Backfill per-peer watermarks (`backfill/wm/` keyspace) ----
