@@ -362,9 +362,12 @@ Before preparing and deploying the subsequent zero-replica retirement change:
 1. Withdraw `195.154.208.26`, `195.154.208.48`, and `51.159.17.45` from
    production regional DNS publication in a separate reviewed platform change,
    while keeping the old gateway DaemonSet pods running. The temporary ingress
-   `publish-status-address` setting can publish only `51.68.54.127`,
+   `publish-status-address` setting in production `values-tuist.yaml` publishes only `51.68.54.127`,
    `51.75.213.141`, and `51.75.213.81` without moving gateway pods. Verify the
-   rendered upstream controller arguments before deployment. Do not narrow the
+   rendered upstream controller arguments and all three destination health checks
+   before deployment. This changes controller arguments and rolls the gateway
+   DaemonSet; watch its rollout and old-IP probes throughout. Keep normal graceful
+   shutdown; the old gateways must return Ready on their retained nodes. Do not narrow the
    DaemonSet selector yet: that would stop serving clients with cached addresses.
 2. Confirm authoritative regional and enabled stable DNS, Ingress status, and
    peer discovery no longer advertise any source address. Check each publication
