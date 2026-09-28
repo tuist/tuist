@@ -177,3 +177,5 @@ The proxy can point at kura wherever it runs; two placements were measured on th
 Build time only diverges at true WAN latency (66ms → warm ~0.76x of no-cache but ~65s over the local floor, since the ~2.5GB namespace fetch costs real round-trips).
 
 **Current decision: rely on the PN kura node** — it is not meaningfully slower and avoids running kura on every Mac. On-host remains the documented fallback for when guaranteed non-bandwidth-constrained per-runner cache is needed.
+
+- Project token providers are shared across concurrent remote construction and survive endpoint moves. Failed CLI exchanges coalesce and back off per provider from 30 seconds to five minutes; successful exchange resets the delay. Maintenance uses the same retry gate and retains an existing token on refresh failure.

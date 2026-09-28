@@ -53,6 +53,50 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     refute_enqueued(worker: ProvisionOnDemandWorker)
   end
 
+  test "a serving account without placement rows can leave the wildcard gateway", %{
+    conn: conn,
+    account: account,
+    token: token
+  } do
+    server = ready_server(account)
+    :ok = PlacerRegions.remove(account, server.region)
+    assert PlacerRegions.all_for(account) == []
+
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => server.url}
+    assert PlacerRegions.all_for(account) == []
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
+  test "an archived account without placement rows becomes routable after activation", %{
+    conn: conn,
+    account: account,
+    token: token
+  } do
+    server = ready_server(account)
+    :ok = PlacerRegions.remove(account, server.region)
+    server |> Ecto.Changeset.change(status: :archived, url: nil, stable_endpoint: nil) |> Repo.update!()
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
+    assert_enqueued(worker: ProvisionOnDemandWorker, args: %{account_id: account.id})
+
+    active =
+      Tuist.Kura.Server
+      |> Repo.get!(server.id)
+      |> Ecto.Changeset.change(status: :active, url: server.url)
+      |> Repo.update!()
+
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
+    active |> Ecto.Changeset.change(stable_endpoint: server.stable_endpoint) |> Repo.update!()
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => server.url}
+    assert PlacerRegions.all_for(account) == []
+  end
+
+  test "retiring placement never falls back to a live instance", %{conn: conn, account: account, token: token} do
+    server = ready_server(account)
+    {:ok, _} = PlacerRegions.mark_retiring(account, server.region)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
   test "ordinary credentials and exchanged cache credentials both work", %{conn: conn, account: account, user: user} do
     server = ready_server(account)
     {:ok, token, _} = Tuist.Authentication.encode_and_sign(user)

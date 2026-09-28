@@ -9,10 +9,12 @@
 //! from TUIST_CAS_TOKEN (set directly on CI) and re-fetched only when the cached
 //! JWT is close to expiry (see `refresh_if_expiring`), so a long-lived proxy
 //! re-auths about once per token lifetime rather than on a fixed cadence.
+//! Failed fetches share a per-provider retry delay, starting at 30 seconds and
+//! doubling to five minutes; successful fetches reset it.
 
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 
@@ -20,10 +22,27 @@ pub struct TokenProvider {
     cached: Mutex<Option<CachedToken>>,
     // Serializes refreshes so a startup burst of resolves runs `tuist` once
     // rather than once per thread.
-    refreshing: Mutex<()>,
+    refreshing: Mutex<RefreshState>,
     // How to fetch a fresh token. Absent (direct/bench mode) means the seeded
     // env token is all there is.
     fetch: Option<TokenFetch>,
+}
+
+const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(30);
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(300);
+
+struct RefreshState {
+    retry_at: Option<Instant>,
+    retry_delay: Duration,
+}
+
+impl Default for RefreshState {
+    fn default() -> Self {
+        Self {
+            retry_at: None,
+            retry_delay: INITIAL_RETRY_DELAY,
+        }
+    }
 }
 
 /// A bearer plus the expiry parsed from its JWT `exp` claim, if any. Opaque
@@ -67,7 +86,7 @@ impl TokenProvider {
         });
         Arc::new(Self {
             cached: Mutex::new(cached),
-            refreshing: Mutex::new(()),
+            refreshing: Mutex::new(RefreshState::default()),
             fetch,
         })
     }
@@ -80,7 +99,7 @@ impl TokenProvider {
         };
         Arc::new(Self {
             cached: Mutex::new(None),
-            refreshing: Mutex::new(()),
+            refreshing: Mutex::new(RefreshState::default()),
             fetch: Some(TokenFetch {
                 tuist_bin: fetch.tuist_bin.clone(),
                 server_url: fetch.server_url.clone(),
@@ -95,17 +114,12 @@ impl TokenProvider {
         if let Some(cached) = self.cached.lock().unwrap().as_ref() {
             return Some(cached.value.clone());
         }
-        let fetch = self.fetch.as_ref()?;
-        let _guard = self.refreshing.lock().unwrap();
-        // The cache may have filled while we waited for the guard.
-        if let Some(cached) = self.cached.lock().unwrap().as_ref() {
-            return Some(cached.value.clone());
-        }
-        let fresh = run_token_command(fetch);
-        if let Some(token) = &fresh {
-            *self.cached.lock().unwrap() = Some(CachedToken::new(token.clone()));
-        }
-        fresh
+        self.refresh(None);
+        self.cached
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|cached| cached.value.clone())
     }
 
     /// Refreshes the bearer only when the cached JWT is within `lead` of its
@@ -121,31 +135,37 @@ impl TokenProvider {
     /// the window. Tokens with no parseable expiry (opaque project tokens) are
     /// never refreshed here: there is nothing to renew.
     pub fn refresh_if_expiring(&self, lead: Duration) {
-        if self.fetch.is_none() {
-            return;
-        }
-        let should_refresh = match self.cached.lock().unwrap().as_ref() {
-            None => true,
-            Some(cached) => match cached.expiry {
-                None => false,
-                Some(expiry) => expiry
-                    .checked_sub(lead)
-                    .is_none_or(|deadline| SystemTime::now() >= deadline),
-            },
-        };
-        if should_refresh {
-            self.force_refresh();
-        }
+        self.refresh(Some(lead));
     }
 
-    /// Forces a fresh fetch, replacing the cache. A no-op without a fetch config.
-    fn force_refresh(&self) {
+    fn refresh(&self, lead: Option<Duration>) {
         let Some(fetch) = self.fetch.as_ref() else {
             return;
         };
-        let _guard = self.refreshing.lock().unwrap();
+        let mut state = self.refreshing.lock().unwrap();
+        // Recheck after waiting: another caller may have fetched a token or
+        // recorded a failure while this one waited for the refresh lock.
+        let should_refresh = match self.cached.lock().unwrap().as_ref() {
+            None => true,
+            Some(cached) => lead.zip(cached.expiry).is_some_and(|(lead, expiry)| {
+                expiry
+                    .checked_sub(lead)
+                    .is_none_or(|deadline| SystemTime::now() >= deadline)
+            }),
+        };
+        if !should_refresh
+            || state
+                .retry_at
+                .is_some_and(|deadline| Instant::now() < deadline)
+        {
+            return;
+        }
         if let Some(token) = run_token_command(fetch) {
             *self.cached.lock().unwrap() = Some(CachedToken::new(token));
+            *state = RefreshState::default();
+        } else {
+            state.retry_at = Some(Instant::now() + state.retry_delay);
+            state.retry_delay = (state.retry_delay * 2).min(MAX_RETRY_DELAY);
         }
     }
 }
@@ -233,13 +253,13 @@ fn run_token_command(fetch: &TokenFetch) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    struct FakeCli(std::path::PathBuf);
+    pub(crate) struct FakeCli(pub(crate) std::path::PathBuf);
 
     impl FakeCli {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             use std::os::unix::fs::PermissionsExt;
             let path = std::env::temp_dir().join(format!(
                 "tuist-token-test-{}-{}",
@@ -270,10 +290,10 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
             Self(path)
         }
 
-        fn provider(&self) -> Arc<TokenProvider> {
+        pub(crate) fn provider(&self) -> Arc<TokenProvider> {
             Arc::new(TokenProvider {
                 cached: Mutex::new(Some(CachedToken::new("machine-bearer".into()))),
-                refreshing: Mutex::new(()),
+                refreshing: Mutex::new(RefreshState::default()),
                 fetch: Some(TokenFetch {
                     tuist_bin: self.0.join("tuist").to_str().unwrap().to_string(),
                     server_url: Some("https://tuist.dev".into()),
@@ -328,12 +348,116 @@ printf 'CLI log\n{"token":"%s","url":"https://acme.cache.tuist.dev"}\n' "$4"
     fn direct_integrations_keep_their_explicit_bearer() {
         let machine = Arc::new(TokenProvider {
             cached: Mutex::new(Some(CachedToken::new("explicit-bearer".into()))),
-            refreshing: Mutex::new(()),
+            refreshing: Mutex::new(RefreshState::default()),
             fetch: None,
         });
         let scoped = machine.for_instance("acme/one");
         assert!(Arc::ptr_eq(&machine, &scoped));
         assert_eq!(scoped.current().as_deref(), Some("explicit-bearer"));
+    }
+
+    #[test]
+    fn failed_fetches_coalesce_and_back_off_across_requests_and_maintenance() {
+        let cli = FakeCli::new();
+        std::fs::write(
+            cli.0.join("tuist"),
+            "#!/bin/sh\nprintf 'call\\n' >> \"$(dirname \"$0\")/calls\"\nsleep 0.05\nexit 1\n",
+        )
+        .unwrap();
+        let provider = cli.provider().for_instance("acme/one");
+        let barrier = Arc::new(std::sync::Barrier::new(8));
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                let provider = provider.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    provider.current()
+                })
+            })
+            .collect();
+        for thread in threads {
+            assert_eq!(thread.join().unwrap(), None);
+        }
+        for _ in 0..3 {
+            assert_eq!(provider.current(), None);
+            provider.refresh_if_expiring(Duration::from_secs(20));
+        }
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls"))
+                .unwrap()
+                .lines()
+                .count(),
+            1
+        );
+
+        for attempt in 1..7 {
+            provider.refreshing.lock().unwrap().retry_at =
+                Some(Instant::now() - Duration::from_secs(1));
+            assert_eq!(provider.current(), None);
+            let state = provider.refreshing.lock().unwrap();
+            let expected = (INITIAL_RETRY_DELAY * (1 << attempt)).min(MAX_RETRY_DELAY);
+            let remaining = state.retry_at.unwrap().duration_since(Instant::now());
+            assert!(remaining <= expected && remaining > expected - Duration::from_secs(1));
+        }
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls"))
+                .unwrap()
+                .lines()
+                .count(),
+            7
+        );
+    }
+
+    #[test]
+    fn successful_retry_resets_backoff_and_failures_are_project_local() {
+        let cli = FakeCli::new();
+        let machine = cli.provider();
+        let failed = machine.for_instance("acme/forbidden");
+        let healthy = machine.for_instance("acme/one");
+        assert_eq!(failed.current(), None);
+        assert_eq!(healthy.current().as_deref(), Some("acme/one"));
+        let script = std::fs::read_to_string(cli.0.join("tuist")).unwrap();
+        std::fs::write(
+            cli.0.join("tuist"),
+            script.replace("acme/one|acme/two)", "acme/one|acme/two|acme/forbidden)"),
+        )
+        .unwrap();
+        assert_eq!(failed.current(), None);
+        failed.refreshing.lock().unwrap().retry_at = Some(Instant::now() - Duration::from_secs(1));
+        assert_eq!(failed.current().as_deref(), Some("acme/forbidden"));
+        let state = failed.refreshing.lock().unwrap();
+        assert!(state.retry_at.is_none());
+        assert_eq!(state.retry_delay, INITIAL_RETRY_DELAY);
+    }
+
+    #[test]
+    fn failed_proactive_refresh_keeps_the_cached_token_and_backs_off() {
+        let cli = FakeCli::new();
+        std::fs::write(
+            cli.0.join("tuist"),
+            "#!/bin/sh\nprintf 'call\\n' >> \"$(dirname \"$0\")/calls\"\nexit 1\n",
+        )
+        .unwrap();
+        let provider = cli.provider().for_instance("acme/one");
+        let expiry = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 60;
+        let token = make_jwt(&format!("{{\"exp\":{expiry}}}"));
+        *provider.cached.lock().unwrap() = Some(CachedToken::new(token.clone()));
+        for _ in 0..8 {
+            provider.refresh_if_expiring(Duration::from_secs(120));
+            assert_eq!(provider.current(), Some(token.clone()));
+        }
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls"))
+                .unwrap()
+                .lines()
+                .count(),
+            1
+        );
     }
 
     fn make_jwt(payload_json: &str) -> String {

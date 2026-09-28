@@ -203,7 +203,15 @@ func TestGRPCStreamingAndTrailers(t *testing.T) {
 	backend.StartTLS()
 	defer backend.Close()
 	g := New(Servers{"production": "https://tuist.dev"}, 1)
-	g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+	var controls atomic.Int32
+	g.Poll = time.Millisecond
+	g.Control.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Query().Get("host") != "acme.cache.tuist.dev" {
+			t.Error("authority was not normalized")
+		}
+		if controls.Add(1) == 1 {
+			return &http.Response{StatusCode: 202, Header: make(http.Header), Body: http.NoBody}, nil
+		}
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"endpoint":"https://acme-eu.kura.tuist.dev"}`))}, nil
 	})
 	g.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
@@ -219,7 +227,7 @@ func TestGRPCStreamingAndTrailers(t *testing.T) {
 	protocols.SetUnencryptedHTTP2(true)
 	client := &http.Client{Transport: &http.Transport{Protocols: protocols}, Timeout: time.Second}
 	r, _ := http.NewRequest("POST", gateway.URL+"/google.bytestream.ByteStream/Write", bytes.NewReader(payload))
-	r.Host = "acme.cache.tuist.dev"
+	r.Host = "acme.cache.tuist.dev:443"
 	r.Header.Set("Authorization", "Bearer test-token")
 	r.Header.Set("Content-Type", "application/grpc")
 	resp, err := client.Do(r)
@@ -375,6 +383,56 @@ func TestCredentialAndConfigurationFailuresAreNotRetryableGRPC(t *testing.T) {
 		}
 		if status == 409 && !strings.Contains(w.Header().Get("Grpc-Message"), "TUIST_CACHE_ENDPOINT") {
 			t.Fatal("missing configuration guidance")
+		}
+	}
+}
+
+func TestAuthorityNormalizationReachesControlPlane(t *testing.T) {
+	for _, tc := range []struct{ authority, host, env string }{
+		{"acme.cache.tuist.dev:443", "acme.cache.tuist.dev", "production"},
+		{"Acme.cache.tuist.dev.:443", "acme.cache.tuist.dev", "production"},
+		{"ACME-staging.cache.tuist.dev.", "acme-staging.cache.tuist.dev", "staging"},
+		{"acme-canary.cache.tuist.dev:443", "acme-canary.cache.tuist.dev", "canary"},
+	} {
+		t.Run(tc.authority, func(t *testing.T) {
+			var calls atomic.Int32
+			control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				if got := r.URL.Query().Get("host"); got != tc.host {
+					t.Errorf("host = %q, want %q", got, tc.host)
+				}
+				fmt.Fprint(w, `{"endpoint":"https://acme-eu.kura.tuist.dev"}`)
+			}))
+			defer control.Close()
+			g := New(Servers{tc.env: control.URL}, 1)
+			g.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+				if r.Host != "acme-eu.kura.tuist.dev" || r.Header.Get("Authorization") != "Bearer test-token" {
+					t.Error("lost regional host or credentials")
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/grpc"}}, Body: io.NopCloser(strings.NewReader("")), Trailer: http.Header{"Grpc-Status": {"0"}}}, nil
+			})
+			r := request(tc.authority)
+			r.URL.Path = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
+			r.Header.Set("Content-Type", "application/grpc")
+			w := httptest.NewRecorder()
+			g.ServeHTTP(w, r)
+			if calls.Load() != 1 || w.Code != 200 || w.Result().Trailer.Get("Grpc-Status") != "0" {
+				t.Fatalf("calls=%d status=%d trailers=%v", calls.Load(), w.Code, w.Result().Trailer)
+			}
+		})
+	}
+}
+
+func TestMalformedAuthoritiesNeverReachControlPlane(t *testing.T) {
+	g := New(Servers{"production": "https://tuist.dev"}, 1)
+	g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) { t.Fatal("must not call control plane"); return nil, nil })
+	for _, authority := range []string{"acme.cache.tuist.dev:444", "acme.cache.tuist.dev:", "acme.cache.tuist.dev:443:443", "acme.cache.tuist.dev..:443", "acme.cache.tuist.dev.evil:443", "[::1]:443", "acme.cache.tuist.dev:invalid"} {
+		r := request("acme.cache.tuist.dev")
+		r.Host = authority
+		w := httptest.NewRecorder()
+		g.ServeHTTP(w, r)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%q: status %d", authority, w.Code)
 		}
 	}
 }

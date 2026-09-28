@@ -120,6 +120,11 @@ Before releasing the new CLI:
 2. Validate the gateway against a staging fixture using an explicit local DNS
    override or a test ingress target. Do not publish competing environment-wide
    wildcards. Confirm the existing shared certificate covers `*.cache.tuist.dev`.
+   Include an already-serving account with no placement rows: both exact DNS
+   publication and wildcard proxying must work without a placement backfill.
+   Exercise real Bazel gRPC with its explicit `<account>.cache.tuist.dev:443`
+   authority through nginx, including pending activation followed by a successful
+   streamed operation. Keep explicit retiring regions excluded from activation.
 3. After rollout approval, enable `kuraActivation.enabled` on the one global
    owner (intended: production). Verify both replicas, both ingress routes and
    TLS by pinning a fixture hostname to the main ingress address first.
@@ -136,7 +141,8 @@ Before releasing the new CLI:
    writes/reads. Verify authorization failures enqueue nothing, exactly one
    provisioning job is admitted per uniqueness window, uploads survive the
    wait, capacity refusal is retryable, and activation time is acceptable.
-7. Complete an archival cycle and repeat the first-request wake-up. Verify warm
+7. Complete an archival cycle and repeat the first-request wake-up, including an
+   account without placement rows. Verify warm
    traffic refreshes demand without `/endpoints`. Compare direct traffic latency
    and gateway load before publishing the CLI.
 

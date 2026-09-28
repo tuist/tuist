@@ -46,6 +46,55 @@ defmodule Tuist.Kura.StableEndpointTest do
            }
   end
 
+  test "existing instances publish stable DNS without placement rows" do
+    account = AccountsFixtures.user_fixture().account
+    server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+    assert PlacerRegions.all_for(account) == []
+    assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
+    observe(server, account)
+    assert StableEndpoint.resolve(account, [server.url]) == ["https://#{StableEndpoint.host(account)}"]
+    assert PlacerRegions.all_for(account) == []
+  end
+
+  test "batched DNS reconciliation falls back only for accounts without placement rows" do
+    unplaced = AccountsFixtures.user_fixture().account
+    placed = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(placed, "ca-east")
+    {:ok, _} = PlacerRegions.mark_retiring(placed, "ca-east")
+
+    for account <- [unplaced, placed], region <- ["eu-west", "ca-east"] do
+      KuraFixtures.active_server_fixture(account, region: region)
+    end
+
+    owner = self()
+
+    stub(KubernetesController, :sync_stable_endpoint, fn server, region, claimed ->
+      send(owner, {:intent, server.account_id, region.id, StableEndpoint.intent(server, region, claimed)})
+      :ok
+    end)
+
+    StableEndpoint.reconcile()
+
+    for region <- ["eu-west", "ca-east"] do
+      assert_receive {:intent, id, ^region, intent} when id == unplaced.id
+      assert intent["stableAdvertise"]
+    end
+
+    assert_receive {:intent, id, "ca-east", intent} when id == placed.id
+    assert intent["stableAdvertise"]
+    assert_receive {:intent, id, "eu-west", intent} when id == placed.id
+    refute intent["stableAdvertise"]
+    assert intent["stableHost"] == ""
+  end
+
+  test "explicit placement excludes unclaimed instances in direct DNS intent" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "ca-east")
+    server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+    refute StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
+    assert StableEndpoint.intent(server, Regions.get(server.region))["stableHost"] == ""
+  end
+
   test "production account opt-in does not enable another account" do
     opted_in = AccountsFixtures.user_fixture().account
     other = AccountsFixtures.user_fixture().account

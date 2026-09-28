@@ -44,7 +44,7 @@ defmodule Tuist.Kura.Activation do
 
   defp route(account, origin) do
     servers = Kura.managed_cache_endpoints(account, origin)
-    desired = PlacerRegions.serving_regions(account)
+    desired = PlacerRegions.serving_regions(account, Enum.map(servers, & &1.region))
     host = StableEndpoint.host(account)
     endpoints = Enum.filter(servers, &eligible?(&1, desired, host))
     kick? = servers == [] and Demand.instance_expected?(account) and Demand.claim_provision_kick(account.id)

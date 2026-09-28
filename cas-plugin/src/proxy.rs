@@ -2411,11 +2411,12 @@ pub struct Proxy {
     // awaiting a second resolution that agrees. See `endpoint_verdict`.
     endpoint_candidate: Mutex<Option<String>>,
     tokens: Arc<TokenProvider>,
+    project_tokens: Mutex<HashMap<String, Arc<TokenProvider>>>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
     epoch: Instant,
     // One REAPI client per account/project instance, created on first use.
-    // Each client has its own project-scoped token provider.
+    // Clients for a project share its token provider across endpoint changes.
     // Each client is stamped with the endpoint generation it was built
     // against, because a client outlives the address it dialled. Publication
     // and adoption cannot be ordered against each other -- two first-sight
@@ -2543,6 +2544,7 @@ impl Proxy {
             endpoint_generation: AtomicU64::new(0),
             endpoint_candidate: Mutex::new(None),
             tokens,
+            project_tokens: Mutex::new(HashMap::new()),
             upstream_plugin,
             epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
@@ -2603,6 +2605,17 @@ impl Proxy {
         proxy
     }
 
+    // Providers outlive endpoint-bound remotes and are shared even when first
+    // requests race to construct separate clients for the same project.
+    fn tokens_for(&self, instance: &str) -> Arc<TokenProvider> {
+        self.project_tokens
+            .lock()
+            .unwrap()
+            .entry(instance.to_string())
+            .or_insert_with(|| self.tokens.for_instance(instance))
+            .clone()
+    }
+
     /// The REAPI client for an instance, created and cached on first use.
     ///
     /// `instance` is the `account/project` full handle used to key the client
@@ -2641,7 +2654,7 @@ impl Proxy {
                 grpc_url,
                 instance: reapi::reapi_instance(instance).to_string(),
             },
-            self.tokens.for_instance(instance),
+            self.tokens_for(instance),
         );
         if let Some(parent) = self.registry_path.as_deref().and_then(Path::parent) {
             remote.enable_chunk_cache(parent.join("download-chunks-v1"), instance);
@@ -4997,7 +5010,7 @@ impl Proxy {
                     grpc_url: self.grpc_url.read().unwrap().clone(),
                     instance: reapi::reapi_instance(instance).to_string(),
                 },
-                self.tokens.for_instance(instance),
+                self.tokens_for(instance),
             )
         });
         remote.reachable()
@@ -8873,6 +8886,56 @@ mod tests {
         let proxy = test_proxy();
 
         assert!(!proxy.current_endpoint_reachable("acme/app"));
+    }
+
+    #[test]
+    fn project_providers_coalesce_first_requests_and_survive_endpoint_moves() {
+        let cli = crate::token::tests::FakeCli::new();
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            cli.provider(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        proxy
+            .endpoint_resolved_at_ms
+            .store(crate::reapi::now_ms(), Ordering::Relaxed);
+        let barrier = Arc::new(std::sync::Barrier::new(16));
+        let threads: Vec<_> = (0..16)
+            .map(|_| {
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    proxy
+                        .remote_for("acme/one")
+                        .refresh_token(Duration::from_secs(20));
+                    proxy.tokens_for("acme/one")
+                })
+            })
+            .collect();
+        let provider = proxy.tokens_for("acme/one");
+        for thread in threads {
+            assert!(Arc::ptr_eq(&provider, &thread.join().unwrap()));
+        }
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls")).unwrap(),
+            "acme/one\n"
+        );
+        proxy.adopt_endpoint("http://127.0.0.1:2".into());
+        assert!(Arc::ptr_eq(&provider, &proxy.tokens_for("acme/one")));
+        proxy
+            .remote_for("acme/one")
+            .refresh_token(Duration::from_secs(20));
+        proxy.maintain_token(Duration::from_secs(20));
+        proxy
+            .remote_for("acme/two")
+            .refresh_token(Duration::from_secs(20));
+        assert!(!Arc::ptr_eq(&provider, &proxy.tokens_for("acme/two")));
+        assert_eq!(
+            std::fs::read_to_string(cli.0.join("calls")).unwrap(),
+            "acme/one\nacme/two\n"
+        );
     }
 
     fn test_proxy() -> &'static Proxy {

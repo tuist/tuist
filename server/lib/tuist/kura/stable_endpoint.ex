@@ -49,7 +49,7 @@ defmodule Tuist.Kura.StableEndpoint do
 
   def intent(%Server{account: account} = server, region, claimed) do
     enabled = supported?(region) and server.move_phase == :none
-    claimed = if enabled, do: claimed || PlacerRegions.claimed_regions(account), else: []
+    claimed = if enabled, do: claimed || PlacerRegions.claimed_regions(account, [server.region]), else: []
     stable_host = if server.region in claimed, do: host(account)
 
     %{
@@ -69,7 +69,8 @@ defmodule Tuist.Kura.StableEndpoint do
       |> preload(:account)
       |> Repo.all()
 
-    claimed = servers |> Enum.map(& &1.account) |> PlacerRegions.claimed_regions_all()
+    fallback = Enum.group_by(servers, & &1.account_id, & &1.region)
+    claimed = servers |> Enum.map(& &1.account) |> PlacerRegions.claimed_regions_all(fallback)
 
     servers
     |> Enum.filter(&supported?(Regions.get(&1.region)))
@@ -149,13 +150,12 @@ defmodule Tuist.Kura.StableEndpoint do
   end
 
   defp resolve_ready(account, regional_urls, servers) do
-    desired = PlacerRegions.serving_regions(account)
-
     servers =
       servers || Repo.all(from s in Server, where: s.account_id == ^account.id and s.status == :active)
 
     host = host(account)
     managed = Enum.filter(servers, &(&1.move_phase == :none and supported?(Regions.get(&1.region))))
+    desired = PlacerRegions.serving_regions(account, Enum.map(managed, & &1.region))
     serving = Enum.filter(managed, &(&1.region in desired))
 
     all_ready =

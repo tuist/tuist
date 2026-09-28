@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -57,6 +58,18 @@ func Environment(host string) (string, bool) {
 	return env, handlePattern.MatchString(handle) && !strings.HasSuffix(handle, "-staging") && !strings.HasSuffix(handle, "-canary")
 }
 
+// The public TLS endpoint may arrive as a gRPC authority with an explicit port.
+func canonicalHost(authority string) (string, bool) {
+	if strings.Contains(authority, ":") {
+		host, port, err := net.SplitHostPort(authority)
+		if err != nil || port != "443" {
+			return "", false
+		}
+		authority = host
+	}
+	return strings.TrimSuffix(strings.ToLower(authority), "."), true
+}
+
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/healthz" {
 		w.WriteHeader(http.StatusOK)
@@ -67,9 +80,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		unforwardedFailure(w, r, http.StatusNotFound)
 		return
 	}
-	env, valid := Environment(r.Host)
+	host, validHost := canonicalHost(r.Host)
+	env, valid := Environment(host)
 	server, configured := g.Servers[env]
-	if !valid || !configured {
+	if !validHost || !valid || !configured {
 		unforwardedFailure(w, r, http.StatusNotFound)
 		return
 	}
@@ -97,7 +111,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
 	waited := false
 	for {
-		target, status := g.resolve(ctx, server, strings.ToLower(r.Host), authorization)
+		target, status := g.resolve(ctx, server, host, authorization)
 		if status != http.StatusAccepted && status != http.StatusOK {
 			unforwardedFailure(w, r, status)
 			return
