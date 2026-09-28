@@ -5463,6 +5463,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              observed_at:
+                description: When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
               sha:
                 description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
@@ -23326,6 +23332,12 @@ paths:
                   items:
                     properties:
                       branch:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      observed_at:
+                        description: When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent.
+                        format: date-time
                         type: string
                         x-struct:
                         x-validate:

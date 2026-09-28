@@ -98,6 +98,18 @@ struct GitHistoryServiceTests {
         #expect(collected.settings.commitFileLimit == 3)
 
         await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+        // The branch head goes up with when the checkout was read, so a late upload cannot move
+        // the branch back on the server.
+        verify(uploadCommitsService).uploadCommits(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            objectFormat: .any,
+            commits: .any,
+            branchHeads: .value([
+                GitHistoryBranchHead(branch: "feature", sha: "head", observedAt: collected.observedAt),
+            ])
+        ).called(1)
         verify(missingListingsService).findMissingCommitListings(
             fullHandle: .any,
             serverURL: .any,

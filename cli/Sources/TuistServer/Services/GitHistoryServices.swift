@@ -113,6 +113,20 @@ public struct GitHistoryCommitPayload: Equatable, Sendable {
     }
 }
 
+/// A branch's head as the client saw it, and when: the server moves the branch only on an
+/// observation no older than the one that last moved it.
+public struct GitHistoryBranchHead: Equatable, Sendable {
+    public let branch: String
+    public let sha: String
+    public let observedAt: Date
+
+    public init(branch: String, sha: String, observedAt: Date) {
+        self.branch = branch
+        self.sha = sha
+        self.observedAt = observedAt
+    }
+}
+
 /// A file of a commit's listing for the server.
 public struct GitCommitFilePayload: Equatable, Sendable {
     public let path: String
@@ -252,7 +266,7 @@ public protocol UploadCommitsServicing {
         repositoryURL: String,
         objectFormat: String,
         commits: [GitHistoryCommitPayload],
-        branchHeads: [(branch: String, sha: String)]
+        branchHeads: [GitHistoryBranchHead]
     ) async throws
 }
 
@@ -269,7 +283,7 @@ public struct UploadCommitsService: UploadCommitsServicing {
         repositoryURL: String,
         objectFormat: String,
         commits: [GitHistoryCommitPayload],
-        branchHeads: [(branch: String, sha: String)]
+        branchHeads: [GitHistoryBranchHead]
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -278,7 +292,7 @@ public struct UploadCommitsService: UploadCommitsServicing {
                 path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
                 body: .json(
                     .init(
-                        branch_heads: branchHeads.map { .init(branch: $0.branch, sha: $0.sha) },
+                        branch_heads: branchHeads.map { .init(branch: $0.branch, observed_at: $0.observedAt, sha: $0.sha) },
                         commits: commits.map { .init(committed_at: $0.committedAt, parents: $0.parents, sha: $0.sha) },
                         object_format: objectFormat == "sha256" ? .sha256 : .sha1,
                         repository_url: repositoryURL

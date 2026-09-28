@@ -18,6 +18,9 @@ public struct CollectedGitHistory: Equatable {
     /// The remote the repository is known by on the server; nil when the checkout has none.
     public let repositoryURL: String?
     public let settings: GitHistorySettings
+    /// When the checkout's head was read: the server moves the branch only on an observation no
+    /// older than the one that last moved it, so a late upload cannot move it back.
+    public let observedAt: Date
 }
 
 /// Collects a run's Git history from the checkout, within the limits the server sets, and uploads
@@ -85,6 +88,7 @@ public struct GitHistoryService: GitHistoryServicing {
         serverURL: URL
     ) async -> CollectedGitHistory? {
         guard Self.enabled else { return nil }
+        let observedAt = Date()
 
         // Without a repository there is nothing to collect, but the run still says so, and keeps
         // the pull request identity CI provided, so the server can complete the history from
@@ -113,7 +117,8 @@ public struct GitHistoryService: GitHistoryServicing {
                 ),
                 branch: gitInfo.branch,
                 repositoryURL: gitInfo.remoteURLOrigin,
-                settings: Self.defaultSettings
+                settings: Self.defaultSettings,
+                observedAt: observedAt
             )
         }
 
@@ -168,7 +173,8 @@ public struct GitHistoryService: GitHistoryServicing {
                 ),
                 branch: gitInfo.branch,
                 repositoryURL: gitInfo.remoteURLOrigin,
-                settings: settings
+                settings: settings,
+                observedAt: observedAt
             )
         }
 
@@ -198,7 +204,8 @@ public struct GitHistoryService: GitHistoryServicing {
             history: history,
             branch: gitInfo.branch,
             repositoryURL: gitInfo.remoteURLOrigin,
-            settings: settings
+            settings: settings,
+            observedAt: observedAt
         )
     }
 
@@ -262,8 +269,9 @@ public struct GitHistoryService: GitHistoryServicing {
             .sorted { $0.committedAt < $1.committedAt }
             .map { GitHistoryCommitPayload(sha: $0.sha, parents: $0.parents, committedAt: $0.committedAt) }
 
-        let branchHeads: [(branch: String, sha: String)] =
-            collected.branch.map { [(branch: $0, sha: collected.history.headSHA)] } ?? []
+        let branchHeads = collected.branch.map {
+            [GitHistoryBranchHead(branch: $0, sha: collected.history.headSHA, observedAt: collected.observedAt)]
+        } ?? []
 
         if toUpload.isEmpty {
             if !branchHeads.isEmpty {

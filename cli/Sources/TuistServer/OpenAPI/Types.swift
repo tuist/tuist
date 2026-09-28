@@ -11641,6 +11641,10 @@ public enum Components {
             public struct branch_headsPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/branch`.
                 public var branch: Swift.String
+                /// When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent.
+                ///
+                /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/observed_at`.
+                public var observed_at: Foundation.Date?
                 /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 ///
                 /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/sha`.
@@ -11649,16 +11653,20 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - branch:
+                ///   - observed_at: When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent.
                 ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 public init(
                     branch: Swift.String,
+                    observed_at: Foundation.Date? = nil,
                     sha: Swift.String
                 ) {
                     self.branch = branch
+                    self.observed_at = observed_at
                     self.sha = sha
                 }
                 public enum CodingKeys: String, CodingKey {
                     case branch
+                    case observed_at
                     case sha
                 }
             }
@@ -57230,6 +57238,10 @@ public enum Operations {
                     public struct branch_headsPayloadPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/branch`.
                         public var branch: Swift.String
+                        /// When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/observed_at`.
+                        public var observed_at: Foundation.Date?
                         /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/sha`.
@@ -57238,16 +57250,20 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - branch:
+                        ///   - observed_at: When the client saw the branch at that commit. An observation older than the one that last moved the branch leaves it where it is. The server's time when absent.
                         ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                         public init(
                             branch: Swift.String,
+                            observed_at: Foundation.Date? = nil,
                             sha: Swift.String
                         ) {
                             self.branch = branch
+                            self.observed_at = observed_at
                             self.sha = sha
                         }
                         public enum CodingKeys: String, CodingKey {
                             case branch
+                            case observed_at
                             case sha
                         }
                     }
