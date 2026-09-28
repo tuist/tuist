@@ -400,7 +400,15 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
+capi:
+  ovhPrivateNetwork:
+    enabled: true
+    vrackID: pn-2024093
+    cidr: 172.30.243.0/24
+
 kuraController:
+  privateReplication:
+    enabled: true
   stableDNS:
     enabled: true
     hostedZoneId: Z046862130S1WUMPV7Z3P

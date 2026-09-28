@@ -44,6 +44,9 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   with synthetic domains and audited mTLS canonical endpoints. Its private-path
   fault must be an observed policy blackhole: changing a Service port can leave
   pooled connections alive. Keep fixture cleanup scoped to its unique test label.
+  Physical OVH qualification is recorded separately in the staging underlay
+  evidence and `test/e2e/provider-topology/validation-managed-ovh-2026-09-28.json`;
+  retain the single-host canary and bounded-capacity limitations.
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.

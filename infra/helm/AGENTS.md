@@ -15,6 +15,9 @@ This node covers Helm assets under `infra/helm/`.
   attestations; both default off for self-hosting. Address reservations are
   controller-owned and must not be placed in Helm-owned data or garbage-collected
   with a Machine. See `../kura-controller/private-network-provisioning.md`.
+  Managed staging, canary and production enable both settings for their own
+  provisioned OVH vRack. Runtime publication still waits for matching host route
+  attestations; this does not enable topology for other providers.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Retire
   the evacuated Dedibox fleet with a subsequent `replicas: 0` change only after

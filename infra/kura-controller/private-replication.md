@@ -4,9 +4,11 @@ This is the private-network slice of [Atlas spec 98](https://atlas.tuist.dev/eng
 Spec 95 is already shipped. This change adds managed OVH attachment, persistent
 private host routes and automatic runtime topology publication. It also adopts
 an already-prepared staging cache host to qualify the physical path. Ingress,
-BGP and host migrations remain outside this change. **Production workloads have
-not changed. Staging has passed physical qualification and enables automatic
-runtime topology; canary and production remain gated on their own qualification.**
+BGP and host migrations remain outside this change. **All three managed
+environments enable OVH reconciliation and automatic runtime topology on merge.
+Their private host configuration is already installed and qualified within the
+limits recorded below. Canary and production managed runtime templates will
+activate through the normal deployment after matching route attestations.**
 
 ## Operational inventory
 
@@ -111,8 +113,10 @@ the CAPI controller's converged private-route attestations. The environment
 settings and fail-closed host routing are described in
 [private-network-provisioning.md](private-network-provisioning.md). Staging
 enables both host reconciliation and automatic runtime publication after its
-physical qualification. Canary/production settings remain disabled pending
-their environment-specific host qualification.
+physical qualification. Canary and production also enable both settings; their
+merge deployment publishes topology after the CAPI provider verifies the prepared
+hosts. Non-OVH placements retain their existing behavior. This is OVH activation,
+not a claim that Vultr private networking is provisioned.
 
 Provider-only configuration is rejected at startup: opting in requires both
 `private_network` and `private_url`. Same-provider peers advertising absent or
@@ -265,22 +269,23 @@ Disk differed by 1,529 metadata bytes and network transmit by 168,924 bytes
 shedding or segment refresh occurred. No material regression appeared in this
 bounded run; lower CPU/memory is not a statistically established improvement.
 Raw samples are local in `/tmp/kura-review-resource-{before,after}/`.
-The earlier staging validation covers the pre-review image only. No staging
-retest or persistent staging pin is planned; ordinary deployments may replace it.
+That earlier staging validation covers the pre-review image only. The later
+physical qualification below tests the corrected runtime. Ordinary deployments
+may replace the temporary staging image; there is no persistent staging pin.
 
-### Evidence still required
+### Physical qualification and remaining limits
 
 The staging OVH pair has demonstrated bidirectional physical private reachability,
 1500-byte IP MTU without fragmentation, private/public interface captures and
 fail-closed host routing. Disabling the private NIC produced no public peer
 packets; the persistent unreachable route prevented fallback, and connectivity
-recovered after restoration. These are host-network observations, not yet a
-Cilium/Kura end-to-end qualification. A bounded 15-second TCP test in each
+recovered after restoration. These host-network observations were followed by
+the Cilium/Kura end-to-end qualification below. A bounded 15-second TCP test in each
 direction sustained approximately 199 Mbps at a 200 Mbps cap with zero TCP
 retransmissions. This is a tested rate, not maximum capacity or N-1 headroom.
 An unreachable preparation peer left existing route configuration unchanged and
-healthy traffic working. Both new zero-cost vRacks have been delivered;
-canary/production attachment and qualification remain separate rollout steps.
+healthy traffic working. Distinct zero-cost canary and production vRacks were
+delivered and their cache hosts attached through the existing private NICs.
 
 The [physical staging evidence](../../kura/test/e2e/provider-topology/staging/validation-private-underlay-2026-09-28.json)
 records all 12 fixture checks passing across the actual OVH BHS/GRA pair and a
@@ -288,8 +293,43 @@ Scaleway peer. Both physical hosts captured bidirectional Cilium VXLAN on their
 private NICs and zero matching public peer packets. Taking down the GRA private
 NIC broke direct private mTLS while cross-provider replication advanced; captures
 still contained zero public peer packets. Direct private mTLS recovered after
-restoring the interface and repair timer. No production edge or Vultr VPC is
-qualified by those staging observations.
+restoring the interface and repair timer. Production has its own evidence below;
+no Vultr VPC is qualified by these observations.
+
+The [canary and production evidence](../../kura/test/e2e/provider-topology/validation-managed-ovh-2026-09-28.json)
+records 12 passing E2E checks in each environment with the corrected runtime.
+Production's 11 OVH cache hosts passed all 110 directed private paths with
+1500-byte IP packets and fragmentation forbidden, covering GRA, WAW, VIN, HIL
+and SGP. Every host has ten preferred private routes, ten unreachable fallback
+guards, a persistent repair timer, and its original public default route.
+Address reservations are persisted separately from Helm-owned configuration.
+
+Production's disposable runtime fixture used Virginia and Hillsboro plus a
+Scaleway peer; the initially selected GRA hosts lacked unreserved CPU. Both OVH
+physical NIC captures showed private VXLAN in both directions and zero matching
+public peer packets. All 388 non-fixture production pods in the Kura namespace
+were Ready in both before/after snapshots; a concurrent StatefulSet revision
+replaced one pod before route installation. This is not a continuous
+availability measurement. No managed pod was restarted for qualification.
+Production fault injection changed only the fixture's NetworkPolicy, never a
+live host NIC. Two 15-second private TCP runs between VIN and HIL sustained
+199.1 and 200.0 Mbps at a 200 Mbps cap, with zero retransmissions. Private-bound
+listeners terminated and the test daemon remains disabled. The fixtures were
+removed after recording the results.
+
+Canary has one OVH cache host, so its same-provider fixture replicas are
+colocated. Its attachment, persistent configuration and runtime tests passed,
+but this cannot prove a two-host canary private path. Qualify any future host
+before claiming that path. The initial canary fixture encountered HTTP 400
+responses from its temporary TLS audit proxy with a roughly 92-second host clock
+offset. Restarting only that fixture after certificate validity cleared the
+responses, and the complete rerun passed; cached validation state is a suspected,
+not confirmed, cause.
+
+These are bounded correctness/path tests, not production saturation or N-1
+rebuild-capacity measurements. Capacity qualification remains necessary before
+raising replication budgets. Vultr's routing-domain and restart questions remain
+unresolved and its topology stays disabled.
 
 The equal-canonical/private-URL runtime correction also passed two sequential
 before/after resource comparisons, recorded in
@@ -333,9 +373,9 @@ connections survived it. The policy blackhole replaced that ineffective
 injection; a successful data test without an observed failure was not counted.
 All disposable fixture resources were removed after retaining the evidence.
 
-The recorded staging results apply to image `sha-dcb6a17aad0f`, before the review
+These initial staging results apply to image `sha-dcb6a17aad0f`, before the review
 corrections to scheduling, probe-health isolation, configuration and legacy
-discovery. Those corrections receive local regression validation; another staging
-run is not planned. Normal staging deployments may replace the temporary runtime
-pin. No persistent chart pin is introduced. Historical deployment observations
+discovery. Those corrections received local regression validation and the later
+physical qualifications above. Normal staging deployments may replace the
+temporary runtime pin. No persistent chart pin is introduced. Historical deployment observations
 belong in the private operational record; check live state before any rollback.
