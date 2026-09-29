@@ -10,12 +10,17 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   exchange.
   """
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
   alias Boruta.Ecto.Token
+  alias Tuist.Environment
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @redirect_uri "https://claude.ai/api/mcp/auth_callback"
+  @app_client_id "00000000-0000-0000-0000-00000000a99c"
+  @app_redirect_uri "tuist://oauth-callback"
+  @code_verifier "tuist-app-code-verifier-tuist-app-code-verifier"
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -100,6 +105,102 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
 
     assert %{"access_token" => _} = json_response(refresh.(), 200)
     assert %{"error" => "invalid_grant"} = json_response(refresh.(), 400)
+  end
+
+  describe "the Tuist app client" do
+    setup do
+      stub(Environment, :oauth_client_id, fn -> @app_client_id end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-app-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist" end)
+      :ok
+    end
+
+    # The app is a public client: it ships no secret, so refresh and revoke
+    # have to work with only its client id.
+    test "refreshes and revokes without a client secret", %{conn: conn} do
+      %{"refresh_token" => refresh_token} = exchange_app_code(authorize_app(conn))
+
+      assert %{"refresh_token" => rotated_refresh_token} =
+               build_conn()
+               |> post(~p"/oauth2/token", app_refresh_params(refresh_token))
+               |> json_response(200)
+
+      revoke_conn =
+        post(build_conn(), ~p"/oauth2/revoke", %{
+          "client_id" => @app_client_id,
+          "token" => rotated_refresh_token,
+          "token_type_hint" => "refresh_token"
+        })
+
+      assert response(revoke_conn, 200) == ""
+
+      assert %{"error" => "invalid_grant"} =
+               build_conn()
+               |> post(~p"/oauth2/token", app_refresh_params(rotated_refresh_token))
+               |> json_response(400)
+    end
+
+    test "refuses to refresh tokens for a deactivated user", %{conn: conn, user: user} do
+      %{"refresh_token" => refresh_token} = exchange_app_code(authorize_app(conn))
+      deactivate(user)
+
+      assert %{"error" => "invalid_grant"} =
+               build_conn()
+               |> post(~p"/oauth2/token", app_refresh_params(refresh_token))
+               |> json_response(400)
+    end
+
+    test "refuses to exchange a code for a user deactivated after authorizing", %{conn: conn, user: user} do
+      code = authorize_app(conn)
+      deactivate(user)
+
+      conn = post(build_conn(), ~p"/oauth2/token", app_code_params(code))
+
+      assert %{"error" => "invalid_grant"} = json_response(conn, 400)
+    end
+  end
+
+  defp authorize_app(conn) do
+    code_challenge = :sha256 |> :crypto.hash(@code_verifier) |> Base.url_encode64(padding: false)
+
+    conn =
+      get(conn, ~p"/oauth2/authorize", %{
+        "response_type" => "code",
+        "client_id" => @app_client_id,
+        "redirect_uri" => @app_redirect_uri,
+        "state" => "app-state",
+        "code_challenge" => code_challenge,
+        "code_challenge_method" => "S256"
+      })
+
+    %{"code" => code} =
+      conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+    code
+  end
+
+  defp exchange_app_code(code) do
+    build_conn()
+    |> post(~p"/oauth2/token", app_code_params(code))
+    |> json_response(200)
+  end
+
+  defp app_code_params(code) do
+    %{
+      "grant_type" => "authorization_code",
+      "client_id" => @app_client_id,
+      "redirect_uri" => @app_redirect_uri,
+      "code" => code,
+      "code_verifier" => @code_verifier
+    }
+  end
+
+  defp app_refresh_params(refresh_token) do
+    %{"grant_type" => "refresh_token", "client_id" => @app_client_id, "refresh_token" => refresh_token}
+  end
+
+  defp deactivate(user) do
+    user |> Ecto.Changeset.change(active: false) |> Repo.update!()
   end
 
   defp register_client(conn) do
