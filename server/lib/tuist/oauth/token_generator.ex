@@ -52,7 +52,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   defp generate_user_token(token_type, sub, client_id, scope) do
     with {user_id, ""} <- parse_user_id(sub),
-         user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
+         %User{active: true} = user <- User |> Repo.get(user_id) |> Repo.preload(:account),
          client when not is_nil(client) <- Clients.get_client(client_id) do
       scopes = parse_scopes(scope)
 

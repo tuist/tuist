@@ -172,6 +172,18 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert is_nil(TokenGenerator.generate(:access_token, token))
     end
 
+    test "returns nil when the user is deactivated", %{user: user} do
+      user |> Ecto.Changeset.change(active: false) |> Tuist.Repo.update!()
+
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      assert is_nil(TokenGenerator.generate(:access_token, token))
+      assert is_nil(TokenGenerator.generate(:refresh_token, token))
+    end
+
     test "returns nil when client not found", %{user: user} do
       stub(Clients, :get_client, fn _ -> nil end)
 

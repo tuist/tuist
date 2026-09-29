@@ -76,7 +76,14 @@ defmodule TuistWeb.Oauth.TokenController do
     oauth_error(conn, "invalid_request", "token is required.")
   end
 
+  # `Tuist.OAuth.TokenGenerator` refuses to mint tokens for a deleted or
+  # deactivated user, and Boruta still reports that as a success with no
+  # access token in it.
   @impl TokenApplication
+  def token_success(conn, %TokenResponse{access_token: nil}) do
+    oauth_error(conn, "invalid_grant", "The user behind this grant is no longer active.")
+  end
+
   def token_success(conn, %TokenResponse{} = response) do
     token_data =
       %{

@@ -130,8 +130,10 @@ defmodule Tuist.OAuth.Clients do
         "revoke"
       ],
       pkce: true,
-      public_refresh_token: false,
-      public_revoke: false,
+      # The Tuist app ships no client secret, so it refreshes and revokes with
+      # its client id alone. Refresh tokens rotate on every use.
+      public_refresh_token: true,
+      public_revoke: true,
       confidential: false,
       token_endpoint_auth_methods: [
         "client_secret_basic",
