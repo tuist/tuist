@@ -33,7 +33,7 @@ class TokenRefreshAuthenticator @Inject constructor(
         }
 
         val refreshToken = tokenStorage.getRefreshToken() ?: run {
-            expireSession()
+            if (currentToken != null) expireSession()
             return null
         }
 
