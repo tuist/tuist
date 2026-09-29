@@ -214,10 +214,19 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
-  pipeline :browser_marketing do
+  pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
+    plug :accepts, ["html"]
+  end
+
+  # The newsletter signup form submits with `Accept: application/json`.
+  pipeline :browser_marketing_form do
+    plug :put_request_kind, "marketing"
     plug :accepts, ["html", "json"]
+  end
+
+  pipeline :browser_marketing do
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -382,6 +391,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [
       :open_api,
+      :browser_marketing_page,
       :browser_marketing,
       :assign_current_path
     ]
@@ -508,26 +518,35 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :same_origin_csrf_exemption,
+      :browser_marketing_form,
       :browser_marketing,
       :assign_current_path
     ]
 
     for locale <- ["en"] ++ Localization.additional_locales() do
-      locale_path_prefix = Localization.locale_path_prefix(locale)
-
-      private = %{locale: locale}
-
-      post Path.join(locale_path_prefix, "/newsletter"),
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter"),
            MarketingController,
            :newsletter_signup,
            metadata: %{type: :marketing},
-           private: private
+           private: %{locale: locale}
+    end
+  end
 
-      post Path.join(locale_path_prefix, "/newsletter/verify"),
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing_page,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter/verify"),
            MarketingController,
            :newsletter_confirm,
            metadata: @marketing_route_metadata,
-           private: private
+           private: %{locale: locale}
     end
   end
 
