@@ -1279,7 +1279,8 @@ The paired telemetry rule for every Kura rule that reads a metric off the
 `kura` scrape job: `kura_http_*`, `kura_rocksdb_*`,
 `kura_response_stream_admissions_*`, `kura_capacity_sheds_*`,
 `kura_memory_actions_*`, `kura_memory_pressure_state`, `kura_segment_shed_age_*`,
-`kura_backfill_ring_fullness_percent`, `kura_public_request_latency_*`, and the
+`kura_backfill_ring_fullness_percent`, `kura_public_request_latency_*`,
+`kura_region_sync_lag_seconds`, and the
 `egress-tree-agent` job behind `kura_egress_tree_*`, `kura_container_memory_*` and the
 `kura_node_geo_info` join key behind every region rule. Those are threshold rules with
 **No Data: Normal**, so they cannot distinguish a healthy fleet from a scrape
@@ -5088,6 +5089,120 @@ restarted**, whereas short excursions during a restart burst stay under the
 `for: 10m` and never fire. The peer's logs are the better live detector — a
 stalled pod is silent, but its peers log `artifact replication upload stalled:
 no body progress for 60000ms` against it every couple of minutes.
+
+### Kura region replication lagging
+
+```promql
+max by (cluster, namespace, statefulset, region) (
+  label_replace(
+    max_over_time(kura_region_sync_lag_seconds{cluster="tuist-production"}[5m]),
+    "statefulset", "$1", "pod", "(.+)-[0-9]+"
+  )
+)
+```
+
+- Threshold: `> 600`, as a separate threshold expression on `A`
+- Pending period: 10 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache` (five-minute evaluation).
+  No contact point on the rule: the policy tree sends it to
+  `#notifications`. **No Data: Normal**, **Error: Error**.
+- Summary: `Kura {{ $labels.statefulset }} is
+  {{ $values.A.Value | humanizeDuration }} behind region {{ $labels.region }}`
+- Proposed rule, recorded in
+  [`kura-replication-alert-rules.json`](kura-replication-alert-rules.json)
+  (UID `kura-region-replication-lag`). Merging the file does not provision
+  Grafana. Create it once a Kura release exporting the gauge has rolled out to
+  production, after checking step 12 of
+  [Create the rules in Grafana](#create-the-rules-in-grafana): a brand-new
+  metric is exactly what Adaptive Metrics aggregates, and this rule is useless
+  without `pod` and `region`.
+
+The gauge is exported by the pod holding its region's gateway role, one series
+per remote region it pulls from. It is replication lag in **origin version
+time**: the newest version the remote gateway has committed for its region,
+minus the newest version applied here (see D-37 in
+[`kura/docs/replication-implementation.md`](../../../kura/docs/replication-implementation.md)).
+It reads 0 when caught up, including while the remote region writes nothing,
+so an idle region never fires this. That is why the rule reads this gauge and
+not `kura_region_watermark_age_seconds`, which grows through every idle stretch
+of the remote region. While the link cannot reach the remote gateway there is
+no fresh sample, so the lag keeps growing by the silence beyond one long-poll
+(`KURA_SYNC_LONG_POLL_SECS`, 25 s). A cut-off link therefore fires this rule
+too, roughly twenty minutes after the last answer. Everything written in the
+remote region since then is missing here: reads served from this region miss
+on artifacts that exist in the other one.
+
+**Why aggregate by StatefulSet, not pod.** Only the gateway reports the series,
+and it is removed when the link closes. Restarts and membership blips move the
+role between the instance's pods, so the series hops from `...-0` to `...-1`.
+Grouping by pod would reset the pending period and open a second alert on every
+hop. Scraped Kura series carry no StatefulSet label, so the query derives it
+from the pod name (`kura-<account>-<region>-<n>`); `instance` is
+`<namespace>/<pod>` and hops with it. The `region` label is the **remote**
+region; the local one is part of the StatefulSet name.
+
+**Why `max_over_time(...[5m])`.** The window matches the `Cache` group's
+five-minute evaluation, so each evaluation sees every sample since the last
+one. A hop leaves the series absent for a scrape or two, and an evaluation
+landing in that gap would otherwise see no series and reset the pending
+period. The `max` also collapses the brief overlap when both pods report. The
+cost is that the alert resolves up to five minutes late.
+
+**Why 600 seconds and 10 minutes.** A handover or a gateway entering runs a
+backward pass, and until that pass completes the new holder reports the lag
+from its seeded watermark, which can sit a buffer (`KURA_SYNC_PASS_START_BUFFER_MS`,
+10 minutes) below the remote head. Most passes finish in a minute or two. The
+pending period needs three consecutive evaluations above the threshold, so the
+lag has to stay above ten minutes for between five and ten minutes of samples,
+depending on how they fall against the evaluation. A short pass does not fire;
+a region more than a quarter of an hour behind does. A long cold backward pass
+can fire it. That is a true positive: the region is not current until the
+pass finishes. This is a warning, not a page: reads fall through to a miss,
+nothing is lost, and the link catches up on its own once the cause clears.
+
+#### Triage
+
+Work out which side is behind, using the gateway pod of the lagging instance
+(`kura_gateway_role`) and the remote region's gateway:
+
+1. **Can the gateway reach the remote gateway at all?**
+   `max by (pod, region) (kura_region_sync_last_success_age_seconds)` on the
+   lagging instance. Above a few minutes, the link is failing, not slow: check
+   the gateway's logs for `region listing` errors, the WAN path (Cilium,
+   DNS, the remote ingress), and whether the remote gateway pod is Ready. If
+   the age is high against every remote region, this gateway is cut off; if
+   only against one, that region is.
+2. **Is the remote gateway holding its listing back?**
+   `kura_region_listing_bound_lag_seconds` on the **remote** gateway pod. The
+   ascending listing only serves below the frontier of the remote gateway's
+   own replica link to its sibling (D-24), so a sibling link that is
+   bootstrapping or has not reported holds the whole region's listing back.
+   86400 means the listing is bounded whole. Follow that replica link on the
+   remote gateway (`kura_sync_forward_cursor_lag_seconds`,
+   `kura_sync_forward_fell_behind_total`, its `sync_links`) rather than this
+   one.
+3. **Is the remote region writing faster than this link applies?** Compare the
+   remote instance's write rate with `kura_region_sync_bytes_fetched_total`
+   and `kura_region_sync_entries_listed_total` on this gateway. A steady,
+   growing lag with a healthy last-success age is a throughput problem: look
+   at this pod's memory pressure, sheds and RocksDB write buffer.
+4. **Is a backward pass running?** `/status/cluster` on the gateway pod lists
+   one `sync_links` entry per link with its `phase`, `settled` and `lag`. A
+   link in `bootstrapping` that stays there is a slow pass;
+   `kura_region_sync_last_cycle_duration_seconds` shows how long the last one
+   took. A link in `retrying` is step 1.
+
+A gateway that restarts in a loop hands the role over on every restart, and
+each handover starts a new pass. Check **Kura cache pod restart loop** first
+if the StatefulSet shows restarts.
+
+Run `bash infra/helm/k8s-monitoring/test-kura-region-sync-lag-alert.sh` with
+`jq` and `promtool` on PATH. It evaluates the exact query and pending period at
+the group's five-minute cadence against a caught-up link, a sustained lag, a
+short backward pass, an unreachable remote gateway, the gateway role hopping
+pods across an evaluation, two pods reporting at once, per-region separation
+and a staging series.
 
 ### Worker node pool stuck mid-rollout
 

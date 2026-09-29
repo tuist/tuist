@@ -1,0 +1,87 @@
+[
+  {
+    "annotations": {
+      "description": "The gateway of this Kura instance has applied nothing newer than ten minutes behind what the remote region's gateway has committed, measured in origin version time, for at least ten minutes. It reads 0 when caught up, including while the remote region writes nothing, so an idle region never fires this. While the link cannot reach the remote gateway the lag keeps growing with the silence, so a cut-off link fires here too. The 10-minute pending period, over a 5-minute window that bridges the gateway role hopping between pods, rides out a handover or a short backward pass. Check kura_region_sync_last_success_age_seconds for an unreachable remote gateway, kura_region_listing_bound_lag_seconds on the remote gateway for a listing held back by its sibling link, the remote region's write rate, and the sync_links in /status/cluster on the gateway pod.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-region-replication-lagging",
+      "summary": "Kura {{ $labels.statefulset }} is {{ $values.A.Value | humanizeDuration }} behind region {{ $labels.region }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, namespace, statefulset, region) (label_replace(max_over_time(kura_region_sync_lag_seconds{cluster=\"tuist-production\"}[5m]), \"statefulset\", \"$1\", \"pod\", \"(.+)-[0-9]+\"))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  600
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Cache",
+    "title": "Kura - region replication lagging",
+    "uid": "kura-region-replication-lag"
+  }
+]
