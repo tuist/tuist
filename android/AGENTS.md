@@ -18,6 +18,7 @@ This node covers the Tuist Android companion app under `android/`. The app provi
 - **Networking**: Retrofit + OkHttp + Moshi
 - **Token Storage**: EncryptedSharedPreferences
 - **OAuth**: Chrome Custom Tabs with PKCE flow
+- **Token refresh**: `TokenRefreshAuthenticator` exchanges the OAuth refresh token at `POST /oauth2/token` (`grant_type=refresh_token` + the app's client id). `/api/auth/refresh_token` only accepts CLI (Guardian) refresh tokens. Only `400 invalid_grant`/`401` sign the user out; other failures surface as `TokenRefreshException` (an `IOException`) and keep the tokens.
 - **Navigation**: Navigation Compose
 
 ## Building
