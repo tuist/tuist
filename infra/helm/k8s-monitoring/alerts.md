@@ -5109,11 +5109,9 @@ max by (cluster, namespace, statefulset, region) (
   `#notifications`. **No Data: Normal**, **Error: Error**.
 - Summary: `Kura {{ $labels.statefulset }} is
   {{ $values.A.Value | humanizeDuration }} behind region {{ $labels.region }}`
-- Proposed rule, recorded in
-  [`kura-replication-alert-rules.json`](kura-replication-alert-rules.json)
-  (UID `kura-region-replication-lag`). Merging the file does not provision
-  Grafana. Create it once a Kura release exporting the gauge has rolled out to
-  production, after checking step 12 of
+- Proposed rule; it must be created in Grafana separately. Create it once a
+  Kura release exporting the gauge has rolled out to production, after
+  checking step 12 of
   [Create the rules in Grafana](#create-the-rules-in-grafana): a brand-new
   metric is exactly what Adaptive Metrics aggregates, and this rule is useless
   without `pod` and `region`.
@@ -5196,13 +5194,6 @@ Work out which side is behind, using the gateway pod of the lagging instance
 A gateway that restarts in a loop hands the role over on every restart, and
 each handover starts a new pass. Check **Kura cache pod restart loop** first
 if the StatefulSet shows restarts.
-
-Run `bash infra/helm/k8s-monitoring/test-kura-region-sync-lag-alert.sh` with
-`jq` and `promtool` on PATH. It evaluates the exact query and pending period at
-the group's five-minute cadence against a caught-up link, a sustained lag, a
-short backward pass, an unreachable remote gateway, the gateway role hopping
-pods across an evaluation, two pods reporting at once, per-region separation
-and a staging series.
 
 ### Worker node pool stuck mid-rollout
 
