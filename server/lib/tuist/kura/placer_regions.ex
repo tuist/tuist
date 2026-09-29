@@ -41,6 +41,17 @@ defmodule Tuist.Kura.PlacerRegions do
     |> Enum.map(& &1.region)
   end
 
+  @doc "Every claimed region for many accounts, including retiring regions."
+  def claimed_regions_all(accounts) when is_list(accounts) do
+    account_ids = Enum.map(accounts, & &1.id)
+
+    PlacerRegion
+    |> where([placer], placer.account_id in ^account_ids)
+    |> select([placer], {placer.account_id, placer.region})
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
   @doc """
   The account's regions that are on their way out.
   """

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID
+
 cd "$(dirname "${BASH_SOURCE[0]}")"
 fixtures="$(mktemp -d)"
 trap 'rm -rf "${fixtures}"' EXIT

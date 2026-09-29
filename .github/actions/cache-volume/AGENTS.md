@@ -13,9 +13,11 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
   move forward. Wrapper releases and live storage fleet enablement are separate.
 - Provider integration implementation and rollout live in `infra/runners-controller/cache-volume-integrations.md`.
 
-- Document symlink target limitations, node_modules rejection, single-line paths,
-  and workspace .gitignore rules without trailing slashes in the public README.
+- Document ordinary bind-mounted directories and one key per path. Keep workflow
+  inputs single-line and preserve the absent/empty target contract. The installed
+  client and controller own mounting; never add workflow sudo or symlink helpers.
 
+- macOS uses symlink targets and rejects node_modules; preserve its documented limitations.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

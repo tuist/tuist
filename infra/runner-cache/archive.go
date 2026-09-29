@@ -3,6 +3,7 @@ package cachevolumes
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -41,7 +42,7 @@ func compressImage(src, dst string) (string, string, error) {
 
 // RestoreImage validates the transferred bytes before the caller installs the
 // image as a master. Both compressed and expanded input are bounded.
-func RestoreImage(src io.Reader, dst, digest string, maxBytes int64) error {
+func RestoreImage(ctx context.Context, src io.Reader, dst, digest string, maxBytes int64) error {
 	h := sha256.New()
 	// Incompressible payloads can grow slightly in gzip. Bound that overhead
 	// separately while retaining the exact limit on expanded image bytes.
@@ -65,6 +66,9 @@ func RestoreImage(src io.Reader, dst, digest string, maxBytes int64) error {
 	buf, zero := make([]byte, 128*1024), make([]byte, 128*1024)
 	var total int64
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		n, e := io.ReadFull(gz, buf)
 		total += int64(n)
 		if total > maxBytes {
@@ -97,6 +101,9 @@ func RestoreImage(src io.Reader, dst, digest string, maxBytes int64) error {
 		return err
 	}
 	if err = out.Sync(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	valid = true

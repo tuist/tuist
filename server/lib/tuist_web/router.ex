@@ -214,10 +214,19 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
-  pipeline :browser_marketing do
+  pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
+    plug :accepts, ["html"]
+  end
+
+  # The newsletter signup form submits with `Accept: application/json`.
+  pipeline :browser_marketing_form do
+    plug :put_request_kind, "marketing"
     plug :accepts, ["html", "json"]
+  end
+
+  pipeline :browser_marketing do
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -292,9 +301,9 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
-    # authentication because the grant is honoured only for the operator it
-    # was minted for.
-    plug :accept_operator_grant_header
+    # authentication because the elevation belongs to the operator behind the
+    # token.
+    plug :accept_atlas_identity_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -381,6 +390,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [
       :open_api,
+      :browser_marketing_page,
       :browser_marketing,
       :assign_current_path
     ]
@@ -507,26 +517,35 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :same_origin_csrf_exemption,
+      :browser_marketing_form,
       :browser_marketing,
       :assign_current_path
     ]
 
     for locale <- ["en"] ++ Localization.additional_locales() do
-      locale_path_prefix = Localization.locale_path_prefix(locale)
-
-      private = %{locale: locale}
-
-      post Path.join(locale_path_prefix, "/newsletter"),
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter"),
            MarketingController,
            :newsletter_signup,
            metadata: %{type: :marketing},
-           private: private
+           private: %{locale: locale}
+    end
+  end
 
-      post Path.join(locale_path_prefix, "/newsletter/verify"),
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing_page,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter/verify"),
            MarketingController,
            :newsletter_confirm,
            metadata: @marketing_route_metadata,
-           private: private
+           private: %{locale: locale}
     end
   end
 
@@ -957,6 +976,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
+    get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
@@ -1176,6 +1196,10 @@ defmodule TuistWeb.Router do
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
+    get "/sso/link", SSOLinkController, :show
+    post "/sso/link", SSOLinkController, :create
+    delete "/sso/link", SSOLinkController, :delete
+
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
@@ -1341,6 +1365,7 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+    get "/billing/pay", BillingController, :pay
 
     get "/runners/interactive/vnc",
         RunnerInteractiveVNCController,

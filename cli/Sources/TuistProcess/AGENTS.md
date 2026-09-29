@@ -11,6 +11,10 @@ This module provides process execution helpers and process lifecycle utilities.
 
 ## Invariants
 - Background processes are detached with stdout/stderr to null device.
+- Subprocess output is read with blocking reads on a dedicated thread (`FileHandle.byteStream()`), never through `readabilityHandler`: on Linux its readability source can miss the end of file after a short-lived child writes and exits, leaving `CommandRunner` waiting forever.
+
+## Tests
+- Unit tests live in `cli/Tests/TuistProcessTests` and run on macOS (Xcode) and Linux (`swift test`).
 
 ## Related Context
 - cli/Sources/TuistSupport/AGENTS.md

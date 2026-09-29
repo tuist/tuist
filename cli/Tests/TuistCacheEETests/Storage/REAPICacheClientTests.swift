@@ -158,7 +158,7 @@ struct REAPICacheClientTests {
                 inputs[REAPI.digest(body)] = file
             }
             await state.failNextBatches()
-            #expect(try await client.uploadAvailableBlobs(inputs).count == 300)
+            #expect(try await client.uploadAvailableBlobs(inputs).available.count == 300)
             #expect(await state.missingQueries == 1)
             #expect(await state.updateCalls > 1)
             #expect(await state.updateCalls < 20)
@@ -290,6 +290,116 @@ struct REAPICacheClientTests {
             #expect(error?.code == code)
             #expect(error?.message == "Injected server failure")
             #expect(await state.actionQueries[digest] == (code == .unavailable ? 3 : 1))
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func uploadNamesTheByteStreamRouteAnEndpointDoesNotServe() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let small = Data("small".utf8)
+            let large = Data((0 ..< 3 * 1024 * 1024).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+            let smallPath = directory.appending(component: "small").url
+            let largePath = directory.appending(component: "large").url
+            try small.write(to: smallPath)
+            try large.write(to: largePath)
+            let blobs = [REAPI.digest(small): smallPath, REAPI.digest(large): largePath]
+
+            let upload = try await client.uploadAvailableBlobs(blobs)
+
+            #expect(upload.available == [REAPI.digest(small)])
+            let reason = try #require(upload.failures[REAPI.digest(large)])
+            #expect(reason.hasPrefix("/google.bytestream.ByteStream/Write is not served by the cache endpoint"))
+            #expect(reason.hasSuffix("it must route /google.bytestream.ByteStream to the cache's gRPC API"))
+            let error = await #expect(throws: REAPICacheError.self) { try await client.uploadBlobs(blobs) }
+            #expect(error?.localizedDescription == "The cache did not accept every blob: \(reason)")
+        }
+    }
+
+    @Test func failureDescriptionKeepsTheConnectionCause() {
+        let error = RPCError(
+            code: .unavailable,
+            message: "Could not establish a connection",
+            cause: REAPICacheError.proxyConnectionFailed
+        )
+
+        #expect(REAPICall.getCapabilities.describeFailure(error) == """
+        /build.bazel.remote.execution.v2.Capabilities/GetCapabilities failed with unavailable: \
+        Could not establish a connection (The proxy could not establish a connection to the REAPI cache.)
+        """)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func uploadReportsTheFailureThatEndedTheRetriesNotAnEarlierRejection() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        await state.planUpdates([
+            .reject(status: 8),
+            .fail(RPCError(code: .permissionDenied, message: "Injected denial")),
+        ])
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let data = Data("blob".utf8)
+            let path = directory.appending(component: "blob").url
+            try data.write(to: path)
+
+            let upload = try await client.uploadAvailableBlobs([REAPI.digest(data): path])
+
+            #expect(upload.available.isEmpty)
+            let reason = try #require(upload.failures[REAPI.digest(data)])
+            #expect(reason.hasPrefix("/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs failed with "))
+            #expect(reason.hasSuffix(": Injected denial"))
+            #expect(await state.updateCalls == 2)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func uploadReportsBlobsWhosePresenceCouldNotBeChecked() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let data = Data("blob".utf8)
+            let path = directory.appending(component: "blob").url
+            try data.write(to: path)
+
+            let upload = try await client.uploadAvailableBlobs([REAPI.digest(data): path])
+
+            #expect(upload.available.isEmpty)
+            #expect(upload.failures[REAPI.digest(data)]?.hasPrefix(
+                "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs is not served"
+            ) == true)
         }
     }
 
@@ -650,6 +760,16 @@ private actor WireCache {
     private var failUpdate = false
     private var failRead = false
     func failNextBatches() { failUpdate = true; failRead = true }
+
+    /// What each successive BatchUpdateBlobs call does, consumed in order; once used up, calls store their blobs.
+    enum UpdateStep: Sendable {
+        case reject(status: Int32)
+        case fail(RPCError)
+    }
+
+    private var updateSteps: [UpdateStep] = []
+    func planUpdates(_ steps: [UpdateStep]) { updateSteps = steps }
+    func nextUpdateStep() -> UpdateStep? { updateSteps.isEmpty ? nil : updateSteps.removeFirst() }
     func beginUpdate(bytes: Int) throws {
         updateCalls += 1
         largestBatch = max(largestBatch, bytes)
@@ -730,6 +850,18 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
         context _: ServerContext
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse {
         try await state.beginUpdate(bytes: request.requests.reduce(0) { $0 + $1.data.count })
+        switch await state.nextUpdateStep() {
+        case let .reject(status):
+            return .with { $0.responses = request.requests.map { entry in .with {
+                $0.digest = entry.digest
+                $0.status.code = status
+                $0.status.message = "Injected rejection"
+            } } }
+        case let .fail(error):
+            throw error
+        case nil:
+            break
+        }
         for entry in request.requests {
             let data: Data
             if entry.compressor == .zstd {

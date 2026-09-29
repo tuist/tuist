@@ -14,6 +14,7 @@ defmodule Atlas.GTM.Delivery do
     field :kind, :string
     field :recipient_email, :string
     field :recipient_name, :string
+    field :cc_emails, {:array, :string}, default: []
     field :subject, :string
     field :status, :string, default: "pending"
     field :provider_message_id, :string
@@ -38,6 +39,7 @@ defmodule Atlas.GTM.Delivery do
       :kind,
       :recipient_email,
       :recipient_name,
+      :cc_emails,
       :subject,
       :status,
       :provider_message_id,

@@ -70,9 +70,11 @@ A job's `image:` does not select a Docker executor. Docker child containers
 need explicit private-root mounts and separate validation. macOS support is
 not included. Caches must not contain secrets or irreplaceable data.
 
-Targets are attached as symlinks. Cache download directories such as `~/.npm`
-or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
-Other tools that replace their cache directory are also incompatible. For a
+Linux targets are bind-mounted as ordinary directories. On macOS, targets are
+attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected on macOS because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible on macOS.
+For a macOS
 workspace path, ignore the link without a trailing slash (for example `.gradle`,
 not `.gradle/`, in `.gitignore`). Paths must be a single line without control
 characters; use a plain YAML string instead of `path: |`.

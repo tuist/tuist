@@ -12,7 +12,7 @@ import (
 func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
 	t.Helper()
 	remote := &testTransfer{generation: 1}
-	b := &APFSImages{LocalImages: LocalImages{Root: t.TempDir(), SizeGB: 20, MinFreeBytes: 40_000_000_000, Transfer: remote, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Create: func(path string, size int64) error {
+	b := &APFSImages{LocalImages: LocalImages{Root: t.TempDir(), SizeGB: 20, MinFreeBytes: 40_000_000_000, Transfer: remote, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Create: func(_ context.Context, path string, size int64) error {
 		if size != 20_000_000_000 {
 			t.Fatal(size)
 		}
@@ -52,14 +52,14 @@ func TestAPFSColdWarmIsolationAndRetry(t *testing.T) {
 	b, remote := newAPFS(t)
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
 	path := apfsPath(t, b, slot)
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	exposed := filepath.Join(path, "cache.sparseimage")
 	if err := os.WriteFile(exposed, []byte("saved data"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(exposed); string(data) != "saved data" {
@@ -87,9 +87,10 @@ func TestAPFSColdWarmIsolationAndRetry(t *testing.T) {
 	next.ID = second
 	next.PodUID = "next"
 	next.BaseGeneration = 1
+	next.ImageDigest = strings.Repeat("b", 40)
 	next.ContentDigest = content
 	secondPath := apfsPath(t, b, next)
-	if err := b.Attach(next, secondPath); err != nil {
+	if err := b.Attach(context.Background(), next, secondPath); err != nil {
 		t.Fatal(err)
 	}
 	if remote.downloads != 0 {
@@ -116,7 +117,7 @@ func TestAPFSNoPublicationWithoutCleanDetach(t *testing.T) {
 			b, remote := newAPFS(t)
 			slot := Slot{Identity: identity(first), PodUID: "p"}
 			path := apfsPath(t, b, slot)
-			if err := b.Attach(slot, path); err != nil {
+			if err := b.Attach(context.Background(), slot, path); err != nil {
 				t.Fatal(err)
 			}
 			switch reason {
@@ -143,7 +144,7 @@ func TestAPFSClearConflictNeverInstallsMaster(t *testing.T) {
 	remote.conflict = true
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	path := apfsPath(t, b, slot)
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	detached(t, path, slot.ID)
@@ -169,7 +170,7 @@ func TestAPFSRefusesReplacedGuestImage(t *testing.T) {
 	b, _ := newAPFS(t)
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
 	path := apfsPath(t, b, slot)
-	if err := b.Attach(slot, path); err != nil {
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
 	exposed := filepath.Join(path, "cache.sparseimage")
@@ -179,7 +180,30 @@ func TestAPFSRefusesReplacedGuestImage(t *testing.T) {
 	if err := os.WriteFile(exposed, []byte("different inode"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Attach(slot, path); err == nil {
+	if err := b.Attach(context.Background(), slot, path); err == nil {
 		t.Fatal("accepted replaced guest image")
+	}
+}
+
+func TestAPFSCancelledCreationNeverExposesImage(t *testing.T) {
+	b, _ := newAPFS(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	b.Create = func(_ context.Context, path string, _ int64) error {
+		if err := os.WriteFile(path, []byte("partial"), 0600); err != nil {
+			return err
+		}
+		cancel()
+		return nil
+	}
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	path := apfsPath(t, b, slot)
+	if err := b.Attach(ctx, slot, path); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	for _, file := range []string{b.image(slot), b.image(slot) + ".sparseimage", filepath.Join(path, "cache.sparseimage")} {
+		if _, err := os.Stat(file); !os.IsNotExist(err) {
+			t.Fatalf("cancelled creation left %s: %v", file, err)
+		}
 	}
 }

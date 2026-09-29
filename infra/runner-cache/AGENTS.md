@@ -30,3 +30,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   downloads and verify checksums. Require reflinks without byte-copy fallback.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
+
+- Acquisition uses the request context with a 25-second host budget and a
+  30-second client timeout. Propagate cancellation through downloads, expansion,
+  commands and shared-master/admission waits. Incomplete restores cannot publish;
+  reclaim their journals only after the existing writer fences pass.
+- Emit bounded operation/source/result metrics without keys, paths or signed URLs.
+  Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
+- Linux may prefetch one immutable master after a timed-out warm acquisition,
+  bounded to two minutes with no queue and the same disk reserve. Never create
+  a private branch, publish, or extend the foreground budget from prefetch.

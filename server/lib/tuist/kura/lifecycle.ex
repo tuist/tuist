@@ -120,6 +120,7 @@ defmodule Tuist.Kura.Lifecycle do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.Telemetry
   alias Tuist.Repo
@@ -298,7 +299,10 @@ defmodule Tuist.Kura.Lifecycle do
       # Somewhere else has to be serving first. Until then the retiring
       # instance is the account's cache, and taking it would be an outage
       # rather than a move.
-      not Enum.any?(servers, &(&1.region != region_id and &1.status == :active)) ->
+      not Enum.any?(
+        servers,
+        &(&1.region != region_id and &1.status == :active and StableEndpoint.retirement_ready?(&1, account))
+      ) ->
         :ok
 
       true ->

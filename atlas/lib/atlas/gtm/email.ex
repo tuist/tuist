@@ -23,8 +23,8 @@ defmodule Atlas.GTM.Email do
   end
 
   @doc """
-  Renders a direct, per-recipient email from the body and sender stored on the
-  delivery.
+  Renders a direct, per-recipient email from the body, sender, and CC addresses
+  stored on the delivery.
 
   Carries no unsubscribe footer and no `List-Unsubscribe` headers: these are
   transactional notices such as a billing or contract change, which the
@@ -41,6 +41,7 @@ defmodule Atlas.GTM.Email do
       metadata["reply_to_email"] || defaults[:reply_to_email],
       metadata["body_markdown"] || ""
     )
+    |> maybe_cc(delivery.cc_emails)
   end
 
   @doc """
@@ -255,6 +256,9 @@ defmodule Atlas.GTM.Email do
 
   defp maybe_reply_to(email, value) when is_binary(value) and value != "", do: reply_to(email, value)
   defp maybe_reply_to(email, _value), do: email
+
+  defp maybe_cc(email, []), do: email
+  defp maybe_cc(email, addresses), do: cc(email, Enum.map(addresses, &{"", &1}))
 
   defp email_defaults, do: Application.get_env(:atlas, :gtm_email, [])
 end

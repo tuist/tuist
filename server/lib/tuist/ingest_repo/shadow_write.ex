@@ -134,7 +134,7 @@ defmodule Tuist.IngestRepo.ShadowWrite do
         # enough: the inserts it is meant to erase are detached tasks that may
         # still be queued, so the delete can overtake them and the row it
         # removed is written back immediately afterwards.
-        await_inflight_mirrors()
+        drain(@drain_timeout_ms)
         mirror(run, kind, 1, @attempts)
       end
     end
@@ -207,12 +207,19 @@ defmodule Tuist.IngestRepo.ShadowWrite do
     :exit, _reason -> mirror(fun, kind, 1, @attempts)
   end
 
-  # Bounded, because this runs in the request that issued the mutation, and a
-  # mirror that is wedged must not hold that request open indefinitely. Timing
-  # out means the delete goes ahead unordered, which is the same risk as
-  # before and strictly rarer.
-  defp await_inflight_mirrors do
-    deadline = System.monotonic_time(:millisecond) + @drain_timeout_ms
+  @doc """
+  Waits, for at most `timeout_ms`, for the mirrored inserts in flight to
+  finish.
+
+  Bounded for both of its callers. A mutation calls it in the request that
+  issued it, so a wedged mirror must not hold that request open, and timing
+  out only means the delete goes ahead unordered, which is the same risk as
+  before and strictly rarer. `Tuist.IngestRepo.ShadowWrite.Drainer` calls it
+  at shutdown, where waiting longer than the pod's grace period would lose
+  the mirrors to a SIGKILL anyway.
+  """
+  def drain(timeout_ms) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
 
     @supervisor
     |> Task.Supervisor.children()

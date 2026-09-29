@@ -27,9 +27,9 @@ type transferResponse struct {
 	Conflict    bool   `json:"conflict"`
 }
 
-func (t *HTTPTransfer) request(slot Slot, operation, digest, content string) (transferResponse, error) {
+func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest, content string) (transferResponse, error) {
 	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "image_digest": digest, "content_digest": content})
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", t.URL, bytes.NewReader(body))
 	if err != nil {
@@ -39,18 +39,18 @@ func (t *HTTPTransfer) request(slot Slot, operation, digest, content string) (tr
 	if err != nil {
 		return transferResponse{}, err
 	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
 	response, err := t.Client.Do(req)
 	if err != nil {
-		return transferResponse{}, errors.New("image metadata request failed")
+		return transferResponse{}, fmt.Errorf("image metadata request failed: %w", transferError(err))
 	}
 	defer response.Body.Close()
 	if response.StatusCode == 409 {
 		return transferResponse{}, ErrConflict
 	}
 	if response.StatusCode != 200 {
-		return transferResponse{}, fmt.Errorf("image metadata status %d", response.StatusCode)
+		return transferResponse{}, &RemoteError{Operation: "metadata", StatusCode: response.StatusCode}
 	}
 	var result transferResponse
 	if err = json.NewDecoder(io.LimitReader(response.Body, 16384)).Decode(&result); err != nil {
@@ -61,30 +61,30 @@ func (t *HTTPTransfer) request(slot Slot, operation, digest, content string) (tr
 	}
 	return result, nil
 }
-func (t *HTTPTransfer) Download(slot Slot, path string) error {
-	result, err := t.request(slot, "download", "", "")
+func (t *HTTPTransfer) Download(ctx context.Context, slot Slot, path string) error {
+	result, err := t.request(ctx, slot, "download", "", "")
 	if err != nil {
 		return err
 	}
 	if result.Generation != slot.BaseGeneration || result.DownloadURL == "" {
 		return errors.New("cache master identity mismatch")
 	}
-	req, err := http.NewRequest("GET", result.DownloadURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", result.DownloadURL, nil)
 	if err != nil {
 		return errors.New("invalid download URL")
 	}
 	response, err := t.Client.Do(req)
 	if err != nil {
-		return errors.New("image download failed")
+		return fmt.Errorf("image download failed: %w", transferError(err))
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return fmt.Errorf("image download status %d", response.StatusCode)
+		return &RemoteError{Operation: "download", StatusCode: response.StatusCode}
 	}
-	return RestoreImage(response.Body, path, slot.ContentDigest, t.MaxBytes)
+	return RestoreImage(ctx, response.Body, path, slot.ContentDigest, t.MaxBytes)
 }
 func (t *HTTPTransfer) Publish(slot Slot, path, digest, content string) (int64, error) {
-	result, err := t.request(slot, "upload", digest, content)
+	result, err := t.request(context.Background(), slot, "upload", digest, content)
 	if err != nil {
 		return 0, err
 	}
@@ -110,13 +110,13 @@ func (t *HTTPTransfer) Publish(slot Slot, path, digest, content string) (int64, 
 	}
 	response, err := t.Client.Do(req)
 	if err != nil {
-		return 0, errors.New("image upload failed")
+		return 0, fmt.Errorf("image upload failed: %w", transferError(err))
 	}
 	response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return 0, fmt.Errorf("image upload status %d", response.StatusCode)
+		return 0, &RemoteError{Operation: "upload", StatusCode: response.StatusCode}
 	}
-	result, err = t.request(slot, "publish", digest, content)
+	result, err = t.request(context.Background(), slot, "publish", digest, content)
 	if err == nil && result.Generation <= slot.BaseGeneration {
 		return 0, errors.New("invalid published generation")
 	}
@@ -124,11 +124,22 @@ func (t *HTTPTransfer) Publish(slot Slot, path, digest, content string) (int64, 
 }
 
 func (t *HTTPTransfer) IsCurrent(slot Slot) (bool, error) {
-	result, err := t.request(slot, "retain", "", "")
+	result, err := t.request(context.Background(), slot, "retain", "", "")
 	if errors.Is(err, ErrConflict) {
 		return false, nil
 	}
 	return result.Generation == slot.BaseGeneration, err
+}
+
+// Preserve cancellation for classification without logging credential-bearing URLs.
+func transferError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	return errors.New("transport error")
 }
 
 func (t *HTTPTransfer) token(ctx context.Context) (string, error) {

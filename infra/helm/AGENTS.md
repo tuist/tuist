@@ -9,13 +9,32 @@ This node covers Helm assets under `infra/helm/`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
+
+- Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
+  Dedibox support is removed after all Machine release finalizers completed
+  on September 28, 2026: no fleet values, templates, provider implementation,
+  CRD sources, credentials wiring, or provider permissions remain. Helm does
+  not prune installed CRDs or the legacy IAM ExternalSecret hook; both require
+  explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
+  Production EU-West ingress discovers OVH gateway Node addresses automatically.
+  Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
+  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
+- Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
+- OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
+  `tuist-fleet-unwedge` role. Do not aggregate it into `edit` or extend it to
+  templates, status, create, update or delete. RBAC does not restrict fields;
+  scope each repair to the diagnosed drift (for example, backfilling a live
+  Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
+  Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
+- Embedded object storage uses the same digest-pinned `ghcr.io/coollabsio/minio` community image for the server and bundled `mc` initializer because the upstream Quay images no longer allow anonymous pulls. Keep both image pins aligned and validate changes with `helm:k3s-smoke`; managed environments use external storage.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
 - The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
   release binaries and imports it into the disposable cluster. Existing-context
@@ -57,6 +76,12 @@ This node covers Helm assets under `infra/helm/`.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
 
+- Stable cache DNS is disabled by default: platform `cacheDNS` owns the CRD-only AWS external-dns and Route53 ACME solver; `kuraController.stableDNS` supplies read/health-check credentials separately. Cloudflare excludes `cache.tuist.dev`. Preserve independent owners and Secrets, and see `../cache-dns/README.md` before enabling.
+  Staging enables the provider plumbing and shared cache wildcard for spec 95
+  validation. Select `kura-spec95-e2e` and the temporary `kura-spec95-health`
+  fixture through FunWithFlags actor gates before deploying the removal of the
+  old staging environment allowlist if those fixtures must remain active.
+
 - Linux cache volumes require a bounded reflink filesystem. The
   node agent uses local loop-mounted images and the existing macOS object-storage
   infrastructure; no Ceph Secret or pool values remain. Managed production opts
@@ -68,7 +93,7 @@ This node covers Helm assets under `infra/helm/`.
 - Staging custom-volume smoke validation uses the preallocated XFS mount at
   `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
   the root partition is too small for the default 200 GB backing file. Keep
-  its agent image pinned to a tested commit and retain the mount while any
+  its agent image aligned with the controller release and retain the mount while any
   private branches are live. Production enables provisioning and resolves the
   agent image from the matching controller release through normal deployment.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
@@ -77,3 +102,6 @@ This node covers Helm assets under `infra/helm/`.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- Cache-volume agents expose phase/source/result telemetry on a separate port
+  9091. Allow scraping only from `observability`, retain the series in staging,
+  and keep runner acquisition on 8090 under its existing pod selector.

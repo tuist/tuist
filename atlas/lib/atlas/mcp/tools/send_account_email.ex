@@ -1,7 +1,8 @@
 defmodule Atlas.MCP.Tools.SendAccountEmail do
   @moduledoc """
-  Sends one transactional email to one recipient, addressed either directly or
-  through the account whose billing contact should receive it.
+  Sends one transactional email to a primary recipient, addressed either
+  directly or through the account whose billing contact should receive it, with
+  any other contacts copied in CC on the same message.
   """
 
   use Atlas.MCP.Tool,
@@ -16,6 +17,11 @@ defmodule Atlas.MCP.Tools.SendAccountEmail do
           "email" => %{
             "type" => "string",
             "description" => "Recipient address. Takes precedence over the account identifiers."
+          },
+          "cc_emails" => %{
+            "type" => "array",
+            "items" => %{"type" => "string"},
+            "description" => "Addresses copied on the same email. Duplicates and the primary recipient are dropped."
           },
           "recipient_name" => %{"type" => "string"},
           "subject" => %{"type" => "string"},
@@ -45,14 +51,14 @@ defmodule Atlas.MCP.Tools.SendAccountEmail do
 
   @impl EMCP.Tool
   def description do
-    "Send a single transactional email to one recipient, such as a billing, pricing, or contract notice. Unlike send_email_broadcast this carries no unsubscribe footer and ignores subscriber status, so a recipient who left a marketing audience still receives it. Only call it when the user explicitly asks to send, because it queues delivery immediately."
+    "Send a single transactional email, such as a billing, pricing, or contract notice, to one primary recipient. To reach several contacts at one organization, send one email to the primary contact and list the others in cc_emails rather than sending separate copies. Unlike send_email_broadcast this carries no unsubscribe footer and ignores subscriber status, so a recipient who left a marketing audience still receives it. Only call it when the user explicitly asks to send, because it queues delivery immediately."
   end
 
   def execute(conn, args) do
     with {:ok, recipient_email, account} <- resolve_recipient(args),
          attrs =
            args
-           |> Map.take(~w(recipient_name subject body_markdown from_name from_email reply_to_email))
+           |> Map.take(~w(recipient_name cc_emails subject body_markdown from_name from_email reply_to_email))
            |> Map.merge(%{"recipient_email" => recipient_email, "account" => account}),
          {:ok, result} <- GTM.queue_direct_email(attrs, Tool.current_user(conn)) do
       {:ok, %{delivery: GTMEmail.delivery(result.delivery), duplicate: result.duplicate}}

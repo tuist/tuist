@@ -1,6 +1,7 @@
 package cachevolumes
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,8 +18,8 @@ import (
 // Built-in Tuist/CAS images remain owned by the existing VolumeManager.
 type APFSImages struct {
 	LocalImages
-	Create func(string, int64) error
-	Guard  func() func()
+	Create func(context.Context, string, int64) error
+	Guard  func(context.Context) (func(), error)
 	Verify func(string) (int64, int64, error)
 	Detach func(string) error
 }
@@ -29,55 +30,84 @@ func (b *APFSImages) Init() error {
 			return err
 		}
 	}
-	b.Clone = func(src, dst string) error { _, err := b.command("cp", "-c", src, dst); return err }
+	b.Clone = func(ctx context.Context, src, dst string) error {
+		_, err := b.commandContext(ctx, "cp", "-c", src, dst)
+		return err
+	}
 	return nil
 }
 
-func (b *APFSImages) Attach(slot Slot, path string) error {
+func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err error) {
+	source := "empty"
+	if slot.BaseGeneration > 0 {
+		source = "unknown"
+	}
+	start := time.Now()
+	defer func() {
+		if b.Observe != nil {
+			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
+		}
+	}()
 	if b.Guard != nil {
-		release := b.Guard()
+		release, err := b.Guard(ctx)
+		if err != nil {
+			return err
+		}
 		defer release()
+	}
+	if err = ctx.Err(); err != nil {
+		return err
 	}
 	image := b.image(slot)
 	if _, err := os.Lstat(image); os.IsNotExist(err) {
-		if err := b.reserve(); err != nil {
+		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
 			return err
 		}
 		tmp := image + ".sparseimage"
 		_ = os.Remove(tmp)
+		defer os.Remove(tmp)
 		if slot.BaseGeneration > 0 {
-			unlock := b.lock(slot.Scope)
+			if !validHead(slot.Identity) {
+				return errors.New("invalid master identity")
+			}
+			waited := b.Observe.Start("master_wait", "none")
+			unlock, lockErr := b.lockContext(ctx, slot.Scope)
+			waited(lockErr)
+			if lockErr != nil {
+				return lockErr
+			}
 			defer unlock()
 			master := b.master(slot)
 			if _, err = os.Stat(master); os.IsNotExist(err) {
-				if err = os.MkdirAll(filepath.Dir(master), 0700); err != nil {
-					return err
-				}
-				download := master + ".tmp"
-				_ = os.Remove(download)
-				if err = b.Transfer.Download(slot, download); err != nil {
-					return err
-				}
-				if err = durableRename(download, master); err != nil {
-					return err
-				}
-				if err = b.recordMaster(slot, master); err != nil {
-					return err
-				}
-			} else if err != nil {
+				source = "remote"
+				err = b.restoreMaster(ctx, slot, master)
+			}
+			if err != nil {
 				return err
 			}
-			if err = b.clone(master, tmp); err != nil {
+			if source == "unknown" {
+				source = "local"
+			}
+			if err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
 				return err
 			}
 			_ = os.Chtimes(master, time.Now(), time.Now())
-		} else if err = b.Create(tmp, int64(b.SizeGB)*1_000_000_000); err != nil {
+		} else if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, int64(b.SizeGB)*1_000_000_000) }); err != nil {
+			return err
+		}
+		if err = ctx.Err(); err != nil {
 			return err
 		}
 		if err = durableRename(tmp, image); err != nil {
 			return err
 		}
 	} else if err != nil {
+		return err
+	}
+	if source == "unknown" {
+		source = "local"
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	// A hard link exposes this branch's inode, never its host-only pathname.
@@ -130,7 +160,9 @@ func (b *APFSImages) Measure(slot Slot, _ string) (int64, int64, error) {
 	return values[0], values[1], nil
 }
 
-func (b *APFSImages) Seal(slot Slot, path string) error {
+func (b *APFSImages) Seal(slot Slot, path string) (err error) {
+	done := b.Observe.Start("publish", "none")
+	defer func() { done(err) }()
 	image := b.image(slot)
 	if !APFSMarker(path, ".detached", slot.ID) {
 		return ErrPoisoned

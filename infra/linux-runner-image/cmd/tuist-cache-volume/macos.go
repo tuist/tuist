@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -22,17 +23,22 @@ type macResponse struct {
 }
 
 func acquireMac(key string) (string, string, bool, error) {
-	return acquireMacAt(key, macShare, macMountRoot, macCommand)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
 func macCommand(args ...string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	return macCommandContext(context.Background(), args...)
+}
+func macCommandContext(ctx context.Context, args ...string) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if out, err := exec.CommandContext(ctx, "hdiutil", args...).CombinedOutput(); err != nil {
 		return fmt.Errorf("hdiutil: %w (%s)", err, out)
 	}
 	return nil
 }
-func acquireMacAt(key, share, mountRoot string, command func(...string) error) (string, string, bool, error) {
+func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error) (string, string, bool, error) {
 	if _, err := os.Stat(share); err != nil {
 		return "", "", false, err
 	}
@@ -51,17 +57,20 @@ func acquireMacAt(key, share, mountRoot string, command func(...string) error) (
 	if err = os.Rename(temp.Name(), filepath.Join(share, name)); err != nil {
 		return "", "", false, err
 	}
-	deadline := time.Now().Add(6 * time.Minute)
 	var response macResponse
 	for {
 		data, err = os.ReadFile(filepath.Join(share, name+".response"))
 		if err == nil && json.Unmarshal(data, &response) == nil {
 			break
 		}
-		if time.Now().After(deadline) {
-			return "", "", false, errors.New("cache attachment timed out")
+		select {
+		case <-ctx.Done():
+			return "", "", false, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
 		}
-		time.Sleep(250 * time.Millisecond)
+	}
+	if err := ctx.Err(); err != nil {
+		return "", "", false, err
 	}
 	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
 		return "", "", false, errors.New("cache unavailable")
@@ -117,4 +126,30 @@ func detachMacAt(share, mountRoot string, command func(...string) error) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func attachMac(key string, targets []string, root string) error {
+	if err := validateMacTargets(targets); err != nil {
+		return err
+	}
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
+}
+func validateMacTargets(targets []string) error {
+	for _, target := range targets {
+		for _, part := range strings.Split(filepath.Clean(target), string(filepath.Separator)) {
+			if part == "node_modules" {
+				return fmt.Errorf("%w: macOS cache paths use symlinks; cache the package download directory (for example ~/.npm) instead of node_modules", errInvalidPath)
+			}
+		}
+	}
+	return nil
+}
+func linkMacDirectory(root, source, target string) error {
+	if err := emptyTarget(target); err != nil {
+		return err
+	}
+	if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.Symlink(filepath.Join(root, source), target)
 }

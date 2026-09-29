@@ -51,7 +51,7 @@ const (
 	// cycle was meant to clear.
 	defaultPowerCycleSettle = 10 * time.Second
 
-	// defaultQuarantineRetryAfter is how long a host stays out of the claim pool
+	// defaultQuarantineRetryAfter is how long a host's bootstrap is held off
 	// after the machine controller gave up bootstrapping it.
 	//
 	// Matches the drift loop's terminal-failure cooldown, and for the same
@@ -73,40 +73,40 @@ const (
 var (
 	rackHostPowerGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_rackhost_power",
-		Help: "Observed outlet state of each RackHost: 1 = on, 0 = off. A host whose outlet could not be read publishes no series, which is what capt_rackhost_power_reachable is for. Labels: host, pool, site.",
-	}, []string{"host", "pool", "site"})
+		Help: "Observed outlet state of each RackHost: 1 = on, 0 = off. A host whose outlet could not be read publishes no series, which is what capt_rackhost_power_reachable is for. Labels: host, site.",
+	}, []string{"host", "site"})
 
 	rackHostPowerReachableGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_rackhost_power_reachable",
-		Help: "1 when the RackHost's outlet was readable on the last reconcile, 0 when it was not (or the host has no outlet configured). A sustained 0 means the fleet has no remote reboot for that box: the host may be perfectly healthy, but the next wedge needs someone on site. Labels: host, pool, site.",
-	}, []string{"host", "pool", "site"})
+		Help: "1 when the RackHost's outlet was readable on the last reconcile, 0 when it was not (or the host has no outlet configured). A sustained 0 means the fleet has no remote reboot for that box: the host may be perfectly healthy, but the next wedge needs someone on site. Labels: host, site.",
+	}, []string{"host", "site"})
 
-	rackHostClaimedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "capt_rackhost_claimed",
-		Help: "1 when the RackHost is held by a RackAppleSiliconMachine, 0 when it is free. Summed per pool this is the rack's utilisation, and free == 0 is what a MachineDeployment scale-up will fail to satisfy. Labels: host, pool, site, quarantined.",
-	}, []string{"host", "pool", "site", "quarantined"})
+	rackHostQuarantinedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "capt_rackhost_quarantined",
+		Help: "1 while the RackHost's bootstrap is held off after the machine controller exhausted its attempts on it, 0 otherwise. Labels: host, site.",
+	}, []string{"host", "site"})
 )
 
 func init() {
-	metrics.Registry.MustRegister(rackHostPowerGauge, rackHostPowerReachableGauge, rackHostClaimedGauge)
+	metrics.Registry.MustRegister(rackHostPowerGauge, rackHostPowerReachableGauge, rackHostQuarantinedGauge)
 }
 
-// RackHostReconciler owns the physical inventory: it keeps each host's observed
-// power state current, serves one-shot operator power actions, and releases a
-// claim whose machine no longer exists.
-//
-// It deliberately does NOT claim, bootstrap or bind hosts. The claim belongs to
-// the machine reconciler, because the claim and the Machine's own status have
-// to move together; splitting it across two controllers would put a
-// half-claimed host between them.
+// RackHostReconciler owns the physical inventory: it keeps the CAPI Machine
+// and the RackAppleSiliconMachine that make each host a node, keeps each
+// host's observed power state current, serves one-shot operator power
+// actions, and expires quarantines. Bootstrapping the host is the machine
+// reconciler's.
 type RackHostReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	// Power resolves a host's driver. Nil disables every power path: the
-	// controller still tracks claims and orphans, hosts report Unknown power,
-	// and PowerReachable goes False with a reason naming the missing wiring.
+	// Machines makes each host a node. Nil keeps no Machines.
+	Machines *RackMachines
+
+	// Power resolves a host's driver. Nil disables every power path: hosts
+	// report Unknown power, and PowerReachable goes False with a reason naming
+	// the missing wiring.
 	Power *power.Registry
 
 	// SecretsNamespace is where per-endpoint power credential Secrets live (the
@@ -120,8 +120,8 @@ type RackHostReconciler struct {
 	// hardware wants a different interval has somewhere to say so.
 	PowerCycleSettle time.Duration
 
-	// QuarantineRetryAfter is how long a quarantine holds before the host is
-	// returned to the pool. Zero means defaultQuarantineRetryAfter; negative
+	// QuarantineRetryAfter is how long a quarantine holds before the host's
+	// bootstrap starts over. Zero means defaultQuarantineRetryAfter; negative
 	// disables the expiry, which makes a quarantine permanent and should only
 	// be chosen by an operator who has another way to clear one.
 	QuarantineRetryAfter time.Duration
@@ -134,12 +134,9 @@ func (r *RackHostReconciler) quarantineRetryAfter() time.Duration {
 	return defaultQuarantineRetryAfter
 }
 
-// expireQuarantine returns a host to the pool once its quarantine has aged out.
-// Reports whether it cleared one.
-//
-// A host quarantined before QuarantinedAt existed carries no timestamp. Those
-// are released on sight rather than stranded forever: the field was added
-// precisely because there was no other way to release them.
+// expireQuarantine lifts a quarantine that has aged out, so the machine
+// controller bootstraps the host again. Reports whether it cleared one. A
+// quarantine with no timestamp is lifted on sight.
 func (r *RackHostReconciler) expireQuarantine(ctx context.Context, host *infrav1.RackHost) bool {
 	if !host.Status.Quarantined {
 		return false
@@ -154,9 +151,8 @@ func (r *RackHostReconciler) expireQuarantine(ctx context.Context, host *infrav1
 
 	reason := host.Status.QuarantineReason
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "QuarantineExpired",
-		"Returning to pool %q after %s out of it. It was quarantined for: %s",
-		host.Spec.Pool, retryAfter, reason)
-	log.FromContext(ctx).Info("quarantine expired; host returned to the pool",
+		"Bootstrapping again after %s in quarantine. It was quarantined for: %s", retryAfter, reason)
+	log.FromContext(ctx).Info("quarantine expired; the host is bootstrapped again",
 		"host", host.Name, "wasQuarantinedFor", reason)
 	host.Status.Quarantined = false
 	host.Status.QuarantineReason = ""
@@ -173,7 +169,8 @@ func (r *RackHostReconciler) powerCycleSettle() time.Duration {
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackhosts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackhosts/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackapplesiliconmachines,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines,verbs=get;list;watch;create;update;patch;delete
 
 func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("rackhost", req.NamespacedName)
@@ -198,32 +195,19 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	}()
 	defer func() { recordRackHostMetrics(host) }()
 
-	// A host being deleted keeps no state worth converging. There is no
-	// finalizer: this CR owns no external resource; the physical machine
-	// outlives every Kubernetes object, which is the entire difference between
-	// hardware we own and capacity we rent, so deleting it is deleting an
-	// inventory record and nothing else.
+	// A deleted host's Machine, and with it the host's Node, goes through its
+	// owner reference.
 	if !host.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
 	}
 
-	// Release a claim whose machine is gone. The machine's own delete path
-	// releases the host, so this only fires for what never reached it: a
-	// force-delete that bypassed the finalizer, or a crash between the RackHost
-	// claim write and the Machine status write. Without it the last free host in
-	// a rack can strand held by nothing, and a MachineDeployment scale-up then
-	// waits forever on capacity that is physically idle.
-	if released, releaseErr := r.releaseIfOrphaned(ctx, host); releaseErr != nil {
-		logger.Error(releaseErr, "check for an orphaned claim; will retry")
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
-	} else if released {
+	if r.expireQuarantine(ctx, host) {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// Return an aged-out quarantine to the pool before anything else, so a host
-	// that is due spends no extra reconcile excluded.
-	if r.expireQuarantine(ctx, host) {
-		return ctrl.Result{Requeue: true}, nil
+	machineResult, machineErr := r.reconcileMachine(ctx, host)
+	if machineErr != nil {
+		logger.Error(machineErr, "keep the host's Machine; will retry")
 	}
 
 	if actionErr := r.runRequestedPowerAction(ctx, host); actionErr != nil {
@@ -233,37 +217,13 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 
 	r.observePower(ctx, host)
 
+	if machineErr != nil {
+		return ctrl.Result{}, machineErr
+	}
+	if !machineResult.IsZero() {
+		return machineResult, nil
+	}
 	return ctrl.Result{RequeueAfter: powerPollInterval}, nil
-}
-
-// releaseIfOrphaned clears a claim held by a RackAppleSiliconMachine that no
-// longer exists. Reports whether it released.
-//
-// It reads the machine through the cached client, which is enough: a claim is
-// only ever written after its Machine exists, so a stale-cache miss can only
-// happen for a machine that was created and deleted within one cache sync: in
-// which case releasing is the right answer anyway.
-func (r *RackHostReconciler) releaseIfOrphaned(ctx context.Context, host *infrav1.RackHost) (bool, error) {
-	if host.Status.ClaimedBy == "" {
-		return false, nil
-	}
-	machine := &infrav1.RackAppleSiliconMachine{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: host.Namespace, Name: host.Status.ClaimedBy}, machine)
-	switch {
-	case err == nil:
-		return false, nil
-	case !apierrors.IsNotFound(err):
-		return false, err
-	}
-
-	r.Recorder.Eventf(host, corev1.EventTypeWarning, "ClaimReleased",
-		"Released the claim held by %s: no such RackAppleSiliconMachine. The host is free to be claimed again.",
-		host.Status.ClaimedBy)
-	log.FromContext(ctx).Info("released orphaned rack host claim",
-		"host", host.Name, "claimedBy", host.Status.ClaimedBy)
-	host.Status.ClaimedBy = ""
-	host.Status.ClaimedAt = nil
-	return true, nil
 }
 
 // runRequestedPowerAction executes and clears a one-shot power annotation.
@@ -291,7 +251,7 @@ func (r *RackHostReconciler) runRequestedPowerAction(ctx context.Context, host *
 		if serving {
 			r.Recorder.Eventf(host, corev1.EventTypeWarning, "PowerActionRefused",
 				"Refused %q: %s is Ready and schedulable, so this would kill running work. Cordon the node first, or set %s=true to override.",
-				action, host.Status.ClaimedBy, PowerActionForceAnnotation)
+				action, host.Status.Machine, PowerActionForceAnnotation)
 			return nil
 		}
 	}
@@ -333,11 +293,11 @@ func (r *RackHostReconciler) runRequestedPowerAction(ctx context.Context, host *
 // says they are about to take the box away, and requiring force after that
 // would be friction with no safety left to buy.
 func (r *RackHostReconciler) nodeIsServing(ctx context.Context, host *infrav1.RackHost) (bool, error) {
-	if host.Status.ClaimedBy == "" {
+	if host.Status.Machine == "" {
 		return false, nil
 	}
 	node := &corev1.Node{}
-	err := r.Get(ctx, types.NamespacedName{Name: host.Status.ClaimedBy}, node)
+	err := r.Get(ctx, types.NamespacedName{Name: host.Status.Machine}, node)
 	switch {
 	case apierrors.IsNotFound(err):
 		return false, nil
@@ -356,7 +316,7 @@ func (r *RackHostReconciler) nodeIsServing(ctx context.Context, host *infrav1.Ra
 
 // observePower reads the outlet and records what it found. Deliberately not
 // fatal to the reconcile: a host whose plug is unreachable is still a host, and
-// failing here would stop the claim bookkeeping above from converging.
+// still a node.
 func (r *RackHostReconciler) observePower(ctx context.Context, host *infrav1.RackHost) {
 	driver, outlet, err := r.outletFor(ctx, host)
 	if err != nil {
@@ -417,11 +377,10 @@ func (r *RackHostReconciler) outletFor(ctx context.Context, host *infrav1.RackHo
 }
 
 func recordRackHostMetrics(host *infrav1.RackHost) {
-	labels := []string{host.Name, host.Spec.Pool, host.Spec.Location.Site}
+	labels := []string{host.Name, host.Spec.Location.Site}
 
-	rackHostClaimedGauge.DeletePartialMatch(prometheus.Labels{"host": host.Name})
-	rackHostClaimedGauge.WithLabelValues(append(labels,
-		fmt.Sprintf("%t", host.Status.Quarantined))...).Set(boolGauge(host.Status.ClaimedBy != ""))
+	rackHostQuarantinedGauge.DeletePartialMatch(prometheus.Labels{"host": host.Name})
+	rackHostQuarantinedGauge.WithLabelValues(labels...).Set(boolGauge(host.Status.Quarantined))
 
 	switch power.State(host.Status.Power) {
 	case power.StateOn, power.StateOff:
@@ -437,7 +396,7 @@ func recordRackHostMetrics(host *infrav1.RackHost) {
 }
 
 func forgetRackHostMetrics(name string) {
-	for _, g := range []*prometheus.GaugeVec{rackHostPowerGauge, rackHostPowerReachableGauge, rackHostClaimedGauge} {
+	for _, g := range []*prometheus.GaugeVec{rackHostPowerGauge, rackHostPowerReachableGauge, rackHostQuarantinedGauge} {
 		g.DeletePartialMatch(prometheus.Labels{"host": name})
 	}
 }
@@ -452,23 +411,21 @@ func boolGauge(b bool) float64 {
 func (r *RackHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.RackHost{}).
-		// Wake on the machines that hold claims, so a deleted machine's host is
-		// freed on the spot rather than at the next poll interval: that
-		// latency is a scale-up sitting on NoAvailableHost.
+		Owns(&clusterv1.Machine{}).
 		Watches(
 			&infrav1.RackAppleSiliconMachine{},
-			handler.EnqueueRequestsFromMapFunc(rackHostForStaticMachine),
+			handler.EnqueueRequestsFromMapFunc(rackHostForRackMachine),
 		).
 		Complete(r)
 }
 
-// rackHostForStaticMachine maps a machine event to the host it holds.
-func rackHostForStaticMachine(_ context.Context, o client.Object) []reconcile.Request {
+// rackHostForRackMachine maps a machine event to the host it is.
+func rackHostForRackMachine(_ context.Context, o client.Object) []reconcile.Request {
 	m, ok := o.(*infrav1.RackAppleSiliconMachine)
-	if !ok || m.Status.RackHost == "" {
+	if !ok || m.Spec.Host == "" {
 		return nil
 	}
 	return []reconcile.Request{{
-		NamespacedName: types.NamespacedName{Namespace: m.Namespace, Name: m.Status.RackHost},
+		NamespacedName: types.NamespacedName{Namespace: m.Namespace, Name: m.Spec.Host},
 	}}
 }

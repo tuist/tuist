@@ -107,6 +107,78 @@ defmodule Atlas.GTM.DirectEmailsTest do
     assert {:ok, %{duplicate: false}} = DirectEmails.queue(@attrs)
   end
 
+  test "stores the CC addresses on the delivery" do
+    assert {:ok, %{delivery: delivery}} =
+             DirectEmails.queue(Map.put(@attrs, "cc_emails", ["  cto@acme.example  ", "ops@acme.example"]))
+
+    assert delivery.cc_emails == ["cto@acme.example", "ops@acme.example"]
+    assert Repo.get!(Delivery, delivery.id).cc_emails == ["cto@acme.example", "ops@acme.example"]
+  end
+
+  test "stores no CC addresses when none are given" do
+    assert {:ok, %{delivery: delivery}} = DirectEmails.queue(@attrs)
+
+    assert Repo.get!(Delivery, delivery.id).cc_emails == []
+  end
+
+  test "drops repeated CC addresses, blank entries, and the recipient" do
+    assert {:ok, %{delivery: delivery}} =
+             DirectEmails.queue(
+               Map.put(@attrs, "cc_emails", [
+                 "cto@acme.example",
+                 "CTO@acme.example",
+                 "Recipient@Example.com",
+                 " ",
+                 "ops@acme.example"
+               ])
+             )
+
+    assert delivery.cc_emails == ["cto@acme.example", "ops@acme.example"]
+  end
+
+  test "rejects a malformed CC address" do
+    assert {:error, {:invalid, "cc_emails", "contains an invalid email address: not-an-address"}} =
+             DirectEmails.queue(Map.put(@attrs, "cc_emails", ["cto@acme.example", "not-an-address"]))
+
+    assert Repo.aggregate(from(d in Delivery, where: d.kind == "direct"), :count) == 0
+  end
+
+  test "rejects CC addresses that are not a list of strings" do
+    assert {:error, {:invalid, "cc_emails", "must be a list of email addresses"}} =
+             DirectEmails.queue(Map.put(@attrs, "cc_emails", "cto@acme.example"))
+
+    assert {:error, {:invalid, "cc_emails", "must be a list of email addresses"}} =
+             DirectEmails.queue(Map.put(@attrs, "cc_emails", [42]))
+  end
+
+  test "treats a changed CC list as a new send rather than a duplicate" do
+    with_cc = Map.put(@attrs, "cc_emails", ["cto@acme.example"])
+
+    assert {:ok, first} = DirectEmails.queue(with_cc)
+    assert {:ok, added} = DirectEmails.queue(Map.put(@attrs, "cc_emails", ["cto@acme.example", "ops@acme.example"]))
+    assert {:ok, removed} = DirectEmails.queue(@attrs)
+
+    refute added.duplicate
+    refute removed.duplicate
+    assert Enum.uniq([first.delivery.id, added.delivery.id, removed.delivery.id]) |> length() == 3
+  end
+
+  test "treats the same CC addresses in another order as a duplicate" do
+    assert {:ok, first} = DirectEmails.queue(Map.put(@attrs, "cc_emails", ["cto@acme.example", "ops@acme.example"]))
+    assert {:ok, second} = DirectEmails.queue(Map.put(@attrs, "cc_emails", ["OPS@acme.example", "cto@acme.example"]))
+
+    assert second.duplicate
+    assert second.delivery.id == first.delivery.id
+  end
+
+  test "audits the CC addresses of a queued notice" do
+    assert {:ok, %{delivery: delivery}} = DirectEmails.queue(Map.put(@attrs, "cc_emails", ["cto@acme.example"]))
+
+    activity = Repo.get_by!(Activity, action: "gtm_direct_email.queued", target_id: delivery.id)
+
+    assert activity.metadata["cc_emails"] == ["cto@acme.example"]
+  end
+
   test "rejects a missing or malformed recipient" do
     assert {:error, {:invalid, "recipient_email", "is required"}} =
              DirectEmails.queue(Map.delete(@attrs, "recipient_email"))

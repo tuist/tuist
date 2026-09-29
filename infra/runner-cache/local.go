@@ -21,7 +21,7 @@ var ErrPoisoned = errors.New("cache image failed write-back verification")
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
 type ImageTransfer interface {
-	Download(Slot, string) error
+	Download(context.Context, Slot, string) error
 	Publish(Slot, string, string, string) (int64, error)
 }
 
@@ -32,7 +32,8 @@ type LocalImages struct {
 	SizeGB       int
 	MinFreeBytes uint64
 	Transfer     ImageTransfer
-	Clone        func(string, string) error
+	Clone        func(context.Context, string, string) error
+	Observe      Observer
 	Run          func(context.Context, string, ...string) ([]byte, error)
 	Mount        func(string, string) error
 	Unmount      func(string, string) error
@@ -40,11 +41,14 @@ type LocalImages struct {
 	MeasureFS    func(string) (int64, int64, error)
 	FreeBytes    func(string) (uint64, error)
 	locks        sync.Map
-	admission    sync.Mutex
+	admission    contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	return b.commandContext(context.Background(), name, args...)
+}
+func (b *LocalImages) commandContext(ctx context.Context, name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	run := b.Run
 	if run == nil {
@@ -59,20 +63,35 @@ func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
 	return out, nil
 }
 func (b *LocalImages) lock(scope string) func() {
-	v, _ := b.locks.LoadOrStore(scope, &sync.Mutex{})
-	mu := v.(*sync.Mutex)
-	mu.Lock()
-	return mu.Unlock
+	unlock, _ := b.lockContext(context.Background(), scope)
+	return unlock
+}
+func (b *LocalImages) lockContext(ctx context.Context, scope string) (func(), error) {
+	v, _ := b.locks.LoadOrStore(scope, &contextMutex{})
+	mu := v.(*contextMutex)
+	if err := mu.LockContext(ctx); err != nil {
+		return nil, err
+	}
+	return mu.Unlock, nil
+}
+func (b *LocalImages) operation(operation, source string, work func() error) error {
+	done := b.Observe.Start(operation, source)
+	err := work()
+	done(err)
+	return err
 }
 func (b *LocalImages) image(slot Slot) string { return filepath.Join(b.Root, "images", slot.ID+".img") }
 func (b *LocalImages) master(slot Slot) string {
 	return filepath.Join(b.Root, "masters", slot.Scope, fmt.Sprintf("%020d-%s.img", slot.BaseGeneration, slot.ContentDigest))
 }
 func (b *LocalImages) clone(src, dst string) error {
+	return b.cloneContext(context.Background(), src, dst)
+}
+func (b *LocalImages) cloneContext(ctx context.Context, src, dst string) error {
 	if b.Clone != nil {
-		return b.Clone(src, dst)
+		return b.Clone(ctx, src, dst)
 	}
-	_, err := b.command("cp", "--reflink=always", "--", src, dst)
+	_, err := b.commandContext(ctx, "cp", "--reflink=always", "--", src, dst)
 	return err
 }
 func syncFile(path string) error {
@@ -140,8 +159,10 @@ func (b *LocalImages) Probe() error {
 
 // Reflinks share physical extents, so admission uses filesystem free space,
 // exactly like the APFS manager, rather than summing logical image sizes.
-func (b *LocalImages) reserve() error {
-	b.admission.Lock()
+func (b *LocalImages) reserve(ctx context.Context) error {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return err
+	}
 	defer b.admission.Unlock()
 	if b.FreeBytes == nil {
 		return errors.New("missing filesystem admission")
@@ -170,7 +191,10 @@ func (b *LocalImages) reserve() error {
 		if free >= b.MinFreeBytes && time.Since(info.ModTime()) < 7*24*time.Hour {
 			continue
 		}
-		unlock := b.lock(filepath.Base(filepath.Dir(path)))
+		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
+		if err != nil {
+			return err
+		}
 		err = os.Remove(path)
 		_ = os.Remove(path + ".json")
 		unlock()
@@ -183,14 +207,24 @@ func (b *LocalImages) reserve() error {
 		}
 	}
 	if free < b.MinFreeBytes {
-		return errors.New("cache filesystem reserve exhausted")
+		return ErrCapacity
 	}
 	return nil
 }
-func (b *LocalImages) Attach(slot Slot, path string) error {
+func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err error) {
+	source := "empty"
+	if slot.BaseGeneration > 0 {
+		source = "unknown"
+	}
+	start := time.Now()
+	defer func() {
+		if b.Observe != nil {
+			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
+		}
+	}()
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err = b.reserve(); err != nil {
+		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
 			return err
 		}
 		tmp := image + ".tmp"
@@ -199,24 +233,22 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 			if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(slot.ContentDigest) {
 				return errors.New("invalid master digest")
 			}
-			unlock := b.lock(slot.Scope)
+			waited := b.Observe.Start("master_wait", "none")
+			unlock, lockErr := b.lockContext(ctx, slot.Scope)
+			waited(lockErr)
+			if lockErr != nil {
+				return lockErr
+			}
 			master := b.master(slot)
 			if _, err = os.Stat(master); os.IsNotExist(err) {
-				if err = os.MkdirAll(filepath.Dir(master), 0700); err == nil {
-					download := master + ".tmp"
-					_ = os.Remove(download)
-					err = b.Transfer.Download(slot, download)
-					if err == nil {
-						err = durableRename(download, master)
-						if err == nil {
-							err = b.recordMaster(slot, master)
-						}
-					}
-					_ = os.Remove(download)
-				}
+				source = "remote"
+				err = b.restoreMaster(ctx, slot, master)
 			}
 			if err == nil {
-				err = b.clone(master, tmp)
+				if source == "unknown" {
+					source = "local"
+				}
+				err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) })
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
@@ -231,7 +263,7 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 				}
 			}
 			if err == nil {
-				_, err = b.command("mkfs.ext4", "-F", "-m", "0", tmp)
+				err = b.operation("format", "empty", func() error { _, err := b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp); return err })
 			}
 		}
 		if err != nil {
@@ -244,12 +276,15 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 	} else if err != nil {
 		return err
 	}
-	device, err := b.device(image)
+	if source == "unknown" {
+		source = "local"
+	}
+	device, err := b.deviceContext(ctx, image)
 	if err != nil {
 		return err
 	}
 	if device == "" {
-		out, e := b.command("losetup", "--find", "--show", "--nooverlap", image)
+		out, e := b.commandContext(ctx, "losetup", "--find", "--show", "--nooverlap", image)
 		if e != nil {
 			return e
 		}
@@ -258,7 +293,13 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 	if !loopDevice.MatchString(device) {
 		return errors.New("invalid loop device")
 	}
-	if err = b.Mount(device, path); err != nil {
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = b.operation("mount", "none", func() error { return b.Mount(device, path) }); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	return writeMarker(slot, path)
@@ -267,6 +308,9 @@ func (b *LocalImages) Attach(slot Slot, path string) error {
 var loopDevice = regexp.MustCompile(`^/dev/loop[0-9]+$`)
 
 func (b *LocalImages) device(image string) (string, error) {
+	return b.deviceContext(context.Background(), image)
+}
+func (b *LocalImages) deviceContext(ctx context.Context, image string) (string, error) {
 	if _, err := os.Stat(image); os.IsNotExist(err) {
 		return "", nil
 	} else if err != nil {
@@ -274,7 +318,7 @@ func (b *LocalImages) device(image string) (string, error) {
 	}
 	// --associated compares the backing inode/device, surviving agent mount
 	// namespace changes where the same file has a different path spelling.
-	out, err := b.command("losetup", "--json", "--list", "--associated", image, "--output", "NAME")
+	out, err := b.commandContext(ctx, "losetup", "--json", "--list", "--associated", image, "--output", "NAME")
 	if err != nil {
 		return "", err
 	}
@@ -345,7 +389,9 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 	}
 	return nil
 }
-func (b *LocalImages) Seal(slot Slot, path string) error {
+func (b *LocalImages) Seal(slot Slot, path string) (err error) {
+	done := b.Observe.Start("publish", "none")
+	defer func() { done(err) }()
 	if err := b.verify(slot, path); err != nil {
 		return err
 	}
@@ -354,11 +400,15 @@ func (b *LocalImages) Seal(slot Slot, path string) error {
 func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".gz"
 	defer os.Remove(archive)
+	compressDone := b.Observe.Start("compress", "none")
 	digest, content, err := compressImage(b.image(slot), archive)
+	compressDone(err)
 	if err != nil {
 		return err
 	}
+	uploadDone := b.Observe.Start("upload", "none")
 	generation, err := b.Transfer.Publish(slot, archive, digest, content)
+	uploadDone(err)
 	if errors.Is(err, ErrConflict) {
 		return nil
 	}
@@ -519,4 +569,45 @@ func (b *LocalImages) Maintain() error {
 		}
 	}
 	return nil
+}
+
+// Prefetch restores only a validated immutable master. It cannot mount a job's
+// directory or publish that job's private changes after cold fallback.
+func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
+		return errors.New("invalid prefetch identity")
+	}
+	if err := b.reserve(ctx); err != nil {
+		return err
+	}
+	unlock, err := b.lockContext(ctx, slot.Scope)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	master := b.master(slot)
+	if _, err := os.Stat(master); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return b.restoreMaster(ctx, slot, master)
+}
+func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master string) error {
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		return err
+	}
+	download := master + ".tmp"
+	_ = os.Remove(download)
+	defer os.Remove(download)
+	if err := b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := durableRename(download, master); err != nil {
+		return err
+	}
+	return b.recordMaster(slot, master)
 }

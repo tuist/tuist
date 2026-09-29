@@ -255,6 +255,11 @@ image build runs a login-shell smoke check as the runner user.
 `tuist-cache-volume` is wrapped by `.github/actions/cache-volume` with key/path
 inputs. It asks the local agent for a private snapshot clone; workflow OIDC is
 not needed. The server binds the actual executed job through the runner session.
+Acquisition has a 30-second HTTP deadline. On failure it creates ordinary
+job-local directories and reports `cache-hit=false`; it must never schedule a
+late bind mount after returning cold. The host has a shorter, cancellable restore
+budget. Mount errors after acquisition still fail visibly.
+
 The static client is on PATH and copied to `externals/tuist-cache-volume` so
 container jobs can use `/__e/tuist-cache-volume`. The job-start hook passes the
 endpoint and pod identity through GITHUB_ENV. Runner and DinD share only their
@@ -269,6 +274,11 @@ plugin preparation fails before pre-command hooks without it.
 GitLab forwards the same three routing variables through RunnerSettings.
 Neither path receives node-agent or object-storage credentials or decides publication.
 
-Cache paths are symlinks, not guest bind mounts. Reject control characters and
-node_modules (including descendants) before acquiring storage. Recommend package
-download caches and ignore workspace links without trailing-slash gitignore rules.
+Cache paths are real bind mounts, including in ordinary Docker job containers.
+The existing privileged DinD sidecar runs the mount broker; clients pass mount
+namespace and target directory descriptors over a pod-scoped Unix socket. Never
+share PID namespaces, grant workflow mount privileges, or expose another pod's
+cache subtree. The broker bounds source resolution with os.Root and creates each
+mount in a short-lived worker. Validate with the privileged Linux bind-mount suite
+in linux-runner-image.yml, including a client without CAP_SYS_ADMIN in separate
+PID/mount namespaces. Roll out controller and runner image together on idle pods.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -22,7 +23,7 @@ func TestMacAttachAndDetach(t *testing.T) {
 		}
 		return nil
 	}
-	dir, id, warm, err := acquireMacAt("key", share, mount, command)
+	dir, id, warm, err := acquireMacAt(context.Background(), "key", share, mount, command)
 	if err != nil || dir != response.Directory || id != "lease" || !warm {
 		t.Fatal(dir, id, warm, err)
 	}
@@ -45,5 +46,29 @@ func TestMacFailedDetachWithholdsPublication(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(share, scope, ".detached")); !os.IsNotExist(err) {
 		t.Fatal("failed detach permitted publication")
+	}
+}
+
+func TestMacCancelledAcquisitionNeverMountsLateResponse(t *testing.T) {
+	share, mount := t.TempDir(), t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	data, _ := json.Marshal(macResponse{Directory: digest("volume"), ID: "lease"})
+	_ = os.WriteFile(filepath.Join(share, digest("key")+".request.response"), data, 0600)
+	_, _, _, err := acquireMacAt(ctx, "key", share, mount, func(...string) error {
+		t.Fatal("mounted after cancellation")
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}
+
+func TestMacRejectsReplaceableNodeModulesTarget(t *testing.T) {
+	if !errors.Is(validateMacTargets([]string{"project/node_modules"}), errInvalidPath) {
+		t.Fatal("accepted node_modules")
+	}
+	if err := validateMacTargets([]string{".npm", ".gradle/caches"}); err != nil {
+		t.Fatal(err)
 	}
 }

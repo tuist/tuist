@@ -93,7 +93,7 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 		}
 		return true, &authenticationv1.TokenRequest{Status: authenticationv1.TokenRequestStatus{Token: "host-only"}}, nil
 	})
-	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: root, SizeGB: 20, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Create: func(p string, _ int64) error { return os.WriteFile(p, nil, 0600) }}
+	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: root, SizeGB: 20, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Create: func(_ context.Context, p string, _ int64) error { return os.WriteFile(p, nil, 0600) }}
 	if err := backend.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -149,5 +149,47 @@ func TestCustomVolumeReusesAndRefreshesHostToken(t *testing.T) {
 	}
 	if requests != 2 {
 		t.Fatal("did not refresh expiring token")
+	}
+}
+
+func TestCustomAdmissionGuardHonorsCancellation(t *testing.T) {
+	m, _ := m2L(t)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	c := &CustomVolumes{Builtins: m}
+	if _, err := c.guard(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+}
+
+func TestConvergenceReservesSpaceBesideCustomVolumes(t *testing.T) {
+	m, _ := m2L(t)
+	m.CustomReserved = func() uint64 { return 40 * gib }
+	key := masterKey{account: "42", volume: ReservedTuistCacheVolume}
+	if _, err := m.PrepareConvergeSpace(key, 25*gib, 25*gib, false, func(error) {}); !errors.Is(err, errNoRoomToConverge) {
+		t.Fatalf("custom reservation ignored: %v", err)
+	}
+	m.CustomReserved = func() uint64 { return 0 }
+	r, err := m.PrepareConvergeSpace(key, 25*gib, 25*gib, false, func(error) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Release()
+}
+
+func TestCustomFreeBytesCountsOutstandingConvergence(t *testing.T) {
+	m, _ := m2L(t)
+	c := &CustomVolumes{Builtins: m, Root: m.Root}
+	before, err := c.freeBytes("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.converging = &convergeReservation{}
+	m.converging.outstanding.Store(int64(10 * gib))
+	after, err := c.freeBytes("")
+	if err != nil || before-after != 10*gib {
+		t.Fatal(before, after, err)
 	}
 }

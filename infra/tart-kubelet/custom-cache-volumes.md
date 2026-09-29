@@ -45,7 +45,8 @@ Only an accepted image becomes a local master. A failed upload retries without
 reformatting or consuming another verification; a crash during verification
 poisons the branch. Expired or cleared generations cannot publish later.
 
-Mount duration remains unknown because host preparation excludes guest attachment.\nUsage remains unknown while the guest owns the image; after clean teardown the
+Mount duration remains unknown because host preparation excludes guest attachment.
+Usage remains unknown while the guest owns the image; after clean teardown the
 host records verified filesystem usage/capacity. These are logical filesystem
 bytes, not unique physical allocation or billing measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
@@ -108,3 +109,11 @@ of stopping tart-kubelet.
 The host scans requests once per second, reports/reclaims every 30 seconds, and
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
+
+Acquisition follows Linux's 25-second host budget and 30-second client budget.
+Cancellation reaches APFS creation/cloning, remote restore and admission waits;
+an expired response cannot trigger a guest mount. Linux's bounded background
+master prefetch remains Linux-specific. macOS custom volumes emit the shared
+operation/source/result metrics through tart-kubelet's existing metrics endpoint.
+Custom admission counts outstanding built-in convergence downloads, and built-in
+convergence reserves space for live custom images before starting a download.

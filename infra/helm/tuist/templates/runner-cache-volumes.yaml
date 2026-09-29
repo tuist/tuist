@@ -88,6 +88,10 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: runner-cache-volumes
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: /metrics
     spec:
       serviceAccountName: {{ $name }}
       {{- if $volumes.provisioning.enabled }}
@@ -138,6 +142,8 @@ spec:
                   fieldPath: spec.nodeName
           ports:
             - containerPort: 8090
+            - name: metrics
+              containerPort: 9091
           securityContext:
             runAsUser: 0
             privileged: true
@@ -206,6 +212,12 @@ spec:
               tuist.dev/runner: "true"
       ports:
         - {protocol: TCP, port: 8090}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - {protocol: TCP, port: 9091}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

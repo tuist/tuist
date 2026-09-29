@@ -16,6 +16,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
+  alias Tuist.Accounts.SSOLoginDomainRecheck
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserNotifier
@@ -33,6 +34,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
@@ -460,6 +462,16 @@ defmodule Tuist.Accounts do
 
   def sso_login_domain_record_value(%Organization{}), do: nil
 
+  defdelegate sso_login_domain_expiring?(organization), to: SSOLoginDomainRecheck, as: :expiring?
+
+  defdelegate sso_login_domain_awaiting_record?(organization),
+    to: SSOLoginDomainRecheck,
+    as: :awaiting_record?
+
+  defdelegate sso_login_domain_days_until_expiry(organization),
+    to: SSOLoginDomainRecheck,
+    as: :days_until_expiry
+
   defp persist_verified_sso_login_domain(organization_id, domain, token) do
     Repo.transaction(fn ->
       from(o in Organization,
@@ -500,6 +512,7 @@ defmodule Tuist.Accounts do
             if(is_nil(domain), do: nil, else: generate_random_string(32))
           )
           |> Map.put(:sso_login_domain_verified_at, nil)
+          |> Map.put(:sso_login_domain_last_verified_at, nil)
         end
 
       :error ->
@@ -543,6 +556,7 @@ defmodule Tuist.Accounts do
     Map.drop(attrs, [
       :sso_login_domain_verification_token,
       :sso_login_domain_verified_at,
+      :sso_login_domain_last_verified_at,
       :sso_legacy_email_domain_fallback
     ])
   end
@@ -935,21 +949,7 @@ defmodule Tuist.Accounts do
   def create_user(email, opts \\ []) do
     token = Tuist.Tokens.generate_token()
 
-    suffix = Keyword.get(opts, :suffix, "")
-
-    handle =
-      Keyword.get(
-        opts,
-        :handle
-      ) ||
-        (email
-         |> String.split("@")
-         |> List.first()
-         |> String.replace(".", "-")
-         |> String.replace("_", "-")
-         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
-         |> String.trim("-")
-         |> String.downcase()) <> suffix
+    {handle, opts} = user_handle(email, opts)
 
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
@@ -965,7 +965,8 @@ defmodule Tuist.Accounts do
           token: token,
           password: password,
           confirmed_at: confirmed_at,
-          created_at: created_at
+          created_at: created_at,
+          provisioned_by_organization_id: Keyword.get(opts, :provisioned_by_organization_id)
         })
       )
       |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
@@ -1036,6 +1037,30 @@ defmodule Tuist.Accounts do
       when step in [:runner_concurrency_limits, :default_runner_profile, :default_macos_runner_profile] ->
         Logger.error("create_user: account bootstrap insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
+    end
+  end
+
+  defp user_handle(email, opts) do
+    suffix = Keyword.get(opts, :suffix, "")
+
+    handle =
+      Keyword.get(
+        opts,
+        :handle
+      ) ||
+        (email
+         |> String.split("@")
+         |> List.first()
+         |> String.replace(".", "-")
+         |> String.replace("_", "-")
+         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
+         |> String.downcase()) <> suffix
+
+    if not Keyword.has_key?(opts, :handle) and StableEndpoint.reserved_handle?(handle) do
+      {handle <> "1", Keyword.put(opts, :suffix, "1")}
+    else
+      {handle, opts}
     end
   end
 
@@ -2924,9 +2949,10 @@ defmodule Tuist.Accounts do
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
 
-  Two sources, each read from the record that owns it: Tuist-managed instances
+  Sources are read from the record that owns them: Tuist-managed instances
   from `kura_servers`, and enrolled self-hosted nodes from their registration
-  heartbeats. Whether these are handed to the CLI at all is decided upstream by
+  heartbeats. Stable hostname hand-out also preserves eligible custom URLs.
+  Whether these are handed to the CLI at all is decided upstream by
   how the client is routed, so provisioning is the only server-side gate.
 
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`) derives
@@ -2934,10 +2960,19 @@ defmodule Tuist.Accounts do
   drift.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
-    managed_urls = Kura.managed_cache_endpoint_urls(account, origin)
+    servers = Kura.managed_cache_endpoints(account, origin)
+    managed_urls = StableEndpoint.resolve(account, Enum.uniq(Enum.map(servers, & &1.url)), servers)
     registered_urls = registered_kura_endpoint_urls(account)
+    stable_host = StableEndpoint.host(account)
 
-    Enum.uniq(managed_urls ++ registered_urls)
+    custom_urls =
+      if stable_host != nil and "https://#{stable_host}" in managed_urls do
+        account |> custom_cache_endpoints() |> Enum.map(& &1.url)
+      else
+        []
+      end
+
+    Enum.uniq(managed_urls ++ registered_urls ++ custom_urls)
   end
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that

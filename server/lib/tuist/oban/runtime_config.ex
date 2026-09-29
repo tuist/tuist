@@ -24,6 +24,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
+  alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
 
   @shared_crons [
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
@@ -34,7 +35,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
-    {"@daily", CacheVolumeCleanupWorker}
+    {"@daily", CacheVolumeCleanupWorker},
+    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -81,6 +83,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   @schedule_expired_artifacts_cron {"30 2 * * *", ScheduleExpiredArtifactsWorker}
   @legacy_build_artifact_retention_cron {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker}
+  @run_artifact_retention_cron {"30 4 * * *", SweepExpiredRunArtifactsWorker}
 
   @cache_artifact_retention_crons [
     {"0 3 * * *", DeleteExpiredXcodeCacheArtifactsWorker},
@@ -96,6 +99,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   @hosted_artifact_retention_crons [
                                      @schedule_expired_artifacts_cron,
                                      @legacy_build_artifact_retention_cron,
+                                     @run_artifact_retention_cron,
                                      @gitlab_cache_artifact_retention_cron
                                    ] ++ @cache_artifact_retention_crons
 
@@ -196,6 +200,13 @@ defmodule Tuist.Oban.RuntimeConfig do
         []
       end
 
+    run_artifact_crons =
+      if Map.has_key?(artifact_retention_days, :run_artifacts) do
+        [self_hosted_cron(@run_artifact_retention_cron)]
+      else
+        []
+      end
+
     cache_crons =
       if Map.has_key?(artifact_retention_days, :cache_artifacts) do
         Enum.map(@cache_artifact_retention_crons, &self_hosted_cron/1)
@@ -203,7 +214,7 @@ defmodule Tuist.Oban.RuntimeConfig do
         []
       end
 
-    database_crons ++ legacy_build_crons ++ cache_crons
+    database_crons ++ legacy_build_crons ++ run_artifact_crons ++ cache_crons
   end
 
   defp self_hosted_cron({schedule, worker}), do: {schedule, worker, args: @self_hosted_args}

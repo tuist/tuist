@@ -20,10 +20,12 @@ public protocol XcodeControlling: Sendable {
     /// - Throws: An error if it can't be obtained
     func selectedVersion() async throws -> Version
 
-    /// The developer directory `xcode-select -p` reports to a process that does
-    /// not set `DEVELOPER_DIR`, such as a launchd agent, which inherits none of
-    /// this process's environment.
-    func systemDeveloperDirectory() async throws -> AbsolutePath
+    /// The developer directory `xcode-select -p` reports: `DEVELOPER_DIR` when
+    /// this process sets it, and the system-wide selection otherwise.
+    func developerDirectory() async throws -> AbsolutePath
+
+    /// Returns the build version of the selected Xcode (e.g. 27A266a).
+    func selectedBuildVersion() async throws -> String
 }
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
@@ -35,10 +37,8 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
         self.commandRunner = commandRunner
     }
 
-    public func systemDeveloperDirectory() async throws -> AbsolutePath {
-        var environment = ProcessInfo.processInfo.environment
-        environment.removeValue(forKey: "DEVELOPER_DIR")
-        let path = try await commandRunner.capture(arguments: ["xcode-select", "-p"], environment: environment).spm_chomp()
+    public func developerDirectory() async throws -> AbsolutePath {
+        let path = try await commandRunner.capture(arguments: ["xcode-select", "-p"]).spm_chomp()
         return try AbsolutePath(validating: path)
     }
 
@@ -64,5 +64,28 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
     public func selectedVersion() async throws -> Version {
         let xcode = try await selected()
         return try Version(versionString: xcode.infoPlist.version, usesLenientParsing: true)
+    }
+
+    private let selectedXcodeBuildVersion: ThreadSafe<String?> = ThreadSafe(nil)
+
+    public func selectedBuildVersion() async throws -> String {
+        if let buildVersion = selectedXcodeBuildVersion.value {
+            return buildVersion
+        }
+        let versionPlistPath = try await developerDirectory().parentDirectory.appending(component: "version.plist")
+        guard let data = try? Data(contentsOf: versionPlistPath.url) else {
+            throw XcodeError.versionPlistNotFound(versionPlistPath)
+        }
+        let buildVersion = try PropertyListDecoder().decode(VersionPlist.self, from: data).productBuildVersion
+        selectedXcodeBuildVersion.mutate { $0 = buildVersion }
+        return buildVersion
+    }
+}
+
+private struct VersionPlist: Decodable {
+    let productBuildVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case productBuildVersion = "ProductBuildVersion"
     }
 }

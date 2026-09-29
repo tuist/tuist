@@ -3,16 +3,23 @@
 package podagent
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 )
 
-func createCustomImage(path string, bytes int64) error {
-	_, err := runCmd(2*time.Minute, "hdiutil", "create", "-sectors", strconv.FormatInt(bytes/512, 10), "-fs", "APFS", "-volname", "TuistCustomCache", "-type", "SPARSE", "-quiet", path)
+func createCustomImage(ctx context.Context, path string, bytes int64) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	_, err := exec.CommandContext(ctx, "hdiutil", "create", "-sectors", strconv.FormatInt(bytes/512, 10), "-fs", "APFS", "-volname", "TuistCustomCache", "-type", "SPARSE", "-quiet", path).CombinedOutput()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	return err
 }
 func verifyCustomImage(path string) (used, capacity int64, err error) {

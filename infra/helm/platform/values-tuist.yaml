@@ -1,6 +1,15 @@
 # Production workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist.
 
+cacheDNS:
+  enabled: true
+  hostedZoneId: Z046862130S1WUMPV7Z3P
+  ownerId: tuist-production-cache
+  externalSecret:
+    enabled: true
+    writerItem: cache-dns-writer
+    solverItem: cache-dns-solver
+
 # Stable outbound source IP for hosted Tuist server traffic that reaches
 # customer infrastructure (for example GHES instances behind IP allowlists).
 # The IP is a Hetzner Floating IP in the tuist-workloads project. The gateway
@@ -63,12 +72,8 @@ ingress-nginx:
 kura-eu-west-ingress-nginx:
   enabled: true
   controller:
-    # eu-west is cut over to the Dedibox bare-metal box: the regional gateway
-    # runs on the box's host network so serving traffic hits the box NIC directly
-    # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
-    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
-    # into each Ingress status so external-dns resolves the per-account hosts to
-    # the box.
+    # EU-West runs entirely on OVH. Publish addresses from the gateway nodes
+    # automatically so a replacement host does not require a static DNS edit.
     kind: DaemonSet
     hostNetwork: true
     dnsPolicy: ClusterFirstWithHostNet
@@ -96,7 +101,7 @@ kura-us-east-ingress-nginx:
   controller:
     # US East is on the OVH Vint Hill (VA) bare-metal box: the regional gateway
     # runs host-network so serving traffic hits the box NIC directly (OVH has no
-    # Hetzner LB), the same shape as eu-west on Dedibox above.
+    # Hetzner LB), the same shape as eu-west on OVH above.
     # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
     # into each Ingress status so external-dns resolves the per-account hosts.
     kind: DaemonSet

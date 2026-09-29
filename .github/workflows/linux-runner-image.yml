@@ -43,7 +43,28 @@ env:
   IMAGE_NAME: tuist/tuist-linux-runner
 
 jobs:
+  cache-mounts:
+    name: Cache volume bind mounts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/linux-runner-image/go.mod
+      - name: Test cache client and mount broker
+        working-directory: infra/linux-runner-image
+        env:
+          GOWORK: "off"
+        run: |
+          go test -race ./cmd/tuist-cache-volume
+          CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/cache-volume.test" ./cmd/tuist-cache-volume
+          docker run --rm --privileged \
+            -e TUIST_TEST_BIND_MOUNTS=1 \
+            -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+            ubuntu:22.04 /cache-volume.test -test.v
   build:
+    needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:

@@ -297,6 +297,52 @@ defmodule Tuist.OrganizationTest do
     end
   end
 
+  describe "sso_configuration_changeset/2 after the daily re-check lapsed the domain" do
+    setup do
+      lapsed =
+        struct(
+          Organization,
+          Map.merge(@oauth2_attrs, %{
+            sso_login_domain: "example.com",
+            sso_login_domain_verification_token: "verification-token",
+            sso_login_domain_verified_at: nil,
+            sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
+            sso_automatic_enrollment: true,
+            sso_enforced: true
+          })
+        )
+
+      %{lapsed: lapsed}
+    end
+
+    test "keeps the settings it was saved with while other fields change", %{lapsed: lapsed} do
+      changeset = Organization.sso_configuration_changeset(lapsed, %{oauth2_client_id: "rotated-client-id"})
+
+      assert changeset.valid?
+    end
+
+    test "still requires verification to turn a setting on", %{lapsed: lapsed} do
+      changeset =
+        lapsed
+        |> Map.put(:sso_automatic_enrollment, false)
+        |> Organization.sso_configuration_changeset(%{sso_automatic_enrollment: true})
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+    end
+
+    test "requires verification again once the domain changes", %{lapsed: lapsed} do
+      changeset =
+        Organization.sso_configuration_changeset(lapsed, %{
+          sso_login_domain: "replacement.example",
+          sso_login_domain_verification_token: "replacement-token",
+          sso_login_domain_last_verified_at: nil
+        })
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_enforced
+    end
+  end
+
   describe "update_changeset/2" do
     test "sso_provider cannot be github" do
       changeset =

@@ -816,35 +816,60 @@ struct TuistCacheEEAcceptanceTests {
     ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
-        let environment = try #require(Environment.mocked)
-        let fileSystem = FileSystem()
-        let evictedTargets: Set<String> = ["Services", "Feature"]
-        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob-*"]).collect()
-        var evictedActions = 0
-        for blob in blobs {
-            guard let inputs = try? JSONSerialization.jsonObject(with: await fileSystem.readFile(at: blob)) as? [String: String],
-                  let name = inputs["name"], evictedTargets.contains(name),
-                  let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
-            else { continue }
-            let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
-            try await fileSystem.remove(environment.cacheDirectory.appending(components: [
-                "Binaries",
-                "action-\(action.digest.hash)",
-            ]))
-            evictedActions += 1
-        }
-        #expect(evictedActions == 4)
-        for target in evictedTargets {
-            let artifacts = try await fileSystem
-                .glob(directory: environment.cacheDirectory, include: ["**/\(target).xcframework"]).collect()
-            for artifact in artifacts {
-                try await fileSystem.remove(artifact.parentDirectory)
-            }
-        }
+        #expect(try await evictFromLocalCache(["Services", "Feature"]) == 4)
         try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
 
         TuistTest.expectLogs("Targets to be cached: Feature, Services")
         TuistTest.expectLogs("2 targets stored: Feature, Services")
+    }
+
+    /// ServicesMockSupport uses the Analytics package product and Feature imports ServicesMockSupport. The second warm
+    /// serves Services and ServicesMockSupport from the cache and builds only Feature, whose Swift dependency scan
+    /// follows the `import Analytics` of the cached ServicesMockSupport module. It resolves only when Feature depends
+    /// on the package product and the workspace keeps the package that the emptied ServicesMockSupport project declares.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_a_miss_importing_a_package_product_through_a_cache_hit() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Feature"]) == 2)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature")
+        TuistTest.expectLogs("1 target stored: Feature")
+    }
+
+    /// NativeRendererKit links the static NativeRenderer.xcframework, which ships its own flat
+    /// module map, under `.when(platforms: [.iOS])`. The cold warm builds NativeRendererKit from
+    /// source. The second warm evicts Tokens, Canvas and Feature, so Palette is kept as source
+    /// behind the cached dynamic Renderer while Canvas processes NativeRenderer.xcframework
+    /// through the cached NativeRendererKit. Both warms fail with `redefinition of module
+    /// 'NativeRendererFFI'` if the conditioned link does not count as publishing the module map.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_xcframework_linked_under_platform_condition")
+    ) func cache_warm_with_static_xcframework_linked_under_platform_condition() async throws {
+        // The temporary directory lives under the `/var` -> `/private/var` symlink. Without a canonical path, the
+        // generated projects and the SwiftPM-resolved local package reference the xcframework through different
+        // paths, and Xcode rejects the two `ProcessXCFramework` tasks as unexpected duplicates.
+        let fixtureDirectory = try AbsolutePath(
+            validating: URL(fileURLWithPath: try #require(TuistTest.fixtureDirectory).pathString)
+                .resolvingSymlinksInPath().path
+        )
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Canvas", "Feature", "Tokens"]) == 6)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Canvas, Feature, Tokens")
+        TuistTest.expectLogs("3 targets stored: Canvas, Feature, Tokens")
     }
 
     /// Foundation's #bundle macro expands to Bundle.module only when
@@ -895,5 +920,34 @@ struct TuistCacheEEAcceptanceTests {
             by: "App",
             xcodeprojPath: xcodeprojPath
         )
+    }
+
+    /// Removes the targets' binaries from the local cache so the next warm treats them as misses, and returns the
+    /// number of cache actions removed.
+    private func evictFromLocalCache(_ targets: Set<String>) async throws -> Int {
+        let environment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob-*"]).collect()
+        var evictedActions = 0
+        for blob in blobs {
+            guard let inputs = try? JSONSerialization.jsonObject(with: await fileSystem.readFile(at: blob)) as? [String: String],
+                  let name = inputs["name"], targets.contains(name),
+                  let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
+            else { continue }
+            let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
+            try await fileSystem.remove(environment.cacheDirectory.appending(components: [
+                "Binaries",
+                "action-\(action.digest.hash)",
+            ]))
+            evictedActions += 1
+        }
+        for target in targets {
+            let artifacts = try await fileSystem
+                .glob(directory: environment.cacheDirectory, include: ["**/\(target).xcframework"]).collect()
+            for artifact in artifacts {
+                try await fileSystem.remove(artifact.parentDirectory)
+            }
+        }
+        return evictedActions
     }
 }

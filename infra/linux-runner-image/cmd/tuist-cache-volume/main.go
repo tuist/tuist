@@ -32,6 +32,21 @@ var errInvalidPath = errors.New("invalid cache path")
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
 
 func main() {
+	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
+		var err error
+		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
+			err = mountWorker()
+		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
+			err = serveMounts(os.Args[2], os.Args[3])
+		} else {
+			err = errors.New("invalid mount helper arguments")
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	detach := flag.Bool("detach-all", false, "Detach macOS volumes after the job")
 	key := flag.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
@@ -60,7 +75,7 @@ func main() {
 	}
 }
 func attach(key string, targets []string) error {
-	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if runtime.GOOS == "darwin" {
 		root = macMountRoot
@@ -69,24 +84,22 @@ func attach(key string, targets []string) error {
 		root = "/__w/_tuist_cache"
 	}
 	if runtime.GOOS == "darwin" {
-		return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key) })
+		return attachMac(key, targets, root)
 	}
 	return attachWithClient(key, targets, root, client)
 }
 func attachWithClient(key string, targets []string, root string, client *http.Client) error {
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key) })
+	return attachWithMounter(key, targets, root, client, bindDirectory)
 }
-func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error)) error {
+func attachWithMounter(key string, targets []string, root string, client *http.Client, mount func(string, string, string) error) error {
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key) }, mount)
+}
+func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
 	absolute := make([]string, len(targets))
 	for i, p := range targets {
 		if p == "" || strings.ContainsFunc(p, func(r rune) bool { return r < 32 || r == 127 }) {
 			return fmt.Errorf("%w: paths must be nonempty and contain no control characters", errInvalidPath)
-		}
-		for _, part := range strings.Split(filepath.Clean(p), string(filepath.Separator)) {
-			if part == "node_modules" {
-				return fmt.Errorf("%w: node_modules cannot be attached by symlink; cache the package download directory (for example ~/.npm) instead", errInvalidPath)
-			}
 		}
 		if p == "~" || strings.HasPrefix(p, "~/") {
 			home, err := os.UserHomeDir()
@@ -152,10 +165,10 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
 			return err
 		}
-		if err := os.Symlink(source, path); err != nil {
+		if err := mount(filepath.Join(filepath.Dir(root), ".tuist-cache-mount.sock"), filepath.Join(directory, sourceName), path); err != nil {
 			return err
 		}
 	}
@@ -177,19 +190,22 @@ func writeOutput(warm bool) error {
 	return nil
 }
 func emptyTarget(path string) error {
-	entries, err := os.ReadDir(path)
+	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	info, err := os.Lstat(path)
+	if !info.IsDir() {
+		return fmt.Errorf("%w: cache path must be absent or an empty directory: %s", errInvalidPath, path)
+	}
+	entries, err := os.ReadDir(path)
 	if err != nil {
 		return err
 	}
-	if info.Mode()&os.ModeSymlink != 0 || len(entries) != 0 {
-		return fmt.Errorf("cache path must be absent or an empty directory: %s", path)
+	if len(entries) != 0 {
+		return fmt.Errorf("%w: cache path must be absent or an empty directory: %s", errInvalidPath, path)
 	}
 	return nil
 }

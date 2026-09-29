@@ -18,7 +18,7 @@
 # data center there is no laptop.
 #
 #   mise run rack:ztp <device> --interface en7 [--dry-run]
-#   mise run rack:ztp <device> --via tuist@ber1-edge --interface enp89s0 [--dry-run]
+#   mise run rack:ztp <device> --via tuist@ber1-edge-a --interface enp89s0 [--dry-run]
 #
 # --create-credentials makes the switch's 1Password item if it has none yet, as
 # rack:prep-switch does.

@@ -102,6 +102,7 @@ defmodule Tuist.SCIMTest do
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
       assert user.email == "alice@example.com"
       assert user.active == true
+      assert user.provisioned_by_organization_id == org.id
       assert Accounts.belongs_to_organization?(user, org)
       assert %{name: "user"} = Accounts.get_user_role_in_organization(user, org)
     end
@@ -120,6 +121,7 @@ defmodule Tuist.SCIMTest do
 
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: "outsider@example.com", role: :admin})
       assert user.id == existing.id
+      assert is_nil(user.provisioned_by_organization_id)
       assert Accounts.belongs_to_organization?(user, org)
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
 

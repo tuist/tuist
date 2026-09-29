@@ -3,6 +3,7 @@
 package podagent
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ import (
 
 type apfsSmokeTransfer struct{}
 
-func (apfsSmokeTransfer) Download(cachevolumes.Slot, string) error {
+func (apfsSmokeTransfer) Download(context.Context, cachevolumes.Slot, string) error {
 	panic("unexpected remote download")
 }
 func (apfsSmokeTransfer) Publish(cachevolumes.Slot, string, string, string) (int64, error) {
@@ -32,7 +33,7 @@ func TestCustomAPFSRealColdWarmIsolation(t *testing.T) {
 	if err := os.MkdirAll(branch, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := backend.Attach(slot, branch); err != nil {
+	if err := backend.Attach(context.Background(), slot, branch); err != nil {
 		t.Fatal(err)
 	}
 	mount := t.TempDir()
@@ -72,10 +73,11 @@ func TestCustomAPFSRealColdWarmIsolation(t *testing.T) {
 	next.ID = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 	next.PodUID = "second"
 	next.BaseGeneration = 1
+	next.ImageDigest = strings.Repeat("b", 40)
 	next.ContentDigest = strings.TrimSuffix(strings.SplitN(filepath.Base(masters[0]), "-", 2)[1], ".img")
 	warm := filepath.Join(root, "pods", next.PodUID, next.Scope)
 	_ = os.MkdirAll(warm, 0755)
-	if err := backend.Attach(next, warm); err != nil {
+	if err := backend.Attach(context.Background(), next, warm); err != nil {
 		t.Fatal(err)
 	}
 	attach(filepath.Join(warm, "cache.sparseimage"))
@@ -96,7 +98,7 @@ func TestCustomAPFSRealColdWarmIsolation(t *testing.T) {
 
 func TestCustomAPFSReclaimsInterruptedInspection(t *testing.T) {
 	image := filepath.Join(t.TempDir(), "cache.sparseimage")
-	if err := createCustomImage(image, 20_000_000_000); err != nil {
+	if err := createCustomImage(context.Background(), image, 20_000_000_000); err != nil {
 		t.Fatal(err)
 	}
 	mount := image + ".mount"

@@ -133,10 +133,10 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
-		Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
+		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
 		Transfer:  &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: 21_000_000_000, Token: c.token},
 		FreeBytes: c.freeBytes,
-	}, Guard: func() func() { c.Builtins.mu.Lock(); return c.Builtins.mu.Unlock }, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+	}, Guard: c.guard, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = func() uint64 {
 		images, err := filepath.Glob(filepath.Join(c.Root, "images", "*.img"))
@@ -197,6 +197,9 @@ func (c *CustomVolumes) freeBytes(string) (uint64, error) {
 		return 0, err
 	}
 	reserved += uint64(len(images)) * 20_000_000_000
+	if c.Builtins.converging != nil {
+		reserved += c.Builtins.converging.remaining()
+	}
 	if free <= reserved {
 		return 0, nil
 	}
@@ -330,18 +333,25 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		if err != nil {
 			continue
 		}
+		deadline := time.Now().Add(25 * time.Second)
+		if requestDeadline := info.ModTime().Add(25 * time.Second); requestDeadline.Before(deadline) {
+			deadline = requestDeadline
+		}
+		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
 		var identity cachevolumes.Identity
-		status, err := c.request(ctx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
-		if status == http.StatusTooEarly && time.Since(info.ModTime()) < 30*time.Second {
+		status, err := c.request(acquireCtx, "authorize", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}, &identity)
+		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
+			cancel()
 			continue
 		}
 		response := map[string]any{"error": "unavailable"}
 		if err == nil {
-			warm, err := c.Store.Acquire(identity, pod.Name, string(pod.UID))
+			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
 			}
 		}
+		cancel()
 		data, _ := json.Marshal(response)
 		// O_EXCL prevents following a guest-created output symlink.
 		out, err := root.OpenFile(name+".response", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
@@ -355,4 +365,20 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 	return nil
+}
+
+func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if c.Builtins.mu.TryLock() {
+			return c.Builtins.mu.Unlock, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 }
