@@ -109,7 +109,7 @@ defmodule Tuist.OAuth.Clients do
       id: Environment.oauth_client_id(),
       secret: Environment.oauth_client_secret(),
       name: Environment.oauth_client_name(),
-      access_token_ttl: 86_400,
+      access_token_ttl: 3600,
       authorization_code_ttl: @authorization_code_ttl,
       refresh_token_ttl: 2_592_000,
       id_token_ttl: 86_400,
