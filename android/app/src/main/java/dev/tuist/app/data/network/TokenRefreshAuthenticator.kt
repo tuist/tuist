@@ -94,10 +94,16 @@ class TokenRefreshAuthenticator @Inject constructor(
 
     private fun parseTokens(body: String): RefreshResult = try {
         val json = JSONObject(body)
-        RefreshResult.Success(
-            accessToken = json.getString("access_token"),
-            refreshToken = json.getString("refresh_token"),
-        )
+        val accessToken = json.optString("access_token").ifEmpty { null }
+        val refreshToken = json.optString("refresh_token").ifEmpty { null }
+        if (accessToken != null && refreshToken != null) {
+            RefreshResult.Success(accessToken = accessToken, refreshToken = refreshToken)
+        } else {
+            // The authorization server answers 200 without a token pair when it can no longer mint tokens
+            // for the grant's subject, for example once the user has been deleted.
+            Log.w(TAG, "Token refresh returned no tokens")
+            RefreshResult.Rejected
+        }
     } catch (e: Exception) {
         Log.e(TAG, "Token refresh parse error", e)
         RefreshResult.Transient("Token refresh returned an unexpected response", e)

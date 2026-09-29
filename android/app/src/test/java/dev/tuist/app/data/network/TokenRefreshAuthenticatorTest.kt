@@ -137,6 +137,31 @@ class TokenRefreshAuthenticatorTest {
     }
 
     @Test
+    fun `clears tokens when the refresh succeeds without a token pair`() {
+        refreshResponse = {
+            MockResponse().setResponseCode(200).setBody("""{"expires_in":86399,"token_type":"bearer"}""")
+        }
+
+        val response = execute()
+
+        assertEquals(401, response.code)
+        assertNull(storedAccessToken)
+        assertNull(storedRefreshToken)
+        assertEquals(listOf(AuthEvent.SessionExpired), authEvents)
+    }
+
+    @Test
+    fun `keeps tokens when the refresh succeeds with a non-json body`() {
+        refreshResponse = { MockResponse().setResponseCode(200).setBody("<html></html>") }
+
+        assertThrows(TokenRefreshException::class.java) { execute() }
+
+        assertEquals("old-access", storedAccessToken)
+        assertEquals("old-refresh", storedRefreshToken)
+        assertTrue(authEvents.isEmpty())
+    }
+
+    @Test
     fun `keeps tokens rotated concurrently when the refresh token is rejected`() {
         refreshResponse = {
             storedAccessToken = "new-access"
