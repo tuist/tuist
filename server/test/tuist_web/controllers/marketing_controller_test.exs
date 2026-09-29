@@ -85,6 +85,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert author =~ ~r|\Ahttps://|
       assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
     end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get(post.slug)
+      end
+    end
   end
 
   describe "GET /sitemap.xml" do
