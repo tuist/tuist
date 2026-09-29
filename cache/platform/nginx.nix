@@ -157,6 +157,19 @@
           return = "404";
         };
 
+        # This node speaks no gRPC, but `tuist-cas-proxy` from CLIs 4.203.0 to
+        # 4.209.0-canary.22 is handed its hostname while an account has no
+        # Kura instance serving, and sends it REAPI calls. Answered here
+        # rather than by Phoenix, which only ever said 404 (tonic reads that
+        # as UNIMPLEMENTED, a miss).
+        locations."/build.bazel.remote." = {
+          return = "404";
+        };
+
+        locations."/google.bytestream.ByteStream/" = {
+          return = "404";
+        };
+
         locations."/api/cache/" = {
           extraConfig = ''
             default_type application/json;
