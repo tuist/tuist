@@ -214,10 +214,19 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
-  pipeline :browser_marketing do
+  pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
+    plug :accepts, ["html"]
+  end
+
+  # The newsletter forms submit with `Accept: application/json`.
+  pipeline :browser_marketing_form do
+    plug :put_request_kind, "marketing"
     plug :accepts, ["html", "json"]
+  end
+
+  pipeline :browser_marketing do
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -382,6 +391,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [
       :open_api,
+      :browser_marketing_page,
       :browser_marketing,
       :assign_current_path
     ]
@@ -508,6 +518,7 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :same_origin_csrf_exemption,
+      :browser_marketing_form,
       :browser_marketing,
       :assign_current_path
     ]

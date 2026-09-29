@@ -63,6 +63,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Tuist · Build infrastructure for productive teams"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/")
+      end
+    end
   end
 
   describe "GET /blog/:year/:month/:day/:slug" do
