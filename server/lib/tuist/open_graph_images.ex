@@ -10,7 +10,6 @@ defmodule Tuist.OpenGraphImages do
 
   @actor :open_graph_images
   @storage_prefix "open-graph-images"
-  @lock_wait_timeout to_timeout(second: 30)
 
   def spec(key_parts, params, render) when is_list(key_parts) and is_map(params) and is_function(render, 0) do
     %{key: key(key_parts), params: params, render: render}
@@ -57,41 +56,13 @@ defmodule Tuist.OpenGraphImages do
     if Storage.object_exists?(object_key, @actor) do
       :ok
     else
-      with_generation_lock(
-        key,
-        fn ->
-          if Storage.object_exists?(object_key, @actor) do
-            :ok
-          else
-            generate_and_store(key, object_key, resolve)
-          end
-        end,
-        System.monotonic_time(:millisecond) + @lock_wait_timeout
-      )
-    end
-  end
-
-  defp with_generation_lock(key, generate, deadline) do
-    id = {{__MODULE__, key}, self()}
-    nodes = [node() | Node.list()]
-
-    if :global.set_lock(id, nodes, 0) do
-      try do
-        generate.()
-      after
-        :global.del_lock(id, nodes)
-      end
-    else
-      remaining = deadline - System.monotonic_time(:millisecond)
-
-      # A cold render can outlast a short retry count. Wait for its result
-      # while bounding contention and allowing unrelated images to proceed.
-      if remaining > 0 do
-        Process.sleep(min(remaining, 50))
-        with_generation_lock(key, generate, deadline)
-      else
-        {:error, :lock_unavailable}
-      end
+      :global.trans({__MODULE__, key}, fn ->
+        if Storage.object_exists?(object_key, @actor) do
+          :ok
+        else
+          generate_and_store(key, object_key, resolve)
+        end
+      end)
     end
   end
 

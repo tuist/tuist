@@ -18,5 +18,3 @@ This directory holds Phoenix configuration for the server.
   Helm sets it from the cacheVolumes gate. `TUIST_RUNNER_CACHE_VOLUMES_SA_NAME` selects
   the trusted agent account, and `TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE` its namespace. Reports remain available while allocations are off
   so existing resources can be reclaimed.
-
-- Kubernetes discovery is configured only when both the headless service and application name are provided. Erlang distribution requires unique pod-address node names, a shared release cookie, and the fixed distribution port from Helm.

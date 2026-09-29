@@ -65,7 +65,24 @@ defmodule TuistWeb.AuthenticationPlug do
   end
 
   defp get_authenticated_subject(conn, token) do
-    authenticated_subject = Tuist.Authentication.authenticated_subject(token)
+    cache_key = [Atom.to_string(__MODULE__), "authenticated_subject", token]
+
+    cache_opts = [
+      ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
+      cache: Map.get(conn.assigns, :cache, :tuist),
+      locking: true
+    ]
+
+    get_authenticated_subject = fn ->
+      Tuist.Authentication.authenticated_subject(token)
+    end
+
+    authenticated_subject =
+      if Map.get(conn.assigns, :caching, false) do
+        Tuist.KeyValueStore.get_or_update(cache_key, cache_opts, get_authenticated_subject)
+      else
+        get_authenticated_subject.()
+      end
 
     case authenticated_subject do
       %Project{} = project ->

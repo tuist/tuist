@@ -12,7 +12,6 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.CacheActionItems
   alias Tuist.Kura
   alias Tuist.Kura.Identity
-  alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Storage
   alias TuistWeb.API.Authorization.BillingPlug
   alias TuistWeb.API.Responses
@@ -36,7 +35,11 @@ defmodule TuistWeb.API.CacheController do
   plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
-       [category: :cache]
+       [
+         category: :cache,
+         caching: true,
+         cache_ttl: to_timeout(minute: 1)
+       ]
        when action not in [:access, :endpoints, :token]
 
   plug BillingPlug when action not in [:access, :endpoints, :token]
@@ -978,7 +981,7 @@ defmodule TuistWeb.API.CacheController do
     %{
       project_id: project_id
     }
-    |> CleanProjectWorker.new()
+    |> Tuist.Projects.Workers.CleanProjectWorker.new()
     |> Oban.insert!()
 
     send_resp(conn, :no_content, "")

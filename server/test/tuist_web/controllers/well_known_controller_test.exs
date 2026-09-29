@@ -3,7 +3,6 @@ defmodule TuistWeb.WellKnownControllerTest do
   use Mimic
 
   alias Tuist.Environment
-  alias Tuist.MCP.Server
   alias TuistWeb.AgentSkillsDiscovery
 
   setup do
@@ -165,21 +164,21 @@ defmodule TuistWeb.WellKnownControllerTest do
       conn = get(conn, "/.well-known/mcp/server-card.json")
 
       response = json_response(conn, 200)
-      server = Server.server()
+      server = Tuist.MCP.Server.server()
 
       assert get_resp_header(conn, "content-type") == ["application/json; charset=utf-8"]
       assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
       assert get_resp_header(conn, "cache-control") == ["public, max-age=3600"]
       refute Map.has_key?(response, "$schema")
       assert response["version"] == "1.0"
-      assert response["protocolVersion"] == "2026-07-28"
+      assert response["protocolVersion"] == "2025-06-18"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
-      assert response["capabilities"]["tools"] == %{}
-      assert response["capabilities"]["prompts"] == %{}
+      assert response["capabilities"]["tools"] == %{"listChanged" => true}
+      assert response["capabilities"]["prompts"] == %{"listChanged" => true}
 
       assert response["authentication"] == %{
                "required" => true,

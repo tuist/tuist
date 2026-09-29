@@ -1,7 +1,6 @@
 defmodule TuistWeb.RateLimit do
   @moduledoc """
-  Applies shared rate limits using Valkey, rejecting requests when it is unavailable.
-  Installations without Valkey use an eventually consistent in-memory limiter.
+  Applies rate limits using Valkey with an in-memory fallback.
 
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
@@ -77,9 +76,9 @@ defmodule TuistWeb.RateLimit do
     limit = Keyword.fetch!(opts, :limit)
     increment = Keyword.get(opts, :increment, 1)
 
-    with_failure_denial(
+    with_in_memory_fallback(
       fn -> PersistentFixedWindow.hit(key, window, limit, increment) end,
-      window
+      fn -> InMemory.hit(key, window, limit, increment) end
     )
   end
 
@@ -88,9 +87,9 @@ defmodule TuistWeb.RateLimit do
     capacity = Keyword.fetch!(opts, :capacity)
     cost = Keyword.get(opts, :cost, 1)
 
-    with_failure_denial(
+    with_in_memory_fallback(
       fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      ceil(cost / refill_rate * 1000)
+      fn -> InMemory.hit_token_bucket(key, refill_rate, capacity, cost) end
     )
   end
 
@@ -112,12 +111,12 @@ defmodule TuistWeb.RateLimit do
     )
   end
 
-  defp with_failure_denial(persistent, retry_after) do
+  defp with_in_memory_fallback(persistent, in_memory) do
     persistent.()
   rescue
-    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> {:deny, retry_after}
+    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> in_memory.()
   catch
-    :exit, _reason -> {:deny, retry_after}
+    :exit, _reason -> in_memory.()
   end
 
   defp requester_key(conn) do

@@ -18,7 +18,4 @@ spec:
     - name: http
       port: {{ .Values.server.service.targetPort }}
       targetPort: {{ .Values.server.service.targetPort }}
-    - name: erlang-dist
-      port: {{ .Values.server.cluster.distributionPort }}
-      targetPort: erlang-dist
 {{- end }}

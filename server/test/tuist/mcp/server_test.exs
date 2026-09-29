@@ -90,7 +90,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.33.0"
+      assert server.version == "1.32.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"
