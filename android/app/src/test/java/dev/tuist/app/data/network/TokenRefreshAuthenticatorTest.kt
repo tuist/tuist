@@ -205,6 +205,35 @@ class TokenRefreshAuthenticatorTest {
         assertEquals(1, refreshCount.get())
     }
 
+    @Test
+    fun `expires the session once when concurrent requests hit a rejected refresh token`() {
+        refreshResponse = {
+            Thread.sleep(200)
+            invalidGrant()
+        }
+        val executor = Executors.newFixedThreadPool(4)
+
+        (1..4)
+            .map { executor.submit<Int> { execute().code } }
+            .forEach { it.get(10, TimeUnit.SECONDS) }
+        executor.shutdown()
+
+        assertEquals(1, refreshCount.get())
+        assertEquals(listOf(AuthEvent.SessionExpired), authEvents.toList())
+    }
+
+    @Test
+    fun `does not expire a session when a signed-out request is unauthorized`() {
+        storedAccessToken = null
+        storedRefreshToken = null
+
+        val response = execute()
+
+        assertEquals(401, response.code)
+        assertEquals(0, refreshCount.get())
+        assertTrue(authEvents.isEmpty())
+    }
+
     private fun execute() = client.newCall(
         Request.Builder().url(server.url("/api/projects")).build(),
     ).execute().use { it }
