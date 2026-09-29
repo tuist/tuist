@@ -33,6 +33,7 @@ mod replication;
 mod request_observability;
 mod runtime;
 mod segment;
+mod served_by;
 mod startup;
 mod state;
 mod store;
