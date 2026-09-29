@@ -645,6 +645,13 @@ async fn initialize_and_serve(
             );
         }
     }
+    if !state.peer_views.load().is_empty() {
+        let announced = state.runtime.draining_for().unwrap_or_default();
+        let wait = crate::constants::DRAIN_ANNOUNCEMENT
+            .saturating_sub(announced)
+            .min(shutdown_budget.remaining());
+        tokio::time::sleep(wait).await;
+    }
     state.sync.shutdown();
     let _ = shutdown_tx.send(Some(shutdown_budget));
     let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;

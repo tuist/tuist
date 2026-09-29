@@ -783,11 +783,6 @@ Describe 'pull replication across two regions of two replicas'
     changes_before="$(metric_sum "${KURA_B2_URL}" kura_gateway_role_changes_total)"
     since="$(utc_now)"
 
-    # Like the orchestrator's preStop: SIGUSR1 first, so every peer sees b1
-    # draining and drops it on its first missed pass rather than holding it
-    # for the grace window (§2.5).
-    docker kill -s USR1 "$(service_container_id kura-b1)" >/dev/null || return 1
-    sleep 5
     dc stop kura-b1 >/dev/null 2>&1 || return 1
     wait_for_service_exited kura-b1 || return 1
 

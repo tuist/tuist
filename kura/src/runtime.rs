@@ -60,6 +60,7 @@ impl TrafficState {
 
 pub struct RuntimeState {
     draining: AtomicBool,
+    drain_started: std::sync::OnceLock<std::time::Instant>,
     drain_requested: Notify,
     serving: AtomicBool,
     // Boot guardrail for nodes whose peer view arrives from the control plane
@@ -81,6 +82,7 @@ impl RuntimeState {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             draining: AtomicBool::new(false),
+            drain_started: std::sync::OnceLock::new(),
             drain_requested: Notify::new(),
             serving: AtomicBool::new(false),
             peer_view_required: AtomicBool::new(false),
@@ -97,6 +99,7 @@ impl RuntimeState {
     pub fn request_drain(&self) -> bool {
         let entered = !self.draining.swap(true, Ordering::SeqCst);
         if entered {
+            let _ = self.drain_started.set(std::time::Instant::now());
             self.drain_requested.notify_waiters();
         }
         entered
@@ -109,6 +112,11 @@ impl RuntimeState {
         if !self.is_draining() {
             notified.await;
         }
+    }
+
+    /// How long this node has been draining, if it is.
+    pub fn draining_for(&self) -> Option<std::time::Duration> {
+        self.drain_started.get().map(|started| started.elapsed())
     }
 
     pub fn is_draining(&self) -> bool {
@@ -482,6 +490,20 @@ mod tests {
         assert_eq!(
             first.path(),
             temp_dir.path().join(DATA_DIR_LOCK_FILE).as_path()
+        );
+    }
+
+    #[test]
+    fn the_drain_start_is_kept_from_the_first_request() {
+        let runtime = RuntimeState::new();
+        assert_eq!(runtime.draining_for(), None);
+        runtime.request_drain();
+        let first = runtime.draining_for().expect("draining");
+        std::thread::sleep(Duration::from_millis(20));
+        runtime.request_drain();
+        assert!(
+            runtime.draining_for().expect("draining") >= first + Duration::from_millis(20),
+            "a second signal (SIGTERM after preStop's SIGUSR1) must not restart the clock"
         );
     }
 

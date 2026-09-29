@@ -314,11 +314,15 @@ observed traffic state, until it has been unseen for
 absence and is covered by the same window.
 
 **A drain skips the window.** A peer last seen `draining` is leaving on
-purpose (§3.5), so its first missed pass removes it. Both the managed
-controller and the Helm chart send SIGUSR1 in `preStop` and wait 20 s before
-SIGTERM, so every peer sees the drain first. A draining peer also ranks last
-for the gateway role (§2.4), so remote gateways move off it as soon as they
-see it.
+purpose (§3.5), so its first missed pass removes it. A draining peer also ranks
+last for the gateway role (§2.4), so remote gateways move off it as soon as
+they see it. Peers only skip the window if they see the drain, so a draining
+node stays reachable for at least `DRAIN_ANNOUNCEMENT` (5 s, two passes) after
+the drain starts. Behind the `preStop` SIGUSR1 of the managed controller and
+the Helm chart, the drain is already 20 s old by SIGTERM, and this costs
+nothing. It matters for a plain SIGTERM (`docker stop`, systemd), which would
+otherwise drain and exit in under a pass and leave its peers holding it for
+the whole window.
 
 **Why the view, and not a sticky role.** The role rule stays a pure function
 of the view and the published roles, so nodes with the same view derive the

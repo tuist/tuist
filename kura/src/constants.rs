@@ -361,6 +361,12 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 /// region link restart its backward pass. A peer last seen draining leaves
 /// on its first missed pass instead.
 pub const MEMBERSHIP_REMOVAL_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
+/// How long a draining node stays reachable at least, so its peers' membership
+/// passes, one every two seconds, see it draining and drop it at once instead
+/// of holding it for `MEMBERSHIP_REMOVAL_GRACE`. Behind a `preStop` SIGUSR1
+/// the drain has long outlasted it by SIGTERM; a plain SIGTERM would otherwise
+/// exit in under a pass.
+pub const DRAIN_ANNOUNCEMENT: std::time::Duration = std::time::Duration::from_secs(5);
 /// `KURA_SYNC_DRAIN_MARGIN_MS` default: what the departing node keeps back
 /// from the drain timeout so the sibling wait never eats the process exit.
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
