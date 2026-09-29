@@ -4,7 +4,6 @@ defmodule TuistWeb.API.BuildsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Builds
-  alias Tuist.Builds.CacheRegion
   alias Tuist.Builds.CASOutput
   alias Tuist.Storage
   alias Tuist.VCS.RemoteURL
@@ -928,9 +927,6 @@ defmodule TuistWeb.API.BuildsController do
 
       {:error, :not_found} ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
-        # The build is uploaded from the machine that ran it, so this request's
-        # origin is where the build came from.
-        cache_region = CacheRegion.client_attrs(params.project.account, params.origin)
 
         build_attrs = %{
           id: params.id,
@@ -962,8 +958,9 @@ defmodule TuistWeb.API.BuildsController do
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{}),
           machine_metrics: Map.get(params, :machine_metrics, []),
-          client_origin: cache_region.client_origin,
-          cache_expected_region: cache_region.cache_expected_region
+          # The build is uploaded from the machine that ran it, so this
+          # request's origin is where the build came from.
+          client_origin: params.origin
         }
 
         result =
@@ -999,8 +996,7 @@ defmodule TuistWeb.API.BuildsController do
                 generation_id: Map.get(params, :generation_id),
                 custom_tags: Map.get(custom_metadata, :tags, []),
                 custom_values: Map.get(custom_metadata, :values, %{}),
-                client_origin: cache_region.client_origin,
-                cache_expected_region: cache_region.cache_expected_region
+                client_origin: params.origin
               },
               vcs_comment_params: %{
                 git_commit_sha: Map.get(params, :git_commit_sha),

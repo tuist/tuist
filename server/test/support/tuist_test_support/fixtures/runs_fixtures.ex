@@ -82,7 +82,6 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         custom_values: Keyword.get(attrs, :custom_values, %{}),
         generation_id: Keyword.get(attrs, :generation_id),
         client_origin: Keyword.get(attrs, :client_origin, ""),
-        cache_expected_region: Keyword.get(attrs, :cache_expected_region, ""),
         cache_serving_region: Keyword.get(attrs, :cache_serving_region, "")
       })
 

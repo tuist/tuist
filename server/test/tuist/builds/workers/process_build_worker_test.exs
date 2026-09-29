@@ -180,8 +180,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
           user_id: account.id,
           status: "processing",
           duration: 0,
-          client_origin: "AU",
-          cache_expected_region: "ap-southeast"
+          client_origin: "AU"
         )
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
@@ -203,7 +202,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       {:ok, processed} = Builds.get_build(build.id, project_id: project.id)
       assert processed.client_origin == "AU"
-      assert processed.cache_expected_region == "ap-southeast"
       assert processed.cache_serving_region == "us-central"
     end
 
@@ -219,7 +217,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       {:ok, processed} = Builds.get_build(build.id, project_id: project.id)
       assert processed.cache_serving_region == ""
-      assert processed.cache_expected_region == "ap-southeast"
     end
   end
 

@@ -74,10 +74,10 @@ defmodule Tuist.Builds.Build do
     field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :xcode_cache_upload_enabled, :boolean, default: false
     field :generation_id, Ch, type: "Nullable(UUID)"
-    # Where the build came from and which cache region should have served it
-    # and did; see `Tuist.Builds.CacheRegion`. Labels only, no addresses.
+    # Where the build was uploaded from (`TuistWeb.RemoteIp.origin/1`) and the
+    # Kura region that answered most of its remote cache requests, as the CAS
+    # proxy recorded it. Labels only, no addresses.
     field :client_origin, Ch, type: "LowCardinality(String)", default: ""
-    field :cache_expected_region, Ch, type: "LowCardinality(String)", default: ""
     field :cache_serving_region, Ch, type: "LowCardinality(String)", default: ""
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
@@ -109,7 +109,6 @@ defmodule Tuist.Builds.Build do
       :ci_project_handle,
       :ci_host,
       :client_origin,
-      :cache_expected_region,
       :cache_serving_region
     ])
     |> then(fn attrs ->
@@ -144,7 +143,6 @@ defmodule Tuist.Builds.Build do
         :xcode_cache_upload_enabled,
         :generation_id,
         :client_origin,
-        :cache_expected_region,
         :cache_serving_region
       ])
       |> validate_required([

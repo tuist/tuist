@@ -7,7 +7,6 @@ defmodule TuistWeb.API.BuildsControllerTest do
   alias Tuist.Builds.Workers.ProcessBuildWorker
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
@@ -697,12 +696,10 @@ defmodule TuistWeb.API.BuildsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/xcode/builds cache region" do
-    test "records where the build came from and the region expected to serve it", %{conn: conn} do
+    test "records where the build came from", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
-      KuraFixtures.active_server_fixture(organization.account, region: "us-central")
-      KuraFixtures.active_server_fixture(organization.account, region: "ap-southeast")
       build_id = UUIDv7.generate()
 
       conn =
@@ -722,13 +719,12 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       {:ok, build} = Builds.get_build(build_id, project_id: project.id)
       assert build.client_origin == "AU"
-      assert build.cache_expected_region == "ap-southeast"
 
       assert_enqueued(
         worker: ProcessBuildWorker,
         args: %{
           "build_id" => build_id,
-          "build_metadata" => %{"client_origin" => "AU", "cache_expected_region" => "ap-southeast"}
+          "build_metadata" => %{"client_origin" => "AU"}
         }
       )
     end
@@ -736,7 +732,6 @@ defmodule TuistWeb.API.BuildsControllerTest do
     test "records nothing for a request the edge did not locate", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
-      KuraFixtures.active_server_fixture(user.account, region: "us-central")
       build_id = UUIDv7.generate()
 
       conn =
@@ -754,7 +749,6 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       {:ok, build} = Builds.get_build(build_id, project_id: project.id)
       assert build.client_origin == ""
-      assert build.cache_expected_region == ""
     end
   end
 
