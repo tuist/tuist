@@ -217,7 +217,19 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
+    plug :accepts, ["html"]
+    plug :browser_marketing_common
+  end
+
+  # Marketing pages only render HTML, so JSON is accepted only where a form
+  # posts with `Accept: application/json` to read the result inline.
+  pipeline :browser_marketing_form do
+    plug :put_request_kind, "marketing"
     plug :accepts, ["html", "json"]
+    plug :browser_marketing_common
+  end
+
+  pipeline :browser_marketing_common do
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -508,7 +520,7 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :same_origin_csrf_exemption,
-      :browser_marketing,
+      :browser_marketing_form,
       :assign_current_path
     ]
 

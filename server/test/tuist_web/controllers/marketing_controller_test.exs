@@ -77,6 +77,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert author =~ ~r|\Ahttps://|
       assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
     end
+
+    test "rejects a request that only accepts JSON", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+
+      assert_error_sent 406, fn ->
+        conn |> put_req_header("accept", "application/json") |> get(post.slug)
+      end
+    end
   end
 
   describe "GET /sitemap.xml" do
@@ -349,6 +357,18 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                "success" => true,
                "message" => "Please check your email to confirm your subscription."
              }
+    end
+
+    test "accepts a submission that asks for JSON", %{conn: conn} do
+      email = "test@example.com"
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter", %{"email" => email})
+
+      assert %{"success" => true} = json_response(conn, 200)
     end
 
     test "returns error when the email API fails", %{conn: conn} do
