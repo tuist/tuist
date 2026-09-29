@@ -16,6 +16,15 @@ defmodule Tuist.Builds.CacheRegion do
       proxy recorded for the build, read from the build archive.
 
   Region and origin labels only: no addresses.
+
+  The expected region is what placement considers nearest (`Tuist.Kura.OriginMap`),
+  not what Route53 answers. Route53 routes by the AWS latency region each
+  Kura region is mapped to, and the two can disagree near zone borders: Mexico
+  is in the map's South America zone, so an account serving from `sa-west` and
+  `us-central` expects `sa-west` there while latency routing may answer
+  `us-central`. A mismatch on such an origin is not necessarily a misrouted
+  network, so read mismatches by how often they recur for an origin rather
+  than one build at a time.
   """
 
   alias Tuist.Accounts.Account

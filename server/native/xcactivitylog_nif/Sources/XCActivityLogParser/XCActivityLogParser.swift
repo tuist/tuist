@@ -61,10 +61,10 @@ public struct XCActivityLogParser: Sendable {
             casReader: casReader
         )
 
-        let cacheServingRegion = await analyzeCacheServingRegion(
+        let cacheServingRegion = analyzeCacheServingRegion(
             cacheableTasks: cacheableTasks,
             casOutputs: casOutputs,
-            casReader: casReader
+            servedRegions: casReader.readServedRegions()
         )
 
         let duration = SafeNumeric.milliseconds(
@@ -100,17 +100,24 @@ public struct XCActivityLogParser: Sendable {
     private func analyzeCacheServingRegion(
         cacheableTasks: [CacheableTask],
         casOutputs: [CASOutput],
-        casReader: CASMetadataReader
-    ) async -> String? {
-        var lookups = [(key: String, operationType: String)]()
+        servedRegions: ServedRegions
+    ) -> String? {
+        var regions = [String]()
         for task in cacheableTasks {
-            if task.status == "hit_remote" || task.status == "miss" { lookups.append((task.key, "read")) }
-            if task.write_duration != nil { lookups.append((task.key, "write")) }
+            if task.status == "hit_remote" || task.status == "miss",
+               let region = servedRegions.region(key: task.key, operationType: "read")
+            {
+                regions.append(region)
+            }
+            if task.write_duration != nil, let region = servedRegions.region(key: task.key, operationType: "write") {
+                regions.append(region)
+            }
         }
-        lookups += Set(casOutputs.map(\.checksum)).map { ($0, "output") }
-        let regions = (try? await lookups.concurrentCompactMap(maxConcurrentTasks: 50) { lookup in
-            await casReader.readServedRegion(key: lookup.key, operationType: lookup.operationType)
-        }) ?? []
+        for checksum in Set(casOutputs.map(\.checksum)) {
+            if let region = servedRegions.region(key: checksum, operationType: "output") {
+                regions.append(region)
+            }
+        }
         return Self.dominantRegion(regions)
     }
 
