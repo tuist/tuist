@@ -4231,7 +4231,8 @@ impl Proxy {
             self.publisher.enqueue(item);
             return false;
         }
-        let admission = if self.remote_for(&instance).shedding_writes() {
+        let remote = self.remote_for(&instance);
+        let admission = if remote.shedding_writes() || remote.unusable() {
             None
         } else {
             self.upload_wait.admit(reapi::now_ms())
@@ -4397,7 +4398,7 @@ impl Proxy {
                 // armed it, and every publication queued behind it fails for the
                 // same reason. Saying so per record buries the line that
                 // explains them in thousands of copies of itself.
-                if reason != "remote shedding writes" {
+                if reason != "remote shedding writes" && reason != reapi::REMOTE_UNUSABLE {
                     crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
                 }
             }
@@ -4424,6 +4425,11 @@ impl Proxy {
             remote.record_shed_write();
             state.stats_publish_shed.fetch_add(1, Ordering::Relaxed);
             return Err("remote shedding writes".into());
+        }
+        // Same reasoning for an endpoint not serving the cache API at all: the
+        // closure walk and every call would end in the same refusal.
+        if remote.unusable() {
+            return Err(reapi::REMOTE_UNUSABLE.into());
         }
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
@@ -6050,7 +6056,9 @@ impl Proxy {
                         None => write_response(&mut stream, STATUS_MISS, &[]),
                     },
                     Err(message) => {
-                        crate::log_line(&format!("proxy resolve failed: {message}"));
+                        if message != reapi::REMOTE_UNUSABLE {
+                            crate::log_line(&format!("proxy resolve failed: {message}"));
+                        }
                         write_response(&mut stream, STATUS_ERROR, message.as_bytes())
                     }
                 }
