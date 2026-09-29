@@ -22,3 +22,5 @@ This context owns marketing content aggregation (blog posts, case studies, chang
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- Each web node keeps a local statistics snapshot. One globally registered poller reads ClickHouse and broadcasts snapshots; followers retry election every poll interval so node loss recovers automatically. During a network partition, duplicate polling is acceptable because these are display statistics.

@@ -285,7 +285,7 @@ defmodule TuistWeb.AgentAuthControllerTest do
       assert user_id == issued_by_user_id
     end
 
-    test "issues an access token that can initialize the MCP session", %{conn: conn} do
+    test "issues an access token that supports stateless legacy initialization", %{conn: conn} do
       email = AccountsFixtures.unique_user_email()
       %{claim_token: claim_token, claim_view_token: claim_view_token} = register_agent(email)
       stub(MCP, :hit, fn _conn -> {:allow, 1} end)
@@ -318,8 +318,7 @@ defmodule TuistWeb.AgentAuthControllerTest do
       assert response["id"] == 1
       assert is_map(response["result"])
       assert is_binary(response["result"]["protocolVersion"])
-      assert [session_id] = get_resp_header(mcp_conn, "mcp-session-id")
-      assert is_binary(session_id)
+      assert get_resp_header(mcp_conn, "mcp-session-id") == []
     end
   end
 

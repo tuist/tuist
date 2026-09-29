@@ -250,16 +250,19 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
   dns_name = System.get_env("TUIST_CLUSTER_DNS_SERVICE")
   app_name = System.get_env("TUIST_CLUSTER_APP_NAME")
 
-  config :libcluster,
-    topologies: [
-      k8s: [
-        strategy: Cluster.Strategy.Kubernetes.DNS,
-        config: [
-          service: dns_name,
-          application_name: app_name
+  topologies =
+    if dns_name not in [nil, ""] and app_name not in [nil, ""] do
+      [
+        k8s: [
+          strategy: Cluster.Strategy.Kubernetes.DNS,
+          config: [service: dns_name, application_name: app_name]
         ]
       ]
-    ]
+    else
+      []
+    end
+
+  config :libcluster, topologies: topologies
 
   # ## SSL Support
   #
