@@ -350,7 +350,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end)
 
       # When
-      conn = post(conn, ~p"/newsletter", %{"email" => email})
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter", %{"email" => email})
 
       # Then
       assert json_response(conn, 200) == %{
@@ -601,6 +604,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "POST /newsletter/verify" do
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      reject(&Email.add_to_newsletter_list/1)
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter/verify", %{"token" => signed_newsletter_token("test@example.com")})
+      end
+    end
+
     test "subscribes email with a valid token", %{conn: conn} do
       # Given
       email = "test@example.com"
