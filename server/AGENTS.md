@@ -18,7 +18,6 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - `priv/ingest_repo/migrations/` - ClickHouse migrations (analytics)
 - `assets/` - Frontend assets (JS/CSS)
 - `config/` - Application configuration
-- [`verification/`](verification/AGENTS.md) - Standalone clustered-server verification in isolated Erlang processes
 
 ## Main Business Domains
 - Accounts (auth, orgs, billing)

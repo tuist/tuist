@@ -61,5 +61,3 @@ add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
-
-Helm validation includes two self-hosted server replicas with Erlang discovery, the private network policy, and custom distribution-port/cookie-key settings. Keep that profile alongside the production render when changing server clustering.

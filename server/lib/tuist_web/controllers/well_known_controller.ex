@@ -3,7 +3,6 @@ defmodule TuistWeb.WellKnownController do
 
   alias Tuist.Accounts
   alias Tuist.Environment
-  alias Tuist.MCP.Server
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -18,7 +17,7 @@ defmodule TuistWeb.WellKnownController do
   @agent_auth_identity_path "/agent/identity"
   @agent_auth_claim_path "/agent/identity/claim"
   @agent_auth_events_path "/agent/event/notify"
-  @mcp_protocol_version "2026-07-28"
+  @mcp_protocol_version "2025-06-18"
 
   def api_catalog(conn, _params) do
     origin = RequestOrigin.from_conn(conn)
@@ -70,7 +69,7 @@ defmodule TuistWeb.WellKnownController do
   Returns the MCP Server Card for agent discovery (SEP-1649).
   """
   def mcp_server_card(conn, _params) do
-    server = Server.server()
+    server = Tuist.MCP.Server.server()
     origin = RequestOrigin.from_conn(conn)
 
     capabilities =
@@ -80,7 +79,7 @@ defmodule TuistWeb.WellKnownController do
         {map_size(server.prompts) > 0, :prompts}
       ]
       |> Enum.filter(fn {present, _} -> present end)
-      |> Map.new(fn {_, name} -> {name, %{}} end)
+      |> Map.new(fn {_, name} -> {name, %{listChanged: true}} end)
 
     card = %{
       version: "1.0",

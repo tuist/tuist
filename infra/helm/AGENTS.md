@@ -101,7 +101,3 @@ This node covers Helm assets under `infra/helm/`.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.
-
-- Multiple server replicas require `server.cluster.enabled`. Web pods share a release-scoped Erlang cookie Secret, use a fixed distribution port, and discover pod addresses through the headless service. Preserve the cookie on upgrades or supply `cookieExistingSecret`; restrict distribution traffic to server pods. See `tuist/README.md` for checks and rotation.
-
-- `tuist/values-cluster-ci.yaml` validates two self-hosted web nodes with private distribution traffic and custom port/cookie keys. The Helm workflow lints and schema-validates this profile alongside production.

@@ -46,4 +46,3 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
-- Cache controller authorization always rechecks permissions. Do not pass obsolete caching options to `AuthorizationPlug`; router cache assigns still control non-security loader and billing caches.
