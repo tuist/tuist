@@ -11341,53 +11341,6 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "last_24h_test_run_count/0" do
-    test "returns the number of test runs from the last 24 hours" do
-      # Given
-      before_count = Tests.last_24h_test_run_count()
-      {:ok, _} = RunsFixtures.test_fixture()
-      {:ok, _} = RunsFixtures.test_fixture()
-
-      # When
-      count = Tests.last_24h_test_run_count()
-
-      # Then
-      assert count == before_count + 2
-    end
-  end
-
-  describe "last_24h_test_case_run_count/0" do
-    test "returns the number of test case runs from the last 24 hours" do
-      # Given
-      before_count = Tests.last_24h_test_case_run_count()
-      RunsFixtures.test_case_run_fixture()
-      RunsFixtures.test_case_run_fixture()
-      RunsFixtures.test_case_run_fixture()
-
-      # When
-      count = Tests.last_24h_test_case_run_count()
-
-      # Then
-      assert count == before_count + 3
-    end
-  end
-
-  describe "last_24h_flaky_test_case_run_count/0" do
-    test "returns only the count of flaky test case runs from the last 24 hours" do
-      # Given
-      before_count = Tests.last_24h_flaky_test_case_run_count()
-      RunsFixtures.test_case_run_fixture(is_flaky: true)
-      RunsFixtures.test_case_run_fixture(is_flaky: true)
-      RunsFixtures.test_case_run_fixture(is_flaky: false)
-
-      # When
-      count = Tests.last_24h_flaky_test_case_run_count()
-
-      # Then
-      assert count == before_count + 2
-    end
-  end
-
   describe "expire_stale_in_progress_test_runs/0" do
     test "marks stale in_progress test runs as failure" do
       project = ProjectsFixtures.project_fixture()

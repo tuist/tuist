@@ -1693,21 +1693,6 @@ defmodule Tuist.BuildsTest do
     end
   end
 
-  describe "last_24h_build_count/0" do
-    test "returns the number of builds from the last 24 hours" do
-      # Given
-      before_count = Builds.last_24h_build_count()
-      RunsFixtures.build_fixture()
-      RunsFixtures.build_fixture()
-
-      # When
-      count = Builds.last_24h_build_count()
-
-      # Then
-      assert count >= before_count + 2
-    end
-  end
-
   describe "list_cacheable_task_cas_outputs/3" do
     test "resolves large task ID lists inside ClickHouse and paginates distinct outputs within the build" do
       ids = for index <- 1..15_000, do: "0~" <> String.pad_leading(Integer.to_string(index), 64, "0")

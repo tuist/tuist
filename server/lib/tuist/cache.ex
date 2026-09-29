@@ -11,13 +11,8 @@ defmodule Tuist.Cache do
   alias Tuist.Billing
   alias Tuist.Cache.CASEvent
   alias Tuist.CacheGuardian
-  alias Tuist.ClickHouseRepo
-  alias Tuist.Environment
-  alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Projects.Project
-
-  @short_cache_ttl to_timeout(second: 10)
 
   @cache_token_type "cache"
   @cache_token_ttl_seconds 1800
@@ -278,30 +273,6 @@ defmodule Tuist.Cache do
 
       _ ->
         fallback
-    end
-  end
-
-  def last_24h_artifacts_count do
-    cached_count(:last_24h_artifacts_count, &last_24h_artifacts_count_query/0)
-  end
-
-  defp last_24h_artifacts_count_query do
-    yesterday = Date.to_string(Date.add(Date.utc_today(), -1))
-
-    case ClickHouseRepo.query(
-           "SELECT sum(event_count) FROM cas_events_daily_stats WHERE date >= {since:Date}",
-           %{"since" => yesterday}
-         ) do
-      {:ok, %{rows: [[count]]}} when not is_nil(count) -> count
-      _ -> 0
-    end
-  end
-
-  defp cached_count(key, fun) do
-    if Environment.test?() do
-      fun.()
-    else
-      KeyValueStore.get_or_update([:cache, key], [ttl: @short_cache_ttl], fun)
     end
   end
 

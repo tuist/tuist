@@ -47,14 +47,4 @@ defmodule Tuist.Application.RuntimeChildren do
   end
 
   def open_graph_image_renderer(_), do: []
-
-  @doc """
-  Child spec for the marketing stats poller, gated on pod mode.
-
-  Returns the poller for `:web`; empty for every other mode. It polls
-  ClickHouse every 5 seconds and broadcasts over PubSub purely to feed
-  the marketing LiveViews, which only the Phoenix endpoint serves.
-  """
-  def marketing_stats(:web), do: [Tuist.Marketing.Stats]
-  def marketing_stats(_), do: []
 end

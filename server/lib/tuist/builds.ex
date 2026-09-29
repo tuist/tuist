@@ -37,16 +37,6 @@ defmodule Tuist.Builds do
     |> ClickHouseRepo.one()
   end
 
-  def last_24h_build_count do
-    cached_count(:last_24h_build_count, &last_24h_build_count_query/0)
-  end
-
-  defp last_24h_build_count_query do
-    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
-
-    ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
-  end
-
   # `ORDER BY updated_at DESC LIMIT 1` picks the latest version of the row
   # without the multi-part merge `FINAL` would force. `updated_at` is the
   # table's ReplacingMergeTree version, so a processed row always outranks the
@@ -601,14 +591,6 @@ defmodule Tuist.Builds do
       successful_count: successful_count,
       failed_count: failed_count
     }
-  end
-
-  defp cached_count(key, fun) do
-    if Environment.test?() do
-      fun.()
-    else
-      KeyValueStore.get_or_update([:builds, key], [ttl: @short_cache_ttl], fun)
-    end
   end
 
   defp cached_count_map(key, fun) do

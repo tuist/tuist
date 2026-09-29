@@ -6,7 +6,6 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
   import TuistWeb.Marketing.StructuredMarkup
 
-  alias Tuist.Marketing.Stats
   alias TuistWeb.Marketing.SocialCards
 
   embed_templates "marketing_cache_live/*"
@@ -14,9 +13,6 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   def render(assigns), do: cache(assigns)
 
   def mount(_params, session, socket) do
-    if connected?(socket), do: Stats.subscribe()
-    stats = Stats.get_stats()
-
     socket =
       socket
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
@@ -25,7 +21,6 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
         {:cont, assign(socket, current_path: current_path)}
       end)
       |> TuistWeb.Authentication.mount_current_user(session)
-      |> assign(:last_24h_artifacts_count, stats.cache_artifacts_last_24h)
       # The globe's first-paint placeholder is an inline script, so it needs
       # the request's CSP nonce (only the dead render matters — CSP is
       # enforced against the initial response's header).
@@ -55,9 +50,5 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
      )
      |> assign(:head_description, description)
      |> assign_feature_structured_data(dgettext("marketing", "Cache"), description, "/cache")}
-  end
-
-  def handle_info({:marketing_stats_updated, stats}, socket) do
-    {:noreply, assign(socket, :last_24h_artifacts_count, stats.cache_artifacts_last_24h)}
   end
 end
