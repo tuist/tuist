@@ -3,8 +3,8 @@
 This area owns request rate limiting helpers.
 
 ## Responsibilities
-- Apply all request rate limits through Valkey with a matching in-memory fallback.
-- Preserve fixed-window and token-bucket policies across both backends.
+- Apply request rate limits through Valkey when configured. Reject requests on shared-store failure rather than resetting the budget in local memory.
+- Preserve fixed-window and token-bucket policies. Installations without Valkey use approximate, eventually consistent in-memory admission; Erlang publish/subscribe does not provide a strict shared budget.
 - Compute rate limit keys using client addresses and authenticated subjects.
 
 ## Boundaries

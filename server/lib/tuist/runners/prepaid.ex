@@ -652,6 +652,7 @@ defmodule Tuist.Runners.Prepaid do
     # entry from before the change to be served for the rest of its life
     # — which is what made a balance impossible to clear. A cached nil
     # reads as a miss, so the next call fetches rather than serving it.
+    KeyValueStore.invalidate(balance_cache_key(customer_id))
     KeyValueStore.put(balance_cache_key(customer_id), balance, ttl: @balance_cache_ttl)
 
     balance

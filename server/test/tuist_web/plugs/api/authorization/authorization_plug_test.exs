@@ -189,8 +189,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     assert conn == got
   end
 
-  describe "caching" do
-    test "caches authorization responses", %{cache: cache} do
+  describe "authoritative authorization" do
+    test "rechecks authorization even when caching is requested", %{cache: cache} do
       # Given
       project =
         %{account: %{name: account_handle}} =
@@ -199,8 +199,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       opts =
         AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
-      # We check that the authorization API, which hits the DB, is onnly invoked once.
-      expect(Authorization, :authorize, 1, fn :project_cache_read, _, _ ->
+      # Permission checks must observe revocation on every request.
+      expect(Authorization, :authorize, 10, fn :project_cache_read, _, _ ->
         {:error, :forbidden}
       end)
 
@@ -218,7 +218,22 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       end
     end
 
-    test "caches authorization responses by action", %{cache: cache} do
+    test "does not retain a successful authorization after permission revocation" do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      conn =
+        build_conn()
+        |> assign(:selected_project, project)
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      opts = AuthorizationPlug.init(category: :cache, caching: true)
+      expect(Authorization, :authorize, fn :project_cache_read, _, _ -> :ok end)
+      refute AuthorizationPlug.call(conn, opts).halted
+      expect(Authorization, :authorize, fn :project_cache_read, _, _ -> {:error, :forbidden} end)
+      assert AuthorizationPlug.call(conn, opts).status == 403
+    end
+
+    test "checks authorization by action", %{cache: cache} do
       # Given
       project =
         %{account: %{name: account_handle}} =
@@ -249,42 +264,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
              }
     end
 
-    test "shares a cached decision between tokens of the same account with the same permissions", %{cache: cache} do
-      # Given
-      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
-      calls = :counters.new(1, [])
-
-      opts =
-        AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
-
-      stub(Authorization, :authorize, fn :project_cache_create, _, _ ->
-        :counters.add(calls, 1, 1)
-        :ok
-      end)
-
-      conn =
-        :post
-        |> build_conn("/")
-        |> assign(:cache, cache)
-        |> assign(:selected_project, project)
-
-      # When
-      for _ <- 1..3 do
-        token = %AuthenticatedAccount{
-          account: project.account,
-          scopes: ["ci"],
-          all_projects: false,
-          project_ids: [project.id]
-        }
-
-        refute conn |> assign(:current_subject, token) |> AuthorizationPlug.call(opts) |> Map.get(:halted)
-      end
-
-      # Then
-      assert :counters.get(calls, 1) == 1
-    end
-
-    test "doesn't share a cached decision between tokens of the same account with different permissions", %{
+    test "denies a token whose write scope is withheld after another token of the same account was allowed", %{
       cache: cache
     } do
       # Given

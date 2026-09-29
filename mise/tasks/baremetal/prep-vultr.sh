@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Prep a Vultr bare-metal box: split the installer's mirror into a single-disk root plus the separate XFS /data the cache volume quota needs"
 #
-# Why this is a conversion rather than an install, unlike prep-ovh / prep-dedibox:
+# Why this is a conversion rather than an install, unlike prep-ovh:
 # Vultr's API exposes no partitioning control, and its installer offers only
 # "RAID 1 across both disks" (one filesystem spanning the pair) or "no RAID".
 # Neither produces the mirrored root plus separate XFS /data those installs lay

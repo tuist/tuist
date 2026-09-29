@@ -558,9 +558,9 @@ defmodule Tuist.Tests do
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(test, test_modules, shard_index, shard_plan)
 
-      Tuist.Tasks.run_async(fn ->
-        mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+      mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
 
+      Tuist.Tasks.run_async(fn ->
         project = Tuist.Projects.get_project_by_id(test.project_id)
 
         if project do
@@ -795,9 +795,9 @@ defmodule Tuist.Tests do
 
           IngestRepo.insert_all(Test, [update_attrs])
 
-          Tuist.Tasks.run_async(fn ->
-            mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
+          mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
 
+          Tuist.Tasks.run_async(fn ->
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
             if project do
@@ -1068,7 +1068,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
-    Tuist.Tasks.run_async(fn -> TestCase.Buffer.insert_all(test_cases) end)
+    TestCase.Buffer.insert_all(test_cases)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -1956,9 +1956,7 @@ defmodule Tuist.Tests do
       # Postgres N times for the same result and starving the pool. One call
       # per ingest, with the downstream AutomationScheduler still dedup'ing
       # by cadence.
-      Tuist.Tasks.run_async(fn ->
-        enqueue_flaky_alert_evaluations(test, all_test_case_runs)
-      end)
+      enqueue_flaky_alert_evaluations(test, all_test_case_runs)
     end)
   end
 
@@ -2343,17 +2341,15 @@ defmodule Tuist.Tests do
       TestCaseRunArgument.Buffer.insert_all(all_arguments)
     end
 
-    Tuist.Tasks.run_async(fn ->
-      TestCaseFailure.Buffer.insert_all(all_failures)
+    TestCaseFailure.Buffer.insert_all(all_failures)
 
-      if Enum.any?(all_repetitions) do
-        TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
-      end
+    if Enum.any?(all_repetitions) do
+      TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+    end
 
-      if Enum.any?(all_attachments) do
-        TestCaseRunAttachment.Buffer.insert_all(all_attachments)
-      end
-    end)
+    if Enum.any?(all_attachments) do
+      TestCaseRunAttachment.Buffer.insert_all(all_attachments)
+    end
 
     # The audit-log row and the outbound webhook fire on the same set:
     # a test case whose row didn't exist before *and* whose run is the

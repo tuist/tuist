@@ -4,7 +4,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   """
   use TuistWeb, :controller
 
-  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Authorization
   alias TuistWeb.Authentication
   alias TuistWeb.RateLimit
@@ -49,35 +48,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   end
 
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
-    caching = Keyword.get(opts, :caching, false)
     action = Keyword.get(opts, :action, get_action(conn))
     subject = Authentication.authenticated_subject(conn)
 
-    cache_key = [
-      Atom.to_string(__MODULE__),
-      "authorize",
-      Atom.to_string(category),
-      Atom.to_string(action),
-      "#{subject_kind(subject)}-#{subject_id(subject)}#{subject_permissions_key(subject)}",
-      "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
-    ]
-
-    authorized? =
-      if caching do
-        Tuist.KeyValueStore.get_or_update(
-          cache_key,
-          [
-            cache: Map.get(conn.assigns, :cache, :tuist),
-            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1)),
-            locking: true
-          ],
-          fn ->
-            authorize(subject, action, selected_project, category)
-          end
-        )
-      else
-        authorize(subject, action, selected_project, category)
-      end
+    authorized? = authorize(subject, action, selected_project, category)
 
     if authorized? do
       conn
@@ -116,35 +90,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
         |> halt()
     end
   end
-
-  defp subject_kind(%{__struct__: struct}), do: Atom.to_string(struct)
-  defp subject_kind(_subject), do: "unknown"
-
-  defp subject_id(%{id: id}), do: id
-  defp subject_id(%{account: %{id: id}}), do: id
-  defp subject_id(_subject), do: "unknown"
-
-  # Tokens of one account resolve to the same subject id but can carry
-  # different permissions (scopes, project access, scopes withheld by OIDC
-  # rules), so a decision cached for one must not answer for another.
-  defp subject_permissions_key(%AuthenticatedAccount{} = subject) do
-    permissions = {
-      subject.scopes |> List.wrap() |> Enum.sort(),
-      subject.all_projects,
-      subject.project_ids |> List.wrap() |> Enum.sort(),
-      subject.withheld_scopes
-      |> Kernel.||(%{})
-      |> Enum.map(fn {scope, ids} -> {scope, Enum.sort(List.wrap(ids))} end)
-      |> Enum.sort(),
-      subject.token_id,
-      subject.issued_by && subject.issued_by.id
-    }
-
-    digest = :crypto.hash(:sha256, :erlang.term_to_binary(permissions, [:deterministic]))
-    "-" <> Base.url_encode64(digest, padding: false)
-  end
-
-  defp subject_permissions_key(_subject), do: ""
 
   defp subject_name(%{account: %{name: name}}), do: name
   defp subject_name(_subject), do: "The authenticated subject"

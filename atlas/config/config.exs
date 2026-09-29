@@ -234,10 +234,7 @@ config :logger, :default_formatter,
 
 config :mdex_native, syntax_highlighter: :lumis
 
-# An operator grant is a live bearer that arrives as a query parameter on the
-# redirect back from ops. Phoenix logs request and LiveView event parameters,
-# so name it here rather than rely on the log level being high enough.
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "operator_grant"]
+config :phoenix, :filter_parameters, ["password", "token", "secret", "key"]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

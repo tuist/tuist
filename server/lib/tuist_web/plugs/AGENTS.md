@@ -18,3 +18,5 @@ This area owns Plug middleware for request processing.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Do not cache authenticated subjects or successful authorization decisions. Credential and permission revocation must apply on the next request regardless of which web node receives it.
