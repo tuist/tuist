@@ -30,6 +30,37 @@ defmodule Tuist.Marketing.StatsTest do
       assert stats.test_runs_last_24h == 400
       assert stats.flaky_tests_last_24h == 50
     end
+
+    test "returns the last polled stats while a poll is blocked on a slow query" do
+      test_pid = self()
+
+      stub(Tuist.Builds, :last_24h_build_count, fn ->
+        send(test_pid, :poll_started)
+
+        receive do
+          :release -> 999
+        end
+      end)
+
+      send(Stats, :poll)
+      assert_receive :poll_started
+
+      assert Stats.get_stats().builds_last_24h == 200
+
+      send(Stats, :release)
+    end
+
+    test "returns the default stats when the process isn't running" do
+      stop_supervised!(Stats)
+
+      assert Stats.get_stats() == %{
+               cache_artifacts_last_24h: 0,
+               builds_last_24h: 0,
+               test_case_runs_last_24h: 0,
+               test_runs_last_24h: 0,
+               flaky_tests_last_24h: 0
+             }
+    end
   end
 
   describe "subscribe/0" do

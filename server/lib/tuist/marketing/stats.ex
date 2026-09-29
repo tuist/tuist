@@ -3,6 +3,9 @@ defmodule Tuist.Marketing.Stats do
   A GenServer that periodically polls ClickHouse for marketing page statistics
   and broadcasts updates via PubSub. LiveViews subscribe to receive fresh values
   without each page visit hitting the database.
+
+  The last polled stats live in a protected ETS table so readers never wait on
+  a poll that is stuck on slow ClickHouse queries.
   """
 
   use GenServer
@@ -23,11 +26,12 @@ defmodule Tuist.Marketing.Stats do
   }
 
   def get_stats do
-    if GenServer.whereis(__MODULE__) do
-      GenServer.call(__MODULE__, :get_stats)
-    else
-      @default_stats
+    case :ets.lookup(__MODULE__, :stats) do
+      [{:stats, stats}] -> stats
+      [] -> @default_stats
     end
+  rescue
+    ArgumentError -> @default_stats
   end
 
   def subscribe do
@@ -36,25 +40,13 @@ defmodule Tuist.Marketing.Stats do
 
   @impl true
   def init(_) do
-    stats = %{
-      cache_artifacts_last_24h: 0,
-      builds_last_24h: 0,
-      test_case_runs_last_24h: 0,
-      test_runs_last_24h: 0,
-      flaky_tests_last_24h: 0
-    }
-
+    :ets.new(__MODULE__, [:named_table, :protected, read_concurrency: true])
     send(self(), :poll)
-    {:ok, stats}
+    {:ok, nil}
   end
 
   @impl true
-  def handle_call(:get_stats, _from, stats) do
-    {:reply, stats, stats}
-  end
-
-  @impl true
-  def handle_info(:poll, _stats) do
+  def handle_info(:poll, state) do
     stats = %{
       cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
       builds_last_24h: Tuist.Builds.last_24h_build_count(),
@@ -63,8 +55,9 @@ defmodule Tuist.Marketing.Stats do
       flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count()
     }
 
+    :ets.insert(__MODULE__, {:stats, stats})
     Tuist.PubSub.broadcast(stats, @topic, :marketing_stats_updated)
     Process.send_after(self(), :poll, @poll_interval)
-    {:noreply, stats}
+    {:noreply, state}
   end
 end
