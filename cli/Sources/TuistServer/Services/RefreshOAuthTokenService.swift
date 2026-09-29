@@ -63,11 +63,15 @@ public struct RefreshOAuthTokenService: RefreshOAuthTokenServicing {
 
         switch httpResponse.statusCode {
         case 200:
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let accessToken = json["access_token"] as? String,
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw RefreshAuthTokenServiceError.unknownError(httpResponse.statusCode)
+            }
+            // The authorization server answers 200 without a token pair when it can no longer mint tokens
+            // for the grant's subject, for example once the user has been deleted.
+            guard let accessToken = json["access_token"] as? String,
                   let refreshToken = json["refresh_token"] as? String
             else {
-                throw RefreshAuthTokenServiceError.unknownError(httpResponse.statusCode)
+                throw RefreshAuthTokenServiceError.unauthorized("The refresh token is expired or invalid")
             }
             return ServerAuthenticationTokens(accessToken: accessToken, refreshToken: refreshToken)
         case 400, 401:

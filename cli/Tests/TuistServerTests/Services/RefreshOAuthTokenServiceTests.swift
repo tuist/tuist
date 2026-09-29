@@ -54,6 +54,34 @@ struct RefreshOAuthTokenServiceTests {
         }
     }
 
+    @Test(.withMockedEnvironment()) func refreshTokens_maps_a_response_without_tokens_to_unauthorized() async throws {
+        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { _ in
+            Self.response(statusCode: 200, json: ["expires_in": "86399", "token_type": "bearer"])
+        }
+
+        await #expect(throws: RefreshAuthTokenServiceError.unauthorized("The refresh token is expired or invalid")) {
+            try await subject.refreshTokens(serverURL: serverURL, refreshToken: "refresh-token")
+        }
+    }
+
+    @Test(.withMockedEnvironment()) func refreshTokens_reports_a_non_json_success_as_unknown() async throws {
+        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { _ in
+            (
+                Data("<html></html>".utf8),
+                HTTPURLResponse(
+                    url: URL(string: "https://tuist.dev/oauth2/token")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+            )
+        }
+
+        await #expect(throws: RefreshAuthTokenServiceError.unknownError(200)) {
+            try await subject.refreshTokens(serverURL: serverURL, refreshToken: "refresh-token")
+        }
+    }
+
     @Test(.withMockedEnvironment()) func refreshTokens_maps_unauthorized_client_to_unauthorized() async throws {
         let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { _ in
             Self.response(statusCode: 401, json: ["error": "invalid_client", "error_description": "Invalid client."])
