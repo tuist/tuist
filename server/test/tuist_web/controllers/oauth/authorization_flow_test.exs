@@ -146,6 +146,71 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
              |> json_response(200)
   end
 
+  test "the Tuist app client can't refresh another client's token or widen its scopes", %{conn: conn} do
+    app_client_id = "00000000-0000-0000-0000-000000000001"
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+    stub(Environment, :oauth_client_id, fn -> app_client_id end)
+    stub(Environment, :oauth_client_secret, fn -> "configured-client-secret" end)
+
+    mcp_client_id = register_client(conn)
+
+    assert %{"refresh_token" => mcp_refresh_token} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => mcp_client_id,
+               "redirect_uri" => @redirect_uri,
+               "code" => authorize(conn, mcp_client_id)
+             })
+             |> json_response(200)
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "refresh_token",
+               "client_id" => app_client_id,
+               "refresh_token" => mcp_refresh_token
+             })
+             |> json_response(400)
+
+    %{"code" => code} =
+      conn
+      |> get(~p"/oauth2/authorize", %{
+        "response_type" => "code",
+        "client_id" => app_client_id,
+        "redirect_uri" => "tuist://oauth-callback",
+        "scope" => "mcp",
+        "state" => "app-state",
+        "code_challenge" => :sha256 |> :crypto.hash(verifier) |> Base.url_encode64(padding: false),
+        "code_challenge_method" => "S256"
+      })
+      |> redirected_to()
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
+
+    assert %{"refresh_token" => refresh_token} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => app_client_id,
+               "redirect_uri" => "tuist://oauth-callback",
+               "code" => code,
+               "code_verifier" => verifier
+             })
+             |> json_response(200)
+
+    assert %{"error" => "invalid_scope"} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "refresh_token",
+               "client_id" => app_client_id,
+               "refresh_token" => refresh_token,
+               "scope" => "project:admin:write project:cache:write"
+             })
+             |> json_response(400)
+  end
+
   defp register_client(conn) do
     assert %{"client_id" => client_id} =
              conn
