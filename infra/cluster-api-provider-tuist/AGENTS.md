@@ -21,21 +21,18 @@ machine kinds:
   `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
   has no user-data channel); adopts a pre-ordered box and
   **reinstalls it (wipe) on release**.
-- `DediboxMachine` — Scaleway Dedibox bare metal (eu-west); adopts a
-  pre-prepped box and reinstalls it (wipe) back to the pool on release.
-- `OVHDedicatedMachine` — OVHcloud US bare metal (the us-east / us-west /
-  ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
+- `OVHDedicatedMachine` — OVHcloud bare metal (including eu-west, us-east, us-west,
+  and ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
   pre-prepped box and reinstalls it (wipe) back to the pool on release.
 
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
-then wait for `Node.Ready`. The three Linux kinds share the
+then wait for `Node.Ready`. The Linux kinds share the
 `controllers/linux` package and bind that identity to `system:node`;
 Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
 designed in `docs/scaleway-elastic-metal-support.md`; the sections below
 detail the Apple Silicon kind.
 
-A fifth kind for Vultr is designed but not built, in
-`docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
+The Vultr kind is described in `docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
 given a partitioning plan, so its box is converted after install by
 `baremetal:prep-vultr` rather than installed into the right layout, and that
 pushes a conversion stage into the release-then-reinstall lifecycle the other
@@ -53,7 +50,6 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
-| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
@@ -1118,7 +1114,6 @@ infra/cluster-api-provider-tuist/
 │   ├── groupversion_info.go
 │   ├── scalewayapplesiliconmachine_types.go (+ …template)
 │   ├── scalewayelasticmetalmachine_types.go (+ …template)
-│   ├── dediboxmachine_types.go (+ …template)
 │   ├── ovhdedicatedmachine_types.go (+ …template)
 │   ├── racklinuxhost_types.go / racklinuxmachine_types.go / racklinuxcandidate_types.go
 │   ├── tuistcluster_types.go
@@ -1137,8 +1132,7 @@ infra/cluster-api-provider-tuist/
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
 │   ├── orphan_reclaimer.go
-│   └── linux/      # the Linux fleet kinds (Dedibox / OVH / Elastic Metal / rack)
-│       ├── dediboxmachine_controller.go
+│   └── linux/      # the Linux fleet kinds (OVH / Elastic Metal / Vultr / rack)
 │       ├── ovhdedicatedmachine_controller.go
 │       ├── scalewayelasticmetalmachine_controller.go
 │       ├── racklinuxhost_*.go       # rack hosts: install, Machine, AMT, power, retirement
@@ -1250,9 +1244,8 @@ all three of these, or it inherits the trap:
    turns "no Pod ever schedules" into "every Pod wedged in ContainerCreating",
    which is harder to diagnose and burns the job instead of queueing it.
 
-Note the trap is not OVH-specific. `DediboxMachine` and
-`ScalewayElasticMetalMachine` share this renderer and the same once-at-bootstrap
-property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
+Note the trap is not OVH-specific. `ScalewayElasticMetalMachine`
+shares this renderer and the same once-at-bootstrap property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 
 A repair that cannot complete must stay loud rather than retry quietly. The
 `KataRuntimeReady` condition is marked False the moment the gap is observed,
@@ -1299,10 +1292,9 @@ see the quantity in question:
 
 - `tuist.dev/egress-mbps` — the box's public egress budget, which Kubernetes has
   no concept of. On OVH it is derived from what the box reports, seeded by the
-  machine's `EgressBudgetMbps` (see below); Vultr takes the spec value directly;
-  Dedibox does too but leaves the node alone when it is zero. The helper itself
-  treats a zero as "withdraw the capacity", so the OVH and Vultr kinds can retire
-  a budget and Dedibox cannot.
+  machine's `EgressBudgetMbps` (see below); Vultr takes the spec value directly.
+  The helper treats zero as "withdraw the capacity", so both kinds can retire
+  a budget.
 
   Elastic Metal has no `EgressBudgetMbps` and is deliberately outside this path.
   It backs only the private runner-cache pool, whose tenants reach it over the
@@ -1563,9 +1555,9 @@ linux/<arch> the cluster runs on.
 
 ## Operating
 
-### Bring a pre-ordered bare-metal box into the pool (Dedibox / OVH)
+### Bring a pre-ordered bare-metal box into the pool (OVH)
 
-The Dedibox and OVH kinds adopt a *pre-prepared* box rather than ordering or
+The OVH kind adopts a *pre-prepared* box rather than ordering or
 installing one, the same shape as the Apple Silicon fleet. **Adoption is a claim
 + SSH self-join only; the OS install never runs on the adoption path** (that is
 what keeps a *claimed* box's self-join fast). A box must be installed (Ubuntu +
@@ -1583,12 +1575,10 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
     (`PUT /service/*`) and can't read the displayName for adoption
     (`GET /services/*`). Mint it with this pre-filled link (OVH US):
     `https://api.us.ovhcloud.com/createToken/?GET=/dedicated/server&GET=/dedicated/server/*&GET=/services/*&GET=/service/*&GET=/me/*&POST=/dedicated/server/*&POST=/me/*&PUT=/service/*`
-  - Dedibox: `DEDIBOX_SCW_API` with fields `secret-key` / `project-id`.
   - Exactly one item per title per vault. A duplicate makes `op read` (prep) and
     ESO ambiguous and wedges both.
 - Fleet SSH key, when the fleet sets `sshExternalSecret.enabled: true` (the
-  current default for managed fleets): a 1Password item (`OVH_FLEET_SSH` /
-  `DEDIBOX_FLEET_SSH`) with fields `private-key` / `public-key` / `sudo-password`.
+  current default for managed fleets): a 1Password item (`OVH_FLEET_SSH`) with fields `private-key` / `public-key` / `sudo-password`.
   ESO syncs it to the `<fleet>-ssh` Secret, and the prep task reads the key
   material straight from 1Password (no cluster access needed). Legacy fleets that
   still mint the key in-cluster use `baremetal:mint-fleet-key` instead.
@@ -1596,30 +1586,28 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 **Steps:**
 
 1. **Pre-order the box** in the provider console (out of band; the controllers
-   never order). OVH ADVANCE-1 for the US cache regions, ADVANCE-2 for
+   never order). OVH ADVANCE-1 for EU-West and the US cache regions, ADVANCE-2 for
    ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
-   for the Linux runner pool, Dedibox for eu-west. The RISE range's
+   for the Linux runner pool. The RISE range's
    EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
    `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.
 2. **Prep it.** Installs Ubuntu + the fleet key + sudo password, then sets the
-   adoption marker as its final step, reading the tag / displayName prefix from
+   adoption marker as its final step, reading the displayName prefix from
    `values-managed-<env>.yaml`. The install is async (~20-40 min; poll the
    console). `PREP_NAMESPACE` selects the env (hence the `tuist-k8s-<env>` vault
    and the values file); the OVH second arg is the fleet name:
    ```bash
-   PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox 184798
    PREP_NAMESPACE=tuist-production mise run baremetal:prep-ovh ns1034936.ip-40-160-72.us tuist-tuist-ovh-fleet-us-east
    ```
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
-   release it later with `baremetal:mark-dedibox` / `baremetal:mark-ovh` (those
-   are also the tasks to re-name a box).
+   release it later with `baremetal:mark-ovh` (also used to re-name a box).
 
    **Vultr is a conversion, not an install.** Its API exposes no partitioning
    control and its installer offers only RAID 1 across both disks (one
    filesystem spanning the pair) or no RAID, so neither option yields the
-   mirrored root plus separate XFS `/data` the OVH and Dedibox installs lay
+   mirrored root plus separate XFS `/data` the OVH installs lay
    down. Order the box as RAID 1 with the fleet key attached, then convert it in
    place, which splits the mirror and hands the freed disk to `/data`:
    ```bash
@@ -1643,14 +1631,13 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    then-scale dance, since an enabled fleet with no adoptable box sits at MD 0/1
    and wedges `helm --wait` (the `dig`-based template preserves an explicit 0).
 
-**Fleet naming.** The singular `ovhFleet` renders `tuist-tuist-ovh-fleet` and
-`dediboxFleet` renders `tuist-tuist-dedibox-fleet`. Additional OVH regions live
+**Fleet naming.** The singular `ovhFleet` renders `tuist-tuist-ovh-fleet`.
+Additional OVH regions live
 in the `ovhFleets` map and render `tuist-tuist-ovh-fleet-<key>` (e.g.
 `tuist-tuist-ovh-fleet-us-east`). The adopt marker comes from that fleet's
-values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
-Production today: tag `tuist-kura-production` (eu-west), displayName prefixes
-`tuist-kura-ovh-production-us-east` / `-us-west` / `-ap-southeast` and
-`tuist-runners-ovh-production` (OVH).
+values: `adoptDisplayNamePrefix` (a prefix match). Production cache fleets
+use `tuist-kura-ovh-production-<region>`; the runner fleet uses
+`tuist-runners-ovh-production`.
 
 Not every `ovhFleets` entry is a cache region. `machine.nodeTaints` is what says
 which it is: unset renders `tuist.dev/kura-cache=true:NoSchedule` and puts the
@@ -1666,8 +1653,8 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
-**A reinstall already in flight is a completed release, not a failure.** All three
-kinds reach the provider before dropping the finalizer, so a controller restart
+**A reinstall already in flight is a completed release, not a failure.** OVH and Elastic Metal
+reach the provider before dropping the finalizer, so a controller restart
 between a successful install call and the finalizer patch — or two Machines on one
 box — has the release ask for a second wipe of a box already being wiped. Every
 provider rejects that for the whole ~30 minute install, and retrying on it holds
@@ -1676,8 +1663,8 @@ the Machine in `Deleting`: the MachineDeployment stays a replica above spec and 
 (2026-09-03, 13 minutes on `ns3048220`). Each kind therefore reads the box's own
 install state and releases when a wipe is already running — OVH gates on
 `Client::BadRequest::TaskAlreadyExists` plus an install-function task in the task
-list, Dedibox and Elastic Metal on the install status the API reports, since
-neither names the collision. A failure that is not that retries on a bounded
+list, Elastic Metal on the install status the API reports, since its API
+does not name the collision. A failure that is not that retries on a bounded
 interval rather than controller-runtime's default backoff, which doubles to a
 1000s cap and idles the Machine long after the provider frees the box.
 
@@ -1760,12 +1747,10 @@ assembly of the untouched disks; neither exists today, and no cache capacity is
 lost by leaving it idle, since the cache lives on the larger group either way.
 
 `StartInstall` refuses to post a reinstall it cannot plan a layout for, rather
-than falling back to the provider's default single-root install. Dedibox takes
-the same shape by formatting the default layout's `/data` as XFS
-(`internal/dedibox`), since its API already carves small-root + large-`/data`.
+than falling back to the provider's default single-root install.
 
 Elastic Metal goes through Scaleway's partitioning schema (`internal/scaleway/partitioning.go`),
-which is the best-instrumented of the three: `GetDefaultPartitioningSchema`
+which exposes the offer layout directly: `GetDefaultPartitioningSchema`
 returns the offer's own layout to transform, so the planner never guesses the
 disk count, device naming, or whether the OS is mirrored, and
 `ValidatePartitioningSchema` checks the result against the real offer WITHOUT
@@ -2018,8 +2003,7 @@ local state. Fix what the condition names and let the repair land.
 ### Make `kubectl logs`/`exec` work on a fleet node
 
 The apiserver dials the kubelet at the node's InternalIP:10250. When
-`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (Dedibox / Elastic
-Metal / OVH), the error says which piece is off:
+`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (Elastic Metal / OVH / Vultr), the error says which piece is off:
 
 | `kubectl logs <fleet-pod>` error | Fix |
 |---|---|
