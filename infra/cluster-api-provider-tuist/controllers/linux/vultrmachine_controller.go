@@ -126,6 +126,8 @@ type VultrMachineReconciler struct {
 	PrivateNetworkConfigName string
 	PrivateNetworkNamespace  string
 	privateNetworkMu         sync.Mutex
+	privateVPCCache          map[string]vultrPrivateVPCCacheEntry
+	privateNICCache          map[string]vultrPrivateNICCacheEntry
 
 	// runScript delivers conversion and private-network scripts through the
 	// established pinned bootstrap connection. Tests replace it without touching

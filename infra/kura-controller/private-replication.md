@@ -134,7 +134,9 @@ publicly. Listings, forward reads, batches and individual bodies all use the sam
 selector; canonical peer identities and watermarks remain unchanged. Disabling
 redirects and environment proxies in topology mode prevents a selected private
 request from being diverted to a public origin. Certificates still rotate through
-the existing client factory.
+the existing client factory. These transport restrictions apply only to peer
+traffic. The analytics outbox uses the ordinary control-plane analytics client,
+with its configured timeout, public trust, redirects and environment proxies.
 
 Among equivalent healthy remote-region candidates, prefer the same provider
 with a compatible private domain. The local gateway election stays deterministic
@@ -144,8 +146,12 @@ ranking and preference. Canonical status requests retain the existing client
 read timeout and discovery-observation semantics, including when topology is off.
 Remote backward passes give healthy same-provider donors in remote regions a
 bounded 200 ms head start to claim common bodies; local siblings never trigger
-that delay. All
-passes still run, forward replication is never delayed, and a preferred peer
+that delay. This is a best-effort timing preference, not strict donor priority:
+a slow private listing can lose a claim, and a public pass can wait even when the
+private donor lacks that artifact. Strict priority would require a bounded
+discovery/dispatch scheduler; reordering claim waiters alone cannot establish
+which peers have an artifact before they list it. All passes still run,
+forward replication is never delayed, and a preferred peer
 cannot hold other providers behind an exclusive admission slot. Existing claim
 release, retry and backfill failure budgets are retained.
 

@@ -9,6 +9,7 @@ import (
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const privateNetworkLabel = "tuist.dev/private-network"
@@ -27,13 +28,12 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 		return err
 	}
 	provider, network, err := privateReplicationDomain(nodes.Items)
-	if err != nil {
-		return err
-	}
-	if provider == "" {
-		if previous != nil && previous.Annotations[managedTopologyAnnotation] == "true" {
-			return fmt.Errorf("private replication lost its qualified placement; explicit rollback is required")
-		}
+	if err != nil || provider == "" {
+		// Qualification gates topology publication, not unrelated workload
+		// reconciliation. In particular, never move existing local volumes to
+		// a qualified subset of a mixed pool or silently withdraw their policy.
+		preservePrivateReplication(template, previous)
+		log.FromContext(ctx).V(1).Info("Private topology publication pending", "reason", err)
 		return nil
 	}
 	value, err := json.Marshal(struct {
@@ -58,6 +58,31 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 	}
 	template.Annotations[managedTopologyAnnotation] = "true"
 	return nil
+}
+
+func preservePrivateReplication(template, previous *corev1.PodTemplateSpec) {
+	if previous == nil || previous.Annotations[managedTopologyAnnotation] != "true" {
+		return
+	}
+	template.Spec.NodeSelector = previous.DeepCopy().Spec.NodeSelector
+	if template.Annotations == nil {
+		template.Annotations = map[string]string{}
+	}
+	template.Annotations[managedTopologyAnnotation] = "true"
+	for _, container := range previous.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		for _, env := range container.Env {
+			if env.Name == peerTopologyEnv {
+				for i := range template.Spec.Containers {
+					if template.Spec.Containers[i].Name == kuraContainerName {
+						template.Spec.Containers[i].Env = append(template.Spec.Containers[i].Env, *env.DeepCopy())
+					}
+				}
+			}
+		}
+	}
 }
 
 func privateReplicationDomain(nodes []corev1.Node) (string, string, error) {

@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+	"time"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
@@ -29,9 +30,23 @@ type vultrPrivateRegion struct {
 }
 
 type vultrNetworkState struct {
-	Desired         vultrPrivateRegion `json:"desired"`
-	ID              string             `json:"id,omitempty"`
-	CreateRequested bool               `json:"createRequested,omitempty"`
+	Desired            vultrPrivateRegion `json:"desired"`
+	ID                 string             `json:"id,omitempty"`
+	CreateRequested    bool               `json:"createRequested,omitempty"`
+	AttachmentRequests map[string]string  `json:"attachmentRequests,omitempty"`
+}
+
+const vultrPrivateInventoryTTL = time.Minute
+
+type vultrPrivateVPCCacheEntry struct {
+	desired vultrPrivateRegion
+	network vultr.VPC
+	expires time.Time
+}
+
+type vultrPrivateNICCacheEntry struct {
+	interfaces []vultr.VPCInterface
+	expires    time.Time
 }
 
 // The retained state survives Machines and Helm changes. Record intent before
@@ -40,9 +55,13 @@ type vultrNetworkState struct {
 func (r *VultrMachineReconciler) ensurePrivateVPC(ctx context.Context, region string, desired vultrPrivateRegion) (*vultr.VPC, error) {
 	r.privateNetworkMu.Lock()
 	defer r.privateNetworkMu.Unlock()
-	prefix, err := netip.ParsePrefix(desired.CIDR)
-	if err != nil || !prefix.Addr().Is4() || !prefix.Addr().IsPrivate() || prefix != prefix.Masked() || prefix.Bits() < 24 || prefix.Bits() > 28 {
-		return nil, fmt.Errorf("Vultr private CIDR must be a canonical private IPv4 /24 through /28")
+	if cached, ok := r.privateVPCCache[region]; ok && cached.desired == desired && time.Now().Before(cached.expires) {
+		network := cached.network
+		return &network, nil
+	}
+	prefix, err := privateNetworkPrefix(desired.CIDR)
+	if err != nil {
+		return nil, err
 	}
 	network, err := r.VultrClient.EnsureVPC(ctx, vultr.VPC{Region: region, Description: desired.Description, Subnet: prefix.Addr().String(), Mask: prefix.Bits()}, false)
 	if err != nil {
@@ -103,28 +122,81 @@ func (r *VultrMachineReconciler) ensurePrivateVPC(ctx context.Context, region st
 	if err = save(); err != nil {
 		return nil, err
 	}
+	if r.privateVPCCache == nil {
+		r.privateVPCCache = map[string]vultrPrivateVPCCacheEntry{}
+	}
+	for key, cached := range r.privateVPCCache {
+		if time.Now().After(cached.expires) {
+			delete(r.privateVPCCache, key)
+		}
+	}
+	r.privateVPCCache[region] = vultrPrivateVPCCacheEntry{desired: desired, network: *network, expires: time.Now().Add(vultrPrivateInventoryTTL)}
 	return network, nil
 }
 
-func vultrPrivateCacheMachine(machine *infrav1.VultrMachine) bool {
-	for _, t := range machine.Spec.NodeTaints {
-		if t.Key == "tuist.dev/kura-cache" && t.Effect == corev1.TaintEffectNoSchedule {
-			return true
+// Serialize cache misses so a fleet reconcile does one provider read per host
+// per minute, not one read per host pair. Errors are never cached.
+func (r *VultrMachineReconciler) privateInterfaces(ctx context.Context, id string) ([]vultr.VPCInterface, error) {
+	r.privateNetworkMu.Lock()
+	defer r.privateNetworkMu.Unlock()
+	if cached, ok := r.privateNICCache[id]; ok && time.Now().Before(cached.expires) {
+		return append([]vultr.VPCInterface(nil), cached.interfaces...), nil
+	}
+	interfaces, err := r.VultrClient.BareMetalVPCs(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if r.privateNICCache == nil {
+		r.privateNICCache = map[string]vultrPrivateNICCacheEntry{}
+	}
+	for key, cached := range r.privateNICCache {
+		if time.Now().After(cached.expires) {
+			delete(r.privateNICCache, key)
 		}
 	}
-	return false
+	r.privateNICCache[id] = vultrPrivateNICCacheEntry{interfaces: append([]vultr.VPCInterface(nil), interfaces...), expires: time.Now().Add(vultrPrivateInventoryTTL)}
+	return interfaces, nil
+}
+
+func (r *VultrMachineReconciler) requestPrivateAttachment(ctx context.Context, region, instance, network string) error {
+	r.privateNetworkMu.Lock()
+	defer r.privateNetworkMu.Unlock()
+	cm := &corev1.ConfigMap{}
+	if err := r.reader().Get(ctx, types.NamespacedName{Namespace: r.PrivateNetworkNamespace, Name: r.PrivateNetworkConfigName + "-state"}, cm); err != nil {
+		return err
+	}
+	var state vultrNetworkState
+	if err := json.Unmarshal([]byte(cm.Data[region]), &state); err != nil {
+		return err
+	}
+	if state.ID != network {
+		return fmt.Errorf("retained VPC identity changed before attachment")
+	}
+	if retained := state.AttachmentRequests[instance]; retained != "" {
+		return fmt.Errorf("Vultr VPC attachment is pending or uncertain; inspect provider state before clearing retained intent")
+	}
+	if state.AttachmentRequests == nil {
+		state.AttachmentRequests = map[string]string{}
+	}
+	state.AttachmentRequests[instance] = network
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	cm.Data[region] = string(data)
+	if err := r.Update(ctx, cm); err != nil {
+		return err
+	}
+	delete(r.privateNICCache, instance)
+	return r.VultrClient.AttachBareMetalVPC(ctx, instance, network)
+}
+
+func vultrPrivateCacheMachine(machine *infrav1.VultrMachine) bool {
+	return privateNetworkCacheTaint(machine.Spec.NodeTaints)
 }
 
 func vultrPrivatePublicAddress(machine *infrav1.VultrMachine) string {
-	for _, a := range machine.Status.Addresses {
-		if a.Type == clusterv1.MachineExternalIP {
-			ip, err := netip.ParseAddr(a.Address)
-			if err == nil && ip.Is4() {
-				return ip.String()
-			}
-		}
-	}
-	return ""
+	return privateNetworkExternalIPv4(machine.Status.Addresses)
 }
 
 func validateVultrInterface(interfaces []vultr.VPCInterface, network *vultr.VPC) (*vultr.VPCInterface, error) {
@@ -189,7 +261,7 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 		conditions.MarkFalse(machine, privateNetworkReady, "QualificationPending", clusterv1.ConditionSeverityInfo, "VPC is managed; host transport is not qualified")
 		return nil
 	}
-	interfaces, err := r.VultrClient.BareMetalVPCs(ctx, machine.Status.InstanceID)
+	interfaces, err := r.privateInterfaces(ctx, machine.Status.InstanceID)
 	if err != nil {
 		return err
 	}
@@ -198,7 +270,7 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 		return err
 	}
 	if nic == nil {
-		if err = r.VultrClient.AttachBareMetalVPC(ctx, machine.Status.InstanceID, network.ID); err != nil {
+		if err = r.requestPrivateAttachment(ctx, region, machine.Status.InstanceID, network.ID); err != nil {
 			return err
 		}
 		return fmt.Errorf("waiting for provider-assigned private NIC after attachment")
@@ -211,8 +283,14 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 	members := []string{}
 	names := []string{}
 	used := map[string]bool{}
+	owners := privateNetworkOwners{}
 	for i := range machines.Items {
 		peer := &machines.Items[i]
+		owner := privateNetworkOwner(peer.ObjectMeta)
+		owners[owner] = ""
+		if vultrPrivateCacheMachine(peer) {
+			owners[owner] = vultrPrivatePublicAddress(peer)
+		}
 		if !vultrPrivateCacheMachine(peer) || !peer.DeletionTimestamp.IsZero() || firstNonEmpty(peer.Spec.Region, r.DefaultRegion) != region || peer.Status.InstanceID == "" {
 			continue
 		}
@@ -220,7 +298,7 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 		if public == "" {
 			continue
 		}
-		attachments, e := r.VultrClient.BareMetalVPCs(ctx, peer.Status.InstanceID)
+		attachments, e := r.privateInterfaces(ctx, peer.Status.InstanceID)
 		if e != nil {
 			return e
 		}
@@ -248,7 +326,7 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 	sort.Strings(members)
 	sort.Slice(peers, func(i, j int) bool { return peers[i].Public < peers[j].Public })
 	membership := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(members, "\n"))))
-	script := renderVultrPrivateNetworkScript(nic.MAC, nic.Address, network.Mask, public, peers)
+	script := renderVultrPrivateNetworkScript(nic.MAC, nic.Address, network.Mask, public, peers, owners)
 	revision := fmt.Sprintf("%x:%s", sha256.Sum256([]byte(script)), node.Status.NodeInfo.BootID)
 	if node.Annotations[privateNetworkRevision] != revision || node.Annotations[privateNetworkMembers] != membership {
 		fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
@@ -302,10 +380,10 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 
 // Restore the qualified encapsulation MTU even if Cloud-Init later renders a
 // smaller provider default. Never attest a path from a small ping alone.
-func renderVultrPrivateNetworkScript(mac, address string, bits int, public string, peers []privateNetworkPeer) string {
-	script := strings.ReplaceAll(renderPrivateNetworkScript(mac, address, bits, public, peers), "OVH", "Vultr")
-	script = strings.Replace(script, "sudo bash -s", "bash -s", 1)
-	script = strings.ReplaceAll(script, `ip link set dev "$iface" up`, `ip link set dev "$iface" mtu 1500
-ip link set dev "$iface" up`)
-	return strings.ReplaceAll(script, "ping -n -c 1 -W 2 -I", "ping -n -c 1 -W 2 -M do -s 1472 -I")
+func renderVultrPrivateNetworkScript(mac, address string, bits int, public string, peers []privateNetworkPeer, owners ...privateNetworkOwners) string {
+	return renderProviderPrivateNetworkScript(mac, address, bits, public, peers, privateNetworkScriptOptions{
+		Provider: "Vultr", RootCommand: "bash -s",
+		LinkPreparation: "ip link set dev \"$iface\" mtu 1500\n",
+		PingOptions:     "-M do -s 1472 ",
+	}, owners...)
 }

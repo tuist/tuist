@@ -38,6 +38,10 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   and out of the local gateway election. Only backward region passes may yield
   to healthy remote-region private donors; sibling donors and forward pages must
   never trigger this delay. Preserve legacy canonical discovery semantics.
+  Reuse a status response as private health only when discovery queried the actual
+  private origin; an equal advertised node URL behind a gateway is insufficient.
+  Analytics outbox delivery uses its own control-plane client, independent of
+  peer certificates, proxy suppression and redirect policy.
   Rollout gates and unresolved provider setup are in
   [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
   The staging fixture under `test/e2e/provider-topology/staging/` tests routing

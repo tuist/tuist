@@ -1,0 +1,165 @@
+{
+  "date": "2026-09-29",
+  "baselineMergeBase": "9abf2c87f8da51ae566d7f80f203d424e4b6b970",
+  "changedSourceBase": "72aef149aa00fe212911aba8c6c76814c3ef655f",
+  "changedBuild": "Working-tree analytics client isolation and private-probe reuse corrections; subsequent runtime-file edits add tests only.",
+  "images": {
+    "baseline": "sha256:9d79b7a47deffd9715199f38701abdb12025fe70c7c9897037d9a775c7e46484",
+    "changed": "sha256:fd31faae1ce2545c15fb2b286a451f0422e951829b7034ba992280736e87aa14"
+  },
+  "method": "Two sequential baseline/changed pairs on the same local Docker host using the existing three-region mTLS resources.mjs harness with private_url equal to node_url on both builds. Two-second metric samples, 64 seeded one-MiB objects, 256 further writes and 768 load reads over about 64 seconds, then 30 seconds cooldown. A short Go controller recheck overlapped the first pair startup; the repeat had no task builds or tests running.",
+  "runs": [
+    {
+      "baseline": {
+        "directory": "/tmp/kura-review2-resource-before",
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63781,
+          "loadEndSample": 36
+        },
+        "cpuSeconds": 19.490000000000002,
+        "cpuSecondsPerClientGiB": 15.592000000000002,
+        "anonymous": {
+          "peakBytes": 309313536,
+          "cooldownBytes": 230854656
+        },
+        "allocated": {
+          "peakBytes": 47163120,
+          "cooldownBytes": 29088968
+        },
+        "resident": {
+          "peakBytes": 144785408,
+          "cooldownBytes": 62349312
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 3670434,
+        "diskBytes": 1008069361,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1702997552
+      },
+      "changed": {
+        "directory": "/tmp/kura-review2-resource-after",
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63783,
+          "loadEndSample": 35
+        },
+        "cpuSeconds": 18.04,
+        "cpuSecondsPerClientGiB": 14.431999999999999,
+        "anonymous": {
+          "peakBytes": 317411328,
+          "cooldownBytes": 243314688
+        },
+        "allocated": {
+          "peakBytes": 48499976,
+          "cooldownBytes": 28914992
+        },
+        "resident": {
+          "peakBytes": 150052864,
+          "cooldownBytes": 64933888
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 55050240,
+        "diskBytes": 1008068368,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1702746185
+      }
+    },
+    {
+      "baseline": {
+        "directory": "/tmp/kura-review2-resource-before-repeat",
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63777,
+          "loadEndSample": 36
+        },
+        "cpuSeconds": 19.23,
+        "cpuSecondsPerClientGiB": 15.384,
+        "anonymous": {
+          "peakBytes": 380792832,
+          "cooldownBytes": 268939264
+        },
+        "allocated": {
+          "peakBytes": 53601600,
+          "cooldownBytes": 29365096
+        },
+        "resident": {
+          "peakBytes": 168001536,
+          "cooldownBytes": 70303744
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 53477376,
+        "diskBytes": 1008068567,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1703424124
+      },
+      "changed": {
+        "directory": "/tmp/kura-review2-resource-after-repeat",
+        "work": {
+          "puts": 320,
+          "gets": 768,
+          "readBytes": 805306368,
+          "failures": [],
+          "loadDurationMs": 63783,
+          "loadEndSample": 36
+        },
+        "cpuSeconds": 19.540000000000003,
+        "cpuSecondsPerClientGiB": 15.632000000000001,
+        "anonymous": {
+          "peakBytes": 366284800,
+          "cooldownBytes": 303255552
+        },
+        "allocated": {
+          "peakBytes": 48041568,
+          "cooldownBytes": 29529080
+        },
+        "resident": {
+          "peakBytes": 143192064,
+          "cooldownBytes": 66932736
+        },
+        "maxPressureTier": 0,
+        "capacitySheds": 0,
+        "transientPeakBytes": 3146355,
+        "diskBytes": 1008067841,
+        "segmentRefreshBytes": 0,
+        "clientWriteBytes": 335544320,
+        "clientEgressBytes": 1006632960,
+        "peerAppliedBytes": 671088640,
+        "networkTransmitBytes": 1703299022
+      }
+    }
+  ],
+  "observations": [
+    "All four runs completed identical work and full replication without failures; pressure stayed normal, no shedding or segment refresh occurred.",
+    "The first changed run sampled a 52.5 MiB aggregate transient reservation during seeding, which cleared at the next sample. The repeat sampled 51 MiB on baseline and about 3 MiB on changed. This peak follows sampled seed catch-up timing, not a sustained pressure increase.",
+    "CPU seconds varied 19.49 to 18.04 and 19.23 to 19.54; no statistically established improvement is claimed.",
+    "Changed cooldown anonymous memory was higher by about 11.9 and 32.7 MiB. Allocator allocated memory at cooldown differed by less than 0.2 MiB, and allocator resident memory increased about 2.5 MiB in the first pair and decreased about 3.2 MiB in the repeat. The source of the anonymous-memory difference remains unattributed; this is not evidence of a proven leak or proof of identical memory use.",
+    "Identical client/peer payload totals; disk differs by less than 1 KiB and interface transmit by less than 0.02 percent in either pair."
+  ],
+  "limitations": [
+    "Bounded local regression check, not production capacity or a physical private-underlay retest.",
+    "No live validation of new host guard retirement, attachment intent, or StatefulSet preservation in this follow-up.",
+    "Sampling captures a different seed-phase reservation peak across repetitions; retain both runs rather than selecting the favorable result."
+  ]
+}

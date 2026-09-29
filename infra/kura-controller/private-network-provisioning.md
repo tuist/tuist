@@ -28,9 +28,16 @@ Every selected peer public `/32` has both a preferred route through its private
 next hop and a less-preferred unreachable route. The guard lives in the main
 routing table because direct Cilium FIB lookups can skip policy-routing rules.
 If private reachability fails, the unicast route is withdrawn and the guard
-prevents the public default from matching. Guards are retained for departed
-peers and restored before containerd and kubelet start. Explicit network rollback must remove
-both the configuration and its guards; routine health handling never does so.
+prevents the public default from matching. Guards are restored before containerd
+and kubelet start. Each guard records its owning Machine name and UID. A deleting
+Machine leaves the preflight and route membership but retains its guard until
+the Machine has disappeared from the authoritative API roster. The next successful
+convergence removes only that retired Machine's protocol-242 routes. Failed,
+NotReady, or temporarily unaddressed Machines retain their guards. Installation
+and repair share a lock. Guards from older scripts acquire ownership when their
+Machine can be identified; an already-orphaned guard with no ownership evidence
+requires explicit cleanup after verifying release. Private address reservations
+remain retained, independently of public route retirement.
 
 The script probes private next hops before attesting route installation. The
 controller publishes a common membership digest only after the script succeeds,
@@ -41,10 +48,15 @@ before its existing peers have installed routes to it.
 `kuraController.privateReplication.enabled` derives runtime topology from the
 actual provider IDs and matching route attestations of all candidate Nodes.
 Mixed providers, missing attestations, different networks, or different route
-memberships hold the StatefulSet update. Qualified pods require the same network
-label for future scheduling. Each process advertises its own authenticated peer
-DNS name; a private underlay can preserve the canonical pod URL, so runtime
-health checks must probe it even when the URL strings are equal.
+memberships hold topology publication. Other StatefulSet changes continue. Before
+first qualification the instance retains canonical replication; after activation,
+the last managed topology and full scheduling selector are preserved during a
+qualification gap. An explicit disable or manual topology override remains an
+operator action. Qualified pods require the same network label for scheduling.
+Each process advertises its own authenticated peer DNS name. Discovery through a
+gateway still requires a direct private probe even when the advertised private
+and node URLs match. Discovery that already queried the private origin reuses that
+successful status response; self-discovery does not issue another probe.
 
 These controller checks establish configuration convergence. Packet captures on
 both physical hosts, private-path failure injection, replication catch-up, MTU,

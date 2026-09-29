@@ -2,14 +2,18 @@
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
   environment ConfigMap and cache taint. Persist address reservations across
-  Machine deletion, preserve main-table unreachable guards, and advertise
+  Machine deletion, preserve main-table unreachable guards for existing Machines,
+  retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
   See [managed private networking](../kura-controller/private-network-provisioning.md).
 
 - Vultr private networks are declared by `capi.vultrPrivateNetwork` and reconciled
   by `controllers/linux/vultr_private_network.go`. Retain provider IDs and create
-  intent in controller-owned state across Machine deletion; an uncertain create
-  must not be blindly retried. Attach/configure only qualified regions without a
+  and attachment intent in controller-owned state across Machine deletion;
+  uncertain POSTs must not be blindly retried. Share successful provider inventory
+  reads for at most one minute across host reconciles. Render provider-specific
+  root/MTU/probe options explicitly, without rewriting another provider's script.
+  Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
   is qualified; Santiago remains VPC-only. Reject multiple qualified Vultr
   regions until explicit cross-domain runtime policy exists. `cmd/vultr-vpc`

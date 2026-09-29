@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
@@ -137,7 +138,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 			}
 			a, b := machine("a", "host-a", "192.0.2.1"), machine("b", "host-b", "192.0.2.2")
 			members := fmt.Sprintf("%x", sha256.Sum256([]byte("a/host-a/192.0.2.1/172.30.244.3\nb/host-b/192.0.2.2/172.30.244.4")))
-			script := renderVultrPrivateNetworkScript("02:00:00:00:00:01", "172.30.244.3", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.244.4"}})
+			script := renderVultrPrivateNetworkScript("02:00:00:00:00:01", "172.30.244.3", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.244.4"}}, privateNetworkOwners{"a/": "192.0.2.1", "b/": "192.0.2.2"})
 			local := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "a", Annotations: map[string]string{privateNetworkAnnotation: "vpc-test", privateNetworkMembers: members, privateNetworkRevision: fmt.Sprintf("%x:boot-a", sha256.Sum256([]byte(script)))}}, Status: corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{BootID: "boot-a"}}}
 			remote := local.DeepCopy()
 			remote.Name = "b"
@@ -180,5 +181,66 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 				t.Fatal("published topology without matching current peer boot")
 			}
 		})
+	}
+}
+
+func TestVultrPrivateAttachmentIntentSurvivesRestart(t *testing.T) {
+	ctx := context.Background()
+	posts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost || req.URL.Path != "/bare-metals/host/vpcs/attach" {
+			t.Errorf("unexpected request %s %s", req.Method, req.URL)
+			w.WriteHeader(404)
+			return
+		}
+		posts++
+		w.WriteHeader(http.StatusGatewayTimeout)
+	}))
+	defer server.Close()
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks-state", Namespace: "test"}, Data: map[string]string{"ord": `{"id":"vpc-test"}`}}
+	c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(cm).Build()
+	for i := 0; i < 3; i++ {
+		r := &VultrMachineReconciler{Client: c, PrivateNetworkConfigName: "networks", PrivateNetworkNamespace: "test", VultrClient: &vultr.Client{HTTP: server.Client(), BaseURL: server.URL, APIKey: "test"}}
+		if err := r.requestPrivateAttachment(ctx, "ord", "host", "vpc-test"); err == nil {
+			t.Fatal("accepted uncertain attachment")
+		}
+	}
+	if posts != 1 {
+		t.Fatalf("repeated attach POST %d times", posts)
+	}
+}
+
+func TestVultrPrivateInventoryReadsAreSharedAndExpire(t *testing.T) {
+	gets := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		gets++
+		_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test"}]}`))
+	}))
+	defer server.Close()
+	r := &VultrMachineReconciler{VultrClient: &vultr.Client{HTTP: server.Client(), BaseURL: server.URL, APIKey: "test"}}
+	ctx := context.Background()
+	for reconcile := 0; reconcile < 10; reconcile++ {
+		for peer := 0; peer < 10; peer++ {
+			interfaces, err := r.privateInterfaces(ctx, fmt.Sprint(peer))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if interfaces[0].ID != "vpc-test" {
+				t.Fatal("cache mutated by caller")
+			}
+			interfaces[0].ID = "caller-mutation"
+		}
+	}
+	if gets != 10 {
+		t.Fatalf("fleet made %d calls, want 10", gets)
+	}
+	entry := r.privateNICCache["0"]
+	entry.expires = time.Time{}
+	r.privateNICCache["0"] = entry
+	if _, err := r.privateInterfaces(ctx, "0"); err != nil {
+		t.Fatal(err)
+	}
+	if gets != 11 {
+		t.Fatal("stale attachment never refreshed")
 	}
 }

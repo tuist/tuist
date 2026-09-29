@@ -37,10 +37,11 @@ type privateNetworkReservations struct {
 type privateNetworkPeer struct{ Public, Private string }
 
 func privateNetworkCacheMachine(machine *infrav1.OVHDedicatedMachine) bool {
-	if machine.Spec.KataRuntime {
-		return false
-	}
-	for _, taint := range machine.Spec.NodeTaints {
+	return !machine.Spec.KataRuntime && privateNetworkCacheTaint(machine.Spec.NodeTaints)
+}
+
+func privateNetworkCacheTaint(taints []corev1.Taint) bool {
+	for _, taint := range taints {
 		if taint.Key == "tuist.dev/kura-cache" && taint.Effect == corev1.TaintEffectNoSchedule {
 			return true
 		}
@@ -48,10 +49,18 @@ func privateNetworkCacheMachine(machine *infrav1.OVHDedicatedMachine) bool {
 	return false
 }
 
-func allocatePrivateNetwork(network, cidr string, reservations *privateNetworkReservations, services []string) error {
+func privateNetworkPrefix(cidr string) (netip.Prefix, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil || !prefix.Addr().Is4() || !prefix.Addr().IsPrivate() || prefix != prefix.Masked() || prefix.Bits() < 24 || prefix.Bits() > 28 {
-		return fmt.Errorf("private network CIDR must be a canonical private IPv4 /24 through /28")
+		return netip.Prefix{}, fmt.Errorf("private network CIDR must be a canonical private IPv4 /24 through /28")
+	}
+	return prefix, nil
+}
+
+func allocatePrivateNetwork(network, cidr string, reservations *privateNetworkReservations, services []string) error {
+	prefix, err := privateNetworkPrefix(cidr)
+	if err != nil {
+		return err
 	}
 	if !strings.HasPrefix(network, "pn-") || strings.ContainsAny(network, "/\n\r\t ") {
 		return fmt.Errorf("invalid vRack ID")
@@ -176,25 +185,10 @@ func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Cont
 	if public == "" || address == "" {
 		return fmt.Errorf("private routing requires a public identity and a reserved private address")
 	}
-	peers := []privateNetworkPeer{}
-	members := []string{}
-	for i := range machines {
-		peer := &machines[i]
-		if privateNetworkCacheMachine(peer) && peer.DeletionTimestamp.IsZero() && privateNetworkPublicAddress(peer) != "" {
-			members = append(members, peer.Name+"/"+peer.Status.ServiceName+"/"+privateNetworkPublicAddress(peer)+"/"+reservations.Addresses[peer.Status.ServiceName])
-		}
-		if peer.Status.ServiceName == machine.Status.ServiceName || !privateNetworkCacheMachine(peer) {
-			continue
-		}
-		if ip := privateNetworkPublicAddress(peer); ip != "" && reservations.Addresses[peer.Status.ServiceName] != "" {
-			peers = append(peers, privateNetworkPeer{Public: ip, Private: reservations.Addresses[peer.Status.ServiceName]})
-		}
-	}
-	sort.Slice(peers, func(i, j int) bool { return peers[i].Public < peers[j].Public })
-	sort.Strings(members)
+	peers, members, owners := ovhPrivateParticipants(machine.Status.ServiceName, machines, reservations)
 	membership := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(members, "\n"))))
 	prefix, _ := netip.ParsePrefix(cidr)
-	script := renderPrivateNetworkScript(mac, address, prefix.Bits(), public, peers)
+	script := renderPrivateNetworkScript(mac, address, prefix.Bits(), public, peers, owners)
 	revision := fmt.Sprintf("%x:%s", sha256.Sum256([]byte(script)), node.Status.NodeInfo.BootID)
 	if node.Annotations[privateNetworkRevision] != revision || node.Annotations[privateNetworkMembers] != membership {
 		fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
@@ -251,7 +245,41 @@ func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Cont
 }
 
 func privateNetworkPublicAddress(machine *infrav1.OVHDedicatedMachine) string {
-	for _, address := range machine.Status.Addresses {
+	return privateNetworkExternalIPv4(machine.Status.Addresses)
+}
+
+func privateNetworkOwner(meta metav1.ObjectMeta) string {
+	return meta.Name + "/" + string(meta.UID)
+}
+
+func ovhPrivateParticipants(service string, machines []infrav1.OVHDedicatedMachine, reservations *privateNetworkReservations) ([]privateNetworkPeer, []string, privateNetworkOwners) {
+	peers := []privateNetworkPeer{}
+	members := []string{}
+	owners := privateNetworkOwners{}
+	for i := range machines {
+		peer := &machines[i]
+		owner := privateNetworkOwner(peer.ObjectMeta)
+		owners[owner] = ""
+		if !privateNetworkCacheMachine(peer) {
+			continue
+		}
+		ip := privateNetworkPublicAddress(peer)
+		owners[owner] = ip
+		if !peer.DeletionTimestamp.IsZero() || ip == "" {
+			continue
+		}
+		members = append(members, peer.Name+"/"+peer.Status.ServiceName+"/"+ip+"/"+reservations.Addresses[peer.Status.ServiceName])
+		if peer.Status.ServiceName != service && reservations.Addresses[peer.Status.ServiceName] != "" {
+			peers = append(peers, privateNetworkPeer{Public: ip, Private: reservations.Addresses[peer.Status.ServiceName]})
+		}
+	}
+	sort.Slice(peers, func(i, j int) bool { return peers[i].Public < peers[j].Public })
+	sort.Strings(members)
+	return peers, members, owners
+}
+
+func privateNetworkExternalIPv4(addresses []clusterv1.MachineAddress) string {
+	for _, address := range addresses {
 		if address.Type == clusterv1.MachineExternalIP {
 			if ip, err := netip.ParseAddr(address.Address); err == nil && ip.Is4() {
 				return ip.String()
@@ -264,14 +292,44 @@ func privateNetworkPublicAddress(machine *infrav1.OVHDedicatedMachine) string {
 // A less-preferred unreachable /32 survives removal of each private unicast
 // route. Keep it in the main table too: Cilium's direct FIB lookups can skip
 // policy-routing rules. Protocol 242 identifies the routes this service owns.
-func renderPrivateNetworkScript(mac, address string, bits int, public string, peers []privateNetworkPeer) string {
+func renderPrivateNetworkScript(mac, address string, bits int, public string, peers []privateNetworkPeer, owners ...privateNetworkOwners) string {
+	return renderProviderPrivateNetworkScript(mac, address, bits, public, peers, privateNetworkScriptOptions{Provider: "OVH", RootCommand: "sudo bash -s"}, owners...)
+}
+
+// Keep deleting and temporarily unaddressed Machines in this authoritative
+// roster. Only completed Machine removal can retire a previously owned guard.
+type privateNetworkOwners map[string]string
+
+type privateNetworkScriptOptions struct {
+	Provider        string
+	RootCommand     string
+	LinkPreparation string
+	PingOptions     string
+}
+
+func renderProviderPrivateNetworkScript(mac, address string, bits int, public string, peers []privateNetworkPeer, options privateNetworkScriptOptions, owners ...privateNetworkOwners) string {
 	var rows strings.Builder
 	for _, peer := range peers {
 		fmt.Fprintf(&rows, "%s %s\n", peer.Public, peer.Private)
 	}
+	var ownerRows strings.Builder
+	if len(owners) > 0 {
+		names := make([]string, 0, len(owners[0]))
+		for name := range owners[0] {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			address := owners[0][name]
+			if address == "" {
+				address = "-"
+			}
+			fmt.Fprintf(&ownerRows, "%s %s\n", name, address)
+		}
+	}
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
-sudo bash -s <<'TUIST_PRIVATE_ROOT'
+%[6]s <<'TUIST_PRIVATE_ROOT'
 set -euo pipefail
 # Prepare addresses on every host before publishing a new route membership.
 # A partial initial rollout must not blackhole peers that are still public.
@@ -282,13 +340,13 @@ for path in /sys/class/net/*/address; do
 done
 [ -n "$iface" ] || { echo 'private NIC missing' >&2; exit 1; }
 if ip -4 route show default | grep -Eq "(^| )dev $iface( |$)"; then echo 'refusing to configure default-route interface' >&2; exit 1; fi
-ip link set dev "$iface" up
+%[7]sip link set dev "$iface" up
 ip address replace '%[2]s/%[3]d' dev "$iface"
 echo 2 > "/proc/sys/net/ipv4/conf/$iface/rp_filter"
 prepared=1
 while read -r destination gateway; do
  [ -n "$destination" ] || continue
- if ! ping -n -c 1 -W 2 -I '%[2]s' "$gateway" >/dev/null 2>&1; then
+ if ! ping -n -c 1 -W 2 %[8]s-I '%[2]s' "$gateway" >/dev/null 2>&1; then
   echo "waiting for private address preparation on $destination" >&2
   prepared=0
  fi
@@ -296,12 +354,52 @@ done <<'TUIST_PRIVATE_PREFLIGHT'
 %[5]sTUIST_PRIVATE_PREFLIGHT
 [ "$prepared" -eq 1 ] || exit 1
 install -d -m 0755 /etc/tuist /usr/local/sbin /etc/systemd/system/kubelet.service.d /etc/systemd/system/containerd.service.d
+exec 8>/run/lock/tuist-private-network.lock
+flock 8
 cat > /etc/tuist/private-network-peers.new <<'TUIST_PRIVATE_PEERS'
 %[5]sTUIST_PRIVATE_PEERS
 mv /etc/tuist/private-network-peers.new /etc/tuist/private-network-peers
 touch /etc/tuist/private-network-guard-peers
-cat /etc/tuist/private-network-guard-peers /etc/tuist/private-network-peers | sort -u > /etc/tuist/private-network-guard-peers.new
+touch /etc/tuist/private-network-guard-owners
+declare -A live_owners current_owners old_owners
+while read -r owner destination; do
+ [ -n "$owner" ] || continue
+ live_owners["$owner"]=1
+ if [ "$destination" != - ]; then current_owners["$destination"]="$owner"; fi
+done <<'TUIST_PRIVATE_OWNERS'
+%[10]sTUIST_PRIVATE_OWNERS
+while read -r destination owner; do
+ [ -n "$destination" ] || continue
+ old_owners["$destination"]="$owner"
+done < /etc/tuist/private-network-guard-owners
+cp /etc/tuist/private-network-peers /etc/tuist/private-network-guard-peers.new
+: > /etc/tuist/private-network-guard-owners.new
+while read -r destination gateway; do
+ [ -n "$destination" ] || continue
+ owner=${old_owners[$destination]:-${current_owners[$destination]:-}}
+ active=$(awk -v destination="$destination" '$1 == destination {print 1; exit}' /etc/tuist/private-network-peers)
+ if [ -n "$active" ] && [ -n "${current_owners[$destination]:-}" ]; then owner=${current_owners[$destination]}; fi
+ if [ -n "$owner" ] && [ -z "${live_owners[$owner]:-}" ]; then
+  # Machine deletion has completed. Remove only routes owned by this service.
+  ip -4 route del "$destination/32" metric 50 proto 242 2>/dev/null || true
+  ip -4 route del unreachable "$destination/32" metric 32767 proto 242 2>/dev/null || true
+  if [ -n "$(ip -4 route show exact "$destination/32" proto 242)" ]; then
+   echo "owned routes to retired peer $destination remain; retaining cleanup intent" >&2
+   exit 1
+  fi
+  continue
+ fi
+ printf '%%s %%s\n' "$destination" "$gateway" >> /etc/tuist/private-network-guard-peers.new
+ if [ -n "$owner" ]; then printf '%%s %%s\n' "$destination" "$owner" >> /etc/tuist/private-network-guard-owners.new; fi
+ # A departing host no longer gets a working route, but keeps its guard until
+ # release completes. Failed or NotReady hosts remain in the owner roster.
+ if [ -z "$active" ]; then
+  ip -4 route del "$destination/32" metric 50 proto 242 2>/dev/null || true
+ fi
+done < <(cat /etc/tuist/private-network-guard-peers /etc/tuist/private-network-peers | sort -u)
+sort -u -o /etc/tuist/private-network-guard-peers.new /etc/tuist/private-network-guard-peers.new
 mv /etc/tuist/private-network-guard-peers.new /etc/tuist/private-network-guard-peers
+mv /etc/tuist/private-network-guard-owners.new /etc/tuist/private-network-guard-owners
 cat > /usr/local/sbin/tuist-private-network.new <<'TUIST_PRIVATE_SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -323,21 +421,20 @@ for path in /sys/class/net/*/address; do
 done
 [ -n "$iface" ] || { echo 'private NIC missing' >&2; exit 1; }
 if ip -4 route show default | grep -Eq "(^| )dev $iface( |$)"; then echo 'refusing to configure default-route interface' >&2; exit 1; fi
-ip link set dev "$iface" up
+%[7]sip link set dev "$iface" up
 ip address replace '%[2]s/%[3]d' dev "$iface"
 echo 2 > "/proc/sys/net/ipv4/conf/$iface/rp_filter"
 failed=0
 while read -r destination gateway; do
  [ -n "$destination" ] || continue
- if ping -n -c 1 -W 2 -I '%[2]s' "$gateway" >/dev/null 2>&1; then
+ if ping -n -c 1 -W 2 %[8]s-I '%[2]s' "$gateway" >/dev/null 2>&1; then
   ip -4 route replace "$destination/32" via "$gateway" dev "$iface" onlink src '%[4]s' metric 50 proto 242
  else
   ip -4 route del "$destination/32" metric 50 proto 242 2>/dev/null || true
   failed=1
  fi
 done < /etc/tuist/private-network-peers
-# Retain guards for departed peers until an explicit operational rollback.
-# Removing a failed peer from membership must never expose the public default.
+# The controller retires guards only after their owning Machine disappears.
 exit "$failed"
 TUIST_PRIVATE_SCRIPT
 chmod 0755 /usr/local/sbin/tuist-private-network.new
@@ -359,7 +456,7 @@ TUIST_PRIVATE_KUBELET
 cp /etc/systemd/system/kubelet.service.d/30-private-network.conf /etc/systemd/system/containerd.service.d/30-private-network.conf
 cat > /etc/systemd/system/tuist-private-network.service <<'TUIST_PRIVATE_UNIT'
 [Unit]
-Description=Private-only OVH peer routes
+Description=Private-only %[9]s peer routes
 Wants=network-online.target
 After=network-online.target
 [Service]
@@ -370,18 +467,19 @@ WantedBy=multi-user.target
 TUIST_PRIVATE_UNIT
 cat > /etc/systemd/system/tuist-private-network.timer <<'TUIST_PRIVATE_TIMER'
 [Unit]
-Description=Repair private-only OVH peer routes
+Description=Repair private-only %[9]s peer routes
 [Timer]
 OnBootSec=5s
 OnUnitInactiveSec=15s
 [Install]
 WantedBy=timers.target
 TUIST_PRIVATE_TIMER
+flock -u 8
 systemctl daemon-reload
 systemctl enable tuist-private-network.service tuist-private-network.timer
 systemctl start tuist-private-network-guard.service
 systemctl start tuist-private-network.timer
 systemctl restart tuist-private-network.service
 TUIST_PRIVATE_ROOT
-`, mac, address, bits, public, rows.String())
+`, mac, address, bits, public, rows.String(), options.RootCommand, options.LinkPreparation, options.PingOptions, options.Provider, ownerRows.String())
 }

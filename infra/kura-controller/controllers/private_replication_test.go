@@ -3,12 +3,18 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"reflect"
+	"slices"
 	"testing"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -70,15 +76,75 @@ func TestPrivateReplicationUsesPodIdentityAndQualifiedPlacement(t *testing.T) {
 	}
 }
 
-func TestPrivateReplicationDoesNotSilentlyRemoveActiveTopology(t *testing.T) {
-	scheme := runtime.NewScheme()
-	if err := corev1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).Build(), PrivateReplication: true}
-	previous := &corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{managedTopologyAnnotation: "true"}}}
-	if err := r.configurePrivateReplication(context.Background(), &kurav1alpha1.KuraInstance{}, &corev1.PodTemplateSpec{}, previous); err == nil {
-		t.Fatal("missing nodes silently disabled the private route policy")
+func TestPrivateReplicationQualificationDoesNotBlockStatefulSetUpdates(t *testing.T) {
+	for _, previouslyQualified := range []bool{false, true} {
+		for _, gap := range []string{"mixed", "missing", "stale"} {
+			t.Run(fmt.Sprintf("qualified-%t-%s", previouslyQualified, gap), func(t *testing.T) {
+				ctx := context.Background()
+				scheme := runtime.NewScheme()
+				if err := clientgoscheme.AddToScheme(scheme); err != nil {
+					t.Fatal(err)
+				}
+				if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+					t.Fatal(err)
+				}
+				node := privateNode("a", "ovh://gra/a", "pn-test", "members-a")
+				instance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Name: "cache", Namespace: "test"}, Spec: kurav1alpha1.KuraInstanceSpec{Image: "old", NodeSelector: map[string]string{"pool": "cache"}}}
+				c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&node, instance).Build()
+				r := &KuraInstanceReconciler{Client: c, Scheme: scheme, PrivateReplication: previouslyQualified}
+				if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+					t.Fatal(err)
+				}
+				before := &appsv1.StatefulSet{}
+				key := types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}
+				if err := c.Get(ctx, key, before); err != nil {
+					t.Fatal(err)
+				}
+				switch gap {
+				case "mixed":
+					other := privateNode("b", "dedibox://b", "", "")
+					if err := c.Create(ctx, &other); err != nil {
+						t.Fatal(err)
+					}
+				case "missing":
+					if err := c.Delete(ctx, &node); err != nil {
+						t.Fatal(err)
+					}
+				case "stale":
+					other := privateNode("b", "ovh://gra/b", "pn-test", "members-b")
+					if err := c.Create(ctx, &other); err != nil {
+						t.Fatal(err)
+					}
+				}
+				r.PrivateReplication = true
+				if previouslyQualified && gap == "missing" {
+					instance.Spec.NodeSelector = map[string]string{"pool": "new-unqualified-pool"}
+				}
+				instance.Spec.Image = "new"
+				instance.Spec.Replicas = ptr(int32(3))
+				if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+					t.Fatal(err)
+				}
+				after := &appsv1.StatefulSet{}
+				if err := c.Get(ctx, key, after); err != nil {
+					t.Fatal(err)
+				}
+				if after.Spec.Template.Spec.Containers[0].Image != "new" || *after.Spec.Replicas != 3 {
+					t.Fatal("unrelated changes blocked")
+				}
+				if !reflect.DeepEqual(before.Spec.Template.Spec.NodeSelector, after.Spec.Template.Spec.NodeSelector) {
+					t.Fatal("placement changed during qualification gap")
+				}
+				if after.Spec.Template.Annotations[managedTopologyAnnotation] != before.Spec.Template.Annotations[managedTopologyAnnotation] {
+					t.Fatal("managed policy changed")
+				}
+				for _, env := range before.Spec.Template.Spec.Containers[0].Env {
+					if env.Name == peerTopologyEnv && !slices.ContainsFunc(after.Spec.Template.Spec.Containers[0].Env, func(got corev1.EnvVar) bool { return reflect.DeepEqual(env, got) }) {
+						t.Fatal("private policy lost")
+					}
+				}
+			})
+		}
 	}
 }
 

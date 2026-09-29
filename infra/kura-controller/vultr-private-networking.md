@@ -25,6 +25,15 @@ causes a blind retry. Missing retained networks, changed definitions and
 ambiguous inventories require explicit recovery. Neither Helm removal nor
 Machine deletion deletes a VPC or its retained state.
 
+Attachment intent is also saved before the non-idempotent POST. A pending or
+uncertain attachment is observed until its assigned NIC appears; a controller
+restart never resubmits it blindly. After confirming a rejected operation in the
+provider, an operator may clear that instance's `attachmentRequests` entry to
+retry. Successful network and per-host attachment reads are shared across
+reconciles for at most one minute; a mutation invalidates its attachment cache.
+Failed reads are not cached. Out-of-band provider changes can therefore take up
+to one minute to be observed.
+
 For a qualified region, the controller attaches each cache host without a
 restart, checks the provider-assigned private address and MAC, and uses its
 existing pinned bootstrap connection to configure only the secondary NIC.
@@ -42,6 +51,10 @@ boot before the CAPI controller labels placement as qualified. The Kura
 controller then renders `KURA_PEER_TOPOLOGY` and restricts scheduling to that
 network. A stale boot, missing attestation or mixed placement holds publication.
 An already-managed topology is never silently removed on an observation error.
+Its previous topology and scheduling selector are retained while image, resource,
+and scaling updates continue. Route guard ownership and retirement follow the
+[shared host lifecycle](private-network-provisioning.md); provider-specific root,
+MTU and DF-probe options are explicit renderer parameters.
 
 The merge deployment therefore enables Chicago private replication after this
 convergence gate. Normal managed rollout and existing OnDelete holds still

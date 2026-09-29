@@ -28,7 +28,8 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 ## Deployment Topology
 
 - Managed OVH topology derives from real Node provider IDs and converged private
-  route attestations. Missing or mixed evidence holds template changes; never
+  route attestations. Missing or mixed evidence holds topology publication while
+  other template changes continue with the previous topology and selector; never
   silently remove an active topology on a failed network observation. Keep the
   qualified network scheduling selector and per-pod mTLS endpoint together.
   See [private network reconciliation](private-network-provisioning.md).

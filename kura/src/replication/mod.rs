@@ -117,7 +117,7 @@ async fn membership_task_loop(state: SharedState) {
                         .await
                         .map_err(|e| e.to_string())?;
                     let healthy = if payload.tenant_id == app.config.tenant_id {
-                        probe_private_path(app, &payload).await
+                        probe_private_path(app, &payload, &peer.url).await
                     } else {
                         false
                     };
@@ -174,7 +174,18 @@ async fn membership_task_loop(state: SharedState) {
     }
 }
 
-async fn probe_private_path(state: &SharedState, peer: &PeerStatusPayload) -> bool {
+async fn probe_private_path(
+    state: &SharedState,
+    peer: &PeerStatusPayload,
+    discovered_at: &str,
+) -> bool {
+    if is_self_or_own_gateway(
+        &peer.node_url,
+        &state.config.node_url,
+        state.config.peer_gateway_url.as_deref(),
+    ) {
+        return true;
+    }
     let own = state.config.peer_topology.as_ref();
     let selected = crate::peer_topology::endpoint(own, peer.topology.as_ref(), &peer.node_url);
     let private = match selected {
@@ -193,6 +204,11 @@ async fn probe_private_path(state: &SharedState, peer: &PeerStatusPayload) -> bo
             return false;
         }
     };
+    // Compare the queried origin, not the advertised node identity: a gateway
+    // may advertise the same private/node URL without ever reaching that URL.
+    if reqwest::Url::parse(discovered_at).ok() == reqwest::Url::parse(private).ok() {
+        return true;
+    }
     let result = async {
         let status = state
             .client()
@@ -569,7 +585,15 @@ mod tests {
             "topology": topology
         }))
         .unwrap();
-        assert!(!super::probe_private_path(&ctx.state, &peer).await);
+        assert!(!super::probe_private_path(&ctx.state, &peer, "https://gateway.example").await);
+        assert!(super::probe_private_path(&ctx.state, &peer, canonical).await);
+        let own = serde_json::from_value(serde_json::json!({
+            "tenant_id": "test-tenant", "region": "local",
+            "node_url": ctx.state.config.node_url,
+            "topology": peer.topology
+        }))
+        .unwrap();
+        assert!(super::probe_private_path(&ctx.state, &own, "https://gateway.example").await);
     }
 
     #[tokio::test]
