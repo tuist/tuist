@@ -102,12 +102,65 @@ import TuistServer
         #expect(rootService.authenticationState == .loggedOut)
     }
 
+    @Test func signing_out_clears_the_session_when_revoking_the_refresh_token_fails() async throws {
+        let store = makeCredentialsStore()
+        let appStorage = TestAppStorage(authenticationState: .loggedOut)
+        let revokeOAuthTokenService = RevokeOAuthTokenServiceStub(error: URLError(.notConnectedToInternet))
+        let subject = await makeAuthenticationService(
+            store: store,
+            appStorage: appStorage,
+            revokeOAuthTokenService: revokeOAuthTokenService
+        )
+        let account = Account(email: "tuist@tuist.dev", handle: "tuist")
+        let credentials = try makeCredentials(type: "account")
+        try await store.store(credentials: credentials, serverURL: serverURL)
+        try await waitUntil {
+            subject.authenticationState == .loggedIn(account: account)
+        }
+
+        await ServerCredentialsStore.$current.withValue(store) {
+            await subject.signOut()
+        }
+
+        #expect(subject.authenticationState == .loggedOut)
+        #expect(try appStorage.get(AuthenticationStateKey.self) == .loggedOut)
+        #expect(try await store.read(serverURL: serverURL) == nil)
+        try await waitUntil {
+            !revokeOAuthTokenService.revokedRefreshTokens.isEmpty
+        }
+        #expect(revokeOAuthTokenService.revokedRefreshTokens == [try #require(credentials.refreshToken)])
+    }
+
+    @Test func signing_out_does_not_revoke_tokens_that_were_not_issued_through_oauth() async throws {
+        let store = makeCredentialsStore()
+        let appStorage = TestAppStorage(authenticationState: .loggedOut)
+        let revokeOAuthTokenService = RevokeOAuthTokenServiceStub()
+        let subject = await makeAuthenticationService(
+            store: store,
+            appStorage: appStorage,
+            revokeOAuthTokenService: revokeOAuthTokenService
+        )
+        try await store.store(credentials: try makeCredentials(), serverURL: serverURL)
+
+        await ServerCredentialsStore.$current.withValue(store) {
+            await subject.signOut()
+        }
+
+        #expect(subject.authenticationState == .loggedOut)
+        #expect(try await store.read(serverURL: serverURL) == nil)
+        #expect(revokeOAuthTokenService.revokedRefreshTokens.isEmpty)
+    }
+
     private func makeAuthenticationService(
         store: ServerCredentialsStore,
-        appStorage: TestAppStorage
+        appStorage: TestAppStorage,
+        revokeOAuthTokenService: RevokeOAuthTokenServicing = RevokeOAuthTokenServiceStub()
     ) async -> AuthenticationService {
         await ServerCredentialsStore.$current.withValue(store) {
-            AuthenticationService(appStorage: appStorage)
+            AuthenticationService(
+                appStorage: appStorage,
+                revokeOAuthTokenService: revokeOAuthTokenService
+            )
         }
     }
 
@@ -128,20 +181,23 @@ import TuistServer
 
     private func makeCredentials(
         email: String = "tuist@tuist.dev",
-        handle: String = "tuist"
+        handle: String = "tuist",
+        type: String? = nil
     ) throws -> ServerCredentials {
         try makeCredentials(
             accessToken: JWT.make(
                 expiryDate: Date().addingTimeInterval(600),
                 typ: "access",
                 email: email,
-                preferredUsername: handle
+                preferredUsername: handle,
+                type: type
             ).token,
             refreshToken: JWT.make(
                 expiryDate: Date().addingTimeInterval(3600),
                 typ: "refresh",
                 email: email,
-                preferredUsername: handle
+                preferredUsername: handle,
+                type: type
             ).token
         )
     }
@@ -165,6 +221,27 @@ import TuistServer
             }
             await Task.yield()
             try await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+}
+
+private final class RevokeOAuthTokenServiceStub: RevokeOAuthTokenServicing, @unchecked Sendable {
+    private let error: Error?
+    private let lock = NSLock()
+    private var refreshTokens: [String] = []
+
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
+    var revokedRefreshTokens: [String] {
+        lock.withLock { refreshTokens }
+    }
+
+    func revokeRefreshToken(_ refreshToken: String, serverURL _: URL) async throws {
+        lock.withLock { refreshTokens.append(refreshToken) }
+        if let error {
+            throw error
         }
     }
 }
