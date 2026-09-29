@@ -88,6 +88,15 @@
         default "";
       }
 
+      # NixOS's proxyWebsockets sends `Connection: close` on every
+      # non-upgrade request. Bandit then closes the socket without echoing
+      # the header, so nginx returns it to the keepalive pool and the next
+      # request with an unbuffered body fails on it with a 502.
+      map $http_upgrade $cache_connection_upgrade {
+        default upgrade;
+        "" "";
+      }
+
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
         # Idle upstream connections held open per worker. Sized to
@@ -185,8 +194,11 @@
 
         locations."/" = {
           proxyPass = "http://cache_upstream";
-          proxyWebsockets = true;
           extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $cache_connection_upgrade;
+
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
