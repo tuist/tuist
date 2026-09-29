@@ -37,6 +37,26 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
       assert_patched(lv, "/changelog?page=2")
     end
 
+    @tag :locale
+    test "load more keeps a localized page on its own locale", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, "/ja/changelog")
+
+      lv |> element(~s([data-part="more"] button)) |> render_click()
+
+      assert_patched(lv, "/ja/changelog?page=2")
+    end
+
+    @tag :locale
+    test "category pills keep a localized page on its own locale", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, "/ja/changelog")
+
+      lv
+      |> element(~s([data-part="categories"] > [data-part="category"]), "OSS")
+      |> render_click()
+
+      assert_patched(lv, "/ja/changelog?category=OSS")
+    end
+
     test "category pills filter the timeline", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/changelog")
 
