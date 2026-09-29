@@ -5,7 +5,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - JSON-RPC request handling
 - MCP tools and prompts
 - MCP authorization/serialization helpers
-- Operator reads: `Tuist.MCP.Authorization.authorize_request/4` falls back to an operator grant (`x-tuist-operator-grant`) or, for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), to a grant-free read for the resource's account. Both go through the `:ops_access` policies and never apply to writes.
+- Operator reads: for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), `Tuist.MCP.Authorization.authorize_request/4` falls back to a grant-free read for the resource's account. It goes through the `:ops_access` policies and never applies to writes. There is no MCP operator-grant header; grants from ops.tuist.dev only apply to the browser session.
 - Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
 ## Prompt/Skill Sync

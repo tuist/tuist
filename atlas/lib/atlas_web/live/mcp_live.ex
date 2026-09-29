@@ -6,7 +6,6 @@ defmodule AtlasWeb.MCPLive do
 
   alias Atlas.MCP
   alias Atlas.MCP.OAuthSession
-  alias Atlas.MCP.OperatorGrant
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :page_title, gettext("MCPs"))}
@@ -16,35 +15,9 @@ defmodule AtlasWeb.MCPLive do
     {:noreply, load_servers(socket)}
   end
 
-  # There is no form here to start a request. Asking for a grant up front meant
-  # naming the customer before looking at anything, which is backwards: the
-  # refused tool call already knows which account it needed. The proxy turns
-  # that refusal into a link to the reason form, so this page reports the grant
-  # and can clear it, nothing more. The grant itself is never pasted — ops
-  # appends it to `return_to` and redirects, so the bearer never reaches a
-  # clipboard.
-  def handle_event("clear_operator_grant", %{"server" => server_name}, socket) do
-    {:ok, _} = MCP.delete_operator_grant(socket.assigns.current_user, server_name, interface: "dashboard")
-
-    {:noreply, socket |> put_flash(:info, gettext("Operator grant cleared.")) |> load_servers()}
-  end
-
   defp load_servers(socket) do
-    user = socket.assigns.current_user
-
-    servers =
-      user
-      |> MCP.list_servers()
-      |> Enum.map(&Map.put(&1, :operator_grant, operator_grant_for(user, &1)))
-
-    assign(socket, :servers, servers)
+    assign(socket, :servers, MCP.list_servers(socket.assigns.current_user))
   end
-
-  defp operator_grant_for(user, %{server: %{operator_grant_header: header, name: name}}) when is_binary(header) do
-    MCP.get_operator_grant(user, name)
-  end
-
-  defp operator_grant_for(_user, _entry), do: nil
 
   def render(assigns) do
     ~H"""
@@ -86,25 +59,6 @@ defmodule AtlasWeb.MCPLive do
                 <span :if={entry.session && entry.session.expires_at} data-part="session-expiry">
                   {expires_label(entry.session)}
                 </span>
-              </div>
-            </:col>
-            <:col :let={entry} label={gettext("Operator grant")}>
-              <div :if={entry.server.operator_grant_header} data-part="operator-grant">
-                <span :if={entry.operator_grant} data-part="operator-grant-state">
-                  {grant_label(entry.operator_grant)}
-                </span>
-                <span :if={is_nil(entry.operator_grant)} data-part="operator-grant-state">
-                  {gettext("Requested when a tool call needs it")}
-                </span>
-                <.button
-                  :if={entry.operator_grant}
-                  id={"mcp-grant-clear-#{entry.server.name}"}
-                  label={gettext("Clear")}
-                  size="small"
-                  variant="secondary"
-                  phx-click="clear_operator_grant"
-                  phx-value-server={entry.server.name}
-                />
               </div>
             </:col>
             <:col :let={entry} label={gettext("Actions")}>
@@ -152,17 +106,6 @@ defmodule AtlasWeb.MCPLive do
 
   defp action_label(:connected), do: gettext("Reconnect")
   defp action_label(_status), do: gettext("Connect")
-
-  defp grant_label(%OperatorGrant{account_handle: handle} = grant) do
-    if OperatorGrant.active?(grant) do
-      gettext("%{account} until %{datetime}",
-        account: handle,
-        datetime: Calendar.strftime(grant.expires_at, "%Y-%m-%d %H:%M UTC")
-      )
-    else
-      gettext("Expired")
-    end
-  end
 
   defp expires_label(%OAuthSession{expires_at: expires_at}) do
     gettext("Expires %{datetime}", datetime: Calendar.strftime(expires_at, "%Y-%m-%d %H:%M UTC"))
