@@ -121,14 +121,7 @@ defmodule Tuist.OAuth.Clients do
           Environment.app_url(path: "/oauth/callback/android")
         ] ++ android_emulator_redirect_uris(),
       authorize_scope: false,
-      supported_grant_types: [
-        "client_credentials",
-        "password",
-        "authorization_code",
-        "refresh_token",
-        "implicit",
-        "revoke"
-      ],
+      supported_grant_types: ["authorization_code", "refresh_token", "revoke"],
       pkce: true,
       public_refresh_token: false,
       public_revoke: false,

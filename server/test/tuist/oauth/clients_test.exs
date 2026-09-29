@@ -48,7 +48,7 @@ defmodule Tuist.OAuth.ClientsTest do
 
       assert %Client{} = client = Clients.get_client("tuist-cli")
       assert client.id == "tuist-cli"
-      refute "introspect" in client.supported_grant_types
+      assert client.supported_grant_types == ["authorization_code", "refresh_token", "revoke"]
     end
   end
 end
