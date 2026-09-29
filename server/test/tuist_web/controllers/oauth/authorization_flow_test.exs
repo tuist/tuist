@@ -140,6 +140,15 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                |> json_response(400)
     end
 
+    test "issues access tokens that expire after an hour", %{conn: conn} do
+      assert %{"access_token" => access_token, "expires_in" => expires_in} =
+               exchange_app_code(authorize_app(conn))
+
+      assert {:ok, %{"exp" => exp, "iat" => iat}} = Tuist.Guardian.decode_and_verify(access_token)
+      assert exp - iat == 3600
+      assert expires_in in 3590..3600
+    end
+
     test "refuses to refresh tokens for a deactivated user", %{conn: conn, user: user} do
       %{"refresh_token" => refresh_token} = exchange_app_code(authorize_app(conn))
       deactivate(user)
