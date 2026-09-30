@@ -145,9 +145,12 @@ ten minutes. Before merging:
 
 The control-plane `MachineHealthCheck` never remediates a member that fails
 to register a Node (`nodeStartupTimeoutSeconds: 0`), so a stuck join halts
-the roll with four Machines rather than looping. Delete the stuck Machine in
-`org-tuist`, then decide whether to retry or revert. Reverting the type is
-another full roll, not an undo.
+the roll with the old members still serving. Deleting the stuck Machine also
+deletes its server, and KCP immediately creates a replacement, so pause first:
+suspend the cluster's Flux `Kustomization`, set `spec.paused: true` on the
+`Cluster`, and diagnose on the stuck host. Then unpause and either delete the
+stuck Machine (KCP retries) or revert. Reverting the type is another full
+roll, not an undo.
 
 ## Adapting from caph upstream
 
