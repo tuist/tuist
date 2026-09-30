@@ -25,7 +25,7 @@ defmodule TuistWeb.BundleLive do
     current_user = socket.assigns[:current_user]
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
-    duplicates = find_duplicates(bundle.artifacts)
+    duplicates = find_duplicates(all_artifacts)
 
     artifacts_by_id =
       Enum.reduce(all_artifacts, %{}, fn artifact, acc ->
@@ -188,9 +188,11 @@ defmodule TuistWeb.BundleLive do
 
     active_filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
+    downcased_file_breakdown_filter = String.downcase(file_breakdown_filter)
+
     file_breakdown_filtered_artifacts =
       Enum.filter(all_artifacts, fn artifact ->
-        path_matches = String.contains?(String.downcase(artifact.path), String.downcase(file_breakdown_filter))
+        path_matches = path_matches_filter?(artifact.path, downcased_file_breakdown_filter)
         is_leaf = Enum.empty?(artifact.children)
         filters_match = apply_file_breakdown_filters(artifact, active_filters, bundle)
 
@@ -657,9 +659,7 @@ defmodule TuistWeb.BundleLive do
 
   defp sort_module_breakdown_artifacts(artifacts, _, _), do: artifacts
 
-  defp find_duplicates(artifacts) do
-    all_artifacts = flatten_artifacts(artifacts)
-
+  defp find_duplicates(all_artifacts) do
     all_artifacts
     |> Enum.group_by(& &1.shasum)
     |> Enum.filter(fn {_shasum, artifacts} -> length(artifacts) > 1 end)
@@ -675,9 +675,7 @@ defmodule TuistWeb.BundleLive do
   end
 
   defp flatten_artifacts(artifacts) do
-    Enum.reduce(artifacts, [], fn artifact, acc ->
-      [artifact | acc] ++ flatten_artifacts(artifact.children || [])
-    end)
+    Enum.flat_map(artifacts, fn artifact -> [artifact | flatten_artifacts(artifact.children || [])] end)
   end
 
   def file_breakdown_column_patch_sort(
@@ -794,6 +792,8 @@ defmodule TuistWeb.BundleLive do
   end
 
   def build_tree_data(artifacts, filter, duplicate_shasums) do
+    filter = String.downcase(filter)
+
     artifacts
     |> Enum.filter(fn artifact ->
       is_nil(artifact.artifact_id)
@@ -818,7 +818,7 @@ defmodule TuistWeb.BundleLive do
       :file => "var:noora-sunburst-files"
     }
 
-    self_matches = artifact.path |> String.downcase() |> String.contains?(String.downcase(filter))
+    self_matches = path_matches_filter?(artifact.path, filter)
 
     # Check if this artifact is a duplicate
     duplicate? = artifact.shasum && MapSet.member?(duplicate_shasums, artifact.shasum)
@@ -866,6 +866,9 @@ defmodule TuistWeb.BundleLive do
         end
     end
   end
+
+  defp path_matches_filter?(_path, ""), do: true
+  defp path_matches_filter?(path, downcased_filter), do: path |> String.downcase() |> String.contains?(downcased_filter)
 
   defp filter_collapsed_children(children) do
     Enum.filter(children, &(not &1.collapsed?))
