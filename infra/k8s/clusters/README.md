@@ -138,7 +138,9 @@ server, so the control-plane nodes get new names and public IPs.
 Merging a change under `workloads/` is the apply: Flux reconciles it within
 ten minutes. Before merging:
 
-- Roll the same change on staging first.
+- If the CAPI or caph controllers changed since the last control-plane roll,
+  rehearse with a same-type roll on staging (set the staging KCP's
+  `spec.rollout.after` to now) rather than resizing staging.
 - Confirm etcd has three healthy voters and the KCP reports three
   up-to-date, Ready replicas.
 - Pick an off-peak window with no server deploy running or queued.
