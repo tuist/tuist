@@ -35,7 +35,7 @@ spec:
       # cluster lost their leases. Changing this rolls the control plane one
       # member at a time; see "Resizing the control plane" in the README.
       - name: hcloudControlPlaneMachineType
-        value: cpx42
+        value: cpx32
       # Default for pools without an override (md-0).
       - name: hcloudWorkerMachineType
         value: ccx23
