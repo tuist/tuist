@@ -11,6 +11,7 @@ defmodule Tuist.Runners.CacheVolumes.Volume do
     field(:scope_id, :string)
     field(:repository, :string)
     field(:key, :string)
+    field(:platform, :string, default: "linux")
     field(:architecture, :string)
     field(:uid, :integer)
     field(:generation, :integer, default: 1)

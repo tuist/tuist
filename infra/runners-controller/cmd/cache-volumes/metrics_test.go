@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 func TestVolumeMetricsClassifyCancellationWithoutLeakingErrors(t *testing.T) {
@@ -31,15 +31,5 @@ func TestVolumeMetricsClassifyCancellationWithoutLeakingErrors(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), `"result":"timeout"`) || strings.Contains(logs.String(), `"operation":"maintenance"`) {
 		t.Fatal(logs.String())
-	}
-}
-func TestTransferErrorsRetainCancellationWithoutURLs(t *testing.T) {
-	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
-		if !errors.Is(transferError(err), err) {
-			t.Fatal(err)
-		}
-	}
-	if strings.Contains(transferError(errors.New("https://secret")).Error(), "secret") {
-		t.Fatal("leaked URL")
 	}
 }

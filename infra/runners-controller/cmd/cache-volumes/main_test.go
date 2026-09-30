@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	"github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"

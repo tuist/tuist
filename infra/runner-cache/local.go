@@ -32,6 +32,7 @@ type LocalImages struct {
 	SizeGB       int
 	MinFreeBytes uint64
 	Transfer     ImageTransfer
+	Clone        func(context.Context, string, string) error
 	Observe      Observer
 	Run          func(context.Context, string, ...string) ([]byte, error)
 	Mount        func(string, string) error
@@ -84,7 +85,13 @@ func (b *LocalImages) master(slot Slot) string {
 	return filepath.Join(b.Root, "masters", slot.Scope, fmt.Sprintf("%020d-%s.img", slot.BaseGeneration, slot.ContentDigest))
 }
 func (b *LocalImages) clone(src, dst string) error {
-	_, err := b.command("cp", "--reflink=always", "--", src, dst)
+	return b.cloneContext(context.Background(), src, dst)
+}
+func (b *LocalImages) cloneContext(ctx context.Context, src, dst string) error {
+	if b.Clone != nil {
+		return b.Clone(ctx, src, dst)
+	}
+	_, err := b.commandContext(ctx, "cp", "--reflink=always", "--", src, dst)
 	return err
 }
 func syncFile(path string) error {
@@ -241,7 +248,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				if source == "unknown" {
 					source = "local"
 				}
-				err = b.operation("clone", "local", func() error { _, err := b.commandContext(ctx, "cp", "--reflink=always", "--", master, tmp); return err })
+				err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) })
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
@@ -388,6 +395,9 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	if err := b.verify(slot, path); err != nil {
 		return err
 	}
+	return b.publish(slot)
+}
+func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".gz"
 	defer os.Remove(archive)
 	compressDone := b.Observe.Start("compress", "none")

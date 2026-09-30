@@ -168,7 +168,8 @@
         "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
         "infra/macos-log-shipper/**/*",
-        "infra/tart-kubelet/**/*"
+        "infra/tart-kubelet/**/*",
+        "infra/runner-cache/**/*"
       ]
     },
     {
@@ -191,7 +192,7 @@
       "tag_regex": "^runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runner-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runner-image/**/*"]
+      "include_paths": ["infra/runner-image/**/*", "infra/linux-runner-image/cmd/tuist-cache-volume/**/*", ".github/actions/build-runner-image-binaries/**/*"]
     },
     {
       "name": "linux-runner-image",
@@ -207,7 +208,7 @@
       "tag_regex": "^runners-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runners-controller/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runners-controller/**/*"]
+      "include_paths": ["infra/runners-controller/**/*", "infra/runner-cache/**/*"]
     },
     {
       "name": "hetzner-robot-controller",

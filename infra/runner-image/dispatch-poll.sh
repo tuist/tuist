@@ -2141,6 +2141,9 @@ HOOK
         report_cache_dirty "${JOB_PASSED}"
         report_volume_head "${JOB_PASSED}"
       fi
+      if [ "${JOB_PASSED}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
+        /usr/local/bin/tuist-cache-volume --detach-all || true
+      fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
       # interval — including "Complete job" — otherwise has no data point

@@ -14,7 +14,7 @@ config=$(jq -ce '
   exit 1
 }
 command -v tuist-cache-volume >/dev/null || {
-  echo "Tuist cache volumes require a Tuist Linux runner." >&2
+  echo "Tuist cache volumes require a Tuist Linux or macOS runner." >&2
   exit 1
 }
 count=$(jq '.volumes | length' <<< "$config")

@@ -33,6 +33,7 @@ alias Tuist.Oban.RuntimeConfig
 alias Tuist.Runners.Catalog
 
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
+config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
 
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
