@@ -8,10 +8,12 @@ defmodule Atlas.Support.Thread do
   alias Atlas.Users.User
 
   @statuses ~w(open waiting resolved)
+  @classifications ~w(support invoice vendor_notice shipping publish registration ar spam other)
+  @urgencies ~w(none low normal high)
 
   @derive {
     Flop.Schema,
-    filterable: [:status, :owner_id, :account_id],
+    filterable: [:status, :owner_id, :account_id, :classification, :action_needed, :urgency],
     sortable: [:last_message_at, :last_inbound_at, :inserted_at],
     default_limit: 50,
     max_limit: 100
@@ -27,6 +29,13 @@ defmodule Atlas.Support.Thread do
     field :resolved_at, :utc_datetime
     field :metadata, :map, default: %{}
 
+    field :classification, :string
+    field :action_needed, :boolean
+    field :urgency, :string
+    field :classifier_confidence, :float
+    field :classifier_reason, :string
+    field :classified_at, :utc_datetime
+
     belongs_to :account, Account
     belongs_to :owner, User
     has_many :messages, Message
@@ -35,6 +44,8 @@ defmodule Atlas.Support.Thread do
   end
 
   def statuses, do: @statuses
+  def classifications, do: @classifications
+  def urgencies, do: @urgencies
 
   def inbound_changeset(thread, attrs) do
     thread
@@ -69,6 +80,22 @@ defmodule Atlas.Support.Thread do
     thread
     |> cast(attrs, [:owner_id])
     |> foreign_key_constraint(:owner_id)
+  end
+
+  def classification_changeset(thread, attrs) do
+    thread
+    |> cast(attrs, [
+      :classification,
+      :action_needed,
+      :urgency,
+      :classifier_confidence,
+      :classifier_reason,
+      :classified_at
+    ])
+    |> validate_required([:classification, :action_needed, :urgency, :classified_at])
+    |> validate_inclusion(:classification, @classifications)
+    |> validate_inclusion(:urgency, @urgencies)
+    |> validate_number(:classifier_confidence, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0)
   end
 
   def outbound_changeset(thread, attrs) do
