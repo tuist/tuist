@@ -11,7 +11,7 @@ overrides:
   axios: 1.18.0
   defu: 6.1.5
   dompurify: 3.4.13
-  fast-uri: 3.1.7
+  fast-uri: 3.1.8
   fflate: 0.4.9
   flatted: 3.4.2
   follow-redirects: 1.16.0
@@ -51,7 +51,7 @@ time:
   dompurify@3.4.13: 2026-08-03T14:16:00.210Z
   echarts@6.1.0: 2026-05-19T17:52:11.076Z
   eventsource-parser@3.1.1: 2026-08-10T15:55:29.938Z
-  fast-uri@3.1.7: 2026-09-02T11:06:41.962Z
+  fast-uri@3.1.8: 2026-09-15T07:36:25.444Z
   fflate@0.4.9: 2026-07-20T16:20:26.758Z
   form-data@4.0.6: 2026-06-12T17:37:53.689Z
   hasown@2.0.4: 2026-05-28T18:11:39.940Z
@@ -871,8 +871,8 @@ packages:
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
-  fast-uri@3.1.7:
-    resolution: {integrity: sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==}
+  fast-uri@3.1.8:
+    resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
 
   fflate@0.4.9:
     resolution: {integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==}
@@ -2548,7 +2548,7 @@ snapshots:
   ajv@8.18.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.7
+      fast-uri: 3.1.8
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -2692,7 +2692,7 @@ snapshots:
 
   fast-deep-equal@3.1.3: {}
 
-  fast-uri@3.1.7: {}
+  fast-uri@3.1.8: {}
 
   fflate@0.4.9: {}
 

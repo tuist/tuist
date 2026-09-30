@@ -15,6 +15,7 @@ defmodule Tuist.OAuth.Clients do
   alias Tuist.Environment
 
   @authorization_code_ttl 300
+  @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
 
   @impl Clients
   def get_client(client_id) do
@@ -24,7 +25,7 @@ defmodule Tuist.OAuth.Clients do
 
       nil ->
         case EctoClients.get_client(client_id) do
-          %Client{} = client -> ensure_authorization_code_ttl(client)
+          %Client{} = client -> client |> ensure_authorization_code_ttl() |> restrict_grant_types()
           nil -> nil
         end
     end
@@ -46,13 +47,17 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Clients
   def get_client_by_did(did) do
-    EctoClients.get_client_by_did(did)
+    case EctoClients.get_client_by_did(did) do
+      %Client{} = client -> restrict_grant_types(client)
+      other -> other
+    end
   end
 
   @impl Boruta.Openid.Clients
   def create_client(registration_params) do
     registration_params
     |> Map.put(:authorization_code_ttl, @authorization_code_ttl)
+    |> Map.update(:supported_grant_types, @supported_grant_types, &supported_grant_types/1)
     |> EctoClients.create_client()
   end
 
@@ -121,14 +126,7 @@ defmodule Tuist.OAuth.Clients do
           Environment.app_url(path: "/oauth/callback/android")
         ] ++ android_emulator_redirect_uris(),
       authorize_scope: false,
-      supported_grant_types: [
-        "client_credentials",
-        "password",
-        "authorization_code",
-        "refresh_token",
-        "implicit",
-        "revoke"
-      ],
+      supported_grant_types: @supported_grant_types,
       pkce: true,
       # Native apps (PKCE, RFC 8252) can't keep a client secret, so they refresh without one.
       public_refresh_token: true,
@@ -175,4 +173,16 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp ensure_authorization_code_ttl(%Client{} = client), do: client
+
+  # Clients registered before registration was restricted still carry Boruta's
+  # default grant list, which includes grants Tuist doesn't support.
+  defp restrict_grant_types(%Client{supported_grant_types: grant_types} = client) do
+    %{client | supported_grant_types: supported_grant_types(grant_types)}
+  end
+
+  defp supported_grant_types(grant_types) when is_list(grant_types) do
+    Enum.filter(grant_types, &(&1 in @supported_grant_types))
+  end
+
+  defp supported_grant_types(_grant_types), do: @supported_grant_types
 end
