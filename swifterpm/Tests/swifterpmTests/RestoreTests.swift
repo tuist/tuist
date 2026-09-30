@@ -648,6 +648,79 @@ struct RestoreTests {
     }
 
     @Test
+    func writeWorkspaceStateRecordsArtifactBundleTypes() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let pin = ResolvedPin(
+                identity: "binary",
+                kind: "remoteSourceControl",
+                location: "https://github.com/example/binary.git",
+                state: ResolvedState(
+                    branch: nil,
+                    revision: "abcdef1234567890",
+                    version: "1.0.0"
+                )
+            )
+            let artifactURL = "https://example.com/Foo.artifactbundle.zip"
+
+            let zipPath = try await makeExecutableArtifactBundleZip(root: root, targetName: "Foo")
+            let checksum = try Hashing.sha256Hex(await fileSystem.readFile(at: zipPath.absolutePath))
+            let archivePath = cache.binaryArtifactArchivePath(url: artifactURL, checksum: checksum)
+            try await fileSystem.makeDirectory(at: archivePath.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.write(
+                await fileSystem.readFile(at: zipPath.absolutePath),
+                to: archivePath
+            )
+
+            let sourcePath = try cache.sourcePath(pin: pin)
+            try await writeCachedManifest(
+                binaryTargetManifest(name: "Foo", url: artifactURL, checksum: checksum),
+                packageDir: sourcePath
+            )
+            try await fileSystem.atomicWrite(
+                pin.revision(),
+                to: sourcePath.appendingPathComponent(
+                    WorkspaceRestorer.sourceRevisionMarkerFilename)
+            )
+            try await writeCachedManifest(emptyManifest(), packageDir: package)
+
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch,
+                packageDir: package,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                resolved: resolved,
+                progress: nil
+            )
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+            let artifact = try #require(artifacts.first)
+            let kind = try #require(artifact["kind"] as? [String: Any])
+            let typedArchive = try #require(kind["typedArtifactsArchive"] as? [String: Any])
+
+            #expect(artifacts.count == 1)
+            #expect(
+                artifact["path"] as? String
+                    == scratch.appendingPathComponent("artifacts/binary/Foo/Foo.artifactbundle").path
+            )
+            #expect(kind["artifactsArchive"] == nil)
+            #expect(typedArchive["_0"] as? [String] == ["executable"])
+        }
+    }
+
+    @Test
     func restorePackageRedownloadsRemoteBinaryArtifactWhenCachedArchiveChecksumMismatches()
         async throws
     {
@@ -933,6 +1006,44 @@ struct RestoreTests {
             "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: repo
         )
         .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func makeExecutableArtifactBundleZip(root: URL, targetName: String) async throws -> URL {
+        let archiveRoot = root.appendingPathComponent("archive")
+        let bundle = archiveRoot.appendingPathComponent("\(targetName).artifactbundle")
+        let binary = bundle.appendingPathComponent("\(targetName)/bin/\(targetName)")
+        try await fileSystem.makeDirectory(
+            at: binary.deletingLastPathComponent().absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite("#!/bin/sh\n", to: binary)
+        try await fileSystem.atomicWrite(
+            """
+            {
+              "schemaVersion": "1.0",
+              "artifacts": {
+                "\(targetName)": {
+                  "type": "executable",
+                  "version": "1.0.0",
+                  "variants": [
+                    {
+                      "path": "\(targetName)/bin/\(targetName)",
+                      "supportedTriples": ["arm64-apple-macosx"]
+                    }
+                  ]
+                }
+              }
+            }
+            """,
+            to: bundle.appendingPathComponent("info.json")
+        )
+        let zipPath = root.appendingPathComponent("\(targetName).artifactbundle.zip")
+        try await SystemProcess.run(
+            "/usr/bin/zip",
+            ["-qry", zipPath.path, "\(targetName).artifactbundle"],
+            workingDirectory: archiveRoot
+        )
+        return zipPath
     }
 
     private func makeXCFrameworkZip(
