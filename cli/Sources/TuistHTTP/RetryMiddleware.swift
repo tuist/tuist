@@ -7,17 +7,22 @@ public struct RetryMiddleware: ClientMiddleware {
     private let retryPolicy: HTTPRetryPolicy
     private let retryableRequestMethods: Set<String>?
     private let retriesTransportErrors: Bool
+    private let retriesUnforwardedCacheRequests: Bool
 
     /// - Parameters:
     ///   - retriesTransportErrors: When `true` (the default) a thrown transport error,
     ///     including a timeout, is retried. A caller on a fail-fast path passes `false` so a
     ///     hung backend surfaces through its session timeout immediately rather than being
     ///     replayed. Retryable HTTP responses such as 503 are retried regardless of this flag.
+    ///   - retriesUnforwardedCacheRequests: Opts otherwise excluded request methods into
+    ///     retries after the activation gateway confirms it never forwarded the request.
+    ///     Requires a re-iterable body and does not retry transport or ordinary upload failures.
     public init(
         maxRetries: Int? = nil,
         baseDelayMilliseconds: UInt64? = nil,
         retryableRequestMethods: Set<String>? = nil,
-        retriesTransportErrors: Bool = true
+        retriesTransportErrors: Bool = true,
+        retriesUnforwardedCacheRequests: Bool = false
     ) {
         retryPolicy = HTTPRetryPolicy(
             maximumRetryCount: maxRetries,
@@ -25,6 +30,7 @@ public struct RetryMiddleware: ClientMiddleware {
         )
         self.retryableRequestMethods = retryableRequestMethods
         self.retriesTransportErrors = retriesTransportErrors
+        self.retriesUnforwardedCacheRequests = retriesUnforwardedCacheRequests
     }
 
     public func intercept(
@@ -37,11 +43,27 @@ public struct RetryMiddleware: ClientMiddleware {
         if let retryableRequestMethods,
            !retryableRequestMethods.contains(request.method.rawValue)
         {
-            let (response, responseBody) = try await next(request, body, baseURL)
-            if let error = Self.authorizationThrottledError(for: response) {
-                throw error
+            // The activation gateway guarantees these rejections never reached
+            // the artifact backend. Preserve streaming and only replay bodies
+            // that the caller explicitly made re-iterable.
+            for attempt in 0 ... retryPolicy.maximumRetryCount {
+                try Task<Never, Never>.checkCancellation()
+                let (response, responseBody) = try await next(request, body, baseURL)
+                if let error = Self.authorizationThrottledError(for: response) {
+                    throw error
+                }
+                guard retriesUnforwardedCacheRequests,
+                      body == nil || body?.iterationBehavior == .multiple,
+                      attempt < retryPolicy.maximumRetryCount,
+                      [429, 503].contains(response.status.code),
+                      response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] == "pending"
+                else {
+                    return (response, responseBody)
+                }
+                try await Task<Never, Never>.sleep(nanoseconds: Self.retryDelay(
+                    for: response, policyDelay: retryPolicy.delay(for: attempt)
+                ))
             }
-            return (response, responseBody)
         }
 
         let bodyData: Data?

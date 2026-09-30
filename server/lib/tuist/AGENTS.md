@@ -147,3 +147,5 @@ This directory contains the core business logic and domain modules for the serve
   invalidation as erasure. See
   [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
   Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).
+
+- `CacheEndpoints.primary_endpoint_url/0` uses the first configured URL as the main self-hosted cache endpoint. Keep configuration order; this read never probes nodes, records demand, or provisions capacity. The legacy endpoint list remains available for older clients.

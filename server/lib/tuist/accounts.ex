@@ -34,6 +34,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
@@ -2982,7 +2983,7 @@ defmodule Tuist.Accounts do
     # Self-hosting is Enterprise-only, so do not surface a downgraded account's
     # registered node addresses to the CLI even while their leases are still live.
     if Billing.Entitlements.allows?(account, :self_hosted_cache) do
-      Tuist.Kura.Registrations.active_advertised_urls(account)
+      Registrations.active_advertised_urls(account)
     else
       []
     end

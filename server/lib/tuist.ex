@@ -62,6 +62,7 @@ defmodule Tuist do
       AtlasWorkloadIdentity,
       Kubernetes.Client,
       Kura,
+      Kura.Activation,
       Kura.Deployment,
       Kura.Rollout,
       Kura.RolloutEvent,

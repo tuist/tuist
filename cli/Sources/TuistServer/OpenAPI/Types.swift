@@ -34,10 +34,11 @@ public protocol APIProtocol: Sendable {
     func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    @available(*, deprecated)
     func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output
     /// Get a runner job.
     ///
@@ -120,6 +121,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)`.
     func createTest(_ input: Operations.createTest.Input) async throws -> Operations.createTest.Output
+    /// Get the main self-hosted cache endpoint.
+    ///
+    /// Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoint`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)`.
+    func getCacheEndpoint(_ input: Operations.getCacheEndpoint.Input) async throws -> Operations.getCacheEndpoint.Output
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
     /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
@@ -988,10 +996,11 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    @available(*, deprecated)
     public func getCacheEndpoints(
         query: Operations.getCacheEndpoints.Input.Query = .init(),
         headers: Operations.getCacheEndpoints.Input.Headers = .init()
@@ -1193,6 +1202,15 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Get the main self-hosted cache endpoint.
+    ///
+    /// Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoint`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)`.
+    public func getCacheEndpoint(headers: Operations.getCacheEndpoint.Input.Headers = .init()) async throws -> Operations.getCacheEndpoint.Output {
+        try await getCacheEndpoint(Operations.getCacheEndpoint.Input(headers: headers))
     }
     /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
     ///
@@ -9453,6 +9471,21 @@ public enum Components {
                 case repository_url
                 case token
                 case visibility
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/CacheEndpoint`.
+        public struct CacheEndpoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoint/endpoint`.
+            public var endpoint: Swift.String?
+            /// Creates a new `CacheEndpoint`.
+            ///
+            /// - Parameters:
+            ///   - endpoint:
+            public init(endpoint: Swift.String? = nil) {
+                self.endpoint = endpoint
+            }
+            public enum CodingKeys: String, CodingKey {
+                case endpoint
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerWorkflow`.
@@ -19349,7 +19382,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -26163,6 +26196,154 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get the main self-hosted cache endpoint.
+    ///
+    /// Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.
+    ///
+    /// - Remark: HTTP `GET /api/cache/endpoint`.
+    /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)`.
+    public enum getCacheEndpoint {
+        public static let id: Swift.String = "getCacheEndpoint"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoint.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoint.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheEndpoint.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.getCacheEndpoint.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// How long the endpoint configuration can be cached.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/headers/cache-control`.
+                    public var cache_hyphen_control: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hyphen_control: How long the endpoint configuration can be cached.
+                    public init(cache_hyphen_control: Swift.String? = nil) {
+                        self.cache_hyphen_control = cache_hyphen_control
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCacheEndpoint.Output.Ok.Headers
+                /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content/json/endpoint`.
+                        public var endpoint: Swift.String?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - endpoint:
+                        public init(endpoint: Swift.String? = nil) {
+                            self.endpoint = endpoint
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case endpoint
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/endpoint/GET/responses/200/content/application\/json`.
+                    case json(Operations.getCacheEndpoint.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheEndpoint.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheEndpoint.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCacheEndpoint.Output.Ok.Headers = .init(),
+                    body: Operations.getCacheEndpoint.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// Main cache endpoint
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/endpoint/get(getCacheEndpoint)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheEndpoint.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheEndpoint.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
                             response: self
                         )
                     }
