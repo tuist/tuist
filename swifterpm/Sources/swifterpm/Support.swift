@@ -88,17 +88,29 @@ enum SystemProcess {
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
         if forwardOutput {
-            let result = try await Subprocess.run(
+            // Standard error is teed rather than inherited so a failure can report what the
+            // child printed, not only its exit status.
+            let outcome = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
                 environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
-                output: .standardOutput,
-                error: .standardError
-            )
+                output: .standardOutput
+            ) { _, errorSequence in
+                var captured = Data()
+                for try await buffer in errorSequence {
+                    let chunk = buffer.withUnsafeBytes { Data($0) }
+                    FileHandle.standardError.write(chunk)
+                    captured.append(chunk.prefix(max(0, outputLimit - captured.count)))
+                }
+                return captured
+            }
 
-            guard result.terminationStatus.isSuccess else {
-                throw ToolError.message(result.terminationStatus.description)
+            guard outcome.terminationStatus.isSuccess else {
+                let stderrText = String(decoding: outcome.value, as: UTF8.self)
+                throw ToolError.message(
+                    stderrText.isEmpty ? outcome.terminationStatus.description : stderrText
+                )
             }
 
             return Result(stdout: Data(), stderr: Data())
