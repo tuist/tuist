@@ -467,6 +467,7 @@ struct ResolveTests {
                 )
 
                 let scratch = root.appendingPathComponent("scratch")
+                let resolved = ResolvedPins(originHash: nil, pins: [], version: 3)
                 try await WorkspaceRestorer.restorePackage(
                     scratchDir: scratch,
                     packageDir: package,
@@ -475,14 +476,29 @@ struct ResolveTests {
                         packageDir: package, configPath: nil, defaultRegistryURL: nil
                     ),
                     mirrors: try await MirrorConfig.load(packageDir: package, configPath: nil),
-                    resolved: ResolvedPins(originHash: nil, pins: [], version: 3),
+                    resolved: resolved,
                     progress: nil,
                     disableSandbox: true
+                )
+                try await WorkspaceRestorer.writeWorkspaceState(
+                    packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: true
                 )
 
                 #expect(server.requestedPaths == ["/Framework.zip"])
                 let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "app")
                 #expect(restored == "mirrored")
+                let state = try #require(
+                    try JSONSerialization.jsonObject(
+                        with: await fileSystem.readFile(
+                            at: scratch.appendingPathComponent("workspace-state.json").absolutePath
+                        )
+                    ) as? [String: Any]
+                )
+                let object = try #require(state["object"] as? [String: Any])
+                let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+                let source = try #require(artifacts.first?["source"] as? [String: Any])
+                #expect(artifacts.count == 1)
+                #expect(source["url"] as? String == original)
             }
         }
     }
