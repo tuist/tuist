@@ -157,4 +157,67 @@ defmodule Atlas.Slack.InteractionsTest do
     assert reloaded.reminder_version == original_version + 1
     assert DateTime.to_date(reloaded.remind_at) == Date.add(Date.utc_today(), 1)
   end
+
+  test "re-renders the source Slack reminder without snooze buttons after a successful snooze" do
+    user =
+      %User{}
+      |> User.changeset(%{email: "reminder-source@tuist.dev", name: "Reminder Source"})
+      |> Repo.insert!()
+
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+    {:ok, task} = Tasks.create_task(%{title: "Follow up with account", assignee_id: user.id, remind_at: past}, user)
+
+    expect(API, :update_message, fn :company, "D_USER", "1700000000.000200", text, blocks ->
+      assert text =~ "snoozed until next week"
+      rendered = Jason.encode!(blocks)
+      assert rendered =~ "Snoozed until next week"
+      assert rendered =~ "View tasks"
+      refute rendered =~ "task_reminder_snooze:"
+      {:ok, %{"ok" => true}}
+    end)
+
+    payload = %{
+      "type" => "block_actions",
+      "container" => %{"channel_id" => "D_USER", "message_ts" => "1700000000.000200"},
+      "user" => %{"name" => "reminder-source", "profile" => %{"email" => user.email}},
+      "actions" => [
+        %{
+          "action_id" => TasksSlackNotifier.snooze_action_id(:next_week),
+          "value" => task.id
+        }
+      ]
+    }
+
+    assert {:ok, message} = Interactions.handle_interaction(payload, :company)
+    assert message =~ "snoozed until next week"
+  end
+
+  test "keeps the snooze successful when the message refresh call fails" do
+    user =
+      %User{}
+      |> User.changeset(%{email: "reminder-refresh-fail@tuist.dev", name: "Reminder Refresh"})
+      |> Repo.insert!()
+
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+    {:ok, task} = Tasks.create_task(%{title: "Refresh fails", assignee_id: user.id, remind_at: past}, user)
+
+    expect(API, :update_message, fn :company, "D_FAIL", "1700000000.000300", _text, _blocks ->
+      {:error, :message_not_found}
+    end)
+
+    payload = %{
+      "type" => "block_actions",
+      "container" => %{"channel_id" => "D_FAIL", "message_ts" => "1700000000.000300"},
+      "user" => %{"name" => "reminder-refresh-fail", "profile" => %{"email" => user.email}},
+      "actions" => [
+        %{
+          "action_id" => TasksSlackNotifier.snooze_action_id(:end_of_week),
+          "value" => task.id
+        }
+      ]
+    }
+
+    assert {:ok, message} = Interactions.handle_interaction(payload, :company)
+    assert message =~ "snoozed until the end of the week"
+  end
 end
