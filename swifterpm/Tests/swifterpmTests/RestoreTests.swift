@@ -459,6 +459,43 @@ struct RestoreTests {
     }
 
     @Test
+    func writeWorkspaceStateRecordsLocalArtifactBundleTypes() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            try await makeExecutableArtifactBundle(
+                at: package.appendingPathComponent("Binaries/Foo.artifactbundle"),
+                targetName: "Foo"
+            )
+            try await writeCachedManifest(
+                localBinaryTargetManifest(name: "Foo", path: "Binaries/Foo.artifactbundle"),
+                packageDir: package
+            )
+
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package,
+                scratchDir: scratch,
+                resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                disableSandbox: false
+            )
+
+            let statePath = scratch.appendingPathComponent("workspace-state.json")
+            let state = try #require(
+                try JSONSerialization.jsonObject(
+                    with: await fileSystem.readFile(at: statePath.absolutePath))
+                    as? [String: Any])
+            let object = try #require(state["object"] as? [String: Any])
+            let artifacts = try #require(object["artifacts"] as? [[String: Any]])
+            let artifact = try #require(artifacts.first)
+            let kind = try #require(artifact["kind"] as? [String: Any])
+            let typedArchive = try #require(kind["typedArtifactsArchive"] as? [String: Any])
+
+            #expect(artifacts.count == 1)
+            #expect(typedArchive["_0"] as? [String] == ["executable"])
+        }
+    }
+
+    @Test
     func writeWorkspaceStateWritesSymlinkedRegistryBinaryArtifacts() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
@@ -1010,7 +1047,20 @@ struct RestoreTests {
 
     private func makeExecutableArtifactBundleZip(root: URL, targetName: String) async throws -> URL {
         let archiveRoot = root.appendingPathComponent("archive")
-        let bundle = archiveRoot.appendingPathComponent("\(targetName).artifactbundle")
+        try await makeExecutableArtifactBundle(
+            at: archiveRoot.appendingPathComponent("\(targetName).artifactbundle"),
+            targetName: targetName
+        )
+        let zipPath = root.appendingPathComponent("\(targetName).artifactbundle.zip")
+        try await SystemProcess.run(
+            "/usr/bin/zip",
+            ["-qry", zipPath.path, "\(targetName).artifactbundle"],
+            workingDirectory: archiveRoot
+        )
+        return zipPath
+    }
+
+    private func makeExecutableArtifactBundle(at bundle: URL, targetName: String) async throws {
         let binary = bundle.appendingPathComponent("\(targetName)/bin/\(targetName)")
         try await fileSystem.makeDirectory(
             at: binary.deletingLastPathComponent().absolutePath,
@@ -1037,13 +1087,6 @@ struct RestoreTests {
             """,
             to: bundle.appendingPathComponent("info.json")
         )
-        let zipPath = root.appendingPathComponent("\(targetName).artifactbundle.zip")
-        try await SystemProcess.run(
-            "/usr/bin/zip",
-            ["-qry", zipPath.path, "\(targetName).artifactbundle"],
-            workingDirectory: archiveRoot
-        )
-        return zipPath
     }
 
     private func makeXCFrameworkZip(

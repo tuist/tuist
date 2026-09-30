@@ -573,7 +573,7 @@ enum WorkspaceRestorer {
                 return [BinaryArtifact(path: directory, kind: ["xcframework": [:]])]
             }
             if directory.pathExtension == "artifactbundle" {
-                return [BinaryArtifact(path: directory, kind: try await artifactsArchiveKind(bundle: directory))]
+                return [BinaryArtifact(path: directory, kind: await artifactsArchiveKind(bundle: directory))]
             }
         }
         var result: [BinaryArtifact] = []
@@ -584,7 +584,7 @@ enum WorkspaceRestorer {
             if entry.pathExtension == "xcframework" {
                 result.append(BinaryArtifact(path: entry, kind: ["xcframework": [:]]))
             } else if entry.pathExtension == "artifactbundle" {
-                result.append(BinaryArtifact(path: entry, kind: try await artifactsArchiveKind(bundle: entry)))
+                result.append(BinaryArtifact(path: entry, kind: await artifactsArchiveKind(bundle: entry)))
             } else {
                 let nestedArtifacts = try await binaryArtifacts(in: entry)
                 result.append(contentsOf: nestedArtifacts)
@@ -596,13 +596,10 @@ enum WorkspaceRestorer {
     /// SwiftPM 6.2+ migrates the legacy `artifactsArchive` kind to a bundle with no
     /// artifact types, so it no longer treats an executable bundle as executable and
     /// fails the build. Record the types from `info.json` the way SwiftPM's own resolve does.
-    private static func artifactsArchiveKind(bundle: URL) async throws -> [String: Any] {
+    private static func artifactsArchiveKind(bundle: URL) async -> [String: Any] {
         var types: [String] = []
-        let infoPath = bundle.appendingPathComponent("info.json")
-        if try await fileSystem.exists(infoPath.absolutePath),
-           let info = try? JSONSerialization.jsonObject(
-               with: await fileSystem.readFile(at: infoPath.absolutePath)
-           ) as? [String: Any],
+        if let data = try? await fileSystem.readFile(at: bundle.appendingPathComponent("info.json").absolutePath),
+           let info = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let artifacts = info["artifacts"] as? [String: Any]
         {
             types = artifacts.sorted { $0.key < $1.key }.compactMap {
