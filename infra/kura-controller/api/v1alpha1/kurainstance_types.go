@@ -400,15 +400,16 @@ type ReplicaRecoveryRequest struct {
 }
 
 type ReplicaRecoveryStatus struct {
-	Request    ReplicaRecoveryRequest `json:"request"`
-	Phase      string                 `json:"phase"`
-	SourcePod  string                 `json:"sourcePod"`
-	SourceUID  string                 `json:"sourceUID"`
-	PVCName    string                 `json:"pvcName"`
-	PVName     string                 `json:"pvName"`
-	StartedAt  string                 `json:"startedAt"`
-	VerifiedAt string                 `json:"verifiedAt,omitempty"`
-	Message    string                 `json:"message,omitempty"`
+	SourceIncarnation string                 `json:"sourceIncarnation"`
+	Request           ReplicaRecoveryRequest `json:"request"`
+	Phase             string                 `json:"phase"`
+	SourcePod         string                 `json:"sourcePod"`
+	SourceUID         string                 `json:"sourceUID"`
+	PVCName           string                 `json:"pvcName"`
+	PVName            string                 `json:"pvName"`
+	StartedAt         string                 `json:"startedAt"`
+	VerifiedAt        string                 `json:"verifiedAt,omitempty"`
+	Message           string                 `json:"message,omitempty"`
 }
 
 // PrimaryPromotionRequest records positive external fencing of an exact old

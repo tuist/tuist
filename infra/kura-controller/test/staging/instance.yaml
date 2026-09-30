@@ -1,0 +1,37 @@
+apiVersion: kura.tuist.dev/v1alpha1
+kind: KuraInstance
+metadata:
+  name: kura-spec98
+  namespace: kura-spec98
+spec:
+  accountHandle: spec98-validation
+  tenantID: spec98-validation
+  region: spec98
+  image: ghcr.io/tuist/kura:spec98-47e8-v2
+  servingMode: PositiveFenceV1
+  replicas: 2
+  storageClassName: scw-local-nvme
+  storageSize: 8Gi
+  cpuCeilingMilli: 1000
+  memoryFloorMib: 256
+  memoryCeilingMib: 768
+  nodeSelector:
+    node.cluster.x-k8s.io/instance-type: ovh
+  tolerations:
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+    - key: tuist.dev/runner-cache
+      operator: Exists
+      effect: NoSchedule
+  extraEnv:
+    - name: KURA_REPLICATION_PULL
+      value: "true"
+    - name: KURA_BACKFILL_ENABLED
+      value: "true"
+    - name: KURA_AUTH_ENABLED
+      value: "false"
+    - name: KURA_CAS_CAPACITY_BYTES
+      value: "4294967296"
+    - name: KURA_TMP_DIR_MAX_BYTES
+      value: "268435456"

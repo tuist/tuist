@@ -526,4 +526,55 @@ mod tests {
         assert!(a.admit().is_err());
         assert!(p.publish(|| Ok(())).is_ok());
     }
+
+    #[tokio::test]
+    async fn expired_admitted_write_cannot_publish_a_real_inline_manifest() {
+        let ctx = crate::test_support::test_context(|_| {}).await;
+        let a = authority();
+        a.install(grant(&a, 1)).unwrap();
+        let permit = a.admit().unwrap();
+        a.active.lock().unwrap().as_mut().unwrap().deadline = Instant::now();
+        let result = scope(
+            permit,
+            ctx.state.store.persist_inline_artifact_from_bytes(
+                crate::artifact::producer::ArtifactProducer::Xcode,
+                "tenant/project",
+                "expired",
+                "text/plain",
+                b"must not publish",
+            ),
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(a.mutations(), 0);
+    }
+
+    #[test]
+    fn dirty_volume_cannot_reopen_after_expiry_or_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut a = authority();
+        let marker = dir.path().join(".kura.primary-unclean");
+        Arc::get_mut(&mut a).unwrap().marker = Some(marker.clone());
+        a.install(grant(&a, 1)).unwrap();
+        assert!(marker.exists());
+        a.active.lock().unwrap().as_mut().unwrap().deadline = Instant::now();
+        assert!(a.install(grant(&a, 1)).is_err());
+        assert!(a.install(grant(&a, 2)).is_err());
+        assert!(!a.peer_safe());
+        let mut restarted = authority();
+        Arc::get_mut(&mut restarted).unwrap().marker = Some(marker);
+        assert!(restarted.install(grant(&restarted, 2)).is_err());
+        assert!(!restarted.peer_safe());
+    }
+
+    #[test]
+    fn revocation_cannot_acknowledge_without_a_retained_barrier() {
+        let a = authority();
+        let mut g = grant(&a, 1);
+        a.install(g.clone()).unwrap();
+        g.phase = "Revoking".into();
+        assert!(a.install(g).is_err());
+        assert_eq!(a.revoked_epoch.load(Ordering::SeqCst), 0);
+        assert!(a.admit().is_err());
+    }
 }

@@ -379,3 +379,161 @@ pub fn spawn(state: SharedState) {
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        artifact::producer::ArtifactProducer, serving_authority::Grant, sync::feed::SyncPosition,
+        test_support::test_context,
+    };
+
+    #[tokio::test]
+    async fn named_barrier_checks_inline_segment_tombstone_and_holds_corpus() {
+        let ctx = test_context(|config| {
+            config.serving_authority = Some(crate::serving_authority::AuthorityConfig {
+                instance: "test".into(),
+                namespace: "test".into(),
+                instance_uid: "test".into(),
+                pod_uid: "test".into(),
+                host: "test".into(),
+            });
+        })
+        .await;
+        let state = &ctx.state;
+        let inline = state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "test/project",
+                "inline",
+                "text/plain",
+                b"inline",
+            )
+            .await
+            .unwrap();
+        let segment = state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "test/project",
+                "segment",
+                "application/octet-stream",
+                &vec![42; 128 * 1024],
+            )
+            .await
+            .unwrap();
+        state.store.delete_namespace("test/deleted").await.unwrap();
+        let tombstone = state
+            .store
+            .namespace_tombstone_version("test/deleted")
+            .unwrap()
+            .unwrap();
+        let mut source = state.runtime.authority.identity().clone();
+        source.pod_uid = "source".into();
+        let intent = Intent {
+            id: "named".into(),
+            destination: state.runtime.authority.identity().clone(),
+            source_url: "http://source".into(),
+            destination_url: "http://destination".into(),
+            deadline_ms: crate::utils::now_ms() + 300_000,
+        };
+        let grant = Grant {
+            epoch: 1,
+            holder: source.clone(),
+            phase: "Quiescing".into(),
+            expires_ms: crate::utils::now_ms() + 15_000,
+            handover: Some(intent.clone()),
+            barrier: None,
+        };
+        let _ = state.runtime.authority.install(grant);
+        let receipt = Receipt {
+            id: intent.id.clone(),
+            source: source.clone(),
+            destination: intent.destination.clone(),
+            incarnation: 7,
+            head: 9,
+            frontier_ms: 100,
+            records: 3,
+            digest: "full-corpus".into(),
+        };
+        let request = |begin, record, receipt| VerifyRequest {
+            begin,
+            intent: intent.clone(),
+            source: source.clone(),
+            record,
+            receipt,
+        };
+        assert!(
+            verify_inner(state, request(true, None, Some(receipt.clone())))
+                .await
+                .is_err()
+        );
+        state
+            .store
+            .write_sync_cursor(
+                &intent.source_url,
+                SyncPosition {
+                    incarnation: 7,
+                    seq: 9,
+                },
+            )
+            .unwrap();
+        verify_inner(state, request(true, None, Some(receipt.clone())))
+            .await
+            .unwrap();
+        for (kind, id, version) in [
+            (
+                BackfillRecordKind::InlineArtifact,
+                inline.artifact_id.as_str(),
+                inline.version_ms,
+            ),
+            (
+                BackfillRecordKind::SegmentArtifact,
+                segment.artifact_id.as_str(),
+                segment.version_ms,
+            ),
+            (
+                BackfillRecordKind::NamespaceTombstone,
+                "test/deleted",
+                tombstone,
+            ),
+        ] {
+            let expected = record(state, kind, id, version).await.unwrap().unwrap();
+            let mut wrong = expected.clone();
+            wrong.digest.push('0');
+            assert!(
+                verify_inner(state, request(false, Some(wrong), None))
+                    .await
+                    .is_err()
+            );
+            verify_inner(state, request(false, Some(expected), None))
+                .await
+                .unwrap();
+        }
+        assert!(
+            state
+                .store
+                .persist_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "test/project",
+                    "later",
+                    "text/plain",
+                    b"later"
+                )
+                .await
+                .is_err()
+        );
+        assert!(state.store.delete_namespace("test/project").await.is_err());
+        verify_inner(state, request(false, None, Some(receipt.clone())))
+            .await
+            .unwrap();
+        assert_eq!(
+            *state.runtime.authority.barrier.lock().unwrap(),
+            Some(receipt)
+        );
+        let mut wrong_destination = request(false, None, None);
+        wrong_destination.intent.destination.incarnation.push('x');
+        assert!(verify_inner(state, wrong_destination).await.is_err());
+    }
+}

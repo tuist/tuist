@@ -195,6 +195,11 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 		grant = servingGrant{Epoch: 1, Holder: holder, PodName: candidate, Phase: "Serving", ExpiresMS: now + 15000, Reason: "Initial fenced activation"}
 	case "Serving":
+		sourceReport := samples[grant.PodName].ServingAuthority
+		if sourceReport.Observed != nil && sourceReport.Observed.Epoch == grant.Epoch && !sourceReport.Valid {
+			grant.Phase, grant.Reason = "Fencing", "Holder reports expired or refused authority; positive fencing required"
+			break
+		}
 		handover := instance.Spec.PlannedHandover
 		if handover != nil && handover.ID != "" && handover.ID != grant.LastHandover && now < grant.ExpiresMS-2000 {
 			target, present := holders[handover.PodName]

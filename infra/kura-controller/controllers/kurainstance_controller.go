@@ -3632,7 +3632,7 @@ func (r *KuraInstanceReconciler) reclaimDataVolume(ctx context.Context, pvc *cor
 		}
 		return err
 	}
-	if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+	if pv.Annotations[recoveryQuarantine] != "" || pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
 		return nil
 	}
 	before := pv.DeepCopy()
@@ -3668,7 +3668,7 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 			}
 			return err
 		}
-		if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		if pv.Annotations[recoveryQuarantine] != "" || pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
 			continue
 		}
 		before := pv.DeepCopy()

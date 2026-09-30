@@ -175,6 +175,7 @@ pub struct StorageSnapshotData {
 
 pub struct Store {
     pub(crate) handover_hold: Arc<StdMutex<Option<String>>>,
+    handover_enabled: bool,
     startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
     io: IoController,
@@ -1463,6 +1464,7 @@ impl Store {
             newest_listed_version_seeded: AtomicBool::new(false),
             sync_feed: Arc::new(sync_feed),
             handover_hold: Arc::new(StdMutex::new(None)),
+            handover_enabled: config.serving_authority.is_some(),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: AtomicU64::new(0),
             wal_pending_seq: AtomicU64::new(0),
@@ -4609,6 +4611,7 @@ impl Store {
         let removals = std::mem::take(&mut cascade.removals);
         let removal_log = Arc::clone(&self.action_cache_removals);
         let handover_hold = self.handover_hold.clone();
+        let handover_enabled = self.handover_enabled;
         let pressure_write_guards: Vec<_> =
             cascade.pressure_write_guards.values().cloned().collect();
         #[cfg(test)]
@@ -4635,10 +4638,11 @@ impl Store {
                     hook();
                 }
             }
-            let hold = handover_hold
-                .lock()
+            let hold = handover_enabled
+                .then(|| handover_hold.lock())
+                .transpose()
                 .map_err(|_| "handover hold poisoned".to_string())?;
-            if hold.is_some() {
+            if hold.as_deref().is_some_and(|hold| hold.is_some()) {
                 return Err("retained corpus frozen for planned handover".into());
             }
             let result = db.write(batch).map_err(|error| error.to_string());
@@ -9291,10 +9295,12 @@ impl Store {
             crate::serving_authority::current_permit().as_ref(),
             || {
                 let hold = self
-                    .handover_hold
-                    .lock()
+                    .handover_enabled
+                    .then(|| self.handover_hold.lock())
+                    .transpose()
                     .map_err(|_| "handover hold poisoned")?;
-                if hold.is_some() && label != "handover receipt" {
+                if hold.as_deref().is_some_and(|hold| hold.is_some()) && label != "handover receipt"
+                {
                     return Err("retained corpus frozen for planned handover".into());
                 }
                 self.db
@@ -9363,14 +9369,19 @@ impl Store {
             .clone();
         let permit = crate::serving_authority::current_permit();
         let handover_hold = self.handover_hold.clone();
+        let handover_enabled = self.handover_enabled;
         tokio::task::spawn_blocking(move || {
             #[cfg(test)]
             if let Some(observer) = observer {
                 observer(std::thread::current().id());
             }
             let result = crate::serving_authority::publish(permit.as_ref(), || {
-                let hold = handover_hold.lock().map_err(|_| "handover hold poisoned")?;
-                if hold.is_some() && label != "handover receipt" {
+                let hold = handover_enabled
+                    .then(|| handover_hold.lock())
+                    .transpose()
+                    .map_err(|_| "handover hold poisoned")?;
+                if hold.as_deref().is_some_and(|hold| hold.is_some()) && label != "handover receipt"
+                {
                     return Err("retained corpus frozen for planned handover".into());
                 }
                 db.write_opt(batch, &write_options)

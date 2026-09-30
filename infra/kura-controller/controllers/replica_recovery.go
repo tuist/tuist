@@ -87,7 +87,7 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 	for i := range pods {
 		pod := &pods[i]
 		sample, fresh := samples[pod.Name]
-		if pod.Name == primary && pod.Name != request.PodName && pod.Spec.NodeName != request.HostName && podReady(pod) && fresh && runtimeStatusServing(sample) && sample.BackfillInitialCycle == backfillCycleComplete {
+		if pod.Name == primary && pod.Name != request.PodName && pod.Spec.NodeName != request.HostName && podReady(pod) && fresh && runtimeStatusServing(sample) && sample.BackfillInitialCycle == backfillCycleComplete && sample.ServingAuthority.Identity.Incarnation != "" {
 			source = pod
 		}
 	}
@@ -97,7 +97,7 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 	if err := r.acquireRecoverySlot(ctx, instance, request.ID); err != nil {
 		return true, err
 	}
-	if progress != nil && progress.Phase != "Verified" && (progress.SourcePod != source.Name || progress.SourceUID != string(source.UID)) {
+	if progress != nil && progress.Phase != "Verified" && (progress.SourcePod != source.Name || progress.SourceUID != string(source.UID) || progress.SourceIncarnation != samples[source.Name].ServingAuthority.Identity.Incarnation) {
 		return true, fmt.Errorf("recovery source incarnation changed; explicit investigation required")
 	}
 	pvc := &corev1.PersistentVolumeClaim{}
@@ -132,6 +132,7 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 			return true, fmt.Errorf("fence and promote the survivor before rebuilding the old primary")
 		}
 		progress = &kurav1alpha1.ReplicaRecoveryStatus{Request: *request, Phase: "Quarantining", SourcePod: source.Name, SourceUID: string(source.UID), PVCName: pvcName, PVName: pv.Name, StartedAt: time.Now().UTC().Format(time.RFC3339)}
+		progress.SourceIncarnation = samples[source.Name].ServingAuthority.Identity.Incarnation
 		if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 			return true, err
 		}

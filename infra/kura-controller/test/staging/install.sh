@@ -21,4 +21,5 @@ helm template spec98 infra/helm/tuist --namespace kura-spec98 \
   --set kuraController.servingAuthority.enabled=true \
   --set kuraController.telemetry.deploymentEnvironment=staging > "$scratch/controller.yaml"
 kubectl apply -f "$scratch/controller.yaml"
+kubectl apply -f infra/kura-controller/test/staging/api-partition.yaml
 kubectl -n kura-spec98 rollout status deployment/spec98-tuist-kura-controller --timeout=180s
