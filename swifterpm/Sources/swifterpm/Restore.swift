@@ -269,7 +269,8 @@ enum WorkspaceRestorer {
                 guard actualChecksum.caseInsensitiveCompare(checksum) == .orderedSame else {
                     try? await fileSystem.removePath(archivePath)
                     throw ToolError.message(
-                        "\(targetName) checksum mismatch: expected \(checksum), got \(actualChecksum)"
+                        "\(targetName) checksum mismatch for \(remoteURL.absoluteString): "
+                            + "expected \(checksum), got \(actualChecksum)"
                     )
                 }
             }
