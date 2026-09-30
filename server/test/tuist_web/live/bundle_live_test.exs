@@ -133,6 +133,46 @@ defmodule TuistWeb.BundleLiveTest do
     end
   end
 
+  describe "patching params" do
+    test "rebuilds the sunburst data when the filter changes", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project)
+      path = ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}"
+      {:ok, lv, _html} = live(conn, path)
+      render_patch(lv, path <> "?duplicates-page=1")
+
+      # When
+      render_patch(lv, path <> "?filter=small")
+
+      # Then
+      data = lv |> element("#bundle-size-analysis-sunburst [data-part='data']") |> render()
+      assert data =~ "small.png"
+      refute data =~ "large.png"
+    end
+
+    test "re-sorts the file breakdown when only its sort order changes", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project)
+      path = ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=file-breakdown"
+      {:ok, lv, _html} = live(conn, path)
+      assert file_breakdown_paths(lv) == ["large.png", "small.png"]
+
+      # When
+      render_patch(lv, path <> "&file-breakdown-sort-by=size&file-breakdown-sort-order=asc")
+
+      # Then
+      assert file_breakdown_paths(lv) == ["small.png", "large.png"]
+    end
+  end
+
   describe "duplicate insights" do
     test "renders only the first page of duplicate groups", %{
       conn: conn,
@@ -255,6 +295,27 @@ defmodule TuistWeb.BundleLiveTest do
         }
       ]
     )
+  end
+
+  defp bundle_with_files(project) do
+    files = [
+      %{artifact_type: :asset, path: "App.app/small.png", size: 1024, shasum: "small", children: []},
+      %{artifact_type: :asset, path: "App.app/large.png", size: 4096, shasum: "large", children: []}
+    ]
+
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      install_size: 5120,
+      artifacts: [%{artifact_type: :directory, path: "App.app", size: 5120, shasum: "app", children: files}]
+    )
+  end
+
+  defp file_breakdown_paths(lv) do
+    lv
+    |> render()
+    |> Floki.parse_document!()
+    |> Floki.find("#file-breakdown-table tbody tr")
+    |> Enum.map(fn row -> row |> Floki.find("td") |> hd() |> Floki.text() |> String.trim() end)
   end
 
   defp duplicate_group_count(lv) do

@@ -353,13 +353,13 @@ defmodule Tuist.Bundles do
 
   def install_size_deviation(%Bundle{} = bundle) do
     project = Repo.preload(bundle, :project).project
-    last_bundle = last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
+    install_size_deviation(bundle, last_project_bundle(project, git_branch: project.default_branch, bundle: bundle))
+  end
 
-    if is_nil(last_bundle) do
-      0.0
-    else
-      bundle.install_size / last_bundle.install_size - 1
-    end
+  def install_size_deviation(%Bundle{}, nil), do: 0.0
+
+  def install_size_deviation(%Bundle{} = bundle, %Bundle{} = last_bundle) do
+    bundle.install_size / last_bundle.install_size - 1
   end
 
   def distinct_project_app_bundles(%Project{} = project) do
