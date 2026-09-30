@@ -68,6 +68,7 @@ import TuistServer
     @main
     struct TuistApp: App {
         @StateObject private var bootstrapper = AppBootstrapper()
+        @Environment(\.scenePhase) private var scenePhase
 
         var body: some Scene {
             WindowGroup {
@@ -75,6 +76,11 @@ import TuistServer
                     RootView()
                 } else {
                     ProgressView()
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background {
+                    bootstrapper.uploadLogs()
                 }
             }
         }

@@ -63,6 +63,22 @@
             #expect(contents.contains("safe"))
         }
 
+        @Test func tuist_tokens_url_query_strings_and_email_addresses_are_redacted() {
+            let token = "tuist_0190f5a2-7c1e-7b6a-9e0f-3d2c1b0a9f8e_a1b2c3d4e5f6a7b8c9d0e1f2"
+            let url = "https://storage.example.com/previews/app.zip?X-Amz-Signature=signature"
+
+            let redacted = ApplicationLogStore.redacted("\(token) \(url) someone@example.com")
+
+            #expect(redacted == "[redacted] https://storage.example.com/previews/app.zip?[redacted] [redacted]")
+        }
+
+        @Test func user_names_in_home_directory_paths_are_redacted() {
+            #expect(
+                ApplicationLogStore.redacted("Reading /Users/jane/Library/Developer/app.zip")
+                    == "Reading /Users/[redacted]/Library/Developer/app.zip"
+            )
+        }
+
         @Test(.inTemporaryDirectory)
         @MainActor
         func verbose_http_bodies_are_not_stored() async throws {

@@ -875,6 +875,10 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_FARO_RECEIVER_URL")
   end
 
+  def app_logs_receiver_url do
+    System.get_env("TUIST_APP_LOGS_RECEIVER_URL")
+  end
+
   def object_storage_provider(secrets \\ secrets()) do
     provider =
       System.get_env("TUIST_OBJECT_STORAGE_PROVIDER") ||

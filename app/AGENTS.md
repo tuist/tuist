@@ -24,7 +24,7 @@ The app depends on several CLI modules:
 - `TuistSupport` - Shared utilities
 - `TuistCore` - Core domain models
 - `TuistHTTP` - HTTP client
-- `TuistLogging` - Shared logging, including persistent Apple application logs and support exports
+- `TuistLogging` - Shared logging, including persistent Apple application logs, support exports, and the upload queue for diagnostic logs
 - `TuistAutomation` - Automation utilities
 - `TuistSimulator` - Simulator management
 
@@ -32,6 +32,12 @@ The app depends on several CLI modules:
 - Follow Swift conventions used in the CLI.
 - Use SwiftUI for new UI components.
 - Do not add one-line comments unless truly useful.
+
+## Diagnostic Logs
+Both apps upload their log lines to the server (`POST /api/app/logs`), which forwards them to Loki as `service_name="tuist-app"` attributed to the verified user and their organizations. `ApplicationLogStore.bootstrap()` adds an `ApplicationLogUploadLogHandler` that queues every stored line on disk (`LogUploads` in Application Support), and `ApplicationLogUploader`, started by `AppBootstrapper`, uploads queued batches every five minutes, and on iOS when the app moves to the background, while the user is signed in. Lines logged while signed out upload after the next sign-in.
+
+- Everything logged can leave the device. Never log credentials, request bodies, or personal data beyond the user's handle. `ApplicationLogStore.redacted` strips tokens, JSON Web Tokens, URL query strings, email addresses, and home directory user names, and the server applies the same rules again (`Tuist.AppLogs.Redaction`); keep the two in sync.
+- The macOS app reads credentials from the keychain through task-local overrides, so the uploader's tasks are created inside the same overrides in `AppBootstrapper`.
 
 ## Releasing
 `.github/workflows/app-release.yml` runs on pushes to `main` that touch `app/**`, `mise/tasks/app/**`, or the `cli/Sources/*` modules the app links. Changes to the workflow itself, or to the runner image the release runs on, do not trigger it, so a fix to either one stays unproven until an app path changes.

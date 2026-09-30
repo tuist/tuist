@@ -719,6 +719,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+    post "/app/logs", AppLogsController, :create
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start

@@ -527,6 +527,11 @@ server:
     # Enable only after all server pods contain the gateway (two-phase rollout).
     gateway:
       enabled: false
+  # Loki push endpoint that POST /api/app/logs forwards Tuist app log lines to,
+  # usually the cluster Alloy receiver's loki.source.api. Empty accepts uploads and
+  # discards them, which is what a self-hosted server without Loki wants.
+  appLogs:
+    receiverUrl: ""
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:

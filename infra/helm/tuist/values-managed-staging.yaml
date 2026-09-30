@@ -78,6 +78,10 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
+  # Tuist app logs from POST /api/app/logs go to the cluster Alloy receiver's
+  # Loki push endpoint, the same one Tart guests push to.
+  appLogs:
+    receiverUrl: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:3100/loki/api/v1/push
   kuraCapacityAdmission:
     enabled: true
 
