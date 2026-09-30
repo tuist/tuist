@@ -2,7 +2,10 @@ package cachevolumes
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,7 +33,7 @@ func TestImageArchiveRestoresIncompressibleImageAtCapacity(t *testing.T) {
 		t.Fatal("fixture must exercise compression overhead")
 	}
 	target := filepath.Join(dir, "restored")
-	if err := RestoreImage(bytes.NewReader(compressed), target, digest, int64(len(data))); err != nil {
+	if err := RestoreImage(context.Background(), bytes.NewReader(compressed), target, digest, int64(len(data))); err != nil {
 		t.Fatal(err)
 	}
 	restored, err := os.ReadFile(target)
@@ -52,7 +55,7 @@ func TestImageArchiveRestoresZerosAndRejectsCorruptionAndOversize(t *testing.T) 
 	}
 	compressed, _ := os.ReadFile(archive)
 	target := filepath.Join(dir, "restored")
-	if err := RestoreImage(bytes.NewReader(compressed), target, digest, int64(len(data))); err != nil {
+	if err := RestoreImage(context.Background(), bytes.NewReader(compressed), target, digest, int64(len(data))); err != nil {
 		t.Fatal(err)
 	}
 	restored, _ := os.ReadFile(target)
@@ -65,11 +68,47 @@ func TestImageArchiveRestoresZerosAndRejectsCorruptionAndOversize(t *testing.T) 
 		if name == "corrupt" {
 			hash = "bad"
 		}
-		if err := RestoreImage(bytes.NewReader(compressed), target, hash, limit); err == nil {
+		if err := RestoreImage(context.Background(), bytes.NewReader(compressed), target, hash, limit); err == nil {
 			t.Fatal("accepted", name)
 		}
 		if _, err := os.Stat(target); !os.IsNotExist(err) {
 			t.Fatal("retained unverified image")
 		}
+	}
+}
+
+type cancellingReader struct {
+	io.Reader
+	cancel context.CancelFunc
+}
+
+func (r cancellingReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	r.cancel()
+	return n, err
+}
+func TestRestoreCancellationStopsBufferedExpansionAndRemovesPartialImage(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "image")
+	if err := os.WriteFile(src, make([]byte, 2<<20), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, digest, err := compressImage(src, src+".gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressed, err := os.ReadFile(src + ".gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	target := filepath.Join(dir, "restored")
+	err = RestoreImage(ctx, cancellingReader{bytes.NewReader(compressed), cancel}, target, digest, 2<<20)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("left cancelled restore", err)
 	}
 }

@@ -141,6 +141,21 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end)
   end
 
+  test "pressure days cannot justify growing or shrinking the configured claim" do
+    for occupancy <- [10, 98], capacity_bytes <- [0, 100 * @gibibyte] do
+      days =
+        fitting_days(30, @today,
+          eviction_count: 1,
+          evicted_bytes: capacity_bytes,
+          median_shed_age_seconds: nil,
+          median_ring_span_seconds: nil,
+          max_occupancy_percent: occupancy
+        )
+
+      assert ClaimSizing.evaluate(context(rollups: days)) == :none
+    end
+  end
+
   describe "evaluate/2 growth" do
     test "proposes growth after a sustained streak of churn under the retention floor" do
       # Pro floor is 3 days and the shedding sits just under it, so only the
@@ -443,22 +458,24 @@ defmodule Tuist.Kura.ClaimSizingTest do
       end
     end
 
-    test "enterprise may grow past where the other plans stop" do
-      # The shared promise, funded further: at 64Gi pro is done and
-      # enterprise keeps stepping, in bounded steps, to its own ceiling. This
-      # is also what stops enterprise being a plan that can only ever shrink
+    test "paid plans may grow past where air stops" do
+      # The shared promise, funded further: at 64Gi air is done, while pro and
+      # enterprise keep stepping, in bounded steps, to their own ceiling. This
+      # is also what stops a paid plan being one that can only ever shrink
       # from its starting constant.
       rollups = severe_churn(2, @today)
 
-      assert ClaimSizing.evaluate(context(plan: :pro, current_claim_size: "64Gi", rollups: rollups)) == :none
+      assert ClaimSizing.evaluate(context(plan: :air, current_claim_size: "64Gi", rollups: rollups)) == :none
 
-      assert {:grow, "256Gi", _evidence} =
-               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "64Gi", rollups: rollups))
+      for plan <- [:pro, :enterprise] do
+        assert {:grow, "256Gi", _evidence} =
+                 ClaimSizing.evaluate(context(plan: plan, current_claim_size: "64Gi", rollups: rollups))
 
-      assert {:grow, "256Gi", _evidence} =
-               ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "128Gi", rollups: rollups))
+        assert {:grow, "256Gi", _evidence} =
+                 ClaimSizing.evaluate(context(plan: plan, current_claim_size: "128Gi", rollups: rollups))
 
-      assert ClaimSizing.evaluate(context(plan: :enterprise, current_claim_size: "256Gi", rollups: rollups)) == :none
+        assert ClaimSizing.evaluate(context(plan: plan, current_claim_size: "256Gi", rollups: rollups)) == :none
+      end
     end
 
     test "shedding exactly at a working day falls back to the fractional ladder" do
@@ -554,9 +571,11 @@ defmodule Tuist.Kura.ClaimSizingTest do
     end
 
     test "an account already at its plan ceiling gets no proposal" do
-      context = context(plan: :pro, current_claim_size: "64Gi", rollups: severe_churn(14, @today))
+      for {plan, ceiling} <- [{:air, "64Gi"}, {:pro, "256Gi"}, {:enterprise, "256Gi"}] do
+        context = context(plan: plan, current_claim_size: ceiling, rollups: severe_churn(14, @today))
 
-      assert ClaimSizing.evaluate(context) == :none
+        assert ClaimSizing.evaluate(context) == :none
+      end
     end
 
     test "days at or before the last resize cannot qualify a window" do
@@ -1439,8 +1458,8 @@ defmodule Tuist.Kura.ClaimSizingTest do
       context =
         mixed_context(
           plan: :pro,
-          current_claim_size: "100Gi",
-          region_claim_sizes: %{"us-east" => "100Gi", "ap-southeast" => "16Gi"},
+          current_claim_size: "300Gi",
+          region_claim_sizes: %{"us-east" => "300Gi", "ap-southeast" => "16Gi"},
           rollups: rollups
         )
 

@@ -1,5 +1,6 @@
 import Crypto
 import Foundation
+import GRPCCore
 import SwiftProtobuf
 
 public enum REAPI {
@@ -52,7 +53,7 @@ public enum REAPI {
     }
 }
 
-public enum REAPICacheError: Error, LocalizedError {
+public enum REAPICacheError: Error, LocalizedError, Equatable {
     case unsupportedEndpoint
     case unsupportedProxy
     case proxyConnectionFailed
@@ -61,8 +62,10 @@ public enum REAPICacheError: Error, LocalizedError {
     case invalidTree
     case insufficientSpace
     case transferStalled
+    case uploadFailed(reason: String)
     public var errorDescription: String? {
         switch self {
+        case let .uploadFailed(reason): "The cache did not accept every blob: \(reason)"
         case .invalidDigest: "The cache returned an invalid content digest."
         case .corruptBlob: "The cache content failed its integrity check."
         case .invalidTree: "The cache artifact has an unsupported layout or an unsafe path or symlink."
@@ -75,10 +78,54 @@ public enum REAPICacheError: Error, LocalizedError {
     }
 }
 
+/// A REAPI call, named by its gRPC path: the route a proxy or ingress in front of the cache has to forward.
+public enum REAPICall: String, Sendable {
+    case getCapabilities = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
+    case updateActionResult = "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult"
+    case findMissingBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs"
+    case batchUpdateBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs"
+    case byteStreamWrite = "/google.bytestream.ByteStream/Write"
+
+    var service: String {
+        String(rawValue[..<rawValue.lastIndex(of: "/")!])
+    }
+
+    /// An `unimplemented` answer comes from something that speaks HTTP but does not route the service to
+    /// the cache's gRPC API, such as an ingress that forwards only some REAPI services.
+    public func describeFailure(_ error: any Error) -> String {
+        guard let error = error as? RPCError else { return "\(rawValue) failed: \(REAPI.describe(error))" }
+        if error.code == .unimplemented {
+            return "\(rawValue) is not served by the cache endpoint (\(error.message)), "
+                + "so if a proxy or ingress sits in front of the cache, it must route \(service) to the cache's gRPC API"
+        }
+        let cause = error.cause.map { " (\(REAPI.describe($0)))" } ?? ""
+        return "\(rawValue) failed with \(error.code): \(error.message)\(cause)"
+    }
+}
+
+extension REAPI {
+    public static func describe(_ error: any Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
+}
+
+/// The outcome of publishing blobs, where a blob that failed does not fail the others.
+public struct REAPIBlobUpload: Sendable {
+    /// Blobs the cache holds now, whether this upload sent them or they were already present.
+    public var available: Set<REAPI.Digest>
+    /// Why each blob outside `available` is missing from the cache.
+    public var failures: [REAPI.Digest: String]
+
+    public init(available: Set<REAPI.Digest>, failures: [REAPI.Digest: String] = [:]) {
+        self.available = available
+        self.failures = failures
+    }
+}
+
 public protocol REAPICacheStoring: Sendable {
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult?
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
-    func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
+    func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
     /// Accepts verified blobs as they become available; implementations may report batches. The callback
     /// may move the file into its final cache location. Publication failures exclude that blob
@@ -94,9 +141,9 @@ public protocol REAPICacheStoring: Sendable {
 }
 
 extension REAPICacheStoring {
-    public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+    public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
         try await uploadBlobs(blobs)
-        return Set(blobs.keys)
+        return REAPIBlobUpload(available: Set(blobs.keys))
     }
 
     public func downloadAvailableBlobs(

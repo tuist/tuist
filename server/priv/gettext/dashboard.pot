@@ -639,7 +639,7 @@ msgid "Dashboard"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:572
-#: lib/tuist_web/live/ops_accounts_live.ex:18
+#: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -681,7 +681,7 @@ msgstr ""
 msgid "Account not found."
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_helpers.ex:40
+#: lib/tuist_web/live/ops_account_helpers.ex:41
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr ""
@@ -763,7 +763,7 @@ msgstr ""
 msgid "Cancel plan"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_helpers.ex:42
+#: lib/tuist_web/live/ops_account_helpers.ex:44
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
@@ -1197,7 +1197,7 @@ msgstr ""
 msgid "Thailand"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_helpers.ex:41
+#: lib/tuist_web/live/ops_account_helpers.ex:42
 #, elixir-autogen, elixir-format
 msgid "Trialing"
 msgstr ""
@@ -2894,4 +2894,9 @@ msgstr ""
 #: lib/tuist_web/live/once_cache_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Once Cache"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_helpers.ex:43
+#, elixir-autogen, elixir-format
+msgid "Past due"
 msgstr ""

@@ -205,7 +205,7 @@ metadata:
 spec:
   # The helper Pod runs on the target cache node to create/remove the PV
   # directory, so it has to tolerate whatever taint that node carries:
-  # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
+  # runner-cache (Elastic Metal) or kura-cache (the public OVH cache
   # pools, which also provision scw-local-nvme PVCs).
   tolerations:
     - key: tuist.dev/runner-cache
@@ -346,7 +346,7 @@ spec:
       # node if the scheduler picks it, but it is not pinned there — it runs its
       # helper Pods on the target node regardless of where it sits. runner-cache
       # is the Elastic Metal runner-cache pool; kura-cache is the public-region
-      # pools (Dedibox eu-west, OVH) that also provision scw-local-nvme PVCs.
+      # pools (OVH eu-west and other regions) that also provision scw-local-nvme PVCs.
       tolerations:
         - key: tuist.dev/runner-cache
           operator: Exists
@@ -474,9 +474,6 @@ node for a metrics endpoint.
 {{- $pools := list }}
 {{- if .Values.kuraFleet.enabled }}
 {{- $pools = append $pools (.Values.kuraFleet.nodePool | default "kura-scw-fr-par") }}
-{{- end }}
-{{- if .Values.dediboxFleet.enabled }}
-{{- $pools = append $pools (.Values.dediboxFleet.nodePool | default "kura-dedibox") }}
 {{- end }}
 {{- if .Values.ovhFleet.enabled }}
 {{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") }}

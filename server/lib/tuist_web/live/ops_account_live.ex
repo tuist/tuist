@@ -68,7 +68,7 @@ defmodule TuistWeb.OpsAccountLive do
       :user,
       subscriptions:
         from(s in Subscription,
-          where: s.status in ["active", "trialing"],
+          where: s.status in ^Billing.live_subscription_statuses(),
           order_by: [desc: s.inserted_at]
         )
     ])

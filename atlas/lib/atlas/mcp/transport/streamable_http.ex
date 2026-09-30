@@ -271,8 +271,12 @@ defmodule Atlas.MCP.Transport.StreamableHTTP do
 
   defp notification?(request), do: Map.has_key?(request, "method") and not Map.has_key?(request, "id")
 
+  # Names the interface rather than leaving it to the audit default, so callers
+  # that gate on it (the proxy's Atlas identity header) can allowlist it.
   defp handle_message(conn, request, opts) do
-    opts[:server].handle_message(conn, request)
+    conn
+    |> assign(:audit_interface, "mcp")
+    |> opts[:server].handle_message(request)
   end
 
   defp get_store(opts) do

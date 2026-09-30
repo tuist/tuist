@@ -361,13 +361,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"], spec["cpuCeilingMilli"]}
       end
 
-      # The floor is the standing reservation, so the tier that gets the larger
-      # one is the tier that pays for a guarantee. The ceiling — how large a
-      # burst Kura admits before shedding — moves with it. The CPU ceiling is
+      # The floor is the standing reservation and descends with the tier. The
+      # ceiling — how large a burst Kura admits before shedding — is shared by
+      # the paid tiers. The CPU ceiling is
       # the same grant for the other compressible resource; its floor is absent
       # because the controller observes that per instance.
       assert profile.(:enterprise) == {1024, 4096, true, 4000}
-      assert profile.(:pro) == {512, 3072, true, 2000}
+      assert profile.(:pro) == {512, 4096, true, 4000}
       assert profile.(:air) == {256, 768, true, 1000}
     end
 
@@ -1622,7 +1622,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert Enum.uniq([air, pro, enterprise]) == [air, pro, enterprise]
       assert String.contains?(air, "+mem256-768")
-      assert String.contains?(pro, "+mem512-3072")
+      assert String.contains?(pro, "+mem512-4096")
       assert String.contains?(enterprise, "+mem1024-4096")
     end
 
