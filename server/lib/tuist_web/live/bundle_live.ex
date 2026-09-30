@@ -22,7 +22,6 @@ defmodule TuistWeb.BundleLive do
 
   def mount(%{"bundle_id" => bundle_id}, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     bundle = get_selected_bundle(bundle_id, selected_project)
-    bundle = %{bundle | artifacts: Enum.map(bundle.artifacts, &slim_artifact/1)}
     current_user = socket.assigns[:current_user]
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
@@ -691,21 +690,6 @@ defmodule TuistWeb.BundleLive do
     end)
     |> Enum.sort_by(& &1.size)
     |> Enum.reverse()
-  end
-
-  # Every derived assign references these nodes for the LiveView's lifetime, so keep only
-  # the fields the page reads.
-  defp slim_artifact(artifact) do
-    %{
-      id: artifact.id,
-      artifact_id: artifact.artifact_id,
-      artifact_type: artifact.artifact_type,
-      path: artifact.path,
-      size: artifact.size,
-      shasum: artifact.shasum,
-      collapsed?: artifact.collapsed?,
-      children: Enum.map(artifact.children, &slim_artifact/1)
-    }
   end
 
   defp flatten_artifacts(artifacts) do

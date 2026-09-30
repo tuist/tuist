@@ -264,10 +264,7 @@ defmodule Tuist.Bundles do
           path: a.path,
           size: a.size,
           shasum: a.shasum,
-          artifact_id: a.artifact_id,
-          bundle_id: a.bundle_id,
-          inserted_at: a.inserted_at,
-          updated_at: a.updated_at
+          artifact_id: a.artifact_id
         }
       )
       |> ClickHouseRepo.all()
