@@ -69,33 +69,20 @@ qualified regions until an explicit allowed-canonical-domain policy is added
 and tested. Unknown or mistyped domains must never become public automatically.
 An ORD–SCL private interconnect is not provisioned by this PR.
 
-## Physical qualification
+## Qualification scope
 
-The [Chicago evidence](../../kura/test/e2e/provider-topology/vultr-chicago-qualification-2026-09-28.json)
-records qualification on the two existing bare-metal hosts under a scoped human
-production window. Both VPC attachments and manual secondary-NIC configuration
-worked without rebooting. Both directions passed unfragmented 1500-byte traffic
-with assigned private addresses and with existing public node identities.
-Actual Cilium VXLAN carried an isolated four-peer Kura fixture between the hosts.
+The initial Chicago qualification used two existing bare-metal hosts and
+verified manual attachment without reboot, bidirectional 1500-byte paths,
+private Cilium VXLAN, authenticated Kura replication, failure without public data
+fallback, recovery, cold backfill and mixed versions. Temporary fixture resources
+and host configuration were removed afterward; provider attachments remain for
+controller adoption. The [PR validation record](https://github.com/tuist/tuist/pull/13676)
+contains the tested revisions, capture counts and measured results.
 
-All 12 runtime checks passed, including a 33 MiB exact-byte transfer, mTLS
-rejection, observed fixture-only private failure without canonical data fallback,
-recovery, cold backfill, mixed versions and tombstones. A second 33 MiB transfer
-used immediate captures filtered to the fixture PodIPs: both private NICs saw
-thousands of matching packets and both public NICs saw zero. The earlier broad
-node capture had two unconsumed public-filter counter hits and is not used to
-claim zero public traffic across the entire host. Bounded ten-second TCP tests
-reached approximately 200 Mbps in both directions with zero retransmits.
-
-Temporary fixture resources, peer routes and secondary-interface configuration
-were removed after qualification. Provider attachments are retained for the
-controller to adopt on merge. No production runtime was deliberately restarted.
-The evidence separates endpoint/pod snapshots from continuous availability
-monitoring. This test does not prove saturation throughput, N-1 capacity,
-Santiago transport or persistence across a production reboot. Persistence uses
-the shared host service already exercised by the OVH rollout; Chicago was not
-restarted solely to test it. Controller reconciliation is tested locally; the
-new controller image was not deployed during this qualification window.
+This qualified the Chicago path. It did not establish saturation throughput,
+N-1 capacity, Santiago transport or persistence across a production reboot.
+The new Vultr controller was tested locally, not deployed in that qualification
+window. New hosts and controller changes still need appropriate validation.
 
 ## Repeating qualification
 
@@ -147,9 +134,6 @@ go run ./cmd/vultr-vpc --region scl --description tuist-kura-production-scl --ci
 
 Vultr's [published pricing comparison](https://marketing-sales-files.sjc1.vultrobjects.com/vultr-vs-do-saas-pricing.pdf)
 lists VPC as free. NAT gateways are paid and unnecessary for these hosts.
-The [provisioning evidence](../../kura/test/e2e/provider-topology/vultr-network-provisioning-2026-09-28.json)
-and [initial investigation](../../kura/test/e2e/provider-topology/vultr-attachment-investigation-2026-09-28.json)
-are historical observations preceding physical qualification.
 
 Rollback is explicit: hold topology publication and runtime rollout, withdraw
 runtime topology through the normal rollout, then remove the controller-owned

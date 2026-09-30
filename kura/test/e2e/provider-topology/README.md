@@ -16,6 +16,9 @@ Each container has two CPUs, a 1.5 GiB cgroup limit and a 3 GiB cache capacity.
 It reserves loopback ports 4291–4293 and removes only its own containers and
 network. Keep the output directories distinct: each contains temporary test
 certificates as well as the resource traces.
+Keep these generated files out of the repository. Record measured results and
+limitations in the associated PR, then remove the temporary output directories
+when they are no longer needed.
 
 The corpus is 64 seeded and 256 subsequent 1 MiB objects, written round-robin
 across all three origins. Every seed must replicate byte-for-byte to all nodes

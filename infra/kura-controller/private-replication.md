@@ -199,198 +199,23 @@ configuration one host at a time only if necessary, with the public fallback
 budget understood. Do not detach a network carrying live replication, delete a
 Machine/PVC, reinstall a host, or retire an attached paid service as rollback.
 
-### Initial local validation, 2026-09-28
+## Qualification record and ongoing coverage
 
-The topology, sync and TLS/configuration suites passed (6, 40 and 4 tests).
-The backfill and discovery/body suites passed another 53 and 3 tests (106
-focused native tests total). A sandboxed backfill attempt could not bind local
-listeners; it passed after rerunning with local networking permission.
-The Docker ShellSpec mTLS suite passed both examples, including writes from
-all three origin regions reaching every peer. The release Docker image built,
-Clippy passed with warnings denied, and the standalone Helm chart rendered
-with topology disabled and enabled; topology without peer TLS was rejected.
-Bazel was attempted first but stopped in the lz4 dependency because the installed
-Xcode 27 SDK exposed an undeclared absolute `SDKSettings.json` header. Cargo was
-used for native checks after that toolchain failure.
+[PR #13676](https://github.com/tuist/tuist/pull/13676) preserves the initial
+staging, OVH and Chicago qualification results, tested revisions, resource
+comparisons and limitations. One-off deployment fixtures and dated snapshots
+are historical evidence, not maintained deployment inputs.
 
-The [resource harness](../../kura/test/e2e/provider-topology/README.md) ran
-sequentially against merge base `5ae561d04bf2b3580d96b5ab675ab0c98dd47afa`
-and the changed release image on the same Docker Linux host. Both completed
-320 × 1 MiB writes, 768 verified load reads, and 192 seed verification reads,
-with no read failures. Each replicated the entire corpus to both other nodes.
-Load lasted 63.79 / 63.95 seconds, followed by 30 seconds of cooldown. Values
-below aggregate three nodes; memory peaks sum simultaneous two-second samples.
+The maintained coverage consists of Rust routing/replication regressions, the
+[ShellSpec mTLS suite](../../kura/spec/e2e/mtls_spec.sh), the
+[local resource harness](../../kura/test/e2e/provider-topology/README.md), and the
+[host path checker](verify-private-path.sh). Repeat the qualification sequence
+above when adding a host or routing domain; store run-specific captures and
+results with that rollout's record.
 
-| Measurement | Merge base | Change |
-| --- | ---: | ---: |
-| Process CPU seconds | 35.38 | 34.82 |
-| CPU seconds / client GiB | 28.304 | 27.856 |
-| Anonymous memory peak / cooldown, MiB | 594.35 / 376.03 | 495.18 / 331.85 |
-| Allocator allocated peak / cooldown, MiB | 80.48 / 28.42 | 66.12 / 28.24 |
-| Allocator resident peak / cooldown, MiB | 257.24 / 75.60 | 196.75 / 69.29 |
-| Highest pressure tier / capacity sheds | normal / 0 | normal / 0 |
-| Transient reservation peak, MiB | 5.50 | 10.00 |
-| Data-volume bytes | 1,008,069,421 | 1,008,070,281 |
-| Segment refresh bytes | 0 | 0 |
-| Client egress / peer applied payload, MiB | 960 / 640 | 960 / 640 |
-| Interface transmit bytes, MiB | 1,624.66 | 1,624.16 |
-
-The higher instantaneous transient reservation remained below 1% of the aggregate
-1,152 MiB reservation capacity, with no pressure or shedding. Disk differed by
-860 bytes of metadata; payload retention and transfer counts were equal. This
-single bounded run found no CPU, retained-memory, disk or egress regression; it
-does not establish a statistically significant improvement or long-term behavior.
-An earlier 8 MiB warm-up overlapped compilation and was discarded. Raw final
-samples and process/cgroup snapshots are retained locally in
-`/tmp/kura-private-resource-{before,after}-final/`.
-
-### Review corrections: local validation, 2026-09-28
-
-All 54 focused tests passed: 42 sync, 6 membership/body/discovery, and 6
-configuration/topology tests. New regressions exercise forward pages without a
-head start, local siblings excluded from donor preference, cancellation,
-asymmetric private probes with stable local gateway election, failed route probes
-preserving advertised traffic state, a real six-second canonical status response,
-and wrong-tenant responses completing discovery without adding peers. Provider-only
-configuration fails at startup. Clippy with warnings denied, formatting, and
-whitespace checks passed. The corrected release Docker build and local three-node
-mTLS ShellSpec suite passed (2 examples, 0 failures).
-
-The resource harness ran sequentially again after compilation finished. The
-baseline image's source, Cargo manifests/lockfile and Dockerfile were compared
-byte-for-byte with current merge base `9abf2c87f8da51ae566d7f80f203d424e4b6b970`.
-The corrected image was `sha256:d786e802c2027ce9eff3da501fdcccb21e8de1865a4d0a5a4d4bc2a3b569ac92`.
-Both runs completed the same 320 one-MiB writes, 768 load reads, 192 seed
-verification reads and full replication, with zero failures. Load lasted
-63.784 / 63.783 seconds, followed by the same 30-second cooldown.
-
-| Measurement | Main baseline | Review corrections |
-| --- | ---: | ---: |
-| Process CPU seconds | 22.03 | 20.29 |
-| CPU seconds / client GiB | 17.624 | 16.232 |
-| Anonymous memory peak / cooldown, MiB | 441.73 / 290.55 | 359.16 / 273.05 |
-| Allocator allocated peak / cooldown, MiB | 55.93 / 28.34 | 50.56 / 28.28 |
-| Allocator resident peak / cooldown, MiB | 194.72 / 65.93 | 154.60 / 65.57 |
-| Highest pressure / capacity sheds | normal / 0 | normal / 0 |
-| Transient reservation peak, MiB | 3.00 | 3.00 |
-| Data-volume bytes | 1,008,069,282 | 1,008,070,811 |
-| Segment refresh bytes | 0 | 0 |
-| Client egress / peer applied payload, MiB | 960 / 640 | 960 / 640 |
-| Interface transmit, MiB | 1623.98 | 1624.14 |
-
-Disk differed by 1,529 metadata bytes and network transmit by 168,924 bytes
-(about 0.01%); payload retention/transfer totals were identical. No pressure,
-shedding or segment refresh occurred. No material regression appeared in this
-bounded run; lower CPU/memory is not a statistically established improvement.
-Raw samples are local in `/tmp/kura-review-resource-{before,after}/`.
-That earlier staging validation covers the pre-review image only. The later
-physical qualification below tests the corrected runtime. Ordinary deployments
-may replace the temporary staging image; there is no persistent staging pin.
-
-### Physical qualification and remaining limits
-
-The staging OVH pair has demonstrated bidirectional physical private reachability,
-1500-byte IP MTU without fragmentation, private/public interface captures and
-fail-closed host routing. Disabling the private NIC produced no public peer
-packets; the persistent unreachable route prevented fallback, and connectivity
-recovered after restoration. These host-network observations were followed by
-the Cilium/Kura end-to-end qualification below. A bounded 15-second TCP test in each
-direction sustained approximately 199 Mbps at a 200 Mbps cap with zero TCP
-retransmissions. This is a tested rate, not maximum capacity or N-1 headroom.
-An unreachable preparation peer left existing route configuration unchanged and
-healthy traffic working. Distinct zero-cost canary and production vRacks were
-delivered and their cache hosts attached through the existing private NICs.
-
-The [physical staging evidence](../../kura/test/e2e/provider-topology/staging/validation-private-underlay-2026-09-28.json)
-records all 12 fixture checks passing across the actual OVH BHS/GRA pair and a
-Scaleway peer. Both physical hosts captured bidirectional Cilium VXLAN on their
-private NICs and zero matching public peer packets. Taking down the GRA private
-NIC broke direct private mTLS while cross-provider replication advanced; captures
-still contained zero public peer packets. Direct private mTLS recovered after
-restoring the interface and repair timer. Production has its own evidence below;
-no Vultr VPC is qualified by these observations.
-
-The [canary and production evidence](../../kura/test/e2e/provider-topology/validation-managed-ovh-2026-09-28.json)
-records 12 passing E2E checks in each environment with the corrected runtime.
-Production's 11 OVH cache hosts passed all 110 directed private paths with
-1500-byte IP packets and fragmentation forbidden, covering GRA, WAW, VIN, HIL
-and SGP. Every host has ten preferred private routes, ten unreachable fallback
-guards, a persistent repair timer, and its original public default route.
-Address reservations are persisted separately from Helm-owned configuration.
-
-Production's disposable runtime fixture used Virginia and Hillsboro plus a
-Scaleway peer; the initially selected GRA hosts lacked unreserved CPU. Both OVH
-physical NIC captures showed private VXLAN in both directions and zero matching
-public peer packets. All 388 non-fixture production pods in the Kura namespace
-were Ready in both before/after snapshots; a concurrent StatefulSet revision
-replaced one pod before route installation. This is not a continuous
-availability measurement. No managed pod was restarted for qualification.
-Production fault injection changed only the fixture's NetworkPolicy, never a
-live host NIC. Two 15-second private TCP runs between VIN and HIL sustained
-199.1 and 200.0 Mbps at a 200 Mbps cap, with zero retransmissions. Private-bound
-listeners terminated and the test daemon remains disabled. The fixtures were
-removed after recording the results.
-
-Canary has one OVH cache host, so its same-provider fixture replicas are
-colocated. Its attachment, persistent configuration and runtime tests passed,
-but this cannot prove a two-host canary private path. Qualify any future host
-before claiming that path. The initial canary fixture encountered HTTP 400
-responses from its temporary TLS audit proxy with a roughly 92-second host clock
-offset. Restarting only that fixture after certificate validity cleared the
-responses, and the complete rerun passed; cached validation state is a suspected,
-not confirmed, cause.
-
-These are bounded correctness/path tests, not production saturation or N-1
-rebuild-capacity measurements. Capacity qualification remains necessary before
-raising replication budgets. The later Chicago Vultr qualification independently
-confirmed manual attachment without reboot and the private Cilium path; see its
-provider guide. These OVH observations do not qualify Vultr or ORD–SCL.
-
-The equal-canonical/private-URL runtime correction also passed two sequential
-before/after resource comparisons, recorded in
-[the resource evidence](../../kura/test/e2e/provider-topology/validation-underlay-resources-2026-09-28.json).
-Each run completed the same 320 writes and 768 load reads with zero failures,
-normal memory pressure, no shedding and identical payload totals. The first
-pair's higher cooldown anonymous memory did not recur in the repeat; both runs
-are retained, and no statistically significant improvement is claimed.
-
-### Staging deployment and E2E validation, 2026-09-28
-
-The [Linux Bazel image build](https://github.com/tuist/tuist/actions/runs/36412698258)
-succeeded for commit `dcb6a17aad0f`, publishing
-`ghcr.io/tuist/kura:sha-dcb6a17aad0f`. The isolated staging test mesh ran that
-image on the existing Dedibox, OVH BHS and Scaleway cache hosts. Synthetic
-`test-provider-a` / `test-provider-b` metadata exercised policy decisions;
-these hosts are **not** being claimed as one verified private routing domain.
-That initial test had no Vultr host or qualified OVH vRack pair.
-
-The [reusable fixture and validation instructions](../../kura/test/e2e/provider-topology/staging/README.md)
-and [recorded results](../../kura/test/e2e/provider-topology/staging/validation-2026-09-28.json)
-cover:
-
-- Four nodes / three origins, with same-region siblings and all-origin writes
-  arriving byte-for-byte at every node.
-- Batched bodies and a 33 MiB individual body; both canonical and private
-  entrances reject missing client certificates.
-- A NetworkPolicy blackhole of replica B's private port, while its canonical
-  endpoint remains reachable. Private probes reported failure, cross-provider
-  replication continued, and canonical audit logs contained **zero**
-  same-provider data requests. The audit observed 1,058 same-provider discovery
-  requests and 796 cross-provider data requests across the fixture run.
-- Recovery after lifting the blackhole; cold sibling restart and full backfill;
-  bidirectional overlap with previous staging image `sha-c07fa5b26287`; upgrading
-  that peer again and restoring all eight retained test objects.
-- Namespace deletion markers reaching every node. All four final reports were
-  ready, serving, initial catch-up complete, and at normal memory pressure.
-
-The initial Service-port fault was rejected by the test because pooled
-connections survived it. The policy blackhole replaced that ineffective
-injection; a successful data test without an observed failure was not counted.
-All disposable fixture resources were removed after retaining the evidence.
-
-These initial staging results apply to image `sha-dcb6a17aad0f`, before the review
-corrections to scheduling, probe-health isolation, configuration and legacy
-discovery. Those corrections received local regression validation and the later
-physical qualifications above. Normal staging deployments may replace the
-temporary runtime pin. No persistent chart pin is introduced. Historical deployment observations
-belong in the private operational record; check live state before any rollback.
+The initial OVH qualification covered physical staging and production paths;
+canary had only one physical host, so its colocated replicas did not qualify a
+host pair. Chicago qualification does not qualify Santiago or an ORD–SCL private
+interconnect. Bounded tests near 200 Mbps do not establish saturation throughput
+or N-1 rebuild capacity. Later code changes require their own appropriate
+validation; historical captures are tied to their tested revisions.
