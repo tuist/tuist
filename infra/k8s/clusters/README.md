@@ -67,7 +67,7 @@ the tenant-repo copies are then retired to a pointer.
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx42 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 | `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
 
@@ -124,6 +124,30 @@ The safe prerequisite is a third pre-ordered production runner host and
 a matching replica increase. That gives the MachineDeployment spare
 capacity to create and verify a current-revision node before an old node
 is drained.
+
+## Resizing the control plane
+
+`hcloudControlPlaneMachineType` is patched into the control-plane
+`HCloudMachineTemplate`, so changing it makes the topology controller
+create a new template and roll the `KubeadmControlPlane`. KCP uses its
+default rolling update (`maxSurge: 1`): it adds a fourth member on the new
+type, which joins etcd as a learner and is promoted to a voter, then removes
+one old member. It repeats that three times. Each step replaces a Hetzner
+server, so the control-plane nodes get new names and public IPs.
+
+Merging a change under `workloads/` is the apply: Flux reconciles it within
+ten minutes. Before merging:
+
+- Roll the same change on staging first.
+- Confirm etcd has three healthy voters and the KCP reports three
+  up-to-date, Ready replicas.
+- Pick an off-peak window with no server deploy running or queued.
+
+The control-plane `MachineHealthCheck` never remediates a member that fails
+to register a Node (`nodeStartupTimeoutSeconds: 0`), so a stuck join halts
+the roll with four Machines rather than looping. Delete the stuck Machine in
+`org-tuist`, then decide whether to retry or revert. Reverting the type is
+another full roll, not an undo.
 
 ## Adapting from caph upstream
 
