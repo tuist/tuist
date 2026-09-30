@@ -32,6 +32,9 @@ Mimic.copy(Atlas.Browser, type_check: true)
 Mimic.copy(Atlas.MCP.Tools.SearchWeb, type_check: true)
 Mimic.copy(Atlas.Briefs.Config, type_check: true)
 Mimic.copy(Atlas.Slack.API, type_check: true)
+Mimic.copy(Atlas.SupportInbox.Agents.ClassifierAgent, type_check: true)
+Mimic.copy(Atlas.SupportInbox.Classifier, type_check: true)
+Mimic.copy(Atlas.Agents.Sessions, type_check: true)
 Mimic.copy(Atlas.FeatureUsage.Collector, type_check: true)
 Mimic.copy(Atlas.TuistOverview, type_check: true)
 Mimic.copy(Atlas.FeatureUsage.UsageNotifier, type_check: true)
@@ -83,5 +86,5 @@ Mimic.copy(Atlas.Engineering.Errors.Summaries, type_check: true)
 # affects how long a failing assertion waits; a passing one returns immediately.
 # `refute_receive` keeps the tighter default, since waiting longer there costs
 # real time on every run.
-ExUnit.start(assert_receive_timeout: 1_000)
+ExUnit.start(assert_receive_timeout: 1_000, exclude: [:external])
 Ecto.Adapters.SQL.Sandbox.mode(Atlas.Repo, :manual)

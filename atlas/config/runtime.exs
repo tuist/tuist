@@ -148,7 +148,15 @@ config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
   from_email: System.get_env("ATLAS_SUPPORT_FROM_EMAIL", "contact@tuist.dev"),
-  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID")
+  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID"),
+  # Env var wins in every environment. In production only, fall back to the
+  # shared `#support-filtered` channel in the Tuist workspace so silenced
+  # classifications still land somewhere without manual wiring. Dev, test,
+  # and any downstream fork stay unset unless they set the env explicitly —
+  # otherwise a locally booted Atlas could cross-post into prod Slack.
+  slack_filtered_channel_id:
+    System.get_env("ATLAS_SUPPORT_FILTERED_SLACK_CHANNEL_ID") ||
+      if(config_env() == :prod, do: "C0C5LBMM278")
 
 config :atlas, :support_chat, parent_origins: support_chat_parent_origins
 

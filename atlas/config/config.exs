@@ -35,6 +35,7 @@ alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 alias Ueberauth.Strategy.Google
@@ -117,7 +118,10 @@ config :atlas, Oban,
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
-       {"* * * * *", ErrorsSummaryWorker}
+       {"* * * * *", ErrorsSummaryWorker},
+       # Weekly digest of inbound emails the classifier silenced so
+       # the team stays aware of what was filtered.
+       {"0 9 * * 1", SupportInboxWeeklyDigest}
      ]},
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
