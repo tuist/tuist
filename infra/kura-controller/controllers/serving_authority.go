@@ -77,9 +77,13 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	result := ctrl.Result{RequeueAfter: 2 * time.Second}
 	instance := &kurav1alpha1.KuraInstance{}
 	if err := r.Get(ctx, req.NamespacedName, instance); err != nil {
+		if apierrors.IsNotFound(err) {
+			forgetServingMetrics(req.Namespace, req.Name)
+		}
 		return result, client.IgnoreNotFound(err)
 	}
 	if !fencedServing(instance) || instance.DeletionTimestamp != nil {
+		forgetServingMetrics(req.Namespace, req.Name)
 		return ctrl.Result{}, nil
 	}
 	if !r.Enabled {
@@ -155,6 +159,8 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}(pod)
 	}
 	probes.Wait()
+	observeAuthority(instance, grant, samples[grant.PodName].ServingAuthority)
+	observeRecovery(instance)
 	// Grants are already committed before they can reach this publication path.
 	// A stale route never authorizes the old writer; its runtime fences locally.
 	primary, routeErr := helper.fencedPrimary(ctx, instance, samples)
@@ -293,7 +299,16 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return result, err
 	}
 	cm.Data["grant"] = string(data)
-	return result, r.Patch(ctx, cm, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{}))
+	if err := r.Patch(ctx, cm, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
+		return result, err
+	}
+	var previous servingGrant
+	_ = json.Unmarshal([]byte(before.Data["grant"]), &previous)
+	if previous.Phase != grant.Phase || previous.Epoch != grant.Epoch {
+		ctrl.LoggerFrom(ctx).Info("serving authority transitioned", "from", previous.Phase, "to", grant.Phase, "epoch", grant.Epoch, "pod", grant.PodName, "reason", grant.Reason)
+	}
+	observeAuthority(instance, grant, samples[grant.PodName].ServingAuthority)
+	return result, nil
 }
 
 func (r *ServingAuthorityReconciler) ensureIdentity(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {

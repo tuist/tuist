@@ -126,6 +126,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
       assert after_manifest["spec"]["servingMode"] == "PositiveFenceV1"
       revision = "tuist.dev/kura-manifest-revision"
+
       assert after_manifest["metadata"]["annotations"][revision] ==
                before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
     end

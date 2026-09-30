@@ -67,7 +67,9 @@ async fn record(
             _ => Ok(None),
         };
     }
-    let Some(manifest) = state.store.manifest(id)? else {
+    // The commit hold freezes RocksDB, while a pre-hold writer may still be
+    // updating its manifest cache. Verify the frozen authoritative row.
+    let Some(manifest) = state.store.manifest_from_db(id)? else {
         return Ok(None);
     };
     if manifest_version_ms(&manifest) != version {
@@ -429,6 +431,29 @@ mod tests {
             .namespace_tombstone_version("test/deleted")
             .unwrap()
             .unwrap();
+        let mut stale = inline.clone();
+        stale.version_ms -= 1;
+        state.store.seed_stale_manifest_cache(stale.clone());
+        assert_eq!(
+            state
+                .store
+                .manifest(&inline.artifact_id)
+                .unwrap()
+                .unwrap()
+                .version_ms,
+            stale.version_ms
+        );
+        assert!(
+            record(
+                state,
+                BackfillRecordKind::InlineArtifact,
+                &inline.artifact_id,
+                inline.version_ms
+            )
+            .await
+            .unwrap()
+            .is_some()
+        );
         let mut source = state.runtime.authority.identity().clone();
         source.pod_uid = "source".into();
         let intent = Intent {

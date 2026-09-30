@@ -3,7 +3,9 @@ package controllers
 import (
 	"context"
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,6 +64,31 @@ func TestReplicaRecoveryResumesJournalAndPreservesSurvivor(t *testing.T) {
 	}
 	if instance.Status.ReplicaRecovery.Phase != "Rebuilding" {
 		t.Fatal(instance.Status.ReplicaRecovery)
+	}
+	instance.Spec.NodeSelector = map[string]string{"pool": "available"}
+	if err := r.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	replacement := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-0", Namespace: "test", UID: "replacement"}, Spec: corev1.PodSpec{NodeSelector: map[string]string{"pool": "paused"}}, Status: corev1.PodStatus{Phase: corev1.PodPending}}
+	if err := r.Create(ctx, replacement); err != nil {
+		t.Fatal(err)
+	}
+	replacementClaim := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: "data-test-0", Namespace: "test", UID: "replacement-claim"}}
+	if err := r.Create(ctx, replacementClaim); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.reconcileReplicaRecovery(ctx, instance, []corev1.Pod{*replacement, *survivor}, samples, "test-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(replacement), &corev1.Pod{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("obsolete unscheduled replacement was not recreated: %v", err)
+	}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(replacementClaim), replacementClaim); err != nil || replacementClaim.UID != "replacement-claim" {
+		t.Fatalf("new replacement claim changed: %v", err)
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(instance), sts); err != nil || sts.Spec.Template.Spec.NodeSelector["pool"] != "available" {
+		t.Fatalf("recovery did not resume placement: %v", err)
 	}
 }
 

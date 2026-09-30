@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -100,6 +101,9 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 	if progress != nil && progress.Phase != "Verified" && (progress.SourcePod != source.Name || progress.SourceUID != string(source.UID) || progress.SourceIncarnation != samples[source.Name].ServingAuthority.Identity.Incarnation) {
 		return true, fmt.Errorf("recovery source incarnation changed; explicit investigation required")
 	}
+	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return true, err
+	}
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvcName := "data-" + request.PodName
 	pvcErr := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: pvcName}, pvc)
@@ -183,7 +187,13 @@ func (r *KuraInstanceReconciler) reconcileReplicaRecovery(ctx context.Context, i
 		}
 		next.Phase = "Rebuilding"
 	case "Rebuilding":
-		if pvcErr != nil || string(pvc.UID) == request.PVCUID || pvc.Status.Phase != corev1.ClaimBound {
+		for i := range pods {
+			pod := &pods[i]
+			if pod.Name == request.PodName && string(pod.UID) != request.PodUID && pod.Spec.NodeName == "" && pod.Status.Phase == corev1.PodPending && !reflect.DeepEqual(pod.Spec.NodeSelector, instance.Spec.NodeSelector) {
+				return true, client.IgnoreNotFound(r.Delete(ctx, pod, recoveryDeleteOptions(pod)))
+			}
+		}
+		if pvcErr != nil || string(pvc.UID) == request.PVCUID || pvc.Spec.VolumeName == progress.PVName || pvc.Status.Phase != corev1.ClaimBound {
 			return true, nil
 		}
 		for i := range pods {

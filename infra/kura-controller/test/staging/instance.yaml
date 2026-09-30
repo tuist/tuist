@@ -7,7 +7,7 @@ spec:
   accountHandle: spec98-validation
   tenantID: spec98-validation
   region: spec98
-  image: ghcr.io/tuist/kura:spec98-47e8-v2
+  image: ghcr.io/tuist/kura:REPLACE_WITH_QUALIFIED_CANDIDATE
   servingMode: PositiveFenceV1
   replicas: 2
   storageClassName: scw-local-nvme

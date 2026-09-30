@@ -666,6 +666,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
+		instance.Status.Phase = "Pending"
+		instance.Status.Message = "No acknowledged serving authority; inspect the durable serving grant"
+	}
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now

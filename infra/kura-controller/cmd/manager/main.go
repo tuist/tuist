@@ -84,11 +84,18 @@ func main() {
 	}
 
 	managerOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "kura-controller.kura.tuist.dev",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "kura-controller.kura.tuist.dev",
+		LeaderElectionReleaseOnCancel: true,
+	}
+	if servingAuthority {
+		leaseDuration, renewDeadline, retryPeriod := 5*time.Second, 3*time.Second, time.Second
+		managerOptions.LeaseDuration = &leaseDuration
+		managerOptions.RenewDeadline = &renewDeadline
+		managerOptions.RetryPeriod = &retryPeriod
 	}
 	if watchNamespace != "" {
 		managerOptions.Cache = cache.Options{

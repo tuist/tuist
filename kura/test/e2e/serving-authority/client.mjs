@@ -56,17 +56,29 @@ try {
     assert.equal((await write(sessions[1])).status,204);
     console.log(JSON.stringify({mode,epoch:after.epoch,retainedHTTP:true,retainedGRPC:true,oldPersistentHTTPRejected:true,oldPersistentGRPCRejected:true}));
   } else {
+    const lateBlob=Buffer.from(`started-before-expiry-completed-after-${key}`);
+    const lateHash=createHash('sha256').update(lateBlob).digest('hex');
+    const split=Math.floor(lateBlob.length/2);
+    const lateStream=sessions[0].request({':method':'POST',':path':'/google.bytestream.ByteStream/Write','content-type':'application/grpc','te':'trailers'});
+    const lateResult=new Promise((resolve,reject)=>{let headers={},trailers={};lateStream.on('response',h=>headers=h);lateStream.on('trailers',h=>trailers=h);lateStream.on('data',()=>{});lateStream.on('error',reject);lateStream.on('end',()=>resolve(trailers['grpc-status']??headers['grpc-status']));});
+    lateStream.write(frame(Buffer.concat([field(1,`e2e/uploads/spec98/blobs/${lateHash}/${lateBlob.length}`),field(10,lateBlob.subarray(0,split))])));
+    let admitted=false;
+    for(let i=0;i<20;i++){if((await report(primaryURL)).mutations>0){admitted=true;break;}await sleep(100);}
+    assert(admitted,'streaming write was not admitted before the partition');
     kube('label','pod',primaryPod,'spec98.tuist.dev/api-partition=true','--overwrite');
     policyInstalled=true;
     const observations=[];
-    for(let i=0;i<18;i++){await sleep(2000);const observed=await report(primaryURL);const http=await write(sessions[0]);const grpc=await capabilities(sessions[0]);observations.push({second:(i+1)*2,valid:observed.valid,expires:observed.observed?.expires_ms,http:http.status,grpc:grpc.grpc??String(grpc.status)});}
+    for(let i=0;i<45;i++){await sleep(2000);const observed=await report(primaryURL);const http=await write(sessions[0]);const grpc=await capabilities(sessions[0]);observations.push({second:(i+1)*2,valid:observed.valid,expires:observed.observed?.expires_ms,http:http.status,grpc:grpc.grpc??String(grpc.status)});if(observations.length>=5&&observations.slice(-5).every(x=>!x.valid&&x.http===503&&x.grpc!=='0'))break;}
     console.log(JSON.stringify({mode,observations}));
+    lateStream.end(frame(Buffer.concat([number(2,split),number(3,1),field(10,lateBlob.subarray(split))])));
+    const lateStatus=await lateResult;
+    assert.notEqual(lateStatus,'0','write admitted before expiry published after expiry');
     assert(observations.slice(-5).every(x=>!x.valid&&x.http===503&&x.grpc!=='0'));
     assert.equal((await report(standbyURL)).valid,false,'partition alone promoted standby');
     assert(observations.slice(-5).every(x=>x.expires===observations.at(-1).expires),'API partition did not stop renewal observations');
-    console.log(JSON.stringify({mode,epoch:before.epoch,noTimeoutPromotion:true,observations}));
+    console.log(JSON.stringify({mode,epoch:before.epoch,noTimeoutPromotion:true,lateWriteRejected:true,lateStatus,lateHash,lateSize:lateBlob.length,observations}));
   }
 } finally {
   if(policyInstalled) kube('label','pod',primaryPod,'spec98.tuist.dev/api-partition-');
-  for(const session of sessions)session.close();
+  for(const session of sessions)session.destroy();
 }

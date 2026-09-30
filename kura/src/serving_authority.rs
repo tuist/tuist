@@ -164,10 +164,11 @@ impl ServingAuthority {
                     .map_err(|_| "handover hold poisoned")? = None;
             }
         }
-        if grant.holder != self.identity
-            || grant.epoch == 0
-            || !matches!(grant.phase.as_str(), "Serving" | "Quiescing")
-        {
+        if grant.holder != self.identity || grant.phase == "Preparing" || grant.phase == "Fencing" {
+            *active = None;
+            return Ok(());
+        }
+        if grant.epoch == 0 || !matches!(grant.phase.as_str(), "Serving" | "Quiescing") {
             *active = None;
             return Err("grant identity or phase mismatch".into());
         }
@@ -389,6 +390,28 @@ pub struct AuthorityConfig {
 }
 
 impl AuthorityConfig {
+    pub fn validate_volume(
+        data_dir: &std::path::Path,
+        config: Option<&Self>,
+    ) -> Result<(), String> {
+        use std::io::Write;
+        if data_dir.join(".kura.primary-unclean").exists() {
+            return Err("unclean primary volume: quarantine and rebuild before rejoining; never delete its marker to bypass fencing".into());
+        }
+        let floor = data_dir.join(".kura.serving-floor");
+        match (std::fs::read_to_string(&floor), config) {
+            (Ok(uid), Some(config)) if uid == config.instance_uid => Ok(()),
+            (Ok(_), _) => Err("volume requires its original serving authority; legacy startup and identity reset are forbidden".into()),
+            (Err(error), _) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()),
+            (Err(_), None) => Ok(()),
+            (Err(_), Some(config)) => {
+                std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
+                let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(floor).map_err(|e| e.to_string())?;
+                file.write_all(config.instance_uid.as_bytes()).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
+                std::fs::File::open(data_dir).and_then(|f| f.sync_all()).map_err(|e| e.to_string())
+            }
+        }
+    }
     pub fn from_env() -> Result<Option<Self>, String> {
         let Some(instance) = std::env::var("KURA_SERVING_AUTHORITY").ok() else {
             return Ok(None);
@@ -487,7 +510,7 @@ mod tests {
                 2 => g.holder.incarnation.push('x'),
                 _ => g.holder.host.push('x'),
             };
-            assert!(a.install(g).is_err());
+            let _ = a.install(g);
             assert!(a.admit().is_err());
         }
     }
@@ -576,5 +599,22 @@ mod tests {
         assert!(a.install(g).is_err());
         assert_eq!(a.revoked_epoch.load(Ordering::SeqCst), 0);
         assert!(a.admit().is_err());
+    }
+
+    #[test]
+    fn standby_volume_enforces_rollback_floor_and_instance_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = AuthorityConfig {
+            instance: "i".into(),
+            namespace: "n".into(),
+            instance_uid: "uid".into(),
+            pod_uid: "p".into(),
+            host: "h".into(),
+        };
+        AuthorityConfig::validate_volume(dir.path(), Some(&config)).unwrap();
+        AuthorityConfig::validate_volume(dir.path(), Some(&config)).unwrap();
+        assert!(AuthorityConfig::validate_volume(dir.path(), None).is_err());
+        config.instance_uid.push('x');
+        assert!(AuthorityConfig::validate_volume(dir.path(), Some(&config)).is_err());
     }
 }

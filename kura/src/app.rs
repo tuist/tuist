@@ -127,9 +127,10 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    if config.data_dir.join(".kura.primary-unclean").exists() {
-        return Err("unclean primary volume: quarantine and rebuild before rejoining; never delete its marker to bypass fencing".into());
-    }
+    crate::serving_authority::AuthorityConfig::validate_volume(
+        &config.data_dir,
+        config.serving_authority.as_ref(),
+    )?;
     let runtime = match &config.serving_authority {
         Some(authority) => RuntimeState::with_authority(authority.start(&config.data_dir)?),
         None => RuntimeState::new(),

@@ -16,7 +16,8 @@ than 24 hours after verified replacement. Include them when fulfilling account
 deletion/export requests. No new PostgreSQL or ClickHouse tables are introduced.
 The data volume holds one last receipt at RocksDB key `handover/last-receipt`
 (mirrored in the authority ConfigMap after a successful barrier) and the
-`.kura.primary-unclean` marker containing the last grant. Include the marker and
+`.kura.primary-unclean` marker containing the last grant, plus the
+`.kura.serving-floor` marker containing the activated instance UID. Include these markers and
 retained volume in the account's cache-volume export when those records are
 needed; do not remove the marker to readmit the volume to serving.
 

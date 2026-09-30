@@ -9525,7 +9525,10 @@ impl Store {
         self.existence_cache.trim_to(target_entries)
     }
 
-    fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
+    pub(crate) fn manifest_from_db(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Option<ArtifactManifest>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?
@@ -9559,6 +9562,11 @@ impl Store {
 
     fn maybe_cache_manifest(&self, manifest: ArtifactManifest) {
         self.maybe_cache_manifest_retained(Arc::new(manifest));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seed_stale_manifest_cache(&self, manifest: ArtifactManifest) {
+        self.maybe_cache_manifest(manifest);
     }
 
     fn maybe_cache_manifest_retained(&self, manifest: Arc<ArtifactManifest>) {

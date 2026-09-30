@@ -418,7 +418,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     egress = effective_egress(account, region, entitlements)
 
     revision =
-      manifest_revision_string(region, claim, external_peers, entitlements, egress) <> endpoint_identity_revision(account) <>
+      manifest_revision_string(region, claim, external_peers, entitlements, egress) <>
+        endpoint_identity_revision(account) <>
         serving_revision(account)
 
     annotations = %{@manifest_revision_annotation => revision}

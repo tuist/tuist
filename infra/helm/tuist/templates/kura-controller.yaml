@@ -328,6 +328,10 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:

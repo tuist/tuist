@@ -14,6 +14,9 @@ binds the instance UID, pod UID, process incarnation and node name. Operators
 must qualify node names against distinct physical provider hosts before claiming
 host-loss resilience. Required hostname anti-affinity alone does not establish
 physical independence for virtual workers.
+Measure clock agreement before granting authority. A host outside the bounded
+clock allowance must remain fenced; do not extend the grant lifetime to hide an
+NTP failure. Inspect `kura.serving_authority.unavailable` for lifetime rejection.
 
 A separate reconciliation queue renews 15-second grants. The runtime polls with
 a one-second request timeout on a dedicated OS thread. It checks wall-clock and
@@ -36,6 +39,10 @@ An active primary fsyncs `.kura.primary-unclean` on its data volume. Only a
 successful planned revocation removes it. A crashed/expired primary's volume
 cannot restart into the peer plane, including after the feature flag is removed.
 Quarantine and rebuild it; do not manually erase the marker.
+Every activated volume also fsyncs `.kura.serving-floor` with its instance UID.
+Compatible runtimes reject disabling authority or reusing that volume for another
+instance, including on a clean standby. Older binaries do not understand this
+floor and remain prohibited after activation.
 
 ## Planned handover
 
@@ -79,6 +86,9 @@ ownership; a failed rebuild does not release its slot or escalate to another
 ordinal. Successful verification releases the slot. Investigate interrupted
 journals before any manual release. Resize, evacuation and automatic image
 replacement are excluded for activated instances.
+Placement changes are reconciled during rebuilding. Only a replacement that is
+still unscheduled and has an obsolete node selector is recreated; its new claim
+is retained and the serving sibling is untouched.
 
 Quarantined PVs are excluded from the released-volume reaper indefinitely. Keep
 them at least 24 hours after replacement verification, investigate stale data,
@@ -107,6 +117,13 @@ in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps
 the epoch, phase, reason and fence evidence. Recovery phases/IDs are in the CR's
 status. Inspect these alongside request errors, sync lag and controller errors;
 `Fencing` is a required intervention, not a healthy steady state.
+Controller metrics expose phase gauges and the latest valid-holder observation.
+`serving-authority-alerts.yaml` supplies example rules for fencing, an
+unacknowledged holder and a stalled rebuild; install them in the environment's
+alerting system before activation. They are not installed by the staging fixture.
+The authority-enabled controller uses 5/3/1-second leader lease/renew/retry
+timings and releases leadership on graceful cancellation. A longer interruption
+still expires authority and requires positive fencing.
 
 ## Isolated staging validation
 
@@ -117,3 +134,12 @@ It neither replaces the shared controller nor activates production. The install
 script is `test/staging/install.sh`. Local human credentials intentionally cannot
 create the required RBAC/namespace; never retrieve admin credentials to work
 around that boundary.
+
+The opt-in ShellSpec harness in `kura/spec/e2e/serving_authority_spec.sh`
+exercises existing HTTP/2 and gRPC sessions. Its partition mode leaves the old
+primary fenced: the operator must positively stop it, promote the exact survivor,
+and rebuild the quarantined ordinal. Cilium policy propagation is asynchronous;
+the test waits for observed expiry and sustained rejection rather than treating
+the label write as proof of a partition. Keep physical host power-off tests on
+dedicated hosts; process termination on shared staging hosts does not qualify
+physical host-loss recovery.
