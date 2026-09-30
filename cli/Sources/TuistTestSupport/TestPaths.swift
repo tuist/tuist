@@ -26,10 +26,12 @@ public enum TestPaths {
     }
 
     static func snapshotDirectory(filePath: String, repositoryRoot: AbsolutePath) throws -> AbsolutePath {
-        let prefix = "/^src/"
-        let sourcePath = try filePath.hasPrefix(prefix)
-            ? repositoryRoot.appending(RelativePath(validating: String(filePath.dropFirst(prefix.count))))
-            : AbsolutePath(validating: filePath)
+        // Xcode maps the project directory to `/^src`; with Tuist's Xcode caching, the
+        // later `/^root` mapping of the Tuist root wins for the same repository checkout.
+        let prefixes = ["/^src/", "/^root/"]
+        let sourcePath = try prefixes.first(where: filePath.hasPrefix).map { prefix in
+            try repositoryRoot.appending(RelativePath(validating: String(filePath.dropFirst(prefix.count))))
+        } ?? AbsolutePath(validating: filePath)
         return sourcePath.parentDirectory.appending(components: "__Snapshots__", sourcePath.basenameWithoutExt)
     }
 
