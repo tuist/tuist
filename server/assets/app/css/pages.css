@@ -23,6 +23,8 @@
 @import "./pages/bazel_invocation.css";
 @import "./pages/bazel_invocations.css";
 @import "./pages/bazel_overview.css";
+@import "./pages/once_runs.css";
+@import "./pages/once_run.css";
 @import "./pages/integrations.css";
 @import "./pages/module_cache.css";
 @import "./pages/members.css";

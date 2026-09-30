@@ -1,5 +1,10 @@
 defmodule Tuist.Kura.ReconcilerTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  # Not async: these tests enable and disable :kura_account_endpoint_migration for
+  # their own actors, and a FunWithFlags flag record and its ETS cache are global.
+  # The Ecto sandbox rolls back each test's gates but not the cache, so a
+  # concurrent module's enable overwrites the cached record and this module's
+  # gate reads false.
+  use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   alias Tuist.Accounts

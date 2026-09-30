@@ -465,9 +465,15 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
-  # Dedicated HTTP origin for Bazel build events. Bazel Build Event Service
-  # traffic terminates at Kura, which forwards normalized events only to the
-  # authenticated server webhook exposed by this ingress.
+    # gRPC port for `once.events.v1` (and, later, native BEP). Enabled
+    # per environment; the server also needs `TUIST_ONCE_EVENTS_GRPC=on`
+    # to start the listener on the pod side.
+    grpcPort: 4001
+    grpcTargetPort: 4001
+  # Dedicated origin for build event traffic. Bazel BEP still terminates
+  # at Kura today and posts summaries to the main tuist.dev host; this
+  # ingress fronts the future gRPC surface for `once.events.v1` (and, on
+  # a follow-up, native BEP), routed as gRPC end-to-end.
   bazelEvents:
     enabled: false
     className: nginx
@@ -478,6 +484,13 @@ server:
       nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # Once enabled, the ingress forwards gRPC (HTTP/2 end-to-end) to
+      # the server's grpc port. Rendered when eventsGrpc.enabled is true.
+  # gRPC listener toggle for `once.events.v1`. When enabled, the server's
+  # Service exposes the grpcPort/grpcTargetPort above and the ingress
+  # template picks the GRPC backend protocol.
+  eventsGrpc:
+    enabled: false
   resources: {}
   extraEnv: []
   # Additional env from Secrets or ConfigMaps. List of objects with

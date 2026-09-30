@@ -290,5 +290,6 @@ defmodule TuistWeb.LayoutLive do
   defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
   defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
   defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
+  defp build_system_badge(:once), do: %{label: "Once", color: "primary"}
   defp build_system_badge(_), do: nil
 end

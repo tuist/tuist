@@ -69,3 +69,4 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Runner volume pages follow Jobs card/widget spacing and Job detail headers and metadata. Keep inventory search and tables in Noora card sections, with Volume details above the Overview and Jobs tabs.
 
 - The volume chart uses the shared Noora/ECharts hook, Jobs-style line rendering and count/byte/percentage formatting. Keep its three selectable widgets equal in width and height even when only the storage widgets have trend footers.
+- `build_run.css` shares header and metadata styling between Xcode and Once run details. Keep `once_run.css` limited to Once-specific wrapping and responsive layout.
