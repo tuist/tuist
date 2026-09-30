@@ -1,5 +1,5 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus a
+# 3× cpx42 control plane + 2× cpx32 workers in fsn1, plus a
 # `bare-metal-worker` MachineDeployment that claims Hetzner Robot
 # AX42-U boxes for the Linux runner fleet.
 #
@@ -34,8 +34,11 @@ spec:
     variables:
       - name: region
         value: fsn1
+      # Matches production, where cpx22 control-plane nodes ran out of
+      # memory during deploys. Changing it rolls the control plane one
+      # member at a time, so staging goes first.
       - name: hcloudControlPlaneMachineType
-        value: cpx22
+        value: cpx42
       # Extend the canary-validated fallback to staging. New control-plane
       # kubelets bootstrap through the load-balanced endpoint until their
       # local control-plane endpoint is available.
