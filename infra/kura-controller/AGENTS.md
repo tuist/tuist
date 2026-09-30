@@ -3,6 +3,11 @@
 This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
 
 ## Scope
+- Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
+  Durable CAS epochs and positive fencing own activated instances. Missing-node
+  detection never resets an entire StatefulSet. Persist immutable recovery
+  identities, retain the healthy sibling, quarantine the failed PV, and preserve
+  `OnDelete`/rollback-floor holds across every maintenance path.
 
 - Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
   metrics are omitted rather than recorded as zero; auxiliary-container usage

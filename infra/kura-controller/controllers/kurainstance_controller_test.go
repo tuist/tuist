@@ -2325,7 +2325,7 @@ func legacyPeerServiceForTest(instance *kurav1alpha1.KuraInstance, host string) 
 	}}
 }
 
-func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
+func TestKuraInstanceReconcileStaleStoragePreservesOldVolume(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -2390,13 +2390,13 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
 		t.Fatal(err)
 	}
-	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
-		t.Fatalf("expected stale data PV to be reclaimed with Delete before recreation, got %q", got)
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimRetain {
+		t.Fatalf("expected stale data PV retained, got %q", got)
 	}
 	leftover := &corev1.PersistentVolumeClaim{}
 	err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, leftover)
-	if !apierrors.IsNotFound(err) {
-		t.Fatalf("expected stale data PVC to be deleted, got err=%v", err)
+	if err != nil {
+		t.Fatalf("expected stale data PVC to survive, got err=%v", err)
 	}
 }
 
@@ -3473,7 +3473,7 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		return false
 	}
 
-	t.Run("recreates on storage class drift", func(t *testing.T) {
+	t.Run("holds on storage class drift", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).
 			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old")).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
@@ -3484,15 +3484,15 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		if !inProgress {
 			t.Fatal("expected recreate in progress for storage-class drift")
 		}
-		if exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
-			t.Fatal("expected StatefulSet deleted")
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected StatefulSet retained")
 		}
-		if exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
-			t.Fatal("expected data PVC deleted")
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
 		}
 	})
 
-	t.Run("recreates on node-orphaned volume", func(t *testing.T) {
+	t.Run("holds on node-orphaned volume", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "dead-node"),
 		).Build()
@@ -3504,8 +3504,8 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		if !inProgress {
 			t.Fatal("expected recreate in progress for a volume pinned to a missing node")
 		}
-		if exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
-			t.Fatal("expected data PVC deleted")
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
 		}
 	})
 
@@ -3604,7 +3604,7 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("deletes the pod that holds a stale PVC open", func(t *testing.T) {
+	t.Run("retains the pod that holds a stale PVC open", func(t *testing.T) {
 		// The pvc-protection finalizer keeps a claim alive for as long as a pod
 		// mounts it. A pod this StatefulSet no longer owns -- the Orphan
 		// re-template strips exactly that -- is not collected by the foreground
@@ -3622,8 +3622,8 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		if !inProgress {
 			t.Fatal("expected recreate in progress for storage-class drift")
 		}
-		if exists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}) {
-			t.Fatal("expected the pod holding the stale PVC to be deleted")
+		if !exists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}) {
+			t.Fatal("expected the pod holding the stale PVC to survive")
 		}
 	})
 

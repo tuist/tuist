@@ -10,7 +10,12 @@ on:
     paths:
       - infra/kura-controller/**
       - .github/workflows/kura-controller-image.yml
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      staging_validation:
+        description: Install the controller in the isolated kura-spec98 staging namespace
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -76,7 +81,9 @@ jobs:
           {
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
-            echo "${IMAGE}:latest"
+            if [ "$GITHUB_REF" = refs/heads/main ]; then
+              echo "${IMAGE}:latest"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
@@ -88,3 +95,36 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=kura-controller
           cache-to: type=gha,mode=max,scope=kura-controller
+
+  staging-validation:
+    needs: [format, test, build]
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.staging_validation
+    runs-on: tuist-linux
+    environment: server-k8s-staging
+    concurrency:
+      group: kura-spec98-staging-validation
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load staging deployment identity
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" --vault tuist-k8s-staging --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Install isolated validation controller
+        run: bash infra/kura-controller/test/staging/install.sh "sha-${GITHUB_SHA::12}"
+      - name: Remove deployment credentials
+        if: always()
+        run: rm -f "$KUBECONFIG"

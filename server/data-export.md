@@ -4,6 +4,22 @@ This document outlines all data that Tuist can export for customers upon legal r
 
 ## Export Format
 
+Opt-in managed Kura recovery also stores account operational state in Kubernetes:
+the account's `KuraInstance` spec/status/annotations (recovery IDs, pod/volume/host
+identities, source, phases, timestamps and fence evidence), its `<instance>-serving`
+ConfigMap (current epoch, holder, lease deadline, reason and latest handover
+receipt), and quarantined PV annotations. Export the selected instance and its
+ConfigMap as JSON with `kubectl get ... -o json`, and only PVs whose quarantine
+annotation starts with that instance UID. These records persist for the instance
+lifetime; quarantined volumes persist until explicit operator cleanup, no sooner
+than 24 hours after verified replacement. Include them when fulfilling account
+deletion/export requests. No new PostgreSQL or ClickHouse tables are introduced.
+The data volume holds one last receipt at RocksDB key `handover/last-receipt`
+(mirrored in the authority ConfigMap after a successful barrier) and the
+`.kura.primary-unclean` marker containing the last grant. Include the marker and
+retained volume in the account's cache-volume export when those records are
+needed; do not remove the marker to readmit the volume to serving.
+
 Data is provided in a single compressed archive containing:
 - **Database data**: JSON files with account information, projects, command events, and analytics
 - **Binary files**: All uploaded files (cache artifacts, app previews, icons)

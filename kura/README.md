@@ -4,6 +4,11 @@
 
 # Kura
 
+Managed positive-fence serving is experimental and default off. See the
+[serving authority and recovery runbook](../infra/kura-controller/serving-authority.md)
+for activation, named handover, asynchronous crash-loss semantics and the
+controller/runtime rollback floor. Lease expiry alone never promotes a writer.
+
 `Kura` is a Rust server for building low-latency cache meshes for tenants, handling distributed cache traffic for binary artifacts and metadata.
 
 > [!NOTE]

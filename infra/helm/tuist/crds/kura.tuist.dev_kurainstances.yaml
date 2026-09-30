@@ -52,6 +52,78 @@ spec:
                 - region
                 - image
               properties:
+                plannedHandover:
+                  type: object
+                  required: [id, podName, podUID, incarnation]
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                    podName:
+                      type: string
+                      minLength: 1
+                    podUID:
+                      type: string
+                      minLength: 1
+                    incarnation:
+                      type: string
+                      minLength: 1
+                servingMode:
+                  type: string
+                  enum: [ColocatedLegacy, PositiveFenceV1]
+                replicaRecovery:
+                  type: object
+                  required: [id, podName, podUID, pvcUID, pvUID, hostName, fenceEvidence]
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                    podName:
+                      type: string
+                      minLength: 1
+                    podUID:
+                      type: string
+                      minLength: 1
+                    pvcUID:
+                      type: string
+                      minLength: 1
+                    pvUID:
+                      type: string
+                      minLength: 1
+                    hostName:
+                      type: string
+                      minLength: 1
+                    fenceEvidence:
+                      type: string
+                      minLength: 1
+                primaryPromotion:
+                  type: object
+                  required: [previousEpoch, previousPodUID, previousIncarnation, previousHost, fenceEvidence, podName, podUID, incarnation]
+                  properties:
+                    previousEpoch:
+                      type: integer
+                      minimum: 1
+                    previousPodUID:
+                      type: string
+                      minLength: 1
+                    previousIncarnation:
+                      type: string
+                      minLength: 1
+                    previousHost:
+                      type: string
+                      minLength: 1
+                    fenceEvidence:
+                      type: string
+                      minLength: 1
+                    podName:
+                      type: string
+                      minLength: 1
+                    podUID:
+                      type: string
+                      minLength: 1
+                    incarnation:
+                      type: string
+                      minLength: 1
                 accountHandle:
                   type: string
                   minLength: 1
@@ -234,6 +306,57 @@ spec:
             status:
               type: object
               properties:
+                replicaRecovery:
+                  type: object
+                  properties:
+                    request:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                        podName:
+                          type: string
+                          minLength: 1
+                        podUID:
+                          type: string
+                          minLength: 1
+                        pvcUID:
+                          type: string
+                          minLength: 1
+                        pvUID:
+                          type: string
+                          minLength: 1
+                        hostName:
+                          type: string
+                          minLength: 1
+                        fenceEvidence:
+                          type: string
+                          minLength: 1
+                    phase:
+                      type: string
+                      minLength: 1
+                    sourcePod:
+                      type: string
+                      minLength: 1
+                    sourceUID:
+                      type: string
+                      minLength: 1
+                    pvcName:
+                      type: string
+                      minLength: 1
+                    pvName:
+                      type: string
+                      minLength: 1
+                    startedAt:
+                      type: string
+                      minLength: 1
+                    verifiedAt:
+                      type: string
+                      minLength: 1
+                    message:
+                      type: string
+                      minLength: 1
                 stableEndpoint:
                   type: object
                   required: [host, setIdentifier, awsRegion, ready, observedGeneration]

@@ -65,6 +65,9 @@ const (
 // unreachable region, which is strictly worse than the box staying up until its
 // replacement joins the pool.
 func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if fencedServing(instance) || (instance.Status.ReplicaRecovery != nil && instance.Status.ReplicaRecovery.Phase != "Verified") {
+		return nil
+	}
 	logger := log.FromContext(ctx)
 
 	pods := &corev1.PodList{}

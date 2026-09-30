@@ -173,6 +173,8 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  servingAuthority:
+    enabled: false
   privateReplication:
     enabled: false
   enabled: false

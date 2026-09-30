@@ -127,7 +127,13 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    let runtime = RuntimeState::new();
+    if config.data_dir.join(".kura.primary-unclean").exists() {
+        return Err("unclean primary volume: quarantine and rebuild before rejoining; never delete its marker to bypass fencing".into());
+    }
+    let runtime = match &config.serving_authority {
+        Some(authority) => RuntimeState::with_authority(authority.start(&config.data_dir)?),
+        None => RuntimeState::new(),
+    };
     let mut bootstrap = Bootstrap::start(
         SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port)),
         metrics.clone(),
@@ -361,6 +367,8 @@ async fn initialize_and_serve(
     spawn_snapshot_task(state.clone());
     spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
+    state.runtime.authority.bind_store(state.store.clone());
+    crate::handover::spawn(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
