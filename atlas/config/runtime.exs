@@ -404,7 +404,12 @@ config :atlas, :tax_certificate_profile,
       "ATLAS_TAX_CERTIFICATE_TAX_OFFICE_POSTAL_CODE",
       :tax_office_postal_code
     ),
-  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city)
+  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city),
+  signature_jpeg_base64:
+    tax_certificate_profile_value.(
+      "ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64",
+      :signature_jpeg_base64
+    )
 
 if vector_url = System.get_env("ATLAS_VECTOR_URL") do
   config :atlas, :vector, base_url: vector_url
