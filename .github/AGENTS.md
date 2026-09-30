@@ -4,6 +4,12 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`kura-controller-image.yml` supports explicit isolated staging validation through
+`staging_validation=true` on workflow dispatch. It uses the staging deployment
+environment and installs only the spec98 controller namespace and additive CRD
+fields. Pull requests cannot trigger this job. Branch image builds never publish
+the controller's `latest` tag.
+
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.

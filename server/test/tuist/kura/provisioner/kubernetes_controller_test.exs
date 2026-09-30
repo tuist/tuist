@@ -16,6 +16,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup :set_mimic_from_context
 
   setup do
+    stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
@@ -117,6 +118,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "manifest/6" do
+    test "positive fencing is opt-in and changes the manifest revision" do
+      account = %{name: "tuist"}
+      before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      refute Map.has_key?(before["spec"], "servingMode")
+      stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn ^account -> true end)
+      after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      assert after_manifest["spec"]["servingMode"] == "PositiveFenceV1"
+      revision = "tuist.dev/kura-manifest-revision"
+
+      assert after_manifest["metadata"]["annotations"][revision] ==
+               before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
+    end
+
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

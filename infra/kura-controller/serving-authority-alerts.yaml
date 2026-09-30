@@ -1,0 +1,28 @@
+# Prometheus-compatible rules for installations that activate serving authority.
+# Import into the environment's alert manager before enabling account flags.
+groups:
+  - name: kura-serving-authority
+    rules:
+      - alert: KuraPrimaryRequiresPositiveFence
+        expr: kura_serving_authority_state{phase="Fencing"} == 1
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kura {{ $labels.kura_instance }} requires positive fencing"
+          description: "Inspect the durable serving ConfigMap and exact old holder. Expiry or Node deletion alone does not authorize promotion."
+      - alert: KuraServingGrantNotAcknowledged
+        expr: (kura_serving_authority_state{phase="Serving"} == 1) and on(namespace, kura_instance) (kura_serving_authority_holder_valid == 0)
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kura {{ $labels.kura_instance }} has no acknowledged serving grant"
+      - alert: KuraReplicaRecoveryStalled
+        expr: kura_replica_recovery_state{phase="Rebuilding"} == 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kura {{ $labels.kura_instance }} has reduced redundancy during recovery"
+          description: "Investigate the persisted recovery journal and held rebuild Lease. Do not delete the healthy sibling or release the slot on elapsed time alone."

@@ -3,6 +3,12 @@
 This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
 
 ## Key Boundaries
+- Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
+  See [the recovery runbook](../infra/kura-controller/serving-authority.md).
+  Never promote on timeout alone, reopen a dirty-primary volume, bypass the
+  publication permit on spawned work, or release a retained-corpus hold before
+  authoritative abort/completed transfer. Default-off legacy mode must remain
+  compatible with the preceding runtime.
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
 - Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
