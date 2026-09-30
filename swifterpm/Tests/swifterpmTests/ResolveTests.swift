@@ -426,6 +426,68 @@ struct ResolveTests {
     }
 
     @Test
+    func restoringAMirroredBinaryTargetDownloadsItFromTheMirror() async throws {
+        try await withLocalHTTPServer { server in
+            try await withTemporaryDirectory { root in
+                let archive = root.appendingPathComponent("Framework.zip")
+                try await writeXCFrameworkZip(at: archive, targetName: "Framework", marker: "mirrored")
+                let data = try await fileSystem.readFile(at: archive.absolutePath)
+                server.respond(to: "/Framework.zip", with: [.ok(data)])
+
+                let original = "https://artifacts.invalid/Framework.zip"
+                let package = root.appendingPathComponent("App")
+                try await fileSystem.atomicWrite(
+                    """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+
+                    let package = Package(
+                        name: "App",
+                        targets: [
+                            .binaryTarget(
+                                name: "Framework",
+                                url: "\(original)",
+                                checksum: "\(Hashing.sha256Hex(data))"
+                            ),
+                        ]
+                    )
+                    """,
+                    to: package.appendingPathComponent("Package.swift")
+                )
+                try await fileSystem.makeDirectory(
+                    at: package.appendingPathComponent(".swiftpm/configuration").absolutePath,
+                    options: [.createTargetParentDirectories]
+                )
+                try await fileSystem.atomicWrite(
+                    """
+                    {"object":[{"mirror":"\(server.url(path: "/Framework.zip").absoluteString)",\
+                    "original":"\(original)"}],"version":1}
+                    """,
+                    to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+                )
+
+                let scratch = root.appendingPathComponent("scratch")
+                try await WorkspaceRestorer.restorePackage(
+                    scratchDir: scratch,
+                    packageDir: package,
+                    cache: try await Cache(root: root.appendingPathComponent("cache")),
+                    registryConfig: try await RegistryConfig.load(
+                        packageDir: package, configPath: nil, defaultRegistryURL: nil
+                    ),
+                    mirrors: try await MirrorConfig.load(packageDir: package, configPath: nil),
+                    resolved: ResolvedPins(originHash: nil, pins: [], version: 3),
+                    progress: nil,
+                    disableSandbox: true
+                )
+
+                #expect(server.requestedPaths == ["/Framework.zip"])
+                let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "app")
+                #expect(restored == "mirrored")
+            }
+        }
+    }
+
+    @Test
     func switchingVersionsBackAndForthKeepsEachVersionsCachedBinaryArtifact() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
