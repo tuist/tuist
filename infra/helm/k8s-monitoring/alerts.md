@@ -2036,7 +2036,7 @@ WHERE inserted_at >= now() - INTERVAL 48 HOUR
   AND cacheable_tasks_count > 0
 GROUP BY account_id
 HAVING sum(cacheable_tasks_count) >= 20000
-  AND uniqExact(toDate(inserted_at)) >= 2
+  AND dateDiff('hour', min(inserted_at), max(inserted_at)) >= 24
   AND remote_hit_pct < 1
 ORDER BY sum(cacheable_tasks_count) DESC
 ```
@@ -2048,25 +2048,42 @@ ORDER BY sum(cacheable_tasks_count) DESC
   say) makes every evaluation a new instance whose pending timer starts over.
 - Threshold: `< 1`, repeated in the `HAVING` so only failing accounts come
   back as instances.
-- Pending period: 24 hours
+- Pending period: 24 hours; keep firing for 72 hours. Only failing accounts
+  come back, so an account that stops building over a weekend disappears
+  from the result. Without the grace period that would resolve the alert on
+  Saturday and start the 24-hour pending period over on Monday, one
+  resolved-and-refired pair per week for a cache that never recovered.
 - Severity: warning
 - Production only, since only production builds land in this ClickHouse.
   Folder `Alerts`, group `Cache`. No contact point on the rule: the policy
   tree sends it to `#notifications`. **No Data: Normal**, **Error: Error**.
 - Summary: `Xcode cache remote hit rate is {{ $values.A.Value | printf "%.2f" }}% for account {{ $labels.account_id }} over 48h`
-- Recorded in
-  [`xcode-cache-alert-rules.json`](xcode-cache-alert-rules.json). Create it
-  with the provisioning API (`X-Disable-Provenance: true`, `ruleGroup: Cache`),
-  not `gcx resources push`.
+- **Not created yet.** The rule definition is `xcode-cache-alert-rules.json`
+  next to this file once it lands; create it with the provisioning API
+  (`X-Disable-Provenance: true`, `ruleGroup: Cache`), not
+  `gcx resources push`, and check in the rule preview that the summary
+  renders a per-account value before saving.
 
-`xcode_cache_upload_enabled` is only true on builds from machines where
-`tuist setup cache` installed the CAS proxy, so the query looks only at
-accounts that use the Xcode cache. For those, a working remote cache produces
-remote hits at a rate well above 1% of cacheable tasks: in the 48 hours to
-2026-09-30, every account above the threshold that was known to be healthy
-sat between 4% and 47%, and every one below it had a broken cache. The
-20,000-task floor and the two-build-day requirement keep a single cold build
-from firing it.
+`xcode_cache_upload_enabled` is the project's `xcodeCache.upload` setting
+as reported by `tuist xcodebuild`, and it defaults to `true`. It does not
+say that the machine has the CAS proxy installed, only that the build went
+through the wrapper that would upload if it had one. It still narrows the
+population usefully: builds reported any other way carry `false`, and
+`cacheable_tasks_count` alone is populated for every account whether or not
+it uses the Xcode cache. Two known gaps follow from that. An account that
+runs `tuist xcodebuild` without ever running `tuist setup cache` reports
+zero remote hits and fires; treat that as "the Xcode cache is not set up",
+which is worth a look but not an incident. And machines configured with
+`xcodeCache: .xcodeCache(upload: false)` are excluded even though a dead
+remote cache there is exactly what the rule is for. Closing both needs the
+proxy to report the endpoint it used in the build report.
+
+For accounts with a proxy, a working remote cache produces hits at a rate
+well above 1% of cacheable tasks: in the 48 hours to 2026-09-30, every
+account above the volume floor that was known to be healthy sat between 4%
+and 47%, and every one under 1% had a broken cache. The 20,000-task floor
+and the requirement that the builds span at least 24 hours keep a single
+cold session from firing it.
 
 **What it would have caught.** From 2026-09-11 the CAS proxies of at least
 three accounts were pinned to the legacy cache nodes, which do not speak
@@ -2107,11 +2124,15 @@ start from the account and work outward:
    (`kura-<region>-ingress-nginx`) shows REAPI traffic from the same source,
    the proxy is on Kura and the misses come from the instance: check
    `Kura cache read faults` and the shed state before anything else.
-4. If the proxy is on the legacy lane, the machine has to re-resolve.
-   Proxies from 4.207.0 ask again every ten minutes and move once the server
-   answers with Kura; older ones only move when `tuist setup cache` is run
-   again or the machine restarts. Upgrading the CLI to 4.210.0 or later
-   removes the legacy fallback altogether.
+4. If the proxy is on the legacy lane, the machine has to re-resolve, and
+   do not assume it will on its own. Proxies from 4.207.0 are meant to ask
+   again every ten minutes and move once the server answers with Kura, but
+   in September a 4.207.0 CI proxy stayed pinned for over two weeks while
+   the account's instance was serving and the server answered with it; why
+   is still open. Older proxies only move when `tuist setup cache` is run
+   again or the machine restarts. Ask the account to re-run
+   `tuist setup cache` on the affected machines, and to upgrade the CLI to
+   4.210.0 or later, which removes the legacy fallback altogether.
 
 **Why 24 hours, and why warning.** The window is 48 hours and slides with
 every evaluation of the group, so a 24-hour pending period needs the
@@ -2121,9 +2142,8 @@ that fire once and never again, while an account whose cache is genuinely
 broken still fires on its second day. The replay cannot see intra-day
 dropouts: an account whose 48-hour task count dips under the floor for one
 evaluation resets the pending timer, so a low-volume account can take longer
-than a day to fire. A dead remote cache
-costs build time, not builds, so it should be looked at during the day, not
-paged for.
+than a day to fire. A dead remote cache costs build time, not builds, so it
+should be looked at during the day, not paged for.
 
 ### Kura egress budget almost entirely consumed
 
