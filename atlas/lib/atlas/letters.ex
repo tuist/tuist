@@ -97,7 +97,8 @@ defmodule Atlas.Letters do
          {:ok, letter} <- build_tax_certificate_request(account, attrs, actor),
          {:ok, document} <- store_prepared_letter_document(letter, actor),
          {:ok, letter} <- insert_letter(letter, document),
-         :ok <- audit("letter.tax_certificate_prepared", letter, actor, %{"document_id" => document.id}) do
+         :ok <- audit("letter.tax_certificate_prepared", letter, actor, %{"document_id" => document.id}),
+         {:ok, letter} <- maybe_auto_sign_tax_certificate(letter, document, actor) do
       {:ok, preload_letter(letter)}
     else
       {:error, _reason} = error -> error
@@ -410,6 +411,34 @@ defmodule Atlas.Letters do
   end
 
   def record_webhook(_payload), do: {:error, :invalid_payload}
+
+  # When a signatory JPEG is configured (ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64),
+  # the prepared PDF is already signed and dated, so we skip the manual "attach
+  # signed document" step and advance the letter to collecting_delivery_details,
+  # enqueuing delivery preparation the same way attach_letter_document does. The
+  # human still confirms via confirm_delivery/3 before Pingen mails anything.
+  defp maybe_auto_sign_tax_certificate(letter, document, actor) do
+    if TaxCertificateRequestPDF.signature_configured?() do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      with {:ok, updated} <-
+             update_letter(letter, %{
+               signed_document_id: document.id,
+               signed_uploaded_by_id: actor.id,
+               signed_uploaded_at: now,
+               status: "collecting_delivery_details"
+             }),
+           {:ok, _job} <- enqueue_delivery_preparation(updated),
+           :ok <-
+             audit("letter.tax_certificate_auto_signed", updated, actor, %{
+               "signed_document_id" => document.id
+             }) do
+        {:ok, updated}
+      end
+    else
+      {:ok, letter}
+    end
+  end
 
   defp build_tax_certificate_request(account, attrs, actor) do
     letter = new_tax_certificate_request(account, actor)

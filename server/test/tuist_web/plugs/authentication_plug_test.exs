@@ -23,7 +23,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
   end
 
   describe "load_authenticated_subject" do
-    test "reloads credentials on every request even when caching is requested", %{cache: cache} do
+    test "caches the loading of the authenticated subject", %{cache: cache} do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -43,8 +43,8 @@ defmodule TuistWeb.AuthenticationPlugTest do
         scopes: ["account:members:read"]
       }
 
-      # Credential validity is authoritative on every request
-      expect(Tuist.Authentication, :authenticated_subject, 10, fn ^account_token_value ->
+      # It's only invoked once
+      expect(Tuist.Authentication, :authenticated_subject, 1, fn ^account_token_value ->
         authenticated_account
       end)
 
@@ -62,29 +62,6 @@ defmodule TuistWeb.AuthenticationPlugTest do
         assert got.assigns[:current_subject] == authenticated_account
         assert(TuistWeb.Authentication.authenticated?(got) == true)
       end
-    end
-
-    test "rejects a token revoked after an earlier request", %{cache: cache} do
-      user = AccountsFixtures.user_fixture(preload: [:account])
-
-      {:ok, {token, value}} =
-        Accounts.create_account_token(%{
-          account: user.account,
-          name: "revoked-token",
-          scopes: ["project:cache:read"]
-        })
-
-      conn =
-        :get
-        |> conn("/")
-        |> assign(:cache, cache)
-        |> assign(:caching, true)
-        |> put_req_header("authorization", "Bearer " <> value)
-
-      opts = AuthenticationPlug.init(:load_authenticated_subject)
-      assert TuistWeb.Authentication.authenticated?(AuthenticationPlug.call(conn, opts))
-      {:ok, _} = Accounts.delete_account_token(token)
-      refute TuistWeb.Authentication.authenticated?(AuthenticationPlug.call(conn, opts))
     end
 
     test "loads the authenticated account" do

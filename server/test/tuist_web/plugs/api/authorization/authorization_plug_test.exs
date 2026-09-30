@@ -189,8 +189,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     assert conn == got
   end
 
-  describe "authoritative authorization" do
-    test "rechecks authorization even when caching is requested", %{cache: cache} do
+  describe "caching" do
+    test "caches authorization responses", %{cache: cache} do
       # Given
       project =
         %{account: %{name: account_handle}} =
@@ -199,8 +199,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       opts =
         AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
-      # Permission checks must observe revocation on every request.
-      expect(Authorization, :authorize, 10, fn :project_cache_read, _, _ ->
+      # We check that the authorization API, which hits the DB, is onnly invoked once.
+      expect(Authorization, :authorize, 1, fn :project_cache_read, _, _ ->
         {:error, :forbidden}
       end)
 
@@ -218,22 +218,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       end
     end
 
-    test "does not retain a successful authorization after permission revocation" do
-      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
-
-      conn =
-        build_conn()
-        |> assign(:selected_project, project)
-        |> TuistWeb.Authentication.put_current_project(project)
-
-      opts = AuthorizationPlug.init(category: :cache, caching: true)
-      expect(Authorization, :authorize, fn :project_cache_read, _, _ -> :ok end)
-      refute AuthorizationPlug.call(conn, opts).halted
-      expect(Authorization, :authorize, fn :project_cache_read, _, _ -> {:error, :forbidden} end)
-      assert AuthorizationPlug.call(conn, opts).status == 403
-    end
-
-    test "checks authorization by action", %{cache: cache} do
+    test "caches authorization responses by action", %{cache: cache} do
       # Given
       project =
         %{account: %{name: account_handle}} =

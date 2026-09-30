@@ -7,7 +7,9 @@ defmodule Tuist do
   if it comes from the database, an external API or others.
   """
   use Boundary,
-    deps: [],
+    # `Once` holds the generated `once.events.v1` protobuf and gRPC modules
+    # that `Tuist.OnceEvents` projects from.
+    deps: [Once],
     exports: [
       # Marketing
       # -----
@@ -99,6 +101,13 @@ defmodule Tuist do
       Bazel.ProfileUpload,
       Bazel.Action,
       Bazel.Timeline,
+      OnceEvents,
+      OnceEvents.Analytics,
+      OnceEvents.CacheAnalytics,
+      OnceEvents.Run,
+      OnceEvents.Action,
+      OnceEvents.TestCaseRun,
+      OnceEvents.TestSuiteRun,
       ReapiCache,
       ReapiCache.CacheEvent,
       CacheActionItems,

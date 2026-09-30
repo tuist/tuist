@@ -256,6 +256,8 @@ externalSecrets:
       remoteRef: "atlas-tuist-gmbh/tax_office_postal_code"
     ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY:
       remoteRef: "atlas-tuist-gmbh/tax_office_city"
+    ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64:
+      remoteRef: "atlas-tuist-gmbh/signature_jpeg_base64"
   # Image pull secret (private GHCR). The 1P item's notesPlain holds
   # base64 of a `~/.docker/config.json` snippet for `ghcr.io`.
   pullSecret:

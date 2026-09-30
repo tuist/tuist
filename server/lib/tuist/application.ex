@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.EndpointDrainer
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
@@ -24,7 +25,6 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
-  alias Tuist.Repo.PromExPlugin
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -55,6 +55,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
+    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -81,7 +82,7 @@ defmodule Tuist.Application do
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
-    PromExPlugin.attach()
+    Tuist.Repo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -311,13 +312,12 @@ defmodule Tuist.Application do
     #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
     #   Tuist.ShadowIngestRepo because it was not started or it does not exist
     children =
-      RuntimeChildren.cluster(Application.get_env(:libcluster, :topologies, [])) ++
-        [
-          {DBConnection.TelemetryListener, name: TelemetryListener},
-          {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
-          {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
-          {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
-        ] ++
+      [
+        {DBConnection.TelemetryListener, name: TelemetryListener},
+        {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
+        {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
+        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
+      ] ++
         shadow_ingest_children() ++
         [
           Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
@@ -357,7 +357,6 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
-          Tuist.KeyValueStore.Invalidator,
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
@@ -369,12 +368,8 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [
-          TuistWeb.Endpoint,
-          {Task.Supervisor, name: Tuist.TaskSupervisor},
-          Supervisor.child_spec({Tuist.Application.TaskDrainer, supervisor: Tuist.TaskSupervisor}, shutdown: 35_000),
-          {Oban, Application.fetch_env!(:tuist, Oban)}
-        ]
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        once_events_grpc_children()
 
     children
     |> Kernel.++(
@@ -401,6 +396,14 @@ defmodule Tuist.Application do
            console_address: ":#{console_port}"},
           Tuist.MinioBucketCreator
         ]
+      end
+    )
+    |> Kernel.++(
+      if Environment.tuist_hosted?() do
+        topologies = Application.get_env(:libcluster, :topologies) || []
+        [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+      else
+        []
       end
     )
     |> Kernel.++(
@@ -643,6 +646,26 @@ defmodule Tuist.Application do
   def config_change(changed, _new, removed) do
     TuistWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # gRPC listener for `once.events.v1`. Off by default (mode = env), on
+  # when `TUIST_ONCE_EVENTS_GRPC=on`. The port defaults to 4001 so it does
+  # not collide with the Phoenix endpoint on 4000.
+  defp once_events_grpc_children do
+    if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
+      port =
+        "TUIST_ONCE_EVENTS_GRPC_PORT"
+        |> System.get_env()
+        |> case do
+          nil -> 4001
+          "" -> 4001
+          value -> String.to_integer(value)
+        end
+
+      [{GRPC.Server.Supervisor, endpoint: Tuist.OnceEvents.GRPCEndpoint, port: port, start_server: true}]
+    else
+      []
+    end
   end
 
   def redis_opts do

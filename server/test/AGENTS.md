@@ -53,5 +53,3 @@ This directory contains ExUnit tests for the Tuist Server.
 - Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.
 
 - Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.
-- Standalone cluster verification belongs in [`../verification/`](../verification/AGENTS.md), outside the shared ExUnit environment. Keep the prohibition on configuration mutation in ordinary tests.
-- Agent-auth credential coverage must preserve legacy initialization without requiring a session identifier; the transport intentionally allocates no session state. Keep server-version assertions aligned with the advertised server version.

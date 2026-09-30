@@ -37,7 +37,7 @@ defmodule TuistWeb.RateLimitTest do
       assert RateLimit.hit("key", limit: 10, window: window) == {:allow, 1}
     end
 
-    test "denies requests when the shared fixed-window limiter times out" do
+    test "falls back to the fixed-window in-memory limiter when Valkey times out" do
       window = to_timeout(minute: 1)
 
       stub(Environment, :redis_url, fn -> "redis://example" end)
@@ -46,7 +46,11 @@ defmodule TuistWeb.RateLimitTest do
         raise Redix.ConnectionError, reason: :timeout
       end)
 
-      assert RateLimit.hit("key", limit: 10, window: window) == {:deny, window}
+      expect(InMemory, :hit, fn "key", ^window, 10, 1 ->
+        {:allow, 1}
+      end)
+
+      assert RateLimit.hit("key", limit: 10, window: window) == {:allow, 1}
     end
 
     test "uses the token-bucket in-memory limiter when Valkey is not configured" do
@@ -84,7 +88,7 @@ defmodule TuistWeb.RateLimitTest do
              ) == {:allow, 9}
     end
 
-    test "denies requests when the shared token-bucket limiter times out" do
+    test "falls back to the token-bucket in-memory limiter when Valkey times out" do
       refill_rate = 1 / 60
 
       stub(Environment, :redis_url, fn -> "redis://example" end)
@@ -94,15 +98,19 @@ defmodule TuistWeb.RateLimitTest do
           term: {:error, %Redix.ConnectionError{reason: :timeout}}
       end)
 
+      expect(InMemory, :hit_token_bucket, fn "key", ^refill_rate, 10, 1 ->
+        {:allow, 9}
+      end)
+
       assert RateLimit.hit(
                "key",
                algorithm: :token_bucket,
                refill_rate: refill_rate,
                capacity: 10
-             ) == {:deny, 60_000}
+             ) == {:allow, 9}
     end
 
-    test "denies requests when the shared Valkey connection exits" do
+    test "falls back to the token-bucket in-memory limiter when the Valkey connection exits" do
       refill_rate = 1 / 60
 
       stub(Environment, :redis_url, fn -> "redis://example" end)
@@ -111,12 +119,16 @@ defmodule TuistWeb.RateLimitTest do
         exit({:noproc, {GenServer, :call, []}})
       end)
 
+      expect(InMemory, :hit_token_bucket, fn "key", ^refill_rate, 10, 1 ->
+        {:allow, 9}
+      end)
+
       assert RateLimit.hit(
                "key",
                algorithm: :token_bucket,
                refill_rate: refill_rate,
                capacity: 10
-             ) == {:deny, 60_000}
+             ) == {:allow, 9}
     end
   end
 

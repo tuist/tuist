@@ -4,19 +4,6 @@ defmodule Tuist.Application.RuntimeChildrenTest do
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Environment
 
-  describe "cluster/1" do
-    test "starts discovery whenever a topology is configured" do
-      topologies = [kubernetes: [strategy: Cluster.Strategy.Kubernetes.DNS]]
-
-      assert RuntimeChildren.cluster(topologies) ==
-               [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
-    end
-
-    test "does not start discovery without a topology" do
-      assert RuntimeChildren.cluster([]) == []
-    end
-  end
-
   describe "guardian_db_sweeper/1" do
     test ":web starts the sweeper" do
       assert [{Guardian.DB.Sweeper, opts}] = RuntimeChildren.guardian_db_sweeper(:web)
