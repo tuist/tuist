@@ -5,8 +5,6 @@ defmodule Atlas.Letters do
 
   import Ecto.Query
 
-  require Logger
-
   alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Audit
@@ -24,6 +22,8 @@ defmodule Atlas.Letters do
   alias Atlas.Repo
   alias Atlas.Users
   alias Atlas.Users.User
+
+  require Logger
 
   def configured?, do: Config.configured?()
 
