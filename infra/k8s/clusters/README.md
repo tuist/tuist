@@ -135,23 +135,34 @@ type, which joins etcd as a learner and is promoted to a voter, then removes
 one old member. It repeats that three times. Each step replaces a Hetzner
 server, so the control-plane nodes get new names and public IPs.
 
-Merging a change under `workloads/` is the apply: Flux reconciles it within
-ten minutes. Before merging:
+Merging a change under `workloads/` is the apply: Flux polls the repository
+every minute, so the roll starts about a minute after merge. Before merging:
 
 - If the CAPI or caph controllers changed since the last control-plane roll,
   rehearse with a same-type roll on staging (set the staging KCP's
-  `spec.rollout.after` to now) rather than resizing staging.
-- Confirm etcd has three healthy voters and the KCP reports three
-  up-to-date, Ready replicas.
+  `spec.rollout.after` to now) rather than resizing staging. Check the field
+  with `kubectl explain kcp.spec.rollout.after` (older APIs use
+  `spec.rolloutAfter`), and confirm a new control-plane Machine appears;
+  if none does, nothing rolled.
+- Confirm etcd has three healthy voters (`etcdctl endpoint status --cluster`
+  in an etcd pod, which needs `/elevate` for `pods/exec`; without it,
+  `etcd_server_has_leader` is 1 on every member, leader changes are flat, and
+  WAL fsync p99 is normal) and the KCP reports three up-to-date, Ready
+  replicas.
 - Pick an off-peak window with no server deploy running or queued.
+- Silence `Hetzner control-plane load-balancer target unhealthy` for the
+  window: each new member is a load-balancer target for several minutes
+  before its apiserver answers. The Flux `Kustomization` also times out
+  (15 minutes) before the roll finishes. Neither is a failure signal.
 
 The control-plane `MachineHealthCheck` never remediates a member that fails
 to register a Node (`nodeStartupTimeoutSeconds: 0`), so a stuck join halts
 the roll with the old members still serving. Deleting the stuck Machine also
 deletes its server, and KCP immediately creates a replacement, so pause first:
-suspend the cluster's Flux `Kustomization`, set `spec.paused: true` on the
-`Cluster`, and diagnose on the stuck host. Then unpause and either delete the
-stuck Machine (KCP retries) or revert. Reverting the type is another full
+annotate the `KubeadmControlPlane` with `cluster.x-k8s.io/paused` and diagnose
+on the stuck host. Pause only the KCP, not the `Cluster`: pausing the Cluster
+also stops every worker pool from scaling or remediating. Then remove the
+annotation and either delete the stuck Machine (KCP retries) or revert. Reverting the type is another full
 roll, not an undo.
 
 ## Adapting from caph upstream
