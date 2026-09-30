@@ -25,7 +25,7 @@ defmodule TuistWeb.BundleLive do
     current_user = socket.assigns[:current_user]
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
-    duplicates = find_duplicates(bundle.artifacts)
+    duplicates = find_duplicates(all_artifacts)
 
     artifacts_by_id =
       Enum.reduce(all_artifacts, %{}, fn artifact, acc ->
@@ -54,6 +54,7 @@ defmodule TuistWeb.BundleLive do
       |> assign(:bundle, bundle)
       |> assign(:can_delete_bundle, Authorization.authorize(:bundle_delete, current_user, selected_project) == :ok)
       |> assign(:duplicates, duplicates)
+      |> assign(:duplicate_shasums, MapSet.new(duplicates, & &1.shasum))
       |> assign(:duplicates_total_size, Enum.reduce(duplicates, 0, &(&1.size + &2)))
       |> assign(:duplicates_open, false)
       |> assign(
@@ -72,8 +73,14 @@ defmodule TuistWeb.BundleLive do
   def handle_params(
         params,
         _url,
-        %{assigns: %{bundle: bundle, duplicates: duplicates, selected_project: selected_project, base_path: base_path}} =
-          socket
+        %{
+          assigns: %{
+            bundle: bundle,
+            duplicate_shasums: duplicate_shasums,
+            selected_project: selected_project,
+            base_path: base_path
+          }
+        } = socket
       ) do
     bundle_size_analysis_page_params =
       params
@@ -106,9 +113,9 @@ defmodule TuistWeb.BundleLive do
 
     filter = params["filter"] || ""
 
-    series = to_chart_series(bundle, filter, duplicates)
+    series = to_chart_series(bundle, filter, duplicate_shasums)
 
-    table_artifact = build_root_table_artifact(bundle, base_path, duplicates)
+    table_artifact = build_root_table_artifact(bundle, base_path, duplicate_shasums)
 
     selected_artifact =
       case params["current-path"] do
@@ -118,7 +125,7 @@ defmodule TuistWeb.BundleLive do
         current_path ->
           case Map.get(socket.assigns.artifacts_by_path, current_path) do
             nil -> table_artifact
-            artifact -> build_artifact_for_table(artifact, duplicates)
+            artifact -> build_artifact_for_table(artifact, duplicate_shasums)
           end
       end
 
@@ -181,9 +188,11 @@ defmodule TuistWeb.BundleLive do
 
     active_filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
+    downcased_file_breakdown_filter = String.downcase(file_breakdown_filter)
+
     file_breakdown_filtered_artifacts =
       Enum.filter(all_artifacts, fn artifact ->
-        path_matches = String.contains?(String.downcase(artifact.path), String.downcase(file_breakdown_filter))
+        path_matches = path_matches_filter?(artifact.path, downcased_file_breakdown_filter)
         is_leaf = Enum.empty?(artifact.children)
         filters_match = apply_file_breakdown_filters(artifact, active_filters, bundle)
 
@@ -445,12 +454,18 @@ defmodule TuistWeb.BundleLive do
   def handle_event(
         "update-bundle-size-analysis-sunburst-chart-table-selected-root",
         params,
-        %{assigns: %{bundle: bundle, base_path: base_path, duplicates: duplicates, selected_project: selected_project}} =
-          socket
+        %{
+          assigns: %{
+            bundle: bundle,
+            base_path: base_path,
+            duplicate_shasums: duplicate_shasums,
+            selected_project: selected_project
+          }
+        } = socket
       ) do
     table_artifact =
       bundle
-      |> build_root_table_artifact(base_path, duplicates)
+      |> build_root_table_artifact(base_path, duplicate_shasums)
       |> Map.put(:id, bundle.id)
       |> Map.put(:artifact_id, nil)
 
@@ -480,7 +495,7 @@ defmodule TuistWeb.BundleLive do
             bundle_size_analysis_sunburst_chart_selected_artifact: bundle_size_analysis_sunburst_chart_selected_artifact,
             artifacts_by_id: artifacts_by_id,
             base_path: base_path,
-            duplicates: duplicates
+            duplicate_shasums: duplicate_shasums
           }
         } = socket
       ) do
@@ -490,12 +505,12 @@ defmodule TuistWeb.BundleLive do
     table_artifact =
       if is_nil(artifact) do
         bundle
-        |> build_root_table_artifact(base_path, duplicates)
+        |> build_root_table_artifact(base_path, duplicate_shasums)
         |> Map.put(:id, bundle.id)
         |> Map.put(:artifact_id, nil)
         |> Map.put(:artifact_type, :directory)
       else
-        build_artifact_for_table(artifact, duplicates)
+        build_artifact_for_table(artifact, duplicate_shasums)
       end
 
     cleaned_params = remove_pagination_params(params)
@@ -644,9 +659,7 @@ defmodule TuistWeb.BundleLive do
 
   defp sort_module_breakdown_artifacts(artifacts, _, _), do: artifacts
 
-  defp find_duplicates(artifacts) do
-    all_artifacts = flatten_artifacts(artifacts)
-
+  defp find_duplicates(all_artifacts) do
     all_artifacts
     |> Enum.group_by(& &1.shasum)
     |> Enum.filter(fn {_shasum, artifacts} -> length(artifacts) > 1 end)
@@ -662,9 +675,7 @@ defmodule TuistWeb.BundleLive do
   end
 
   defp flatten_artifacts(artifacts) do
-    Enum.reduce(artifacts, [], fn artifact, acc ->
-      [artifact | acc] ++ flatten_artifacts(artifact.children || [])
-    end)
+    Enum.flat_map(artifacts, fn artifact -> [artifact | flatten_artifacts(artifact.children || [])] end)
   end
 
   def file_breakdown_column_patch_sort(
@@ -736,9 +747,9 @@ defmodule TuistWeb.BundleLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  def to_chart_series(bundle, filter, duplicates) do
+  def to_chart_series(bundle, filter, duplicate_shasums) do
     %{
-      data: build_tree_data(bundle.artifacts, filter, duplicates),
+      data: build_tree_data(bundle.artifacts, filter, duplicate_shasums),
       radius: [60, "90%"],
       type: "sunburst",
       emphasis: %{
@@ -780,19 +791,21 @@ defmodule TuistWeb.BundleLive do
     }
   end
 
-  def build_tree_data(artifacts, filter, duplicates) do
+  def build_tree_data(artifacts, filter, duplicate_shasums) do
+    filter = String.downcase(filter)
+
     artifacts
     |> Enum.filter(fn artifact ->
       is_nil(artifact.artifact_id)
     end)
     |> Enum.map(fn artifact ->
-      {node, matches} = artifact_to_node_with_match(artifact, filter, duplicates)
+      {node, matches} = artifact_to_node_with_match(artifact, filter, duplicate_shasums)
       if matches, do: node
     end)
     |> Enum.reject(&is_nil/1)
   end
 
-  defp artifact_to_node_with_match(artifact, filter, duplicates) do
+  defp artifact_to_node_with_match(artifact, filter, duplicate_shasums) do
     colors = %{
       :binary => "var:noora-sunburst-binaries",
       :localization => "var:noora-sunburst-localizations",
@@ -805,8 +818,7 @@ defmodule TuistWeb.BundleLive do
       :file => "var:noora-sunburst-files"
     }
 
-    self_matches = artifact.path |> String.downcase() |> String.contains?(String.downcase(filter))
-    duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
+    self_matches = path_matches_filter?(artifact.path, filter)
 
     # Check if this artifact is a duplicate
     duplicate? = artifact.shasum && MapSet.member?(duplicate_shasums, artifact.shasum)
@@ -830,14 +842,14 @@ defmodule TuistWeb.BundleLive do
         {base, self_matches}
 
       [single_child] ->
-        map_single_child(single_child, filter, duplicates, self_matches, base)
+        map_single_child(single_child, filter, duplicate_shasums, self_matches, base)
 
       children ->
         children_with_matches =
           children
           |> filter_collapsed_children()
           |> Enum.map(fn child ->
-            artifact_to_node_with_match(child, filter, duplicates)
+            artifact_to_node_with_match(child, filter, duplicate_shasums)
           end)
 
         matching_children =
@@ -855,13 +867,16 @@ defmodule TuistWeb.BundleLive do
     end
   end
 
+  defp path_matches_filter?(_path, ""), do: true
+  defp path_matches_filter?(path, downcased_filter), do: path |> String.downcase() |> String.contains?(downcased_filter)
+
   defp filter_collapsed_children(children) do
     Enum.filter(children, &(not &1.collapsed?))
   end
 
-  defp map_single_child(single_child, filter, duplicates, self_matches, base) do
+  defp map_single_child(single_child, filter, duplicate_shasums, self_matches, base) do
     {child_node, child_matches} =
-      artifact_to_node_with_match(single_child, filter, duplicates)
+      artifact_to_node_with_match(single_child, filter, duplicate_shasums)
 
     if self_matches || child_matches do
       node = %{
@@ -998,9 +1013,7 @@ defmodule TuistWeb.BundleLive do
     |> Map.new()
   end
 
-  defp build_artifact_for_table(artifact, duplicates) do
-    duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
-
+  defp build_artifact_for_table(artifact, duplicate_shasums) do
     %{
       path: artifact.path,
       name: artifact.path |> String.split("/") |> List.last(),
@@ -1012,9 +1025,7 @@ defmodule TuistWeb.BundleLive do
     }
   end
 
-  defp build_root_table_artifact(bundle, base_path, duplicates) do
-    duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
-
+  defp build_root_table_artifact(bundle, base_path, duplicate_shasums) do
     %{
       path: base_path,
       name: bundle.name,

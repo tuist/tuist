@@ -92,6 +92,47 @@ defmodule TuistWeb.BundleLiveTest do
     assert has_element?(lv, "span[data-part='label']", "main")
   end
 
+  describe "build_tree_data/3" do
+    test "marks the chart nodes whose shasum is duplicated" do
+      artifacts = [
+        %{
+          id: "app",
+          artifact_id: nil,
+          artifact_type: :directory,
+          path: "App.app",
+          size: 3,
+          shasum: "app",
+          children: [
+            %{
+              id: "a",
+              artifact_id: "app",
+              artifact_type: :asset,
+              path: "App.app/a.png",
+              size: 1,
+              shasum: "duplicate",
+              collapsed?: false,
+              children: []
+            },
+            %{
+              id: "b",
+              artifact_id: "app",
+              artifact_type: :asset,
+              path: "App.app/b.png",
+              size: 2,
+              shasum: "unique",
+              collapsed?: false,
+              children: []
+            }
+          ]
+        }
+      ]
+
+      [%{children: children}] = TuistWeb.BundleLive.build_tree_data(artifacts, "", MapSet.new(["duplicate"]))
+
+      assert %{"a.png" => true, "b.png" => false} == Map.new(children, &{&1.name, &1.duplicate?})
+    end
+  end
+
   describe "duplicate insights" do
     test "renders only the first page of duplicate groups", %{
       conn: conn,
