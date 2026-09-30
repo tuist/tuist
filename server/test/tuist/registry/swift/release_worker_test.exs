@@ -948,18 +948,28 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   end
 
   describe "zip_directory/2" do
-    test "preserves symlinks inside code-signed bundles while flattening other symlinks" do
+    test "preserves nested symlinks while flattening root-level symlinks" do
       tmp = Path.join(System.tmp_dir!(), "zip_directory_test_#{System.unique_integer([:positive])}")
       on_exit(fn -> File.rm_rf!(tmp) end)
 
       source = Path.join(tmp, "repo-v1.0.0")
       framework = Path.join([source, "Vendor", "Adyen3DS2.xcframework", "ios-maccatalyst", "Adyen3DS2.framework"])
       version_a = Path.join([framework, "Versions", "A"])
+      c_target = Path.join([source, "Sources", "CDemo"])
       File.mkdir_p!(Path.join(version_a, "Resources"))
+      File.mkdir_p!(Path.join(c_target, "include"))
+      File.mkdir_p!(Path.join([c_target, "src", "detail"]))
 
       File.write!(Path.join(source, "README.md"), "readme")
-      # Non-bundle symlink: should be flattened into a regular file.
+      # Root-level symlink: should be flattened into a regular file.
       File.ln_s!("README.md", Path.join(source, "CLAUDE.md"))
+
+      # A vendored C target publishing headers that live with its sources, which
+      # covers a nested file symlink and a nested directory symlink.
+      File.write!(Path.join([c_target, "src", "demo.h"]), "header")
+      File.write!(Path.join([c_target, "src", "detail", "internal.h"]), "header")
+      File.ln_s!("../src/demo.h", Path.join([c_target, "include", "demo.h"]))
+      File.ln_s!("../src/detail", Path.join([c_target, "include", "detail"]))
 
       File.write!(Path.join(version_a, "Adyen3DS2"), "binary")
       File.write!(Path.join([version_a, "Resources", "Info.plist"]), "plist")
@@ -985,11 +995,14 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
           "Adyen3DS2.framework"
         ])
 
+      extracted_c_target = Path.join([extract_dir, "repo-v1.0.0", "Sources", "CDemo"])
+
       assert {:ok, %File.Stat{type: :regular}} = File.lstat(Path.join([extract_dir, "repo-v1.0.0", "CLAUDE.md"]))
-      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join([extracted_framework, "Versions", "Current"]))
-      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Adyen3DS2"))
-      assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(extracted_framework, "Resources"))
       assert {:ok, "A"} = File.read_link(Path.join([extracted_framework, "Versions", "Current"]))
+      assert {:ok, "Versions/Current/Adyen3DS2"} = File.read_link(Path.join(extracted_framework, "Adyen3DS2"))
+      assert {:ok, "Versions/Current/Resources"} = File.read_link(Path.join(extracted_framework, "Resources"))
+      assert {:ok, "../src/demo.h"} = File.read_link(Path.join([extracted_c_target, "include", "demo.h"]))
+      assert {:ok, "../src/detail"} = File.read_link(Path.join([extracted_c_target, "include", "detail"]))
     end
 
     test "flattens a root-level symlink even when it is named like a code-signed bundle" do

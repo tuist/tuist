@@ -45,17 +45,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @doc false
   def release_deferred_event_name, do: @release_deferred_event
 
-  # Symlinks nested inside these code-signed bundles are part of the bundle's
-  # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
-  # the `Binary`/`Resources` links). Code signing records them as symlinks in
-  # `_CodeSignature/CodeResources`, so flattening them into real copies
-  # invalidates the signature ("a sealed resource is missing or invalid"). They
-  # always live well below the package root, so the SwiftPM root-level symlink
-  # extraction bug that `resolve_symlinks/1` works around
-  # (https://github.com/swiftlang/swift-package-manager/pull/9411) does not
-  # apply to them, and they are safe to keep as symlinks in the archive.
-  @signed_bundle_extensions ~w(.xcframework .framework .app .appex .bundle .dSYM .plugin .systemextension .xpc)
-
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
     "transport 'file' not allowed",
@@ -260,9 +249,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  # SwiftPM does not correctly handle symlinks when unzipping archives, which breaks
-  # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
-  # This workaround resolves symlinks by repacking the archive before upload.
+  # SwiftPM does not correctly handle root-level symlinks when unzipping archives,
+  # which breaks packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
+  # This workaround flattens them by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
   # A single listing answers both questions asked of a downloaded archive, so
   # the archive it passes through untouched is inspected exactly once. An
@@ -603,10 +592,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     base_name = Path.basename(directory)
 
     with :ok <- remove_symlinks_outside_root(directory),
-         :ok <- resolve_symlinks(directory) do
-      # `-y` stores the symlinks that `resolve_symlinks/1` deliberately preserved
-      # (those inside code-signed bundles) as symlinks instead of following them
-      # and inlining their target, which would otherwise break the signature.
+         :ok <- resolve_root_symlinks(directory) do
+      # `-y` stores the remaining (nested) symlinks as symlinks instead of
+      # following them and inlining their target.
       case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
@@ -614,13 +602,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp resolve_symlinks(directory) do
-    case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
+  # Only symlinks directly under the package root are flattened: those are the
+  # ones un-patched SwiftPM clients fail to extract
+  # (https://github.com/swiftlang/swift-package-manager/pull/9411). Nested
+  # symlinks extract correctly and must be preserved, both because packages rely
+  # on them and because flattening the ones sealed inside code-signed bundles
+  # (e.g. a framework's `Versions/Current -> A`) invalidates the signature.
+  defp resolve_root_symlinks(directory) do
+    case System.cmd("find", [directory, "-mindepth", "1", "-maxdepth", "1", "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
-        symlink_paths =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.reject(&within_signed_bundle?/1)
+        symlink_paths = String.split(output, "\n", trim: true)
 
         {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
 
@@ -631,20 +622,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
-  end
-
-  defp within_signed_bundle?(path) do
-    # Inspect only the ancestor directories, not the symlink's own basename: the
-    # bundle whose sealed layout we protect is always a real directory above the
-    # symlink. A root-level symlink that happens to be named like a bundle (e.g.
-    # `Foo.framework -> ...`) must still be flattened, so it does not reintroduce
-    # the SwiftPM root-level extraction failure on un-patched clients.
-    path
-    |> Path.split()
-    |> Enum.drop(-1)
-    |> Enum.any?(fn component ->
-      Enum.any?(@signed_bundle_extensions, &String.ends_with?(component, &1))
-    end)
   end
 
   defp classify_symlinks(symlink_paths) do
