@@ -1,5 +1,5 @@
 defmodule Atlas.SupportInbox.ClassifierTest do
-  use Atlas.DataCase, async: false
+  use Atlas.DataCase, async: true
   use Mimic
 
   alias Atlas.Inbox.InboxEmail

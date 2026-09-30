@@ -28,7 +28,8 @@
   # ==== Real support & sales inquiries — action_needed: true ====
   %{
     from: "vedran@indexedlabs.com",
-    subject: "Re: Remote module-cache artifacts crashed all consumers with ABI-skew while the producing warm's local copies passed — request server-side integrity check for 2026-08-12",
+    subject:
+      "Re: Remote module-cache artifacts crashed all consumers with ABI-skew while the producing warm's local copies passed — request server-side integrity check for 2026-08-12",
     category: :support,
     action_needed: true,
     urgency: :high

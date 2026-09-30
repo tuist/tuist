@@ -12,7 +12,7 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgentEvalTest do
   about most.
   """
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Atlas.SupportInbox.Agents.ClassifierAgent
 
@@ -63,15 +63,14 @@ defmodule Atlas.SupportInbox.Agents.ClassifierAgentEvalTest do
     misses =
       results
       |> Enum.filter(fn r -> r.entry.action_needed and not r.decision.action_needed end)
-      |> Enum.map(fn r -> "  #{r.entry.from} — #{r.entry.subject}" end)
-      |> Enum.join("\n")
+      |> Enum.map_join("\n", fn r -> "  #{r.entry.from} — #{r.entry.subject}" end)
 
     IO.puts("""
 
     ClassifierAgent eval:
       action_needed recall:   #{Float.round(recall * 100, 1)}% (#{recalled}/#{total_action_needed})
       action_needed accuracy: #{Float.round(accuracy * 100, 1)}% (#{total_correct}/#{length(results)})
-    #{if misses != "", do: "  Missed action_needed=true entries:\n" <> misses, else: ""}
+    #{if misses == "", do: "", else: "  Missed action_needed=true entries:\n" <> misses}
     """)
 
     assert recall >= @action_needed_recall_floor,

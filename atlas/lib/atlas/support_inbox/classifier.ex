@@ -33,16 +33,6 @@ defmodule Atlas.SupportInbox.Classifier do
 
   @low_confidence_floor 0.7
 
-  @type decision :: %{
-          category: atom(),
-          action_needed: boolean(),
-          urgency: atom(),
-          confidence: float(),
-          reason: String.t(),
-          source: :continuity | :classifier | :fallback,
-          low_confidence?: boolean()
-        }
-
   @doc """
   Classify a freshly ingested inbound and persist the decision on
   the thread. Always returns `{:ok, decision}` — a failed LLM call
