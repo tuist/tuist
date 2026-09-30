@@ -216,6 +216,29 @@ defmodule Atlas.Letters.Pingen do
         _ -> nil
       end
 
-    Logger.warning("Pingen #{operation} failed: status=#{status} request_id=#{inspect(request_id)}")
+    Logger.warning(
+      "Pingen #{operation} failed: status=#{status} request_id=#{inspect(request_id)} body=#{summarize_body(body)}"
+    )
+  end
+
+  # Pingen 4xx responses carry the actual rejection reason in the body
+  # (validation errors, address parse failures, etc.). We inspect any non-nil
+  # body so binaries are escaped (no CRLF injection into the log line) and cap
+  # both the number of container elements AND per-string length so a large
+  # payload cannot balloon a single log line.
+  @provider_body_log_limit 1000
+  @provider_body_inspect_limit 50
+  @provider_body_string_limit 500
+
+  defp summarize_body(nil), do: "nil"
+
+  defp summarize_body(body) when is_binary(body) do
+    body |> String.slice(0, @provider_body_string_limit) |> inspect()
+  end
+
+  defp summarize_body(body) do
+    body
+    |> inspect(limit: @provider_body_inspect_limit, printable_limit: @provider_body_string_limit)
+    |> String.slice(0, @provider_body_log_limit)
   end
 end
