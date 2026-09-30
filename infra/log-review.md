@@ -69,7 +69,7 @@ this reconciles the log against the grants that were actually issued.
 {cluster="tuist-production", namespace="tuist"}
   |= "operator_grant_jti"
   | logfmt
-  | line_format "{{.operator_grant_sub}} {{.operator_grant_jti}} {{.selected_account_handle}} {{.request_path}} {{.status}}"
+  | line_format "{{.operator_grant_sub}} {{.operator_grant_jti}} {{.selected_account_handle}} {{.request_path}}{{.live_view}} {{.status}}"
 ```
 
 The server does not emit a `route` field on every record, so the path is
@@ -77,14 +77,28 @@ The server does not emit a `route` field on every record, so the path is
 
 **Reads through Atlas without a grant.** Operators calling the MCP server
 through Atlas can read any customer account without a grant. Those requests
-carry `atlas_operator_email`, and `atlas_operator_read_account_id` on the ones
-that used operator access, as structured metadata:
+carry `atlas_operator_email` on the request line, and
+`atlas_operator_read_account_id` on the ones that used operator access. The
+server's logs reach Loki as console lines, so the fields are parsed from the
+line rather than filtered as structured metadata:
 
 ```logql
 {cluster="tuist-production", namespace="tuist"}
-  | atlas_operator_read_account_id != ""
+  |= "atlas_operator_read_account_id"
+  | logfmt
   | line_format "{{.atlas_operator_email}} {{.atlas_operator_read_account_id}} {{.request_path}} {{.status}}"
 ```
+
+Successful request lines are otherwise sampled at 10% by the log collector
+(`infra/helm/k8s-monitoring/values.yaml`). Lines carrying
+`atlas_operator_read_account_id` or `operator_grant_jti` are exempt, so both
+queries in this section see every such line written after that exemption
+shipped; earlier records are sampled. Dashboard pages are LiveViews, and moving
+between them happens over the LiveView socket without an HTTP request, so each
+page an operator opens under a grant is also recorded as an `Operator grant
+page view` line carrying `operator_grant_jti` and `live_view`, which the grant
+query picks up. Interactions within a page (filters, tabs, pagination) are not
+recorded individually.
 
 Atlas records the tool and arguments of each of these calls as
 `mcp.tool_called` in its audit log, so the two should agree. They are not

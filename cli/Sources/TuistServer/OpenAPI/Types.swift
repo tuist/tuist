@@ -12543,6 +12543,10 @@ public enum Components {
         public struct CacheAccess: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheAccess/accounts`.
             public var accounts: [Swift.String]
+            /// The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheAccess/payment_failed`.
+            public var payment_failed: [Swift.String]?
             /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
             ///
             /// - Remark: Generated from `#/components/schemas/CacheAccess/payment_required`.
@@ -12553,19 +12557,23 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - accounts:
+            ///   - payment_failed: The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
             ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
             ///   - projects:
             public init(
                 accounts: [Swift.String],
+                payment_failed: [Swift.String]? = nil,
                 payment_required: [Swift.String],
                 projects: [Swift.String]
             ) {
                 self.accounts = accounts
+                self.payment_failed = payment_failed
                 self.payment_required = payment_required
                 self.projects = projects
             }
             public enum CodingKeys: String, CodingKey {
                 case accounts
+                case payment_failed
                 case payment_required
                 case projects
             }
@@ -59931,6 +59939,10 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/accounts`.
                         public var accounts: [Swift.String]
+                        /// The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/payment_failed`.
+                        public var payment_failed: [Swift.String]?
                         /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
                         ///
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/payment_required`.
@@ -59941,19 +59953,23 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - accounts:
+                        ///   - payment_failed: The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
                         ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
                         ///   - projects:
                         public init(
                             accounts: [Swift.String],
+                            payment_failed: [Swift.String]? = nil,
                             payment_required: [Swift.String],
                             projects: [Swift.String]
                         ) {
                             self.accounts = accounts
+                            self.payment_failed = payment_failed
                             self.payment_required = payment_required
                             self.projects = projects
                         }
                         public enum CodingKeys: String, CodingKey {
                             case accounts
+                            case payment_failed
                             case payment_required
                             case projects
                         }

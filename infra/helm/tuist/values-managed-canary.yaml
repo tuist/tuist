@@ -428,7 +428,7 @@ kuraController:
 # on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-ca-east]
+  nodePools: [kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
@@ -586,30 +586,6 @@ kuraFleet:
     # that still mirrors the production NVMe + 10G PN path, so canary validates
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
-
-# Retain Dedibox hosts for instance teardown; OVH ca-east is the public region.
-# Keep enabled so the provider reconciler can complete host release/reinstall.
-dediboxFleet:
-  enabled: true
-  # Hold hosts until instance teardown and DNS withdrawal/drain are complete.
-  # A later reviewed change sets zero; zero immediately starts provider release.
-  replicas: 1
-  machine:
-    adoptTag: tuist-kura-canary
-    offer: Start-9-M
-    datacenter: DC2
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
-    # (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 500
-  scaleway:
-    externalSecrets:
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (generated fresh into this item).
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
 
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box

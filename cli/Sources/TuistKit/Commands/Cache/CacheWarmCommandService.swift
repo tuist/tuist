@@ -38,8 +38,10 @@ import XcodeGraph
                 \(failures.count) of \(failures.count + storedCount) targets failed to upload to the remote cache:
                 \(failedTargets)
 
-                Warming again uploads them from a machine that doesn't have them in its local cache. On this \
-                machine, run tuist clean binaries first, since targets in the local cache count as cached.
+                If the failures were temporary, warming again uploads them from a machine that doesn't have them \
+                in its local cache. On this machine, run tuist clean binaries first, since targets in the local \
+                cache count as cached. If every warm fails the same way, cleaning won't help: resolve the \
+                reported cause first.
                 """
             case let .diskExhausted(scratchDirectory, space, underlyingError):
                 return """
@@ -68,6 +70,13 @@ import XcodeGraph
         /// roughly the core count and then plateaus, so we scale with the machine but cap it to avoid
         /// oversubscribing disk on very-high-core hosts.
         private static let maxConcurrentXCFrameworkCreations = max(1, min(ProcessInfo.processInfo.activeProcessorCount, 8))
+
+        /// Release warms produce dSYMs, which are bundled into the XCFrameworks so that archives consuming them can
+        /// symbolicate crashes in cached modules. Debug warms don't, because LLDB would load the dSYMs and resolve
+        /// sources to the warming machine's paths.
+        private static func debugInformationFormat(isReleaseConfiguration: Bool) -> XcodeBuildArgument {
+            .xcarg("DEBUG_INFORMATION_FORMAT", isReleaseConfiguration ? "dwarf-with-dsym" : "dwarf")
+        }
 
         private let configLoader: ConfigLoading
         private let manifestLoader: ManifestLoading
@@ -700,17 +709,22 @@ import XcodeGraph
             ) { cacheableTarget in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
-                let artifactsIncludingTarget = try await platformBinaryArtifacts.concurrentCompactMap {
-                    artifactDirectory -> (artifactPath: AbsolutePath, publicHeadersPath: AbsolutePath?)? in
+                let slices = try await platformBinaryArtifacts.concurrentCompactMap { artifactDirectory -> XCFrameworkSlice? in
                     let artifactPath = artifactDirectory.appending(
                         components: [cacheableTarget.0.target.productNameWithExtension]
                     )
                     guard try await fileSystem.exists(artifactPath) else { return nil }
-                    let publicHeadersPath = try await libraryPublicHeadersPath(
-                        for: cacheableTarget.0.target,
-                        artifactDirectory: artifactDirectory
+                    let debugSymbolsPath = artifactDirectory.appending(
+                        component: "\(cacheableTarget.0.target.productNameWithExtension).dSYM"
                     )
-                    return (artifactPath: artifactPath, publicHeadersPath: publicHeadersPath)
+                    return XCFrameworkSlice(
+                        artifactPath: artifactPath,
+                        publicHeadersPath: try await libraryPublicHeadersPath(
+                            for: cacheableTarget.0.target,
+                            artifactDirectory: artifactDirectory
+                        ),
+                        debugSymbolsPath: try await fileSystem.exists(debugSymbolsPath) ? debugSymbolsPath : nil
+                    )
                 }
 
                 let xcframeworkPath = scratchDirectory.appending(components: [
@@ -718,21 +732,9 @@ import XcodeGraph
                     "\(cacheableTarget.0.target.name).xcframework",
                 ])
 
-                let xcodebuildArguments: [String] = artifactsIncludingTarget
-                    .flatMap { artifactPath -> [String] in
-                        switch cacheableTarget.0.target.product {
-                        case .framework, .staticFramework:
-                            return ["-framework", artifactPath.artifactPath.pathString]
-                        case .staticLibrary, .dynamicLibrary:
-                            var arguments = ["-library", artifactPath.artifactPath.pathString]
-                            if let publicHeadersPath = artifactPath.publicHeadersPath {
-                                arguments.append(contentsOf: ["-headers", publicHeadersPath.pathString])
-                            }
-                            return arguments
-                        default:
-                            return []
-                        }
-                    }
+                let xcodebuildArguments = slices.flatMap {
+                    $0.createXCFrameworkArguments(product: cacheableTarget.0.target.product)
+                }
 
                 Logger.current.info("Creating XCFramework for \(cacheableTarget.0.target.name)", metadata: .section)
 
@@ -866,7 +868,7 @@ import XcodeGraph
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
-                        .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                        Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration),
                         .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                         .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -917,7 +919,7 @@ import XcodeGraph
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
-                .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration),
                 .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                 .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1000,7 +1002,7 @@ import XcodeGraph
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
-                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                    Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration),
                     .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                     .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1267,6 +1269,32 @@ import XcodeGraph
                 .staticLibrary,
                 .dynamicLibrary,
             ].contains(product)
+        }
+    }
+
+    /// One platform's build of a target that `xcodebuild -create-xcframework` assembles into the cached XCFramework.
+    private struct XCFrameworkSlice {
+        let artifactPath: AbsolutePath
+        let publicHeadersPath: AbsolutePath?
+        let debugSymbolsPath: AbsolutePath?
+
+        func createXCFrameworkArguments(product: Product) -> [String] {
+            var arguments: [String]
+            switch product {
+            case .framework, .staticFramework:
+                arguments = ["-framework", artifactPath.pathString]
+            case .staticLibrary, .dynamicLibrary:
+                arguments = ["-library", artifactPath.pathString]
+                if let publicHeadersPath {
+                    arguments.append(contentsOf: ["-headers", publicHeadersPath.pathString])
+                }
+            default:
+                return []
+            }
+            if let debugSymbolsPath {
+                arguments.append(contentsOf: ["-debug-symbols", debugSymbolsPath.pathString])
+            }
+            return arguments
         }
     }
 #endif

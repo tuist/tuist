@@ -130,7 +130,8 @@ defmodule Tuist.OAuth.Clients do
         "revoke"
       ],
       pkce: true,
-      public_refresh_token: false,
+      # Native apps (PKCE, RFC 8252) can't keep a client secret, so they refresh without one.
+      public_refresh_token: true,
       public_revoke: false,
       confidential: false,
       token_endpoint_auth_methods: [

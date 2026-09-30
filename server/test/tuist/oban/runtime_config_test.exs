@@ -28,6 +28,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
+  alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
   alias Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker
 
@@ -147,6 +148,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute ScheduleExpiredArtifactsWorker in workers
         refute DeleteExpiredCasCacheArtifactsWorker in workers
         refute DeleteExpiredLegacyBuildArtifactsWorker in workers
+        refute SweepExpiredRunArtifactsWorker in workers
         refute DeleteExpiredXcodeCacheArtifactsWorker in workers
         refute DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         refute DeleteExpiredGradleCacheArtifactsWorker in workers
@@ -170,7 +172,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
          ]},
         {%{app_previews: 30}, [ScheduleExpiredArtifactsWorker]},
         {%{build_archives: 45}, [ScheduleExpiredArtifactsWorker, DeleteExpiredLegacyBuildArtifactsWorker]},
-        {%{run_artifacts: 60}, [ScheduleExpiredArtifactsWorker]},
+        {%{run_artifacts: 60}, [ScheduleExpiredArtifactsWorker, SweepExpiredRunArtifactsWorker]},
         {%{test_attachments: 75}, [ScheduleExpiredArtifactsWorker]},
         {%{shard_bundles: 90}, [ScheduleExpiredArtifactsWorker]}
       ]
@@ -181,7 +183,8 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         DeleteExpiredGradleCacheArtifactsWorker,
         DeleteExpiredLegacyBuildArtifactsWorker,
         DeleteExpiredXcodeCacheArtifactsWorker,
-        DeleteExpiredXcodeModuleCacheArtifactsWorker
+        DeleteExpiredXcodeModuleCacheArtifactsWorker,
+        SweepExpiredRunArtifactsWorker
       ]
 
       for {artifact_retention_days, expected_workers} <- cases do
@@ -211,6 +214,8 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       assert Enum.count(crontab, &(cron_worker(&1) == ScheduleExpiredArtifactsWorker)) == 1
 
       assert {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+
+      assert {"30 4 * * *", SweepExpiredRunArtifactsWorker, args: %{"self_hosted" => true}} in crontab
     end
 
     test ":web + prod-like env, self-hosted: cron args carry no retention window" do
@@ -234,6 +239,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
 
       refute Enum.any?(crontab, &(cron_worker(&1) == ScheduleExpiredArtifactsWorker))
       refute Enum.any?(crontab, &(cron_worker(&1) == DeleteExpiredLegacyBuildArtifactsWorker))
+      refute Enum.any?(crontab, &(cron_worker(&1) == SweepExpiredRunArtifactsWorker))
     end
 
     test ":web + prod-like env, Tuist-hosted and self-hosted share the cache retention schedules" do
@@ -279,6 +285,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ScheduleExpiredArtifactsWorker in workers
         assert DeleteExpiredCasCacheArtifactsWorker in workers
         assert DeleteExpiredLegacyBuildArtifactsWorker in workers
+        assert SweepExpiredRunArtifactsWorker in workers
         assert DeleteExpiredXcodeCacheArtifactsWorker in workers
         assert DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         assert DeleteExpiredGradleCacheArtifactsWorker in workers

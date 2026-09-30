@@ -162,6 +162,13 @@ data:
         <asynchronous_metrics>true</asynchronous_metrics>
         <errors>true</errors>
       </prometheus>
+      <!--
+        On SIGTERM, let the queries already running finish, for up to a
+        minute, instead of the default five seconds. The pod's
+        `terminationGracePeriodSeconds` covers this plus the `preStop` wait.
+      -->
+      <shutdown_wait_unfinished_queries>1</shutdown_wait_unfinished_queries>
+      <shutdown_wait_unfinished>60</shutdown_wait_unfinished>
     </clickhouse>
 ---
 {{- /*
@@ -423,10 +430,21 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: clickhouse
   annotations:
+{{- if $m.tailscale.proxyGroup }}
+    tailscale.com/proxy-group: {{ $m.tailscale.proxyGroup | quote }}
+{{- else }}
     tailscale.com/expose: "true"
+{{- end }}
     tailscale.com/hostname: {{ required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname | quote }}
     tailscale.com/tags: {{ required "clickhouse.managed.tailscale.tags is required when tailscale.enabled is true" $m.tailscale.tags | quote }}
 spec:
+{{- if $m.tailscale.proxyGroup }}
+  # Served by the ProxyGroup as a Tailscale Service rather than by a proxy of
+  # its own, so the VMs reach it over a direct path instead of a DERP relay.
+  # See `tailnetIngress` in infra/helm/tailscale-operator.
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+{{- end }}
   selector:
     {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
   ports:
@@ -634,6 +652,9 @@ spec:
         {{- toYaml $m.tolerations | nindent 8 }}
       securityContext:
         fsGroup: 101
+      # The `preStop` wait, then up to a minute for running queries
+      # (`shutdown_wait_unfinished`), then the server's own shutdown.
+      terminationGracePeriodSeconds: 120
       initContainers:
         # The `local` PersistentVolume binds an existing directory; it does
         # not create one, and the host's `/data` is owned by root. Without
@@ -772,6 +793,14 @@ spec:
           # Bounded, because probes do not run while this does: a server that
           # never answers is restarted rather than left waiting.
           lifecycle:
+            # A terminating pod leaves the Service's endpoints at once, but
+            # the change takes a moment to reach every node, and ClickHouse
+            # stops listening the instant it gets SIGTERM. Without this wait,
+            # connections routed to it in that moment are refused: 20 of them
+            # during the production rollout on 2026-09-28.
+            preStop:
+              exec:
+                command: ["/bin/sleep", "15"]
             postStart:
               exec:
                 command:
@@ -840,4 +869,22 @@ spec:
           requests:
             storage: {{ $m.persistence.size }}
         storageClassName: {{ $m.persistence.storageClassName }}
+---
+{{- /*
+A node drain or any other eviction takes one replica at a time, the same
+bound the StatefulSet's rolling update already keeps, so the other replica
+serves reads and writes throughout.
+*/}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $chName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 6 }}
 {{- end }}

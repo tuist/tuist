@@ -1,21 +1,19 @@
 # EU-West migration from Scaleway Dedibox to OVH
 
-Status: production workload migration completed on **2026-09-28 at 12:31
-Europe/Berlin**. All 41 EU-West instances (82 runtime pods) were Ready on the
-three OVH nodes, with initial backfill complete and normal StatefulSet rollout
-strategies restored. The three Dedibox sources remain cordoned and retained,
-with no Kura runtime pods or live cache claims. Their gateways still serve old
-addresses. Hardware retirement and provider billing cancellation are outstanding.
+Status: workload and host retirement completed on **2026-09-28**. All five
+managed Dedibox hosts have completed their provider release/reinstall, with no
+remaining Machine or DediboxMachine objects in production, canary, or staging.
+The operator has submitted cancellation requests for all six Dedibox contracts,
+including the old unclaimed canary host `133116`. Provider deletion/billing
+completion is separate from Kubernetes release.
 
-Fleet retirement is **held at three production hosts and one each in staging
-and canary** until instance teardown and DNS withdrawal/drain complete. PR #13671
-set those counts to zero prematurely; its queued deployment was cancelled before
-it started after live inspection confirmed eight Ready canary runtime pods still
-on Dedibox. The corrective change restores the counts and retains the removal of
-EU-West from staging/canary's available-region lists, so normal deployment can
-stop new provisioning without immediately wiping their hosts. Existing instances
-still require explicit lifecycle teardown. Preserve the Scaleway Elastic Metal
-Mac runner cache in every environment.
+Production DNS withdrawal was verified at 15:40 UTC on September 28. The
+operator explicitly waived the proposed 48-hour soak before deploying #13685;
+that historical gate below is not an outstanding migration requirement.
+Staging's final EU-West instance and host are retired. Preserve the Scaleway
+Elastic Metal Mac runner cache in every environment. The current cleanup removes
+Dedibox provisioning support and restores automatic OVH ingress publication;
+it does not change Kura runtime images or private-network settings.
 
 Fleet configuration changes go through a pull request and the normal production
 deployment workflow. Do not apply the rendered fleet objects directly. Subsequent
@@ -357,14 +355,19 @@ not proof of the subsequent soak. A fresh September 28 read confirmed
 status still advertised **all six** OVH and Dedibox IPs. Cordoning the Dedibox
 nodes does not withdraw gateway addresses. A wait alone is not DNS withdrawal.
 
-Before preparing and deploying the subsequent zero-replica retirement change:
+The managed values now declare zero Dedibox replicas in all three environments.
+Preparing the retirement PR does not complete the live gates below. Before
+merging and deploying it:
 
 1. Withdraw `195.154.208.26`, `195.154.208.48`, and `51.159.17.45` from
    production regional DNS publication in a separate reviewed platform change,
    while keeping the old gateway DaemonSet pods running. The temporary ingress
-   `publish-status-address` setting can publish only `51.68.54.127`,
+   `publish-status-address` setting in production `values-tuist.yaml` publishes only `51.68.54.127`,
    `51.75.213.141`, and `51.75.213.81` without moving gateway pods. Verify the
-   rendered upstream controller arguments before deployment. Do not narrow the
+   rendered upstream controller arguments and all three destination health checks
+   before deployment. This changes controller arguments and rolls the gateway
+   DaemonSet; watch its rollout and old-IP probes throughout. Keep normal graceful
+   shutdown; the old gateways must return Ready on their retained nodes. Do not narrow the
    DaemonSet selector yet: that would stop serving clients with cached addresses.
 2. Confirm authoritative regional and enabled stable DNS, Ingress status, and
    peer discovery no longer advertise any source address. Check each publication
@@ -436,17 +439,152 @@ shared Dedibox templates, CRDs, provider code and credentials in the final
 cleanup. Production's EU-West gateways and pool remain necessary for OVH.
 The runbook's DNS/soak gates still apply to production independently.
 
+#### September 28 retirement handoff (historical)
+
+The retirement values remove all five managed Dedibox hosts (production
+`184798`, `184776`, `148144`; staging `188785`; canary `189167`) through CAPI by
+setting each fleet to zero. They also disable non-production EU-West ingress
+and remove that pool from the non-production egress agent. The production
+EU-West gateway, OVH-only address override, and historical `kura-dedibox` pool
+remain unchanged because OVH still uses them.
+
+Production DNS withdrawal was verified at **2026-09-28 15:40 UTC**. The earliest
+48-hour-soak review is **2026-09-30 15:40 UTC (17:40 Berlin)**, with a healthy
+representative busy period and fresh DNS, runtime, backfill, and claim checks.
+This is a deployment gate, not an assumption that elapsed time proves health.
+
+Canary source-instance teardown is complete. Staging's last dedicated smoke
+replacement is active on OVH with both replicas Ready and initial backfill
+complete; its old EU-West placement entered drain at 2026-09-28 16:12 UTC.
+The ordinary placement drain ends at 17:14 UTC. The operator explicitly accepts
+staging test-cache disruption, so staging stability is not an additional soak
+gate. Still retire its exact server row through `Tuist.Kura.destroy_server/1`
+and verify workload/claim cleanup before releasing its host; do not leave an
+active server record behind by deleting its Kubernetes resources directly.
+This exception does not shorten production's DNS soak or authorize losing the
+separate Mac runner cache.
+
+Keep `dediboxFleet.enabled: true`, both ExternalSecrets, provider RBAC, CRDs and
+the Dedibox reconciler during release. Disabling them at the same time as scale
+down prevents finalizer completion. After all five releases finish, remove this
+remaining deletion support and zero-replica configuration in a cleanup PR,
+explicitly delete the orphaned IAM ExternalSecret hook, and restore dynamic
+OVH-only ingress address publication. Provider release reinstalls the boxes;
+separately cancel the five subscriptions after matching provider server IDs.
+The previously unaccounted-for server `133116` is not owned by these fleets and
+is not cancelled or wiped by this change.
+
 Keep `kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache
 pool), its private network, and the Apple Silicon fleet intact. Keep the existing
 `kura-dedibox` pool selector and `scw-local-nvme` StorageClass: despite their
 names, OVH runtime scheduling and live local volumes still depend on them.
 Renaming them requires a separate coordinated migration, not a textual cleanup.
 
-Update region/provider documentation and location metadata in that coordinated
-change. `FR-IDF` still describes the staging/canary Paris sites and is incorrect
-for production Gravelines; audit consumers before changing the shared catalog.
-Preserve the product region ID and review its Route53 latency-region mapping
-separately from the physical-site description.
+The region catalog now reports `FR-HDF` (Hauts-de-France) for EU-West's
+OVH Gravelines fleet. This feeds `KURA_NODE_SUBDIVISION` and the runtime OTel
+resource; the country remains `FR`, so residency classification is unchanged.
+Staging/canary public caches use `ca-east`; the separate Paris Mac runner cache
+retains `FR-IDF`. The product region ID, pool selector, storage class, and
+Route53 latency-region mapping remain unchanged.
+
+## Post-retirement cleanup
+
+Dedibox support is removed completely: fleet values and Helm templates,
+provider credentials wiring and RBAC, API types and CRD sources, the reconciler,
+API client, failover-IP implementation, and preparation/marking commands.
+There is no opt-in path left. Rendering removes the MachineDeployment,
+MachineHealthCheck, MachineTemplate, and ExternalSecrets. The separate
+Scaleway Elastic Metal Mac runner cache and all OVH fleets remain unchanged.
+FailoverIP now supports OVH only; all three environments had zero FailoverIP
+objects when this change was prepared.
+
+Deploy the reviewed cleanup through the ordinary canary/production cascade.
+Staging deploys independently: preserve any active private-network experiment
+and its image pins when integrating this chart change. Do not redeploy an older
+experimental branch that re-enables Dedibox. Before deployment, confirm no
+DediboxMachine objects remain in any environment. After deployment, verify the
+CAPI provider rollout, Mac runner caches, and public OVH Kura readiness.
+
+The production EU-West gateway no longer pins `publish-status-address`.
+`reportNodeInternalIp: true` and the unchanged `kura-dedibox` selector discover
+only the OVH gateway Nodes. At cleanup preparation their InternalIP values were
+`51.68.54.127`, `51.75.213.141`, and `51.75.213.81`, exactly the previous static
+list. Check Ingress status and authoritative DNS after deployment, especially
+if a node changes during rollout. Keep the historical pool and storage names.
+
+### Installed CRD cleanup after deployment
+
+Helm does not delete CRDs from its `crds/` directory on upgrade. After the
+new provider image is running in each environment, verify there are no
+DediboxMachine or DediboxMachineTemplate objects, including templates retained
+by old MachineSets. Inspect and remove any unused template only after its
+former MachineDeployment and MachineSet owners are gone. Then delete the two
+retired CRDs explicitly:
+
+- `dediboxmachines.infrastructure.cluster.x-k8s.io`
+- `dediboxmachinetemplates.infrastructure.cluster.x-k8s.io`
+
+Use the ordinary user access path and obtain human elevation where required.
+Do not remove a CRD while objects or finalizers remain, and do not remove any
+OVH, Elastic Metal, Apple Silicon, or shared CAPI CRD. The retained FailoverIP
+CRD needs its generated schema applied through the normal deployment path.
+
+### Credential cleanup after deployment
+
+The IAM ExternalSecret `tuist-tuist-dedibox` is a pre-install/pre-upgrade Helm
+hook with `before-hook-creation`; Helm will not prune it when disabled. After
+verifying the deployed CAPI container no longer references `DEDIBOX_SCW_*`,
+delete this exact ExternalSecret in each app namespace (`tuist`, `tuist-canary`,
+`tuist-staging`). Its generated Secret has `creationPolicy: Owner`; verify that
+it disappears via garbage collection. The ordinary SSH ExternalSecret
+`tuist-tuist-dedibox-fleet-ssh` is pruned by Helm; verify its owned Secret also
+disappears. Do not remove credentials before the provider Deployment is updated,
+as old pod templates still require the IAM Secret to start.
+
+Use normal user contexts and the cluster-access policy in [infra/AGENTS.md](../AGENTS.md);
+production/canary deletions require a current human elevation. Inspect owner
+references and names before explicitly deleting any leftover Secret. Keep
+`SCW_*`, `OVH_*`, and Mac/Elastic Metal fleet SSH credentials intact. Once all
+six provider cancellation requests are confirmed and the deployed consumers are
+removed, retire the dedicated
+`DEDIBOX_SCW_API` and `DEDIBOX_FLEET_SSH` items from each environment vault and
+revoke the dedicated Dedibox IAM key, after confirming it has no other consumer.
+The shared Dedibox IAM key is distinct from the retained Mac runner credentials.
+
+### Provider cancellation dates
+
+The console shows cancellation requested for all six servers. The provider API
+reported these `expired_at` values on September 28 (shown in Europe/Berlin):
+
+| Server IDs | Scheduled termination |
+| --- | --- |
+| `148144`, `188785`, `189167` | November 1, 2026, 00:00 |
+| `133116`, `184798` | June 29, 2027, 00:00 |
+| `184776` | September 2, 2027, 00:00 |
+
+These are scheduled release dates, not confirmation that billing stopped when
+cancellation was requested. Verify the commitment and remaining charges in the
+provider contract before counting the full recurring cost as removed.
+
+### Orphaned volume records
+
+The post-retirement inventory contained 12 production and 6 staging Released
+`scw-local-nvme` PVs whose hostname affinities referenced old Dedibox nodes;
+canary had none. Remove only those records after checking that the former Node
+and Machine are absent and no live PVC owns the old claim UID or binds that PV.
+A recreated claim with the same name on OVH is a different object and must remain.
+Use UID/resourceVersion deletion preconditions, retain a metadata audit, and do
+not force finalizers or touch Bound volumes. This is API metadata cleanup for
+already-released node-local volumes; it does not reclaim a cloud block volume.
+
+### Rollback of cleanup
+
+An ingress regression can be rolled back by restoring only the previous static
+OVH address list. Keep Dedibox support removed: the former subscriptions are being
+cancelled, so re-enabling the old fleet is not a migration rollback. Restoring
+Dedibox capacity would require separately ordered/prepared hosts and a reviewed
+provider implementation and adoption change. Keep provider credentials until their deployed consumers have
+been removed; do not restore cancelled hardware by reverting the entire file.
 
 ## Rollback
 
