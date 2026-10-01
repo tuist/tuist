@@ -434,7 +434,7 @@ defmodule TuistWeb.BundleLive do
       |> assign_table_artifact(artifact, cleaned_params)
       |> push_patch(
         to:
-          "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.put(socket.assigns.uri.query, "current-path", path)}"
+          "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.put(selection_query(socket.assigns.uri), "current-path", path)}"
       )
 
     {:noreply, socket}
@@ -465,7 +465,7 @@ defmodule TuistWeb.BundleLive do
       |> assign_table_artifact(table_artifact, cleaned_params)
       |> push_patch(
         to:
-          "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.drop(socket.assigns.uri.query, "current-path")}"
+          "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.drop(selection_query(socket.assigns.uri), "current-path")}"
       )
 
     {:noreply, socket}
@@ -490,9 +490,11 @@ defmodule TuistWeb.BundleLive do
 
     {table_artifact, query} =
       if is_nil(artifact) do
-        {build_root_table_artifact(bundle, base_path, duplicate_shasums), Query.drop(uri.query, "current-path")}
+        {build_root_table_artifact(bundle, base_path, duplicate_shasums),
+         Query.drop(selection_query(uri), "current-path")}
       else
-        {build_artifact_for_table(artifact, duplicate_shasums), Query.put(uri.query, "current-path", artifact.path)}
+        {build_artifact_for_table(artifact, duplicate_shasums),
+         Query.put(selection_query(uri), "current-path", artifact.path)}
       end
 
     cleaned_params = remove_pagination_params(params)
@@ -965,6 +967,9 @@ defmodule TuistWeb.BundleLive do
       artifact
     end
   end
+
+  # A table page belongs to the directory it was picked in, so a new selection starts on page 1.
+  defp selection_query(uri), do: uri.query |> URI.decode_query() |> remove_pagination_params()
 
   defp remove_pagination_params(params) do
     params

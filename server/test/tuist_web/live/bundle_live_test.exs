@@ -309,6 +309,42 @@ defmodule TuistWeb.BundleLiveTest do
       refute has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "file_12.png")
     end
 
+    test "starts a newly selected directory on the first page", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project, 12)
+      path_hash = :md5 |> :crypto.hash("App.app") |> Base.encode16() |> String.slice(0, 8)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?#{[{"current-path", "App.app"}, {"bundle-size-analysis-table-page-#{path_hash}", "2"}]}"
+        )
+
+      # When
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-selected-parent", %{})
+      assert_patch(lv)
+
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-selected-artifact", %{
+        "artifact" => %{
+          "name" => "App.app",
+          "value" => 0,
+          "artifact_id" => nil,
+          "path" => "App.app",
+          "artifact_type" => "directory",
+          "children" => []
+        }
+      })
+
+      # Then
+      query = lv |> assert_patch() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+      refute Map.has_key?(query, "bundle-size-analysis-table-page-#{path_hash}")
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "file_12.png")
+    end
+
     test "opens the top-level directory from the current-path param", %{
       conn: conn,
       organization: organization,
