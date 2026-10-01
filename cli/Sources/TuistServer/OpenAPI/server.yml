@@ -4003,12 +4003,8 @@ components:
     Project:
       properties:
         build_system:
-          default: xcode
-          description: The build system used by the project.
-          enum:
-            - xcode
-            - gradle
-            - bazel
+          description: The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.
+          example: xcode
           type: string
           x-struct:
           x-validate:
