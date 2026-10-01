@@ -39,6 +39,8 @@
  *                   "radial" sends each outward along the sphere's normal
  *                   where it lifted off, so they leave in every direction
  *   data-offset-x / data-offset-y: center offset in px
+ *   --marketing-cache-globe-origin (CSS, on an ancestor): the colour of
+ *                   origin dots and arc heads; white when unset
  *   data-markers:   JSON list of {lon, lat, active} region markers; when
  *                   absent the globe shows the default serving regions.
  *                   Inactive markers draw a dim core and no pulse.
@@ -464,6 +466,8 @@ export const DitherGlobe = {
         resolveTokenColor(this.host, "--marketing-cache-globe-dither-deep"),
       ];
       this.markerShade = resolveTokenColor(this.host, "--marketing-cache-globe-marker");
+      // Origin dots and arc heads: the page's token, white when unset.
+      this.originShade = resolveTokenColor(this.host, "--marketing-cache-globe-origin, #ffffff");
     };
     this.resolveColors();
     this.offThemeChange = onThemeChange(() => {
@@ -717,7 +721,8 @@ export const DitherGlobe = {
     const { ctx } = this;
     const R = this.rotation();
     const r = Math.max(1.5, rad * 0.012) / rad;
-    ctx.fillStyle = "#ffffff";
+    const [or, og, ob] = this.originShade || [255, 255, 255];
+    ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
     for (let i = 0; i < origins.length; i++) {
       const surface = this.surface(R, origins[i].point, rad, cx, cy);
       if (!surface) continue;
@@ -864,7 +869,8 @@ export const DitherGlobe = {
       }
       const last = points[points.length - 1];
       if (last && !last[2] && !arc.landed) {
-        ctx.fillStyle = "#ffffff";
+        const [or, og, ob] = this.originShade || [255, 255, 255];
+        ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
         ctx.globalAlpha = 0.9;
         ctx.beginPath();
         ctx.arc(last[0], last[1], Math.max(1.2, rad * 0.008), 0, Math.PI * 2);

@@ -20,6 +20,9 @@
   --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-4);
   --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-5);
   --marketing-cache-globe-marker: var(--noora-purple-300);
+  /* Origin dots and arc heads: white on the dark page, the palette's dark
+     grey in light mode. */
+  --marketing-cache-globe-origin: light-dark(var(--noora-neutral-light-1100), #ffffff);
   /* Shared type ramp, in design pixels: the code face for eyebrows, the
      body face for labels and copy (Desktop/Heading/MediumRegular, 20/26),
      and Geist Pixel for the figures — linked from Google Fonts by the page
