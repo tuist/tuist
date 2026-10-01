@@ -65,14 +65,28 @@
           return resolved;
         }
 
+        let appliedPreference = preferredTheme();
+
+        function reapplyTheme() {
+          const before = document.documentElement.getAttribute("data-theme");
+          const preference = preferredTheme();
+          const after = applyTheme();
+          if (before !== after || preference !== appliedPreference) {
+            appliedPreference = preference;
+            window.dispatchEvent(new CustomEvent("tuist:theme-change", { detail: { theme: after, preference } }));
+          }
+        }
+
         applyTheme();
 
-        systemDark.addEventListener("change", function() {
-          const before = document.documentElement.getAttribute("data-theme");
-          const after = applyTheme();
-          if (before !== after) {
-            window.dispatchEvent(new CustomEvent("tuist:theme-change", { detail: { theme: after } }));
-          }
+        systemDark.addEventListener("change", reapplyTheme);
+
+        // A back/forward navigation can restore this document from the
+        // browser's page cache with its DOM frozen as it was left, so a
+        // preference changed on another page would otherwise show the old
+        // theme until the next full load.
+        window.addEventListener("pageshow", function(event) {
+          if (event.persisted) reapplyTheme();
         });
       })();
     </script>
