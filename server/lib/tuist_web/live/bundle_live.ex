@@ -49,6 +49,9 @@ defmodule TuistWeb.BundleLive do
     artifacts_by_path =
       Map.put(artifacts_by_path, base_path, bundle)
 
+    last_bundle =
+      Bundles.last_project_bundle(selected_project, git_branch: selected_project.default_branch, bundle: bundle)
+
     socket =
       socket
       |> assign(:bundle, bundle)
@@ -66,6 +69,8 @@ defmodule TuistWeb.BundleLive do
       |> assign(:artifacts_by_path, artifacts_by_path)
       |> assign(:base_path, base_path)
       |> assign(:file_breakdown_available_filters, define_file_breakdown_filters())
+      |> assign(:last_bundle, last_bundle)
+      |> assign(:install_size_deviation, Bundles.install_size_deviation(bundle, last_bundle))
 
     {:ok, socket}
   end
@@ -73,14 +78,7 @@ defmodule TuistWeb.BundleLive do
   def handle_params(
         params,
         _url,
-        %{
-          assigns: %{
-            bundle: bundle,
-            duplicate_shasums: duplicate_shasums,
-            selected_project: selected_project,
-            base_path: base_path
-          }
-        } = socket
+        %{assigns: %{bundle: bundle, duplicate_shasums: duplicate_shasums, base_path: base_path}} = socket
       ) do
     bundle_size_analysis_page_params =
       params
@@ -113,8 +111,6 @@ defmodule TuistWeb.BundleLive do
 
     filter = params["filter"] || ""
 
-    series = to_chart_series(bundle, filter, duplicate_shasums)
-
     table_artifact = build_root_table_artifact(bundle, base_path, duplicate_shasums)
 
     selected_artifact =
@@ -131,22 +127,44 @@ defmodule TuistWeb.BundleLive do
 
     socket =
       socket
-      |> assign(series: series)
-      |> assign(filter: filter)
+      |> assign_when_changed(:filter, filter, &assign_series(&1, filter))
       |> assign(uri: uri)
       |> assign(:selected_tab, params["tab"] || "overview")
       |> assign_duplicates(params)
-      |> assign_module_breakdown(params)
-      |> assign_file_breakdown(params)
-      |> assign(:install_size_deviation, Bundles.install_size_deviation(bundle))
-      |> assign(
-        :last_bundle,
-        Bundles.last_project_bundle(selected_project, git_branch: selected_project.default_branch, bundle: bundle)
+      |> assign_when_changed(
+        :module_breakdown_params,
+        take_params(params, ["module-breakdown-"]),
+        &assign_module_breakdown(&1, params)
+      )
+      |> assign_when_changed(
+        :file_breakdown_params,
+        take_params(params, ["file-breakdown-", "filter_"]),
+        &assign_file_breakdown(&1, params)
       )
       |> assign_table_artifact(selected_artifact, params)
       |> assign(:bundle_size_analysis_sunburst_chart_selected_artifact, selected_artifact)
 
     {:noreply, socket}
+  end
+
+  # The series and breakdowns walk every artifact, so patches that only change unrelated
+  # params (pagination, tab) reuse the previous values.
+  defp assign_when_changed(socket, key, value, assign_fun) do
+    case Map.fetch(socket.assigns, key) do
+      {:ok, ^value} -> socket
+      _ -> socket |> assign_fun.() |> assign(key, value)
+    end
+  end
+
+  defp take_params(params, prefixes) do
+    Map.filter(params, fn {key, _value} -> String.starts_with?(key, prefixes) end)
+  end
+
+  # The sunburst is drawn by a client hook that only runs once the socket connects,
+  # so the static render skips building its data.
+  defp assign_series(%{assigns: %{bundle: bundle, duplicate_shasums: duplicate_shasums}} = socket, filter) do
+    artifacts = if connected?(socket), do: bundle.artifacts, else: []
+    assign(socket, :series, to_chart_series(artifacts, filter, duplicate_shasums))
   end
 
   defp assign_duplicates(%{assigns: %{duplicates: duplicates}} = socket, params) do
@@ -463,11 +481,7 @@ defmodule TuistWeb.BundleLive do
           }
         } = socket
       ) do
-    table_artifact =
-      bundle
-      |> build_root_table_artifact(base_path, duplicate_shasums)
-      |> Map.put(:id, bundle.id)
-      |> Map.put(:artifact_id, nil)
+    table_artifact = build_root_table_artifact(bundle, base_path, duplicate_shasums)
 
     cleaned_params = remove_pagination_params(params)
 
@@ -504,11 +518,7 @@ defmodule TuistWeb.BundleLive do
 
     table_artifact =
       if is_nil(artifact) do
-        bundle
-        |> build_root_table_artifact(base_path, duplicate_shasums)
-        |> Map.put(:id, bundle.id)
-        |> Map.put(:artifact_id, nil)
-        |> Map.put(:artifact_type, :directory)
+        build_root_table_artifact(bundle, base_path, duplicate_shasums)
       else
         build_artifact_for_table(artifact, duplicate_shasums)
       end
@@ -747,9 +757,9 @@ defmodule TuistWeb.BundleLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  def to_chart_series(bundle, filter, duplicate_shasums) do
+  def to_chart_series(artifacts, filter, duplicate_shasums) do
     %{
-      data: build_tree_data(bundle.artifacts, filter, duplicate_shasums),
+      data: build_tree_data(artifacts, filter, duplicate_shasums),
       radius: [60, "90%"],
       type: "sunburst",
       emphasis: %{
@@ -886,7 +896,7 @@ defmodule TuistWeb.BundleLive do
         artifact_type: child_node.artifact_type,
         duplicate?: child_node[:duplicate?] || false,
         name: "#{base.name}/#{child_node.name}",
-        path: "#{base.path}/#{child_node.path}",
+        path: child_node.path,
         children: child_node[:children] || [],
         itemStyle: child_node.itemStyle
       }
@@ -1030,6 +1040,8 @@ defmodule TuistWeb.BundleLive do
       path: base_path,
       name: bundle.name,
       value: bundle.install_size,
+      id: bundle.id,
+      artifact_id: nil,
       artifact_type: :directory,
       children: build_artifact_children(bundle.artifacts, duplicate_shasums)
     }

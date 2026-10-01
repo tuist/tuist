@@ -131,6 +131,131 @@ defmodule TuistWeb.BundleLiveTest do
 
       assert %{"a.png" => true, "b.png" => false} == Map.new(children, &{&1.name, &1.duplicate?})
     end
+
+    test "keeps the child's path when merging a directory with a single child" do
+      artifacts = [
+        %{
+          id: "app",
+          artifact_id: nil,
+          artifact_type: :directory,
+          path: "App.app",
+          size: 3,
+          shasum: "app",
+          children: [
+            %{
+              id: "bundle",
+              artifact_id: "app",
+              artifact_type: :directory,
+              path: "App.app/Design.bundle",
+              size: 1,
+              shasum: "bundle",
+              collapsed?: false,
+              children: [
+                %{
+                  id: "car",
+                  artifact_id: "bundle",
+                  artifact_type: :asset,
+                  path: "App.app/Design.bundle/Assets.car",
+                  size: 1,
+                  shasum: "car",
+                  collapsed?: false,
+                  children: []
+                }
+              ]
+            },
+            %{
+              id: "binary",
+              artifact_id: "app",
+              artifact_type: :binary,
+              path: "App.app/App",
+              size: 2,
+              shasum: "binary",
+              collapsed?: false,
+              children: []
+            }
+          ]
+        }
+      ]
+
+      [%{children: children}] = TuistWeb.BundleLive.build_tree_data(artifacts, "", MapSet.new())
+
+      assert %{name: "Design.bundle/Assets.car", path: "App.app/Design.bundle/Assets.car"} =
+               Enum.find(children, &(&1.id == "car"))
+    end
+  end
+
+  describe "sunburst chart events" do
+    test "highlighting the chart center while the root is selected shows the bundle", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project)
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}")
+
+      # When
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-highlighted-parent", %{})
+
+      # Then
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table th", bundle.name)
+    end
+
+    test "selecting the chart center while the root is selected keeps the root", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project)
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}")
+
+      # When
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-selected-parent", %{})
+
+      # Then
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "App.app")
+    end
+  end
+
+  describe "patching params" do
+    test "rebuilds the sunburst data when the filter changes", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project)
+      path = ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}"
+      {:ok, lv, _html} = live(conn, path)
+      render_patch(lv, path <> "?duplicates-page=1")
+
+      # When
+      render_patch(lv, path <> "?filter=small")
+
+      # Then
+      data = lv |> element("#bundle-size-analysis-sunburst [data-part='data']") |> render()
+      assert data =~ "small.png"
+      refute data =~ "large.png"
+    end
+
+    test "re-sorts the file breakdown when only its sort order changes", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project)
+      path = ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=file-breakdown"
+      {:ok, lv, _html} = live(conn, path)
+      assert file_breakdown_paths(lv) == ["large.png", "small.png"]
+
+      # When
+      render_patch(lv, path <> "&file-breakdown-sort-by=size&file-breakdown-sort-order=asc")
+
+      # Then
+      assert file_breakdown_paths(lv) == ["small.png", "large.png"]
+    end
   end
 
   describe "duplicate insights" do
@@ -255,6 +380,27 @@ defmodule TuistWeb.BundleLiveTest do
         }
       ]
     )
+  end
+
+  defp bundle_with_files(project) do
+    files = [
+      %{artifact_type: :asset, path: "App.app/small.png", size: 1024, shasum: "small", children: []},
+      %{artifact_type: :asset, path: "App.app/large.png", size: 4096, shasum: "large", children: []}
+    ]
+
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      install_size: 5120,
+      artifacts: [%{artifact_type: :directory, path: "App.app", size: 5120, shasum: "app", children: files}]
+    )
+  end
+
+  defp file_breakdown_paths(lv) do
+    lv
+    |> render()
+    |> Floki.parse_document!()
+    |> Floki.find("#file-breakdown-table tbody tr")
+    |> Enum.map(fn row -> row |> Floki.find("td") |> hd() |> Floki.text() |> String.trim() end)
   end
 
   defp duplicate_group_count(lv) do
