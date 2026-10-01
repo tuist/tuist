@@ -8,56 +8,74 @@ defmodule TuistWeb.Webhooks.BillingController do
   alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
 
   @impl true
-  def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
-    customer = event.data.object
+  def handle_event(%Stripe.Event{} = event) do
+    context = %{
+      stripe_event_id: event.id,
+      stripe_event_type: event.type,
+      stripe_customer_id: customer_id(event.data.object)
+    }
 
-    # Stripe also notifies us about customers no Tuist account owns, and customers can
-    # have their email removed, which accounts.billing_email (NOT NULL) can't store.
-    with email when is_binary(email) <- customer.email,
-         {:ok, account} <- Accounts.get_account_from_customer_id(customer.id) do
-      {:ok, _} = Accounts.update_account(account, %{billing_email: email})
+    Logger.metadata(Map.to_list(context))
+
+    if Tuist.Environment.error_tracking_enabled?() do
+      Sentry.Context.set_extra_context(context)
     end
 
-    :ok
+    handle(event)
   end
 
-  @impl true
-  def handle_event(%Stripe.Event{type: "customer.subscription.created"} = event) do
+  defp customer_id(%Stripe.Customer{id: id}), do: id
+  defp customer_id(%{customer: customer_id}) when is_binary(customer_id), do: customer_id
+  defp customer_id(_object), do: nil
+
+  defp handle(%Stripe.Event{type: "customer.updated"} = event) do
+    customer = event.data.object
+
+    case Accounts.get_account_from_customer_id(customer.id) do
+      # A customer's email can be removed, but accounts.billing_email is NOT NULL.
+      {:ok, account} when is_binary(customer.email) ->
+        {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
+        :ok
+
+      {:ok, _account} ->
+        :ok
+
+      {:error, :not_found} ->
+        Billing.on_unlinked_customer(customer)
+    end
+  end
+
+  defp handle(%Stripe.Event{type: "customer.subscription.created"} = event) do
     Billing.on_subscription_change(event.data.object)
 
     :ok
   end
 
-  @impl true
-  def handle_event(%Stripe.Event{type: "customer.subscription.updated"} = event) do
+  defp handle(%Stripe.Event{type: "customer.subscription.updated"} = event) do
     Billing.on_subscription_change(event.data.object)
 
     :ok
   end
 
-  @impl true
-  def handle_event(%Stripe.Event{type: "customer.subscription.deleted"} = event) do
+  defp handle(%Stripe.Event{type: "customer.subscription.deleted"} = event) do
     Billing.on_subscription_change(event.data.object)
 
     :ok
   end
 
-  @impl true
-  def handle_event(%Stripe.Event{type: "customer.subscription.resumed"} = event) do
+  defp handle(%Stripe.Event{type: "customer.subscription.resumed"} = event) do
     Billing.on_subscription_change(event.data.object)
 
     :ok
   end
 
-  @impl true
-  def handle_event(%Stripe.Event{type: "customer.subscription.paused"} = event) do
+  defp handle(%Stripe.Event{type: "customer.subscription.paused"} = event) do
     Billing.on_subscription_change(event.data.object)
 
     :ok
   end
 
-  @impl true
-  def handle_event(%Stripe.Event{type: "invoice.payment_failed"} = event) do
+  defp handle(%Stripe.Event{type: "invoice.payment_failed"} = event) do
     Billing.on_invoice_payment_failed(event.data.object)
   end
 
@@ -78,8 +96,7 @@ defmodule TuistWeb.Webhooks.BillingController do
   # Let a failed insert raise: any credit on the invoice is owed, so a
   # 500 here buys another delivery from Stripe rather than dropping the
   # grant on the floor.
-  @impl true
-  def handle_event(%Stripe.Event{type: type} = event) when type in ["invoice.finalized", "invoice.paid"] do
+  defp handle(%Stripe.Event{type: type} = event) when type in ["invoice.finalized", "invoice.paid"] do
     {:ok, _job} =
       %{invoice_id: event.data.object.id}
       |> CreateRunnerPrepaidGrantWorker.new()
@@ -89,8 +106,5 @@ defmodule TuistWeb.Webhooks.BillingController do
   end
 
   # Return HTTP 200 for unhandled events
-  @impl true
-  def handle_event(_event) do
-    :ok
-  end
+  defp handle(_event), do: :ok
 end

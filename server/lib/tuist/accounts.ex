@@ -120,21 +120,34 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def create_customer_when_absent(%Account{} = account) do
-    if is_nil(account.customer_id) do
-      customer_id =
-        Billing.create_customer(%{
-          name: account.name,
-          email: account.billing_email
-        })
+  def create_customer_when_absent(%Account{customer_id: nil} = account) do
+    # Locks the row so concurrent requests don't each create a Stripe customer
+    # for the account, orphaning all but the last one written.
+    {:ok, account} =
+      Repo.transaction(fn ->
+        customer_id =
+          Repo.one!(from(a in Account, where: a.id == ^account.id, select: a.customer_id, lock: "FOR UPDATE"))
 
-      account
-      |> Account.update_customer_id_changeset(%{customer_id: customer_id})
-      |> Repo.update!()
-    else
-      account
-    end
+        if is_nil(customer_id) do
+          customer_id =
+            Billing.create_customer(%{
+              name: account.name,
+              email: account.billing_email,
+              account_id: account.id
+            })
+
+          account
+          |> Account.update_customer_id_changeset(%{customer_id: customer_id})
+          |> Repo.update!()
+        else
+          %{account | customer_id: customer_id}
+        end
+      end)
+
+    account
   end
+
+  def create_customer_when_absent(%Account{} = account), do: account
 
   def get_users_count do
     Repo.aggregate(User, :count, :id)
