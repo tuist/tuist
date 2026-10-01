@@ -1,5 +1,6 @@
 defmodule TuistWeb.Webhooks.BillingControllerTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Billing.Workers.CreateRunnerPrepaidGrantWorker
@@ -15,7 +16,7 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
       event = %Stripe.Event{
         type: "customer.updated",
         data: %{
-          object: %{
+          object: %Stripe.Customer{
             id: account.customer_id,
             email: "new-billing-email@example.com"
           }
@@ -34,7 +35,7 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
 
       event = %Stripe.Event{
         type: "customer.updated",
-        data: %{object: %{id: account.customer_id, email: nil}}
+        data: %{object: %Stripe.Customer{id: account.customer_id, email: nil}}
       }
 
       assert :ok = BillingController.handle_event(event)
@@ -43,18 +44,54 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
       assert updated_account.billing_email == account.billing_email
     end
 
-    test "ignores customers that don't belong to any account" do
+    test "ignores customers Tuist didn't create" do
+      reject(Sentry, :capture_message, 2)
+
       event = %Stripe.Event{
         type: "customer.updated",
         data: %{
-          object: %{
+          object: %Stripe.Customer{
             id: "cus_unknown_#{System.unique_integer([:positive])}",
-            email: "new-billing-email@example.com"
+            email: "new-billing-email@example.com",
+            metadata: %{}
           }
         }
       }
 
       assert :ok = BillingController.handle_event(event)
+    end
+
+    test "reports customers Tuist created that no account is linked to" do
+      expect(Sentry, :capture_message, fn _message, _opts -> {:ok, ""} end)
+
+      event = %Stripe.Event{
+        type: "customer.updated",
+        data: %{
+          object: %Stripe.Customer{
+            id: "cus_unknown_#{System.unique_integer([:positive])}",
+            email: "new-billing-email@example.com",
+            metadata: %{"tuist_account_id" => "42"}
+          }
+        }
+      }
+
+      assert :ok = BillingController.handle_event(event)
+    end
+  end
+
+  describe "handle_event/1" do
+    test "tags the request's logs with the Stripe event and customer" do
+      event = %Stripe.Event{
+        id: "evt_123",
+        type: "invoice.payment_failed",
+        data: %{object: %Stripe.Invoice{id: "in_123", customer: "cus_123"}}
+      }
+
+      BillingController.handle_event(event)
+
+      assert Logger.metadata()[:stripe_event_id] == "evt_123"
+      assert Logger.metadata()[:stripe_event_type] == "invoice.payment_failed"
+      assert Logger.metadata()[:stripe_customer_id] == "cus_123"
     end
   end
 
