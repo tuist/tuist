@@ -16,9 +16,12 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   defp file(path, counts), do: CoverageFixtures.file(path, counts, targets: ["Calculator"])
 
   setup %{organization: organization, project: project} do
+    # The pages read the last 30 days by default, so the commits are recent.
+    yesterday = DateTime.add(DateTime.utc_now(), -1, :day)
+
     CoverageFixtures.seed_history(organization.account, [
-      CoverageFixtures.commit("a", [], 0),
-      CoverageFixtures.commit("b", ["a"], 1)
+      CoverageFixtures.commit("a", [], 0, yesterday),
+      CoverageFixtures.commit("b", ["a"], 1, yesterday)
     ])
 
     run =

@@ -30,11 +30,12 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   def repository_id(account, url \\ @remote_url), do: GitHistory.repository_id(account.id, url)
 
   @doc """
-  A commit for `seed_history/2`: `minutes` after a fixed epoch, so a list
-  reads oldest to newest.
+  A commit for `seed_history/2`: `minutes` after an epoch, so a list reads
+  oldest to newest. The epoch is fixed unless given; a test that reads a page
+  over its default period (the last 30 days) passes one relative to now.
   """
-  def commit(sha, parents, minutes) do
-    %{sha: sha, parents: parents, committed_at: DateTime.add(~U[2026-09-01 00:00:00Z], minutes * 60, :second)}
+  def commit(sha, parents, minutes, epoch \\ ~U[2026-09-01 00:00:00Z]) do
+    %{sha: sha, parents: parents, committed_at: DateTime.add(epoch, minutes * 60, :second)}
   end
 
   @doc "Stores commits (`commit/3`) in the account's fixture repository and returns its id."
