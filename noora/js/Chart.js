@@ -619,6 +619,32 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+// A point that stands for a calendar day, week or month is titled by that
+// period. Its date is the period's start, truncated in UTC, so it is
+// formatted in UTC too: a local time zone would move it to the day before.
+function formatPeriod(date, period) {
+  if (period === "month") {
+    return date.toLocaleDateString(navigator.language, {
+      timeZone: "UTC",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  const day = new Intl.DateTimeFormat(navigator.language, {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (period === "week") {
+    return day.formatRange(date, new Date(date.getTime() + 6 * 86_400_000));
+  }
+
+  return day.format(date);
+}
+
 // Tooltip
 function tooltipFormatter(options = {}) {
   return (params) => {
@@ -661,6 +687,8 @@ function tooltipFormatter(options = {}) {
         });
         const hour = String(date.getHours()).padStart(2, "0");
         title = `${dateStr}, ${hour}:00`;
+      } else if (["day", "week", "month"].includes(options.dateFormat)) {
+        title = formatPeriod(date, options.dateFormat);
       } else {
         title = date.toLocaleDateString(navigator.language, {
           day: "numeric",
