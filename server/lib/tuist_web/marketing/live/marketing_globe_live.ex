@@ -16,6 +16,8 @@ defmodule TuistWeb.Marketing.MarketingGlobeLive do
      socket
      |> TuistWeb.Authentication.mount_current_user(session)
      |> assign_snapshot(Stats.get_globe())
+     # A display page for a screen: no support chat bubble over the globe.
+     |> assign(:support_chat_disabled?, true)
      # The globe's first-paint placeholder is an inline script, so it needs
      # the request's CSP nonce (only the dead render matters — CSP is
      # enforced against the initial response's header).
@@ -33,6 +35,12 @@ defmodule TuistWeb.Marketing.MarketingGlobeLive do
      |> assign(:head_description, description)
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(:head_image, SocialCards.image_url("cache"))
+     # The figures are set in Geist Pixel (its Grid shape), which only this
+     # page uses, so it comes from Google Fonts rather than the site's font
+     # set. The shape axis is requested as a range and pinned in globe.css.
+     |> assign(:head_stylesheets, [
+       "https://fonts.googleapis.com/css2?family=Geist+Pixel:ELSH@0..100&display=swap"
+     ])
      |> assign_feature_structured_data(dgettext("marketing", "Cache globe"), description, "/globe")}
   end
 

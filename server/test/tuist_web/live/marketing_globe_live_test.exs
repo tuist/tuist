@@ -12,13 +12,16 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
     {:ok, view, html} = live(conn, ~p"/globe")
 
-    assert html =~ "Built once."
+    assert html =~ "Compilation actions skipped"
     assert has_element?(view, "#marketing-globe[data-demo=false]")
-    assert has_element?(view, "#marketing-globe a[href='/cache']", "Meet the cache")
     assert has_element?(view, "#marketing-globe-canvas[phx-hook=DitherGlobe]")
     assert has_element?(view, "#marketing-globe [data-part=navbar] a[href='/']")
+    assert has_element?(view, "#globe-flaps[phx-hook=SplitFlap]")
+    assert has_element?(view, "#marketing-globe [data-part=regions] [data-region=eu-west]")
     refute html =~ "marketing-navbar"
     refute html =~ "marketing-footer"
+    refute html =~ "support/chat.js"
+    assert html =~ "fonts.googleapis.com/css2?family=Geist+Pixel"
 
     send(view.pid, {:cache_globe_updated, %{CacheGlobe.empty() | downloads: 321}})
 

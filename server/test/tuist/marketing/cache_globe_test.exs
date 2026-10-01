@@ -11,7 +11,7 @@ defmodule Tuist.Marketing.CacheGlobeTest do
       account_id: 100,
       project_id: 200,
       node_id: "private-node",
-      region: "eu-central",
+      region: "eu-west",
       traffic_plane: "public",
       direction: "egress",
       operation: "download",
@@ -42,7 +42,7 @@ defmodule Tuist.Marketing.CacheGlobeTest do
     assert snapshot.bytes == 4096
     assert snapshot.recent_downloads == 5
     assert snapshot.observed_at == "2025-01-10T11:59:00Z"
-    assert Enum.find(snapshot.regions, &(&1.id == "eu-central")).downloads == 10
+    assert Enum.find(snapshot.regions, &(&1.id == "eu-west")).downloads == 10
     refute JSON.encode!(snapshot) =~ "private-node"
     refute JSON.encode!(snapshot) =~ "account_id"
     refute JSON.encode!(snapshot) =~ "project_id"

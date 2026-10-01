@@ -195,6 +195,9 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
     />
+    <%!-- Stylesheets a single page asks for (a font only it uses), so they
+    never load site-wide. --%>
+    <link :for={href <- assigns[:head_stylesheets] || []} href={href} rel="stylesheet" />
 
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="marketing" {assigns} />

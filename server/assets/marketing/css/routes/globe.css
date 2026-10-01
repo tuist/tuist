@@ -1,58 +1,129 @@
-/* Cache globe page (/globe): a standalone display page — no shared navbar,
-   footer or CTA, just the wordmark linking home — built from the cache
-   page's hero skeleton (left-aligned copy over a 600px card, the
-   DitherGlobe spinning off the card's right edge) and an activity frame
-   (the live counters, the serving-region rows, the display controls) on
-   the 1200px page frame with 2px seams. */
+/* Cache globe page (/globe): a display page for a screen at a booth or
+   on a wall. The Figma frame is 1920×1080 with 72px side gutters around an
+   outlined stage, and the whole layout is authored in that coordinate
+   space: `--u` is one design pixel, scaled so the frame fills the viewport
+   (the hero row and the globe column absorb any extra width or height, so a
+   16:9 TV and a 16:10 laptop both fill without scrolling). Inside the stage,
+   three rows — the wordmark bar, the hero (counter panel on the left, globe
+   on the right), the serving-region strip — and the cells inside them meet
+   at 1px hairlines: the stage ground is the stroke colour and every block
+   paints the surface over it, so a seam costs a single pixel and the stage
+   never outgrows the viewport. Below 1024px the stage gives way to a
+   stacked, scrolling flow at a comfortable size. */
 #marketing-globe {
+  --u: min(100vw / 1920, 100dvh / 1080);
+  --seam: 1px;
+  --stroke: var(--marketing-stroke-default);
+  /* The cache page's dither ramp, so the sphere and the specks it sheds
+     read the same here. */
+  --marketing-cache-globe-dither-shallow: var(--marketing-illustration-neutral-3);
+  --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-4);
+  --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-5);
+  --marketing-cache-globe-marker: var(--noora-purple-300);
+  /* Shared type ramp, in design pixels: the code face for eyebrows, the
+     body face for labels and copy (Desktop/Heading/MediumRegular, 20/26),
+     and Geist Pixel for the figures — linked from Google Fonts by the page
+     (see the LiveView's head_stylesheets), with its shape axis pinned to
+     the Grid instance below. The code face stands in while it loads. */
+  --font-eyebrow: var(--noora-font-weight-regular) calc(20 * var(--u)) / calc(26 * var(--u)) var(--noora-font-code);
+  --font-label: var(--noora-font-weight-regular) calc(20 * var(--u)) / calc(26 * var(--u)) var(--noora-font-body);
+  --font-figure: var(--noora-font-weight-regular) calc(48 * var(--u)) / calc(62 * var(--u)) "Geist Pixel",
+    var(--noora-font-code);
+  --font-figure-shape: "ELSH" 40;
+  /* Every Geist Pixel figure glows: a 6px white drop shadow at 100%, straight
+     from the Figma, dropped in the light theme where a white halo has
+     nothing to glow against. */
+  --figure-glow: 0 0 calc(6 * var(--u)) light-dark(rgb(255 255 255 / 0%), rgb(255 255 255 / 100%));
   display: flex;
-  position: relative;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--noora-spacing-1);
-  padding-bottom: var(--noora-spacing-16);
+  box-sizing: border-box;
+  padding-inline: calc(72 * var(--u));
+  width: 100%;
+  min-height: 100dvh;
+  color: var(--noora-surface-label-primary);
+  /* Every figure on the page rolls or refreshes in place: tabular digits
+     keep columns from jittering as values change. */
+  font-variant-numeric: tabular-nums;
 
-  @media (min-width: 1024px) {
-    align-items: center;
-  }
-
-  /* The wordmark bar: the marketing navbar's shell (hairline bottom edge,
-     1200px frame with 16px side / 20px vertical padding, spacing-1 seam
-     to the hero) reduced to the logo. */
-  & > [data-part="navbar"] {
+  /* Odometer figures: the hook renders a live figure as columns, and each
+     digit column clips a reel of glyphs one line tall each, slid by --i
+     lines. The columns overlap by the glow's blur so the clipping never cuts
+     the halo between digits. Applies wherever a figure is a reel: the stat
+     row and the hit-rate percentages. */
+  & [data-part="value"] {
     display: flex;
-    align-self: stretch;
-    box-sizing: border-box;
-    border-bottom: 1px solid var(--marketing-stroke-default);
-    background: var(--noora-surface-background-primary);
+    align-items: baseline;
 
-    & > [data-part="tuist"] {
-      display: flex;
-      align-items: center;
-      box-sizing: border-box;
-      margin-inline: auto;
-      padding: var(--noora-spacing-7) var(--noora-spacing-4);
-      width: 100%;
-      max-width: var(--marketing-page-width);
-      text-decoration: none;
+    & > [data-part="char"] {
+      display: block;
+    }
 
-      & > [data-part="logo"] {
+    & > [data-part="char"][data-digit] {
+      /* Soft edges: a digit rolling in or out fades at the top and bottom
+         of the column instead of being cut off by the clip. The fade sits in
+         the line box's leading, above and below where a resting digit
+         reaches. */
+      mask-image: linear-gradient(180deg, transparent 0%, black 18%, black 82%, transparent 100%);
+      box-sizing: content-box;
+      margin-inline: calc(-6 * var(--u));
+      padding-inline: calc(6 * var(--u));
+      height: 1lh;
+      overflow: hidden;
+
+      & > [data-part="reel"] {
         display: block;
-        width: 84px;
-        height: 32px;
-        color: var(--noora-surface-label-primary);
-      }
+        transform: translateY(calc(var(--i, 0) * -5%));
+        transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 
-      &:focus-visible {
-        outline: 2px solid var(--noora-purple-400);
-        outline-offset: -4px;
+        &[data-snap] {
+          transition: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          transition: none;
+        }
+
+        & > span {
+          display: block;
+          height: 1lh;
+        }
       }
     }
   }
 
+  @media (max-width: 1023px) {
+    --u: calc(100vw / 960);
+    padding-inline: calc(24 * var(--u));
+    min-height: 0;
+  }
+
+  /* The outlined stage: a grid of the three rows over the stroke-coloured
+     ground, so the gaps between blocks read as hairlines. The hero row's
+     floor is what the counter panel needs (its four blocks plus seams), and
+     it grows from there to fill the viewport. */
+  & > [data-part="stage"] {
+    display: grid;
+    grid-template-rows: calc(72 * var(--u)) minmax(calc(828 * var(--u) + 3 * var(--seam)), 1fr) calc(144 * var(--u));
+    flex-grow: 1;
+    align-items: stretch;
+    justify-items: stretch;
+    gap: var(--seam);
+    box-sizing: border-box;
+    border-inline: var(--seam) solid var(--stroke);
+    background: var(--stroke);
+    min-width: 0;
+
+    @media (max-width: 1023px) {
+      grid-template-rows: auto;
+    }
+  }
+
   /* The full-screen button promotes the page body (navbar and footer sit
-     outside <main>), so it needs its own ground and scroll. */
+     outside <main>), so it needs its own ground and vertical centring. */
   &:fullscreen {
+    --u: min(100vw / 1920, 100vh / 1080);
+    justify-content: center;
     background: var(--noora-surface-background-primary);
     overflow: auto;
   }
@@ -61,77 +132,359 @@
     display: none !important;
   }
 
-  /* Every frame shares the page shell: stroke border, primary surface, the
-     same margin/width override that beats pages.css. */
-  & > header[data-part="header"],
-  & > [data-part="activity"] {
+  /* pages.css gives every marketing section a margin: the stage owns its
+     spacing, so the blocks sit flush on the grid, each painting the surface
+     over the stroke-coloured ground. */
+  & > [data-part="stage"] > header,
+  & > [data-part="stage"] > section {
     box-sizing: border-box;
-    margin: 0 var(--noora-spacing-1);
-    border: 1px solid var(--marketing-stroke-default);
+    margin: 0;
     background: var(--noora-surface-background-primary);
+    min-width: 0;
+    max-width: none;
+  }
 
-    @media (min-width: 1024px) {
-      margin: 0;
-      width: 100%;
-      max-width: 1200px;
+  /* Wordmark bar: logo on the left; data status, demo toggle and display
+     controls on the right in the eyebrow face. */
+  & > [data-part="stage"] > [data-part="navbar"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: calc(24 * var(--u));
+    padding: calc(20 * var(--u)) calc(16 * var(--u));
+
+    @media (max-width: 1023px) {
+      flex-wrap: wrap;
+    }
+
+    & > [data-part="tuist"] {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+
+      & > [data-part="logo"] {
+        display: block;
+        width: calc(84 * var(--u));
+        height: calc(32 * var(--u));
+        color: var(--noora-surface-label-primary);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--noora-purple-400);
+        outline-offset: 4px;
+      }
+    }
+
+    & > [data-part="toolbar"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: calc(24 * var(--u));
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) calc(16 * var(--u)) / calc(22 * var(--u)) var(--noora-font-code);
+
+      & > [data-part="status"] {
+        display: flex;
+        align-items: center;
+        gap: calc(10 * var(--u));
+
+        & > [data-part="dot"] {
+          border-radius: 50%;
+          background: var(--marketing-illustration-neutral-4);
+          width: calc(8 * var(--u));
+          height: calc(8 * var(--u));
+        }
+
+        &[data-state="live"] > [data-part="dot"] {
+          box-shadow: 0 0 0 calc(3 * var(--u)) var(--noora-alpha-purple);
+          background: var(--noora-purple-400);
+        }
+
+        &[data-state="demo"] > [data-part="dot"] {
+          background: var(--noora-purple-300);
+        }
+      }
+
+      & > [data-part="mode"] {
+        color: inherit;
+        text-decoration: none;
+
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--noora-purple-400);
+          outline-offset: 4px;
+        }
+      }
+
+      & > [data-part="controls"] {
+        display: flex;
+        align-items: center;
+        gap: calc(24 * var(--u));
+
+        & > button {
+          display: inline-flex;
+          align-items: center;
+          gap: calc(8 * var(--u));
+          cursor: pointer;
+          border: 0;
+          background: transparent;
+          padding: calc(8 * var(--u)) 0;
+          color: inherit;
+          font: inherit;
+
+          &:hover {
+            color: var(--noora-surface-label-primary);
+          }
+
+          &:focus-visible {
+            outline: 2px solid var(--noora-purple-400);
+            outline-offset: 4px;
+          }
+
+          & > svg {
+            display: block;
+            width: calc(16 * var(--u));
+            height: calc(16 * var(--u));
+          }
+        }
+      }
     }
   }
 
-  /* Hero card: the cache hero's fixed 600px frame with the copy
-     bottom-aligned on the left (8px left, 64px right/bottom padding, 32px
-     gaps) and the globe filling the right side. */
-  & > header[data-part="header"] {
-    display: flex;
-    position: relative;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: flex-start;
-    gap: var(--noora-spacing-9);
-    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
-    height: 600px;
-    overflow: hidden;
+  /* Hero: the counter panel takes 927.6 of the 1776px frame, the globe the
+     remaining 844.4, with a seam between. Both columns are outlined; the
+     section itself is just the grid. */
+  & > [data-part="stage"] > [data-part="hero"] {
+    display: grid;
+    grid-template-columns: calc(927.6 * var(--u)) minmax(0, 1fr);
+    gap: var(--seam);
+    border: 0;
+    background: transparent;
 
-    @media (max-width: 720px) {
-      gap: var(--noora-spacing-8);
-      padding: 0 var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
-      height: auto;
+    @media (max-width: 1023px) {
+      grid-template-columns: 1fr;
     }
 
-    @media (min-width: 1024px) and (max-width: 1439px) {
-      align-self: stretch;
+    /* Counter panel: four blocks stacked at the Figma heights
+       (270 / 152 / 258 / 148) with seams between. */
+    & > [data-part="panel"] {
+      display: grid;
+      grid-template-rows: calc(270 * var(--u)) calc(152 * var(--u)) minmax(calc(258 * var(--u)), 1fr) calc(
+          148 * var(--u)
+        );
+      gap: var(--seam);
+      min-width: 0;
+
+      @media (max-width: 1023px) {
+        grid-template-rows: auto;
+      }
+
+      & > * {
+        box-sizing: border-box;
+        margin: 0;
+        background: var(--noora-surface-background-primary);
+        min-width: 0;
+      }
+    }
+
+    & [data-part="eyebrow"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: calc(20 * var(--u));
       margin: 0;
-      max-width: none;
+      color: var(--noora-surface-label-secondary);
+      font: var(--font-eyebrow);
+      text-transform: uppercase;
+
+      & > [data-part="separator"] {
+        font: var(--noora-font-weight-medium) calc(20 * var(--u)) / calc(24 * var(--u)) var(--noora-font-body);
+      }
     }
 
-    /* The hero copy sits above the globe. */
-    & > :not([data-part="illustration"]) {
-      position: relative;
-      z-index: var(--noora-z-index-1);
+    /* The counter: eyebrow over the split-flap row. The SplitFlap hook
+       draws the tiles (90×128, 8px apart) into the canvas, which the CSS
+       sizes from the digit count so one design unit stays one tile unit. */
+    & > [data-part="panel"] > [data-part="counter"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: calc(20 * var(--u));
+      padding: calc(48 * var(--u)) calc(16 * var(--u));
+
+      & > [data-part="digits"] {
+        display: block;
+        max-width: 100%;
+
+        & > [data-part="flaps"] {
+          --tiles: 7;
+          display: block;
+          width: calc((var(--tiles) * 90 + (var(--tiles) - 1) * 8) * var(--u));
+          height: calc(128 * var(--u));
+        }
+      }
     }
 
-    /* The globe: the cache card's neutral dither ramp (topping out at the
-       illustrations' neutral-4) with light brand purple markers in both
-       themes. On desktop it owns the card's right side and bleeds off the
-       bottom into the fade; on phones it becomes a full-width band above
-       the copy. */
+    /* The two supporting figures: equal cells, a hairline between. */
+    & > [data-part="panel"] > [data-part="stats"] {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--seam);
+      border: 0;
+      background: transparent;
+
+      @media (max-width: 600px) {
+        grid-template-columns: 1fr;
+      }
+
+      & > [data-part="stat"] {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: calc(16 * var(--u));
+        box-sizing: border-box;
+        background: var(--noora-surface-background-primary);
+        padding: calc(24 * var(--u)) calc(16 * var(--u));
+        min-width: 0;
+
+        & > [data-part="value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--font-figure);
+          font-variation-settings: var(--font-figure-shape);
+          text-shadow: var(--figure-glow);
+          white-space: nowrap;
+        }
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--font-label);
+        }
+      }
+    }
+
+    /* Reuse breakdown: a two-column grid of label + dotted bar rows with
+       the share right- and bottom-aligned. The bar is 320×10 with 40 dots
+       (4×6, 8px pitch, 2px inset): the first --dots are purple, the rest
+       neutral. */
+    & > [data-part="panel"] > [data-part="breakdown"] {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: calc(20 * var(--u));
+      /* 32px top and bottom from the Noora scale (a fixed length, so this
+         block alone does not scale with the stage; its row absorbs the
+         difference), 16 design px on the sides like every other block. */
+      padding: var(--noora-spacing-9) calc(16 * var(--u));
+
+      & > [data-part="rows"] {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: calc(32 * var(--u));
+        row-gap: calc(20 * var(--u));
+
+        @media (max-width: 600px) {
+          grid-template-columns: 1fr;
+        }
+
+        & > [data-part="row"] {
+          --dots: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: calc(16 * var(--u));
+          padding: calc(8 * var(--u)) 0;
+          min-width: 0;
+
+          & > [data-part="text"] {
+            display: flex;
+            flex-grow: 1;
+            flex-direction: column;
+            gap: calc(12 * var(--u));
+            min-width: 0;
+
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--font-label);
+              white-space: nowrap;
+            }
+
+            & > [data-part="bar"] {
+              position: relative;
+              box-sizing: border-box;
+              padding: calc(2 * var(--u));
+              /* 40 dots at an 8px pitch (4 on, 4 off) plus the 2px insets. */
+              width: calc(40 * 8 * var(--u));
+              max-width: 100%;
+              height: calc(10 * var(--u));
+              overflow: hidden;
+
+              &::before,
+              &::after {
+                position: absolute;
+                top: calc(2 * var(--u));
+                bottom: calc(2 * var(--u));
+                left: calc(2 * var(--u));
+                background: repeating-linear-gradient(
+                  90deg,
+                  var(--dot) 0 calc(4 * var(--u)),
+                  transparent calc(4 * var(--u)) calc(8 * var(--u))
+                );
+                content: "";
+              }
+
+              &::before {
+                --dot: var(--marketing-illustration-neutral-4);
+                right: calc(2 * var(--u));
+              }
+
+              /* Lit dots: whole dots only, --dots of the 40 (the hook rounds
+                 the share), so a fill never ends on a sliver. */
+              &::after {
+                --dot: var(--noora-purple-300);
+                transition: width 0.4s ease;
+                width: max(0px, calc(var(--dots, 0) * 8 * var(--u) - 4 * var(--u)));
+              }
+            }
+          }
+
+          & > [data-part="value"] {
+            flex-shrink: 0;
+            color: var(--noora-surface-label-primary);
+            font:
+              var(--noora-font-weight-regular) calc(24 * var(--u)) / calc(31 * var(--u)) "Geist Pixel",
+              var(--noora-font-code);
+            font-variation-settings: var(--font-figure-shape);
+            text-shadow: var(--figure-glow);
+          }
+        }
+      }
+    }
+
+    & > [data-part="panel"] > [data-part="copy"] {
+      display: flex;
+      align-items: center;
+      padding: calc(48 * var(--u)) calc(16 * var(--u));
+      color: var(--noora-surface-label-secondary);
+      font: var(--font-label);
+      text-wrap: pretty;
+    }
+
+    /* The globe column: the canvas fills the outlined cell and the
+       DitherGlobe sizes the sphere to 0.86 of the cell's shorter side —
+       the Figma's 730px sphere centred in 844×856. */
     & > [data-part="illustration"] {
-      --marketing-cache-globe-dither-shallow: var(--marketing-illustration-neutral-2);
-      --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-3);
-      --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-4);
-      --marketing-cache-globe-marker: var(--noora-purple-300);
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
+      position: relative;
+      box-sizing: border-box;
       margin: 0;
-      width: min(640px, 55%);
+      background: var(--noora-surface-background-primary);
+      min-width: 0;
       overflow: hidden;
 
-      @media (max-width: 720px) {
-        position: relative;
-        margin: 0 calc(-1 * var(--noora-spacing-10)) 0 calc(-1 * var(--noora-spacing-4));
-        width: auto;
-        height: 340px;
+      @media (max-width: 1023px) {
+        aspect-ratio: 1;
       }
 
       & > canvas {
@@ -149,354 +502,73 @@
           cursor: grabbing;
         }
       }
-
-      /* Same shared illustration fade as the cache cards: the globe's
-         bottom edge melts into the card instead of being cut. */
-      & > [data-part="fade"] {
-        position: absolute;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        z-index: var(--noora-z-index-2);
-        mask-image: linear-gradient(180deg, transparent, black);
-        background: linear-gradient(180deg, transparent, var(--noora-surface-background-primary));
-        height: 140px;
-        pointer-events: none;
-      }
-    }
-
-    & > [data-part="eyebrow"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-      text-transform: uppercase;
-    }
-
-    & > [data-part="title"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
-      letter-spacing: -0.035em;
-      text-wrap: balance;
-
-      & > [data-part="line"] {
-        display: block;
-      }
-
-      /* The second line carries the markers' purple: the same deep tint in
-         light mode and light tint in dark mode as the cached boxes. */
-      & > [data-part="line"]:last-child {
-        color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
-      }
-    }
-
-    & > [data-part="subtitle"] {
-      max-width: 540px;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
-      text-wrap: pretty;
-    }
-
-    & > [data-part="actions"] {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--noora-spacing-4);
     }
   }
 
-  /* Activity frame: intro text (same eyebrow → h2 → p ramp and 8px side
-     inset as the cache features frame) over hairline rows — the counters,
-     the regions, the toolbar, the notes. */
-  & > [data-part="activity"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-11);
-    padding-top: var(--noora-spacing-14);
+  /* Serving regions strip: a legend cell then one cell per region, equal
+     widths, hairlines between; the region name on the first line and the
+     five-minute count below. */
+  & > [data-part="stage"] > [data-part="regions"] {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: var(--seam);
+    border: 0;
+    background: transparent;
 
-    & > [data-part="text"] {
+    @media (max-width: 1023px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: row;
+    }
+
+    & > * {
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
-      padding: 0 var(--noora-spacing-4);
-
-      & > [data-part="eyebrow"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-        text-transform: uppercase;
-      }
-
-      & > [data-part="title"] {
-        margin-top: var(--noora-spacing-7);
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-display-small);
-      }
-
-      & > [data-part="description"] {
-        margin-top: var(--noora-spacing-4);
-        max-width: 720px;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
-      }
+      justify-content: center;
+      gap: calc(16 * var(--u));
+      box-sizing: border-box;
+      background: var(--noora-surface-background-primary);
+      padding: calc(20 * var(--u)) calc(16 * var(--u));
+      min-width: 0;
     }
 
-    /* Rows close with hairlines: one above each row, one between the
-       columns inside it. The stats and the following rows sit flush (the
-       frame's gap only separates the intro text). */
-    & > [data-part="stats"],
-    & > [data-part="regions"],
-    & > [data-part="toolbar"],
-    & > [data-part="about"] {
-      border-top: 1px solid var(--marketing-stroke-default);
-    }
-
-    & > [data-part="stats"] + [data-part="regions"],
-    & > [data-part="regions"] + [data-part="toolbar"],
-    & > [data-part="toolbar"] + [data-part="about"] {
-      margin-top: calc(-1 * var(--noora-spacing-11));
-    }
-
-    /* The counters: the headline total takes the wide first column and the
-       display ramp's largest size; the two supporting figures share the
-       rest. minmax(0, …) lets the cells shrink below the numbers' width. */
-    & > [data-part="stats"] {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
-
-      @media (max-width: 720px) {
-        grid-template-columns: 1fr;
-      }
-
-      & > [data-part="stat"] {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-3);
-        box-sizing: border-box;
-        padding: var(--noora-spacing-9) var(--noora-spacing-7);
-        min-width: 0;
-
-        @media (min-width: 721px) {
-          &:not(:first-child) {
-            border-left: 1px solid var(--marketing-stroke-default);
-          }
-        }
-
-        @media (max-width: 720px) {
-          &:not(:first-child) {
-            border-top: 1px solid var(--marketing-stroke-default);
-          }
-        }
-
-        & > [data-part="value"] {
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-regular) var(--noora-font-display-medium);
-          /* The numbers roll as snapshots land — tabular digits keep the
-             columns from jittering. */
-          font-variant-numeric: tabular-nums;
-          letter-spacing: -0.02em;
-          overflow-wrap: anywhere;
-        }
-
-        & > [data-part="label"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        }
-
-        &[data-stat="downloads"] > [data-part="value"] {
-          font: var(--noora-font-weight-regular) var(--noora-font-display-xlarge);
-          letter-spacing: -0.035em;
-        }
-      }
-    }
-
-    /* The serving regions: one hairline cell per region — an activity light
-       and the name on the first line, the five-minute count below, and a
-       thin bar for its share of the current volume (the hook sets --fill;
-       relative volume, never an invented history). */
-    & > [data-part="regions"] {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+    & > [data-part="legend"] {
+      justify-content: space-between;
+      color: var(--noora-surface-label-secondary);
+      font: var(--font-eyebrow);
+      text-transform: uppercase;
 
       @media (max-width: 1023px) {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-column: 1 / -1;
+        justify-content: center;
+        gap: calc(8 * var(--u));
       }
 
-      @media (max-width: 720px) {
-        grid-template-columns: 1fr;
-      }
+      & > [data-part="unit"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: calc(8 * var(--u));
 
-      & > [data-part="region"] {
-        --fill: 0%;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas:
-          "light name"
-          "light value"
-          "bar bar";
-        column-gap: var(--noora-spacing-3);
-        row-gap: var(--noora-spacing-2);
-        align-items: start;
-        box-sizing: border-box;
-        padding: var(--noora-spacing-7);
-        min-width: 0;
-
-        @media (min-width: 1024px) {
-          &:not(:first-child) {
-            border-left: 1px solid var(--marketing-stroke-default);
-          }
-        }
-
-        @media (min-width: 721px) and (max-width: 1023px) {
-          &:nth-child(2n) {
-            border-left: 1px solid var(--marketing-stroke-default);
-          }
-
-          &:nth-child(n + 3) {
-            border-top: 1px solid var(--marketing-stroke-default);
-          }
-        }
-
-        @media (max-width: 720px) {
-          &:not(:first-child) {
-            border-top: 1px solid var(--marketing-stroke-default);
-          }
-        }
-
-        & > [data-part="light"] {
-          grid-area: light;
-          transition:
-            background 0.3s ease,
-            box-shadow 0.3s ease;
-          margin-top: 7px;
-          border-radius: 50%;
-          background: var(--marketing-illustration-neutral-4);
-          width: 6px;
-          height: 6px;
-        }
-
-        &[data-active="true"] > [data-part="light"] {
-          box-shadow: 0 0 0 3px var(--noora-alpha-purple);
-          background: var(--noora-purple-400);
-        }
-
-        & > [data-part="name"] {
-          grid-area: name;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        }
-
-        & > [data-part="value"] {
-          grid-area: value;
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
-          font-variant-numeric: tabular-nums;
-        }
-
-        & > [data-part="bar"] {
-          position: relative;
-          grid-area: bar;
-          margin-top: var(--noora-spacing-4);
-          background: var(--marketing-illustration-neutral-1);
-          height: 2px;
-          overflow: hidden;
-
-          &::after {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            transition: width 0.4s ease;
-            background: var(--noora-purple-400);
-            width: var(--fill);
-            content: "";
-          }
-        }
-
-        &:not([data-active="true"]) > [data-part="bar"]::after {
-          background: var(--marketing-illustration-neutral-4);
+        & > [data-part="separator"] {
+          font: var(--noora-font-weight-medium) calc(20 * var(--u)) / calc(24 * var(--u)) var(--noora-font-body);
         }
       }
     }
 
-    /* Toolbar: the data status on the left, the display controls on the
-       right, both in the code face the eyebrows use. */
-    & > [data-part="toolbar"] {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--noora-spacing-6);
-      padding: var(--noora-spacing-5) var(--noora-spacing-7);
-
-      & > [data-part="status"] {
-        display: flex;
-        align-items: center;
-        gap: var(--noora-spacing-3);
+    & > [data-part="region"] {
+      & > [data-part="name"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-
-        & > [data-part="dot"] {
-          border-radius: 50%;
-          background: var(--marketing-illustration-neutral-4);
-          width: 6px;
-          height: 6px;
-        }
-
-        &[data-state="live"] > [data-part="dot"] {
-          box-shadow: 0 0 0 3px var(--noora-alpha-purple);
-          background: var(--noora-purple-400);
-        }
-
-        &[data-state="demo"] > [data-part="dot"] {
-          background: var(--noora-purple-300);
-        }
+        font: var(--font-label);
+        white-space: nowrap;
       }
 
-      & > [data-part="controls"] {
-        display: flex;
-        align-items: center;
-        gap: var(--noora-spacing-7);
-
-        & > button {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--noora-spacing-2);
-          cursor: pointer;
-          border: 0;
-          background: transparent;
-          padding: var(--noora-spacing-2) 0;
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-
-          &:hover {
-            color: var(--noora-surface-label-primary);
-          }
-
-          &:focus-visible {
-            outline: 2px solid var(--noora-purple-400);
-            outline-offset: 4px;
-          }
-
-          & > svg {
-            display: block;
-            width: 16px;
-            height: 16px;
-          }
-        }
-      }
-    }
-
-    & > [data-part="about"] {
-      padding: var(--noora-spacing-5) var(--noora-spacing-7) var(--noora-spacing-7);
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-
-      & > summary {
-        cursor: pointer;
-        width: fit-content;
-      }
-
-      & > p {
-        margin-top: var(--noora-spacing-3);
-        max-width: 720px;
-        text-wrap: pretty;
+      & > [data-part="value"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--font-figure);
+        font-variation-settings: var(--font-figure-shape);
+        text-shadow: var(--figure-glow);
+        white-space: nowrap;
       }
     }
   }

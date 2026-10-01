@@ -1,9 +1,44 @@
 // Page controller for the cache globe page (/globe). It draws nothing
 // itself: the globe is the shared DitherGlobe canvas, which this hook feeds
 // with serving-region markers (active when the region served downloads in
-// the last five minutes) and holds when motion is paused. Everything else
-// is bookkeeping — the counters, the region rows, the status line, and the
-// demo ticker.
+// the last five minutes), with request origins (places requests come from,
+// each launching arcs to its serving region at its measured rate), and
+// holds when motion is paused. Everything else is bookkeeping — the
+// counters, the region rows (which count arriving arcs between snapshots),
+// the status line, and the demo ticker.
+// Illustrative request origins for the demo: cities, the region that
+// serves them, and their share of that region's traffic. Live data carries
+// real origins once the usage rollups record a request's country.
+const DEMO_ORIGINS = [
+  { location: [37.77, -122.42], region: "us-west", share: 0.3 },
+  { location: [21.31, -157.86], region: "us-west", share: 0.2 },
+  { location: [61.22, -149.9], region: "us-west", share: 0.15 },
+  { location: [49.28, -123.12], region: "us-west", share: 0.35 },
+  { location: [19.43, -99.13], region: "us-central", share: 0.4 },
+  { location: [30.27, -97.74], region: "us-central", share: 0.3 },
+  { location: [39.74, -104.99], region: "us-central", share: 0.3 },
+  { location: [40.71, -74.01], region: "us-east", share: 0.3 },
+  { location: [4.71, -74.07], region: "us-east", share: 0.25 },
+  { location: [25.76, -80.19], region: "us-east", share: 0.2 },
+  { location: [47.56, -52.71], region: "us-east", share: 0.25 },
+  { location: [-23.55, -46.63], region: "sa-west", share: 0.45 },
+  { location: [-12.05, -77.04], region: "sa-west", share: 0.3 },
+  { location: [-34.6, -58.38], region: "sa-west", share: 0.25 },
+  { location: [52.52, 13.4], region: "eu-west", share: 0.25 },
+  { location: [64.15, -21.94], region: "eu-west", share: 0.15 },
+  { location: [6.52, 3.38], region: "eu-west", share: 0.2 },
+  { location: [-26.2, 28.05], region: "eu-west", share: 0.2 },
+  { location: [40.42, -3.7], region: "eu-west", share: 0.2 },
+  { location: [60.17, 24.94], region: "eu-east", share: 0.25 },
+  { location: [41.01, 28.98], region: "eu-east", share: 0.25 },
+  { location: [30.04, 31.24], region: "eu-east", share: 0.2 },
+  { location: [25.2, 55.27], region: "eu-east", share: 0.3 },
+  { location: [-33.87, 151.21], region: "ap-southeast", share: 0.25 },
+  { location: [35.68, 139.69], region: "ap-southeast", share: 0.25 },
+  { location: [19.08, 72.88], region: "ap-southeast", share: 0.25 },
+  { location: [-36.85, 174.76], region: "ap-southeast", share: 0.25 },
+];
+
 export const CacheGlobe = {
   mounted() {
     this.demo = this.el.dataset.demo === "true";
@@ -45,9 +80,23 @@ export const CacheGlobe = {
       options,
     );
 
+    // An arc landing on a region counts toward that region's cell until
+    // the next snapshot re-syncs it to the measured value.
+    this.globe?.addEventListener(
+      "dither-globe:arrival",
+      (event) => {
+        const { region, weight } = event.detail;
+        if (this.regionLive?.[region] == null) return;
+        this.regionLive[region] += weight;
+        this.renderRegion(region);
+      },
+      options,
+    );
+
     this.updateMotion();
     this.updateSnapshot();
     this.statusTimer = setInterval(() => this.updateStatus(), 5000);
+    this.liveTimer = setInterval(() => this.advance(), 1000);
     if (this.demo) this.demoTimer = setInterval(() => this.updateSnapshot(), 3000);
   },
 
@@ -70,37 +119,196 @@ export const CacheGlobe = {
   updateSnapshot() {
     if (this.demo) {
       this.demoTick = (this.demoTick || 0) + 1;
-      const weights = [0.19, 0.28, 0.36, 0.12, 0.05];
+      const weights = [0.16, 0.09, 0.24, 0.06, 0.3, 0.08, 0.07];
       this.data = {
         ...this.snapshot,
         downloads: 1482903 + this.demoTick * 137,
         bytes: 8400000000000 + this.demoTick * 928000000,
         recent_downloads: 13720,
+        breakdown: this.demoRates(),
         regions: this.snapshot.regions.map((region, index) => ({
           ...region,
           downloads: Math.round((1482903 + this.demoTick * 137) * weights[index]),
           recent_downloads: Math.round(13720 * weights[index]),
+        })),
+        origins: DEMO_ORIGINS.map((origin) => ({
+          ...origin,
+          recent_downloads: Math.round(
+            13720 * weights[this.snapshot.regions.findIndex((r) => r.id === origin.region)] * origin.share,
+          ),
         })),
       };
     } else {
       this.data = this.snapshot;
     }
     const format = new Intl.NumberFormat(document.documentElement.lang || "en");
-    this.el.querySelector("#globe-total").textContent =
-      this.data.downloads == null ? "—" : format.format(this.data.downloads);
-    this.el.querySelector("#globe-recent").textContent =
-      this.data.recent_downloads == null ? "—" : format.format(this.data.recent_downloads);
-    this.el.querySelector("#globe-bytes").textContent = this.formatBytes(this.data.bytes);
-    const maximum = Math.max(1, ...this.data.regions.map((region) => region.recent_downloads));
+    this.sync();
+    this.setReel(this.el.querySelector("#globe-bytes"), this.formatBytes(this.data.bytes));
+    this.el.querySelector("#globe-region-count").textContent = format.format(this.data.regions.length);
+    // Region cells re-sync to the measured five-minute counts; arrivals
+    // then carry them forward until the next snapshot.
+    this.regionLive = {};
     for (const region of this.data.regions) {
-      const row = this.el.querySelector(`[data-region="${region.id}"]`);
-      if (!row) continue;
-      row.querySelector('[data-part="value"]').textContent =
-        this.data.downloads == null ? "—" : format.format(region.recent_downloads);
-      // The bar shows relative regional volume, not an invented time series.
-      row.style.setProperty("--fill", `${(100 * region.recent_downloads) / maximum}%`);
+      this.regionLive[region.id] = this.data.downloads == null ? null : region.recent_downloads;
+      this.renderRegion(region.id);
     }
+    this.renderBreakdown();
     this.updateStatus();
+  },
+
+  // The counter is carried forward between snapshots: the last five minutes
+  // give a per-minute rate, and every second the counter advances by that
+  // much, the rate easing toward each new measurement instead of jumping.
+  // Snapshots land every 30 seconds. Nothing is invented:
+  // the counter only ever moves at the measured rate, and a snapshot that
+  // is ahead pulls it up straight away, while one that is behind lets the
+  // measurement catch up rather than winding the counter back.
+  sync() {
+    const downloads = this.data.downloads;
+    const rate = this.data.recent_downloads == null ? null : this.data.recent_downloads / 5;
+    if (downloads == null || rate == null) {
+      this.live = null;
+      this.renderDigits(downloads);
+      return;
+    }
+    const now = performance.now();
+    this.live = {
+      value: Math.max(downloads, this.live?.value ?? 0),
+      rate: this.live?.rate ?? rate,
+      target: rate,
+      at: now,
+    };
+    this.advance();
+  },
+
+  advance() {
+    if (!this.live) return;
+    const now = performance.now();
+    const seconds = (now - this.live.at) / 1000;
+    this.live.at = now;
+    this.live.rate += (this.live.target - this.live.rate) * Math.min(1, 0.12 * seconds);
+    this.live.value += (this.live.rate / 60) * seconds;
+    this.renderDigits(Math.floor(this.live.value));
+  },
+
+  // The counter: at least seven digits, zero-padded, handed to the SplitFlap
+  // canvas (which lives inside a phx-update="ignore" block, so it follows
+  // events rather than LiveView patches) and mirrored into the readout for
+  // assistive technology. No number yet shows as zeros rather than dashes so
+  // the row keeps its shape.
+  renderDigits(value) {
+    const digits = String(value == null ? 0 : Math.max(0, Math.round(value))).padStart(7, "0");
+    const canvas = this.el.querySelector("#globe-flaps");
+    if (canvas && canvas.dataset.value !== digits) {
+      canvas.dataset.value = digits;
+      canvas.dispatchEvent(new CustomEvent("split-flap:value", { detail: { value: digits } }));
+    }
+    const readout = this.el.querySelector('#globe-digits [data-part="readout"]');
+    if (readout) readout.textContent = digits;
+  },
+
+  // A figure as an odometer: every digit is a clipped column holding a reel
+  // of 0–9 twice over, slid to the digit on show; the other characters
+  // (thousands separators, units) sit still. A rising digit rolls the reel
+  // up, a falling one rolls it down, and when the reel would run off either
+  // end it snaps to the equivalent position on the other copy first, without
+  // a transition. Columns are rebuilt only when the figure's shape changes
+  // (a new digit, a different unit), and new columns roll in from zero.
+  setReel(el, text) {
+    if (!el) return;
+    const chars = Array.from(text);
+    const shape = chars.map((char) => (/\d/.test(char) ? "#" : char)).join("");
+    if (el.dataset.shape !== shape) {
+      el.dataset.shape = shape;
+      el.replaceChildren(
+        ...chars.map((char) => {
+          const column = document.createElement("span");
+          column.dataset.part = "char";
+          if (/\d/.test(char)) {
+            column.dataset.digit = "";
+            const reel = document.createElement("span");
+            reel.dataset.part = "reel";
+            reel.style.setProperty("--i", "0");
+            for (let i = 0; i < 20; i++) {
+              const glyph = document.createElement("span");
+              glyph.textContent = String(i % 10);
+              reel.appendChild(glyph);
+            }
+            column.appendChild(reel);
+          } else {
+            // A column of its own collapses an ordinary space to nothing.
+            column.textContent = char === " " ? "\u00a0" : char;
+          }
+          return column;
+        }),
+      );
+      // Let the zeros paint before rolling to the real digits.
+      el.getBoundingClientRect();
+    }
+    const reels = el.querySelectorAll('[data-part="reel"]');
+    const digits = chars.filter((char) => /\d/.test(char));
+    reels.forEach((reel, index) => {
+      const target = Number(digits[index]);
+      const current = Number(reel.style.getPropertyValue("--i")) || 0;
+      const shown = current % 10;
+      let next = current;
+      if (target > shown) {
+        next = current + (target - shown);
+        if (next >= 20) {
+          this.snapReel(reel, current - 10);
+          next -= 10;
+        }
+      } else if (target < shown) {
+        next = current - (shown - target);
+        if (next < 0) {
+          this.snapReel(reel, current + 10);
+          next += 10;
+        }
+      }
+      // Stagger from the right so the roll ripples through the figure.
+      reel.style.transitionDelay = `${(reels.length - 1 - index) * 30}ms`;
+      reel.style.setProperty("--i", String(next));
+    });
+  },
+
+  snapReel(reel, index) {
+    reel.dataset.snap = "";
+    reel.style.setProperty("--i", String(index));
+    reel.getBoundingClientRect();
+    delete reel.dataset.snap;
+  },
+
+  // Illustrative hit rates for the demo: each drifts a little every tick,
+  // within a few points of its anchor, so the rows behave like live data.
+  demoRates() {
+    const anchors = { all: 54, module: 61, gradle: 34 };
+    this.rates ||= { ...anchors };
+    for (const kind of Object.keys(anchors)) {
+      const drifted = this.rates[kind] + (Math.random() - 0.5) * 3;
+      this.rates[kind] = Math.max(anchors[kind] - 5, Math.min(anchors[kind] + 5, drifted));
+    }
+    return this.rates;
+  },
+
+  renderRegion(id) {
+    const row = this.el.querySelector(`[data-region="${id}"]`);
+    if (!row) return;
+    const value = this.regionLive?.[id];
+    const format = new Intl.NumberFormat(document.documentElement.lang || "en");
+    this.setReel(row.querySelector('[data-part="value"]'), value == null ? "\u2014" : format.format(Math.round(value)));
+  },
+
+  // Hit rate per cache. The snapshot does not carry a breakdown yet, so
+  // live rows stay at a dash with an empty bar; the demo ticker fills them.
+  renderBreakdown() {
+    const shares = this.data.breakdown || {};
+    for (const row of this.el.querySelectorAll('#globe-breakdown [data-part="row"]')) {
+      const share = shares[row.dataset.kind];
+      this.setReel(row.querySelector('[data-part="value"]'), share == null ? "\u2014" : `${Math.round(share)}%`);
+      // 40 dots in the bar: light whole dots for the share.
+      const dots = share == null ? 0 : Math.round((Math.max(0, Math.min(100, share)) / 100) * 40);
+      row.style.setProperty("--dots", String(dots));
+    }
   },
 
   formatBytes(bytes) {
@@ -110,7 +318,7 @@ export const CacheGlobe = {
     return new Intl.NumberFormat(document.documentElement.lang || "en", {
       style: "unit",
       unit: units[index],
-      unitDisplay: "long",
+      unitDisplay: "short",
       maximumFractionDigits: 1,
     }).format(bytes / 1000 ** index);
   },
@@ -142,12 +350,28 @@ export const CacheGlobe = {
   pushMarkers() {
     if (!this.globe || !this.data) return;
     const markers = this.data.regions.map((region) => ({
+      id: region.id,
       lat: region.location[0],
       lon: region.location[1],
       active: this.active && region.recent_downloads > 0,
     }));
     this.globe.dataset.markers = JSON.stringify(markers);
     this.globe.dispatchEvent(new CustomEvent("dither-globe:markers", { detail: { markers } }));
+    // Origins: where requests come from, each pointed at its serving
+    // region with its five-minute count as a per-second rate. Live data
+    // carries none until the rollups record a request's country.
+    const byRegion = Object.fromEntries(this.data.regions.map((region) => [region.id, region.location]));
+    const origins = (this.data.origins || [])
+      .filter((origin) => byRegion[origin.region] && origin.recent_downloads > 0)
+      .map((origin) => ({
+        lat: origin.location[0],
+        lon: origin.location[1],
+        to: { lat: byRegion[origin.region][0], lon: byRegion[origin.region][1] },
+        region: origin.region,
+        rate: this.active ? origin.recent_downloads / 300 : 0,
+      }))
+      .filter((origin) => origin.rate > 0);
+    this.globe.dispatchEvent(new CustomEvent("dither-globe:origins", { detail: { origins } }));
   },
 
   updateMotion() {
@@ -163,6 +387,7 @@ export const CacheGlobe = {
 
   destroyed() {
     clearInterval(this.statusTimer);
+    clearInterval(this.liveTimer);
     clearInterval(this.demoTimer);
     this.listeners.abort();
   },

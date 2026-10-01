@@ -7,12 +7,16 @@ defmodule Tuist.Marketing.CacheGlobe do
 
   alias Tuist.ClickHouseRepo
 
+  # The public managed serving regions (Tuist.Kura.Regions, as enabled in
+  # production), each placed at its datacenter's city.
   @regions [
-    %{id: "us-west", name: "North America West", location: [45.52, -122.99]},
-    %{id: "us-east", name: "North America East", location: [38.75, -77.67]},
-    %{id: "eu-central", name: "Europe", location: [48.86, 2.35]},
-    %{id: "ap-southeast", name: "Asia Pacific", location: [1.35, 103.82]},
-    %{id: "sa-west", name: "South America", location: [-33.45, -70.67]}
+    %{id: "us-west", name: "US West", location: [45.52, -122.99]},
+    %{id: "us-central", name: "US Central", location: [41.88, -87.63]},
+    %{id: "us-east", name: "US East", location: [38.75, -77.67]},
+    %{id: "sa-west", name: "South America West", location: [-33.45, -70.67]},
+    %{id: "eu-west", name: "EU West", location: [48.86, 2.35]},
+    %{id: "eu-east", name: "EU East", location: [52.23, 21.01]},
+    %{id: "ap-southeast", name: "Asia Pacific Southeast", location: [1.35, 103.82]}
   ]
 
   def empty do
@@ -20,6 +24,7 @@ defmodule Tuist.Marketing.CacheGlobe do
       downloads: nil,
       bytes: nil,
       recent_downloads: nil,
+      origins: [],
       updated_at: nil,
       observed_at: nil,
       status: :waiting,
@@ -67,6 +72,10 @@ defmodule Tuist.Marketing.CacheGlobe do
       downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 1))),
       bytes: Enum.sum(Enum.map(rows, &Enum.at(&1, 2))),
       recent_downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 3))),
+      # Where requests come from (each a location, its serving region and its
+      # recent count). Empty until the usage rollups record a request's
+      # country; the page draws nothing invented in its place.
+      origins: [],
       updated_at: DateTime.to_iso8601(now),
       observed_at: if(observed_at, do: NaiveDateTime.to_iso8601(observed_at) <> "Z"),
       status: if(observed_at, do: :available, else: :waiting),
