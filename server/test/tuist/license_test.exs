@@ -350,6 +350,114 @@ defmodule Tuist.LicenseTest do
     end
   end
 
+  describe "get_license/1 dispatching on TUIST_LICENSE" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      stub(Tuist.Environment, :license_key, fn -> nil end)
+      stub(Tuist.Environment, :license_certificate_base64, fn -> nil end)
+      stub(Tuist.Environment, :license_verify_key, fn -> nil end)
+
+      :ok
+    end
+
+    test "treats a plain license key value as an online license" do
+      validation_url = License.get_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
+      license_key = UUIDv7.generate()
+
+      stub(Tuist.Environment, :license_value, fn -> license_key end)
+
+      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             "data" => %{
+               "id" => "1234",
+               "attributes" => %{
+                 "expiry" => expiry,
+                 "metadata" => %{"signingKey" => "test-key"}
+               }
+             },
+             "meta" => %{"valid" => true}
+           }
+         }}
+      end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "1234"
+      assert license.valid == true
+    end
+
+    test "treats a base64-encoded certificate value as an air-gapped license" do
+      {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      verify_key = Base.encode16(public_key, case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      license_payload = %{
+        "data" => %{
+          "id" => "air-gapped-id",
+          "attributes" => %{
+            "expiry" => DateTime.utc_now() |> DateTime.shift(day: 30) |> DateTime.to_iso8601(),
+            "metadata" => %{"signingKey" => "signing-key"}
+          }
+        }
+      }
+
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+
+      signature =
+        :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [private_key, :ed25519])
+
+      certificate =
+        %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+        |> JSON.encode!()
+        |> Base.encode64()
+
+      stub(Tuist.Environment, :license_value, fn -> certificate end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "air-gapped-id"
+      assert license.valid == true
+    end
+
+    test "treats a PEM-wrapped certificate value as an air-gapped license" do
+      {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      verify_key = Base.encode16(public_key, case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      license_payload = %{
+        "data" => %{
+          "id" => "pem-wrapped-id",
+          "attributes" => %{
+            "expiry" => DateTime.utc_now() |> DateTime.shift(day: 30) |> DateTime.to_iso8601(),
+            "metadata" => %{"signingKey" => "signing-key"}
+          }
+        }
+      }
+
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+
+      signature =
+        :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [private_key, :ed25519])
+
+      certificate_body =
+        %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+        |> JSON.encode!()
+        |> Base.encode64()
+
+      wrapped =
+        "-----BEGIN LICENSE FILE-----\n" <>
+          certificate_body <> "\n-----END LICENSE FILE-----\n"
+
+      stub(Tuist.Environment, :license_value, fn -> wrapped end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "pem-wrapped-id"
+    end
+  end
+
   describe "ed25519_verify_keys/0" do
     test "trusts the Atlas and Keygen verify keys without extra configuration" do
       stub(Tuist.Environment, :license_verify_key, fn -> nil end)
