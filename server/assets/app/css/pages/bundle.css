@@ -3,7 +3,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--noora-spacing-6);
-  padding: var(--noora-spacing-7) var(--noora-spacing-0);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
   & > [data-part="action-buttons"] {
     display: flex;
