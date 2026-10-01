@@ -51,7 +51,7 @@ msgstr ""
 msgid "%{savings} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:935
+#: lib/tuist_web/live/bundle_live.ex:945
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
 msgstr ""
@@ -61,7 +61,7 @@ msgstr ""
 msgid "0 MB"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:933
+#: lib/tuist_web/live/bundle_live.ex:943
 #, elixir-autogen, elixir-format
 msgid "< 0.1 %"
 msgstr ""
@@ -93,7 +93,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1054
+#: lib/tuist_web/live/bundle_live.ex:1066
 #: lib/tuist_web/live/bundles_live.ex:394
 #: lib/tuist_web/live/bundles_live.ex:401
 #: lib/tuist_web/live/bundles_live.ex:992
@@ -106,7 +106,7 @@ msgstr ""
 msgid "App:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1071
+#: lib/tuist_web/live/bundle_live.ex:1083
 #: lib/tuist_web/live/bundle_live.html.heex:569
 #, elixir-autogen, elixir-format
 msgid "Asset"
@@ -138,7 +138,7 @@ msgstr ""
 msgid "Binaries"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1069
+#: lib/tuist_web/live/bundle_live.ex:1081
 #: lib/tuist_web/live/bundle_live.html.heex:567
 #, elixir-autogen, elixir-format
 msgid "Binary"
@@ -161,7 +161,7 @@ msgstr ""
 msgid "Branch:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:62
+#: lib/tuist_web/live/bundle_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "Bundle"
 msgstr ""
@@ -181,7 +181,7 @@ msgstr ""
 msgid "Bundle Size Analysis"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:910
+#: lib/tuist_web/live/bundle_live.ex:920
 #, elixir-autogen, elixir-format
 msgid "Bundle not found."
 msgstr ""
@@ -293,7 +293,7 @@ msgstr ""
 msgid "Delete bundle"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1074
+#: lib/tuist_web/live/bundle_live.ex:1086
 #: lib/tuist_web/live/bundle_live.html.heex:202
 #: lib/tuist_web/live/bundle_live.html.heex:572
 #, elixir-autogen, elixir-format
@@ -354,7 +354,7 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1073
+#: lib/tuist_web/live/bundle_live.ex:1085
 #: lib/tuist_web/live/bundle_live.html.heex:226
 #: lib/tuist_web/live/bundle_live.html.heex:571
 #, elixir-autogen, elixir-format
@@ -374,7 +374,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1072
+#: lib/tuist_web/live/bundle_live.ex:1084
 #: lib/tuist_web/live/bundle_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "Font"
@@ -408,7 +408,7 @@ msgstr ""
 msgid "Hits"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1053
+#: lib/tuist_web/live/bundle_live.ex:1065
 #: lib/tuist_web/live/bundles_live.ex:393
 #: lib/tuist_web/live/bundles_live.ex:400
 #: lib/tuist_web/live/bundles_live.ex:993
@@ -451,7 +451,7 @@ msgstr ""
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1070
+#: lib/tuist_web/live/bundle_live.ex:1082
 #: lib/tuist_web/live/bundle_live.html.heex:568
 #, elixir-autogen, elixir-format
 msgid "Localization"
@@ -529,7 +529,7 @@ msgstr ""
 msgid "Not available"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1075
+#: lib/tuist_web/live/bundle_live.ex:1087
 #: lib/tuist_web/live/bundle_live.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Other"
@@ -675,7 +675,7 @@ msgstr ""
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1065
+#: lib/tuist_web/live/bundle_live.ex:1077
 #: lib/tuist_web/live/bundle_live.html.heex:53
 #: lib/tuist_web/live/bundle_live.html.heex:563
 #: lib/tuist_web/live/bundles_live.ex:936
@@ -689,7 +689,7 @@ msgstr ""
 msgid "Type:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1058
+#: lib/tuist_web/live/bundle_live.ex:1070
 #: lib/tuist_web/live/bundle_live.html.heex:83
 #: lib/tuist_web/live/bundle_live.html.heex:163
 #: lib/tuist_web/live/bundle_live.html.heex:230
@@ -714,7 +714,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1055
+#: lib/tuist_web/live/bundle_live.ex:1067
 #: lib/tuist_web/live/bundles_live.ex:395
 #: lib/tuist_web/live/bundles_live.ex:402
 #: lib/tuist_web/live/bundles_live.ex:994
@@ -896,17 +896,17 @@ msgstr ""
 msgid "Tuist documentation"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1083
+#: lib/tuist_web/live/bundle_live.ex:1095
 #, elixir-autogen, elixir-format
 msgid "Size (KB)"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1091
+#: lib/tuist_web/live/bundle_live.ex:1103
 #, elixir-autogen, elixir-format
 msgid "Space usage (%)"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1056
+#: lib/tuist_web/live/bundle_live.ex:1068
 #: lib/tuist_web/live/bundles_live.ex:396
 #: lib/tuist_web/live/bundles_live.ex:403
 #: lib/tuist_web/live/bundles_live.ex:986
@@ -914,7 +914,7 @@ msgstr ""
 msgid "AAB"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:1057
+#: lib/tuist_web/live/bundle_live.ex:1069
 #: lib/tuist_web/live/bundles_live.ex:397
 #: lib/tuist_web/live/bundles_live.ex:404
 #: lib/tuist_web/live/bundles_live.ex:987
