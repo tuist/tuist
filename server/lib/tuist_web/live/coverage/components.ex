@@ -12,6 +12,105 @@ defmodule TuistWeb.Coverage.Components do
 
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias TuistWeb.Utilities.Query
+
+  attr :branch, :string, required: true
+  attr :branches, :list, required: true, doc: "The branches to pick among (`History.branches/2`)."
+  attr :uri, URI, required: true
+  attr :preset, :string, required: true
+  attr :period, :any, required: true
+
+  @doc """
+  The branch dropdown and the period picker the Code Coverage page and its
+  commit list lead with. Picking a branch keeps the rest of the query but
+  its cursor, which only means something within one branch; the period
+  picker sends `coverage_period_changed`.
+  """
+  def coverage_filters(assigns) do
+    ~H"""
+    <div data-part="filters">
+      <.dropdown
+        id="coverage-branch-dropdown"
+        label={@branch}
+        secondary_text={dgettext("dashboard_tests", "Branch:")}
+      >
+        <:search>
+          <input
+            type="text"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            data-part="search-input"
+          />
+        </:search>
+        <.dropdown_item
+          :for={branch <- @branches}
+          value={branch}
+          label={branch}
+          patch={"?#{@uri.query |> Query.put("branch", branch) |> Query.drop("after") |> Query.drop("before")}"}
+          data-selected={@branch == branch}
+        >
+          <:right_icon :if={@branch == branch}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="coverage-date-range-picker"
+        name="coverage-date-range"
+        presets={[
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@preset}
+        period={@period}
+        on_period_change="coverage_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </div>
+    """
+  end
+
+  @doc """
+  `path` with the query the Code Coverage page and its commit list share:
+  the branch and the period, so moving between them keeps both.
+  """
+  def with_shared_query(path, params) do
+    case Map.filter(params, fn {key, _value} -> key == "branch" or String.starts_with?(key, "coverage-") end) do
+      shared when map_size(shared) == 0 -> path
+      shared -> path <> "?" <> URI.encode_query(shared)
+    end
+  end
+
+  @doc "The branch a page describes: the one `branch` names, or the project's default branch."
+  def selected_branch(branch, _project) when is_binary(branch) and branch != "", do: branch
+  def selected_branch(_branch, project), do: project.default_branch
 
   attr :title, :string, required: true
   attr :get_started_href, :string, default: nil
@@ -241,7 +340,7 @@ defmodule TuistWeb.Coverage.Components do
 
   @doc """
   A commit's status in a list: `Not measured` when no run measured it (a
-  branch lists every commit on it), otherwise `Complete` or `Pending` as its
+  branch lists every commit on it), otherwise `Complete` or `In Progress` as its
   pipeline signalled it finished or not.
   """
   def commit_status_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
@@ -331,7 +430,7 @@ defmodule TuistWeb.Coverage.Components do
   waiting for its pipeline to say so.
   """
   def ref_status_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
-  def ref_status_label(_ref), do: dgettext("dashboard_tests", "Pending")
+  def ref_status_label(_ref), do: dgettext("dashboard_tests", "In Progress")
 
   @doc "What the status of the commit a page describes means, for its title."
   def head_status_title(%{complete: true}),

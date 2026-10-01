@@ -1,0 +1,149 @@
+<div id="coverage-commits">
+  <.button
+    label={dgettext("dashboard_tests", "Code coverage")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      with_shared_query(
+        "/#{@selected_account.name}/#{@selected_project.name}/tests/coverage",
+        @current_params
+      )
+    }
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <.coverage_filters
+    branch={@branch}
+    branches={@branches}
+    uri={@uri}
+    preset={@coverage_preset}
+    period={@coverage_period}
+  />
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="480px" />
+  </div>
+
+  <.card
+    :if={not @loading}
+    title={dgettext("dashboard_tests", "Commits")}
+    icon="git_commit"
+    data-part="commits"
+  >
+    <.card_section data-part="commits-section">
+      <.alert
+        :if={@commits_ordered_by == :time and @commit_rows != []}
+        id="coverage-commits-time-order"
+        status="information"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_tests",
+            "These commits are listed in the order they were measured, not the order the repository's history puts them in."
+          )
+        }
+      />
+      <div data-part="filters">
+        <.form
+          for={%{}}
+          id="coverage-commits-filter-form"
+          phx-change="search-commits"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-coverage-commits"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@commits_search}
+          />
+        </.form>
+        <.dropdown
+          id="coverage-commits-status-dropdown"
+          data-positioning-strategy="fixed"
+          label={
+            Enum.find_value(commit_statuses(), dgettext("dashboard_tests", "Any"), fn
+              {value, label} -> if value == @commits_status, do: label
+            end)
+          }
+          secondary_text={dgettext("dashboard_tests", "Status:")}
+        >
+          <.dropdown_item
+            value="any"
+            label={dgettext("dashboard_tests", "Any")}
+            patch={"?#{@uri.query |> Query.drop("commits-status") |> drop_cursor()}"}
+            data-selected={@commits_status == ""}
+          >
+            <:right_icon :if={@commits_status == ""}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            :for={{value, label} <- commit_statuses()}
+            value={value}
+            label={label}
+            patch={"?#{@uri.query |> Query.put("commits-status", value) |> drop_cursor()}"}
+            data-selected={@commits_status == value}
+          >
+            <:right_icon :if={@commits_status == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <div :if={@commit_rows != []} data-part="commits-table">
+        <.table
+          id="coverage-commits-table"
+          rows={@commit_rows}
+        >
+          <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+            <.text_cell label={short_sha(row.git_commit_sha)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+            <.coverage_cell
+              :if={row.measured}
+              covered={row.covered_lines}
+              executable={row.executable_lines}
+            />
+            <.text_cell :if={not row.measured} label="—" />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
+            <.tooltip_badge_cell
+              id={"coverage-commit-status-#{row.git_commit_sha}"}
+              color={commit_status_color(row)}
+              label={commit_status_label(row)}
+              description={commit_status_title(row)}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+            <.text_cell sublabel={
+              Tuist.Utilities.DateFormatter.from_now(Map.get(row, :committed_at) || row.ran_at)
+            } />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@commits_meta.has_previous_page?}
+          has_next_page={@commits_meta.has_next_page?}
+          start_cursor={@commits_meta.start_cursor}
+          end_cursor={@commits_meta.end_cursor}
+        />
+      </div>
+      <.coverage_empty
+        :if={@commit_rows == [] and (@commits_search != "" or @commits_status != "")}
+        title={dgettext("dashboard_tests", "No commit matches these filters")}
+        image="table"
+        data-part="empty-commits"
+      />
+      <.coverage_empty
+        :if={@commit_rows == [] and @commits_search == "" and @commits_status == ""}
+        title={
+          dgettext("dashboard_tests", "No commits on %{branch} in this period", branch: @branch)
+        }
+        image="table"
+        data-part="empty-commits"
+      />
+    </.card_section>
+  </.card>
+</div>

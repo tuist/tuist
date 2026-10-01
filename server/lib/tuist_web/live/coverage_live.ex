@@ -3,11 +3,12 @@ defmodule TuistWeb.CoverageLive do
   The project's Code Coverage page: a glance at a branch over the chosen
   period, its latest complete commit and its trend over complete commits
   (`History.trend_points/3`), and its five most recent complete commits in
-  the period (`History.commit_cursor_page/3`), each leading to its own page
-  (`TuistWeb.CoverageDetailLive`). The branch is picked among those whose
-  runs never named a pull request (`History.branches/2`), the default
-  branch unless `analytics-branch` names another. Every figure is a
-  commit's, pooled over the schemes that measured it.
+  the period (`History.commit_cursor_page/3`), whose View more opens them
+  all (`TuistWeb.CoverageCommitsLive`), and the latest complete commit's
+  most and least covered files (`Commits.extreme_files/4`). The branch is picked among those
+  whose runs never named a pull request (`History.branches/2`), the
+  default branch unless `branch` names another. Every figure is a commit's,
+  pooled over the schemes that measured it.
 
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
@@ -18,6 +19,7 @@ defmodule TuistWeb.CoverageLive do
   import TuistWeb.Coverage.Components
 
   alias Tuist.FeatureFlags
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
@@ -27,6 +29,8 @@ defmodule TuistWeb.CoverageLive do
   @widgets ~w(coverage covered_lines executable_lines)
 
   @recent_commits 5
+
+  @listed_files 4
 
   # A run's coverage joins its commit's figure a few seconds after the run
   # lands (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads
@@ -63,7 +67,7 @@ defmodule TuistWeb.CoverageLive do
       |> assign(:current_params, query)
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
-      |> assign(:branch, branch(query["analytics-branch"], project))
+      |> assign(:branch, selected_branch(query["branch"], project))
       |> assign(:selected_widget, selected_widget(query["analytics-selected-widget"]))
 
     # The page is read once, when the socket connects; the disconnected
@@ -119,7 +123,15 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:branches, History.branches(project))
     |> assign_analytics()
     |> assign_recent_commits()
+    |> assign_files()
   end
+
+  # The latest complete commit's most and least covered files; one more of
+  # each than the cards show, so they know when there are more.
+  defp assign_files(%{assigns: %{latest: nil}} = socket), do: assign(socket, :files, %{highest: [], lowest: []})
+
+  defp assign_files(%{assigns: %{selected_project: project, latest: latest}} = socket),
+    do: assign(socket, :files, Commits.extreme_files(project.id, latest.git_commit_sha, @listed_files + 1))
 
   # One commit more than the list shows, so its oldest commit's change is
   # read against the complete commit before it, as the chart compares them.
@@ -147,13 +159,6 @@ defmodule TuistWeb.CoverageLive do
 
   defp change(_commit, _previous), do: nil
 
-  # A commit opened from here leads back to this page as it was shown.
-  @doc false
-  def commit_href(%{selected_account: account, selected_project: project, current_path: path, uri: uri}, sha) do
-    from = if uri.query in [nil, ""], do: path, else: path <> "?" <> uri.query
-    ~p"/#{account.name}/#{project.name}/tests/coverage/commits/#{sha}?#{%{"from" => from}}"
-  end
-
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     %{grouping: grouping, points: points} = History.trend_points(project, branch, period_opts(socket))
     latest = List.last(points)
@@ -177,9 +182,6 @@ defmodule TuistWeb.CoverageLive do
     Process.send_after(self(), :reload, @reload_delay)
     assign(socket, :reload_scheduled, true)
   end
-
-  defp branch(branch, _project) when is_binary(branch) and branch != "", do: branch
-  defp branch(_branch, project), do: project.default_branch
 
   defp selected_widget(widget) when widget in @widgets, do: widget
   defp selected_widget(_widget), do: "coverage"

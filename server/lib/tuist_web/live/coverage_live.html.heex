@@ -1,70 +1,11 @@
 <div id="coverage">
-  <div data-part="filters">
-    <.dropdown
-      id="coverage-analytics-branch-dropdown"
-      label={@branch}
-      secondary_text={dgettext("dashboard_tests", "Branch:")}
-    >
-      <:search>
-        <input
-          type="text"
-          placeholder={dgettext("dashboard_tests", "Search...")}
-          data-part="search-input"
-        />
-      </:search>
-      <.dropdown_item
-        :for={branch <- @branches}
-        value={branch}
-        label={branch}
-        patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
-        data-selected={@branch == branch}
-      >
-        <:right_icon :if={@branch == branch}><.check /></:right_icon>
-      </.dropdown_item>
-    </.dropdown>
-    <.date_picker
-      id="coverage-date-range-picker"
-      name="coverage-date-range"
-      presets={[
-        %{
-          id: "last-7-days",
-          label: dgettext("dashboard_tests", "Last 7 days"),
-          period: {7, :day}
-        },
-        %{
-          id: "last-30-days",
-          label: dgettext("dashboard_tests", "Last 30 days"),
-          period: {30, :day}
-        },
-        %{
-          id: "last-12-months",
-          label: dgettext("dashboard_tests", "Last 12 months"),
-          period: {12, :month}
-        },
-        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-      ]}
-      selected_preset={@coverage_preset}
-      period={@coverage_period}
-      on_period_change="coverage_period_changed"
-      max={Date.utc_today()}
-    >
-      <:actions>
-        <.button
-          label={dgettext("dashboard_tests", "Cancel")}
-          variant="secondary"
-          phx-click={
-            JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
-          }
-        />
-        <.button
-          label={dgettext("dashboard_tests", "Apply")}
-          phx-click={
-            JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
-          }
-        />
-      </:actions>
-    </.date_picker>
-  </div>
+  <.coverage_filters
+    branch={@branch}
+    branches={@branches}
+    uri={@uri}
+    preset={@coverage_preset}
+    period={@coverage_period}
+  />
 
   <div :if={@loading} data-part="loading">
     <.skeleton_box width="100%" height="320px" />
@@ -82,6 +23,61 @@
       selected_widget={@selected_widget}
     />
 
+    <%!-- Files coverage --%>
+    <.card
+      title={dgettext("dashboard_tests", "Files")}
+      icon="file"
+      data-part="files-coverage"
+    >
+      <div
+        :if={@files.highest != [] or @files.lowest != []}
+        data-part="files-coverage-sections"
+      >
+        <.card_section
+          :for={
+            {side, title, files} <- [
+              {"highest", dgettext("dashboard_tests", "Highest coverage"), @files.highest},
+              {"lowest", dgettext("dashboard_tests", "Lowest coverage"), @files.lowest}
+            ]
+          }
+          data-part="files-coverage-section"
+          data-side={side}
+        >
+          <div data-part="header">
+            <span data-part="title">{title}</span>
+          </div>
+          <div data-part="files-list">
+            <div :for={file <- Enum.take(files, 4)} class="coverage-file-card" data-side={side}>
+              <div data-part="header">
+                <div data-part="icon">
+                  <.file />
+                </div>
+                <div data-part="title-and-subtitle">
+                  <h3 data-part="title">{Path.basename(file.path)}</h3>
+                  <span :if={parent_dir(file.path)} data-part="subtitle">{parent_dir(file.path)}</span>
+                </div>
+                <span data-part="coverage">
+                  {Tuist.Tests.Coverage.percentage(file.covered_lines, file.executable_lines)}%
+                </span>
+              </div>
+            </div>
+            <div :if={length(files) > 4} data-part="more-card" data-index="two"></div>
+            <div :if={length(files) > 4} data-part="more-card" data-index="one"></div>
+          </div>
+        </.card_section>
+      </div>
+      <.coverage_empty
+        :if={@files.highest == [] and @files.lowest == []}
+        title={
+          dgettext("dashboard_tests", "No complete commit on %{branch} in this period",
+            branch: @branch
+          )
+        }
+        image="table"
+        data-part="empty-files"
+      />
+    </.card>
+
     <%!-- Recent commits --%>
     <.card
       title={dgettext("dashboard_tests", "Recent commits")}
@@ -93,6 +89,12 @@
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"
+          navigate={
+            with_shared_query(
+              "/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits",
+              @current_params
+            )
+          }
           data-part="view-more"
         />
       </:actions>
@@ -101,7 +103,6 @@
           <.table
             id="coverage-recent-commits-table"
             rows={@commit_rows}
-            row_navigate={&commit_href(assigns, &1.git_commit_sha)}
           >
             <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
               <.text_cell label={short_sha(row.git_commit_sha)} />

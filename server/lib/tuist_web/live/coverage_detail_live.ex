@@ -384,12 +384,12 @@ defmodule TuistWeb.CoverageDetailLive do
 
   @doc "The statuses the Commits tab filters a subject's commits by, with their labels."
   def commit_statuses(:pull_request),
-    do: [{"complete", dgettext("dashboard_tests", "Complete")}, {"pending", dgettext("dashboard_tests", "Pending")}]
+    do: [{"complete", dgettext("dashboard_tests", "Complete")}, {"pending", dgettext("dashboard_tests", "In Progress")}]
 
   def commit_statuses(_kind),
     do: [
       {"complete", dgettext("dashboard_tests", "Complete")},
-      {"pending", dgettext("dashboard_tests", "Pending")},
+      {"pending", dgettext("dashboard_tests", "In Progress")},
       {"not-measured", dgettext("dashboard_tests", "Not measured")}
     ]
 

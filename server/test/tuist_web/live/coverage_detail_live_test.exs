@@ -55,7 +55,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#widget-covered-lines", "4")
     assert has_element?(lv, "#widget-executable-lines", "6")
     refute has_element?(lv, ".noora-alert")
-    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Pending"
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "In Progress"
     refute has_element?(lv, "[data-part='files-coverage']")
     refute has_element?(lv, "[data-part='sources-card']")
 
@@ -467,7 +467,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       table = lv |> element("#coverage-commits-table") |> render()
       assert table =~ "p2"
       assert table =~ "p1"
-      assert table =~ "Pending"
+      assert table =~ "In Progress"
       refute table =~ "Not chained"
 
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs")
@@ -515,7 +515,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       table = lv |> element("#coverage-commits-table") |> render()
       assert table =~ "p2"
       refute table =~ "p1"
-      assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "Pending")
+      assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "In Progress")
 
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-search=p1&commits-status=pending")
       assert has_element?(lv, "[data-part='empty-commits']", "No commit matches these filters")

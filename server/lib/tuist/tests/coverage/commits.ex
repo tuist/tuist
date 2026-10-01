@@ -1209,6 +1209,67 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
+  @doc """
+  The commit's most and least covered files, at most `count` of each, among
+  the files with executable lines: `%{highest: files, lowest: files}`, the
+  bigger file first among those covered alike, so a large file nobody tests
+  leads the least covered. Over its reported coverage when its skipped
+  tests were carried forward, as `list_files/5`, read once for both.
+  """
+  def extreme_files(project_id, sha, count, opts \\ []) do
+    case carried_files(project_id, sha, opts) do
+      nil ->
+        extreme_measured_files(project_id, sha, count, opts)
+
+      files ->
+        files = Enum.filter(files, &(&1.executable_lines > 0))
+
+        %{
+          highest: files |> Enum.sort_by(&extreme_key(&1, :desc)) |> Enum.take(count),
+          lowest: files |> Enum.sort_by(&extreme_key(&1, :asc)) |> Enum.take(count)
+        }
+    end
+  end
+
+  defp extreme_key(file, :desc), do: {-(file.covered_lines / file.executable_lines), -file.executable_lines, file.path}
+  defp extreme_key(file, :asc), do: {file.covered_lines / file.executable_lines, -file.executable_lines, file.path}
+
+  defp extreme_measured_files(project_id, sha, count, opts) do
+    case run_ids(project_id, sha) do
+      [] ->
+        %{highest: [], lowest: []}
+
+      ids ->
+        files_query =
+          from(f in subquery(Coverage.merged_files_query_for_runs(project_id, ids, Coverage.excluded(project_id, opts))),
+            where: f.executable_lines > 0,
+            limit: ^count
+          )
+
+        coverage = dynamic([f], fragment("? / ?", f.covered_lines, f.executable_lines))
+
+        [highest, lowest] =
+          Tuist.Tasks.parallel_tasks([
+            fn ->
+              ClickHouseRepo.all(
+                from(f in files_query,
+                  order_by: ^[desc: coverage, desc: dynamic([f], f.executable_lines), asc: dynamic([f], f.path)]
+                )
+              )
+            end,
+            fn ->
+              ClickHouseRepo.all(
+                from(f in files_query,
+                  order_by: ^[asc: coverage, desc: dynamic([f], f.executable_lines), asc: dynamic([f], f.path)]
+                )
+              )
+            end
+          ])
+
+        %{highest: highest, lowest: lowest}
+    end
+  end
+
   # The files of a commit whose reported coverage is exact, or nil: what the
   # lists read instead of the measured files, so a file only a skipped test
   # covers is not listed as uncovered.

@@ -34,11 +34,24 @@ defmodule TuistWeb.CoverageLiveTest do
   # reaches only as a whole.
   defp branch_items(lv) do
     lv
-    |> element("#coverage-analytics-branch-dropdown-content-portal")
+    |> element("#coverage-branch-dropdown-content-portal")
     |> render()
     |> Floki.parse_fragment!()
     |> Floki.find("[data-part='item']")
     |> Enum.map(&{&1 |> Floki.attribute("data-value") |> List.first(), Floki.attribute(&1, "data-selected") != []})
+  end
+
+  defp file_cards(lv, side) do
+    lv
+    |> element("[data-part='files-coverage-section'][data-side='#{side}']")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.find(".coverage-file-card")
+    |> Enum.map(fn card ->
+      {card |> Floki.find("[data-part='title']") |> Floki.text(),
+       card |> Floki.find("[data-part='subtitle']") |> Floki.text(),
+       card |> Floki.find("[data-part='coverage']") |> Floki.text() |> String.trim()}
+    end)
   end
 
   describe "analytics" do
@@ -227,12 +240,13 @@ defmodule TuistWeb.CoverageLiveTest do
       refute table =~ "c1"
       refute table =~ "c7"
 
+      refute has_element?(lv, "#coverage-recent-commits-table a")
+
       assert has_element?(
                lv,
-               "#coverage-recent-commits-table a[href='#{path}/commits/c6?from=#{URI.encode_www_form(path <> "?coverage-date-range=last-7-days")}']"
+               "[data-part='recent-commits'] [data-part='view-more'][href='#{path}/commits?coverage-date-range=last-7-days']"
              )
 
-      assert has_element?(lv, "[data-part='recent-commits'] [data-part='view-more']")
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
     end
 
@@ -274,6 +288,65 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
+  describe "files coverage" do
+    test "shows the latest complete commit's most and least covered files, up to four of each", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # An older complete commit and a newer pending one are not read.
+      main_run(project, organization, "old", [file("Sources/Old.swift", [1, 1])], %{
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200, :second)
+      })
+
+      main_run(project, organization, "new", [
+        file("Sources/A/Full.swift", [1, 1]),
+        file("Sources/A/Big.swift", [1, 1, 1, 0]),
+        file("Sources/B/Half.swift", [1, 0]),
+        file("Sources/B/None.swift", [0, 0, 0]),
+        file("Sources/B/Small.swift", [0]),
+        file("Sources/C/Most.swift", [1, 1, 1, 1, 0])
+      ])
+
+      main_run(project, organization, "pending", [file("Sources/Pending.swift", [0])], %{
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second),
+        complete: false
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert file_cards(lv, "highest") == [
+               {"Full.swift", "Sources/A", "100.0%"},
+               {"Most.swift", "Sources/C", "80.0%"},
+               {"Big.swift", "Sources/A", "75.0%"},
+               {"Half.swift", "Sources/B", "50.0%"}
+             ]
+
+      # Uncovered alike, the bigger file first.
+      assert file_cards(lv, "lowest") == [
+               {"None.swift", "Sources/B", "0.0%"},
+               {"Small.swift", "Sources/B", "0.0%"},
+               {"Half.swift", "Sources/B", "50.0%"},
+               {"Big.swift", "Sources/A", "75.0%"}
+             ]
+
+      assert has_element?(lv, "[data-side='highest'] [data-part='more-card']")
+    end
+
+    test "says when no commit of the branch is complete in the period", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "pending", [file("Sources/A.swift", [1, 0])], %{complete: false})
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "[data-part='empty-files']", "No complete commit on main in this period")
+      refute has_element?(lv, ".coverage-file-card")
+    end
+  end
+
   describe "branch selection" do
     setup %{organization: organization, project: project} do
       main_run(project, organization, "m", [file("Sources/A.swift", [1, 0, 0, 0])])
@@ -296,7 +369,7 @@ defmodule TuistWeb.CoverageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      assert has_element?(lv, "#coverage-analytics-branch-dropdown [data-part='search-input']")
+      assert has_element?(lv, "#coverage-branch-dropdown [data-part='search-input']")
       assert branch_items(lv) == [{"main", true}, {"release", false}]
       assert has_element?(lv, "#widget-coverage", "25.0%")
     end
@@ -309,15 +382,15 @@ defmodule TuistWeb.CoverageLiveTest do
       path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
       {:ok, lv, _html} = live(conn, path)
 
-      assert lv |> element("#coverage-analytics-branch-dropdown-content-portal") |> render() =~
-               ~s(href="?analytics-branch=release")
+      assert lv |> element("#coverage-branch-dropdown-content-portal") |> render() =~
+               ~s(href="?branch=release")
 
-      render_patch(lv, path <> "?analytics-branch=release")
+      render_patch(lv, path <> "?branch=release")
 
       assert branch_items(lv) == [{"main", false}, {"release", true}]
       assert has_element?(lv, "#widget-coverage", "75.0%")
-      assert has_element?(lv, "#coverage-recent-commits-table a[href*='/commits/r?']")
-      refute has_element?(lv, "#coverage-recent-commits-table a[href*='/commits/m?']")
+      assert lv |> element("#coverage-recent-commits-table") |> render() =~ ">r<"
+      refute lv |> element("#coverage-recent-commits-table") |> render() =~ ">m<"
     end
   end
 
