@@ -92,7 +92,7 @@ defmodule TuistWeb.BundleLiveTest do
     assert has_element?(lv, "span[data-part='label']", "main")
   end
 
-  describe "build_tree_data/3" do
+  describe "build_tree_data/2" do
     test "marks the chart nodes whose shasum is duplicated" do
       artifacts = [
         %{
@@ -127,7 +127,7 @@ defmodule TuistWeb.BundleLiveTest do
         }
       ]
 
-      [%{children: children}] = TuistWeb.BundleLive.build_tree_data(artifacts, "", MapSet.new(["duplicate"]))
+      [%{children: children}] = TuistWeb.BundleLive.build_tree_data(artifacts, MapSet.new(["duplicate"]))
 
       assert %{"a.png" => true, "b.png" => false} == Map.new(children, &{&1.name, &1.duplicate?})
     end
@@ -177,7 +177,7 @@ defmodule TuistWeb.BundleLiveTest do
         }
       ]
 
-      [%{children: children}] = TuistWeb.BundleLive.build_tree_data(artifacts, "", MapSet.new())
+      [%{children: children}] = TuistWeb.BundleLive.build_tree_data(artifacts, MapSet.new())
 
       assert %{name: "Design.bundle/Assets.car", path: "App.app/Design.bundle/Assets.car"} =
                Enum.find(children, &(&1.id == "car"))
@@ -216,29 +216,215 @@ defmodule TuistWeb.BundleLiveTest do
       # Then
       assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "App.app")
     end
-  end
 
-  describe "patching params" do
-    test "rebuilds the sunburst data when the filter changes", %{
+    test "selecting the chart center goes up past the directories the chart merged into one node", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       # Given
-      bundle = bundle_with_files(project)
-      path = ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}"
-      {:ok, lv, _html} = live(conn, path)
-      render_patch(lv, path <> "?duplicates-page=1")
+      bundle = bundle_with_merged_directories(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?current-path=App.app/Frameworks/A.framework/Resources/Assets.car"
+        )
 
       # When
-      render_patch(lv, path <> "?filter=small")
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-selected-parent", %{})
 
       # Then
-      data = lv |> element("#bundle-size-analysis-sunburst [data-part='data']") |> render()
-      assert data =~ "small.png"
-      refute data =~ "large.png"
+      assert current_path_param(assert_patch(lv)) == "App.app/Frameworks"
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "A.framework")
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "B.framework")
     end
 
+    test "selecting the chart center from a top-level directory goes back to the root", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_merged_directories(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?current-path=App.app")
+
+      # When
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-selected-parent", %{})
+
+      # Then
+      assert current_path_param(assert_patch(lv)) == nil
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "App.app")
+    end
+
+    test "highlighting the chart center shows the parent past the directories the chart merged into one node", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_merged_directories(project)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?current-path=App.app/Frameworks/A.framework/Resources/Assets.car"
+        )
+
+      # When
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-highlighted-parent", %{})
+
+      # Then
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table th", "Frameworks")
+    end
+
+    test "opens the top-level directory from the current-path param", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # When
+      bundle = bundle_with_merged_directories(project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?current-path=App.app")
+
+      # Then
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "Frameworks")
+      assert has_element?(lv, "#bundle-size-analysis-current-contents[data-current-path='App.app']")
+    end
+  end
+
+  describe "pagination" do
+    test "includes the last partial page of the file breakdown", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project, 21)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=file-breakdown")
+
+      # Then
+      assert has_element?(lv, "a[data-part='page-button'][href*='file-breakdown-page=2']")
+    end
+
+    test "includes the last partial page of the module breakdown", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_frameworks(project, 21)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=module-breakdown")
+
+      # Then
+      assert has_element?(lv, "a[data-part='page-button'][href*='module-breakdown-page=2']")
+    end
+
+    test "includes the last partial page of the bundle size analysis table", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project, 6)
+      path_hash = :md5 |> :crypto.hash("App.app") |> Base.encode16() |> String.slice(0, 8)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?current-path=App.app")
+
+      # Then
+      assert has_element?(
+               lv,
+               "a[data-part='page-button'][href*='bundle-size-analysis-table-page-#{path_hash}=2']"
+             )
+    end
+
+    test "keeps the file breakdown sort order when paging", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project, 21)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=file-breakdown&file-breakdown-sort-by=size&file-breakdown-sort-order=asc"
+        )
+
+      # Then
+      assert has_element?(
+               lv,
+               "a[data-part='page-button'][href*='file-breakdown-page=2'][href*='file-breakdown-sort-order=asc']"
+             )
+    end
+
+    test "keeps the module breakdown search and sort when paging", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_frameworks(project, 21)
+
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=module-breakdown&module-breakdown-filter=Module&module-breakdown-sort-by=name&module-breakdown-sort-order=asc"
+        )
+
+      # Then
+      assert has_element?(
+               lv,
+               "a[data-part='page-button'][href*='module-breakdown-page=2'][href*='module-breakdown-filter=Module'][href*='module-breakdown-sort-order=asc']"
+             )
+    end
+
+    test "keeps the module breakdown sort when searching", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_frameworks(project, 21)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?tab=module-breakdown&module-breakdown-sort-by=name&module-breakdown-sort-order=asc&module-breakdown-page=2"
+        )
+
+      # When
+      render_hook(lv, "search-module-breakdown", %{"search" => "Module1"})
+
+      # Then
+      query = lv |> assert_patch() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+      assert %{
+               "module-breakdown-filter" => "Module1",
+               "module-breakdown-sort-by" => "name",
+               "module-breakdown-sort-order" => "asc"
+             } = query
+
+      refute Map.has_key?(query, "module-breakdown-page")
+    end
+  end
+
+  describe "patching params" do
     test "re-sorts the file breakdown when only its sort order changes", %{
       conn: conn,
       organization: organization,
@@ -380,6 +566,99 @@ defmodule TuistWeb.BundleLiveTest do
         }
       ]
     )
+  end
+
+  defp bundle_with_files(project, count) do
+    files =
+      for index <- 1..count do
+        %{
+          artifact_type: :asset,
+          path: "App.app/file_#{index}.png",
+          size: 1024 * index,
+          shasum: "file-#{index}",
+          children: []
+        }
+      end
+
+    install_size = Enum.reduce(files, 0, &(&1.size + &2))
+
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      install_size: install_size,
+      artifacts: [%{artifact_type: :directory, path: "App.app", size: install_size, shasum: "app", children: files}]
+    )
+  end
+
+  defp bundle_with_frameworks(project, count) do
+    frameworks =
+      for index <- 1..count do
+        %{
+          artifact_type: :directory,
+          path: "App.app/Module#{index}.framework",
+          size: 1024 * index,
+          shasum: "module-#{index}",
+          children: []
+        }
+      end
+
+    install_size = Enum.reduce(frameworks, 0, &(&1.size + &2))
+
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      install_size: install_size,
+      artifacts: [%{artifact_type: :directory, path: "App.app", size: install_size, shasum: "app", children: frameworks}]
+    )
+  end
+
+  # A.framework and A.framework/Resources have a single child each, so the chart draws
+  # them as one node together with Assets.car.
+  defp bundle_with_merged_directories(project) do
+    assets = %{
+      artifact_type: :asset,
+      path: "App.app/Frameworks/A.framework/Resources/Assets.car",
+      size: 4096,
+      shasum: "assets",
+      children: []
+    }
+
+    resources = %{
+      artifact_type: :directory,
+      path: "App.app/Frameworks/A.framework/Resources",
+      size: 4096,
+      shasum: "resources",
+      children: [assets]
+    }
+
+    frameworks = %{
+      artifact_type: :directory,
+      path: "App.app/Frameworks",
+      size: 6144,
+      shasum: "frameworks",
+      children: [
+        %{
+          artifact_type: :directory,
+          path: "App.app/Frameworks/A.framework",
+          size: 4096,
+          shasum: "a",
+          children: [resources]
+        },
+        %{artifact_type: :directory, path: "App.app/Frameworks/B.framework", size: 2048, shasum: "b", children: []}
+      ]
+    }
+
+    info_plist = %{artifact_type: :file, path: "App.app/Info.plist", size: 1024, shasum: "info", children: []}
+
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      install_size: 7168,
+      artifacts: [
+        %{artifact_type: :directory, path: "App.app", size: 7168, shasum: "app", children: [frameworks, info_plist]}
+      ]
+    )
+  end
+
+  defp current_path_param(patched_path) do
+    patched_path |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.get("current-path")
   end
 
   defp bundle_with_files(project) do

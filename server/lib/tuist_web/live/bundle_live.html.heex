@@ -243,14 +243,14 @@
 
             breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path) %>
             <.breadcrumb
-              :if={breadcrumb_artifact}
+              :if={index == 0 or breadcrumb_artifact}
               id={"bundle-size-analysis-breadcrumb-#{index}"}
               label={if index == 0, do: @bundle.name, else: path_component}
               phx-click={
                 JS.dispatch(
                   "bundle-size-analysis-breadcrumb-clicked",
                   to: "#bundle-size-analysis-current-contents",
-                  detail: %{artifact_id: breadcrumb_artifact.id}
+                  detail: %{path: if(index > 0, do: breadcrumb_path)}
                 )
               }
             >
@@ -273,6 +273,7 @@
           id="bundle-size-analysis-current-contents"
           phx-hook="BundleSizeSunburstChartLegend"
           data-chart-id="bundle-size-analysis-sunburst"
+          data-current-path={@sunburst_current_path}
         >
           <.table
             id="bundle-size-analysis-sunburst-chart-table"
