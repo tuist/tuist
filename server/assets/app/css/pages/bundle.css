@@ -229,12 +229,10 @@
 
         & > #bundle-size-analysis-sunburst {
           flex-grow: 1;
-          margin-top: -40px;
           margin-left: -40px;
           height: 410px;
           @media (max-width: 768px) {
             & {
-              margin-top: -40px;
               margin-left: -15px;
             }
           }
