@@ -481,11 +481,7 @@ defmodule TuistWeb.BundleLive do
           }
         } = socket
       ) do
-    table_artifact =
-      bundle
-      |> build_root_table_artifact(base_path, duplicate_shasums)
-      |> Map.put(:id, bundle.id)
-      |> Map.put(:artifact_id, nil)
+    table_artifact = build_root_table_artifact(bundle, base_path, duplicate_shasums)
 
     cleaned_params = remove_pagination_params(params)
 
@@ -522,11 +518,7 @@ defmodule TuistWeb.BundleLive do
 
     table_artifact =
       if is_nil(artifact) do
-        bundle
-        |> build_root_table_artifact(base_path, duplicate_shasums)
-        |> Map.put(:id, bundle.id)
-        |> Map.put(:artifact_id, nil)
-        |> Map.put(:artifact_type, :directory)
+        build_root_table_artifact(bundle, base_path, duplicate_shasums)
       else
         build_artifact_for_table(artifact, duplicate_shasums)
       end
@@ -904,7 +896,7 @@ defmodule TuistWeb.BundleLive do
         artifact_type: child_node.artifact_type,
         duplicate?: child_node[:duplicate?] || false,
         name: "#{base.name}/#{child_node.name}",
-        path: "#{base.path}/#{child_node.path}",
+        path: child_node.path,
         children: child_node[:children] || [],
         itemStyle: child_node.itemStyle
       }
@@ -1048,6 +1040,8 @@ defmodule TuistWeb.BundleLive do
       path: base_path,
       name: bundle.name,
       value: bundle.install_size,
+      id: bundle.id,
+      artifact_id: nil,
       artifact_type: :directory,
       children: build_artifact_children(bundle.artifacts, duplicate_shasums)
     }
