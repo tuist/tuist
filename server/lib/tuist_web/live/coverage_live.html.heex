@@ -109,6 +109,9 @@
             <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell covered={row.covered_lines} executable={row.executable_lines} />
             </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
+              <.change_cell delta={row.change} />
+            </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
               <.text_cell sublabel={
                 Tuist.Utilities.DateFormatter.from_now(Map.get(row, :committed_at) || row.ran_at)

@@ -114,7 +114,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)}
           label={dgettext("dashboard", "Code Coverage")}
-          icon="chart_arcs"
+          icon="gauge"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
           selected={
             String.starts_with?(
@@ -334,7 +334,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)}
           label={dgettext("dashboard", "Code Coverage")}
-          icon="chart_arcs"
+          icon="gauge"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
           selected={
             String.starts_with?(

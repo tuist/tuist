@@ -236,6 +236,37 @@ defmodule TuistWeb.CoverageLiveTest do
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
     end
 
+    test "shows how far each commit moved coverage from the complete commit before it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # a 25%, b 50% (pending), c 75%, d 50%: c is read against a, skipping b.
+      for {sha, counts, hours, complete} <- [
+            {"a", [1, 0, 0, 0], 4, true},
+            {"b", [1, 1, 0, 0], 3, false},
+            {"c", [1, 1, 1, 0], 2, true},
+            {"d", [1, 1, 0, 0], 1, true}
+          ] do
+        main_run(project, organization, sha, [file("Sources/A.swift", counts)], %{
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -hours * 3600, :second),
+          complete: complete
+        })
+      end
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      rows =
+        lv
+        |> element("#coverage-recent-commits-table")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.find("tbody tr")
+        |> Enum.map(fn row -> row |> Floki.find("td") |> Enum.map(&String.trim(Floki.text(&1))) end)
+
+      assert Enum.map(rows, &{Enum.at(&1, 0), Enum.at(&1, 2)}) == [{"d", "-25.0%"}, {"c", "+50.0%"}, {"a", "—"}]
+    end
+
     test "says when the branch has no commit in the period", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 

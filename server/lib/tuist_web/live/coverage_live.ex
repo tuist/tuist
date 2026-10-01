@@ -121,12 +121,31 @@ defmodule TuistWeb.CoverageLive do
     |> assign_recent_commits()
   end
 
+  # One commit more than the list shows, so its oldest commit's change is
+  # read against the complete commit before it, as the chart compares them.
   defp assign_recent_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     page =
-      History.commit_cursor_page(project, branch, period_opts(socket) ++ [status: "complete", page_size: @recent_commits])
+      History.commit_cursor_page(
+        project,
+        branch,
+        period_opts(socket) ++ [status: "complete", page_size: @recent_commits + 1]
+      )
 
-    assign(socket, :commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
+    rows =
+      page.commits
+      |> Enum.chunk_every(2, 1)
+      |> Enum.take(@recent_commits)
+      |> Enum.map(fn [commit | previous] ->
+        Map.merge(commit, %{id: commit.git_commit_sha, change: change(commit, List.first(previous))})
+      end)
+
+    assign(socket, :commit_rows, rows)
   end
+
+  defp change(%{coverage: coverage}, %{coverage: previous}) when is_number(coverage) and is_number(previous),
+    do: Float.round(coverage - previous, 1)
+
+  defp change(_commit, _previous), do: nil
 
   # A commit opened from here leads back to this page as it was shown.
   @doc false

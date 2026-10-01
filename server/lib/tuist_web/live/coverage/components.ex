@@ -36,6 +36,30 @@ defmodule TuistWeb.Coverage.Components do
   def empty_artwork(_image),
     do: %{light: ~p"/images/empty_line_chart_light.png", dark: ~p"/images/empty_line_chart_dark.png"}
 
+  attr :delta, :float,
+    default: nil,
+    doc: "Percentage points moved since the previous commit, or nil for none to compare with."
+
+  @doc "How far a commit moved coverage, coloured by direction; a dash when there is nothing to compare with."
+  def change_cell(assigns) do
+    ~H"""
+    <.badge_cell
+      :if={@delta}
+      style="light-fill"
+      color={change_color(@delta)}
+      label={"#{signed(@delta)}%"}
+    />
+    <.text_cell :if={is_nil(@delta)} label="—" />
+    """
+  end
+
+  defp change_color(delta) when delta < 0, do: "destructive"
+  defp change_color(delta) when delta > 0, do: "success"
+  defp change_color(_delta), do: "neutral"
+
+  defp signed(delta) when delta > 0, do: "+#{delta}"
+  defp signed(delta), do: "#{delta}"
+
   attr :covered, :integer, required: true
   attr :executable, :integer, required: true
 
