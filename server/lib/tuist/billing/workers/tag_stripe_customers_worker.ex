@@ -1,11 +1,12 @@
 defmodule Tuist.Billing.Workers.TagStripeCustomersWorker do
   @moduledoc """
   Tags the Stripe customer of every account with the account's id, the tag
-  `Tuist.Billing.create_customer/1` sets on new customers. Enqueued once by a
-  migration to backfill customers created before the tag existed.
+  `Tuist.Billing.create_customer/1` sets on new customers. Runs weekly so that
+  customers created before the tag existed, or linked to an account any other
+  way, carry it too.
 
-  Safe to re-run: Stripe merges metadata keys, so other keys on the customer are
-  kept and already-tagged customers are rewritten with the same value.
+  Stripe merges metadata keys, so other keys on the customer are kept and
+  already-tagged customers are rewritten with the same value.
   """
   use Oban.Worker
 
