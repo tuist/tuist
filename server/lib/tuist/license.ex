@@ -51,10 +51,7 @@ defmodule Tuist.License do
       encoded = Tuist.Environment.license_certificate_base64() ->
         resolve_certificate(ed25519_verify_keys(), certificate(encoded))
 
-      key = Tuist.Environment.license_key() ->
-        resolve_license(key)
-
-      value = Tuist.Environment.license_value() ->
+      value = Tuist.Environment.license_key() ->
         case air_gapped_certificate(value) do
           {:ok, certificate} -> resolve_certificate(ed25519_verify_keys(), certificate)
           :error -> resolve_license(value)
@@ -65,10 +62,11 @@ defmodule Tuist.License do
     end
   end
 
-  # A certificate reaches TUIST_LICENSE bare or PEM-armored, and either as is or
-  # wrapped in one more layer of base64, which is the shape
-  # TUIST_LICENSE_CERTIFICATE_BASE64 has always carried. Anything else is an
-  # online license key.
+  # The value behind TUIST_LICENSE_KEY, TUIST_LICENSE or the license secret is
+  # either an online key or an air-gapped certificate. A certificate arrives bare
+  # or PEM-armored, and either as is or wrapped in one more layer of base64, which
+  # is the shape TUIST_LICENSE_CERTIFICATE_BASE64 has always carried. Anything
+  # else is an online license key.
   defp air_gapped_certificate(value) when is_binary(value) do
     candidates =
       case Base.decode64(value, ignore: :whitespace) do

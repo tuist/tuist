@@ -366,7 +366,7 @@ defmodule Tuist.LicenseTest do
       expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = UUIDv7.generate()
 
-      stub(Tuist.Environment, :license_value, fn -> license_key end)
+      stub(Tuist.Environment, :license_key, fn -> license_key end)
 
       stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
@@ -415,7 +415,7 @@ defmodule Tuist.LicenseTest do
         |> JSON.encode!()
         |> Base.encode64()
 
-      stub(Tuist.Environment, :license_value, fn -> certificate end)
+      stub(Tuist.Environment, :license_key, fn -> certificate end)
 
       assert {:ok, license} = License.get_license()
       assert license.id == "air-gapped-id"
@@ -451,7 +451,7 @@ defmodule Tuist.LicenseTest do
         "-----BEGIN LICENSE FILE-----\n" <>
           certificate_body <> "\n-----END LICENSE FILE-----\n"
 
-      stub(Tuist.Environment, :license_value, fn -> wrapped end)
+      stub(Tuist.Environment, :license_key, fn -> wrapped end)
 
       assert {:ok, license} = License.get_license()
       assert license.id == "pem-wrapped-id"
@@ -469,7 +469,6 @@ defmodule Tuist.LicenseTest do
 
       stub(Tuist.Environment, :license_key, fn -> nil end)
       stub(Tuist.Environment, :license_certificate_base64, fn -> nil end)
-      stub(Tuist.Environment, :license_value, fn -> nil end)
 
       {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
       verify_key = Base.encode16(public_key, case: :lower)
@@ -487,7 +486,7 @@ defmodule Tuist.LicenseTest do
     end
 
     test "resolves the same value when it arrives as TUIST_LICENSE", %{env_value: env_value} do
-      stub(Tuist.Environment, :license_value, fn -> env_value end)
+      stub(Tuist.Environment, :license_key, fn -> env_value end)
 
       assert {:ok, license} = License.get_license()
       assert license.id == "doubly-encoded-id"
@@ -505,7 +504,7 @@ defmodule Tuist.LicenseTest do
     test "boots with only TUIST_LICENSE set", %{env_value: env_value} do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :license_value, fn -> env_value end)
+      stub(Tuist.Environment, :license_key, fn -> env_value end)
 
       assert License.assert_valid!() == :ok
     end

@@ -643,9 +643,10 @@ server:
     existingSecret: tuist-license
     existingSecretKeys:
       key: TUIST_LICENSE
+      certificateBase64: ""
 ```
 
-The entry under `existingSecretKeys.key` names the field in your Secret that holds the license value. Create the Secret in the release namespace before you install or upgrade the chart.
+The entry under `existingSecretKeys.key` names the field in your Secret that holds the license value, which can be the license key or, for air-gapped installations, the Base64-encoded license certificate. Each entry under `existingSecretKeys` defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string, as `certificateBase64` is above. Otherwise the pods reference keys that don't exist and fail to start. Create the Secret in the release namespace before you install or upgrade the chart.
 
 Configure the license through one source only: `server.license.key` or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead.
 
