@@ -731,6 +731,65 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test(.inTemporaryDirectory, arguments: [0, -1]) func rejectsNonPositiveDownloadConcurrency(value: Int) async throws {
+        var guards = REAPICacheClient.TransferGuards.default
+        guards.downloadConcurrency = value
+        // 0 would make `transfer` enqueue nothing and silently return an empty set (100% miss);
+        // negative would trap on `0 ..< maxConcurrentTasks`. Reject at construction time so the
+        // misconfiguration surfaces before any work begins.
+        await #expect(throws: REAPICacheError.self) {
+            _ = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: 1, isTLS: false),
+                accountHandle: "account",
+                instanceName: "project",
+                guards: guards
+            ) { "token" }
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func streamDownloadFailuresAreRecordedInStats() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(4096)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        // Stream read keeps breaking after 8 KiB with no progress; the client gives up with an
+        // RPC error. The error is not `.notFound`, so the digest is accounted for in stats as
+        // a stream-path network loss, matching how batch failures are accounted for.
+        await state.plan(
+            [.cut(after: 1024), .cut(after: 0), .cut(after: 0), .cut(after: 0), .cut(after: 0), .complete],
+            for: digest
+        )
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let stats = REAPIStats()
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(),
+                stats: stats
+            ) { "token" }
+            try await client.validateCapabilities()
+            let destination = directory.appending(component: "streamed").url
+
+            #expect(try await client.downloadAvailableBlobs([digest: destination]).isEmpty)
+
+            let snapshot = stats.snapshot
+            #expect(snapshot.streamDownloadFailures == 1)
+            #expect(snapshot.streamDownloadDigestsLost == 1)
+            #expect(snapshot.batchDownloadDigestsLost == 0)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func digestsNotFoundOnServerAreNotCountedAsLost() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()

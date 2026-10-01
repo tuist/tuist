@@ -21,7 +21,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private func withClient<T: Sendable>(
         _ operation: (GRPCClient<HTTP2ClientTransport.Posix>) async throws -> T
     ) async throws -> T {
-        try await selector.withClient(shouldPenalize: Self.isResumable, operation)
+        try await selector.withClient(shouldPenalize: Self.isConnectionFault, operation)
     }
 
     private let instanceName: String
@@ -231,6 +231,16 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         guard let error = error as? RPCError else { return false }
         return [.unavailable, .deadlineExceeded, .resourceExhausted, .aborted, .internalError, .unknown, .dataLoss]
             .contains(error.code)
+    }
+
+    /// Whether a failure is specifically about the current connection, as opposed to a request
+    /// problem or server-side backpressure. Narrower than `isResumable`: a server-wide
+    /// `.resourceExhausted` or a bad blob returning `.internalError` would otherwise cool a
+    /// healthy client and attract retries onto the few remaining connections, which is both
+    /// unfair and compounds the server-side pressure that caused the error.
+    private static func isConnectionFault(_ error: any Error) -> Bool {
+        guard let error = error as? RPCError else { return false }
+        return [.unavailable, .deadlineExceeded].contains(error.code)
     }
 
     public func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
@@ -489,13 +499,26 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
                 do {
                     try await self.downloadBlob(digest, to: blobs[digest]!)
-                    try await onDownloaded(digest)
-                    return [digest]
+                } catch let error as RPCError where error.code == .notFound {
+                    // A legitimate server-reported miss, equivalent to a `NOT_FOUND` status in
+                    // the batch response. Not a network loss; do not count it in stats so the
+                    // conservation across paths holds.
+                    return []
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
                     self.stats?.recordStreamDownloadFailure(digestsLost: 1)
                     return []
                 }
+                // `onDownloaded` lives outside the counted block: a local-admission failure here
+                // is a caller-side problem, matching the batch path, which silently drops the
+                // digest without recording it as a network loss either.
+                do {
+                    try await onDownloaded(digest)
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    return []
+                }
+                return [digest]
             }
             var successful = Set<REAPI.Digest>()
             do {
