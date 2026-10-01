@@ -48,6 +48,16 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test func baseConfigEnablesHTTP2KeepaliveToDetectWedgedConnections() throws {
+        let config = REAPITransport.baseConfig(authority: "cache.example.com:443")
+        let keepalive = try #require(config.connection.keepalive)
+        #expect(keepalive.time == .seconds(60))
+        #expect(keepalive.timeout == .seconds(20))
+        #expect(keepalive.allowWithoutCalls == false)
+        #expect(config.http2.authority == "cache.example.com:443")
+        #expect(config.http2.targetWindowSize == 32 * 1024 * 1024)
+    }
+
     @Test func proxySelectionHonorsBypassAndExplicitDisable() throws {
         let endpoint = GRPCEndpoint(host: "cache.example.com", explicitPort: 443, isTLS: true)
         #expect(try REAPITransport.proxyURL(
@@ -455,11 +465,16 @@ struct REAPICacheClientTests {
     /// The production guards with their seconds scaled down: a message is still allowed the time
     /// it takes at `slowestBytesPerSecond`, which is what keeps a slow transfer from being cut,
     /// but a test does not wait minutes to watch a stalled one give up.
-    private static func impatientGuards(base: Duration = .seconds(5)) -> REAPICacheClient.TransferGuards {
+    private static func impatientGuards(
+        base: Duration = .seconds(5),
+        batchBase: Duration = .milliseconds(300)
+    ) -> REAPICacheClient.TransferGuards {
         var guards = REAPICacheClient.TransferGuards()
         guards.idleTimeout = .milliseconds(200)
         guards.slowestBytesPerSecond = 512 * 1024
         guards.baseAllowance = base
+        guards.batchBaseAllowance = batchBase
+        guards.batchSlowestBytesPerSecond = 512 * 1024
         return guards
     }
 
@@ -640,7 +655,7 @@ struct REAPICacheClientTests {
 
     /// A batch read cannot resume or be watched for idleness, so its deadline is the only thing that
     /// notices a hung server. Spending it three times over is most of a build.
-    @Test(.inTemporaryDirectory) func doesNotSpendAByteSizedDeadlineThreeTimes() async throws {
+    @Test(.inTemporaryDirectory) func retriesABatchReadThatBlowsItsDeadline() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
         let body = Self.blob(4096)
@@ -659,13 +674,63 @@ struct REAPICacheClientTests {
             let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
                 accountHandle: "account", instanceName: "project",
-                guards: Self.impatientGuards(base: .milliseconds(300))
+                guards: Self.impatientGuards(batchBase: .milliseconds(100))
             ) { "token" }
             let destination = directory.appending(component: "batched").url
 
             #expect(try await client.downloadAvailableBlobs([digest: destination]).isEmpty)
 
-            #expect(await state.readCalls == 1)
+            // Three attempts (initial + two retries): each one is cheap now that batch deadlines
+            // use `batchAllowance`, so a wedged connection gets the chance to be swapped out
+            // across retries. One attempt leaves the client without that recovery.
+            #expect(await state.readCalls == 3)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func statsAccountForEveryDigestInABatchThatGaveUpOnRetries() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        // Four small blobs batched 2+2 (server negotiates `maximumBatchBytes = 2 KiB`), every
+        // batch read delayed past the client's deadline. The whole download gives up after
+        // retries; a conservation check holds, so the caller can tell "fewer stalls" from
+        // "stalls turned into silent misses that look like misses".
+        var blobs: [REAPI.Digest: URL] = [:]
+        for index in 0 ..< 4 {
+            let body = Self.blob(1024)
+            let digest = REAPI.digest(body)
+            await state.put(body, digest: digest)
+            blobs[digest] = directory.appending(component: "blob-\(index)").url
+        }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, readDelay: .seconds(2)),
+            WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let stats = REAPIStats()
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(batchBase: .milliseconds(100)),
+                stats: stats
+            ) { "token" }
+
+            let successful = try await client.downloadAvailableBlobs(blobs)
+
+            let snapshot = stats.snapshot
+            let notFound = blobs.count - successful.count - snapshot.batchDownloadDigestsLost
+            // Conservation: every requested digest is either successful, counted as lost to a
+            // swallowed batch failure, or not found. Nothing goes dark.
+            #expect(successful.count + snapshot.batchDownloadDigestsLost + notFound == blobs.count)
+            #expect(successful.isEmpty)
+            #expect(snapshot.batchDownloadDigestsLost == blobs.count)
+            #expect(snapshot.batchDownloadFailures >= 1)
         }
     }
 

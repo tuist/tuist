@@ -10,6 +10,27 @@ import TuistHTTP
 
 /// Applies the CLI's network settings to both probing and cache traffic.
 enum REAPITransport {
+    /// Pure, I/O-free part of the transport config. Extracted so tests can inspect the
+    /// fields the client sets (authority, flow-control window, keepalive) without having
+    /// to stand up TLS or a proxy. `make` fills in the TLS/proxy-dependent callback on top.
+    static func baseConfig(authority: String) -> HTTP2ClientTransport.Posix.Config {
+        var config = HTTP2ClientTransport.Posix.Config.defaults
+        config.http2.authority = authority
+        config.http2.targetWindowSize = 32 * 1024 * 1024
+        // Keepalive detects a wedged connection whose TCP socket is still open but
+        // whose peer has gone silent. Without it, a stuck stream only unblocks when the
+        // OS or peer closes the socket, which in traces from self-hosted customers has
+        // taken 60-80 seconds. 60s/20s is well above grpc-go's 10s floor; we leave
+        // `allowWithoutCalls` false so the client doesn't ping an idle connection and
+        // trip grpc-go's `EnforcementPolicy.MinTime` (5 minute default).
+        config.connection.keepalive = HTTP2ClientTransport.Config.Keepalive(
+            time: .seconds(60),
+            timeout: .seconds(20),
+            allowWithoutCalls: false
+        )
+        return config
+    }
+
     static func make(
         endpoint: GRPCEndpoint,
         fileSystem: FileSysteming = FileSystem()
@@ -30,9 +51,7 @@ enum REAPITransport {
         var proxyTLS = tls
         proxyTLS.applicationProtocols = ["http/1.1"]
         let proxyContext = proxy?.scheme == "https" ? try NIOSSLContext(configuration: proxyTLS) : nil
-        var config = HTTP2ClientTransport.Posix.Config.defaults
-        config.http2.authority = endpoint.authority
-        config.http2.targetWindowSize = 32 * 1024 * 1024
+        var config = baseConfig(authority: endpoint.authority)
         config.channelDebuggingCallbacks.onCreateTCPConnection = { channel in
             channel.eventLoop.makeCompletedFuture {
                 if let context {
