@@ -84179,6 +84179,7 @@ public enum Operations {
                         case xcode = "xcode"
                         case gradle = "gradle"
                         case bazel = "bazel"
+                        case once = "once"
                     }
                     /// The build system used by the project.
                     ///
