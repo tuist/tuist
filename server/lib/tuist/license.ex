@@ -48,17 +48,16 @@ defmodule Tuist.License do
 
   defp fetch_license do
     cond do
-      certificate = Tuist.Environment.license_certificate_base64() ->
-        resolve_certificate(ed25519_verify_keys(), certificate)
+      encoded = Tuist.Environment.license_certificate_base64() ->
+        resolve_certificate(ed25519_verify_keys(), certificate(encoded))
 
       key = Tuist.Environment.license_key() ->
         resolve_license(key)
 
       value = Tuist.Environment.license_value() ->
-        if air_gapped_certificate?(value) do
-          resolve_certificate(ed25519_verify_keys(), value)
-        else
-          resolve_license(value)
+        case air_gapped_certificate(value) do
+          {:ok, certificate} -> resolve_certificate(ed25519_verify_keys(), certificate)
+          :error -> resolve_license(value)
         end
 
       true ->
@@ -66,12 +65,30 @@ defmodule Tuist.License do
     end
   end
 
-  defp air_gapped_certificate?(value) when is_binary(value) do
-    if String.contains?(value, "-----BEGIN") do
+  # A certificate reaches TUIST_LICENSE bare or PEM-armored, and either as is or
+  # wrapped in one more layer of base64, which is the shape
+  # TUIST_LICENSE_CERTIFICATE_BASE64 has always carried. Anything else is an
+  # online license key.
+  defp air_gapped_certificate(value) when is_binary(value) do
+    candidates =
+      case Base.decode64(value, ignore: :whitespace) do
+        {:ok, decoded} -> [value, decoded]
+        :error -> [value]
+      end
+
+    Enum.find_value(candidates, :error, fn candidate ->
+      if certificate?(candidate), do: {:ok, candidate}
+    end)
+  end
+
+  defp air_gapped_certificate(_), do: :error
+
+  defp certificate?(candidate) do
+    if String.contains?(candidate, "-----BEGIN") do
       true
     else
       stripped =
-        value
+        candidate
         |> String.replace(~r/-----.*?-----/s, "")
         |> String.replace(~r/\s/, "")
         |> String.trim()
@@ -85,8 +102,6 @@ defmodule Tuist.License do
       end
     end
   end
-
-  defp air_gapped_certificate?(_), do: false
 
   # Ed25519 128-bit Verify Key
   def ed25519_verify_key do

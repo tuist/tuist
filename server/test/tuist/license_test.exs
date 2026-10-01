@@ -458,6 +458,81 @@ defmodule Tuist.LicenseTest do
     end
   end
 
+  # The deployed `TUIST_LICENSE_CERTIFICATE_BASE64` secret is base64 wrapped
+  # around a PEM-armored certificate whose body is itself base64 JSON, which
+  # is why `certificate/1` decodes once before `resolve_certificate/2`
+  # strips the armor and decodes again. Reading it as a single layer sent
+  # canary, the registry sync and the processor into a boot crash loop.
+  describe "get_license/1 and assert_valid!/1 with the doubly encoded certificate secret" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      stub(Tuist.Environment, :license_key, fn -> nil end)
+      stub(Tuist.Environment, :license_certificate_base64, fn -> nil end)
+      stub(Tuist.Environment, :license_value, fn -> nil end)
+
+      {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      verify_key = Base.encode16(public_key, case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      %{env_value: doubly_encoded_certificate(private_key)}
+    end
+
+    test "resolves the value of TUIST_LICENSE_CERTIFICATE_BASE64", %{env_value: env_value} do
+      stub(Tuist.Environment, :license_certificate_base64, fn -> env_value end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "doubly-encoded-id"
+      assert license.valid == true
+    end
+
+    test "resolves the same value when it arrives as TUIST_LICENSE", %{env_value: env_value} do
+      stub(Tuist.Environment, :license_value, fn -> env_value end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "doubly-encoded-id"
+      assert license.valid == true
+    end
+
+    test "boots with TUIST_LICENSE_CERTIFICATE_BASE64 set", %{env_value: env_value} do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :license_certificate_base64, fn -> env_value end)
+
+      assert License.assert_valid!() == :ok
+    end
+
+    test "boots with only TUIST_LICENSE set", %{env_value: env_value} do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :license_value, fn -> env_value end)
+
+      assert License.assert_valid!() == :ok
+    end
+  end
+
+  defp doubly_encoded_certificate(private_key) do
+    license_payload = %{
+      "data" => %{
+        "id" => "doubly-encoded-id",
+        "attributes" => %{
+          "expiry" => DateTime.utc_now() |> DateTime.shift(day: 30) |> DateTime.to_iso8601(),
+          "metadata" => %{"signingKey" => "signing-key"}
+        }
+      }
+    }
+
+    encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+    signature = :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [private_key, :ed25519])
+
+    certificate_body =
+      %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+      |> JSON.encode!()
+      |> Base.encode64()
+
+    Base.encode64("-----BEGIN LICENSE FILE-----\n" <> certificate_body <> "\n-----END LICENSE FILE-----\n")
+  end
+
   describe "ed25519_verify_keys/0" do
     test "trusts the Atlas and Keygen verify keys without extra configuration" do
       stub(Tuist.Environment, :license_verify_key, fn -> nil end)
