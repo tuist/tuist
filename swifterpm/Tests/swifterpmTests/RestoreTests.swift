@@ -13,6 +13,7 @@ struct RestoreTests {
                 scratchDir: scratch,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: ResolvedPins(originHash: nil, pins: [], version: 3),
                 progress: nil
             )
@@ -42,6 +43,7 @@ struct RestoreTests {
                 scratchDir: scratch,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil,
                 disableSandbox: true
@@ -76,6 +78,7 @@ struct RestoreTests {
                 scratchDir: scratch,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil,
                 disableSandbox: true
@@ -120,6 +123,7 @@ struct RestoreTests {
                 scratchDir: scratch,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil,
                 disableSandbox: true
@@ -175,6 +179,7 @@ struct RestoreTests {
                 scratchDir: scratch,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil,
                 disableSandbox: true
@@ -652,6 +657,7 @@ struct RestoreTests {
                 packageDir: package,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil
             )
@@ -803,6 +809,7 @@ struct RestoreTests {
                 packageDir: package,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil
             )
@@ -838,6 +845,7 @@ struct RestoreTests {
                 packageDir: package,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil
             )
@@ -846,6 +854,7 @@ struct RestoreTests {
                 packageDir: package,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil
             )
@@ -889,6 +898,7 @@ struct RestoreTests {
                 packageDir: package,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil
             )

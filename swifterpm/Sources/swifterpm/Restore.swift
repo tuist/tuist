@@ -26,7 +26,7 @@ enum WorkspaceRestorer {
         packageDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
-        mirrors: MirrorConfig = MirrorConfig(),
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         progress: RestoreProgressReporter?,
         disableSandbox: Bool = false
