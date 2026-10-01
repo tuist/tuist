@@ -110,9 +110,7 @@ defmodule Atlas.Letters.Pingen do
           "auto_send" => true,
           "delivery_product" => Config.delivery_product(),
           "print_mode" => Config.print_mode(),
-          "print_spectrum" => Config.print_spectrum(),
-          "sender_address" => sender_address(letter),
-          "meta_data" => %{"atlas_letter_id" => letter.id, "kind" => letter.kind}
+          "print_spectrum" => Config.print_spectrum()
         }
       }
     }
@@ -187,17 +185,6 @@ defmodule Atlas.Letters.Pingen do
       {:ok, datetime, _offset} -> DateTime.truncate(datetime, :second)
       _ -> nil
     end
-  end
-
-  defp sender_address(letter) do
-    [
-      letter.sender_name,
-      letter.sender_street,
-      "#{letter.sender_postal_code} #{letter.sender_city}",
-      letter.sender_country
-    ]
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.join(" | ")
   end
 
   defp file_name(letter), do: "atlas-#{letter.kind}-#{letter.id}.pdf"
