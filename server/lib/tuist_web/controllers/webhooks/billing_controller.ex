@@ -11,16 +11,14 @@ defmodule TuistWeb.Webhooks.BillingController do
   def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
     customer = event.data.object
 
-    # Stripe also notifies us about customers no Tuist account owns (e.g. duplicates
-    # left by an old customer-creation race), so there is nothing to update for them.
-    case Accounts.get_account_from_customer_id(customer.id) do
-      {:ok, account} ->
-        {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
-        :ok
-
-      {:error, :not_found} ->
-        :ok
+    # Stripe also notifies us about customers no Tuist account owns, and customers can
+    # have their email removed, which accounts.billing_email (NOT NULL) can't store.
+    with email when is_binary(email) <- customer.email,
+         {:ok, account} <- Accounts.get_account_from_customer_id(customer.id) do
+      {:ok, _} = Accounts.update_account(account, %{billing_email: email})
     end
+
+    :ok
   end
 
   @impl true

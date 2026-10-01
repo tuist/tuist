@@ -28,6 +28,21 @@ defmodule TuistWeb.Webhooks.BillingControllerTest do
       assert updated_account.billing_email == "new-billing-email@example.com"
     end
 
+    test "keeps the billing email when the customer no longer has an email" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      account = user.account
+
+      event = %Stripe.Event{
+        type: "customer.updated",
+        data: %{object: %{id: account.customer_id, email: nil}}
+      }
+
+      assert :ok = BillingController.handle_event(event)
+
+      {:ok, updated_account} = Accounts.get_account_by_id(account.id)
+      assert updated_account.billing_email == account.billing_email
+    end
+
     test "ignores customers that don't belong to any account" do
       event = %Stripe.Event{
         type: "customer.updated",
