@@ -614,6 +614,17 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["token"] == ""
     end
 
+    test "omits build systems that shipped clients can't decode", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}")
+
+      response = json_response(conn, :ok)
+      refute Map.has_key?(response, "build_system")
+      assert response["full_name"] == "#{user.account.name}/#{project.name}"
+    end
+
     test "Returns an organization's project by its handle", %{
       conn: conn,
       user: user
