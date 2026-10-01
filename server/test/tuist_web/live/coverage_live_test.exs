@@ -89,22 +89,6 @@ defmodule TuistWeb.CoverageLiveTest do
       assert render(element(lv, "#coverage-chart")) =~ "noora-chart-secondary"
     end
 
-    test "leads from the analytics to the default branch's page, on the same period", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0])])
-
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?coverage-date-range=last-7-days")
-
-      assert has_element?(
-               lv,
-               "[data-part='view-more'][href='/#{organization.account.name}/#{project.name}/tests/coverage/branches/main?coverage-date-range=last-7-days']"
-             )
-    end
-
     test "every widget shows its change over the period and switches the chart to its metric", %{
       conn: conn,
       organization: organization,
@@ -220,6 +204,45 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
+  describe "recent commits" do
+    test "lists the branch's five most recent complete commits in the period, each leading to its page", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      for index <- 1..7 do
+        main_run(project, organization, "c#{index}", [file("Sources/A.swift", [1, 0])], %{
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), (index - 8) * 3600, :second),
+          complete: index != 7
+        })
+      end
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, path <> "?coverage-date-range=last-7-days")
+
+      table = lv |> element("#coverage-recent-commits-table") |> render()
+
+      # c7 is pending, so the five are c2 to c6.
+      for index <- 2..6, do: assert(table =~ "c#{index}")
+      refute table =~ "c1"
+      refute table =~ "c7"
+
+      assert has_element?(
+               lv,
+               "#coverage-recent-commits-table a[href='#{path}/commits/c6?from=#{URI.encode_www_form(path <> "?coverage-date-range=last-7-days")}']"
+             )
+
+      assert has_element?(lv, "[data-part='recent-commits'] [data-part='view-more']")
+      refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
+    end
+
+    test "says when the branch has no commit in the period", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "[data-part='empty-commits']", "No complete commits on main in this period")
+    end
+  end
+
   describe "branch selection" do
     setup %{organization: organization, project: project} do
       main_run(project, organization, "m", [file("Sources/A.swift", [1, 0, 0, 0])])
@@ -247,7 +270,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#widget-coverage", "25.0%")
     end
 
-    test "shows the selected branch's analytics and leads to its page", %{
+    test "shows the selected branch's analytics and recent commits", %{
       conn: conn,
       organization: organization,
       project: project
@@ -262,7 +285,8 @@ defmodule TuistWeb.CoverageLiveTest do
 
       assert branch_items(lv) == [{"main", false}, {"release", true}]
       assert has_element?(lv, "#widget-coverage", "75.0%")
-      assert has_element?(lv, "[data-part='view-more'][href^='#{path}/branches/release']")
+      assert has_element?(lv, "#coverage-recent-commits-table a[href*='/commits/r?']")
+      refute has_element?(lv, "#coverage-recent-commits-table a[href*='/commits/m?']")
     end
   end
 

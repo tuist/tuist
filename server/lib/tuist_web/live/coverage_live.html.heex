@@ -80,19 +80,53 @@
       points={@points}
       grouping={@grouping}
       selected_widget={@selected_widget}
+    />
+
+    <%!-- Recent commits --%>
+    <.card
+      title={dgettext("dashboard_tests", "Recent commits")}
+      icon="git_commit"
+      data-part="recent-commits"
     >
       <:actions>
         <.button
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"
-          navigate={
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?#{period_query(@current_params)}"
-          }
-          disabled={is_nil(@latest)}
           data-part="view-more"
         />
       </:actions>
-    </.coverage_analytics_card>
+      <.card_section data-part="commits-section">
+        <div :if={@commit_rows != []} data-part="commits-table">
+          <.table
+            id="coverage-recent-commits-table"
+            rows={@commit_rows}
+            row_navigate={&commit_href(assigns, &1.git_commit_sha)}
+          >
+            <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+              <.text_cell label={short_sha(row.git_commit_sha)} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={row.covered_lines} executable={row.executable_lines} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+              <.text_cell sublabel={
+                Tuist.Utilities.DateFormatter.from_now(Map.get(row, :committed_at) || row.ran_at)
+              } />
+            </:col>
+          </.table>
+        </div>
+        <.coverage_empty
+          :if={@commit_rows == []}
+          title={
+            dgettext("dashboard_tests", "No complete commits on %{branch} in this period",
+              branch: @branch
+            )
+          }
+          image="table"
+          data-part="empty-commits"
+        />
+      </.card_section>
+    </.card>
   <% end %>
 </div>

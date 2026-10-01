@@ -2,11 +2,12 @@ defmodule TuistWeb.CoverageLive do
   @moduledoc """
   The project's Code Coverage page: a glance at a branch over the chosen
   period, its latest complete commit and its trend over complete commits
-  (`History.trend_points/3`). The branch is picked among those whose runs
-  never named a pull request (`History.branches/2`), the default branch
-  unless `analytics-branch` names another. Every figure is a commit's,
-  pooled over the schemes that measured it; the branch opens on its own page
-  (`TuistWeb.CoverageDetailLive`).
+  (`History.trend_points/3`), and its five most recent complete commits in
+  the period (`History.commit_cursor_page/3`), each leading to its own page
+  (`TuistWeb.CoverageDetailLive`). The branch is picked among those whose
+  runs never named a pull request (`History.branches/2`), the default
+  branch unless `analytics-branch` names another. Every figure is a
+  commit's, pooled over the schemes that measured it.
 
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
@@ -24,6 +25,8 @@ defmodule TuistWeb.CoverageLive do
   alias TuistWeb.Utilities.Query
 
   @widgets ~w(coverage covered_lines executable_lines)
+
+  @recent_commits 5
 
   # A run's coverage joins its commit's figure a few seconds after the run
   # lands (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads
@@ -115,6 +118,21 @@ defmodule TuistWeb.CoverageLive do
     socket
     |> assign(:branches, History.branches(project))
     |> assign_analytics()
+    |> assign_recent_commits()
+  end
+
+  defp assign_recent_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
+    page =
+      History.commit_cursor_page(project, branch, period_opts(socket) ++ [status: "complete", page_size: @recent_commits])
+
+    assign(socket, :commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
+  end
+
+  # A commit opened from here leads back to this page as it was shown.
+  @doc false
+  def commit_href(%{selected_account: account, selected_project: project, current_path: path, uri: uri}, sha) do
+    from = if uri.query in [nil, ""], do: path, else: path <> "?" <> uri.query
+    ~p"/#{account.name}/#{project.name}/tests/coverage/commits/#{sha}?#{%{"from" => from}}"
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
@@ -131,11 +149,6 @@ defmodule TuistWeb.CoverageLive do
       "executable_lines" => count_trend(points, :executable_lines)
     })
   end
-
-  # The period's parameters, so the default branch's page opens on the period
-  # shown here.
-  @doc false
-  def period_query(params), do: Map.filter(params, fn {key, _value} -> String.starts_with?(key, "coverage-") end)
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
 
