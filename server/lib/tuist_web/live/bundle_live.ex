@@ -551,7 +551,7 @@ defmodule TuistWeb.BundleLive do
 
   def handle_event(
         "update-bundle-size-analysis-sunburst-chart-table-highlighted-artifact",
-        %{"artifact" => %{"name" => name, "value" => value, "artifact_id" => artifact_id} = artifact} = params,
+        %{"artifact" => %{"name" => name, "value" => value, "artifact_id" => artifact_id} = artifact},
         socket
       ) do
     children =
@@ -569,21 +569,18 @@ defmodule TuistWeb.BundleLive do
 
     artifact = %{name: name, value: value, artifact_id: artifact_id, children: children}
 
-    cleaned_params = remove_pagination_params(params)
-
-    socket = assign_table_artifact(socket, artifact, cleaned_params)
+    socket = assign_table_artifact(socket, artifact, %{})
 
     {:noreply, socket}
   end
 
+  # Restores the selected artifact's table at the page in the URL, which hovering the chart replaced.
   def handle_event(
         "update-bundle-size-analysis-sunburst-chart-table-no-highlighted-artifact",
-        params,
-        %{assigns: %{bundle_size_analysis_sunburst_chart_selected_artifact: artifact}} = socket
+        _params,
+        %{assigns: %{bundle_size_analysis_sunburst_chart_selected_artifact: artifact, uri: uri}} = socket
       ) do
-    cleaned_params = remove_pagination_params(params)
-
-    socket = assign_table_artifact(socket, artifact, cleaned_params)
+    socket = assign_table_artifact(socket, artifact, URI.decode_query(uri.query))
 
     {:noreply, socket}
   end

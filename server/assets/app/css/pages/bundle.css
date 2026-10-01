@@ -187,9 +187,14 @@
         .noora-breadcrumbs {
           max-width: 100%;
           .noora-breadcrumb {
+            min-width: 0;
+            & [data-part="link"] {
+              min-width: 0;
+            }
             & [data-part="label"] {
               display: block;
-              max-width: 240px;
+              min-width: 0;
+              max-width: 480px;
               overflow: hidden;
               text-overflow: ellipsis;
               white-space: nowrap;

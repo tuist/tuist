@@ -280,6 +280,35 @@ defmodule TuistWeb.BundleLiveTest do
       assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table th", "Frameworks")
     end
 
+    test "keeps the table's page after the pointer leaves a highlighted chart segment", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_files(project, 12)
+      path_hash = :md5 |> :crypto.hash("App.app") |> Base.encode16() |> String.slice(0, 8)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?#{[{"current-path", "App.app"}, {"bundle-size-analysis-table-page-#{path_hash}", "2"}]}"
+        )
+
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "file_7.png")
+
+      # When
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-highlighted-artifact", %{
+        "artifact" => %{"name" => "file_1.png", "value" => 1024, "artifact_id" => nil, "children" => []}
+      })
+
+      render_hook(lv, "update-bundle-size-analysis-sunburst-chart-table-no-highlighted-artifact", %{})
+
+      # Then
+      assert has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "file_7.png")
+      refute has_element?(lv, "#bundle-size-analysis-sunburst-chart-table td", "file_12.png")
+    end
+
     test "opens the top-level directory from the current-path param", %{
       conn: conn,
       organization: organization,
