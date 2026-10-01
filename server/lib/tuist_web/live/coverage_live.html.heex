@@ -1,5 +1,27 @@
 <div id="coverage">
   <div data-part="filters">
+    <.dropdown
+      id="coverage-analytics-branch-dropdown"
+      label={@branch}
+      secondary_text={dgettext("dashboard_tests", "Branch:")}
+    >
+      <:search>
+        <input
+          type="text"
+          placeholder={dgettext("dashboard_tests", "Search...")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        :for={branch <- @branches}
+        value={branch}
+        label={branch}
+        patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
+        data-selected={@branch == branch}
+      >
+        <:right_icon :if={@branch == branch}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
     <.date_picker
       id="coverage-date-range-picker"
       name="coverage-date-range"
@@ -52,7 +74,6 @@
   <%= if not @loading do %>
     <%!-- Analytics --%>
     <.coverage_analytics_card
-      title={dgettext("dashboard_tests", "Default Branch Analytics: %{branch}", branch: @branch)}
       branch={@branch}
       latest={@latest}
       trends={@trends}
@@ -72,96 +93,5 @@
         />
       </:actions>
     </.coverage_analytics_card>
-
-    <%!-- Branches --%>
-    <.card
-      title={dgettext("dashboard_tests", "Branches")}
-      icon="git_branch"
-      data-part="branches"
-    >
-      <.card_section data-part="branches-section">
-        <div data-part="filters">
-          <.form
-            for={%{}}
-            id="coverage-branches-filter-form"
-            phx-change="search-branches"
-            phx-debounce="200"
-          >
-            <.text_input
-              type="search"
-              id="search-coverage-branches"
-              name="search"
-              placeholder={dgettext("dashboard_tests", "Search...")}
-              show_suffix={false}
-              data-part="search"
-              value={@branches_search}
-            />
-          </.form>
-        </div>
-        <div :if={@branch_rows != []} data-part="branches-table">
-          <.table
-            id="coverage-branches-table"
-            rows={@branch_rows}
-            row_navigate={
-              fn branch ->
-                if branch.pull_request_number > 0,
-                  do:
-                    url(
-                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/pull-requests/#{branch.pull_request_number}"
-                    ),
-                  else:
-                    url(
-                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{branch.git_branch}"
-                    )
-              end
-            }
-          >
-            <:col :let={branch} label={dgettext("dashboard_tests", "Branch")}>
-              <.text_cell label={branch.name} />
-            </:col>
-            <:col :let={branch} label={dgettext("dashboard_tests", "Pull request")}>
-              <.badge_cell
-                :if={branch.pull_request_number > 0}
-                style="light-fill"
-                color="information"
-                label={"##{branch.pull_request_number}"}
-              />
-              <.text_cell :if={branch.pull_request_number == 0} label="—" />
-            </:col>
-            <:col :let={branch} label={dgettext("dashboard_tests", "Coverage")}>
-              <.coverage_cell
-                covered={branch.covered_lines}
-                executable={branch.executable_lines}
-              />
-            </:col>
-            <:col :let={branch} label={dgettext("dashboard_tests", "Measured")}>
-              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(branch.ran_at)} />
-            </:col>
-          </.table>
-          <.pagination
-            uri={@uri}
-            has_previous_page={@branches_meta.has_previous_page?}
-            has_next_page={@branches_meta.has_next_page?}
-            start_cursor={@branches_meta.start_cursor}
-            end_cursor={@branches_meta.end_cursor}
-          />
-        </div>
-        <.coverage_empty
-          :if={@branch_rows == [] and @branches_search != ""}
-          title={
-            dgettext("dashboard_tests", "No branch matches %{search}", search: @branches_search)
-          }
-          image="table"
-          data-part="empty-branches"
-        />
-        <.coverage_empty
-          :if={@branch_rows == [] and @branches_search == ""}
-          title={dgettext("dashboard_tests", "No branch gathered coverage in this period")}
-          get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-          image="table"
-          data-part="empty-branches"
-        />
-      </.card_section>
-    </.card>
   <% end %>
 </div>

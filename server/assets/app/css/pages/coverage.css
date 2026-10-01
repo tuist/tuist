@@ -1,8 +1,7 @@
-/* The three coverage pages — the default branch's glance, the branches
-   index, and one subject in detail — are page roots laid out like every
-   other dashboard page. */
+/* The three coverage pages — a branch's glance, one subject in
+   detail, and a file — are page roots laid out like every other dashboard
+   page. */
 #coverage,
-#coverage-branches,
 #coverage-detail,
 #coverage-file-page {
   display: flex;
@@ -122,7 +121,6 @@
   /* The table and the buttons that page it are one block, so the section's
      gap does not stack with the pagination's own margin. */
   & [data-part="commits-table"],
-  & [data-part="branches-table"],
   & [data-part="files-table"],
   & [data-part="targets-table"],
   & [data-part="refs-table"],
@@ -131,7 +129,6 @@
     flex-direction: column;
   }
 
-  & [data-part="branches-section"] [data-part="filters"],
   & [data-part="commits-section"] [data-part="filters"],
   & [data-part="refs-section"] [data-part="filters"],
   & [data-part="targets-section"] [data-part="filters"],
@@ -156,7 +153,6 @@
   }
 
   & [data-part="commits-section"],
-  & [data-part="branches-section"],
   & [data-part="refs-section"],
   & [data-part="comparison-section"],
   & [data-part="gates-section"],
@@ -211,7 +207,6 @@
 
 /* A branch, a pull request or a commit against its baseline: a title block
    above the tabs, as the test run detail page has. */
-#coverage-branches,
 #coverage-detail,
 #coverage-file-page {
   & > [data-part="back-button"] {
@@ -312,7 +307,6 @@
 /* A file's coverage as a bar and a percentage, and the schemes that measured
    a commit as a row of badges: table cells with no Noora equivalent. */
 #coverage,
-#coverage-branches,
 #coverage-detail,
 #coverage-file-page {
   & [data-part="coverage-cell"] {

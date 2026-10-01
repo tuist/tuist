@@ -21,6 +21,36 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
     CoverageFixtures.run_with_coverage(project, account, [CoverageFixtures.file("Sources/A.swift", counts)], attrs)
   end
 
+  # Published commits of the labelled `main`, one per timestamp, each
+  # covering its index of 100 lines; complete unless listed in `pending`.
+  defp publish(project, timestamps, pending \\ []) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    rows =
+      timestamps
+      |> Enum.with_index()
+      |> Enum.map(fn {at, index} ->
+        %{
+          project_id: project.id,
+          git_commit_sha: "c#{index}",
+          git_branch: "main",
+          committed_at: at,
+          ran_at: at,
+          covered_lines: index,
+          executable_lines: 100,
+          complete: "c#{index}" not in pending,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    Repo.insert_all(CoverageCommit, rows)
+  end
+
+  defp shas(points), do: Enum.map(points, & &1.git_commit_sha)
+
+  @epoch ~U[2026-01-05 00:00:00.000000Z]
+
   describe "branch_history/3 and branch_points/3" do
     test "list the commits measured on the branch in the order they were measured when the graph has no head", %{
       project: project,
@@ -286,6 +316,99 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
     end
   end
 
+  describe "trend_points/3" do
+    test "draws the complete commits along the graph, leaving out the pending ones", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(
+        account,
+        [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("b", ["a"], 1),
+          CoverageFixtures.commit("c", ["b"], 2)
+        ],
+        branch_heads: [{"main", "c"}]
+      )
+
+      run(project, account, %{git_commit_sha: "a"}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "b"}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "c"}, [1, 1, 1, 0])
+      Commits.signal_complete(project, "a")
+      Commits.signal_complete(project, "c")
+
+      assert Enum.map(History.trend_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
+               [{"a", 25.0}, {"c", 75.0}]
+    end
+
+    test "draws every complete commit when they fit", %{project: project} do
+      publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :hour)), ["c40"])
+
+      assert shas(History.trend_points(project, "main")) == Enum.map(0..39, &"c#{&1}")
+    end
+
+    test "draws each day's latest complete commit when the commits do not fit", %{project: project} do
+      publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :hour)))
+
+      assert shas(History.trend_points(project, "main")) == ["c23", "c40"]
+    end
+
+    test "draws each week's latest complete commit when the days do not fit", %{project: project} do
+      publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :day)))
+
+      assert shas(History.trend_points(project, "main")) == ["c6", "c13", "c20", "c27", "c34", "c40"]
+    end
+
+    test "draws each month's latest complete commit, the most recent 40, when the weeks do not fit", %{
+      project: project
+    } do
+      publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1 * 8, :day)))
+      points = History.trend_points(project, "main")
+      assert length(points) == 11
+      assert List.last(points).git_commit_sha == "c40"
+
+      Repo.delete_all(CoverageCommit)
+      publish(project, Enum.map(0..41, &DateTime.add(@epoch, &1 * 31, :day)))
+      points = History.trend_points(project, "main")
+      assert length(points) == 40
+      assert {List.first(points).git_commit_sha, List.last(points).git_commit_sha} == {"c2", "c41"}
+    end
+
+    test "bounds the commits by the period", %{project: project} do
+      publish(project, Enum.map(0..2, &DateTime.add(@epoch, &1, :day)))
+
+      assert shas(History.trend_points(project, "main", since: DateTime.add(@epoch, 1, :day))) == ["c1", "c2"]
+    end
+  end
+
+  describe "branches/2" do
+    test "lists the branches whose runs never named a pull request, the default branch first, then the most recently measured",
+         %{project: project, account: account} do
+      run(project, account, %{git_commit_sha: "a", git_branch: "release", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0])
+      run(project, account, %{git_commit_sha: "b", git_branch: "develop", ran_at: ~N[2026-09-03 10:00:00]}, [1, 0])
+      run(project, account, %{git_commit_sha: "c", git_branch: "feature", ran_at: ~N[2026-09-04 10:00:00]}, [1, 0])
+
+      run(
+        project,
+        account,
+        %{
+          git_commit_sha: "d",
+          git_branch: "feature",
+          is_pull_request: true,
+          pull_request_number: 7,
+          ran_at: ~N[2026-09-02 10:00:00]
+        },
+        [1, 0]
+      )
+
+      assert History.branches(project) == ["main", "develop", "release"]
+
+      run(project, account, %{git_commit_sha: "e", ran_at: ~N[2026-09-02 10:00:00]}, [1, 0])
+      assert History.branches(project) == ["main", "develop", "release"]
+      assert History.branches(project, limit: 1) == ["main", "develop"]
+    end
+  end
+
   describe "pull_request_commits/3" do
     test "lists the pull request's measured commits, newest first, with what measured them", %{
       project: project,
@@ -324,135 +447,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       assert [%{git_commit_sha: "q"}] = History.pull_request_commits(project.id, 8)
       assert History.pull_request_commits(project.id, 9) == []
-    end
-  end
-
-  describe "refs/2" do
-    setup %{project: project, account: account} do
-      run(project, account, %{git_commit_sha: "m", ran_at: ~N[2026-09-01 10:00:00]}, [1, 1, 0, 0])
-
-      run(
-        project,
-        account,
-        %{git_commit_sha: "f", git_branch: "feature/widgets", ran_at: ~N[2026-09-02 10:00:00]},
-        [1, 1, 1, 0]
-      )
-
-      run(
-        project,
-        account,
-        %{
-          git_commit_sha: "p",
-          git_branch: "feature/gates",
-          is_pull_request: true,
-          pull_request_number: 42,
-          base_branch: "main",
-          ran_at: ~N[2026-09-03 10:00:00]
-        },
-        [1, 1, 1, 1]
-      )
-
-      :ok
-    end
-
-    test "lists a branch once, the most recently measured first, with the pull request it was pushed for", %{
-      project: project
-    } do
-      page = History.refs(project)
-
-      assert Enum.map(page.refs, &{&1.name, &1.pull_request_number, &1.coverage}) == [
-               {"feature/gates", 42, 100.0},
-               {"feature/widgets", 0, 75.0},
-               {"main", 0, 50.0}
-             ]
-
-      assert [%{base_branch: "main", git_commit_sha: "p"} | _] = page.refs
-    end
-
-    test "lists a pull request whose runs named no branch under its number", %{project: project, account: account} do
-      run(
-        project,
-        account,
-        %{
-          git_commit_sha: "n",
-          git_branch: "",
-          is_pull_request: true,
-          pull_request_number: 77,
-          ran_at: ~N[2026-09-05 10:00:00]
-        },
-        [1, 1, 1, 0]
-      )
-
-      assert %{name: "#77", pull_request_number: 77, git_branch: ""} =
-               Enum.find(History.refs(project).refs, &(&1.pull_request_number == 77))
-    end
-
-    test "narrows them by branch name or pull request number, and pages", %{project: project} do
-      assert Enum.map(History.refs(project, search: "widgets").refs, & &1.name) == ["feature/widgets"]
-      # A branch is found by the number of the pull request it was pushed for.
-      assert Enum.map(History.refs(project, search: "#42").refs, & &1.name) == ["feature/gates"]
-      assert Enum.map(History.refs(project, search: "gates").refs, & &1.name) == ["feature/gates"]
-      assert History.refs(project, search: "nothing").refs == []
-    end
-
-    test "pages from a cursor, newest first, each branch once", %{project: project, account: account} do
-      # A newer commit of a branch listed further down moves it up, and it is
-      # not listed again where its older commit was.
-      run(
-        project,
-        account,
-        %{git_commit_sha: "w2", git_branch: "feature/widgets", ran_at: ~N[2026-09-04 10:00:00]},
-        [1, 0, 0, 0]
-      )
-
-      first = History.refs(project, page_size: 2)
-      assert Enum.map(first.refs, &{&1.name, &1.git_commit_sha}) == [{"feature/widgets", "w2"}, {"feature/gates", "p"}]
-      assert first.has_next_page?
-      refute first.has_previous_page?
-
-      second = History.refs(project, page_size: 2, after: first.end_cursor)
-      assert Enum.map(second.refs, & &1.name) == ["main"]
-      refute second.has_next_page?
-      assert second.has_previous_page?
-
-      back = History.refs(project, page_size: 2, before: second.start_cursor)
-      assert Enum.map(back.refs, & &1.name) == ["feature/widgets", "feature/gates"]
-      refute back.has_previous_page?
-      assert back.has_next_page?
-    end
-
-    test "shows a commit whose runs skipped tests by its reported figure, only its confirmed part when some were not carried",
-         %{project: project} do
-      Repo.update_all(
-        from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == "f"),
-        set: [reported_kind: "partial", reported_covered_lines: 5, reported_executable_lines: 8]
-      )
-
-      assert %{coverage: 62.5, covered_lines: 5, executable_lines: 8, confirmed: false, measured_coverage: 75.0} =
-               Enum.find(History.refs(project).refs, &(&1.git_commit_sha == "f"))
-
-      assert %{confirmed: true} = Enum.find(History.refs(project).refs, &(&1.git_commit_sha == "m"))
-    end
-
-    test "lists a branch by its newest commit up to the period's end", %{project: project, account: account} do
-      run(
-        project,
-        account,
-        %{git_commit_sha: "w2", git_branch: "feature/widgets", ran_at: ~N[2026-09-04 10:00:00]},
-        [1, 0, 0, 0]
-      )
-
-      assert [%{git_commit_sha: "f", coverage: 75.0}] =
-               History.refs(project, until: ~U[2026-09-02 23:59:59Z], search: "widgets").refs
-    end
-
-    test "keeps to the branches measured in the period", %{project: project} do
-      assert Enum.map(History.refs(project, since: ~U[2026-09-02 00:00:00Z]).refs, & &1.name) == [
-               "feature/gates",
-               "feature/widgets"
-             ]
-
-      assert Enum.map(History.refs(project, until: ~U[2026-09-01 23:59:59Z]).refs, & &1.name) == ["main"]
     end
   end
 end

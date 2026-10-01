@@ -6,23 +6,43 @@ defmodule TuistWeb.CoverageLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
 
   defp file(path, counts), do: CoverageFixtures.file(path, counts, targets: ["Calculator"])
 
+  # The page draws complete commits only, so a run's commit is signalled
+  # complete unless `complete: false` says otherwise.
   defp main_run(project, organization, sha, files, attrs \\ %{}) do
-    CoverageFixtures.run_with_coverage(
-      project,
-      organization.account,
-      files,
-      Map.merge(%{git_commit_sha: sha, ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)}, attrs)
-    )
+    {complete, attrs} = Map.pop(attrs, :complete, true)
+
+    run =
+      CoverageFixtures.run_with_coverage(
+        project,
+        organization.account,
+        files,
+        Map.merge(%{git_commit_sha: sha, ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)}, attrs)
+      )
+
+    if complete, do: Commits.signal_complete(project, sha)
+    run
+  end
+
+  # The dropdown's items render into a portal template, which element/2
+  # reaches only as a whole.
+  defp branch_items(lv) do
+    lv
+    |> element("#coverage-analytics-branch-dropdown-content-portal")
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.find("[data-part='item']")
+    |> Enum.map(&{&1 |> Floki.attribute("data-value") |> List.first(), Floki.attribute(&1, "data-selected") != []})
   end
 
   describe "analytics" do
-    test "shows the latest chained commit of the branch and its trend, and nothing below but the branches", %{
+    test "shows the latest chained commit of the branch and its trend, and nothing below", %{
       conn: conn,
       organization: organization,
       project: project
@@ -36,13 +56,15 @@ defmodule TuistWeb.CoverageLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      assert has_element?(lv, "[data-part='analytics']", "Default Branch Analytics: main")
+      assert has_element?(lv, "[data-part='analytics']", "Analytics")
+      refute render(lv) =~ "Default Branch Analytics"
       assert has_element?(lv, "#widget-coverage", "75.0%")
       assert has_element?(lv, "#widget-coverage-covered-lines", "3")
       assert has_element?(lv, "#widget-coverage-executable-lines", "4")
       refute has_element?(lv, "#widget-coverage-unmeasured-files")
       assert has_element?(lv, "#coverage-chart")
       refute has_element?(lv, "#coverage-commits-table")
+      refute has_element?(lv, "#coverage-branches-table")
       refute has_element?(lv, "#coverage-gap-files-table")
       refute has_element?(lv, "#coverage-unmeasured-files-table")
     end
@@ -196,48 +218,34 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
-  describe "branches" do
+  describe "branch selection" do
     setup %{organization: organization, project: project} do
-      main_run(project, organization, "m", [file("Sources/A.swift", [1, 1, 0, 0])])
-
-      main_run(project, organization, "f", [file("Sources/A.swift", [1, 1, 1, 0])], %{
-        git_branch: "feature/widgets",
-        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800, :second)
-      })
+      main_run(project, organization, "m", [file("Sources/A.swift", [1, 0, 0, 0])])
+      main_run(project, organization, "r", [file("Sources/A.swift", [1, 1, 1, 0])], %{git_branch: "release"})
 
       main_run(project, organization, "p", [file("Sources/A.swift", [1, 1, 1, 1])], %{
         git_branch: "feature/gates",
         is_pull_request: true,
         pull_request_number: 42,
-        base_branch: "main",
-        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900, :second)
+        base_branch: "main"
       })
 
       :ok
     end
 
-    test "lists the branches measured in the period, leading to their pull request or their own page", %{
+    test "lists the branches without a pull request, the default branch selected", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      table = lv |> element("#coverage-branches-table") |> render()
-      assert table =~ "feature/gates"
-      assert table =~ "#42"
-      assert table =~ "feature/widgets"
-      assert table =~ "main"
-      assert table =~ "75.0%"
-
-      base = "/#{organization.account.name}/#{project.name}/tests/coverage"
-      assert has_element?(lv, "[data-part='branches-table'] .tuist-pagination button[disabled]", "Next")
-      assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/pull-requests/42']")
-      assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/feature%2Fwidgets']")
-      assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/main']")
+      assert has_element?(lv, "#coverage-analytics-branch-dropdown [data-part='search-input']")
+      assert branch_items(lv) == [{"main", true}, {"release", false}]
+      assert has_element?(lv, "#widget-coverage", "25.0%")
     end
 
-    test "narrows them by search and pages them from a cursor", %{
+    test "shows the selected branch's analytics and leads to its page", %{
       conn: conn,
       organization: organization,
       project: project
@@ -245,29 +253,14 @@ defmodule TuistWeb.CoverageLiveTest do
       path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
       {:ok, lv, _html} = live(conn, path)
 
-      lv |> form("#coverage-branches-filter-form", %{"search" => "widgets"}) |> render_change()
-      assert_patch(lv, path <> "?branches-search=widgets")
+      assert lv |> element("#coverage-analytics-branch-dropdown-content-portal") |> render() =~
+               ~s(href="?analytics-branch=release")
 
-      table = lv |> element("#coverage-branches-table") |> render()
-      assert table =~ "feature/widgets"
-      refute table =~ "feature/gates"
+      render_patch(lv, path <> "?analytics-branch=release")
 
-      {:ok, lv, _html} = live(conn, path <> "?branches-search=nothing")
-      assert has_element?(lv, "[data-part='empty-branches']", "No branch matches nothing")
-
-      for index <- 1..10 do
-        main_run(project, organization, "x#{index}", [file("Sources/A.swift", [1, 0])], %{git_branch: "extra/#{index}"})
-      end
-
-      {:ok, lv, _html} = live(conn, path)
-      assert has_element?(lv, "#ref-feature\\/gates")
-      refute has_element?(lv, "#ref-main")
-      [_, cursor] = Regex.run(~r/after=([^"&]+)/, render(lv))
-
-      {:ok, lv, _html} = live(conn, path <> "?after=" <> cursor)
-      assert has_element?(lv, "#ref-main")
-      refute has_element?(lv, "#ref-feature\\/gates")
-      assert render(lv) =~ "before="
+      assert branch_items(lv) == [{"main", false}, {"release", true}]
+      assert has_element?(lv, "#widget-coverage", "75.0%")
+      assert has_element?(lv, "[data-part='view-more'][href^='#{path}/branches/release']")
     end
   end
 

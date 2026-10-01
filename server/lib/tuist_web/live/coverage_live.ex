@@ -1,10 +1,12 @@
 defmodule TuistWeb.CoverageLive do
   @moduledoc """
-  The project's Code Coverage page: a glance at the default branch over the
-  chosen period — its coverage now and over time — and the branches and pull
-  requests that gathered coverage in it. Every figure is a commit's, pooled
-  over the schemes that measured it; the default branch, each branch and each
-  pull request open on their own page (`TuistWeb.CoverageDetailLive`).
+  The project's Code Coverage page: a glance at a branch over the chosen
+  period, its latest complete commit and its trend over complete commits
+  (`History.trend_points/3`). The branch is picked among those whose runs
+  never named a pull request (`History.branches/2`), the default branch
+  unless `analytics-branch` names another. Every figure is a commit's,
+  pooled over the schemes that measured it; the branch opens on its own page
+  (`TuistWeb.CoverageDetailLive`).
 
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
@@ -20,8 +22,6 @@ defmodule TuistWeb.CoverageLive do
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
-
-  @branches_page_size 10
 
   @widgets ~w(coverage covered_lines executable_lines)
 
@@ -40,6 +40,7 @@ defmodule TuistWeb.CoverageLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Code Coverage")} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("tests"))
       |> assign(:reload_scheduled, false)
+      |> assign(:branches, [])
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -59,14 +60,14 @@ defmodule TuistWeb.CoverageLive do
       |> assign(:current_params, query)
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
-      |> assign(:branch, project.default_branch)
+      |> assign(:branch, branch(query["analytics-branch"], project))
       |> assign(:selected_widget, selected_widget(query["analytics-selected-widget"]))
 
     # The page is read once, when the socket connects; the disconnected
     # render shows its skeleton.
     {:noreply,
      if(connected?(socket),
-       do: socket |> assign(:loading, false) |> assign_page(query),
+       do: socket |> assign(:loading, false) |> assign_page(),
        else: assign(socket, :loading, true)
      )}
   end
@@ -86,12 +87,7 @@ defmodule TuistWeb.CoverageLive do
         Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> drop_branches_cursor(query))}
-  end
-
-  def handle_event("search-branches", %{"search" => search}, socket) do
-    query = socket.assigns.uri.query |> Query.put("branches-search", search) |> drop_branches_cursor()
-    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query)}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -110,23 +106,23 @@ defmodule TuistWeb.CoverageLive do
   end
 
   def handle_info(:reload, socket) do
-    {:noreply, socket |> assign(:reload_scheduled, false) |> assign_page(socket.assigns.current_params)}
+    {:noreply, socket |> assign(:reload_scheduled, false) |> assign_page()}
   end
 
   def handle_info(_event, socket), do: {:noreply, socket}
 
-  defp assign_page(socket, query) do
+  defp assign_page(%{assigns: %{selected_project: project}} = socket) do
     socket
+    |> assign(:branches, History.branches(project))
     |> assign_analytics()
-    |> assign_branches(query)
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
-    points = History.branch_points(project, branch, period_opts(socket))
+    points = History.trend_points(project, branch, period_opts(socket))
     latest = List.last(points)
 
     socket
-    |> assign(:points, chart_points(points, socket.assigns.coverage_period))
+    |> assign(:points, points)
     |> assign(:latest, latest)
     |> assign(:trends, %{
       "coverage" => period_trend(points),
@@ -134,31 +130,6 @@ defmodule TuistWeb.CoverageLive do
       "executable_lines" => count_trend(points, :executable_lines)
     })
   end
-
-  # The branches and pull requests measured in the period, newest first, a
-  # page at a time from a cursor.
-  defp assign_branches(%{assigns: %{selected_project: project}} = socket, query) do
-    search = query["branches-search"] || ""
-
-    page =
-      History.refs(
-        project,
-        Keyword.merge(period_opts(socket),
-          search: search,
-          after: query["after"],
-          before: query["before"],
-          page_size: @branches_page_size
-        )
-      )
-
-    socket
-    |> assign(:branches_search, search)
-    |> assign(:branch_rows, Enum.map(page.refs, &Map.put(&1, :id, "ref-" <> &1.name)))
-    |> assign(:branches_meta, Map.take(page, [:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]))
-  end
-
-  # A cursor names a row of one listing; another period or search starts over.
-  defp drop_branches_cursor(query), do: query |> Query.drop("after") |> Query.drop("before")
 
   # The period's parameters, so the default branch's page opens on the period
   # shown here.
@@ -173,6 +144,9 @@ defmodule TuistWeb.CoverageLive do
     Process.send_after(self(), :reload, @reload_delay)
     assign(socket, :reload_scheduled, true)
   end
+
+  defp branch(branch, _project) when is_binary(branch) and branch != "", do: branch
+  defp branch(_branch, project), do: project.default_branch
 
   defp selected_widget(widget) when widget in @widgets, do: widget
   defp selected_widget(_widget), do: "coverage"
