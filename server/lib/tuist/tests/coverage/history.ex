@@ -33,14 +33,15 @@ defmodule Tuist.Tests.Coverage.History do
   alias Tuist.Tests.CoverageCommit
 
   @doc """
-  The repository the project's measured commits belong to (the newest
-  published commit's), or nil when none named one.
+  The repository the project's measured commits belong to (the most
+  recently run commit's that named one), or nil when none did. Read newest
+  first along `(project_id, ran_at)`, so it stops at the first such commit.
   """
   def repository_id(project_id) do
     Repo.one(
       from(c in CoverageCommit,
         where: c.project_id == ^project_id and not is_nil(c.repository_id),
-        order_by: [desc: c.updated_at],
+        order_by: [desc: c.ran_at],
         limit: 1,
         select: c.repository_id
       )
