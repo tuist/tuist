@@ -77,6 +77,10 @@ spec:
               containerPort: 8080
             - name: metrics
               containerPort: 9091
+            {{- if .Values.server.eventsGrpc.enabled }}
+            - name: grpc
+              containerPort: {{ .Values.server.service.grpcTargetPort | default 4001 }}
+            {{- end }}
             {{- if .Values.server.cluster.enabled }}
             - name: epmd
               containerPort: 4369
@@ -134,6 +138,12 @@ spec:
             {{- if .Values.server.kuraCapacityAdmission.enabled }}
             - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
               value: "1"
+            {{- end }}
+            {{- if .Values.server.eventsGrpc.enabled }}
+            - name: TUIST_ONCE_EVENTS_GRPC
+              value: "on"
+            - name: TUIST_ONCE_EVENTS_GRPC_PORT
+              value: {{ .Values.server.service.grpcTargetPort | default 4001 | quote }}
             {{- end }}
             {{- if .Values.server.config.cacheTokenKey.signing }}
             - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED

@@ -160,14 +160,14 @@ defmodule TuistWeb.WellKnownControllerTest do
   end
 
   describe "GET /.well-known/once" do
-    test "advertises the build.<host> gRPC endpoint by default", %{conn: conn} do
+    test "advertises the events.<host> gRPC endpoint by default", %{conn: conn} do
       System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS")
 
       conn = get(conn, "/.well-known/once")
 
       response = json_response(conn, 200)
       assert %{"events" => [url]} = response
-      assert url =~ ~r/^grpcs?:\/\/build\./
+      assert url =~ ~r/^grpcs?:\/\/events\./
       refute Map.has_key?(response, "live_url_template")
     end
 
