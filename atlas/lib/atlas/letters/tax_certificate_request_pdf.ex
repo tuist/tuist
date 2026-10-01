@@ -248,8 +248,7 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
     "<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 5 0 R/F2 7 0 R/F3 9 0 R/F7 22 0 R/F4 11 0 R/#{@overlay_font_name} #{@overlay_font_object} 0 R>>#{xobject_entry}/ProcSet[/PDF/Text/ImageB/ImageC/ImageI] >>/MediaBox[ 0 0 595.32 841.92] /Contents[#{@form_transform_object} 0 R 21 0 R 136 0 R #{@form_restore_object} 0 R]/Group<</Type/Group/S/Transparency/CS/DeviceRGB>>/Tabs/S/StructParents 1>>"
   end
 
-  defp stream_object(content),
-    do: "<</Length #{byte_size(content)} >>\nstream\n#{content}\nendstream"
+  defp stream_object(content), do: "<</Length #{byte_size(content)} >>\nstream\n#{content}\nendstream"
 
   defp text_block(lines, x, y, font_size, leading) do
     rendered_lines =
