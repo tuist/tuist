@@ -47,6 +47,11 @@ Do not add README entries for internal operational details such as env var names
 - General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
 - The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
 
+## Postal letters
+
+- Tax-certificate requests prepend a mailing cover page with a clean recipient address window. The two official form pages follow at 85% scale so their decorative marks clear the postal provider's restricted borders. Preserve the checksum-verified government template and apply layout changes through the incremental document update.
+- Keep the cover address inside the provider's documented left-window area. Do not remove official form text or signature content to satisfy postal layout checks.
+
 ## Project guidelines
 
 - When opening GitHub pull requests, use a semantic commit style title, for example `feat(accounts): reconcile Stripe invoices`.
