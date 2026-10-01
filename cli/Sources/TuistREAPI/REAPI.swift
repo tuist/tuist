@@ -63,9 +63,11 @@ public enum REAPICacheError: Error, LocalizedError, Equatable {
     case insufficientSpace
     case transferStalled
     case uploadFailed(reason: String)
+    case invalidTransferGuards(reason: String)
     public var errorDescription: String? {
         switch self {
         case let .uploadFailed(reason): "The cache did not accept every blob: \(reason)"
+        case let .invalidTransferGuards(reason): "The REAPI cache client was configured with invalid transfer guards: \(reason)"
         case .invalidDigest: "The cache returned an invalid content digest."
         case .corruptBlob: "The cache content failed its integrity check."
         case .invalidTree: "The cache artifact has an unsupported layout or an unsafe path or symlink."
