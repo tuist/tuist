@@ -735,6 +735,7 @@ struct RestoreTests {
                 packageDir: package,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 progress: nil
             )
