@@ -155,6 +155,10 @@ config :logger, :console,
     :auth_outcome,
     :selected_account_handle,
     :selected_project_handle,
+    # Stripe webhook deliveries, so a failed one can be traced to its event and customer.
+    :stripe_event_id,
+    :stripe_event_type,
+    :stripe_customer_id,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,

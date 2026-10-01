@@ -148,7 +148,9 @@ defmodule Tuist.AccountsTest do
       billing_email = account.billing_email
       customer_name = account.name
 
-      expect(Billing, :create_customer, 1, fn %{name: ^customer_name, email: ^billing_email} ->
+      account_id = account.id
+
+      expect(Billing, :create_customer, 1, fn %{name: ^customer_name, email: ^billing_email, account_id: ^account_id} ->
         customer_id
       end)
 
@@ -157,6 +159,19 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert %{got | updated_at: account.updated_at} == %{account | customer_id: customer_id}
+    end
+
+    test "doesn't create the customer when another request already created it" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: nil)
+      {:ok, _} = account |> Account.update_customer_id_changeset(%{customer_id: "cus_existing"}) |> Repo.update()
+      Mimic.reject(Billing, :create_customer, 1)
+
+      # When
+      got = Accounts.create_customer_when_absent(account)
+
+      # Then
+      assert got.customer_id == "cus_existing"
     end
   end
 

@@ -22,6 +22,8 @@ defmodule Tuist.Billing do
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
 
+  require Logger
+
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
@@ -45,6 +47,8 @@ defmodule Tuist.Billing do
   # Opening a new Checkout for such an account would create a second
   # subscription beside the one that owes, so it is sent to settle instead.
   @outstanding_subscription_statuses ~w(past_due unpaid)
+
+  @customer_account_id_metadata_key "tuist_account_id"
 
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
@@ -116,9 +120,43 @@ defmodule Tuist.Billing do
     ]
   end
 
-  def create_customer(%{name: name, email: email}) do
-    {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
+  @doc """
+  Creates the Stripe customer for an account, tagged with the account's id so
+  webhooks can tell customers Tuist created apart from the ones other systems
+  (e.g. Atlas invoicing) create in the same Stripe account.
+  """
+  def create_customer(%{name: name, email: email, account_id: account_id}) do
+    {:ok, customer} =
+      Stripe.Customer.create(%{name: name, email: email, metadata: customer_metadata(account_id)})
+
     customer.id
+  end
+
+  def customer_metadata(account_id), do: %{@customer_account_id_metadata_key => to_string(account_id)}
+
+  @doc """
+  Handles a Stripe event about a customer no account is linked to.
+
+  Customers without Tuist's account tag were created outside Tuist and are
+  ignored. A tagged one belonged to an account that lost its link to it, which
+  is reported because Stripe may still be billing it.
+  """
+  def on_unlinked_customer(%Stripe.Customer{metadata: %{@customer_account_id_metadata_key => account_id}} = customer) do
+    Logger.error("Stripe customer #{customer.id} was created for account #{account_id}, which is no longer linked to it")
+
+    Sentry.capture_message("Stripe customer created by Tuist is not linked to any account",
+      level: :error,
+      extra: %{customer_id: customer.id, account_id: account_id}
+    )
+
+    :ok
+  end
+
+  def on_unlinked_customer(%Stripe.Customer{}), do: :ok
+
+  def on_unlinked_customer(customer_id) when is_binary(customer_id) do
+    {:ok, customer} = Stripe.Customer.retrieve(customer_id)
+    on_unlinked_customer(customer)
   end
 
   def create_session(customer) do
@@ -1084,11 +1122,7 @@ defmodule Tuist.Billing do
   def on_subscription_change(subscription) do
     case Accounts.get_account_from_customer_id(subscription.customer) do
       {:error, :not_found} ->
-        # We had a race-condition that caused multiple customers to be created on Stripe
-        # for the same account. Because of that, we were getting webhooks for customers
-        # that we couldn't look up in our database. Until we sync the customers, we'll
-        # ignore the webhooks for those customers.
-        :ok
+        on_unlinked_customer(subscription.customer)
 
       {:ok, account} ->
         on_subscription_change_for_account(subscription, account)
