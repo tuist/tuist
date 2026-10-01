@@ -48,16 +48,45 @@ defmodule Tuist.License do
 
   defp fetch_license do
     cond do
-      Tuist.Environment.license_certificate_base64() ->
-        resolve_certificate()
+      certificate = Tuist.Environment.license_certificate_base64() ->
+        resolve_certificate(ed25519_verify_keys(), certificate)
 
       key = Tuist.Environment.license_key() ->
         resolve_license(key)
+
+      value = Tuist.Environment.license_value() ->
+        if air_gapped_certificate?(value) do
+          resolve_certificate(ed25519_verify_keys(), value)
+        else
+          resolve_license(value)
+        end
 
       true ->
         {:error, :license_not_found}
     end
   end
+
+  defp air_gapped_certificate?(value) when is_binary(value) do
+    if String.contains?(value, "-----BEGIN") do
+      true
+    else
+      stripped =
+        value
+        |> String.replace(~r/-----.*?-----/s, "")
+        |> String.replace(~r/\s/, "")
+        |> String.trim()
+
+      with {:ok, decoded} <- Base.decode64(stripped),
+           {:ok, payload} <- JSON.decode(decoded) do
+        match?(%{"enc" => _, "sig" => _, "alg" => _}, payload) or
+          match?(%{"data" => _, "sig" => _, "alg" => _}, payload)
+      else
+        _ -> false
+      end
+    end
+  end
+
+  defp air_gapped_certificate?(_), do: false
 
   # Ed25519 128-bit Verify Key
   def ed25519_verify_key do
@@ -218,7 +247,7 @@ defmodule Tuist.License do
           :ok
 
         {:error, :license_not_found} ->
-          raise "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing."
+          raise "The license exposed through the environment variable TUIST_LICENSE is missing."
 
         {:ok, nil} ->
           raise "The license key is invalid or does not exist."
