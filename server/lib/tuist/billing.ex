@@ -155,8 +155,14 @@ defmodule Tuist.Billing do
   def on_unlinked_customer(%Stripe.Customer{}), do: :ok
 
   def on_unlinked_customer(customer_id) when is_binary(customer_id) do
-    {:ok, customer} = Stripe.Customer.retrieve(customer_id)
-    on_unlinked_customer(customer)
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, customer} ->
+        on_unlinked_customer(customer)
+
+      {:error, error} ->
+        Logger.warning("Could not retrieve unlinked Stripe customer #{customer_id}: #{inspect(error)}")
+        :ok
+    end
   end
 
   def create_session(customer) do

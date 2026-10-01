@@ -90,6 +90,14 @@ defmodule Tuist.BillingTest do
 
       assert Billing.on_unlinked_customer("cus_orphan") == :ok
     end
+
+    test "ignores the customer when it can't be retrieved" do
+      stub(Stripe.Customer, :retrieve, fn "cus_unknown" ->
+        {:error, %Stripe.Error{source: :network, code: :network_error, message: "timeout"}}
+      end)
+
+      assert Billing.on_unlinked_customer("cus_unknown") == :ok
+    end
   end
 
   describe "get_payment_method_id_from_subscription_id/1" do
