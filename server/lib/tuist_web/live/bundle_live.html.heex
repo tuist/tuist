@@ -241,16 +241,18 @@
               |> Enum.take(index + 1)
               |> Enum.join("/")
 
-            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path) %>
+            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path)
+            breadcrumb_label = if index == 0, do: @bundle.name, else: path_component %>
             <.breadcrumb
-              :if={breadcrumb_artifact}
+              :if={index == 0 or breadcrumb_artifact}
               id={"bundle-size-analysis-breadcrumb-#{index}"}
-              label={if index == 0, do: @bundle.name, else: path_component}
+              label={breadcrumb_label}
+              title={breadcrumb_label}
               phx-click={
                 JS.dispatch(
                   "bundle-size-analysis-breadcrumb-clicked",
                   to: "#bundle-size-analysis-current-contents",
-                  detail: %{artifact_id: breadcrumb_artifact.id}
+                  detail: %{path: if(index > 0, do: breadcrumb_path)}
                 )
               }
             >
@@ -273,6 +275,7 @@
           id="bundle-size-analysis-current-contents"
           phx-hook="BundleSizeSunburstChartLegend"
           data-chart-id="bundle-size-analysis-sunburst"
+          data-current-path={@sunburst_current_path}
         >
           <.table
             id="bundle-size-analysis-sunburst-chart-table"
@@ -312,7 +315,7 @@
                   data-duplicate={artifact.duplicate?}
                 >
                 </div>
-                <span data-part="label">{artifact.name}</span>
+                <span data-part="label" title={artifact.name}>{artifact.name}</span>
               </div>
             </:col>
             <:col
@@ -417,9 +420,8 @@
                 <div data-part="root">
                   <div data-part="trigger">
                     <div data-part="header">
-                      <h3 data-part="title">
-                        {"/" <> List.last(String.split(hd(duplicate.artifacts).path, "/"))}
-                      </h3>
+                      <% duplicate_name = "/" <> Path.basename(hd(duplicate.artifacts).path) %>
+                      <h3 data-part="title" title={duplicate_name}>{duplicate_name}</h3>
                       <.badge
                         label={format_bytes(duplicate.size)}
                         color="information"
@@ -455,7 +457,7 @@
                   <div data-part="content">
                     <%= for artifact <- duplicate.artifacts do %>
                       <div data-part="duplicate">
-                        <span data-part="title">{artifact.path}</span>
+                        <span data-part="title" title={artifact.path}>{artifact.path}</span>
                         <.badge
                           label={format_bytes(artifact.size)}
                           color="information"
