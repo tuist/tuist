@@ -85,6 +85,18 @@ struct MirrorsTests {
         }
     }
 
+    @Test
+    func relativeMirrorConfigEnvironmentVariableIsRejected() async throws {
+        let error = await #expect(throws: (any Error).self) {
+            try await Environment.$values.withValue(["SWIFTPM_MIRROR_CONFIG": "mirrors.json"]) {
+                try await MirrorConfig.load(packageDir: URL(fileURLWithPath: "/App"), configPath: nil)
+            }
+        }
+
+        let message = String(describing: try #require(error))
+        #expect(message.contains("SWIFTPM_MIRROR_CONFIG must be an absolute path"))
+    }
+
     private func writeMirrors(_ mirrors: [String: String], to path: URL) async throws {
         let object = mirrors.map { ["original": $0.key, "mirror": $0.value] }
         let data = try JSONSerialization.data(withJSONObject: ["object": object, "version": 1])

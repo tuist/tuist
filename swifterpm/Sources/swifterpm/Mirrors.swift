@@ -8,8 +8,15 @@ struct MirrorConfig: Sendable {
 
     static func load(packageDir: URL, configPath: URL?) async throws -> MirrorConfig {
         let environment = Environment.current
-        let localPath = environment["SWIFTPM_MIRROR_CONFIG"].map { URL(fileURLWithPath: $0) }
-            ?? packageDir.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+        let localPath: URL
+        if let customPath = environment["SWIFTPM_MIRROR_CONFIG"] {
+            guard customPath.hasPrefix("/") else {
+                throw ToolError.message("SWIFTPM_MIRROR_CONFIG must be an absolute path: \(customPath)")
+            }
+            localPath = URL(fileURLWithPath: customPath)
+        } else {
+            localPath = packageDir.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+        }
         let local = try await mirrors(at: localPath)
         if !local.isEmpty {
             return MirrorConfig(mirrors: local)
