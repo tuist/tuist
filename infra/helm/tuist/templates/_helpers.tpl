@@ -663,7 +663,7 @@ License env vars. Resolves to one mutually exclusive source:
 {{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
 {{- end -}}
 {{- if or $useEsoKey $useInlineKey $useExistingKey }}
-- name: TUIST_LICENSE
+- name: TUIST_LICENSE_KEY
   valueFrom:
     secretKeyRef:
       {{- if $useExistingKey }}
@@ -675,7 +675,7 @@ License env vars. Resolves to one mutually exclusive source:
       {{- end }}
 {{- end }}
 {{- if or $useEsoCertificate $useInlineCertificate $useExistingCertificate }}
-- name: TUIST_LICENSE
+- name: TUIST_LICENSE_CERTIFICATE_BASE64
   valueFrom:
     secretKeyRef:
       {{- if $useExistingCertificate }}

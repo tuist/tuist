@@ -191,11 +191,14 @@ The configuration of the service is done at runtime through environment variable
 
 ### License configuration {#license-configuration}
 
-As an on-premise user, you'll receive a license that you'll need to expose as an environment variable. The license is used to validate the deployment and ensure that the service is running within the terms of the agreement.
+As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_LICENSE` | The license provided after signing the service level agreement. Accepts either the standard license key or the base64-encoded certificate used in air-gapped environments where the server cannot contact external services. | Yes | | `******` |
+| `TUIST_LICENSE` | The license provided after signing the service level agreement | Yes* | | `******` |
+| `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes* | | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
+
+\* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
 > [!WARNING]
 > **Expiration Date**
@@ -632,8 +635,6 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
 
 ### License {#helm-license}
 
-The `server.license.key` value accepts both the standard license key and, for air-gapped installations, the Base64-encoded license certificate; the server auto-detects which one it is.
-
 Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
 
 ```yaml
@@ -643,11 +644,24 @@ server:
     existingSecret: tuist-license
     existingSecretKeys:
       key: TUIST_LICENSE
+      certificateBase64: ""
 ```
 
-The entry under `existingSecretKeys.key` names the field in your Secret that holds the license value. Create the Secret in the release namespace before you install or upgrade the chart.
+For an air-gapped installation, reference the Base64-encoded license certificate instead:
 
-Configure the license through one source only: `server.license.key` or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead.
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: ""
+      certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
+```
+
+Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.
+
+Configure the license through one source only: `server.license.key`, `server.license.certificateBase64`, or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead. Create the Secret in the release namespace before you install or upgrade the chart.
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 
