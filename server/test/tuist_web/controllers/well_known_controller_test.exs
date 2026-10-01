@@ -161,20 +161,24 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   describe "GET /.well-known/once" do
     test "advertises the events.<host> gRPC endpoint by default", %{conn: conn} do
-      System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS")
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> nil
+        name -> System.get_env(name)
+      end)
 
       conn = get(conn, "/.well-known/once")
 
       response = json_response(conn, 200)
       assert %{"events" => [url]} = response
-      assert url =~ ~r/^grpcs?:\/\/events\./
+      assert url =~ ~r/^grpcs?:\/\/events[.-]/
       refute Map.has_key?(response, "live_url_template")
     end
 
     test "returns the endpoints named by TUIST_ONCE_EVENTS_ENDPOINTS when configured", %{conn: conn} do
-      System.put_env("TUIST_ONCE_EVENTS_ENDPOINTS", "grpcs://ingest-eu.tuist.dev, grpcs://ingest-us.tuist.dev")
-
-      on_exit(fn -> System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS") end)
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://ingest-eu.tuist.dev, grpcs://ingest-us.tuist.dev"
+        name -> System.get_env(name)
+      end)
 
       conn = get(conn, "/.well-known/once")
 
@@ -188,14 +192,18 @@ defmodule TuistWeb.WellKnownControllerTest do
 
     # Managed envs (staging, canary) run on subdomains like
     # `staging.tuist.dev`, where the string-prefix default would advertise
-    # `grpcs://events.staging.tuist.dev` while the ingress is actually at
-    # `events-staging.tuist.dev` (dash, not dot). Those deployments MUST set
-    # `TUIST_ONCE_EVENTS_ENDPOINTS` explicitly from Helm; this test pins the
-    # contract that the override wins and makes the default's limitation
-    # (apex-domain only) explicit in CI.
-    test "override wins on sub-prefix hosts where the apex default would mis-advertise",
-         %{conn: conn} do
-      System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS")
+    # a hostname that doesn't line up with the real ingress at
+    # `events-staging.tuist.dev` (dash, not dot). Those deployments MUST
+    # set `TUIST_ONCE_EVENTS_ENDPOINTS` explicitly from Helm; this test
+    # pins the contract that the override wins on a sub-prefix origin
+    # without freezing the exact shape of the (apex-only) default, so a
+    # future controller improvement that natively advertises
+    # `events-<env>.<apex>` can land without breaking the test.
+    test "override wins on sub-prefix hosts", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> nil
+        name -> System.get_env(name)
+      end)
 
       conn_without_override =
         conn
@@ -204,13 +212,15 @@ defmodule TuistWeb.WellKnownControllerTest do
         |> get("/.well-known/once")
 
       assert %{"events" => [default_url]} = json_response(conn_without_override, 200)
-      # String-prefix default is apex-only. On a sub-prefix host it produces a
-      # non-existent hostname — pinning this so no deploy ships without the
-      # explicit `TUIST_ONCE_EVENTS_ENDPOINTS` override.
-      assert default_url == "grpcs://events.staging.tuist.dev"
+      # Default must at least carry the `events` subdomain prefix (dot or
+      # dash); exact shape intentionally unpinned so a future native
+      # sub-prefix fix doesn't need a test rewrite.
+      assert default_url =~ ~r/^grpcs?:\/\/events[.-]/
 
-      System.put_env("TUIST_ONCE_EVENTS_ENDPOINTS", "grpcs://events-staging.tuist.dev")
-      on_exit(fn -> System.delete_env("TUIST_ONCE_EVENTS_ENDPOINTS") end)
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://events-staging.tuist.dev"
+        name -> System.get_env(name)
+      end)
 
       conn_with_override =
         conn

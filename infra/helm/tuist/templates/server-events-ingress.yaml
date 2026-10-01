@@ -1,16 +1,7 @@
-{{- /* Resolve the events ingress config, honoring the deprecated
-       `server.bazelEvents` key for one release so operators that
-       enabled the chart key from #13184 (merged 2026-09-30) don't
-       silently lose their ingress on upgrade. */ -}}
-{{- $events := .Values.server.events | default dict }}
-{{- if and (not $events.enabled) (hasKey .Values.server "bazelEvents") }}
-{{- if .Values.server.bazelEvents.enabled }}
-{{- $events = .Values.server.bazelEvents }}
-{{- end }}
-{{- end }}
+{{- $events := include "tuist.serverEventsConfig" . | fromYaml }}
 {{- if and .Values.server.enabled $events.enabled }}
 {{- $serviceName := include "tuist.componentName" (dict "root" . "component" "server") }}
-{{- $ingress := $events }}
+{{- $hostField := printf "%s.host" $events.source }}
 {{- $grpc := .Values.server.eventsGrpc.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -20,24 +11,24 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
   annotations:
-    {{- with $ingress.annotations }}
+    {{- with $events.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
     {{- if $grpc }}
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
     {{- end }}
 spec:
-  {{- with $ingress.className }}
+  {{- with $events.className }}
   ingressClassName: {{ . | quote }}
   {{- end }}
-  {{- if $ingress.tlsSecretName }}
+  {{- if $events.tlsSecretName }}
   tls:
     - hosts:
-        - {{ required "server.events.host is required when its ingress is enabled" $ingress.host | quote }}
-      secretName: {{ $ingress.tlsSecretName | quote }}
+        - {{ required (printf "%s is required when its ingress is enabled" $hostField) $events.host | quote }}
+      secretName: {{ $events.tlsSecretName | quote }}
   {{- end }}
   rules:
-    - host: {{ required "server.events.host is required when its ingress is enabled" $ingress.host | quote }}
+    - host: {{ required (printf "%s is required when its ingress is enabled" $hostField) $events.host | quote }}
       http:
         paths:
           - path: /

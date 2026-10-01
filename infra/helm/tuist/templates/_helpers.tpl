@@ -1091,3 +1091,57 @@ profile change reaches the server only through a restart.
   </users>
 </clickhouse>
 {{- end }}
+
+{{/*
+Resolve the effective Once events ingress config.
+
+Returns a YAML dict callers decode with `fromYaml`:
+    enabled, host, tlsSecretName, annotations, className, source
+
+Precedence:
+  - If BOTH `server.events.enabled` and `server.bazelEvents.enabled` are
+    true, fail: operators mid-migration must pick one key before
+    continuing so we don't silently keep the deprecated block alive.
+  - If `server.events.enabled` is true -> use `server.events` (source =
+    "server.events").
+  - Else if `server.bazelEvents.enabled` is true -> use
+    `server.bazelEvents` as the one-release deprecation path for
+    #13184 adopters (source = "server.bazelEvents").
+  - Else disabled.
+
+The returned `source` is used by callers to name the right key in
+`required`/`fail` error messages, so deprecated-key operators are not
+told to fix a key they are not using.
+*/}}
+{{- define "tuist.serverEventsConfig" -}}
+{{- $events := .Values.server.events | default dict -}}
+{{- $bazel := .Values.server.bazelEvents | default dict -}}
+{{- if and $events.enabled $bazel.enabled -}}
+{{- fail "server.events.enabled and server.bazelEvents.enabled are mutually exclusive; the `bazelEvents` key is a one-release alias for `events` (#13184 migration), remove it from your values before enabling `events`." -}}
+{{- end -}}
+{{- $effective := dict "enabled" false "host" "" "tlsSecretName" "" "annotations" dict "className" "" "source" "server.events" -}}
+{{- if $events.enabled -}}
+{{- $effective = dict "enabled" true "host" ($events.host | default "") "tlsSecretName" ($events.tlsSecretName | default "") "annotations" ($events.annotations | default dict) "className" ($events.className | default "") "source" "server.events" -}}
+{{- else if $bazel.enabled -}}
+{{- $effective = dict "enabled" true "host" ($bazel.host | default "") "tlsSecretName" ($bazel.tlsSecretName | default "") "annotations" ($bazel.annotations | default dict) "className" ($bazel.className | default "") "source" "server.bazelEvents" -}}
+{{- end -}}
+{{- toYaml $effective -}}
+{{- end -}}
+
+{{/*
+URL scheme the discovery doc should advertise for the Once events gRPC
+endpoint: `grpcs` when TLS terminates at the ingress (any
+`tlsSecretName` set), otherwise `grpc`. Keeps non-TLS self-hosted
+installs from advertising a scheme their ingress cannot serve.
+
+Takes the context root. Reads the same effective events config as the
+Deployment and Ingress templates.
+*/}}
+{{- define "tuist.serverEventsScheme" -}}
+{{- $events := include "tuist.serverEventsConfig" . | fromYaml -}}
+{{- if $events.tlsSecretName -}}
+grpcs
+{{- else -}}
+grpc
+{{- end -}}
+{{- end -}}

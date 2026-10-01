@@ -478,10 +478,21 @@ server:
   # and posts summaries to the main tuist.dev host; nothing self-hosted
   # should have `enabled: true` prior to the Once gRPC rollout.
   #
-  # Renamed from `bazelEvents` (introduced in #13184). The templates still
-  # honor `server.bazelEvents.*` for one release so adopters of that
-  # same-day key don't lose their ingress on upgrade; move to
-  # `server.events.*` on your next values edit.
+  # Renamed from `bazelEvents` (introduced in #13184). The templates
+  # resolve the effective config through `tuist.serverEventsConfig` with
+  # these precedence rules:
+  #
+  #   1. `server.events.enabled: true` -> use `server.events`.
+  #   2. `server.events.enabled` is falsy AND `server.bazelEvents.enabled:
+  #      true` -> use `server.bazelEvents` as the one-release deprecation
+  #      path for #13184 adopters.
+  #   3. BOTH `enabled: true` -> the chart `fail`s with a migration
+  #      message. Pick one key.
+  #
+  # The scheme the discovery doc advertises
+  # (`TUIST_ONCE_EVENTS_ENDPOINTS`) follows `tlsSecretName`: set it ->
+  # `grpcs://`, leave it empty -> `grpc://`, so non-TLS self-hosted
+  # installs don't advertise a scheme their ingress cannot serve.
   events:
     enabled: false
     className: nginx

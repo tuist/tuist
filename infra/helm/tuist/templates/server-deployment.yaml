@@ -144,14 +144,8 @@ spec:
               value: "on"
             - name: TUIST_ONCE_EVENTS_GRPC_PORT
               value: {{ .Values.server.service.grpcTargetPort | default 4001 | quote }}
-            {{- /* Honor the deprecated `server.bazelEvents` key as a
-                   one-release fallback for #13184 adopters. */ -}}
-            {{- $events := .Values.server.events | default dict }}
-            {{- if and (not $events.enabled) (hasKey .Values.server "bazelEvents") }}
-            {{- if .Values.server.bazelEvents.enabled }}
-            {{- $events = .Values.server.bazelEvents }}
-            {{- end }}
-            {{- end }}
+            {{- $events := include "tuist.serverEventsConfig" . | fromYaml }}
+            {{- $scheme := include "tuist.serverEventsScheme" . }}
             {{- if and $events.enabled $events.host }}
             # Discovery doc source of truth for the gRPC hostname. The server's
             # string-prefix fallback (`events.<request-host>`) only lines up on
@@ -159,8 +153,10 @@ spec:
             # (`staging.tuist.dev`) where the ingress is at
             # `events-staging.tuist.dev` (dash, not dot), so the controller
             # must be told the real ingress hostname rather than deriving one.
+            # The scheme follows the ingress's TLS state so a non-TLS
+            # self-hosted install advertises `grpc://`, not `grpcs://`.
             - name: TUIST_ONCE_EVENTS_ENDPOINTS
-              value: "grpcs://{{ $events.host }}"
+              value: "{{ $scheme }}://{{ $events.host }}"
             {{- end }}
             {{- end }}
             {{- if .Values.server.config.cacheTokenKey.signing }}
