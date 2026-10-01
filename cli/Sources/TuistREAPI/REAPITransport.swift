@@ -17,12 +17,21 @@ enum REAPITransport {
         var config = HTTP2ClientTransport.Posix.Config.defaults
         config.http2.authority = authority
         config.http2.targetWindowSize = 32 * 1024 * 1024
-        // Keepalive detects a wedged connection whose TCP socket is still open but
-        // whose peer has gone silent. Without it, a stuck stream only unblocks when the
-        // OS or peer closes the socket, which in traces from self-hosted customers has
-        // taken 60-80 seconds. 60s/20s is well above grpc-go's 10s floor; we leave
-        // `allowWithoutCalls` false so the client doesn't ping an idle connection and
-        // trip grpc-go's `EnforcementPolicy.MinTime` (5 minute default).
+        // Keepalive detects a wedged connection whose TCP socket is still open but whose peer
+        // has gone silent. Without it, a stuck stream only unblocks when the OS or peer closes
+        // the socket, which in traces from self-hosted customers has taken 60-80 seconds.
+        //
+        // Server-side policy on grpc-go, grpc-java, bazel-remote, Buildbarn and BuildBuddy
+        // defaults `keepalive.EnforcementPolicy.MinTime` to 5 minutes with
+        // `PermitWithoutStream = false`: a client that pings more often than that collects a
+        // strike and eventually gets `GOAWAY ENHANCE_YOUR_CALM`. 60 seconds is below that, but
+        // grpc-go resets the strike counter whenever the server sends data or headers, so pings
+        // issued while the server is actively replying are safe. A stream where the server
+        // itself goes quiet past 3 minutes could still accumulate strikes; our batch deadline
+        // (~62 seconds) fires well before that, which is a design feature, not an accident.
+        //
+        // `allowWithoutCalls: false` means we only ping while a stream is active, so an idle
+        // connection does not generate traffic a stricter server could count against us.
         config.connection.keepalive = HTTP2ClientTransport.Config.Keepalive(
             time: .seconds(60),
             timeout: .seconds(20),

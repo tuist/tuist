@@ -14,12 +14,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     /// Reserves a client with the lowest in-flight count for the duration of
     /// `operation`. Replaces the previous round-robin picker so a connection whose
-    /// peer has gone silent stops collecting new RPCs until it drains. The lease is
-    /// released in `defer` so throw and cancel paths release it too.
+    /// peer has gone silent stops collecting new RPCs until it drains, and a connection
+    /// that just failed with a transient/connection-shaped error gets a cooldown penalty
+    /// so the next retry lands elsewhere. The lease is released in `defer` so throw and
+    /// cancel paths release it too.
     private func withClient<T: Sendable>(
         _ operation: (GRPCClient<HTTP2ClientTransport.Posix>) async throws -> T
     ) async throws -> T {
-        try await selector.withClient(operation)
+        try await selector.withClient(shouldPenalize: Self.isResumable, operation)
     }
 
     private let instanceName: String
@@ -42,6 +44,9 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         stats: REAPIStats? = nil,
         token: @escaping @Sendable () async throws -> String
     ) async throws {
+        if let value = guards.downloadConcurrency, value <= 0 {
+            throw REAPICacheError.invalidTransferGuards(reason: "downloadConcurrency must be positive, got \(value)")
+        }
         var clients: [GRPCClient<HTTP2ClientTransport.Posix>] = []
         var connections: [Task<Void, Error>] = []
         do {
@@ -299,16 +304,23 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     /// already covered a slow link's share of the payload is not worth repeating twice more; its
     /// caller passes `retryingDeadlineExceeded: false`. Batch calls use the shorter `batchAllowance`
     /// (around 62 seconds for a 2 MiB payload) so retrying on deadline is cheap and lets the next
-    /// attempt land on a different connection via `LeastOutstandingSelector`.
+    /// attempt land on a different connection via `LeastOutstandingSelector`. Deadline retries are
+    /// bounded to two total attempts so a server that is slow for its own reasons does not get
+    /// three times the load from each client.
     private func retry<T>(
         retryingDeadlineExceeded: Bool = true,
         _ operation: () async throws -> T
     ) async throws -> T {
         var attempt = 0
+        var deadlineAttempts = 0
         while true {
             do { return try await operation() } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
-                if !retryingDeadlineExceeded, (error as? RPCError)?.code == .deadlineExceeded { throw error }
+                if (error as? RPCError)?.code == .deadlineExceeded {
+                    if !retryingDeadlineExceeded { throw error }
+                    deadlineAttempts += 1
+                    if deadlineAttempts >= 2 { throw error }
+                }
                 guard attempt < 2, Self.isRetryable(error) else { throw error }
                 try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
                 attempt += 1
@@ -475,9 +487,15 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         return try await transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
-                try await self.downloadBlob(digest, to: blobs[digest]!)
-                try await onDownloaded(digest)
-                return [digest]
+                do {
+                    try await self.downloadBlob(digest, to: blobs[digest]!)
+                    try await onDownloaded(digest)
+                    return [digest]
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    self.stats?.recordStreamDownloadFailure(digestsLost: 1)
+                    return []
+                }
             }
             var successful = Set<REAPI.Digest>()
             do {

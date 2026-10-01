@@ -388,6 +388,24 @@ struct CacheStorageFactoryTests {
         }
     }
 
+    @Test(.withScopedAlertController(), .withMockedEnvironment(), arguments: ["0", "-1", "abc", "1.5"])
+    func rejectsInvalidCacheConcurrencyLimit(raw: String) async throws {
+        Environment.mocked?.variables["TUIST_CACHE_CONCURRENCY_LIMIT"] = raw
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        let factory = CacheStorageFactory(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            serverAuthenticationController: serverAuthenticationController,
+            serverEnvironmentService: serverEnvironmentService,
+            cacheURLStore: cacheURLStore,
+            validateREAPI: { _ in }
+        )
+        // Fail-fast on an explicit invalid value: silently clamping to the default hides the
+        // misconfiguration until a build is slow for a reason that is hard to trace.
+        await #expect(throws: CacheStorageFactoryError.invalidCacheConcurrencyLimit(raw)) {
+            _ = try await factory.cacheStorage(config: .test(fullHandle: "tuist/project"))
+        }
+    }
+
     @Test(.withScopedAlertController(), .withMockedEnvironment())
     func billingRefusalsSurfaceTheServerMessage() async throws {
         given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)

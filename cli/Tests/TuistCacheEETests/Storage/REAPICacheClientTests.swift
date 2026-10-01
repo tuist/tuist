@@ -680,20 +680,16 @@ struct REAPICacheClientTests {
 
             #expect(try await client.downloadAvailableBlobs([digest: destination]).isEmpty)
 
-            // Three attempts (initial + two retries): each one is cheap now that batch deadlines
-            // use `batchAllowance`, so a wedged connection gets the chance to be swapped out
-            // across retries. One attempt leaves the client without that recovery.
-            #expect(await state.readCalls == 3)
+            // Two attempts (initial + one retry): a batch deadline is cheap under `batchAllowance`
+            // and the retry can land on a different connection via the selector cooldown, but we
+            // cap at two to avoid tripling load on a server that is slow for its own reasons.
+            #expect(await state.readCalls == 2)
         }
     }
 
     @Test(.inTemporaryDirectory) func statsAccountForEveryDigestInABatchThatGaveUpOnRetries() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
-        // Four small blobs batched 2+2 (server negotiates `maximumBatchBytes = 2 KiB`), every
-        // batch read delayed past the client's deadline. The whole download gives up after
-        // retries; a conservation check holds, so the caller can tell "fewer stalls" from
-        // "stalls turned into silent misses that look like misses".
         var blobs: [REAPI.Digest: URL] = [:]
         for index in 0 ..< 4 {
             let body = Self.blob(1024)
@@ -723,14 +719,63 @@ struct REAPICacheClientTests {
 
             let successful = try await client.downloadAvailableBlobs(blobs)
 
+            // Every digest the client could not serve shows up in `batchDownloadDigestsLost`,
+            // not as a silent miss. Combined with `digestsNotFoundOnServerAreNotCountedAsLost`
+            // below, this proves the caller can tell "fewer stalls" from "stalls turned into
+            // silent misses that look like misses".
             let snapshot = stats.snapshot
-            let notFound = blobs.count - successful.count - snapshot.batchDownloadDigestsLost
-            // Conservation: every requested digest is either successful, counted as lost to a
-            // swallowed batch failure, or not found. Nothing goes dark.
-            #expect(successful.count + snapshot.batchDownloadDigestsLost + notFound == blobs.count)
             #expect(successful.isEmpty)
             #expect(snapshot.batchDownloadDigestsLost == blobs.count)
             #expect(snapshot.batchDownloadFailures >= 1)
+            #expect(snapshot.streamDownloadDigestsLost == 0)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func digestsNotFoundOnServerAreNotCountedAsLost() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        // Four digests; the server only has two of them, so the other two come back as
+        // `NOT_FOUND` on the batch response. A NOT_FOUND is a legitimate miss, not a stall:
+        // nothing is counted in `batchDownloadDigestsLost`, and `successful` names the two
+        // the server did serve.
+        var blobs: [REAPI.Digest: URL] = [:]
+        var served: [REAPI.Digest] = []
+        for index in 0 ..< 4 {
+            let body = Self.blob(1024)
+            let digest = REAPI.digest(body)
+            if index < 2 {
+                await state.put(body, digest: digest)
+                served.append(digest)
+            }
+            blobs[digest] = directory.appending(component: "blob-\(index)").url
+        }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state),
+            WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let stats = REAPIStats()
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(),
+                stats: stats
+            ) { "token" }
+
+            let successful = try await client.downloadAvailableBlobs(blobs)
+
+            #expect(successful == Set(served))
+            let snapshot = stats.snapshot
+            #expect(snapshot.batchDownloadFailures == 0)
+            #expect(snapshot.batchDownloadDigestsLost == 0)
+            #expect(snapshot.streamDownloadDigestsLost == 0)
         }
     }
 
