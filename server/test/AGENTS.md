@@ -7,6 +7,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - Tests run with a clean database.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
+- Provisioning streak-reset tests compare the next allowance with the stored streak start, since both use the same clock sample; do not measure the interval from a timestamp captured before the call.
 - Use mocks/stubs/DI for environment-dependent behavior.
 - Telemetry handlers are global: `:telemetry_test.attach_event_handlers/2` also delivers an event a concurrently running test emitted, tagged with this test's own ref. Use `TuistTestSupport.TelemetryCapture.attach_event_handlers/1`, which forwards only what the attaching process emits.
 
