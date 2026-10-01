@@ -31,6 +31,16 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
   @signature_max_width 165
   @signature_max_height 32
 
+  @cover_page_object 139
+  @cover_content_object 140
+  @form_transform_object 141
+  @form_restore_object 142
+
+  # Pingen reserves the first page for its address window and postage. Keep the
+  # official form on subsequent pages, inset far enough to clear every restricted
+  # border, including the 15 mm bottom-left corner, without removing any content.
+  @form_transform "q\n0.85 0 0 0.85 44.649 63.144 cm"
+
   def render(%Letter{} = letter) do
     template = File.read!(template_path())
     verify_template!(template)
@@ -41,7 +51,8 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
       template,
       page_one_overlay(letter),
       page_two_overlay(letter, signature),
-      signature
+      signature,
+      letter
     )
   end
 
@@ -84,7 +95,11 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
       text_at(letter.sender_name, 71, 513),
       text_at(date_value(data, "foundation_date"), 71, 473),
       text_at(map_value(data, "legal_form"), 416, 473),
-      text_at("#{letter.sender_street}, #{letter.sender_postal_code} #{letter.sender_city}", 71, 433),
+      text_at(
+        "#{letter.sender_street}, #{letter.sender_postal_code} #{letter.sender_city}",
+        71,
+        433
+      ),
       text_at("X", 72, 351),
       text_at(letter.recipient_name, 127, 350),
       text_at(letter.tax_id, 340, 350),
@@ -124,7 +139,9 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
     aspect = w / h
     max_by_width = {@signature_max_width, @signature_max_width / aspect}
     max_by_height = {@signature_max_height * aspect, @signature_max_height}
-    {draw_w, draw_h} = if elem(max_by_width, 1) <= @signature_max_height, do: max_by_width, else: max_by_height
+
+    {draw_w, draw_h} =
+      if elem(max_by_width, 1) <= @signature_max_height, do: max_by_width, else: max_by_height
 
     """
     q
@@ -135,11 +152,16 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
     |> String.trim_trailing()
   end
 
-  defp append_overlay(template, page_one_overlay, page_two_overlay, signature) do
+  defp append_overlay(template, page_one_overlay, page_two_overlay, signature, letter) do
     base_objects = [
       {135, stream_object(page_one_overlay)},
       {136, stream_object(page_two_overlay)},
       {@overlay_font_object, overlay_font_object()},
+      {2, "<</Type/Pages/Count 3/Kids[#{@cover_page_object} 0 R 3 0 R 20 0 R]>>"},
+      {@cover_page_object, cover_page_dictionary()},
+      {@cover_content_object, stream_object(cover_page_overlay(letter))},
+      {@form_transform_object, stream_object(@form_transform)},
+      {@form_restore_object, stream_object("Q")},
       {3, page_one_dictionary()},
       {20, page_two_dictionary(signature != nil)}
     ]
@@ -160,30 +182,14 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
     xref_offset = byte_size(body)
 
     body <>
-      "xref\n" <>
-      xref_entry(3, [Map.fetch!(offsets, 3)]) <>
-      xref_entry(20, [Map.fetch!(offsets, 20)]) <>
-      xref_entry(135, overlay_xref_offsets(offsets, signature)) <>
+      "xref\n0 1\n0000000000 65535 f \n" <>
+      (offsets
+       |> Enum.sort_by(&elem(&1, 0))
+       |> Enum.map_join("", fn {number, offset} -> xref_entry(number, [offset]) end)) <>
       "trailer\n" <>
-      "<</Size #{trailer_size(signature)}/Root 1 0 R/Info 27 0 R/ID[<8C0274802CDB994689F1DC471476A04F><8C0274802CDB994689F1DC471476A04F>] /Prev #{@template_last_xref}>>\n" <>
+      "<</Size 143/Root 1 0 R/Info 27 0 R/ID[<8C0274802CDB994689F1DC471476A04F><8C0274802CDB994689F1DC471476A04F>] /Prev #{@template_last_xref}>>\n" <>
       "startxref\n#{xref_offset}\n%%EOF\n"
   end
-
-  defp overlay_xref_offsets(offsets, nil) do
-    [Map.fetch!(offsets, 135), Map.fetch!(offsets, 136), Map.fetch!(offsets, @overlay_font_object)]
-  end
-
-  defp overlay_xref_offsets(offsets, _signature) do
-    [
-      Map.fetch!(offsets, 135),
-      Map.fetch!(offsets, 136),
-      Map.fetch!(offsets, @overlay_font_object),
-      Map.fetch!(offsets, @signature_xobject)
-    ]
-  end
-
-  defp trailer_size(nil), do: 138
-  defp trailer_size(_signature), do: 139
 
   defp overlay_font_object do
     "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>"
@@ -203,8 +209,32 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
     "#{start} #{length(offsets)}\n#{entries}"
   end
 
+  defp cover_page_dictionary do
+    "<</Type/Page/Parent 2 0 R/Resources<</Font<</#{@overlay_font_name} #{@overlay_font_object} 0 R>>>>/MediaBox[0 0 595.32 841.92]/Contents #{@cover_content_object} 0 R>>"
+  end
+
+  defp cover_page_overlay(letter) do
+    [
+      text_block(
+        [
+          letter.recipient_name,
+          letter.recipient_street,
+          "#{letter.recipient_postal_code} #{letter.recipient_city}"
+        ],
+        65,
+        655,
+        10,
+        14
+      ),
+      text_at("Tax certificate request", 65, 510),
+      text_at("Applicant: #{letter.sender_name}", 65, 482),
+      text_at("The official application is enclosed.", 65, 454)
+    ]
+    |> Enum.join("\n")
+  end
+
   defp page_one_dictionary do
-    "<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 5 0 R/F2 7 0 R/F3 9 0 R/F4 11 0 R/F5 13 0 R/F6 15 0 R/#{@overlay_font_name} #{@overlay_font_object} 0 R>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI] >>/MediaBox[ 0 0 595.32 841.92] /Contents[4 0 R 135 0 R]/Group<</Type/Group/S/Transparency/CS/DeviceRGB>>/Tabs/S/StructParents 0>>"
+    "<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 5 0 R/F2 7 0 R/F3 9 0 R/F4 11 0 R/F5 13 0 R/F6 15 0 R/#{@overlay_font_name} #{@overlay_font_object} 0 R>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI] >>/MediaBox[ 0 0 595.32 841.92] /Contents[#{@form_transform_object} 0 R 4 0 R 135 0 R #{@form_restore_object} 0 R]/Group<</Type/Group/S/Transparency/CS/DeviceRGB>>/Tabs/S/StructParents 0>>"
   end
 
   defp page_two_dictionary(signature?) do
@@ -215,10 +245,11 @@ defmodule Atlas.Letters.TaxCertificateRequestPDF do
         ""
       end
 
-    "<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 5 0 R/F2 7 0 R/F3 9 0 R/F7 22 0 R/F4 11 0 R/#{@overlay_font_name} #{@overlay_font_object} 0 R>>#{xobject_entry}/ProcSet[/PDF/Text/ImageB/ImageC/ImageI] >>/MediaBox[ 0 0 595.32 841.92] /Contents[21 0 R 136 0 R]/Group<</Type/Group/S/Transparency/CS/DeviceRGB>>/Tabs/S/StructParents 1>>"
+    "<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 5 0 R/F2 7 0 R/F3 9 0 R/F7 22 0 R/F4 11 0 R/#{@overlay_font_name} #{@overlay_font_object} 0 R>>#{xobject_entry}/ProcSet[/PDF/Text/ImageB/ImageC/ImageI] >>/MediaBox[ 0 0 595.32 841.92] /Contents[#{@form_transform_object} 0 R 21 0 R 136 0 R #{@form_restore_object} 0 R]/Group<</Type/Group/S/Transparency/CS/DeviceRGB>>/Tabs/S/StructParents 1>>"
   end
 
-  defp stream_object(content), do: "<</Length #{byte_size(content)} >>\nstream\n#{content}\nendstream"
+  defp stream_object(content),
+    do: "<</Length #{byte_size(content)} >>\nstream\n#{content}\nendstream"
 
   defp text_block(lines, x, y, font_size, leading) do
     rendered_lines =
