@@ -3,12 +3,15 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import OpenApiSpex.TestAssertions, only: [assert_schema: 3]
+
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.API.Spec
   alias TuistWeb.Authentication
 
   setup do
@@ -371,6 +374,17 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       project = hd(response["projects"])
       assert Map.has_key?(project, "token")
       assert project["token"] == ""
+    end
+
+    test "returns build systems the response schema doesn't enumerate", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+      ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
+
+      conn = get(conn, "/api/projects")
+
+      response = json_response(conn, :ok)
+      assert [%{"build_system" => "once"} = project] = response["projects"]
+      assert_schema(project, "Project", Spec.spec())
     end
 
     test "lists all user projects", %{conn: conn, user: user} do
