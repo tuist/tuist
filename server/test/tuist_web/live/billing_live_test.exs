@@ -14,6 +14,7 @@ defmodule TuistWeb.BillingLiveTest do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
 
   setup %{conn: conn} = context do
     user = AccountsFixtures.user_fixture()
@@ -94,6 +95,49 @@ defmodule TuistWeb.BillingLiveTest do
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
       assert has_element?(lv, "[data-part='next-charge-date']", "charged /per month")
+    end
+  end
+
+  describe "when a subscription payment failed" do
+    test "keeps the plan and asks to pay the open invoice while the payment is retried", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "past_due",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-payment-issue", "Your plan stays active while the payment is retried.")
+      assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+    end
+
+    test "says the plan is limited until the unpaid invoice is paid", %{conn: conn, account: account} do
+      # Given
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "#billing-payment-issue", "limited to the free tier")
+      assert has_element?(lv, "#billing-payment-issue a[href='/#{account.name}/billing/pay']", "Pay open invoice")
+    end
+
+    test "shows nothing for an account in good standing", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#billing-payment-issue")
     end
   end
 

@@ -36,6 +36,10 @@ pub enum Access {
     /// exhausted its free tier. Ordered above `Refused` so the introspection
     /// floor still only ever rises, and below `Read` so it grants nothing.
     PaymentRequired,
+    /// Blocked like `PaymentRequired`, because the account lost its paid plan
+    /// to a subscription payment Stripe gave up on. Kept apart so the refusal
+    /// tells the caller to settle the payment rather than to upgrade.
+    PaymentFailed,
     Read,
     ReadWrite,
 }
@@ -47,6 +51,12 @@ impl Access {
             target::Action::Read => Self::Read,
             target::Action::Write => Self::ReadWrite,
         }
+    }
+
+    /// Whether this level refuses for billing rather than for access, which
+    /// ends authorization instead of sending it on to another route.
+    pub fn is_payment_refusal(self) -> bool {
+        matches!(self, Self::PaymentRequired | Self::PaymentFailed)
     }
 }
 

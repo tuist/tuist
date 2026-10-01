@@ -17,7 +17,7 @@
 //     `tuist-kura-vultr-production-sa-west`. There is no server-side equivalent
 //     of OVH's displayName prefix, so the fleet marker is a tag, which is also
 //     one query rather than a list plus a per-box lookup.
-//   - The install takes no storage plan. OVH and Dedibox both accept a
+//   - The install takes no storage plan. OVH accepts a
 //     partitioning block; Vultr's reinstall accepts an optional hostname and
 //     nothing else. The layout the cluster gates on therefore cannot come from
 //     the install, and the reconciler converts the box afterwards.

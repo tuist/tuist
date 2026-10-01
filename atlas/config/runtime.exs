@@ -148,7 +148,15 @@ config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
   from_email: System.get_env("ATLAS_SUPPORT_FROM_EMAIL", "contact@tuist.dev"),
-  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID")
+  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID"),
+  # Env var wins in every environment. In production only, fall back to the
+  # shared `#support-filtered` channel in the Tuist workspace so silenced
+  # classifications still land somewhere without manual wiring. Dev, test,
+  # and any downstream fork stay unset unless they set the env explicitly —
+  # otherwise a locally booted Atlas could cross-post into prod Slack.
+  slack_filtered_channel_id:
+    System.get_env("ATLAS_SUPPORT_FILTERED_SLACK_CHANNEL_ID") ||
+      if(config_env() == :prod, do: "C0C5LBMM278")
 
 config :atlas, :support_chat, parent_origins: support_chat_parent_origins
 
@@ -404,7 +412,12 @@ config :atlas, :tax_certificate_profile,
       "ATLAS_TAX_CERTIFICATE_TAX_OFFICE_POSTAL_CODE",
       :tax_office_postal_code
     ),
-  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city)
+  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city),
+  signature_jpeg_base64:
+    tax_certificate_profile_value.(
+      "ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64",
+      :signature_jpeg_base64
+    )
 
 if vector_url = System.get_env("ATLAS_VECTOR_URL") do
   config :atlas, :vector, base_url: vector_url
@@ -485,12 +498,10 @@ case System.get_env("MCP_PROXY_SERVERS") do
             # cannot reach here by saying nothing — which is what lets this
             # stand on its own without also enumerating the tools by name.
             read_only: true,
-            # Operator grants are minted per human at ops.tuist.dev and elevate
-            # a session past the user's own memberships, so they travel per
-            # request from each user's stored grant rather than from config.
-            # Only read-tier grants are forwarded, so the credential — not this
-            # list of tools — is what bounds the request upstream.
-            operator_grant_header: "x-tuist-operator-grant"
+            # Atlas' ServiceAccount token, so the Tuist server knows the call
+            # came through Atlas' audit log and lets operators read any
+            # account without a grant.
+            atlas_identity_header: "x-tuist-atlas-identity"
           },
           %{
             name: "grafana",
@@ -700,10 +711,6 @@ clickhouse_enabled? =
 # read-only database access. Atlas authenticates with a projected ServiceAccount
 # token (audience `tuist-server`) read from `token_path`; the file is absent in
 # dev/test, so the tools report the database as unreachable there.
-# Where operators justify access to a customer account. Atlas sends them here
-# with a return destination that receives the minted grant.
-config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL") || "https://ops.tuist.dev/grants/new"
-
 config :atlas, :tuist_server,
   base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
   token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"

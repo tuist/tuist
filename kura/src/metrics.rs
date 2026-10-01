@@ -121,6 +121,7 @@ pub struct MetricsInner {
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_sync_lag_seconds: Family<SyncRegionLabels, Gauge>,
     region_listing_bound_lag_seconds: Gauge,
     region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
     region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
@@ -560,8 +561,12 @@ pub mod shed_kind {
     // query operators are told to reach for first.
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+    // One request asking for more response bytes than a single response may
+    // carry at normal memory pressure. It sheds on an idle pool, so it stays
+    // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
+    pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
 
-    pub const ALL: [&str; 8] = [
+    pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -570,6 +575,7 @@ pub mod shed_kind {
         MEMORY_PRESSURE_WRITE,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
+        REAPI_REQUEST_BUDGET,
     ];
 }
 
@@ -696,6 +702,7 @@ impl Metrics {
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_sync_lag_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_listing_bound_lag_seconds = Gauge::default();
         let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
@@ -1297,6 +1304,11 @@ impl Metrics {
             "kura_region_watermark_age_seconds",
             "Age of the region watermark, by origin region",
             region_watermark_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_sync_lag_seconds",
+            "Seconds between the newest version the remote gateway lists for its region and the newest version applied from it, by origin region",
+            region_sync_lag_seconds.clone(),
         );
         registry.register(
             "kura_region_listing_bound_lag_seconds",
@@ -1955,6 +1967,7 @@ impl Metrics {
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
+                region_sync_lag_seconds,
                 region_listing_bound_lag_seconds,
                 region_sync_entries_listed,
                 region_sync_bytes_fetched,
@@ -2736,6 +2749,14 @@ impl Metrics {
             .set(seconds as i64);
     }
 
+    pub fn set_region_sync_lag(&self, region: &str, seconds: u64) {
+        self.region_sync_lag_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
     pub fn set_region_listing_bound_lag(&self, seconds: u64) {
         self.region_listing_bound_lag_seconds.set(seconds as i64);
     }
@@ -2746,6 +2767,7 @@ impl Metrics {
         };
         self.region_sync_last_success_age_seconds.remove(&labels);
         self.region_watermark_age_seconds.remove(&labels);
+        self.region_sync_lag_seconds.remove(&labels);
         self.region_sync_last_cycle_duration_seconds.remove(&labels);
     }
 

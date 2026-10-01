@@ -79,6 +79,19 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       {:ok, user} = SCIM.get_user(org, body["id"])
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
     end
+
+    test "assigns the most privileged role when several are sent", %{conn: conn, organization: org} do
+      conn =
+        post(
+          conn,
+          "/scim/v2/Users",
+          JSON.encode!(%{userName: "alice@example.com", roles: [%{value: "User"}, %{value: "Admin"}]})
+        )
+
+      body = json_response(conn, 201)
+      {:ok, user} = SCIM.get_user(org, body["id"])
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
   end
 
   describe "PUT /Users/:id" do

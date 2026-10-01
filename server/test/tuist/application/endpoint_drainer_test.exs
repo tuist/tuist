@@ -141,6 +141,10 @@ defmodule Tuist.Application.EndpointDrainerTest do
       {:error, reason} when reason in [:econnrefused, :econnreset] ->
         true
 
+      # A busy scheduler can time out a connect to a listener that is still open.
+      {:error, :timeout} ->
+        false
+
       {:ok, connection} ->
         :gen_tcp.close(connection)
         false

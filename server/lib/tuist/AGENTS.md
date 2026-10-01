@@ -147,3 +147,4 @@ This directory contains the core business logic and domain modules for the serve
   invalidation as erasure. See
   [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
   Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).
+- Once run event projection and action identity: [once_events/AGENTS.md](once_events/AGENTS.md).

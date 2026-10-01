@@ -142,6 +142,7 @@ defmodule Atlas.Slack.Interactions do
 
         case Tasks.snooze_reminder(task, snooze, actor, interface: interface) do
           {:ok, updated} ->
+            TasksSlackNotifier.refresh_snoozed_message(updated, snooze, opts)
             {:ok, %{message: snooze_confirmation(updated, snooze)}}
 
           {:error, reason} ->
@@ -198,11 +199,15 @@ defmodule Atlas.Slack.Interactions do
   end
 
   defp notification_opts(payload) do
-    case get_in(payload, ["container", "channel_id"]) do
-      channel_id when is_binary(channel_id) and channel_id != "" -> [slack_channel_id: channel_id]
-      _channel_id -> []
-    end
+    container = payload["container"] || %{}
+
+    []
+    |> put_container_opt(:slack_channel_id, container["channel_id"])
+    |> put_container_opt(:slack_message_ts, container["message_ts"])
   end
+
+  defp put_container_opt(opts, key, value) when is_binary(value) and value != "", do: Keyword.put(opts, key, value)
+  defp put_container_opt(opts, _key, _value), do: opts
 
   defp slack_audit_context(payload) do
     %{

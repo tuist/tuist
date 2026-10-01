@@ -10,12 +10,24 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
-- Production `ovhFleets.eu-west` adds three OVH nodes for the Dedibox migration.
-  It shares `kura-dedibox` for scheduling compatibility, with a distinct OVH
-  adoption prefix. Follow [the migration gates](../kura-controller/eu-west-ovh-migration.md)
-  before evacuating workloads or retiring Dedibox capacity.
+- Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
+  Dedibox support is removed after all Machine release finalizers completed
+  on September 28, 2026: no fleet values, templates, provider implementation,
+  CRD sources, credentials wiring, or provider permissions remain. Helm does
+  not prune installed CRDs or the legacy IAM ExternalSecret hook; both require
+  explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
+  Production EU-West ingress discovers OVH gateway Node addresses automatically.
+  Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
+  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
+- OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
+  `tuist-fleet-unwedge` role. Do not aggregate it into `edit` or extend it to
+  templates, status, create, update or delete. RBAC does not restrict fields;
+  scope each repair to the diagnosed drift (for example, backfilling a live
+  Machine's `egressBudgetMbps` from its reviewed OnDelete fleet template).
+  Staging has standing write access; canary/production require human elevation.
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
@@ -81,8 +93,11 @@ This node covers Helm assets under `infra/helm/`.
 - Staging custom-volume smoke validation uses the preallocated XFS mount at
   `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
   the root partition is too small for the default 200 GB backing file. Keep
-  its agent image pinned to a tested commit and retain the mount while any
+  its agent image aligned with the controller release and retain the mount while any
   private branches are live. Production enables provisioning and resolves the
   agent image from the matching controller release through normal deployment.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
+- Cache-volume agents expose phase/source/result telemetry on a separate port
+  9091. Allow scraping only from `observability`, retain the series in staging,
+  and keep runner acquisition on 8090 under its existing pod selector.

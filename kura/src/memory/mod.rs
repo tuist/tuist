@@ -1810,6 +1810,30 @@ mod tests {
         assert_eq!(controller.reapi_response_budget_bytes(), 64 * 1024 * 1024);
     }
 
+    #[tokio::test]
+    async fn the_reapi_response_budget_is_always_admissible_on_an_idle_pool() {
+        for (soft_limit_bytes, hard_limit_bytes) in [
+            (24 * 1024 * 1024, 48 * 1024 * 1024),
+            (64 * 1024 * 1024, 96 * 1024 * 1024),
+            (512 * 1024 * 1024, 640 * 1024 * 1024),
+            (1843 * 1024 * 1024, 2035 * 1024 * 1024),
+            (8 * 1024 * 1024 * 1024, 9 * 1024 * 1024 * 1024),
+        ] {
+            let metrics = Metrics::new("eu-west".into(), "tenant".into());
+            let controller = MemoryController::new(metrics, soft_limit_bytes, hard_limit_bytes);
+            let budget = controller.reapi_response_budget_bytes();
+
+            assert!(
+                controller
+                    .reserve_response_materialization(budget)
+                    .await
+                    .is_ok(),
+                "a {budget}-byte budget must fit the {}-byte materialization limit at soft {soft_limit_bytes}, hard {hard_limit_bytes}",
+                controller.reapi_materialization_limit_bytes()
+            );
+        }
+    }
+
     #[test]
     fn mmap_serving_pool_is_bounded_by_memory_headroom() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
