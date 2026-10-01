@@ -89,6 +89,28 @@ server:
     port: 80
     targetPort: 8080
 
+  # Once events ingress. gRPC does not go through the main ingress controller
+  # or through Cloudflare:
+  #
+  # - The main controller runs with upstream keepalive off, which makes
+  #   ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that
+  #   header, and Cowboy, which serves the events listener, resets the stream
+  #   with PROTOCOL_ERROR. The `nginx-grpc` class is the platform's dedicated
+  #   gRPC controller, with keepalive on (see `grpc-ingress-nginx` in
+  #   helm/platform/values.yaml).
+  # - Cloudflare answers gRPC requests to a proxied host with a 403. The cache's
+  #   gRPC hosts are DNS-only for the same reason, so this one is too, and
+  #   cert-manager issues a certificate clients trust, where the Cloudflare
+  #   Origin CA certificate would only be trusted by Cloudflare.
+  #
+  # Each environment sets only `enabled` and `host`.
+  events:
+    className: nginx-grpc
+    tlsSecretName: tuist-events-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+
   # ingress-nginx defaults `proxy-body-size` to 1m, which rejects large
   # `createBundle` requests (the JSON manifest carries one entry per
   # artifact and grows past 1 MB on big iOS apps). Match the Phoenix

@@ -297,7 +297,6 @@ server:
   events:
     enabled: true
     host: events-staging.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
 
   # Starts the `once.events.v1` gRPC listener on the server pod and routes
   # the events ingress at events-staging.tuist.dev as GRPC end-to-end, so
