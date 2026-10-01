@@ -233,12 +233,13 @@ defmodule TuistWeb.Coverage.Components do
   def commit_status_color(commit), do: ref_status_color(commit)
 
   @doc """
-  When a point of a coverage series happened, for the chart's axis: the commit's
+  When a point of a coverage series happened, for the chart's axis: the start
+  of the day, week or month it stands for when grouped, otherwise the commit's
   own time, or when it was measured where Git's history has none. Never when
   its totals were stored, which moves every time they are recomputed.
   """
   def point_time(point) do
-    case Map.get(point, :committed_at) || Map.get(point, :ran_at) || point.inserted_at do
+    case Map.get(point, :period) || Map.get(point, :committed_at) || Map.get(point, :ran_at) || point.inserted_at do
       %DateTime{} = at -> DateTime.to_iso8601(at)
       at -> NaiveDateTime.to_iso8601(at)
     end
@@ -590,6 +591,11 @@ defmodule TuistWeb.Coverage.Components do
   attr :selected_widget, :string, required: true
   attr :title, :string, default: nil, doc: "The card's title; Analytics when none is given."
   attr :empty_title, :string, default: nil, doc: "What the card says when no commit was measured in the period."
+
+  attr :grouping, :atom,
+    default: nil,
+    doc: "What each point stands for (`History.trend_points/3`): a commit, or a day, week or month; the tooltip names it."
+
   slot :actions
   slot :details, doc: "Figures shown under the chart."
 
@@ -666,7 +672,12 @@ defmodule TuistWeb.Coverage.Components do
         </div>
         <.card_section :if={@latest}>
           <div data-part="analytics-chart">
-            <.coverage_trend_chart id="coverage-chart" points={@points} metric={@selected_widget} />
+            <.coverage_trend_chart
+              id="coverage-chart"
+              points={@points}
+              metric={@selected_widget}
+              grouping={@grouping}
+            />
           </div>
         </.card_section>
         <.card_section :if={@details != []} data-part="analytics-details">
@@ -690,6 +701,8 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :id, :string, required: true
   attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.branch_points/3`)."
+
+  attr :grouping, :atom, default: nil, doc: "What each point stands for; nil titles points by their date."
 
   attr :metric, :string,
     default: "coverage",
@@ -740,7 +753,7 @@ defmodule TuistWeb.Coverage.Components do
             }
           },
           legend: %{show: false},
-          tooltip: %{valueFormat: "{value}" <> @unit}
+          tooltip: %{valueFormat: "{value}" <> @unit, dateFormat: date_format(@grouping)}
         }
       }
       series={[
@@ -759,6 +772,10 @@ defmodule TuistWeb.Coverage.Components do
     />
     """
   end
+
+  defp date_format(:commit), do: "minute"
+  defp date_format(grouping) when grouping in [:day, :week, :month], do: Atom.to_string(grouping)
+  defp date_format(nil), do: nil
 
   defp metric_value(point, "coverage"), do: point.coverage
   defp metric_value(point, "covered_lines"), do: point.covered_lines

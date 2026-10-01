@@ -191,7 +191,9 @@ defmodule Tuist.Tests.Coverage.History do
   most #{@max_trend_points} points: one per commit when they fit, otherwise
   the latest complete commit of each day, week or month, the finest of them
   that fits, and by month only the most recent #{@max_trend_points}. Each
-  point carries the commit's totals, as `branch_points/3` does.
+  point carries the commit's totals, as `branch_points/3` does, and, when
+  grouped, the `period` it stands for: the start of its day, week or month
+  in UTC. Returns `%{grouping: :commit | :day | :week | :month, points:}`.
 
   The branch's commits are its ref's, by when they were made, or, when its
   ref owns none, the ones its runs were labelled with, by when they ran. Two
@@ -220,11 +222,14 @@ defmodule Tuist.Tests.Coverage.History do
         true -> :month
       end
 
-    query
-    |> trend_rows(at, grouping)
-    |> Repo.all()
-    |> Enum.take(-@max_trend_points)
-    |> Enum.map(&(&1 |> with_coverage() |> Map.merge(%{measured: true, chained: true})))
+    points =
+      query
+      |> trend_rows(at, grouping)
+      |> Repo.all()
+      |> Enum.take(-@max_trend_points)
+      |> Enum.map(&(&1 |> with_coverage() |> Map.merge(%{measured: true, chained: true})))
+
+    %{grouping: grouping, points: points}
   end
 
   defp trend_query(project, branch, opts) do
@@ -247,6 +252,7 @@ defmodule Tuist.Tests.Coverage.History do
     |> distinct(^[asc: bucket(at, grouping)])
     |> order_by([c], desc: field(c, ^at), desc: c.git_commit_sha)
     |> trend_select(at)
+    |> select_merge(^%{period: bucket(at, grouping)})
   end
 
   defp bucket(at, :day), do: dynamic([c], fragment("date_trunc('day', ?, 'UTC')", field(c, ^at)))

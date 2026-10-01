@@ -47,7 +47,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
     Repo.insert_all(CoverageCommit, rows)
   end
 
-  defp shas(points), do: Enum.map(points, & &1.git_commit_sha)
+  defp shas(%{points: points}), do: Enum.map(points, & &1.git_commit_sha)
 
   @epoch ~U[2026-01-05 00:00:00.000000Z]
 
@@ -337,39 +337,50 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       Commits.signal_complete(project, "a")
       Commits.signal_complete(project, "c")
 
-      assert Enum.map(History.trend_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
+      assert Enum.map(History.trend_points(project, "main").points, &{&1.git_commit_sha, &1.coverage}) ==
                [{"a", 25.0}, {"c", 75.0}]
     end
 
     test "draws every complete commit when they fit", %{project: project} do
       publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :hour)), ["c40"])
 
-      assert shas(History.trend_points(project, "main")) == Enum.map(0..39, &"c#{&1}")
+      trend = History.trend_points(project, "main")
+      assert trend.grouping == :commit
+      assert shas(trend) == Enum.map(0..39, &"c#{&1}")
+      refute Map.has_key?(hd(trend.points), :period)
     end
 
     test "draws each day's latest complete commit when the commits do not fit", %{project: project} do
       publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :hour)))
 
-      assert shas(History.trend_points(project, "main")) == ["c23", "c40"]
+      trend = History.trend_points(project, "main")
+      assert trend.grouping == :day
+      assert shas(trend) == ["c23", "c40"]
+      assert Enum.map(trend.points, & &1.period) == [@epoch, DateTime.add(@epoch, 1, :day)]
     end
 
     test "draws each week's latest complete commit when the days do not fit", %{project: project} do
       publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :day)))
 
-      assert shas(History.trend_points(project, "main")) == ["c6", "c13", "c20", "c27", "c34", "c40"]
+      trend = History.trend_points(project, "main")
+      assert trend.grouping == :week
+      assert shas(trend) == ["c6", "c13", "c20", "c27", "c34", "c40"]
+      # The epoch is a Monday, where Postgres starts a week.
+      assert hd(trend.points).period == @epoch
     end
 
     test "draws each month's latest complete commit, the most recent 40, when the weeks do not fit", %{
       project: project
     } do
       publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1 * 8, :day)))
-      points = History.trend_points(project, "main")
+      %{grouping: :month, points: points} = History.trend_points(project, "main")
       assert length(points) == 11
+      assert hd(points).period == ~U[2026-01-01 00:00:00.000000Z]
       assert List.last(points).git_commit_sha == "c40"
 
       Repo.delete_all(CoverageCommit)
       publish(project, Enum.map(0..41, &DateTime.add(@epoch, &1 * 31, :day)))
-      points = History.trend_points(project, "main")
+      %{points: points} = History.trend_points(project, "main")
       assert length(points) == 40
       assert {List.first(points).git_commit_sha, List.last(points).git_commit_sha} == {"c2", "c41"}
     end

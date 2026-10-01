@@ -63,6 +63,8 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#widget-coverage-executable-lines", "4")
       refute has_element?(lv, "#widget-coverage-unmeasured-files")
       assert has_element?(lv, "#coverage-chart")
+      # Few enough commits to draw each one: the tooltip titles them by date and time.
+      assert render(element(lv, "#coverage-chart")) =~ "&quot;dateFormat&quot;:&quot;minute&quot;"
       refute has_element?(lv, "#coverage-commits-table")
       refute has_element?(lv, "#coverage-branches-table")
       refute has_element?(lv, "#coverage-gap-files-table")
