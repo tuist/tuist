@@ -470,11 +470,30 @@ server:
     # to start the listener on the pod side.
     grpcPort: 4001
     grpcTargetPort: 4001
-  # Dedicated origin for build event traffic. Bazel BEP still terminates
-  # at Kura today and posts summaries to the main tuist.dev host; this
-  # ingress fronts the future gRPC surface for `once.events.v1` (and, on
-  # a follow-up, native BEP), routed as gRPC end-to-end.
-  bazelEvents:
+  # Dedicated origin for build event traffic. Fronts the gRPC surface for
+  # `once.events.v1` (build, test, cache, and exec invocations alike), and
+  # on a follow-up will also carry native BEP. The subdomain is
+  # `events.<host>` so the name reflects the stream contents rather than
+  # one of the invocation kinds. Bazel BEP still terminates at Kura today
+  # and posts summaries to the main tuist.dev host; nothing self-hosted
+  # should have `enabled: true` prior to the Once gRPC rollout.
+  #
+  # Renamed from `bazelEvents` (introduced in #13184). The templates
+  # resolve the effective config through `tuist.serverEventsConfig` with
+  # these precedence rules:
+  #
+  #   1. `server.events.enabled: true` -> use `server.events`.
+  #   2. `server.events.enabled` is falsy AND `server.bazelEvents.enabled:
+  #      true` -> use `server.bazelEvents` as the one-release deprecation
+  #      path for #13184 adopters.
+  #   3. BOTH `enabled: true` -> the chart `fail`s with a migration
+  #      message. Pick one key.
+  #
+  # The scheme the discovery doc advertises
+  # (`TUIST_ONCE_EVENTS_ENDPOINTS`) follows `tlsSecretName`: set it ->
+  # `grpcs://`, leave it empty -> `grpc://`, so non-TLS self-hosted
+  # installs don't advertise a scheme their ingress cannot serve.
+  events:
     enabled: false
     className: nginx
     host: ""

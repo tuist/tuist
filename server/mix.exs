@@ -187,7 +187,7 @@ defmodule Tuist.MixProject do
       # `mix release` refuses to assemble a release with duplicated modules.
       # grpcbox 0.18 requires chatterbox 0.16, which prefixes them chatterbox_h2_*.
       {:grpcbox, "~> 0.18.0", override: true},
-      # gRPC listener for build.tuist.dev. Serves the `once.events.v1`
+      # gRPC listener for events.tuist.dev. Serves the `once.events.v1`
       # protocol on its own port so the interactive HTTP endpoint is
       # untouched; grpc-elixir carries its own cowboy2 HTTP/2 server, so
       # there is no need to teach Bandit gRPC.
