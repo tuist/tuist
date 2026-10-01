@@ -26,6 +26,7 @@ enum WorkspaceRestorer {
         packageDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         progress: RestoreProgressReporter?,
         disableSandbox: Bool = false
@@ -65,6 +66,7 @@ enum WorkspaceRestorer {
             scratchDir: scratchDir,
             packageDir: packageDir,
             cache: cache,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: disableSandbox,
             progress: progress
@@ -90,6 +92,7 @@ enum WorkspaceRestorer {
         scratchDir: URL,
         packageDir: URL?,
         cache: Cache,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool,
         progress: RestoreProgressReporter?
@@ -122,6 +125,7 @@ enum WorkspaceRestorer {
                     context: context,
                     scratchDir: scratchDir,
                     cache: cache,
+                    mirrors: mirrors,
                     progress: progress
                 )
             }
@@ -133,6 +137,7 @@ enum WorkspaceRestorer {
         context: PackageContext,
         scratchDir: URL,
         cache: Cache,
+        mirrors: MirrorConfig,
         progress: RestoreProgressReporter?
     ) async throws {
         switch target.source {
@@ -151,6 +156,7 @@ enum WorkspaceRestorer {
                         identity: identity,
                         targetName: target.name,
                         url: url,
+                        downloadURL: mirrors.effectiveLocation(for: url),
                         checksum: checksum,
                         cache: cache,
                         destination: cachedArtifact,
@@ -224,11 +230,14 @@ enum WorkspaceRestorer {
         identity: String,
         targetName: String,
         url: String,
+        downloadURL: String,
         checksum: String,
         cache: Cache,
         destination: URL,
         progress: RestoreProgressReporter?
     ) async throws {
+        // Keyed on the manifest URL, so adding or changing a mirror keeps the cached archive;
+        // the checksum already guarantees it holds the same bytes.
         let archivePath = cache.binaryArtifactArchivePath(
             url: url,
             checksum: checksum
@@ -248,7 +257,7 @@ enum WorkspaceRestorer {
                 expectedChecksum: checksum
             ) {
                 try? await fileSystem.removePath(archivePath)
-                let remoteURL = try artifactURL(url)
+                let remoteURL = try artifactURL(downloadURL)
                 progress?.downloadingBinaryArtifact(identity: identity, target: targetName)
                 try await HTTPClient.download(
                     url: remoteURL,
@@ -260,7 +269,8 @@ enum WorkspaceRestorer {
                 guard actualChecksum.caseInsensitiveCompare(checksum) == .orderedSame else {
                     try? await fileSystem.removePath(archivePath)
                     throw ToolError.message(
-                        "\(targetName) checksum mismatch: expected \(checksum), got \(actualChecksum)"
+                        "\(targetName) checksum mismatch for \(remoteURL.absoluteString): "
+                            + "expected \(checksum), got \(actualChecksum)"
                     )
                 }
             }
