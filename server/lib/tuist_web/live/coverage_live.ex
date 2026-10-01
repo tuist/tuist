@@ -5,7 +5,8 @@ defmodule TuistWeb.CoverageLive do
   (`History.trend_points/3`), and its five most recent complete commits in
   the period (`History.commit_cursor_page/3`), whose View more opens them
   all (`TuistWeb.CoverageCommitsLive`), and the latest complete commit's
-  most and least covered files (`Commits.extreme_files/4`). The branch is picked among those
+  most and least covered files and targets (`Commits.extreme_files/4`,
+  `Commits.extreme_targets/4`). The branch is picked among those
   whose runs never named a pull request (`History.branches/2`), the
   default branch unless `branch` names another. Every figure is a commit's,
   pooled over the schemes that measured it.
@@ -30,7 +31,7 @@ defmodule TuistWeb.CoverageLive do
 
   @recent_commits 5
 
-  @listed_files 4
+  @listed 4
 
   # A run's coverage joins its commit's figure a few seconds after the run
   # lands (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads
@@ -123,15 +124,47 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:branches, History.branches(project))
     |> assign_analytics()
     |> assign_recent_commits()
-    |> assign_files()
+    |> assign_extremes()
   end
 
-  # The latest complete commit's most and least covered files; one more of
-  # each than the cards show, so they know when there are more.
-  defp assign_files(%{assigns: %{latest: nil}} = socket), do: assign(socket, :files, %{highest: [], lowest: []})
+  # The latest complete commit's most and least covered files and targets;
+  # one more of each than the cards show, so they know when there are more.
+  defp assign_extremes(%{assigns: %{latest: nil}} = socket),
+    do: socket |> assign(:files, %{highest: [], lowest: []}) |> assign(:targets, %{highest: [], lowest: []})
 
-  defp assign_files(%{assigns: %{selected_project: project, latest: latest}} = socket),
-    do: assign(socket, :files, Commits.extreme_files(project.id, latest.git_commit_sha, @listed_files + 1))
+  defp assign_extremes(%{assigns: %{selected_project: project, latest: %{git_commit_sha: sha}}} = socket) do
+    [files, targets] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> Commits.extreme_files(project.id, sha, @listed + 1) end,
+        fn -> Commits.extreme_targets(project.id, sha, @listed + 1) end
+      ])
+
+    socket
+    |> assign(
+      :files,
+      map_extremes(
+        files,
+        &%{name: Path.basename(&1.path), detail: parent_dir(&1.path), href: file_href(socket, &1.path)}
+      )
+    )
+    |> assign(:targets, map_extremes(targets, &%{name: &1.name, detail: files_label(&1.files_count)}))
+  end
+
+  defp map_extremes(extremes, describe),
+    do:
+      Map.new(extremes, fn {side, rows} ->
+        {side, Enum.map(rows, &Map.merge(Map.take(&1, [:covered_lines, :executable_lines]), describe.(&1)))}
+      end)
+
+  # A file opens over the branch and period shown here, and leads back here.
+  defp file_href(%{assigns: %{selected_account: account, selected_project: project, branch: branch} = assigns}, path) do
+    from =
+      if assigns.uri.query in [nil, ""], do: assigns.current_path, else: assigns.current_path <> "?" <> assigns.uri.query
+
+    coverage_file_href(account.name, project.name, path, branch, assigns.current_params, from)
+  end
+
+  defp files_label(count), do: dngettext("dashboard_tests", "%{count} file", "%{count} files", count)
 
   # One commit more than the list shows, so its oldest commit's change is
   # read against the complete commit before it, as the chart compares them.

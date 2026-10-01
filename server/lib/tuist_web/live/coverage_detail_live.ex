@@ -82,16 +82,23 @@ defmodule TuistWeb.CoverageDetailLive do
     end
   end
 
-  @doc false
-  def file_href(%{selected_account: account, selected_project: project, subject: subject, tab: tab} = assigns, path) do
-    coverage_file_href(account.name, project.name, path, %{
-      commit: subject.sha,
-      branch: if(subject.kind == :branch, do: subject.branch),
-      pull_request: subject.pull_request_number,
-      tab: tab,
-      from: here(assigns)
-    })
-  end
+  @doc """
+  A branch's file opens its own page over the branch and the period shown
+  here, leading back here; a pull request's or a commit's files open
+  nothing, as the file page reads a branch.
+  """
+  def file_href(%{subject: %{kind: :branch, branch: branch}} = assigns, path),
+    do:
+      coverage_file_href(
+        assigns.selected_account.name,
+        assigns.selected_project.name,
+        path,
+        branch,
+        URI.decode_query(assigns.uri.query || ""),
+        here(assigns)
+      )
+
+  def file_href(_assigns, _path), do: nil
 
   @doc "A commit's page, reached from this one, whose back button leads here."
   def commit_href(%{selected_account: account, selected_project: project} = assigns, sha) do

@@ -1224,15 +1224,31 @@ defmodule Tuist.Tests.Coverage.Commits do
       files ->
         files = Enum.filter(files, &(&1.executable_lines > 0))
 
-        %{
-          highest: files |> Enum.sort_by(&extreme_key(&1, :desc)) |> Enum.take(count),
-          lowest: files |> Enum.sort_by(&extreme_key(&1, :asc)) |> Enum.take(count)
-        }
+        extremes(files, count, & &1.path)
     end
   end
 
-  defp extreme_key(file, :desc), do: {-(file.covered_lines / file.executable_lines), -file.executable_lines, file.path}
-  defp extreme_key(file, :asc), do: {file.covered_lines / file.executable_lines, -file.executable_lines, file.path}
+  @doc """
+  The commit's most and least covered targets, at most `count` of each,
+  among those with executable lines, ordered as `extreme_files/4` orders
+  files: `%{highest: targets, lowest: targets}`, each as `targets/3` gives
+  it.
+  """
+  def extreme_targets(project_id, sha, count, opts \\ []) do
+    project_id
+    |> targets(sha, opts)
+    |> Enum.filter(&(&1.executable_lines > 0))
+    |> extremes(count, & &1.name)
+  end
+
+  defp extremes(rows, count, name) do
+    ratio = &(&1.covered_lines / &1.executable_lines)
+
+    %{
+      highest: rows |> Enum.sort_by(&{-ratio.(&1), -&1.executable_lines, name.(&1)}) |> Enum.take(count),
+      lowest: rows |> Enum.sort_by(&{ratio.(&1), -&1.executable_lines, name.(&1)}) |> Enum.take(count)
+    }
+  end
 
   defp extreme_measured_files(project_id, sha, count, opts) do
     case run_ids(project_id, sha) do
@@ -1285,10 +1301,13 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  # Coverage was carried into the commit: a run skipped tests, or every
-  # scheme was skipped whole.
-  defp carried?(%{reported_kind: "reported", partial_schemes: [_ | _]}), do: true
-  defp carried?(summary), do: fully_carried?(summary)
+  @doc """
+  Whether coverage was carried into the commit: a run skipped tests, or
+  every scheme was skipped whole. Its files are then read with what the
+  skipped tests covered (`file_detail/4`), not only with what its runs did.
+  """
+  def carried?(%{reported_kind: "reported", partial_schemes: [_ | _]}), do: true
+  def carried?(summary), do: fully_carried?(summary)
 
   defp files_sort(opts), do: Keyword.get(opts, :sort, {:coverage, :asc})
 

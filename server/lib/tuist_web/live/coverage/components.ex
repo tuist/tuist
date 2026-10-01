@@ -51,48 +51,11 @@ defmodule TuistWeb.Coverage.Components do
           <:right_icon :if={@branch == branch}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.date_picker
+      <.coverage_period_picker
         id="coverage-date-range-picker"
-        name="coverage-date-range"
-        presets={[
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
         selected_preset={@preset}
         period={@period}
-        on_period_change="coverage_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
-            }
-          />
-        </:actions>
-      </.date_picker>
+      />
     </div>
     """
   end
@@ -111,6 +74,88 @@ defmodule TuistWeb.Coverage.Components do
   @doc "The branch a page describes: the one `branch` names, or the project's default branch."
   def selected_branch(branch, _project) when is_binary(branch) and branch != "", do: branch
   def selected_branch(_branch, project), do: project.default_branch
+
+  attr :title, :string, required: true
+  attr :icon, :string, required: true
+
+  attr :highest, :list,
+    required: true,
+    doc:
+      "The most covered items, `%{name, detail, covered_lines, executable_lines}`, with an `href` when they open a page; more than four stacks the rest."
+
+  attr :lowest, :list, required: true, doc: "The least covered items, as `highest`."
+  attr :empty_title, :string, required: true
+  attr :rest, :global
+
+  @doc """
+  The most and least covered items of a commit side by side, as the Tests
+  page's Test Cases card lays out its two lists: up to four cards each, the
+  edges of more stacked behind the last when there are more.
+  """
+  def coverage_extremes_card(assigns) do
+    ~H"""
+    <.card title={@title} icon={@icon} {@rest}>
+      <div :if={@highest != [] or @lowest != []} data-part="extremes-sections">
+        <.card_section
+          :for={
+            {side, title, items} <- [
+              {"highest", dgettext("dashboard_tests", "Highest coverage"), @highest},
+              {"lowest", dgettext("dashboard_tests", "Lowest coverage"), @lowest}
+            ]
+          }
+          data-part="extremes-section"
+          data-side={side}
+        >
+          <div data-part="header">
+            <span data-part="title">{title}</span>
+          </div>
+          <div data-part="extremes-list">
+            <%= for item <- Enum.take(items, 4) do %>
+              <.link
+                :if={Map.get(item, :href)}
+                navigate={item.href}
+                class="coverage-extreme-card"
+                data-side={side}
+              >
+                <.extreme_item item={item} />
+              </.link>
+              <div :if={is_nil(Map.get(item, :href))} class="coverage-extreme-card" data-side={side}>
+                <.extreme_item item={item} />
+              </div>
+            <% end %>
+            <div :if={length(items) > 4} data-part="more-card" data-index="two"></div>
+            <div :if={length(items) > 4} data-part="more-card" data-index="one"></div>
+          </div>
+        </.card_section>
+      </div>
+      <.coverage_empty
+        :if={@highest == [] and @lowest == []}
+        title={@empty_title}
+        image="table"
+        data-part="empty-extremes"
+      />
+    </.card>
+    """
+  end
+
+  attr :item, :map, required: true
+
+  defp extreme_item(assigns) do
+    ~H"""
+    <div data-part="header">
+      <div data-part="icon">
+        <.icon name="gauge" />
+      </div>
+      <div data-part="title-and-subtitle">
+        <h3 data-part="title">{@item.name}</h3>
+        <span :if={@item.detail} data-part="subtitle">{@item.detail}</span>
+      </div>
+      <span data-part="coverage">
+        {Coverage.percentage(@item.covered_lines, @item.executable_lines)}%
+      </span>
+    </div>
+    """
+  end
 
   attr :title, :string, required: true
   attr :get_started_href, :string, default: nil
@@ -266,12 +311,12 @@ defmodule TuistWeb.Coverage.Components do
   def back_to(nil, _account_name, _project_name), do: nil
 
   def back_to(from, account_name, project_name) do
-    prefix = "/#{account_name}/#{project_name}/tests/coverage/"
+    base = "/#{account_name}/#{project_name}/tests/coverage"
     %URI{path: path, scheme: scheme, host: host} = URI.parse(from)
 
-    if is_nil(scheme) and is_nil(host) and is_binary(path) and String.starts_with?(path, prefix) and
+    if is_nil(scheme) and is_nil(host) and is_binary(path) and (path == base or String.starts_with?(path, base <> "/")) and
          not String.contains?(from, ["//", "\\"]) do
-      %{label: path |> String.replace_prefix(prefix, "") |> String.split("/") |> back_label(), href: from}
+      %{label: path |> String.replace_prefix(base, "") |> String.split("/", trim: true) |> back_label(), href: from}
     end
   end
 
@@ -396,25 +441,35 @@ defmodule TuistWeb.Coverage.Components do
     end
   end
 
-  @doc "How far coverage moved from a series' first point to its last, or nil when there is nothing to compare."
-  def period_trend([first | [_ | _] = rest]) do
-    last = List.last(rest)
+  @doc """
+  How far coverage moved from a series' first point to its last, in
+  percentage points: no change for a single point, nil for no point at all.
+  """
+  def period_trend([]), do: nil
+
+  def period_trend([first | _] = series) do
+    last = List.last(series)
     if is_number(first.coverage) and is_number(last.coverage), do: Float.round(last.coverage - first.coverage, 1)
   end
 
-  def period_trend(_series), do: nil
-
   @doc """
   How much a count moved from a series' first point to its last, as a
-  percentage of the first, or nil when there is nothing to compare.
+  percentage of the first: no change for a single point or a count that
+  stayed at zero, and the whole of it (100%) for one that grew from zero,
+  which has no share of zero to read; nil for no point at all.
   """
-  def count_trend([first | [_ | _] = rest], field) do
-    from = Map.get(first, field) || 0
-    to = Map.get(List.last(rest), field) || 0
-    if from > 0, do: Float.round((to - from) / from * 100, 1)
-  end
+  def count_trend([], _field), do: nil
 
-  def count_trend(_series, _field), do: nil
+  def count_trend([first | _] = series, field) do
+    from = Map.get(first, field) || 0
+    to = Map.get(List.last(series), field) || 0
+
+    cond do
+      from > 0 -> Float.round((to - from) / from * 100, 1)
+      to > 0 -> 100.0
+      true -> 0.0
+    end
+  end
 
   @doc "The directory a file sits in, or nil for one at the repository's root."
   def parent_dir(path) do
@@ -480,23 +535,14 @@ defmodule TuistWeb.Coverage.Components do
   def full_line_ranges(_ranges), do: nil
 
   @doc """
-  Where a file's own page lives: it carries the commit it was read at and the
-  tab of the commit's page it was opened from, so the page can lead back there.
-  `branch` or `pull_request` names what that page read the commit as.
+  Where a file's own page lives, on `branch` over the period the `params`
+  carry (their `coverage-*` keys), leading back to `from`.
   """
-  def coverage_file_href(account_name, project_name, path, scope) do
-    query =
-      Enum.flat_map(
-        [commit: "commit", branch: "branch", pull_request: "pull-request", tab: "tab", from: "from"],
-        fn {key, name} ->
-          case Map.get(scope, key) do
-            value when value in [nil, ""] -> []
-            value -> [{name, value}]
-          end
-        end
-      )
+  def coverage_file_href(account_name, project_name, path, branch, params, from) do
+    period = Map.filter(params, fn {key, _value} -> String.starts_with?(key, "coverage-") end)
 
-    "/#{account_name}/#{project_name}/tests/coverage/files/#{encode_path(path)}?" <> URI.encode_query(query)
+    "/#{account_name}/#{project_name}/tests/coverage/files/#{encode_path(path)}?" <>
+      URI.encode_query(Map.merge(period, %{"branch" => branch, "from" => from}))
   end
 
   @doc false
@@ -505,88 +551,35 @@ defmodule TuistWeb.Coverage.Components do
   defp encode_segment(segment), do: URI.encode(segment, &URI.char_unreserved?/1)
 
   attr :file, :map, required: true, doc: "A file's detail, from `Commits.file_detail/4`."
+  attr :branch, :string, required: true
 
   attr :trend, :map,
-    default: nil,
+    required: true,
     doc: """
-    The file's coverage over a branch's period, when the page was opened from
-    a branch: `branch`, `points`, `latest`, `trends`, `selected_widget`,
-    `preset` and `period`, as `coverage_analytics_card/1` takes them.
+    The file's figures at the branch's latest complete commit in the period
+    and its coverage over the period: `latest`, `points`, `grouping`,
+    `trends` and `selected_widget`, as `coverage_analytics_card/1` takes them.
     """
 
   @doc """
-  One file's coverage: its figures (over the period, on a branch) and the
-  lines skipped tests' coverage was carried into. Its page lists the
+  One file's coverage on a branch over a period: its figures, its trend and
+  the lines skipped tests' coverage was carried into. Its page lists the
   functions under it.
   """
   def coverage_file_view(assigns) do
-    assigns = assign(assigns, :functions, Map.get(assigns.file, :functions, []))
-
     ~H"""
     <.coverage_analytics_card
-      :if={@trend}
-      branch={@trend.branch}
+      branch={@branch}
       latest={@trend.latest}
       trends={@trend.trends}
       points={@trend.points}
+      grouping={@trend.grouping}
       selected_widget={@trend.selected_widget}
-      empty_title={
-        dgettext(
-          "dashboard_tests",
-          "No measured commit on %{branch} compiled this file in this period",
-          branch: @trend.branch
-        )
-      }
     >
-      <:actions>
-        <.coverage_period_picker
-          id="coverage-file-date-range-picker"
-          selected_preset={@trend.preset}
-          period={@trend.period}
-        />
-      </:actions>
       <:details :if={Map.get(@file, :carried_lines, []) != []}>
         <.carried_lines lines={@file.carried_lines} />
       </:details>
     </.coverage_analytics_card>
-    <.card
-      :if={is_nil(@trend)}
-      title={dgettext("dashboard_tests", "Analytics")}
-      icon="chart_arcs"
-      data-part="file-summary-card"
-    >
-      <.card_section data-part="file-summary-section">
-        <div data-part="widgets">
-          <.widget
-            id="widget-coverage-file-percentage"
-            title={dgettext("dashboard_tests", "Code coverage")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Share of the file's executable lines the tests ran at least once."
-              )
-            }
-            value={"#{Coverage.percentage(@file.covered_lines, @file.executable_lines)}%"}
-          />
-          <.widget
-            id="widget-coverage-file-lines"
-            title={dgettext("dashboard_tests", "Covered lines")}
-            description={dgettext("dashboard_tests", "Executable lines the tests ran at least once.")}
-            value={"#{format_number(@file.covered_lines)} / #{format_number(@file.executable_lines)}"}
-          />
-          <.widget
-            :if={@functions != []}
-            id="widget-coverage-file-functions"
-            title={dgettext("dashboard_tests", "Functions")}
-            description={
-              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
-            }
-            value={format_number(length(@functions))}
-          />
-        </div>
-        <.carried_lines :if={Map.get(@file, :carried_lines, []) != []} lines={@file.carried_lines} />
-      </.card_section>
-    </.card>
     """
   end
 
@@ -613,7 +606,7 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :rows, :list, required: true, doc: "Files with `path`, `covered_lines` and `executable_lines`."
 
-  attr :file_href, :any, required: true, doc: "A file's page, from its path."
+  attr :file_href, :any, default: nil, doc: "A file's page, from its path; nil when the files open nothing."
   attr :meta, :map, required: true, doc: "`current_page` and `total_pages`."
   attr :page_patch, :any, required: true
   attr :sort_by, :string, required: true, doc: "The column the files are sorted by: `path` or `coverage`."
@@ -626,7 +619,11 @@ defmodule TuistWeb.Coverage.Components do
   def coverage_files_table(assigns) do
     ~H"""
     <div data-part="files-table">
-      <.table id={@id} rows={@rows} row_navigate={fn file -> @file_href.(file.path) end}>
+      <.table
+        id={@id}
+        rows={@rows}
+        row_navigate={if @file_href, do: fn file -> @file_href.(file.path) end}
+      >
         <:col
           :let={file}
           label={dgettext("dashboard_tests", "File")}

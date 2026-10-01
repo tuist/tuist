@@ -583,8 +583,16 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert [%{name: "App", files_count: 2, covered_lines: 5, executable_lines: 7}] = Commits.targets(project.id, "head")
 
-    assert %{carried_lines: [1, 2, 3], covered_lines: 3} =
+    assert %{carried_lines: [1, 2, 3], covered_lines: 3, executable_lines: text_lines} =
              Commits.file_detail(project.id, "head", "Sources/Text.swift")
+
+    # The file's trend ends on the figure its page shows, carried lines included,
+    # though no run at the head compiled it.
+    for sha <- ~w(base head), do: Commits.signal_complete(project, sha)
+    %{points: points} = History.trend_points(project, "main")
+
+    assert %{git_commit_sha: "head", covered_lines: 3, executable_lines: ^text_lines} =
+             project |> History.file_points("Sources/Text.swift", points) |> List.last()
   end
 
   test "carries nothing for a test one of whose files changed", %{project: project, account: account} do

@@ -331,7 +331,7 @@
           <.coverage_files_table
             id="coverage-files-table"
             rows={@file_rows}
-            file_href={fn path -> file_href(assigns, path) end}
+            file_href={if @subject.kind == :branch, do: fn path -> file_href(assigns, path) end}
             meta={@files_meta}
             page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
             sort_by={@files_sort_by}

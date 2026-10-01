@@ -23,60 +23,33 @@
       selected_widget={@selected_widget}
     />
 
-    <%!-- Files coverage --%>
-    <.card
+    <%!-- Files --%>
+    <.coverage_extremes_card
       title={dgettext("dashboard_tests", "Files")}
       icon="file"
-      data-part="files-coverage"
-    >
-      <div
-        :if={@files.highest != [] or @files.lowest != []}
-        data-part="files-coverage-sections"
-      >
-        <.card_section
-          :for={
-            {side, title, files} <- [
-              {"highest", dgettext("dashboard_tests", "Highest coverage"), @files.highest},
-              {"lowest", dgettext("dashboard_tests", "Lowest coverage"), @files.lowest}
-            ]
-          }
-          data-part="files-coverage-section"
-          data-side={side}
-        >
-          <div data-part="header">
-            <span data-part="title">{title}</span>
-          </div>
-          <div data-part="files-list">
-            <div :for={file <- Enum.take(files, 4)} class="coverage-file-card" data-side={side}>
-              <div data-part="header">
-                <div data-part="icon">
-                  <.file />
-                </div>
-                <div data-part="title-and-subtitle">
-                  <h3 data-part="title">{Path.basename(file.path)}</h3>
-                  <span :if={parent_dir(file.path)} data-part="subtitle">{parent_dir(file.path)}</span>
-                </div>
-                <span data-part="coverage">
-                  {Tuist.Tests.Coverage.percentage(file.covered_lines, file.executable_lines)}%
-                </span>
-              </div>
-            </div>
-            <div :if={length(files) > 4} data-part="more-card" data-index="two"></div>
-            <div :if={length(files) > 4} data-part="more-card" data-index="one"></div>
-          </div>
-        </.card_section>
-      </div>
-      <.coverage_empty
-        :if={@files.highest == [] and @files.lowest == []}
-        title={
-          dgettext("dashboard_tests", "No complete commit on %{branch} in this period",
-            branch: @branch
-          )
-        }
-        image="table"
-        data-part="empty-files"
-      />
-    </.card>
+      highest={@files.highest}
+      lowest={@files.lowest}
+      empty_title={
+        dgettext("dashboard_tests", "No complete commit on %{branch} in this period",
+          branch: @branch
+        )
+      }
+      data-part="files"
+    />
+
+    <%!-- Targets --%>
+    <.coverage_extremes_card
+      title={dgettext("dashboard_tests", "Targets")}
+      icon="stack_2"
+      highest={@targets.highest}
+      lowest={@targets.lowest}
+      empty_title={
+        dgettext("dashboard_tests", "No complete commit on %{branch} in this period",
+          branch: @branch
+        )
+      }
+      data-part="targets"
+    />
 
     <%!-- Recent commits --%>
     <.card

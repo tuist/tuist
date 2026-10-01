@@ -1,10 +1,12 @@
 defmodule TuistWeb.CoverageFileLive do
   @moduledoc """
-  One file's coverage at a commit, on a page of its own that leads back to
-  the page it was opened from. Opened from a branch (`?branch=`), it leads
-  with the file's coverage over the branch's period, as the branch's page
-  does for the whole branch; from a pull request or a commit, with the
-  commit's figures.
+  One file's coverage on a branch over a period: its figures and functions
+  at the branch's latest complete commit in the period, and its coverage
+  over the branch's complete commits there (`History.trend_points/3`,
+  `History.file_points/3`). The branch (`branch`, the project's default one
+  unless set) and the period are picked in the header, as on the Code
+  Coverage page (`coverage_filters/1`). It leads back to
+  the page it was opened from (`from`), or to the Code Coverage page.
   """
   use TuistWeb, :live_view
   use Noora
@@ -12,13 +14,13 @@ defmodule TuistWeb.CoverageFileLive do
   import TuistWeb.Coverage.Components
 
   alias Tuist.FeatureFlags
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
-  @detail_tabs ~w(overview targets files runs)
   @widgets ~w(coverage covered_lines executable_lines)
   @function_sorts ~w(coverage name line covered_lines executions)
   # Counts rank most first; shares, names and lines ascend.
@@ -35,21 +37,34 @@ defmodule TuistWeb.CoverageFileLive do
     {:ok,
      socket
      |> assign(:path, path)
+     |> assign(:branches, [])
      |> assign(:head_title, "#{Path.basename(path)} · #{account.name}/#{project.name} · Tuist")}
   end
 
   def handle_params(_params, uri, socket) do
     query = Query.query_params(uri)
+    %{preset: preset, period: period} = DatePicker.date_picker_params(query, "coverage", default_preset: "last-30-days")
 
     socket =
       socket
       |> assign(:uri, URI.new!("?" <> URI.encode_query(query)))
+      |> assign(:current_params, query)
+      |> assign(:coverage_preset, preset)
+      |> assign(:coverage_period, period)
+      |> assign(:branch, selected_branch(query["branch"], socket.assigns.selected_project))
       |> assign(:file, nil)
       |> assign(:trend, nil)
-      |> assign_scope(query)
+      |> assign(:loading, true)
+      |> assign_back(query)
 
     if connected?(socket),
-      do: {:noreply, socket |> assign_file() |> assign_functions(query) |> assign_trend(query)},
+      do:
+        {:noreply,
+         socket
+         |> assign(:loading, false)
+         |> assign(:branches, History.branches(socket.assigns.selected_project))
+         |> assign_file(query)
+         |> assign_functions(query)},
       else: {:noreply, socket}
   end
 
@@ -81,10 +96,44 @@ defmodule TuistWeb.CoverageFileLive do
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
   end
 
-  defp assign_file(%{assigns: %{selected_project: project, path: path, scope: %{commit: sha}}} = socket) do
-    socket
-    |> assign(:loading, false)
-    |> assign(:file, Commits.file_detail(project.id, sha, path))
+  # The file's figures and functions are its own at the branch's latest
+  # complete commit in the period; its trend is over the branch's complete
+  # commits there that compiled it.
+  defp assign_file(%{assigns: %{selected_project: project, path: path, branch: branch}} = socket, query) do
+    %{grouping: grouping, points: points} =
+      History.trend_points(project, branch, DatePicker.period_opts(socket.assigns.coverage_period))
+
+    case List.last(points) do
+      nil ->
+        socket
+
+      %{git_commit_sha: sha} ->
+        file = Commits.file_detail(project.id, sha, path)
+        file_points = History.file_points(project, path, points)
+
+        socket
+        |> assign(:file, file)
+        |> assign(:trend, file && trend(file, sha, file_points, grouping, query))
+    end
+  end
+
+  defp trend(file, sha, points, grouping, query) do
+    %{
+      latest: %{
+        git_commit_sha: sha,
+        coverage: Coverage.percentage(file.covered_lines, file.executable_lines),
+        covered_lines: file.covered_lines,
+        executable_lines: file.executable_lines
+      },
+      points: points,
+      grouping: grouping,
+      trends: %{
+        "coverage" => period_trend(points),
+        "covered_lines" => count_trend(points, :covered_lines),
+        "executable_lines" => count_trend(points, :executable_lines)
+      },
+      selected_widget: selected_widget(query["analytics-selected-widget"])
+    }
   end
 
   # A file has tens of functions, hundreds at most, all read with it, so they
@@ -168,60 +217,18 @@ defmodule TuistWeb.CoverageFileLive do
        |> Query.drop("page"))
   end
 
-  # A branch's file leads with its coverage over the branch's period.
-  defp assign_trend(%{assigns: %{scope: %{branch: nil}}} = socket, _query), do: socket
-
-  defp assign_trend(%{assigns: %{selected_project: project, path: path, scope: %{branch: branch}}} = socket, query) do
-    %{preset: preset, period: period} = DatePicker.date_picker_params(query, "coverage", default_preset: "last-30-days")
-    points = History.file_points(project, branch, path, DatePicker.period_opts(period))
-
-    assign(socket, :trend, %{
-      branch: branch,
-      points: chart_points(points, period),
-      latest: List.last(points),
-      trends: %{
-        "coverage" => period_trend(points),
-        "covered_lines" => count_trend(points, :covered_lines),
-        "executable_lines" => count_trend(points, :executable_lines)
-      },
-      selected_widget: selected_widget(query["analytics-selected-widget"]),
-      preset: preset,
-      period: period
-    })
-  end
-
   defp selected_widget(widget) when widget in @widgets, do: widget
   defp selected_widget(_widget), do: "coverage"
 
-  defp assign_scope(%{assigns: %{selected_project: project, selected_account: account}} = socket, query) do
-    sha = query["commit"]
-
-    if sha in [nil, ""] or is_nil(Commits.summary(project.id, sha)) do
-      raise NotFoundError, dgettext("dashboard_tests", "No run of commit %{sha} gathered coverage.", sha: sha || "")
-    end
-
-    tab = if query["tab"] in @detail_tabs, do: [{"tab", query["tab"]}], else: []
-
-    socket
-    |> assign(:loading, true)
-    |> assign(:scope, %{
-      commit: sha,
-      branch: blank_to_nil(query["branch"]),
-      pull_request: blank_to_nil(query["pull-request"])
-    })
-    |> assign(
+  defp assign_back(%{assigns: %{selected_project: project, selected_account: account}} = socket, query) do
+    assign(
+      socket,
       :back,
       back_to(query["from"], account.name, project.name) ||
         %{
-          label: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha)),
-          href: "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?" <> URI.encode_query(tab)
+          label: dgettext("dashboard_tests", "Code coverage"),
+          href: with_shared_query("/#{account.name}/#{project.name}/tests/coverage", query)
         }
     )
   end
-
-  defp blank_to_nil(value) when value in [nil, ""], do: nil
-  defp blank_to_nil(value), do: value
-
-  @doc "What the page's badge says it is read at."
-  def scope_label(%{commit: sha}), do: short_sha(sha)
 end

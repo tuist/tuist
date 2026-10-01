@@ -275,30 +275,38 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
-  A file's coverage over the branch's trend (`branch_points/3`): one point
-  per chained commit whose runs compiled the file, oldest first, with the
-  file's lines merged over those runs as its page reads them. A chained
-  commit whose runs did not compile the file has no point.
+  A file's coverage over a trend's commits (`trend_points/3`'s points): one
+  point per commit that has coverage for the file, oldest first, with the
+  commit's own fields (its `period` among them). Each point is the file as
+  its page reads it at that commit (`Commits.file_detail/4`): its lines
+  merged over the commit's runs and, where coverage was carried into the
+  commit, covered too by the skipped tests that covered them, so the trend
+  ends on the figure the page shows. Commits nothing was carried into are
+  read in one pass over their runs.
   """
-  def file_points(%Project{} = project, branch, path, opts \\ []) do
-    points = branch_points(project, branch, opts)
+  def file_points(_project, _path, []), do: []
 
-    commit_of =
-      for {sha, row} <- Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha)),
-          id <- row.test_run_ids,
-          into: %{},
-          do: {id, sha}
+  def file_points(%Project{} = project, path, points) do
+    rows_by_sha = Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha))
+    {carried, measured} = Enum.split_with(rows_by_sha, fn {_sha, row} -> Commits.carried?(row) end)
 
-    by_commit = project.id |> Commits.file_rows(Map.keys(commit_of), path) |> Enum.group_by(&commit_of[&1.test_run_id])
+    commit_of = for {sha, row} <- measured, id <- row.test_run_ids, into: %{}, do: {id, sha}
+
+    measured_files =
+      project.id
+      |> Commits.file_rows(Map.keys(commit_of), path)
+      |> Enum.group_by(&commit_of[&1.test_run_id])
+      |> Map.new(fn {sha, rows} -> {sha, Coverage.detail(path, rows)} end)
+
+    carried_files = Map.new(carried, fn {sha, _row} -> {sha, Commits.file_detail(project.id, sha, path)} end)
+    files = Map.merge(measured_files, carried_files)
 
     Enum.flat_map(points, fn point ->
-      case Map.get(by_commit, point.git_commit_sha) do
+      case Map.get(files, point.git_commit_sha) do
         nil ->
           []
 
-        rows ->
-          file = Coverage.detail(path, rows)
-
+        file ->
           [
             Map.merge(point, %{
               covered_lines: file.covered_lines,

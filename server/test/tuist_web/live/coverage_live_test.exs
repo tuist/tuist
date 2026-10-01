@@ -41,12 +41,12 @@ defmodule TuistWeb.CoverageLiveTest do
     |> Enum.map(&{&1 |> Floki.attribute("data-value") |> List.first(), Floki.attribute(&1, "data-selected") != []})
   end
 
-  defp file_cards(lv, side) do
+  defp extreme_cards(lv, card, side) do
     lv
-    |> element("[data-part='files-coverage-section'][data-side='#{side}']")
+    |> element("[data-part='#{card}'] [data-part='extremes-section'][data-side='#{side}']")
     |> render()
     |> Floki.parse_fragment!()
-    |> Floki.find(".coverage-file-card")
+    |> Floki.find(".coverage-extreme-card")
     |> Enum.map(fn card ->
       {card |> Floki.find("[data-part='title']") |> Floki.text(),
        card |> Floki.find("[data-part='subtitle']") |> Floki.text(),
@@ -288,7 +288,7 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
-  describe "files coverage" do
+  describe "files and targets" do
     test "shows the latest complete commit's most and least covered files, up to four of each", %{
       conn: conn,
       organization: organization,
@@ -315,7 +315,7 @@ defmodule TuistWeb.CoverageLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      assert file_cards(lv, "highest") == [
+      assert extreme_cards(lv, "files", "highest") == [
                {"Full.swift", "Sources/A", "100.0%"},
                {"Most.swift", "Sources/C", "80.0%"},
                {"Big.swift", "Sources/A", "75.0%"},
@@ -323,14 +323,92 @@ defmodule TuistWeb.CoverageLiveTest do
              ]
 
       # Uncovered alike, the bigger file first.
-      assert file_cards(lv, "lowest") == [
+      assert extreme_cards(lv, "files", "lowest") == [
                {"None.swift", "Sources/B", "0.0%"},
                {"Small.swift", "Sources/B", "0.0%"},
                {"Half.swift", "Sources/B", "50.0%"},
                {"Big.swift", "Sources/A", "75.0%"}
              ]
 
-      assert has_element?(lv, "[data-side='highest'] [data-part='more-card']")
+      assert has_element?(lv, "[data-part='files'] [data-side='highest'] [data-part='more-card']")
+    end
+
+    test "opens a file over the branch and period shown, leading back here", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "new", [file("Sources/A/Full.swift", [1, 1])])
+      base = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, base <> "?coverage-date-range=last-7-days")
+
+      href =
+        lv
+        |> element("[data-part='files'] [data-side='highest'] a.coverage-extreme-card")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("a", "href")
+        |> List.first()
+
+      %URI{path: path, query: query} = URI.parse(href)
+      assert path == base <> "/files/Sources/A/Full.swift"
+
+      assert URI.decode_query(query) == %{
+               "branch" => "main",
+               "coverage-date-range" => "last-7-days",
+               "from" => base <> "?coverage-date-range=last-7-days"
+             }
+
+      refute has_element?(lv, "[data-part='targets'] a.coverage-extreme-card")
+
+      {:ok, file_lv, _html} = live(conn, href)
+
+      assert has_element?(
+               file_lv,
+               "[data-part='back-button'][href='#{base}?coverage-date-range=last-7-days']",
+               "Code coverage"
+             )
+
+      # Its header names the file and its directory, not the commit.
+      assert has_element?(file_lv, "#coverage-file-page [data-part='label']", "Full.swift")
+      badges = file_lv |> element("#coverage-file-page [data-part='badges']") |> render()
+      assert badges =~ "Sources/A"
+      refute badges =~ "Full.swift"
+      refute badges =~ "new"
+    end
+
+    test "shows the latest complete commit's most and least covered targets, with their files", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      in_target = &CoverageFixtures.file(&1, &2, targets: [&3])
+
+      main_run(project, organization, "new", [
+        in_target.("Sources/Core/Full.swift", [1, 1], "Core"),
+        in_target.("Sources/Core/Most.swift", [1, 1, 1, 1, 0], "Core"),
+        in_target.("Sources/App/Big.swift", [1, 1, 1, 0], "App"),
+        in_target.("Sources/Extra/Extra.swift", [1, 1, 0], "Extra"),
+        in_target.("Sources/UI/Half.swift", [1, 0], "UI"),
+        in_target.("Sources/UI/None.swift", [0, 0, 0], "UI"),
+        in_target.("Sources/Net/Small.swift", [0], "Net")
+      ])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert extreme_cards(lv, "targets", "highest") == [
+               {"Core", "2 files", "85.7%"},
+               {"App", "1 file", "75.0%"},
+               {"Extra", "1 file", "66.7%"},
+               {"UI", "2 files", "20.0%"}
+             ]
+
+      assert extreme_cards(lv, "targets", "lowest") == [
+               {"Net", "1 file", "0.0%"},
+               {"UI", "2 files", "20.0%"},
+               {"Extra", "1 file", "66.7%"},
+               {"App", "1 file", "75.0%"}
+             ]
     end
 
     test "says when no commit of the branch is complete in the period", %{
@@ -342,8 +420,15 @@ defmodule TuistWeb.CoverageLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      assert has_element?(lv, "[data-part='empty-files']", "No complete commit on main in this period")
-      refute has_element?(lv, ".coverage-file-card")
+      for card <- ~w(files targets) do
+        assert has_element?(
+                 lv,
+                 "[data-part='#{card}'] [data-part='empty-extremes']",
+                 "No complete commit on main in this period"
+               )
+      end
+
+      refute has_element?(lv, ".coverage-extreme-card")
     end
   end
 

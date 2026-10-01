@@ -17,11 +17,17 @@
         </div>
         <h1 data-part="label">{Path.basename(@path)}</h1>
       </div>
-      <div data-part="badges">
-        <.badge label={@path} color="neutral" style="light-fill" size="large" />
-        <.badge label={scope_label(@scope)} color="information" style="light-fill" size="large" />
+      <div :if={parent_dir(@path)} data-part="badges">
+        <.badge label={parent_dir(@path)} color="neutral" style="light-fill" size="large" />
       </div>
     </div>
+    <.coverage_filters
+      branch={@branch}
+      branches={@branches}
+      uri={@uri}
+      preset={@coverage_preset}
+      period={@coverage_period}
+    />
   </div>
 
   <div :if={@loading} data-part="loading">
@@ -29,14 +35,25 @@
     <.skeleton_box width="100%" height="320px" />
   </div>
 
-  <.card :if={not @loading and is_nil(@file)} title={@path} icon="file" data-part="file-empty">
+  <.card
+    :if={not @loading and is_nil(@file)}
+    title={dgettext("dashboard_tests", "Analytics")}
+    icon="chart_arcs"
+    data-part="file-empty"
+  >
     <.coverage_empty
-      title={dgettext("dashboard_tests", "No coverage data for this file here")}
+      title={
+        dgettext(
+          "dashboard_tests",
+          "The latest complete commit on %{branch} in this period has no coverage for this file",
+          branch: @branch
+        )
+      }
       image="table"
     />
   </.card>
 
-  <.coverage_file_view :if={not @loading and @file} file={@file} trend={@trend} />
+  <.coverage_file_view :if={not @loading and @file} file={@file} branch={@branch} trend={@trend} />
 
   <.card
     :if={(not @loading and @file) && @file.functions != []}

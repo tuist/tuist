@@ -386,13 +386,20 @@
 
 /* One file's page: its figures above a list of what it is made of. */
 #coverage-file-page {
+  & > [data-part="header"] > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
   & [data-part="loading"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
   }
 
-  & [data-part="file-summary-section"],
   & [data-part="file-tests-section"],
   & [data-part="file-functions-section"] {
     display: flex;
@@ -430,11 +437,12 @@
   }
 }
 
-/* The Code Coverage page's most and least covered files, laid out as the
+/* The Code Coverage page's most and least covered files and targets, laid out as the
    Tests page's Test Cases card: two sections side by side, each a stack of
    up to four cards with the edges of more behind them. */
-#coverage > [data-part="files-coverage"] {
-  & [data-part="files-coverage-sections"] {
+#coverage > [data-part="files"],
+#coverage > [data-part="targets"] {
+  & [data-part="extremes-sections"] {
     display: flex;
     flex-direction: row;
     gap: var(--noora-spacing-3);
@@ -445,7 +453,7 @@
     }
   }
 
-  & [data-part="files-coverage-section"] {
+  & [data-part="extremes-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
@@ -464,7 +472,7 @@
       }
     }
 
-    & > [data-part="files-list"] {
+    & > [data-part="extremes-list"] {
       display: flex;
       position: relative;
       flex-direction: column;
@@ -492,8 +500,11 @@
   }
 }
 
-.coverage-file-card {
+.coverage-extreme-card {
+  display: block;
   z-index: var(--noora-z-index-1);
+  color: inherit;
+  text-decoration: none;
   box-shadow: var(--noora-border-light-default);
   border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
