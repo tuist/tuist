@@ -88,6 +88,7 @@ defmodule Atlas.LLMs.RunnerTest do
 
       defmodule ProbePlug do
         @behaviour Plug
+
         import Plug.Conn
 
         @impl true
@@ -121,6 +122,7 @@ defmodule Atlas.LLMs.RunnerTest do
 
       defmodule ProbeAgent do
         use Condukt
+
         @impl true
         def system_prompt, do: "You are a probe."
       end
