@@ -223,6 +223,24 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["token"] == ""
     end
 
+    test "creates a Once project", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects",
+          full_handle: "#{user.account.name}/my-once-project",
+          build_system: "once"
+        )
+
+      response = json_response(conn, :ok)
+      refute Map.has_key?(response, "build_system")
+
+      assert {:ok, %{build_system: :once}} =
+               Projects.get_project_by_slug("#{user.account.name}/my-once-project")
+    end
+
     test "returns an error if the provided account doesn't exist", %{
       conn: conn,
       user: user
@@ -376,14 +394,15 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert project["token"] == ""
     end
 
-    test "returns build systems the response schema doesn't enumerate", %{conn: conn, user: user} do
+    test "omits build systems that shipped clients can't decode", %{conn: conn, user: user} do
       conn = Authentication.put_current_user(conn, user)
       ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
 
       conn = get(conn, "/api/projects")
 
       response = json_response(conn, :ok)
-      assert [%{"build_system" => "once"} = project] = response["projects"]
+      assert [project] = response["projects"]
+      refute Map.has_key?(project, "build_system")
       assert_schema(project, "Project", Spec.spec())
     end
 
