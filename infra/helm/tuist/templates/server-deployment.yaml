@@ -144,6 +144,24 @@ spec:
               value: "on"
             - name: TUIST_ONCE_EVENTS_GRPC_PORT
               value: {{ .Values.server.service.grpcTargetPort | default 4001 | quote }}
+            {{- /* Honor the deprecated `server.bazelEvents` key as a
+                   one-release fallback for #13184 adopters. */ -}}
+            {{- $events := .Values.server.events | default dict }}
+            {{- if and (not $events.enabled) (hasKey .Values.server "bazelEvents") }}
+            {{- if .Values.server.bazelEvents.enabled }}
+            {{- $events = .Values.server.bazelEvents }}
+            {{- end }}
+            {{- end }}
+            {{- if and $events.enabled $events.host }}
+            # Discovery doc source of truth for the gRPC hostname. The server's
+            # string-prefix fallback (`events.<request-host>`) only lines up on
+            # apex deployments; managed envs run on sub-prefix hosts
+            # (`staging.tuist.dev`) where the ingress is at
+            # `events-staging.tuist.dev` (dash, not dot), so the controller
+            # must be told the real ingress hostname rather than deriving one.
+            - name: TUIST_ONCE_EVENTS_ENDPOINTS
+              value: "grpcs://{{ $events.host }}"
+            {{- end }}
             {{- end }}
             {{- if .Values.server.config.cacheTokenKey.signing }}
             - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED

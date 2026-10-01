@@ -1,6 +1,16 @@
-{{- if and .Values.server.enabled .Values.server.events.enabled }}
+{{- /* Resolve the events ingress config, honoring the deprecated
+       `server.bazelEvents` key for one release so operators that
+       enabled the chart key from #13184 (merged 2026-09-30) don't
+       silently lose their ingress on upgrade. */ -}}
+{{- $events := .Values.server.events | default dict }}
+{{- if and (not $events.enabled) (hasKey .Values.server "bazelEvents") }}
+{{- if .Values.server.bazelEvents.enabled }}
+{{- $events = .Values.server.bazelEvents }}
+{{- end }}
+{{- end }}
+{{- if and .Values.server.enabled $events.enabled }}
 {{- $serviceName := include "tuist.componentName" (dict "root" . "component" "server") }}
-{{- $ingress := .Values.server.events }}
+{{- $ingress := $events }}
 {{- $grpc := .Values.server.eventsGrpc.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress

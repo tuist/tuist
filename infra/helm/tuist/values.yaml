@@ -477,6 +477,11 @@ server:
   # one of the invocation kinds. Bazel BEP still terminates at Kura today
   # and posts summaries to the main tuist.dev host; nothing self-hosted
   # should have `enabled: true` prior to the Once gRPC rollout.
+  #
+  # Renamed from `bazelEvents` (introduced in #13184). The templates still
+  # honor `server.bazelEvents.*` for one release so adopters of that
+  # same-day key don't lose their ingress on upgrade; move to
+  # `server.events.*` on your next values edit.
   events:
     enabled: false
     className: nginx
