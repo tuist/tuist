@@ -30,6 +30,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Crosshair styling and synchronized hover time cursors activate only on plot canvases, not metric headings, rulers, controls or surrounding card space.
 - Timeline logs preserve source lines and scroll horizontally; their full height participates in the inspector's vertical scrolling.
 - Timeline selection persists when scrolling or zooming moves the step outside the visible range, keeping its metadata and log open.
+- `marketing/js/hooks/cache-globe.js` is the `/globe` page controller: it fills the counters and region rows from the LiveView snapshot and feeds the shared `DitherGlobe` canvas its markers (`data-markers`, then `dither-globe:markers` / `dither-globe:motion` events) — it draws nothing itself. Keep motion pausable and honor reduced-motion preferences. Regional lights describe serving activity, not customer destinations. Its styling is scoped to `#marketing-globe`. Hit-rate rows cover All caches, Xcode, Gradle, and Bazel; demo rates are illustrative, while live rates stay unavailable until the snapshot supplies them.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
   Faro Web SDK from the `globalThis.analytics` config that
   `TuistWeb.LayoutComponents.head_analytics_scripts` renders, and every bundle

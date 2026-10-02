@@ -85,6 +85,9 @@ defmodule Tuist.KeyValueStore do
 
   - `:cache`: The cache to use. Defaults to `:tuist`.
   - `:ttl`: The time to live for the cached value. Defaults to `:timer.minutes(1)`.
+  - `:lock_timeout`: How long to wait for a Redis lock, in milliseconds. Defaults to five seconds.
+  - `:lock_expiry`: How long a Redis lock remains valid, in milliseconds. Defaults to two seconds.
+    Set this longer than the callback's maximum execution time for slow refreshes.
 
   ## Examples
 
@@ -152,8 +155,8 @@ defmodule Tuist.KeyValueStore do
         "#{cache_key}-lock",
         read_or_update,
         name: Environment.redis_conn_name(),
-        timeout: to_timeout(second: 5),
-        expiry: to_timeout(second: 2)
+        timeout: Keyword.get(opts, :lock_timeout, to_timeout(second: 5)),
+        expiry: Keyword.get(opts, :lock_expiry, to_timeout(second: 2))
       )
     else
       read_or_update.()

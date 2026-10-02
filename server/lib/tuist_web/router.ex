@@ -426,6 +426,11 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
+        live Path.join(locale_path_prefix, "/globe"),
+             TuistWeb.Marketing.MarketingGlobeLive,
+             metadata: @marketing_route_metadata,
+             private: private
+
         live Path.join(locale_path_prefix, "/previews"),
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: @marketing_route_metadata,

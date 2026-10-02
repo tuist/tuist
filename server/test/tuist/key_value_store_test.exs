@@ -166,6 +166,30 @@ defmodule Tuist.KeyValueStoreTest do
   end
 
   describe "get_or_update/3" do
+    test "uses a custom Redis lock lease and releases it after caching the refresh" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command!, 2, fn
+        _conn, ["SET", "redis-slow_refresh-lock", _owner, "NX", "PX", "30000"] -> "OK"
+        _conn, ["EVAL", _script, 1, "redis-slow_refresh-lock", _owner] -> 1
+      end)
+
+      expect(Redix, :command, 2, fn
+        _conn, ["GET", "redis-slow_refresh"] ->
+          {:ok, nil}
+
+        _conn, ["SET", "redis-slow_refresh", value, "EX", 25] ->
+          assert :erlang.binary_to_term(value) == "refreshed"
+          {:ok, "OK"}
+      end)
+
+      assert KeyValueStore.get_or_update(
+               [:redis, "slow_refresh"],
+               [persist_across_deployments: true, ttl: 25_000, lock_timeout: 30_000, lock_expiry: 30_000],
+               fn -> "refreshed" end
+             ) == "refreshed"
+    end
+
     test "rebuilds an unsafe redis value instead of crashing" do
       stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
       atom_name = "uncached_atom_#{System.unique_integer([:positive])}"

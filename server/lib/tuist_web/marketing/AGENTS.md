@@ -9,6 +9,7 @@ This area owns marketing controllers and components for the public site.
 - The newsletter verify pages render the visitor's email and signed token, so `MarketingController` marks them `private, no-store` regardless of sign-in state.
 - `TuistWeb.GoogleOneTap` adds Google's browser-mediated account chooser to signed-out marketing pages when Google authentication is configured and enabled. Challenge state and a fresh CSRF token are fetched through an uncacheable same-origin request rather than embedded in cacheable page content.
 - Interactive blog diagrams live in `components/` with colocated hooks and styles. `CacheLatencyLab` illustrates one round trip plus transfer time per artifact; keep its assumptions visible and its controls usable with a keyboard.
+- `/globe` is the public cache activity display. It follows the marketing page frame (the cache hero skeleton, hairline rows, Noora tokens) but stands alone: no shared navbar, footer or CTA, only the wordmark linking home. The globe is the cache page's `DitherGlobe` hook. `?demo=true` explicitly selects illustrative data; live mode must never fall back to fabricated counts.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
