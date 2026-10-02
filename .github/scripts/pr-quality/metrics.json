@@ -1,0 +1,268 @@
+[
+  {
+    "key": "correctness",
+    "label": "Correctness and requirement fit",
+    "guidance": "Judge requested behavior, missing behavior, edge cases, invariants, assumptions, regressions, completeness, and invalid states. Correctness outweighs style.",
+    "suggestion": "Address the concrete requirement, edge-case, invariant, or regression risk before polishing structure.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "missing_behavior": "Requested behavior appears missing or incomplete.",
+      "edge_case": "An important edge case or invalid state appears insufficiently handled.",
+      "incorrect_assumption": "The implementation appears to rely on an unsafe or incorrect assumption.",
+      "regression_risk": "The change creates a meaningful risk of breaking existing behavior."
+    },
+    "conditional": false
+  },
+  {
+    "key": "cognitiveComplexity",
+    "label": "Cognitive complexity",
+    "guidance": "Judge nesting, branching, hidden control flow, indirection, side effects, special cases, state management, and cleverness. Do not use length alone.",
+    "suggestion": "Simplify the hardest control or data flow while preserving a cohesive implementation.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "control_flow": "Control flow is harder to follow than the problem requires.",
+      "indirection": "Indirection obscures rather than clarifies the behavior.",
+      "state_management": "State transitions or side effects are difficult to reason about.",
+      "special_cases": "Special cases add disproportionate mental overhead."
+    },
+    "conditional": false
+  },
+  {
+    "key": "readability",
+    "label": "Readability and intent",
+    "guidance": "Judge naming, control-flow and data-flow clarity, responsibilities, transformations, useful comments, unnecessary comments, and consistency.",
+    "suggestion": "Make intent explicit through clearer naming, flow, or responsibility boundaries.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "naming": "Names do not communicate intent precisely enough.",
+      "flow_clarity": "The control or data flow is not immediately understandable.",
+      "responsibility_clarity": "Responsibilities or transformations are difficult to identify.",
+      "comment_quality": "Comments are missing where rationale matters or add noise without rationale."
+    },
+    "conditional": false
+  },
+  {
+    "key": "modularity",
+    "label": "Modularity and cohesion",
+    "guidance": "Judge coherent grouping, separation of unrelated responsibilities, god modules, fragmentation, domain boundaries, and colocation. Do not reward small files by default.",
+    "suggestion": "Regroup responsibilities around cohesive domain behavior without creating gratuitous layers.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "mixed_responsibilities": "Unrelated responsibilities are coupled in the same module or boundary.",
+      "fragmentation": "Related behavior is fragmented across too many locations.",
+      "weak_boundary": "A module or domain boundary is unclear or poorly placed.",
+      "god_module": "One module owns too many independently changing concerns."
+    },
+    "conditional": false
+  },
+  {
+    "key": "coupling",
+    "label": "Coupling and dependency quality",
+    "guidance": "Judge unnecessary dependencies, dependency direction, leaked implementation details, circularity, global state, hidden dependencies, and tight coupling.",
+    "suggestion": "Remove or invert the dependency that most strongly leaks details or makes change unsafe.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "unnecessary_dependency": "A dependency is broader or less necessary than the behavior requires.",
+      "leaked_detail": "Implementation details leak through a module or API boundary.",
+      "hidden_dependency": "A global or implicit dependency makes behavior harder to predict.",
+      "dependency_direction": "Dependency direction works against the intended boundary."
+    },
+    "conditional": false
+  },
+  {
+    "key": "changeability",
+    "label": "Changeability and change amplification",
+    "guidance": "Judge shotgun surgery, scattered rules, duplicated knowledge, hidden dependencies, brittle chains, and edits across unrelated modules. A conceptual change should touch predictable locations.",
+    "suggestion": "Centralize the relevant knowledge or boundary so the next conceptual change has a small, predictable edit surface.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "scattered_rule": "A domain rule or decision is scattered across multiple locations.",
+      "shotgun_surgery": "A small conceptual change is likely to require edits in many places.",
+      "brittle_chain": "A brittle dependency chain amplifies otherwise local changes.",
+      "hidden_dependency": "Hidden dependencies make the impact of a change unpredictable."
+    },
+    "conditional": false
+  },
+  {
+    "key": "abstractionQuality",
+    "label": "Abstraction and API design",
+    "guidance": "Judge interface simplicity, information hiding, depth, premature abstraction, wrappers, configurability, unrelated concepts, and leaked details. Prefer useful deep modules.",
+    "suggestion": "Deepen, remove, or reshape the abstraction that currently adds more surface than value.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "shallow_wrapper": "A wrapper or layer adds surface without hiding meaningful complexity.",
+      "premature_abstraction": "An abstraction generalizes before the underlying concepts are stable or shared.",
+      "leaky_api": "The API exposes details callers should not need to know.",
+      "overloaded_abstraction": "One abstraction combines concepts that should vary independently."
+    },
+    "conditional": false
+  },
+  {
+    "key": "projectStructure",
+    "label": "Project and file structure",
+    "guidance": "Judge navigation, module and domain boundaries, utility dumping grounds, god files, fragmentation, and feature code spread. Do not judge file counts or depth alone.",
+    "suggestion": "Move the affected code toward a predictable, cohesive location without splitting it mechanically.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "unpredictable_location": "Code is located where future maintainers are unlikely to look for it.",
+      "utility_dumping_ground": "General-purpose utility placement hides a domain responsibility.",
+      "scattered_feature": "Related feature code is spread across unrelated directories or files.",
+      "excessive_fragmentation": "The structure fragments a cohesive concept without clarifying boundaries."
+    },
+    "conditional": false
+  },
+  {
+    "key": "duplication",
+    "label": "Duplication and reuse",
+    "guidance": "Judge duplicated knowledge, repeated business rules, logic that must change together, and missed reuse. Do not enforce syntactic DRY or couple merely similar code.",
+    "suggestion": "Unify duplicated knowledge only where the copies represent the same rule and should change together.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "duplicated_rule": "The same rule or source of truth appears in multiple places.",
+      "repeated_knowledge": "Knowledge that should change together is represented independently.",
+      "missed_existing_reuse": "Existing functionality could be reused without introducing inappropriate coupling.",
+      "forced_reuse": "Reuse or deduplication creates coupling between concepts that should remain separate."
+    },
+    "conditional": false
+  },
+  {
+    "key": "maintainability",
+    "label": "Maintainability",
+    "guidance": "Judge the combined cost of understanding, modifying, debugging, testing, and extending the implementation. Do not infer it from lines of code alone.",
+    "suggestion": "Reduce the highest recurring cost of understanding, changing, debugging, or testing this code.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "understanding_cost": "The implementation has a high recurring cost to understand.",
+      "modification_cost": "Routine modification is likely to be slow or error-prone.",
+      "debugging_cost": "Failures would be difficult to isolate and diagnose.",
+      "extension_cost": "Expected extension points are awkward or unsafe to use."
+    },
+    "conditional": false
+  },
+  {
+    "key": "testQuality",
+    "label": "Testability and test quality",
+    "guidance": "Judge behavior coverage, assertions, determinism, isolation, edge and failure cases, regression protection, mocking, and coupling to implementation details.",
+    "suggestion": "Add or improve the smallest behavior-focused test that protects the important risk without overspecifying implementation.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "missing_coverage": "Important changed behavior lacks meaningful regression coverage.",
+      "weak_assertions": "Tests execute code without proving the important outcome.",
+      "brittle_tests": "Tests are coupled to implementation details or excessive mocking.",
+      "nondeterminism": "Test design or architecture makes results nondeterministic or poorly isolated."
+    },
+    "conditional": false
+  },
+  {
+    "key": "reliability",
+    "label": "Reliability and error handling",
+    "guidance": "Judge relevant error propagation, invalid states, cleanup, retries, timeouts, races, concurrency, transaction integrity, graceful failure, and recovery.",
+    "suggestion": "Handle the most credible failure path deliberately, including cleanup and propagation where relevant.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "error_propagation": "Errors are swallowed, distorted, or propagated without useful boundaries.",
+      "cleanup": "A failure path can leave resources or state inconsistent.",
+      "timeout_retry": "Timeout or retry behavior is missing, unsafe, or disproportionate.",
+      "concurrency": "A race or concurrency assumption threatens reliable behavior."
+    },
+    "conditional": false
+  },
+  {
+    "key": "security",
+    "label": "Security",
+    "guidance": "Judge relevant trust boundaries, validation, injection, authentication, authorization, secrets, sensitive data, deserialization, defaults, privileges, business logic, and dependencies.",
+    "suggestion": "Mitigate the concrete trust-boundary, validation, secret-handling, or privilege risk without expanding scope speculatively.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "input_validation": "Untrusted input crosses a boundary without sufficient validation or safe handling.",
+      "secret_handling": "Secret or sensitive-data handling creates unnecessary exposure risk.",
+      "authorization": "Authentication, authorization, or privilege boundaries appear insufficient.",
+      "injection": "Data may reach an interpreter or sensitive sink without appropriate separation."
+    },
+    "conditional": false
+  },
+  {
+    "key": "consistency",
+    "label": "Consistency and conventions",
+    "guidance": "Judge fit with repository architecture, naming, language idioms, project conventions, competing implementations, and unnecessary new patterns. Repository conventions outweigh generic style.",
+    "suggestion": "Align the change with the repository's established pattern unless a documented constraint justifies the difference.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "repository_pattern": "The change diverges from an established repository pattern without clear benefit.",
+      "naming_convention": "Naming or language idioms conflict with nearby code.",
+      "competing_pattern": "The change introduces a second way to solve an already standardized problem.",
+      "local_inconsistency": "Related parts of the change follow inconsistent conventions."
+    },
+    "conditional": false
+  },
+  {
+    "key": "documentation",
+    "label": "Documentation and explainability",
+    "guidance": "Judge public contracts, decisions, unusual constraints, configuration, difficult rules, changed APIs, and comments explaining why. Do not reward volume.",
+    "suggestion": "Document the non-obvious contract, constraint, configuration, or rationale at the narrowest useful location.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "public_contract": "A public or changed contract is not documented clearly enough.",
+      "rationale": "A non-obvious decision or constraint lacks an explanation of why.",
+      "configuration": "Required configuration or operational use is insufficiently documented.",
+      "comment_noise": "Documentation volume obscures rather than explains important information."
+    },
+    "conditional": false
+  },
+  {
+    "key": "performance",
+    "label": "Performance and resource efficiency",
+    "guidance": "Only when relevant, judge algorithmic cost, computation, memory, requests, database access, N+1 patterns, I/O, and repeated work. Require evidence; do not invent bottlenecks.",
+    "suggestion": "Optimize only the evidenced hot path or waste, keeping the design proportionate.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "algorithmic_cost": "The relevant path has avoidable algorithmic cost.",
+      "repeated_work": "Meaningful computation or I/O is repeated unnecessarily.",
+      "resource_use": "Memory, network, database, or filesystem use is disproportionate.",
+      "n_plus_one": "Work scales per item where it could be performed in a bounded batch."
+    },
+    "conditional": true
+  },
+  {
+    "key": "scalability",
+    "label": "Scalability and flexibility",
+    "guidance": "Only when expected growth or change is evidenced, judge whether the implementation can accommodate it. Do not reward speculative architecture.",
+    "suggestion": "Address the evidenced growth constraint with the simplest design that fits expected demand.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "growth_bottleneck": "An evidenced growth dimension reaches a clear implementation bottleneck.",
+      "rigid_assumption": "A known variation is blocked by an unnecessarily rigid assumption.",
+      "speculative_architecture": "The design pays complexity now for hypothetical growth without evidence.",
+      "scaling_boundary": "A scaling boundary is placed where work or state cannot be managed predictably."
+    },
+    "conditional": true
+  },
+  {
+    "key": "compatibility",
+    "label": "Compatibility and API stability",
+    "guidance": "Only when contracts or integrations are relevant, judge backwards compatibility, public APIs, migrations, breaking changes, interoperability, and version compatibility.",
+    "suggestion": "Preserve the affected contract or provide an explicit, tested migration path.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "breaking_change": "The change appears to break an existing public or integration contract.",
+      "migration_gap": "A required migration or compatibility path is missing.",
+      "version_assumption": "The implementation assumes a version or capability not established by context.",
+      "interoperability": "The change reduces interoperability across supported consumers."
+    },
+    "conditional": true
+  },
+  {
+    "key": "observability",
+    "label": "Observability and operability",
+    "guidance": "Only when operational behavior is relevant, judge logging, metrics, tracing, diagnostics, debugging, and production failure visibility.",
+    "suggestion": "Expose the smallest useful diagnostic signal for the credible production failure mode.",
+    "weaknesses": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "failure_visibility": "A credible production failure would not be visible or diagnosable.",
+      "diagnostic_context": "Operational signals lack the context needed to act on them.",
+      "noisy_logging": "Signals are noisy, sensitive, or too low-value to support operation.",
+      "missing_measurement": "A relevant service boundary lacks a useful health or outcome signal."
+    },
+    "conditional": true
+  }
+]
