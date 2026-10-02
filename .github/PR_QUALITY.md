@@ -11,7 +11,8 @@ Store the key from the [TypeSafe console](https://console.typesafe.ai/keys)
 in the `password` field of an item named `JEV_API_KEY` in the `tuist` 1Password
 vault (`op://tuist/JEV_API_KEY/password`), then merge the script and workflow.
 The workflow uses the existing `OP_SERVICE_ACCOUNT_TOKEN` repository secret
-and resolves the Jev key with `op run`, following the status deployment pattern.
+and resolves the Jev key with `op read` in a dedicated step, so the evaluator
+step never receives the service-account token.
 The service account must have read access to that item. A separate GitHub
 secret for the Jev key is not needed. The workflow runs for opened, updated, reopened, edited, and ready
 pull requests. Drafts and bot authors are skipped. Review failures fail the job;
