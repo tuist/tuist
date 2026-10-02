@@ -46,6 +46,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   @argv_hash_key_grace_ms 24 * 60 * 60 * 1000
   @project_header "once-project-id"
   @max_project_id_bytes 256
+  @reauthenticate_after_ms to_timeout(minute: 5)
 
   # ---- GetServerCapabilities -----------------------------------------
 
@@ -86,14 +87,39 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   # ---- PublishRunEvents ---------------------------------------------
 
+  # A run's stream can stay open for hours, and the credential is only read when
+  # it opens. Checking again every few minutes keeps a revoked token, a removed
+  # member or a deactivated user from writing until the client disconnects, as
+  # the per-request HTTP API would not allow.
   def publish_run_events(request_stream, stream) do
     project = require_project!(stream)
 
-    Enum.each(request_stream, fn batch ->
-      ack = handle_batch(batch, project)
-      GRPC.Server.send_reply(stream, ack)
-    end)
+    _last_check =
+      Enum.reduce(request_stream, now_ms(), fn batch, checked_at ->
+        checked_at = reauthenticate!(stream, project, checked_at)
+        ack = handle_batch(batch, project)
+        GRPC.Server.send_reply(stream, ack)
+        checked_at
+      end)
+
+    :ok
   end
+
+  defp reauthenticate!(stream, project, checked_at) do
+    now = now_ms()
+
+    if now - checked_at < @reauthenticate_after_ms do
+      checked_at
+    else
+      if require_project!(stream).id != project.id do
+        raise GRPC.RPCError, status: :unauthenticated, message: "no access to the requested project"
+      end
+
+      now
+    end
+  end
+
+  defp now_ms, do: System.monotonic_time(:millisecond)
 
   defp handle_batch(batch, project) do
     # An empty batch carries `gap_advances` instead of events, and its

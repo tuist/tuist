@@ -441,6 +441,61 @@ defmodule Tuist.OnceEventsTest do
     end
   end
 
+  describe "a stream that outlives its credential" do
+    setup %{project: project} do
+      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(member, organization)
+
+      %{
+        organization: organization,
+        member: member,
+        handle: "#{project.account.name}/#{project.name}"
+      }
+    end
+
+    test "a member removed from the account is refused on the next batch once the check is due", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      flag = clock_that_jumps_when_flagged(minutes: 6)
+
+      removing = fn ->
+        :ok = Tuist.Accounts.remove_user_from_organization(member, organization)
+        :atomics.put(flag, 1, 1)
+      end
+
+      batches = removing_between_batches(run, removing)
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 batches,
+                 stream_with(login_session(member), %{"once-project-id" => handle})
+               )
+             end)
+
+      assert_received {:ack, %BatchAck{batch_id: "before"}}
+      refute_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+
+    test "within the check interval the open stream keeps going", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      removing = fn -> :ok = Tuist.Accounts.remove_user_from_organization(member, organization) end
+      batches = removing_between_batches(run, removing)
+
+      RunEventService.publish_run_events(batches, stream_with(login_session(member), %{"once-project-id" => handle}))
+
+      assert_received {:ack, %BatchAck{batch_id: "before"}}
+      assert_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+  end
+
   defmodule HeadersAdapter do
     @moduledoc false
     def get_headers(headers), do: headers
@@ -786,6 +841,31 @@ defmodule Tuist.OnceEventsTest do
 
   defp empty_batch(run) do
     %RunEventBatch{run_id: run.run_id, batch_id: "batch-user", seq_from: 1, events: []}
+  end
+
+  # A request stream that runs `between` after the first batch has been handed
+  # over, which is when a real stream would notice a revocation.
+  defp removing_between_batches(run, between) do
+    Stream.concat([
+      [%RunEventBatch{run_id: run.run_id, batch_id: "before", seq_from: 1, events: []}],
+      Stream.map([:between], fn :between ->
+        between.()
+        %RunEventBatch{run_id: run.run_id, batch_id: "after", seq_from: 1, events: []}
+      end)
+    ])
+  end
+
+  # The clock only moves once the returned flag is set, so the stream sees the
+  # jump between two batches rather than at its start.
+  defp clock_that_jumps_when_flagged(minutes: minutes) do
+    flag = :atomics.new(1, [])
+
+    stub(System, :monotonic_time, fn unit ->
+      now = Mimic.call_original(System, :monotonic_time, [unit])
+      if unit == :millisecond and :atomics.get(flag, 1) == 1, do: now + to_timeout(minute: minutes), else: now
+    end)
+
+    flag
   end
 
   defp publish(token, headers, run) do
