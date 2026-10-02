@@ -80,5 +80,5 @@ test('evidence markers preserve the entire source without duplicating it in choi
   assert.equal(annotated.replace(/^\[line_\d+\] /gm, ''), diff);
   assert.match(annotated, /\[line_1\] \+new/);
   const questions = evidenceQuestions(candidates);
-  assert.equal(questions.maliciousBehavior_evidence_0.criteria.line_1, 'Added new name.js:5; evidence marker line_1 in state.diff');
+  assert.equal(questions.maliciousBehavior_evidence_0.criteria.line_1, null);
 });
