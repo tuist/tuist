@@ -4,7 +4,6 @@ This context owns key-value caching with Redis and in-memory fallbacks.
 
 ## Responsibilities
 - Provide `get_or_update` with optional locking.
-- Redis refreshes can set `lock_timeout` and `lock_expiry` in milliseconds; slow callbacks need a lease longer than their execution bound. Existing callers retain the default five-second wait and two-second lease.
 - Use Redis when available, falling back to Cachex on connection failure.
 - Manage cache TTL and key normalization.
 

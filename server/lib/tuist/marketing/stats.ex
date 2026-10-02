@@ -3,6 +3,11 @@ defmodule Tuist.Marketing.Stats do
   A GenServer that periodically polls ClickHouse for marketing page statistics
   and broadcasts updates via PubSub. LiveViews subscribe to receive fresh values
   without each page visit hitting the database.
+
+  The cache-globe snapshot is **read-only** here: a single Oban worker
+  (`Tuist.Marketing.Workers.CacheGlobeRefreshWorker`) refreshes ClickHouse into
+  `KeyValueStore`, and every web replica only GETs that cache and broadcasts
+  locally over PubSub.
   """
 
   use GenServer
@@ -15,6 +20,9 @@ defmodule Tuist.Marketing.Stats do
   @topic "marketing_stats"
   @globe_topic "cache_globe"
   @poll_interval to_timeout(second: 5)
+  @globe_poll_interval to_timeout(second: 30)
+  @globe_cache_key [:marketing, :cache_globe]
+  @globe_cache_opts [persist_across_deployments: true]
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -93,40 +101,24 @@ defmodule Tuist.Marketing.Stats do
     {:noreply, stats}
   end
 
-  def handle_info(:poll_globe, %{globe_task: _ref} = stats), do: {:noreply, stats}
-
   def handle_info(:poll_globe, stats) do
-    # Keep the public snapshot readable while the bounded query runs. One task
-    # per poller, independent of the number of open conference displays.
-    task =
-      Task.Supervisor.async_nolink(__MODULE__.TaskSupervisor, fn ->
-        KeyValueStore.get_or_update(
-          [:marketing, :cache_globe],
-          [
-            persist_across_deployments: true,
-            ttl: to_timeout(second: 25),
-            lock_timeout: to_timeout(second: 30),
-            lock_expiry: to_timeout(second: 30)
-          ],
-          &CacheGlobe.snapshot/0
-        )
-      end)
+    # Read-only: the Oban unique worker is the sole ClickHouse refresher.
+    # Never call CacheGlobe.snapshot/0 or take a cross-replica Redis lock here.
+    globe =
+      case KeyValueStore.get(@globe_cache_key, @globe_cache_opts) do
+        nil -> stats.globe
+        cached -> cached
+      end
 
-    {:noreply, Map.put(stats, :globe_task, task.ref)}
-  end
-
-  def handle_info({ref, globe}, %{globe_task: ref} = stats) do
-    Process.demonitor(ref, [:flush])
     Tuist.PubSub.broadcast(globe, @globe_topic, :cache_globe_updated)
-    Process.send_after(self(), :poll_globe, to_timeout(second: 30))
-    {:noreply, stats |> Map.put(:globe, globe) |> Map.delete(:globe_task)}
-  end
-
-  def handle_info({:DOWN, ref, :process, _pid, reason}, %{globe_task: ref} = stats) do
-    Logger.warning("Cache globe statistics unavailable: #{inspect(reason)}")
-    globe = %{stats.globe | status: :unavailable}
-    Tuist.PubSub.broadcast(globe, @globe_topic, :cache_globe_updated)
-    Process.send_after(self(), :poll_globe, to_timeout(second: 30))
-    {:noreply, stats |> Map.put(:globe, globe) |> Map.delete(:globe_task)}
+    Process.send_after(self(), :poll_globe, @globe_poll_interval)
+    {:noreply, Map.put(stats, :globe, globe)}
+  rescue
+    error ->
+      Logger.warning("Cache globe cache read unavailable: #{inspect(error)}")
+      globe = %{stats.globe | status: :unavailable}
+      Tuist.PubSub.broadcast(globe, @globe_topic, :cache_globe_updated)
+      Process.send_after(self(), :poll_globe, @globe_poll_interval)
+      {:noreply, Map.put(stats, :globe, globe)}
   end
 end

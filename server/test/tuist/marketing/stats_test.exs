@@ -13,16 +13,15 @@ defmodule Tuist.Marketing.StatsTest do
     stub(Tuist.Tests, :last_24h_test_case_run_count, fn -> 300 end)
     stub(Tuist.Tests, :last_24h_test_run_count, fn -> 400 end)
     stub(Tuist.Tests, :last_24h_flaky_test_case_run_count, fn -> 50 end)
-    stub(CacheGlobe, :snapshot, fn -> CacheGlobe.empty() end)
 
-    stub(Tuist.KeyValueStore, :get_or_update, fn [:marketing, :cache_globe], opts, fun ->
-      assert opts[:persist_across_deployments]
-      assert opts[:lock_expiry] > 15_000
-      assert opts[:lock_timeout] >= opts[:lock_expiry]
-      fun.()
+    stub(Tuist.KeyValueStore, :get, fn
+      [:marketing, :cache_globe], opts ->
+        assert opts[:persist_across_deployments]
+        CacheGlobe.empty()
+
+      _key, _opts ->
+        nil
     end)
-
-    start_supervised!({Task.Supervisor, name: Stats.TaskSupervisor})
 
     pid = start_supervised!(Stats)
     # Wait for the initial poll to complete
@@ -62,7 +61,15 @@ defmodule Tuist.Marketing.StatsTest do
     Stats.subscribe()
     Stats.subscribe_globe()
     snapshot = %{CacheGlobe.empty() | downloads: 123, status: :available}
-    stub(CacheGlobe, :snapshot, fn -> snapshot end)
+
+    stub(Tuist.KeyValueStore, :get, fn
+      [:marketing, :cache_globe], opts ->
+        assert opts[:persist_across_deployments]
+        snapshot
+
+      _key, _opts ->
+        nil
+    end)
 
     send(Stats, :poll_globe)
 
@@ -71,9 +78,30 @@ defmodule Tuist.Marketing.StatsTest do
     refute Map.has_key?(Stats.get_stats(), :globe)
   end
 
-  test "a failed globe query keeps the last snapshot and the poller alive" do
+  test "globe polls only read the shared cache and never refresh ClickHouse" do
     Stats.subscribe_globe()
-    stub(CacheGlobe, :snapshot, fn -> raise "query unavailable" end)
+    snapshot = %{CacheGlobe.empty() | downloads: 9, status: :available}
+
+    expect(Tuist.KeyValueStore, :get, fn [:marketing, :cache_globe], opts ->
+      assert opts[:persist_across_deployments]
+      snapshot
+    end)
+
+    reject(CacheGlobe, :snapshot, 0)
+    reject(Tuist.KeyValueStore, :get_or_update, 3)
+
+    send(Stats, :poll_globe)
+
+    assert_receive {:cache_globe_updated, ^snapshot}, 1000
+    assert Stats.get_globe() == snapshot
+  end
+
+  test "a failed globe cache read keeps the last snapshot and the poller alive" do
+    Stats.subscribe_globe()
+
+    stub(Tuist.KeyValueStore, :get, fn [:marketing, :cache_globe], _opts ->
+      raise "redis unavailable"
+    end)
 
     send(Stats, :poll_globe)
 
