@@ -67,9 +67,10 @@ restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 `workflows/pr-quality.yml` runs `scripts/pr-quality/run.mjs` using Jev and
 updates one advisory GitHub comment per publishing identity. Manual runs update
 the authenticated user’s comment; workflow runs update the bot’s comment. Setup and limitations live in
-`PR_QUALITY.md`. Resolve the Jev key with `op run` from
-`op://tuist/JEV_API_KEY/password`, using the existing 1Password service-account
-secret; do not add a separate GitHub secret for it. Keep execution on trusted base code; contributor commits may
+`PR_QUALITY.md`. Resolve the Jev key with `op read` from
+`op://tuist/JEV_API_KEY/password` in its own step, mask it, and pass it through
+`$GITHUB_ENV`; never expose `OP_SERVICE_ACCOUNT_TOKEN` (or `op run`) to the
+evaluator step, since this is a `pull_request_target` job. Keep execution on trusted base code; contributor commits may
 be fetched and diffed but never checked out or executed. Low scores are advisory;
 provider and input failures must not reuse previous scores. The two focused
 security ratings run with the quality checks. A focused concern triggers a

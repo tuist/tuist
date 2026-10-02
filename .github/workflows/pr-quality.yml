@@ -30,12 +30,18 @@ jobs:
       - name: Install evaluator dependencies
         run: npm ci --ignore-scripts --prefix .github/scripts/pr-quality
       - uses: 1password/install-cli-action@v2
+      # Resolve the key in its own step so the evaluator never sees the repo-wide service-account token.
+      - name: Load Jev key from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          JEV_API_KEY=$(op read 'op://tuist/JEV_API_KEY/password')
+          echo "::add-mask::$JEV_API_KEY"
+          echo "JEV_API_KEY=$JEV_API_KEY" >> "$GITHUB_ENV"
       - name: Evaluate and publish quality findings
         env:
           GH_TOKEN: ${{ github.token }}
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          JEV_API_KEY: op://tuist/JEV_API_KEY/password
-        run: op run -- node .github/scripts/pr-quality/run.mjs --post
+        run: node .github/scripts/pr-quality/run.mjs --post
       - name: Upload review report
         if: always()
         uses: actions/upload-artifact@v4
