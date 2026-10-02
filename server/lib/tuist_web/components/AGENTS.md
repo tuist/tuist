@@ -3,7 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- `LayoutComponents.head_analytics_scripts` loads Glossia independently with `async` on hosted production marketing, documentation and dashboard pages. Keep the `tuist.dev` domain, script and collection origins aligned with the shared content security policy, and honor `analytics_disabled?` for embedded visualizations.
+- `LayoutComponents.head_analytics_scripts` loads Glossia independently with `async` on hosted production marketing, documentation and dashboard pages. Use `https://glossia.ai/assets/glossia-web.js` with the `tuist.dev` domain and keep the `https://glossia.ai` script and collection origin aligned with the shared content security policy, and honor `analytics_disabled?` for embedded visualizations.
 - `GoogleOneTap` shares the protected credential form and configuration gates between marketing pages and login/sign-up LiveViews. It supports static mounting and LiveView lifecycle hooks.
 - Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors using the existing amber chart token.
 - Build timeline machine tracks form a responsive 2×2 grid above the step workspace. Each plot has its own ruler, cursor and focus region, synchronized to the same time range. The inspector and resize divider align with the top of the step chart section, including its controls, and share that section’s height. Step search and the legend sit directly above the step lanes, below machine metrics. The step skeleton and download failure state must leave already-loaded metrics visible.
