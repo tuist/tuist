@@ -1,0 +1,48 @@
+name: Pull request quality
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.repository == 'tuist/tuist' && !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Execute only trusted base code. Fetch contributor commits as data, never check them out.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install evaluator dependencies
+        run: npm ci --ignore-scripts --prefix .github/scripts/pr-quality
+      - uses: 1password/install-cli-action@v2
+      - name: Evaluate and publish quality findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          JEV_API_KEY: op://tuist/JEV_API_KEY/password
+        run: op run -- node .github/scripts/pr-quality/run.mjs --post
+      - name: Upload review report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-quality-${{ github.event.pull_request.number }}
+          path: |
+            pr-quality.json
+            pr-quality.md
+          if-no-files-found: ignore
+          retention-days: 14
