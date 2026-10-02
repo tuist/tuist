@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { changedLines, evidenceQuestions, evaluateEvidence } from './evidence.mjs';
+import { changedLines, evidenceQuestions, evaluateEvidence, annotateDiff } from './evidence.mjs';
 import { summary } from './review.mjs';
 
-const diff = 'diff --git a/old name.js b/new name.js\n--- a/old name.js\n+++ b/new name.js\n@@ -3,2 +4,3 @@\n context\n-old\n+new\n+extra\n@@ -20 +22 @@\n-previous\n+replacement\n';
+const diff = 'diff --git a/old name.js b/new name.js\n--- a/old name.js\t\n+++ b/new name.js\t\n@@ -3,2 +4,3 @@\n context\n-old\n+new\n+extra\n@@ -20 +22 @@\n-previous\n+replacement\n';
 
 test('maps additions and removals to real source lines across hunks and renamed files', () => {
-  assert.deepEqual(changedLines(diff), [
+  assert.deepEqual(changedLines(diff).map(({ diffLine, ...item }) => item), [
     { file: 'old name.js', line: 4, side: 'base', source: 'old' },
     { file: 'new name.js', line: 5, side: 'head', source: 'new' },
     { file: 'new name.js', line: 6, side: 'head', source: 'extra' },
@@ -18,7 +18,7 @@ test('maps additions and removals to real source lines across hunks and renamed 
 test('handles new, deleted, quoted paths and source lines that resemble headers', () => {
   const diff = 'diff --git a/new b/new\n--- /dev/null\n+++ "b/new\\tfile"\n@@ -0,0 +1,2 @@\n++++ payload\n+next\n' +
     'diff --git a/gone b/gone\n--- a/gone\n+++ /dev/null\n@@ -2 +0,0 @@\n-removed\n';
-  assert.deepEqual(changedLines(diff), [
+  assert.deepEqual(changedLines(diff).map(({ diffLine, ...item }) => item), [
     { file: 'new\tfile', line: 1, side: 'head', source: '+++ payload' },
     { file: 'new\tfile', line: 2, side: 'head', source: 'next' },
     { file: 'gone', line: 2, side: 'base', source: 'removed' },
@@ -46,7 +46,7 @@ test('selected evidence uses local source, and invented or out-of-group location
     maliciousBehavior_evidence_0: { type: 'choice', choice: 'line_1', confidence: 0.8 },
     promptInjection_evidence_0: { type: 'choice', choice: 'no_material_issue', confidence: 0.8 },
   } };
-  assert.deepEqual(evaluateEvidence(response, questions, candidates), [{ check: 'Malicious behavior resistance', confidence: 0.8, ...candidates[1] }]);
+  assert.deepEqual(evaluateEvidence(response, questions, candidates), [{ check: 'Malicious behavior resistance', confidence: 0.8, ...(({ diffLine, ...item }) => item)(candidates[1]) }]);
   for (const choice of ['line_999', 'invented', '__proto__']) {
     response.answers.maliciousBehavior_evidence_0.choice = choice;
     assert.throws(() => evaluateEvidence(response, questions, candidates), /Invalid or missing/);
@@ -72,4 +72,13 @@ test('evidence links target the correct commit and excerpts cannot inject markup
   assert.doesNotMatch(body, /<img|@someone/);
   assert.match(body, /removed line, 70% confidence/);
   assert.match(body, /not proof of malicious intent/);
+});
+
+test('evidence markers preserve the entire source without duplicating it in choices', () => {
+  const candidates = changedLines(diff);
+  const annotated = annotateDiff(diff, candidates);
+  assert.equal(annotated.replace(/^\[line_\d+\] /gm, ''), diff);
+  assert.match(annotated, /\[line_1\] \+new/);
+  const questions = evidenceQuestions(candidates);
+  assert.equal(questions.maliciousBehavior_evidence_0.criteria.line_1, 'Added new name.js:5; evidence marker line_1 in state.diff');
 });

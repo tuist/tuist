@@ -76,7 +76,7 @@ test('reviews text changes and reports binary files as unassessed', async () => 
     diff: binaryDiff + diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder',
     fetch: async (_url, options) => {
       const { state } = JSON.parse(options.body);
-      assert.equal(state.diff, diff);
+      assert.equal(state.diff.replace(/^\[line_\d+\] /gm, ''), diff);
       assert.match(state.repositoryContext, /not assessed:\n- app\/favicon.ico/);
       return Response.json(response(6, JSON.parse(options.body).questions));
     },
@@ -96,7 +96,7 @@ test('SDK sends authenticated typed questions to the fixed API and returns gate 
       assert.equal(String(url), 'https://api.typesafe.ai/v1/systemone');
       assert.equal(new Headers(options.headers).get('authorization'), 'Bearer test-placeholder');
       const request = JSON.parse(options.body);
-      assert.equal(request.state.diff, diff);
+      assert.equal(request.state.diff.replace(/^\[line_\d+\] /gm, ''), diff);
       assert.equal(request.model, 'jev-latest');
       assert.equal(Object.keys(request.questions).length, 65);
       return Response.json(response(5, JSON.parse(options.body).questions));
@@ -127,7 +127,7 @@ test('sends implementations and tests over the old 48 KB boundary in one complet
     diff: completeDiff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder',
     fetch: async (_url, options) => {
       calls++;
-      assert.equal(JSON.parse(options.body).state.diff, completeDiff);
+      assert.equal(JSON.parse(options.body).state.diff.replace(/^\[line_\d+\] /gm, ''), completeDiff);
       // A weak dimension still fails the complete review.
       return Response.json(response(5, JSON.parse(options.body).questions));
     },

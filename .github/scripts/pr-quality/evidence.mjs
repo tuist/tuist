@@ -6,8 +6,8 @@ const checks = metrics.filter((metric) => ['maliciousBehavior', 'promptInjection
 export function changedLines(diff) {
   const candidates = [];
   let oldPath, newPath, oldLine, newLine;
-  const path = (header) => (header.startsWith('"') ? JSON.parse(header) : header).replace(/^[ab]\//, '');
-  for (const text of diff.split('\n')) {
+  const path = (header) => (header.startsWith('"') ? JSON.parse(header) : header.replace(/\t$/, '')).replace(/^[ab]\//, '');
+  for (const [diffLine, text] of diff.split('\n').entries()) {
     if (text.startsWith('diff --git ')) {
       oldPath = newPath = undefined;
       oldLine = newLine = undefined;
@@ -22,9 +22,9 @@ export function changedLines(diff) {
       newLine = Number(hunk[2]);
     } else if (oldLine !== undefined) {
       if (text.startsWith('+')) {
-        candidates.push({ file: newPath, line: newLine++, side: 'head', source: text.slice(1) });
+        candidates.push({ diffLine, file: newPath, line: newLine++, side: 'head', source: text.slice(1) });
       } else if (text.startsWith('-')) {
-        candidates.push({ file: oldPath, line: oldLine++, side: 'base', source: text.slice(1) });
+        candidates.push({ diffLine, file: oldPath, line: oldLine++, side: 'base', source: text.slice(1) });
       } else if (text.startsWith(' ')) {
         oldLine++;
         newLine++;
@@ -42,7 +42,7 @@ export function evidenceQuestions(candidates) {
   // Jev accepts at most 255 choices. Include a no-issue option in every group.
   for (let offset = 0; offset < candidates.length; offset += 254) {
     const criteria = Object.fromEntries(candidates.slice(offset, offset + 254).map((item, index) => [
-      `line_${offset + index}`, `${item.side === 'head' ? 'Added' : 'Removed'} ${item.file}:${item.line}: ${item.source}`,
+      `line_${offset + index}`, `${item.side === 'head' ? 'Added' : 'Removed'} ${item.file}:${item.line}; evidence marker line_${offset + index} in state.diff`,
     ]));
     for (const check of checks) {
       questions[`${check.key}_evidence_${offset}`] = {
@@ -64,6 +64,13 @@ export function evaluateEvidence(response, questions, candidates) {
     }
     if (answer.choice === 'no_material_issue') return [];
     const check = checks.find((item) => id.startsWith(`${item.key}_evidence_`));
-    return [{ check: check.label, confidence: answer.confidence, ...candidates[Number(answer.choice.slice(5))] }];
+    const { diffLine, ...location } = candidates[Number(answer.choice.slice(5))];
+    return [{ check: check.label, confidence: answer.confidence, ...location }];
   });
+}
+
+export function annotateDiff(diff, candidates) {
+  const lines = diff.split('\n');
+  candidates.forEach((item, index) => { lines[item.diffLine] = `[line_${index}] ${lines[item.diffLine]}`; });
+  return lines.join('\n');
 }

@@ -70,8 +70,9 @@ are listed as unassessed; binary-only changes cannot be scored. The evaluator
 uses only root guidance, not nested repository guidance or unchanged source
 files. Focused evidence is selected through Jev choice questions in the same request
 as the quality ratings. Each group contains at most 254 changed lines plus a
-no-issue option, within Jev's 255-option limit. Every added and removed text
-line is considered, and a group can select at most one candidate per focused
+no-issue option, within Jev's 255-option limit. The complete diff is annotated with changed-line identifiers, so choice
+options reference evidence without duplicating source text. Every added and
+removed text line is considered, and a group can select at most one candidate per focused
 check. Locations and excerpts come from the local diff, so Jev cannot invent
 a file or line. Removed lines link to the base commit. Focused hints without selected source evidence are omitted. Missing or invalid
 evidence answers fail the review rather than appearing as a clean result.
