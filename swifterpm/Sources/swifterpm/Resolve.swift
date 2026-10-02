@@ -6,6 +6,7 @@ enum PackageResolver {
         scratchDir: URL? = nil,
         cache: Cache,
         registryConfig _: RegistryConfig,
+        mirrors: MirrorConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -41,7 +42,7 @@ enum PackageResolver {
                 version: resolvedFileSchemaVersion(toolsVersion: toolsVersion)
             )
             if writeResolvedFile {
-                try await ResolvedFile.write(packageDir: packageDir, resolved: resolved)
+                try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
             }
             return resolved
         }
@@ -69,11 +70,11 @@ enum PackageResolver {
         )
         resolved.originHash = originHash
         resolved.pins = dedupePinsByIdentity(resolved.pins)
-        resolved = resolved.normalizedForResolvedFile()
+        resolved = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
             // SwiftPM writes Package.resolved with its own originHash; rewrite
             // with ours so consumers can detect manifest changes.
-            try await ResolvedFile.write(packageDir: packageDir, resolved: resolved)
+            try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
         }
         progress?.finished(pinCount: resolved.pins.count)
         return resolved
@@ -403,7 +404,7 @@ enum PackageResolver {
 
         var pruned = resolved
         pruned.pins = survivors
-        try await ResolvedFile.write(packageDir: packageDir, resolved: pruned)
+        try await ResolvedFile.write(packageDir: packageDir, resolved: pruned, mirrors: mirrors)
 
         let workspaceStatePath = scratchDir.appendingPathComponent("workspace-state.json")
         if try await fileSystem.exists(workspaceStatePath.absolutePath) {
@@ -505,7 +506,7 @@ enum PackageResolver {
            )
         {
             return try await normalizeLoadedResolvedFile(
-                existing, packageDir: packageDir, writeResolvedFile: writeResolvedFile
+                existing, packageDir: packageDir, mirrors: mirrors, writeResolvedFile: writeResolvedFile
             )
         }
         // Mirror SwiftPM: `resolve` seeds the solver with the existing
@@ -526,6 +527,7 @@ enum PackageResolver {
             scratchDir: scratchDir,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
@@ -645,11 +647,12 @@ enum PackageResolver {
     private static func normalizeLoadedResolvedFile(
         _ resolved: ResolvedPins,
         packageDir: URL,
+        mirrors: MirrorConfig,
         writeResolvedFile: Bool
     ) async throws -> ResolvedPins {
-        let normalized = resolved.normalizedForResolvedFile()
+        let normalized = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
-            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized)
+            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized, mirrors: mirrors)
         }
         return normalized
     }

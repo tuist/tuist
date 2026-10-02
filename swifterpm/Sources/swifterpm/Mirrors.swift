@@ -5,9 +5,18 @@ import Foundation
 /// entry, otherwise the shared one does, and a location is mirrored only on an exact match.
 struct MirrorConfig: Sendable {
     private let mirrors: [String: String]
+    /// The mirrored locations keyed by `SourceControlLocations.canonicalResolvedFileLocation`.
+    /// SwifterPM used to write GitHub and GitLab pin locations into that form (without `.git`,
+    /// for example), so a pin in such a Package.resolved does not match the location the mirror
+    /// was configured for.
+    private let canonicalSourceControlOriginals: [String: String]
 
     init(_ mirrors: [String: String] = [:]) {
         self.mirrors = mirrors
+        canonicalSourceControlOriginals = Dictionary(
+            mirrors.keys.sorted().map { (SourceControlLocations.canonicalResolvedFileLocation($0), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     static func load(packageDir: URL, configPath: URL?) async throws -> MirrorConfig {
@@ -41,14 +50,28 @@ struct MirrorConfig: Sendable {
     /// checkouts and `workspace-state.json` follow the mirror. Registry pins already carry the
     /// identity SwiftPM resolved after mirroring.
     func effectiveLocation(of pin: ResolvedPin) -> String {
-        PinKind.isSourceControl(pin.kind) ? effectiveLocation(for: pin.location) : pin.location
+        PinKind.isSourceControl(pin.kind) ? effectiveSourceControlLocation(for: pin.location) : pin.location
+    }
+
+    /// The location a mirror was configured for when one applies to the source-control
+    /// `location`. SwiftPM records it verbatim in Package.resolved and only maps a pin whose
+    /// location matches it exactly, so rewriting it would make SwiftPM fetch the original.
+    func mirroredOriginal(ofSourceControlLocation location: String) -> String? {
+        if mirrors[location] != nil { return location }
+        return canonicalSourceControlOriginals[SourceControlLocations.canonicalResolvedFileLocation(location)]
+    }
+
+    private func effectiveSourceControlLocation(for location: String) -> String {
+        mirroredOriginal(ofSourceControlLocation: location).flatMap { mirrors[$0] } ?? location
     }
 
     /// The identity SwiftPM gives a manifest dependency once mirrors apply. `dump-package`
     /// already maps the mirrors it can see, in which case this is the identity it reported.
     func identity(of dependency: ManifestDependency) -> String {
         let location = dependency.kind == .registry ? dependency.identity : dependency.location
-        let effective = effectiveLocation(for: location)
+        let effective = dependency.kind == .registry
+            ? effectiveLocation(for: location)
+            : effectiveSourceControlLocation(for: location)
         guard effective != location else { return dependency.identity.lowercased() }
         return Self.identity(forLocation: effective)
     }
@@ -61,7 +84,7 @@ struct MirrorConfig: Sendable {
             return effectiveLocation(for: pin.identity) == pin.identity
         }
         guard PinKind.isSourceControl(pin.kind) else { return true }
-        let effective = effectiveLocation(for: pin.location)
+        let effective = effectiveSourceControlLocation(for: pin.location)
         guard effective != pin.location else { return true }
         return !Self.isRegistryIdentity(effective)
             && Self.identity(forLocation: effective) == pin.identity.lowercased()

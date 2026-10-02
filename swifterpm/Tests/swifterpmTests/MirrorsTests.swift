@@ -112,6 +112,39 @@ struct MirrorsTests {
     }
 
     @Test
+    func aPinInTheCanonicalFormSwifterPMWritesStillMatchesItsMirror() {
+        let mirrors = MirrorConfig([
+            "https://github.com/apple/swift-collections.git": "https://proxy.example/swift-collections-mirror.git",
+            "https://github.com/apple/swift-numerics/": "acme.swift-numerics",
+        ])
+        let pin = sourceControlPin(
+            identity: "swift-collections-mirror", location: "https://github.com/apple/swift-collections"
+        )
+
+        #expect(mirrors.effectiveLocation(of: pin) == "https://proxy.example/swift-collections-mirror.git")
+        #expect(PinKind.checkoutDirectoryName(pin, mirrors: mirrors) == "swift-collections-mirror")
+        #expect(mirrors.isConsistent(with: pin))
+        #expect(
+            !mirrors.isConsistent(
+                with: sourceControlPin(identity: "swift-numerics", location: "https://github.com/apple/swift-numerics")
+            )
+        )
+        // Package.resolved gets the location the mirror was configured for, as SwiftPM writes it.
+        let written = ResolvedPins(originHash: nil, pins: [pin], version: 3).normalizedForResolvedFile(mirrors: mirrors)
+        #expect(written.pins.map(\.location) == ["https://github.com/apple/swift-collections.git"])
+        #expect(
+            ResolvedPins(originHash: nil, pins: [pin], version: 3)
+                .normalizedForResolvedFile(mirrors: MirrorConfig()).pins.map(\.location)
+                == ["https://github.com/apple/swift-collections"]
+        )
+        // Binary target URLs are matched exactly, as SwiftPM does.
+        #expect(
+            mirrors.effectiveLocation(for: "https://github.com/apple/swift-collections")
+                == "https://github.com/apple/swift-collections"
+        )
+    }
+
+    @Test
     func registryPinsKeepTheIdentitySwiftPMRecorded() {
         let mirrors = MirrorConfig(["acme.foo": "proxy.foo"])
         let pin = ResolvedPin(

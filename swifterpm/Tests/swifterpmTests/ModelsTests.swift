@@ -89,7 +89,7 @@ struct ModelsTests {
                 version: 3
             )
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             #expect(try await ResolvedFile.read(packageDir: root).pins == resolved.pins)
             #expect(try await ResolvedFile.read(packageDir: root).originHash == resolved.originHash)
             #expect(try await ResolvedFile.readIfCurrent(packageDir: root)?.pins == resolved.pins)
@@ -132,7 +132,7 @@ struct ModelsTests {
                 version: 3
             )
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             let readBack = try await ResolvedFile.read(packageDir: root)
             let readBackByIdentity = Dictionary(uniqueKeysWithValues: readBack.pins.map {
                 ($0.identity, $0)
@@ -210,7 +210,7 @@ struct ModelsTests {
                 version: 3
             )
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             let resolvedFilePath = try root.appendingPathComponent("Package.resolved").absolutePath
             let rawData = try await fileSystem.readFile(at: resolvedFilePath)
             let rawPayload = try #require(
@@ -226,7 +226,7 @@ struct ModelsTests {
             let rawLocations = Set(rawPins.compactMap { $0["location"] as? String })
             #expect(
                 try await ResolvedFile.read(packageDir: root).pins
-                    == resolved.normalizedForResolvedFile().pins)
+                    == resolved.normalizedForResolvedFile(mirrors: MirrorConfig()).pins)
             #expect(Set(rawPinsByIdentity.keys) == Set([
                 "LocalPackage",
                 "combineext",
@@ -246,7 +246,7 @@ struct ModelsTests {
             // Rewriting unchanged content must leave the file untouched.
             let modificationDate = try await fileSystem.fileMetadata(at: resolvedFilePath)?
                 .lastModificationDate
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             #expect(
                 try await fileSystem.fileMetadata(at: resolvedFilePath)?.lastModificationDate
                     == modificationDate)
@@ -286,7 +286,7 @@ struct ModelsTests {
             #expect(pin.kind == "localSourceControl")
             #expect(pin.location == "/tmp/deck-of-playing-cards")
 
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
             let rawData = try await fileSystem.readFile(
                 at: root.appendingPathComponent("Package.resolved").absolutePath
             )
@@ -303,7 +303,8 @@ struct ModelsTests {
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
             try await ResolvedFile.write(
                 packageDir: root,
-                resolved: ResolvedPins(originHash: "stale", pins: [], version: 3)
+                resolved: ResolvedPins(originHash: "stale", pins: [], version: 3),
+                mirrors: MirrorConfig()
             )
 
             #expect(try await ResolvedFile.readIfCurrent(packageDir: root) == nil)

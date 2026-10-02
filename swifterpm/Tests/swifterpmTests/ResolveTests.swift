@@ -22,6 +22,7 @@ struct ResolveTests {
                 scratchDir: root.appendingPathComponent("scratch"),
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 disableSandbox: true,
                 writeResolvedFile: false
             )
@@ -122,6 +123,7 @@ struct ResolveTests {
                 scratchDir: scratch,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 disableSandbox: true,
                 writeResolvedFile: true
             )
@@ -434,7 +436,9 @@ struct ResolveTests {
             try await initGitDependency(at: dependency, tags: ["1.0.0"])
             let mirror = root.appendingPathComponent("mirror/Mirrored.git")
             try await SystemProcess.run("git", ["clone", "-q", "--bare", dependency.path, mirror.path])
-            let original = "https://git.invalid/acme/dependency.git"
+            // A GitHub location, which SwifterPM rewrites into its canonical form (without `.git`)
+            // when it loads Package.resolved; the mirror still has to apply to it.
+            let original = "https://github.com/swifterpm-fixtures/dependency.git"
             let mirrorURL = "file://\(mirror.path)"
 
             let package = root.appendingPathComponent("App")
@@ -463,6 +467,8 @@ struct ResolveTests {
             )
 
             #expect(warm.pins.map(\.identity) == ["mirrored"])
+            // SwiftPM only maps a pin whose location matches the mirror's original exactly.
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.location) == [original])
             #expect(
                 try await fileSystem.exists(
                     warmScratch.appendingPathComponent("checkouts/Mirrored/Package.swift").absolutePath
@@ -508,7 +514,8 @@ struct ResolveTests {
                         ),
                     ],
                     version: 3
-                )
+                ),
+                mirrors: MirrorConfig()
             )
             let scratch = root.appendingPathComponent("scratch")
 
@@ -566,7 +573,7 @@ struct ResolveTests {
                 at: renamed.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories]
             )
             try await fileSystem.copy(minted.absolutePath, to: renamed.absolutePath)
-            try await ResolvedFile.write(packageDir: package, resolved: resolved)
+            try await ResolvedFile.write(packageDir: package, resolved: resolved, mirrors: MirrorConfig())
             #expect(
                 try await !PackageResolver.shouldUseNativeColdPath(
                     packageDir: package, cacheRoot: cacheDirectory, registryConfig: RegistryConfig()
@@ -603,7 +610,7 @@ struct ResolveTests {
                 ],
                 version: 3
             )
-            try await ResolvedFile.write(packageDir: package, resolved: resolved)
+            try await ResolvedFile.write(packageDir: package, resolved: resolved, mirrors: MirrorConfig())
 
             // Mirrors passed with `--config-path` are not visible to `dump-package`, which still
             // reports the dependency under its original identity.
@@ -1087,7 +1094,7 @@ struct ResolveTests {
             }
 
             staleResolved.originHash = "stale"
-            try await ResolvedFile.write(packageDir: package, resolved: staleResolved)
+            try await ResolvedFile.write(packageDir: package, resolved: staleResolved, mirrors: MirrorConfig())
 
             let resolved = try await SwifterPM().resolve(
                 .init(
@@ -1134,7 +1141,7 @@ struct ResolveTests {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let cached = try Cache.sourcePath(root: cacheDirectory, pin: seed.pins[0])
             try await fileSystem.atomicWrite(incompatibleManifest, to: cached.appendingPathComponent("Package.swift"))
-            try await ResolvedFile.write(packageDir: package, resolved: seed)
+            try await ResolvedFile.write(packageDir: package, resolved: seed, mirrors: MirrorConfig())
 
             let resolved = try await SwifterPM().resolve(request)
 
@@ -1205,7 +1212,7 @@ struct ResolveTests {
                 )
             )
             pinned.originHash = "0000000000000000000000000000000000000000000000000000000000000000"
-            try await ResolvedFile.write(packageDir: package, resolved: pinned)
+            try await ResolvedFile.write(packageDir: package, resolved: pinned, mirrors: MirrorConfig())
 
             // A previous install would have written the orphan into
             // workspace-state.json alongside Package.resolved. Native SwiftPM
@@ -1398,7 +1405,8 @@ struct ResolveTests {
             try await writeMinimalPackageManifest(at: cachedSource, name: "Cached")
             try await ResolvedFile.write(
                 packageDir: package,
-                resolved: .init(originHash: "origin", pins: [missingPin], version: 3)
+                resolved: .init(originHash: "origin", pins: [missingPin], version: 3),
+                mirrors: MirrorConfig()
             )
 
             #expect(
@@ -1540,7 +1548,8 @@ struct ResolveTests {
         }
         try await ResolvedFile.write(
             packageDir: package,
-            resolved: .init(originHash: "origin", pins: [registryPin, sourcePin], version: 3)
+            resolved: .init(originHash: "origin", pins: [registryPin, sourcePin], version: 3),
+            mirrors: MirrorConfig()
         )
         return MixedGraph(
             package: package,
@@ -1852,7 +1861,8 @@ struct ResolveTests {
                 originHash: try await ResolvedFile.packageOriginHash(packageDir: package),
                 pins: [kept] + pins,
                 version: 3
-            )
+            ),
+            mirrors: MirrorConfig()
         )
         return package
     }
