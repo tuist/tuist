@@ -416,14 +416,6 @@ defmodule Tuist.Application do
         else: []
     )
     |> Kernel.++(kura_children())
-    # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
-    # may not exist) and dev (noisy debug logs every 5 s), and outside web
-    # mode — see `RuntimeChildren.marketing_stats/1`.
-    |> Kernel.++(
-      if Environment.test?() or Environment.dev?(),
-        do: [],
-        else: RuntimeChildren.marketing_stats(Environment.mode())
-    )
   end
 
   # Only in the tree while a destination is configured, which is only during

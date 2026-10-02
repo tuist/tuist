@@ -39,7 +39,6 @@ defmodule Tuist do
       Marketing.Customers.CoverArtwork,
       # App Store release lookups for the marketing download page.
       AppStore,
-      Marketing.Stats,
       OpenGraphImageTemplates,
       OpenGraphImages,
       # Read-only database inspection backing internal and operator routes.

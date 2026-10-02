@@ -25,9 +25,7 @@ defmodule Tuist.Tests do
   alias Tuist.Automations
   alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
-  alias Tuist.Environment
   alias Tuist.IngestRepo
-  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -70,7 +68,6 @@ defmodule Tuist.Tests do
   # (i.e. still part of the suite). Used by `list_test_cases/2` and by the Test
   # Cases / Flaky Tests analytics charts so they stay in sync.
   @active_window_days 14
-  @short_cache_ttl to_timeout(second: 10)
   @unscoped_test_suite_runs_lookback_days 7
   # Above this many test cases with an explicit state, the listing joins the
   # states instead of filtering by their ids.
@@ -130,14 +127,6 @@ defmodule Tuist.Tests do
   is still considered part of the suite.
   """
   def active_window_days, do: @active_window_days
-
-  defp cached_count(key, fun) do
-    if Environment.test?() do
-      fun.()
-    else
-      KeyValueStore.get_or_update([:tests, key], [ttl: @short_cache_ttl], fun)
-    end
-  end
 
   # State-change events emitted by `update_test_case` use the `muted` /
   # `unmuted` names. Pre-rename rows have already been backfilled to these
@@ -207,52 +196,6 @@ defmodule Tuist.Tests do
     ClickHouseRepo.one(
       from(d in TestCaseRunDashboardCount,
         where: d.is_flaky == true,
-        select: fragment("countMerge(count)")
-      )
-    ) || 0
-  end
-
-  def last_24h_test_run_count do
-    cached_count(:last_24h_test_run_count, &last_24h_test_run_count_query/0)
-  end
-
-  defp last_24h_test_run_count_query do
-    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
-
-    ClickHouseRepo.one(
-      from(t in Test,
-        where: t.inserted_at >= ^twenty_four_hours_ago,
-        select: count()
-      )
-    ) ||
-      0
-  end
-
-  def last_24h_test_case_run_count do
-    cached_count(:last_24h_test_case_run_count, &last_24h_test_case_run_count_query/0)
-  end
-
-  defp last_24h_test_case_run_count_query do
-    yesterday = Date.add(Date.utc_today(), -1)
-
-    ClickHouseRepo.one(
-      from(d in TestCaseRunDashboardCount,
-        where: d.day >= ^yesterday,
-        select: fragment("countMerge(count)")
-      )
-    ) || 0
-  end
-
-  def last_24h_flaky_test_case_run_count do
-    cached_count(:last_24h_flaky_test_case_run_count, &last_24h_flaky_test_case_run_count_query/0)
-  end
-
-  defp last_24h_flaky_test_case_run_count_query do
-    yesterday = Date.add(Date.utc_today(), -1)
-
-    ClickHouseRepo.one(
-      from(d in TestCaseRunDashboardCount,
-        where: d.is_flaky == true and d.day >= ^yesterday,
         select: fragment("countMerge(count)")
       )
     ) || 0

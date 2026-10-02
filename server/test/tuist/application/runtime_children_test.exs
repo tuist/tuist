@@ -38,19 +38,4 @@ defmodule Tuist.Application.RuntimeChildrenTest do
       end
     end
   end
-
-  describe "marketing_stats/1" do
-    test ":web starts the poller" do
-      assert RuntimeChildren.marketing_stats(:web) == [Tuist.Marketing.Stats]
-    end
-
-    test "every non-web mode returns no children" do
-      for mode <- Environment.modes(), mode != :web do
-        assert RuntimeChildren.marketing_stats(mode) == [],
-               "expected no Tuist.Marketing.Stats child for #{inspect(mode)} — " <>
-                 "it polls ClickHouse every 5 s only to feed the marketing LiveViews, " <>
-                 "which non-web pods never serve"
-      end
-    end
-  end
 end
