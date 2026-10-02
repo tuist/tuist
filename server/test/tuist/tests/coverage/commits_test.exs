@@ -133,6 +133,96 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert %{complete: false} = Commits.summary(project.id, "def456")
   end
 
+  describe "changed_files/5" do
+    test "lists the files whose coverage moved most between two commits, kept at both", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          file("Sources/A.swift", [1, 0, 0, 0]),
+          file("Sources/B.swift", [1, 1]),
+          file("Sources/Same.swift", [0, 0]),
+          file("Sources/Gone.swift", [1]),
+          file("Sources/Small.swift", [0])
+        ],
+        %{git_commit_sha: "a"}
+      )
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          file("Sources/A.swift", [1, 1, 0, 0]),
+          file("Sources/B.swift", [1, 0]),
+          file("Sources/Same.swift", [0, 0]),
+          file("Sources/New.swift", [1]),
+          file("Sources/Small.swift", [1])
+        ],
+        %{git_commit_sha: "b"}
+      )
+
+      assert Enum.map(Commits.changed_files(project.id, "a", "b", 5), &{&1.path, &1.change}) == [
+               {"Sources/Small.swift", 100.0},
+               {"Sources/B.swift", -50.0},
+               {"Sources/A.swift", 25.0}
+             ]
+
+      assert [%{path: "Sources/Small.swift", previous_covered_lines: 0, covered_lines: 1}] =
+               Commits.changed_files(project.id, "a", "b", 1)
+
+      assert Commits.changed_files(project.id, "a", "missing", 5) == []
+    end
+  end
+
+  describe "changed_targets/5" do
+    test "lists the targets whose coverage moved most between two commits, kept at both", %{
+      project: project,
+      account: account
+    } do
+      in_target = &file(&1, &2, targets: [&3])
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          in_target.("Sources/A.swift", [1, 0, 0, 0], "Core"),
+          in_target.("Sources/B.swift", [1, 1], "UI"),
+          in_target.("Sources/Same.swift", [0, 0], "Same"),
+          in_target.("Sources/Gone.swift", [1], "Gone"),
+          in_target.("Sources/Small.swift", [0], "Small")
+        ],
+        %{git_commit_sha: "a"}
+      )
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          in_target.("Sources/A.swift", [1, 1, 0, 0], "Core"),
+          in_target.("Sources/B.swift", [1, 0], "UI"),
+          in_target.("Sources/Same.swift", [0, 0], "Same"),
+          in_target.("Sources/New.swift", [1], "New"),
+          in_target.("Sources/Small.swift", [1], "Small")
+        ],
+        %{git_commit_sha: "b"}
+      )
+
+      assert Enum.map(Commits.changed_targets(project.id, "a", "b", 5), &{&1.name, &1.change}) == [
+               {"Small", 100.0},
+               {"UI", -50.0},
+               {"Core", 25.0}
+             ]
+
+      assert [%{name: "Small", files_count: 1, previous_covered_lines: 0, covered_lines: 1, executable_lines: 1}] =
+               Commits.changed_targets(project.id, "a", "b", 1)
+
+      assert Commits.changed_targets(project.id, "a", "missing", 5) == []
+    end
+  end
+
   describe "prune/1" do
     defp published(project, sha, attrs) do
       Repo.insert!(

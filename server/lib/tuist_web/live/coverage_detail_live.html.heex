@@ -50,6 +50,7 @@
           />
         </span>
         <.tooltip
+          :if={@subject.kind == :commit and not @summary.complete}
           id="coverage-status"
           title={ref_status_label(@summary)}
           description={head_status_title(@summary)}
@@ -116,7 +117,9 @@
       latest={@latest}
       trends={@trends}
       points={@points}
+      grouping={@grouping}
       selected_widget={@selected_widget}
+      point_href={&commit_href(assigns, &1.git_commit_sha)}
     >
       <:actions>
         <.coverage_period_picker
@@ -331,7 +334,9 @@
           <.coverage_files_table
             id="coverage-files-table"
             rows={@file_rows}
-            file_href={if @subject.kind == :branch, do: fn path -> file_href(assigns, path) end}
+            file_href={
+              if @subject.kind in [:branch, :commit], do: fn path -> file_href(assigns, path) end
+            }
             meta={@files_meta}
             page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
             sort_by={@files_sort_by}
@@ -447,6 +452,9 @@
                 executable={row.executable_lines}
               />
               <.text_cell :if={not row.measured} label="—" />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
+              <.change_cell delta={row.change} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
               <.tooltip_badge_cell

@@ -1,8 +1,7 @@
-/* The coverage pages — a branch's glance, its commits, one subject in
+/* The coverage pages — a branch's glance, one subject in
    detail, and a file — are page roots laid out like every other dashboard
    page. */
 #coverage,
-#coverage-commits,
 #coverage-detail,
 #coverage-file-page {
   display: flex;
@@ -208,7 +207,6 @@
 
 /* A branch, a pull request or a commit against its baseline: a title block
    above the tabs, as the test run detail page has. */
-#coverage-commits,
 #coverage-detail,
 #coverage-file-page {
   & > [data-part="back-button"] {
@@ -309,7 +307,6 @@
 /* A file's coverage as a bar and a percentage, and the schemes that measured
    a commit as a row of badges: table cells with no Noora equivalent. */
 #coverage,
-#coverage-commits,
 #coverage-detail,
 #coverage-file-page {
   & [data-part="coverage-cell"] {
@@ -326,8 +323,8 @@
 
     & > [data-part="percentage"] {
       min-width: 48px;
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-small);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
       text-align: right;
     }
   }
@@ -400,6 +397,7 @@
     gap: var(--noora-spacing-6);
   }
 
+  & [data-part="file-summary-section"],
   & [data-part="file-tests-section"],
   & [data-part="file-functions-section"] {
     display: flex;
@@ -437,12 +435,11 @@
   }
 }
 
-/* The Code Coverage page's most and least covered files and targets, laid out as the
-   Tests page's Test Cases card: two sections side by side, each a stack of
-   up to four cards with the edges of more behind them. */
-#coverage > [data-part="files"],
-#coverage > [data-part="targets"] {
-  & [data-part="extremes-sections"] {
+/* The Code Coverage page's files and targets whose coverage moved most, laid
+   out as the Tests page's Test Cases card: two sections side by side, each a
+   stack of up to four cards with the edges of more behind them. */
+#coverage > [data-part="coverage-changes"] {
+  & [data-part="changes-sections"] {
     display: flex;
     flex-direction: row;
     gap: var(--noora-spacing-3);
@@ -453,7 +450,7 @@
     }
   }
 
-  & [data-part="extremes-section"] {
+  & [data-part="changes-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
@@ -472,7 +469,12 @@
       }
     }
 
-    & > [data-part="extremes-list"] {
+    & > [data-part="empty"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="changes-list"] {
       display: flex;
       position: relative;
       flex-direction: column;
@@ -500,7 +502,7 @@
   }
 }
 
-.coverage-extreme-card {
+.coverage-change-card {
   display: block;
   z-index: var(--noora-z-index-1);
   color: inherit;
@@ -560,12 +562,12 @@
     }
   }
 
-  &[data-side="highest"] > [data-part="header"] > [data-part="icon"] {
+  &[data-direction="up"] > [data-part="header"] > [data-part="icon"] {
     background-color: var(--noora-icon-success-background);
     color: var(--noora-icon-success-label);
   }
 
-  &[data-side="lowest"] > [data-part="header"] > [data-part="icon"] {
+  &[data-direction="down"] > [data-part="header"] > [data-part="icon"] {
     background-color: var(--noora-icon-destructive-background);
     color: var(--noora-icon-destructive-label);
   }

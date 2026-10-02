@@ -1210,81 +1210,145 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   @doc """
-  The commit's most and least covered files, at most `count` of each, among
-  the files with executable lines: `%{highest: files, lowest: files}`, the
-  bigger file first among those covered alike, so a large file nobody tests
-  leads the least covered. Over its reported coverage when its skipped
-  tests were carried forward, as `list_files/5`, read once for both.
+  The files whose coverage moved most from `from_sha` to `to_sha`, at most
+  `count`: those with executable lines at both commits whose percentage
+  changed, the biggest change in percentage points first and, among equal
+  ones, the bigger change in covered lines. Each carries its figures at
+  `to_sha`, its figures at `from_sha` (`previous_covered_lines`,
+  `previous_executable_lines`) and `change`, in percentage points. Read as
+  `list_files/5` reads a commit's files: in ClickHouse, keeping only the
+  top of the list, unless coverage was carried into either commit, whose
+  files are then compared here.
   """
-  def extreme_files(project_id, sha, count, opts \\ []) do
-    case carried_files(project_id, sha, opts) do
-      nil ->
-        extreme_measured_files(project_id, sha, count, opts)
+  def changed_files(project_id, from_sha, to_sha, count, opts \\ []) do
+    excluded = Coverage.excluded(project_id, opts)
+    opts = Keyword.put(opts, :excluded, excluded)
 
-      files ->
-        files = Enum.filter(files, &(&1.executable_lines > 0))
+    if carried_commit?(project_id, from_sha, opts) or carried_commit?(project_id, to_sha, opts) do
+      before = Map.new(commit_files(project_id, from_sha, opts), &{&1.path, &1})
 
-        extremes(files, count, & &1.path)
+      project_id
+      |> commit_files(to_sha, opts)
+      |> Enum.flat_map(fn file ->
+        case Map.get(before, file.path) do
+          %{executable_lines: executable} = previous when executable > 0 and file.executable_lines > 0 ->
+            [file_change(file, previous.covered_lines, previous.executable_lines)]
+
+          _ ->
+            []
+        end
+      end)
+      |> Enum.reject(&(&1.change == 0.0))
+      |> Enum.sort_by(&{-abs(&1.change), -abs(&1.covered_lines - &1.previous_covered_lines), &1.path})
+      |> Enum.take(count)
+    else
+      measured_changed_files(project_id, run_ids(project_id, from_sha), run_ids(project_id, to_sha), count, excluded)
     end
   end
 
   @doc """
-  The commit's most and least covered targets, at most `count` of each,
-  among those with executable lines, ordered as `extreme_files/4` orders
-  files: `%{highest: targets, lowest: targets}`, each as `targets/3` gives
-  it.
+  The targets whose coverage moved most from `from_sha` to `to_sha`, at most
+  `count`, as `changed_files/5` ranks files: those with executable lines at
+  both commits, each as `targets/3` gives it at `to_sha`, with its figures at
+  `from_sha` (`previous_covered_lines`, `previous_executable_lines`) and
+  `change`, in percentage points. A commit has tens of targets, hundreds at
+  most, so both are read whole and compared here.
   """
-  def extreme_targets(project_id, sha, count, opts \\ []) do
-    project_id
-    |> targets(sha, opts)
-    |> Enum.filter(&(&1.executable_lines > 0))
-    |> extremes(count, & &1.name)
+  def changed_targets(project_id, from_sha, to_sha, count, opts \\ []) do
+    opts = Keyword.put(opts, :excluded, Coverage.excluded(project_id, opts))
+
+    [before, current] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> targets(project_id, from_sha, opts) end,
+        fn -> targets(project_id, to_sha, opts) end
+      ])
+
+    before = Map.new(before, &{&1.name, &1})
+
+    current
+    |> Enum.flat_map(fn target ->
+      case Map.get(before, target.name) do
+        %{executable_lines: executable} = previous when executable > 0 and target.executable_lines > 0 ->
+          [
+            Map.merge(target, %{
+              previous_covered_lines: previous.covered_lines,
+              previous_executable_lines: executable,
+              change: change(target, previous.covered_lines, executable)
+            })
+          ]
+
+        _ ->
+          []
+      end
+    end)
+    |> Enum.reject(&(&1.change == 0.0))
+    |> Enum.sort_by(&{-abs(&1.change), -abs(&1.covered_lines - &1.previous_covered_lines), &1.name})
+    |> Enum.take(count)
   end
 
-  defp extremes(rows, count, name) do
-    ratio = &(&1.covered_lines / &1.executable_lines)
+  defp carried_commit?(project_id, sha, opts) do
+    not Keyword.get(opts, :measured, false) and
+      case summary(project_id, sha) do
+        nil -> false
+        summary -> carried?(summary)
+      end
+  end
 
+  defp commit_files(project_id, sha, opts),
+    do: carried_files(project_id, sha, opts) || merged_files(project_id, sha, excluded: Keyword.get(opts, :excluded))
+
+  defp measured_changed_files(_project_id, [], _to_ids, _count, _excluded), do: []
+  defp measured_changed_files(_project_id, _from_ids, [], _count, _excluded), do: []
+
+  defp measured_changed_files(project_id, from_ids, to_ids, count, excluded) do
+    from(n in subquery(Coverage.merged_files_query_for_runs(project_id, to_ids, excluded)),
+      join: o in subquery(Coverage.merged_files_query_for_runs(project_id, from_ids, excluded)),
+      on: o.path == n.path,
+      where: n.executable_lines > 0 and o.executable_lines > 0,
+      where:
+        fragment(
+          "round(? / ? * 100, 1) != round(? / ? * 100, 1)",
+          n.covered_lines,
+          n.executable_lines,
+          o.covered_lines,
+          o.executable_lines
+        ),
+      order_by: [
+        desc: fragment("abs(? / ? - ? / ?)", n.covered_lines, n.executable_lines, o.covered_lines, o.executable_lines),
+        desc: fragment("abs(toInt64(?) - toInt64(?))", n.covered_lines, o.covered_lines),
+        asc: n.path
+      ],
+      limit: ^count,
+      select: %{
+        path: n.path,
+        covered_lines: n.covered_lines,
+        executable_lines: n.executable_lines,
+        previous_covered_lines: o.covered_lines,
+        previous_executable_lines: o.executable_lines
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(&file_change(&1, &1.previous_covered_lines, &1.previous_executable_lines))
+  end
+
+  defp file_change(file, previous_covered, previous_executable) do
     %{
-      highest: rows |> Enum.sort_by(&{-ratio.(&1), -&1.executable_lines, name.(&1)}) |> Enum.take(count),
-      lowest: rows |> Enum.sort_by(&{ratio.(&1), -&1.executable_lines, name.(&1)}) |> Enum.take(count)
+      path: file.path,
+      covered_lines: file.covered_lines,
+      executable_lines: file.executable_lines,
+      previous_covered_lines: previous_covered,
+      previous_executable_lines: previous_executable,
+      change: change(file, previous_covered, previous_executable)
     }
   end
 
-  defp extreme_measured_files(project_id, sha, count, opts) do
-    case run_ids(project_id, sha) do
-      [] ->
-        %{highest: [], lowest: []}
-
-      ids ->
-        files_query =
-          from(f in subquery(Coverage.merged_files_query_for_runs(project_id, ids, Coverage.excluded(project_id, opts))),
-            where: f.executable_lines > 0,
-            limit: ^count
-          )
-
-        coverage = dynamic([f], fragment("? / ?", f.covered_lines, f.executable_lines))
-
-        [highest, lowest] =
-          Tuist.Tasks.parallel_tasks([
-            fn ->
-              ClickHouseRepo.all(
-                from(f in files_query,
-                  order_by: ^[desc: coverage, desc: dynamic([f], f.executable_lines), asc: dynamic([f], f.path)]
-                )
-              )
-            end,
-            fn ->
-              ClickHouseRepo.all(
-                from(f in files_query,
-                  order_by: ^[asc: coverage, desc: dynamic([f], f.executable_lines), asc: dynamic([f], f.path)]
-                )
-              )
-            end
-          ])
-
-        %{highest: highest, lowest: lowest}
-    end
-  end
+  defp change(row, previous_covered, previous_executable),
+    do:
+      Float.round(
+        Coverage.percentage(row.covered_lines, row.executable_lines) -
+          Coverage.percentage(previous_covered, previous_executable),
+        1
+      )
 
   # The files of a commit whose reported coverage is exact, or nil: what the
   # lists read instead of the measured files, so a file only a skipped test

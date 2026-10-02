@@ -83,9 +83,9 @@ defmodule TuistWeb.CoverageDetailLive do
   end
 
   @doc """
-  A branch's file opens its own page over the branch and the period shown
-  here, leading back here; a pull request's or a commit's files open
-  nothing, as the file page reads a branch.
+  A file's own page: a branch's over the branch and the period shown here,
+  a commit's at that commit, each leading back here; a pull request's files
+  open nothing.
   """
   def file_href(%{subject: %{kind: :branch, branch: branch}} = assigns, path),
     do:
@@ -95,6 +95,16 @@ defmodule TuistWeb.CoverageDetailLive do
         path,
         branch,
         URI.decode_query(assigns.uri.query || ""),
+        here(assigns)
+      )
+
+  def file_href(%{subject: %{kind: :commit, sha: sha}} = assigns, path),
+    do:
+      coverage_file_href(
+        assigns.selected_account.name,
+        assigns.selected_project.name,
+        path,
+        {:commit, sha},
         here(assigns)
       )
 
@@ -327,10 +337,11 @@ defmodule TuistWeb.CoverageDetailLive do
   # A branch leads with its coverage over the period, as the Code Coverage
   # page does for the default branch.
   defp assign_analytics(%{assigns: %{selected_project: project, subject: %{kind: :branch, branch: branch}}} = socket) do
-    points = History.branch_points(project, branch, period_opts(socket))
+    %{grouping: grouping, points: points} = History.trend_points(project, branch, period_opts(socket))
 
     socket
-    |> assign(:points, chart_points(points, socket.assigns.coverage_period))
+    |> assign(:points, points)
+    |> assign(:grouping, grouping)
     |> assign(:latest, List.last(points))
     |> assign(:trends, %{
       "coverage" => period_trend(points),
@@ -345,7 +356,9 @@ defmodule TuistWeb.CoverageDetailLive do
     {search, status} = commits_filter(query)
 
     commits =
-      Enum.filter(commits, fn commit ->
+      commits
+      |> with_complete_changes()
+      |> Enum.filter(fn commit ->
         in_period?(socket, commit.ran_at) and String.starts_with?(commit.git_commit_sha, search) and
           (status == "" or pull_request_commit_status(commit) == status)
       end)
@@ -376,6 +389,23 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:commits_meta, cursor_meta(page))
     |> assign(:commits_ordered_by, page.ordered_by)
     |> assign_commits_filter(search, status)
+  end
+
+  # Each complete commit's change from the complete commit before it, over
+  # all of the pull request's commits (newest first) before any filter, as
+  # a branch's page reads them (`History.commit_cursor_page/3`).
+  defp with_complete_changes(commits) do
+    commits
+    |> Enum.reverse()
+    |> Enum.map_reduce(nil, fn
+      %{complete: true, coverage: coverage} = commit, previous ->
+        {Map.put(commit, :change, previous && Float.round(coverage - previous, 1)), coverage}
+
+      commit, previous ->
+        {Map.put(commit, :change, nil), previous}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
   end
 
   # The Commits tab's search, by the start of a SHA, and its status: whether

@@ -61,8 +61,10 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     Commits.signal_complete(project, "b")
 
+    # A complete commit's page carries no status badge: only one still in
+    # progress says so.
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
-    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Complete"
+    refute has_element?(lv, "#coverage-detail [data-part='status']")
   end
 
   test "states a partial run as a badge beside the status, not as a banner", %{
@@ -249,11 +251,27 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#coverage-runs-table", "No run matches these filters")
   end
 
-  test "lists the commit's files without opening them, the file page reading a branch", %{conn: conn, base: base} do
+  test "opens a file of the commit on its own page, at that commit", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=files")
+    from = URI.encode_www_form("#{base}/commits/b?tab=files")
+    assert has_element?(lv, "#coverage-files-table a[href='#{base}/files/Sources/A.swift?commit=b&from=#{from}']")
 
-    assert has_element?(lv, "#coverage-files-table", "A.swift")
-    refute has_element?(lv, "#coverage-files-table a[href*='/files/']")
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&from=#{from}")
+    assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=files']", "Commit b")
+    assert has_element?(lv, "#coverage-file-page [data-part='badges'] [data-part='commit']", "b")
+    assert has_element?(lv, "[data-part='file-summary-card']", "Analytics")
+    assert has_element?(lv, "#widget-coverage-file-percentage", "50.0%")
+    assert has_element?(lv, "#widget-coverage-file-lines", "2 / 4")
+    refute has_element?(lv, "#coverage-chart")
+    refute has_element?(lv, "#coverage-branch-dropdown")
+    refute has_element?(lv, "#coverage-date-range-picker")
+
+    # Without `from` it leads to the commit's files.
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b")
+    assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=files']", "Commit b")
+
+    {:ok, lv, _html} = live(conn, base <> "/files/Sources/Missing.swift?commit=b")
+    assert has_element?(lv, "[data-part='file-empty']", "Commit b has no coverage for this file")
   end
 
   test "is not found for a commit without coverage", %{conn: conn, base: base} do
@@ -264,12 +282,24 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     test "reads as its head commit, with its trend over the period, its commits and its runs", %{
       conn: conn,
       base: base,
-      run: run
+      run: run,
+      project: project
     } do
+      # Its chart reads complete commits only, as the Code Coverage page's does.
       {:ok, lv, _html} = live(conn, base <> "/branches/main")
+      refute has_element?(lv, "#coverage-chart")
+
+      Commits.signal_complete(project, "b")
+      {:ok, lv, _html} = live(conn, base <> "/branches/main")
+      chart = lv |> element("#coverage-chart") |> render()
+      assert chart =~ "&quot;dateFormat&quot;:&quot;minute&quot;"
+      # A point opens its commit, leading back to the branch.
+      assert chart =~ "/tests/coverage/commits/b?from=#{URI.encode_www_form("#{base}/branches/main")}"
 
       assert has_element?(lv, "h1[aria-label='Branch main']", "main")
       assert has_element?(lv, "[data-part='kind'][data-kind='branch']")
+      # Only a commit's page says whether its pipeline finished.
+      refute has_element?(lv, "#coverage-detail [data-part='status']")
       assert has_element?(lv, "#widget-coverage", "66.7%")
       assert has_element?(lv, "#coverage-chart")
       assert has_element?(lv, "[data-part='analytics'] #coverage-analytics-date-range-picker")
@@ -280,6 +310,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
       assert has_element?(lv, "[data-part='commits-table'] .tuist-pagination button[disabled]", "Prev")
+      assert has_element?(lv, "#coverage-commits-table thead", "Change")
       from = URI.encode_www_form("#{base}/branches/main?tab=commits")
       assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/b?from=#{from}']")
 
@@ -390,6 +421,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
       assert has_element?(lv, "h1[aria-label='Pull request #7']", "#7")
       assert has_element?(lv, "[data-part='kind'][data-kind='pull_request']")
+      refute has_element?(lv, "#coverage-detail [data-part='status']")
       assert has_element?(lv, "[data-part='branches']", "feature/gates")
       assert has_element?(lv, "[data-part='branches']", "main")
       assert has_element?(lv, "#widget-coverage", "75.0%")
@@ -405,6 +437,31 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs")
       assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{older.id}']")
       assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{newer.id}']")
+    end
+
+    test "shows each complete commit's change from the complete commit before it", %{
+      conn: conn,
+      base: base,
+      project: project
+    } do
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
+      refute lv |> element("#coverage-commits-table") |> render() =~ "+50.0%"
+
+      for sha <- ~w(p1 p2), do: Commits.signal_complete(project, sha)
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
+
+      changes =
+        lv
+        |> element("#coverage-commits-table")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.find("tbody tr")
+        |> Enum.map(
+          &{&1 |> Floki.find("td:nth-child(1)") |> Floki.text() |> String.trim(),
+           &1 |> Floki.find("td:nth-child(3)") |> Floki.text() |> String.trim()}
+        )
+
+      assert changes == [{"p2", "+50.0%"}, {"p1", "—"}]
     end
 
     test "lists the commits and runs of the period, picked in those cards' headers", %{conn: conn, base: base} do

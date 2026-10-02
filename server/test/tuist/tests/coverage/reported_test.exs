@@ -7,6 +7,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Coverage.Reported
@@ -585,6 +586,26 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{carried_lines: [1, 2, 3], covered_lines: 3, executable_lines: text_lines} =
              Commits.file_detail(project.id, "head", "Sources/Text.swift")
+
+    # Its files compare with the base's as they read with what was carried in.
+    {base_files, _} = Commits.list_files(project.id, "base", 1, 10)
+    {head_files, _} = Commits.list_files(project.id, "head", 1, 10)
+    base_by_path = Map.new(base_files, &{&1.path, &1})
+
+    expected =
+      for file <- head_files,
+          previous = base_by_path[file.path],
+          change =
+            Float.round(
+              Coverage.percentage(file.covered_lines, file.executable_lines) -
+                Coverage.percentage(previous.covered_lines, previous.executable_lines),
+              1
+            ),
+          change != 0.0,
+          do: {file.path, change}
+
+    assert project.id |> Commits.changed_files("base", "head", 5) |> Enum.map(&{&1.path, &1.change}) |> Enum.sort() ==
+             Enum.sort(expected)
 
     # The file's trend ends on the figure its page shows, carried lines included,
     # though no run at the head compiled it.

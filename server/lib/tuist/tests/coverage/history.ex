@@ -384,8 +384,10 @@ defmodule Tuist.Tests.Coverage.History do
   older commits, `before:` its `start_cursor` the newer ones. A branch whose
   ref owns commits is paged by position, unmeasured commits included; one
   that falls back to its labelled commits (`ordered_by: :time`) by when they
-  ran. Each commit's chaining and `change` are settled over the page and the
-  #{@lookback} measured commits below it. The period bounds the commits
+  ran. Each complete commit's `change` is how far it moved coverage from the
+  complete commit before it, settled over the page and the #{@lookback}
+  measured commits below it, as the trend compares them
+  (`trend_points/3`); other commits have none. The period bounds the commits
   (`since`/`until`); `page_size` is 20 by default.
 
   `search` keeps the commits whose SHA starts with it and `status` those of
@@ -609,7 +611,7 @@ defmodule Tuist.Tests.Coverage.History do
     below = Enum.map(lookback, &(&1 |> with_coverage() |> Map.put(:measured, true)))
 
     (page ++ below)
-    |> chain()
+    |> Enum.map(&Map.put(&1, :chained, &1.measured and Map.get(&1, :complete, false)))
     |> with_changes()
     |> Enum.take(length(page))
   end

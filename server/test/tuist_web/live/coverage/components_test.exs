@@ -32,28 +32,6 @@ defmodule TuistWeb.Coverage.ComponentsTest do
     end
   end
 
-  describe "chart_points/2" do
-    defp point(date, coverage), do: %{committed_at: DateTime.new!(date, ~T[12:00:00]), coverage: coverage}
-
-    test "keeps every commit over a month, the last of each week over half a year, and of each month past it" do
-      points = [
-        point(~D[2026-01-05], 10.0),
-        point(~D[2026-01-07], 11.0),
-        point(~D[2026-01-13], 12.0),
-        point(~D[2026-02-02], 13.0),
-        point(~D[2026-02-20], 14.0)
-      ]
-
-      month = {~U[2026-01-01 00:00:00Z], ~U[2026-01-31 00:00:00Z]}
-      half_year = {~U[2026-01-01 00:00:00Z], ~U[2026-06-30 00:00:00Z]}
-      year = {~U[2026-01-01 00:00:00Z], ~U[2026-12-31 00:00:00Z]}
-
-      assert Components.chart_points(points, month) == points
-      assert Enum.map(Components.chart_points(points, half_year), & &1.coverage) == [11.0, 12.0, 13.0, 14.0]
-      assert Enum.map(Components.chart_points(points, year), & &1.coverage) == [12.0, 14.0]
-    end
-  end
-
   describe "coverage_sources_card/1" do
     defp summary(attrs) do
       Map.merge(

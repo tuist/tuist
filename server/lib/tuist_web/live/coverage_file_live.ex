@@ -3,9 +3,11 @@ defmodule TuistWeb.CoverageFileLive do
   One file's coverage on a branch over a period: its figures and functions
   at the branch's latest complete commit in the period, and its coverage
   over the branch's complete commits there (`History.trend_points/3`,
-  `History.file_points/3`). The branch (`branch`, the project's default one
-  unless set) and the period are picked in the header, as on the Code
-  Coverage page (`coverage_filters/1`). It leads back to
+  `History.file_points/3`). Opened from a commit's page (`commit`), it is
+  that commit's file instead: its figures and functions alone, with no
+  period to pick. The branch is the one its link names (`branch`, the
+  project's default one unless set), and the period is picked in the header
+  with the Code Coverage page's picker. It leads back to
   the page it was opened from (`from`), or to the Code Coverage page.
   """
   use TuistWeb, :live_view
@@ -37,7 +39,6 @@ defmodule TuistWeb.CoverageFileLive do
     {:ok,
      socket
      |> assign(:path, path)
-     |> assign(:branches, [])
      |> assign(:head_title, "#{Path.basename(path)} · #{account.name}/#{project.name} · Tuist")}
   end
 
@@ -52,6 +53,7 @@ defmodule TuistWeb.CoverageFileLive do
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
       |> assign(:branch, selected_branch(query["branch"], socket.assigns.selected_project))
+      |> assign(:commit, blank_to_nil(query["commit"]))
       |> assign(:file, nil)
       |> assign(:trend, nil)
       |> assign(:loading, true)
@@ -62,7 +64,6 @@ defmodule TuistWeb.CoverageFileLive do
         {:noreply,
          socket
          |> assign(:loading, false)
-         |> assign(:branches, History.branches(socket.assigns.selected_project))
          |> assign_file(query)
          |> assign_functions(query)},
       else: {:noreply, socket}
@@ -96,9 +97,13 @@ defmodule TuistWeb.CoverageFileLive do
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
   end
 
-  # The file's figures and functions are its own at the branch's latest
-  # complete commit in the period; its trend is over the branch's complete
-  # commits there that compiled it.
+  # At a commit, the file is that commit's, figures and functions alone. On a
+  # branch, its figures and functions are its own at the branch's latest
+  # complete commit in the period, and its trend is over the branch's
+  # complete commits there that compiled it.
+  defp assign_file(%{assigns: %{selected_project: project, path: path, commit: sha}} = socket, _query)
+       when is_binary(sha), do: assign(socket, :file, Commits.file_detail(project.id, sha, path))
+
   defp assign_file(%{assigns: %{selected_project: project, path: path, branch: branch}} = socket, query) do
     %{grouping: grouping, points: points} =
       History.trend_points(project, branch, DatePicker.period_opts(socket.assigns.coverage_period))
@@ -221,14 +226,26 @@ defmodule TuistWeb.CoverageFileLive do
   defp selected_widget(_widget), do: "coverage"
 
   defp assign_back(%{assigns: %{selected_project: project, selected_account: account}} = socket, query) do
-    assign(
-      socket,
-      :back,
-      back_to(query["from"], account.name, project.name) ||
-        %{
-          label: dgettext("dashboard_tests", "Code coverage"),
-          href: with_shared_query("/#{account.name}/#{project.name}/tests/coverage", query)
-        }
-    )
+    assign(socket, :back, back_to(query["from"], account.name, project.name) || default_back(socket, query))
   end
+
+  # Without `from`, a commit's file leads to the commit's Files tab, and a
+  # branch's to the Code Coverage page on the same branch and period.
+  defp default_back(%{assigns: %{commit: sha, selected_project: project, selected_account: account}}, _query)
+       when is_binary(sha) do
+    %{
+      label: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha)),
+      href: "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?tab=files"
+    }
+  end
+
+  defp default_back(%{assigns: %{selected_project: project, selected_account: account}}, query) do
+    %{
+      label: dgettext("dashboard_tests", "Code coverage"),
+      href: with_shared_query("/#{account.name}/#{project.name}/tests/coverage", query)
+    }
+  end
+
+  defp blank_to_nil(value) when value in [nil, ""], do: nil
+  defp blank_to_nil(value), do: value
 end

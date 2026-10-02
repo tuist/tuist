@@ -50,8 +50,7 @@ defmodule TuistWeb.CoverageFileLiveTest do
 
     assert has_element?(lv, "[data-part='title'] h1[data-part='label']", "A.swift")
     assert has_element?(lv, "#coverage-file-page > [data-part='header'] #coverage-date-range-picker")
-    assert has_element?(lv, "#coverage-file-page > [data-part='header'] #coverage-branch-dropdown")
-    assert has_element?(lv, "#coverage-branch-dropdown-label-portal", "main")
+    refute has_element?(lv, "#coverage-branch-dropdown")
     assert has_element?(lv, "#widget-coverage", "50.0%")
     assert has_element?(lv, "#widget-coverage-covered-lines", "2")
     assert has_element?(lv, "#widget-coverage-executable-lines", "4")
@@ -88,31 +87,6 @@ defmodule TuistWeb.CoverageFileLiveTest do
 
     assert_patch(lv, base <> "/files/Sources/A.swift?branch=release&coverage-date-range=last-7-days")
     assert has_element?(lv, "[data-part='file-empty']")
-  end
-
-  test "picks the branch in its header, keeping the period and where it leads back to", %{
-    conn: conn,
-    base: base,
-    organization: organization,
-    project: project
-  } do
-    run(project, organization, "m", [file("Sources/A.swift", [1, 0])])
-    run(project, organization, "r", [file("Sources/A.swift", [1, 1])], %{git_branch: "release"})
-    path = base <> "/files/Sources/A.swift"
-
-    {:ok, lv, _html} = live(conn, path <> "?coverage-date-range=last-7-days&from=" <> URI.encode_www_form(base))
-    assert has_element?(lv, "#widget-coverage", "50.0%")
-
-    portal = lv |> element("#coverage-branch-dropdown-content-portal") |> render()
-    assert portal =~ ~s(data-value="main")
-    assert portal =~ ~s(data-value="release")
-
-    {:ok, lv, _html} =
-      live(conn, path <> "?branch=release&coverage-date-range=last-7-days&from=" <> URI.encode_www_form(base))
-
-    assert has_element?(lv, "#widget-coverage", "100.0%")
-    assert has_element?(lv, "#coverage-branch-dropdown-label-portal", "release")
-    assert has_element?(lv, "[data-part='back-button'][href='#{base}']")
   end
 
   test "leads back to the page it was opened from", %{

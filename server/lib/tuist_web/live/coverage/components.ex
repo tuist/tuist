@@ -21,8 +21,8 @@ defmodule TuistWeb.Coverage.Components do
   attr :period, :any, required: true
 
   @doc """
-  The branch dropdown and the period picker the Code Coverage page and its
-  commit list lead with. Picking a branch keeps the rest of the query but
+  The branch dropdown and the period picker the Code Coverage page leads
+  with. Picking a branch keeps the rest of the query but
   its cursor, which only means something within one branch; the period
   picker sends `coverage_period_changed`.
   """
@@ -61,8 +61,8 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   @doc """
-  `path` with the query the Code Coverage page and its commit list share:
-  the branch and the period, so moving between them keeps both.
+  `path` with the query the Code Coverage page and a file's page share: the
+  branch and the period, so moving between them keeps both.
   """
   def with_shared_query(path, params) do
     case Map.filter(params, fn {key, _value} -> key == "branch" or String.starts_with?(key, "coverage-") end) do
@@ -75,76 +75,93 @@ defmodule TuistWeb.Coverage.Components do
   def selected_branch(branch, _project) when is_binary(branch) and branch != "", do: branch
   def selected_branch(_branch, project), do: project.default_branch
 
-  attr :title, :string, required: true
-  attr :icon, :string, required: true
-
-  attr :highest, :list,
+  attr :files, :list,
     required: true,
     doc:
-      "The most covered items, `%{name, detail, covered_lines, executable_lines}`, with an `href` when they open a page; more than four stacks the rest."
+      "The files that moved most, `%{name, detail, covered_lines, executable_lines, change}`, with an `href` when they open a page; more than four stacks the rest."
 
-  attr :lowest, :list, required: true, doc: "The least covered items, as `highest`."
+  attr :targets, :list, required: true, doc: "The targets that moved most, as `files`."
+  attr :files_href, :string, required: true, doc: "Where the files' View more leads."
+  attr :targets_href, :string, required: true, doc: "Where the targets' View more leads."
   attr :empty_title, :string, required: true
   attr :rest, :global
 
   @doc """
-  The most and least covered items of a commit side by side, as the Tests
-  page's Test Cases card lays out its two lists: up to four cards each, the
-  edges of more stacked behind the last when there are more.
+  The files and targets whose coverage moved most, side by side as the Tests
+  page's Test Cases card lays out its two lists: up to four cards each, led
+  by the umbrella coloured by direction, the edges of more stacked behind
+  the last when there are more.
   """
-  def coverage_extremes_card(assigns) do
+  def coverage_changes_card(assigns) do
     ~H"""
-    <.card title={@title} icon={@icon} {@rest}>
-      <div :if={@highest != [] or @lowest != []} data-part="extremes-sections">
+    <.card title={dgettext("dashboard_tests", "Coverage Changes")} icon="umbrella" {@rest}>
+      <div :if={@files != [] or @targets != []} data-part="changes-sections">
         <.card_section
           :for={
-            {side, title, items} <- [
-              {"highest", dgettext("dashboard_tests", "Highest coverage"), @highest},
-              {"lowest", dgettext("dashboard_tests", "Lowest coverage"), @lowest}
+            {side, title, items, href} <- [
+              {"files", dgettext("dashboard_tests", "Files"), @files, @files_href},
+              {"targets", dgettext("dashboard_tests", "Targets"), @targets, @targets_href}
             ]
           }
-          data-part="extremes-section"
+          data-part="changes-section"
           data-side={side}
         >
           <div data-part="header">
             <span data-part="title">{title}</span>
+            <.button
+              variant="secondary"
+              label={dgettext("dashboard_tests", "View more")}
+              size="small"
+              navigate={href}
+              data-part="view-more"
+            />
           </div>
-          <div data-part="extremes-list">
+          <div :if={items != []} data-part="changes-list">
             <%= for item <- Enum.take(items, 4) do %>
               <.link
                 :if={Map.get(item, :href)}
                 navigate={item.href}
-                class="coverage-extreme-card"
-                data-side={side}
+                class="coverage-change-card"
+                data-direction={direction(item.change)}
               >
-                <.extreme_item item={item} />
+                <.change_item item={item} />
               </.link>
-              <div :if={is_nil(Map.get(item, :href))} class="coverage-extreme-card" data-side={side}>
-                <.extreme_item item={item} />
+              <div
+                :if={is_nil(Map.get(item, :href))}
+                class="coverage-change-card"
+                data-direction={direction(item.change)}
+              >
+                <.change_item item={item} />
               </div>
             <% end %>
             <div :if={length(items) > 4} data-part="more-card" data-index="two"></div>
             <div :if={length(items) > 4} data-part="more-card" data-index="one"></div>
           </div>
+          <span :if={items == []} data-part="empty">
+            {dgettext("dashboard_tests", "No coverage change")}
+          </span>
         </.card_section>
       </div>
       <.coverage_empty
-        :if={@highest == [] and @lowest == []}
+        :if={@files == [] and @targets == []}
         title={@empty_title}
         image="table"
-        data-part="empty-extremes"
+        data-part="empty-changes"
       />
     </.card>
     """
   end
 
+  defp direction(change) when change < 0, do: "down"
+  defp direction(_change), do: "up"
+
   attr :item, :map, required: true
 
-  defp extreme_item(assigns) do
+  defp change_item(assigns) do
     ~H"""
     <div data-part="header">
       <div data-part="icon">
-        <.icon name="gauge" />
+        <.icon name="umbrella" />
       </div>
       <div data-part="title-and-subtitle">
         <h3 data-part="title">{@item.name}</h3>
@@ -153,6 +170,13 @@ defmodule TuistWeb.Coverage.Components do
       <span data-part="coverage">
         {Coverage.percentage(@item.covered_lines, @item.executable_lines)}%
       </span>
+      <.badge
+        label={"#{signed(@item.change)}%"}
+        color={change_color(@item.change)}
+        style="light-fill"
+        size="small"
+        data-part="change"
+      />
     </div>
     """
   end
@@ -180,9 +204,14 @@ defmodule TuistWeb.Coverage.Components do
   def empty_artwork(_image),
     do: %{light: ~p"/images/empty_line_chart_light.png", dark: ~p"/images/empty_line_chart_dark.png"}
 
-  attr :delta, :float,
-    default: nil,
-    doc: "Percentage points moved since the previous commit, or nil for none to compare with."
+  defp change_color(delta) when delta < 0, do: "destructive"
+  defp change_color(delta) when delta > 0, do: "success"
+  defp change_color(_delta), do: "neutral"
+
+  defp signed(delta) when delta > 0, do: "+#{delta}"
+  defp signed(delta), do: "#{delta}"
+
+  attr :delta, :float, default: nil, doc: "Percentage points moved since the complete commit before, or nil for none."
 
   @doc "How far a commit moved coverage, coloured by direction; a dash when there is nothing to compare with."
   def change_cell(assigns) do
@@ -196,13 +225,6 @@ defmodule TuistWeb.Coverage.Components do
     <.text_cell :if={is_nil(@delta)} label="—" />
     """
   end
-
-  defp change_color(delta) when delta < 0, do: "destructive"
-  defp change_color(delta) when delta > 0, do: "success"
-  defp change_color(_delta), do: "neutral"
-
-  defp signed(delta) when delta > 0, do: "+#{delta}"
-  defp signed(delta), do: "#{delta}"
 
   attr :covered, :integer, required: true
   attr :executable, :integer, required: true
@@ -414,34 +436,6 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   @doc """
-  The points a trend chart draws over a period: every commit over a month at
-  most, the last commit of each week over half a year at most, and the last
-  of each month past that.
-  """
-  def chart_points(points, {start_datetime, end_datetime}) do
-    days = DateTime.diff(end_datetime, start_datetime, :day)
-
-    cond do
-      days <= 30 -> points
-      days <= 183 -> last_per(points, &Date.beginning_of_week(point_date(&1)))
-      true -> last_per(points, &Date.beginning_of_month(point_date(&1)))
-    end
-  end
-
-  defp last_per(points, bucket) do
-    points
-    |> Enum.chunk_by(bucket)
-    |> Enum.map(&List.last/1)
-  end
-
-  defp point_date(point) do
-    case Map.get(point, :committed_at) || Map.get(point, :ran_at) || point.inserted_at do
-      %DateTime{} = at -> DateTime.to_date(at)
-      at -> NaiveDateTime.to_date(at)
-    end
-  end
-
-  @doc """
   How far coverage moved from a series' first point to its last, in
   percentage points: no change for a single point, nil for no point at all.
   """
@@ -538,6 +532,11 @@ defmodule TuistWeb.Coverage.Components do
   Where a file's own page lives, on `branch` over the period the `params`
   carry (their `coverage-*` keys), leading back to `from`.
   """
+  def coverage_file_href(account_name, project_name, path, {:commit, sha}, from) do
+    "/#{account_name}/#{project_name}/tests/coverage/files/#{encode_path(path)}?" <>
+      URI.encode_query(%{"commit" => sha, "from" => from})
+  end
+
   def coverage_file_href(account_name, project_name, path, branch, params, from) do
     period = Map.filter(params, fn {key, _value} -> String.starts_with?(key, "coverage-") end)
 
@@ -551,21 +550,66 @@ defmodule TuistWeb.Coverage.Components do
   defp encode_segment(segment), do: URI.encode(segment, &URI.char_unreserved?/1)
 
   attr :file, :map, required: true, doc: "A file's detail, from `Commits.file_detail/4`."
-  attr :branch, :string, required: true
+  attr :branch, :string, default: nil
 
   attr :trend, :map,
-    required: true,
+    default: nil,
     doc: """
-    The file's figures at the branch's latest complete commit in the period
-    and its coverage over the period: `latest`, `points`, `grouping`,
-    `trends` and `selected_widget`, as `coverage_analytics_card/1` takes them.
+    On a branch, the file's figures at its latest complete commit in the
+    period and its coverage over the period: `latest`, `points`, `grouping`,
+    `trends` and `selected_widget`, as `coverage_analytics_card/1` takes
+    them; nil at one commit, which shows its figures alone.
     """
 
   @doc """
-  One file's coverage on a branch over a period: its figures, its trend and
-  the lines skipped tests' coverage was carried into. Its page lists the
-  functions under it.
+  One file's coverage, on a branch over a period (its figures and trend) or
+  at one commit (its figures), with the lines skipped tests' coverage was
+  carried into. Its page lists the functions under it.
   """
+  def coverage_file_view(%{trend: nil} = assigns) do
+    assigns = assign(assigns, :functions, Map.get(assigns.file, :functions, []))
+
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Analytics")}
+      icon="chart_arcs"
+      data-part="file-summary-card"
+    >
+      <.card_section data-part="file-summary-section">
+        <div data-part="widgets">
+          <.widget
+            id="widget-coverage-file-percentage"
+            title={dgettext("dashboard_tests", "Code coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of the file's executable lines the tests ran at least once."
+              )
+            }
+            value={"#{Coverage.percentage(@file.covered_lines, @file.executable_lines)}%"}
+          />
+          <.widget
+            id="widget-coverage-file-lines"
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={dgettext("dashboard_tests", "Executable lines the tests ran at least once.")}
+            value={"#{format_number(@file.covered_lines)} / #{format_number(@file.executable_lines)}"}
+          />
+          <.widget
+            :if={@functions != []}
+            id="widget-coverage-file-functions"
+            title={dgettext("dashboard_tests", "Functions")}
+            description={
+              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
+            }
+            value={format_number(length(@functions))}
+          />
+        </div>
+        <.carried_lines :if={Map.get(@file, :carried_lines, []) != []} lines={@file.carried_lines} />
+      </.card_section>
+    </.card>
+    """
+  end
+
   def coverage_file_view(assigns) do
     ~H"""
     <.coverage_analytics_card
@@ -716,6 +760,8 @@ defmodule TuistWeb.Coverage.Components do
     default: nil,
     doc: "What each point stands for (`History.trend_points/3`): a commit, or a day, week or month; the tooltip names it."
 
+  attr :point_href, :any, default: nil, doc: "The page a chart point opens, from the point; nil when points open nothing."
+
   slot :actions
   slot :details, doc: "Figures shown under the chart."
 
@@ -797,6 +843,7 @@ defmodule TuistWeb.Coverage.Components do
               points={@points}
               metric={@selected_widget}
               grouping={@grouping}
+              point_href={@point_href}
             />
           </div>
         </.card_section>
@@ -820,9 +867,10 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   attr :id, :string, required: true
-  attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.branch_points/3`)."
+  attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.trend_points/3`)."
 
   attr :grouping, :atom, default: nil, doc: "What each point stands for; nil titles points by their date."
+  attr :point_href, :any, default: nil, doc: "The page a point opens when clicked, from the point."
 
   attr :metric, :string,
     default: "coverage",
@@ -879,7 +927,7 @@ defmodule TuistWeb.Coverage.Components do
       series={[
         %{
           color: @color,
-          data: Enum.map(@points, &[point_time(&1), metric_value(&1, @metric)]),
+          data: Enum.map(@points, &chart_point(&1, @metric, @point_href)),
           name: @series_name,
           type: "line",
           smooth: 0.1,
@@ -892,6 +940,10 @@ defmodule TuistWeb.Coverage.Components do
     />
     """
   end
+
+  defp chart_point(point, metric, nil), do: [point_time(point), metric_value(point, metric)]
+
+  defp chart_point(point, metric, href), do: %{value: [point_time(point), metric_value(point, metric)], url: href.(point)}
 
   defp date_format(:commit), do: "minute"
   defp date_format(grouping) when grouping in [:day, :week, :month], do: Atom.to_string(grouping)

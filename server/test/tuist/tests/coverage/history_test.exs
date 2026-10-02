@@ -213,13 +213,19 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
         end
 
       CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c6"}])
-      for index <- [1, 3, 4, 6], do: run(project, account, %{git_commit_sha: "c#{index}"}, [1, 0])
+
+      for {index, counts} <- [{1, [1, 0]}, {3, [1, 0, 0, 0]}, {4, [1, 1, 0, 0]}, {6, [1, 1, 1, 0]}] do
+        run(project, account, %{git_commit_sha: "c#{index}"}, counts)
+      end
+
+      for index <- [1, 3, 6], do: Commits.signal_complete(project, "c#{index}")
 
       first = History.commit_cursor_page(project, "main", page_size: 3)
       assert Enum.map(first.commits, & &1.git_commit_sha) == ["c6", "c5", "c4"]
       assert {first.has_previous_page?, first.has_next_page?} == {false, true}
-      # c4 compares with c3, below the page.
-      assert Enum.map(first.commits, & &1.change) == [+0.0, nil, +0.0]
+      # Only complete commits have a change, from the complete commit before
+      # them: c6 skips the in-progress c4 for c3, below the page.
+      assert Enum.map(first.commits, & &1.change) == [50.0, nil, nil]
 
       second = History.commit_cursor_page(project, "main", page_size: 3, after: first.end_cursor)
       assert Enum.map(second.commits, & &1.git_commit_sha) == ["c3", "c2", "c1"]

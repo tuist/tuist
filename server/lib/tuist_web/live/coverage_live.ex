@@ -2,14 +2,15 @@ defmodule TuistWeb.CoverageLive do
   @moduledoc """
   The project's Code Coverage page: a glance at a branch over the chosen
   period, its latest complete commit and its trend over complete commits
-  (`History.trend_points/3`), and its five most recent complete commits in
-  the period (`History.commit_cursor_page/3`), whose View more opens them
-  all (`TuistWeb.CoverageCommitsLive`), and the latest complete commit's
-  most and least covered files and targets (`Commits.extreme_files/4`,
-  `Commits.extreme_targets/4`). The branch is picked among those
-  whose runs never named a pull request (`History.branches/2`), the
-  default branch unless `branch` names another. Every figure is a commit's,
-  pooled over the schemes that measured it.
+  (`History.trend_points/3`), the files and targets whose coverage moved
+  most over the period (`Commits.changed_files/5`,
+  `Commits.changed_targets/5`), its five most recent complete commits in the
+  period (`History.commit_cursor_page/3`) and its five newest test runs
+  there (`Commits.run_cursor_page/3`), each card's View more opening the
+  branch's page (`TuistWeb.CoverageDetailLive`) on the matching tab. The
+  branch is picked among those whose runs never named a pull request
+  (`History.branches/2`), the default branch unless `branch` names another.
+  Every figure is a commit's, pooled over the schemes that measured it.
 
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
@@ -18,6 +19,7 @@ defmodule TuistWeb.CoverageLive do
   use Noora
 
   import TuistWeb.Coverage.Components
+  import TuistWeb.Helpers.TestLabels
 
   alias Tuist.FeatureFlags
   alias Tuist.Tests.Coverage.Commits
@@ -30,6 +32,8 @@ defmodule TuistWeb.CoverageLive do
   @widgets ~w(coverage covered_lines executable_lines)
 
   @recent_commits 5
+
+  @recent_runs 5
 
   @listed 4
 
@@ -124,37 +128,38 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:branches, History.branches(project))
     |> assign_analytics()
     |> assign_recent_commits()
-    |> assign_extremes()
+    |> assign_recent_runs()
+    |> assign_changes()
   end
 
-  # The latest complete commit's most and least covered files and targets;
-  # one more of each than the cards show, so they know when there are more.
-  defp assign_extremes(%{assigns: %{latest: nil}} = socket),
-    do: socket |> assign(:files, %{highest: [], lowest: []}) |> assign(:targets, %{highest: [], lowest: []})
+  # The files and targets whose coverage moved most over the period: from the
+  # oldest complete commit the chart draws to the latest. One more of each
+  # than the card shows, so it knows when there are more.
+  defp assign_changes(%{assigns: %{selected_project: project, latest: %{git_commit_sha: sha}, points: points}} = socket) do
+    case List.first(points) do
+      %{git_commit_sha: ^sha} ->
+        socket |> assign(:changed_files, []) |> assign(:changed_targets, [])
 
-  defp assign_extremes(%{assigns: %{selected_project: project, latest: %{git_commit_sha: sha}}} = socket) do
-    [files, targets] =
-      Tuist.Tasks.parallel_tasks([
-        fn -> Commits.extreme_files(project.id, sha, @listed + 1) end,
-        fn -> Commits.extreme_targets(project.id, sha, @listed + 1) end
-      ])
+      %{git_commit_sha: oldest} ->
+        [files, targets] =
+          Tuist.Tasks.parallel_tasks([
+            fn -> Commits.changed_files(project.id, oldest, sha, @listed + 1) end,
+            fn -> Commits.changed_targets(project.id, oldest, sha, @listed + 1) end
+          ])
 
-    socket
-    |> assign(
-      :files,
-      map_extremes(
-        files,
-        &%{name: Path.basename(&1.path), detail: parent_dir(&1.path), href: file_href(socket, &1.path)}
-      )
-    )
-    |> assign(:targets, map_extremes(targets, &%{name: &1.name, detail: files_label(&1.files_count)}))
+        socket
+        |> assign(
+          :changed_files,
+          Enum.map(
+            files,
+            &Map.merge(&1, %{name: Path.basename(&1.path), detail: parent_dir(&1.path), href: file_href(socket, &1.path)})
+          )
+        )
+        |> assign(:changed_targets, Enum.map(targets, &Map.put(&1, :detail, files_label(&1.files_count))))
+    end
   end
 
-  defp map_extremes(extremes, describe),
-    do:
-      Map.new(extremes, fn {side, rows} ->
-        {side, Enum.map(rows, &Map.merge(Map.take(&1, [:covered_lines, :executable_lines]), describe.(&1)))}
-      end)
+  defp assign_changes(socket), do: socket |> assign(:changed_files, []) |> assign(:changed_targets, [])
 
   # A file opens over the branch and period shown here, and leads back here.
   defp file_href(%{assigns: %{selected_account: account, selected_project: project, branch: branch} = assigns}, path) do
@@ -164,33 +169,47 @@ defmodule TuistWeb.CoverageLive do
     coverage_file_href(account.name, project.name, path, branch, assigns.current_params, from)
   end
 
+  # The runs that named the branch in the period, newest first, as its page's
+  # Test Runs tab lists them (`Commits.run_cursor_page/3`).
+  defp assign_recent_runs(%{assigns: %{selected_project: project, branch: branch}} = socket) do
+    page = Commits.run_cursor_page(project.id, {:branch, branch}, period_opts(socket) ++ [page_size: @recent_runs])
+    assign(socket, :run_rows, Enum.map(page.runs, &Map.put(&1, :id, &1.test_run_id)))
+  end
+
+  # The branch's own page, on one of its tabs over the period shown here,
+  # leading back here as shown.
+  @doc false
+  def branch_href(%{selected_account: account, selected_project: project, branch: branch} = assigns, tab) do
+    period = Map.filter(assigns.current_params, fn {key, _value} -> String.starts_with?(key, "coverage-") end)
+
+    from =
+      if assigns.uri.query in [nil, ""], do: assigns.current_path, else: assigns.current_path <> "?" <> assigns.uri.query
+
+    "/#{account.name}/#{project.name}/tests/coverage/branches/#{encode_path(branch)}?" <>
+      URI.encode_query(Map.merge(period, %{"tab" => tab, "from" => from}))
+  end
+
+  # A chart point opens its commit's page, which leads back here as shown.
+  @doc false
+  def commit_href(%{selected_account: account, selected_project: project, current_path: path, uri: uri}, sha) do
+    from = if uri.query in [nil, ""], do: path, else: path <> "?" <> uri.query
+    "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?" <> URI.encode_query(%{"from" => from})
+  end
+
   defp files_label(count), do: dngettext("dashboard_tests", "%{count} file", "%{count} files", count)
 
-  # One commit more than the list shows, so its oldest commit's change is
-  # read against the complete commit before it, as the chart compares them.
+  # Each commit's change is from the complete commit before it, read below
+  # the list when it is the oldest (`History.commit_cursor_page/3`).
   defp assign_recent_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     page =
       History.commit_cursor_page(
         project,
         branch,
-        period_opts(socket) ++ [status: "complete", page_size: @recent_commits + 1]
+        period_opts(socket) ++ [status: "complete", page_size: @recent_commits]
       )
 
-    rows =
-      page.commits
-      |> Enum.chunk_every(2, 1)
-      |> Enum.take(@recent_commits)
-      |> Enum.map(fn [commit | previous] ->
-        Map.merge(commit, %{id: commit.git_commit_sha, change: change(commit, List.first(previous))})
-      end)
-
-    assign(socket, :commit_rows, rows)
+    assign(socket, :commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
   end
-
-  defp change(%{coverage: coverage}, %{coverage: previous}) when is_number(coverage) and is_number(previous),
-    do: Float.round(coverage - previous, 1)
-
-  defp change(_commit, _previous), do: nil
 
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     %{grouping: grouping, points: points} = History.trend_points(project, branch, period_opts(socket))
