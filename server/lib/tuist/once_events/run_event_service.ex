@@ -28,7 +28,6 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Tuist.OnceEvents.Projector
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias TuistWeb.RateLimit
 
   require Logger
 
@@ -261,39 +260,11 @@ defmodule Tuist.OnceEvents.RunEventService do
         _ -> %{}
       end
 
-    rate_limit!(headers)
-
     with token when is_binary(token) <- extract_bearer(headers),
          subject when not is_nil(subject) <- authenticated_subject(token) do
       project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header)))
     else
       _ -> {:error, "missing or invalid bearer"}
-    end
-  end
-
-  # Bounds what one client address can spend on credential checks, valid or not.
-  # The ingress always sets `x-forwarded-for` to the connecting address, and it is
-  # the only way to reach this port, so a call without it is not limited.
-  defp rate_limit!(headers) do
-    with address when is_binary(address) <- client_address(headers),
-         {:deny, _limit} <-
-           RateLimit.hit("once-events:#{address}",
-             limit: Environment.once_events_rate_limit_bucket_size(),
-             window: to_timeout(minute: 1)
-           ) do
-      raise GRPC.RPCError, status: :resource_exhausted, message: "too many requests"
-    end
-
-    :ok
-  end
-
-  defp client_address(headers) do
-    with forwarded when is_binary(forwarded) <- header_value(headers, "x-forwarded-for"),
-         [first | _] <- String.split(forwarded, ","),
-         address when address != "" <- String.trim(first) do
-      binary_part(address, 0, min(byte_size(address), 64))
-    else
-      _ -> nil
     end
   end
 

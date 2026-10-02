@@ -524,49 +524,6 @@ defmodule Tuist.OnceEventsTest do
       for _ <- 1..3, do: assert_received({:ack, %BatchAck{}})
     end
 
-    test "a request over the limit from one address is refused before any credential work", %{
-      member: member,
-      handle: handle
-    } do
-      stub(Environment, :once_events_rate_limit_bucket_size, fn -> 2 end)
-      session = login_session(member)
-      busy = %{"x-forwarded-for" => unique_address()}
-      quiet = %{"x-forwarded-for" => unique_address()}
-      request = %GetArgvHashKeyRequest{project_id: handle}
-
-      for _ <- 1..2, do: RunEventService.get_argv_hash_key(request, stream_with(session, busy))
-
-      reject(&Authentication.authenticated_subject/1)
-
-      error =
-        assert_raise GRPC.RPCError, fn ->
-          RunEventService.get_argv_hash_key(request, stream_with(session, busy))
-        end
-
-      assert error.status == GRPC.Status.resource_exhausted()
-      assert %ArgvHashKey{} = RunEventService.get_argv_hash_key(request, stream_with(session, quiet))
-    end
-
-    test "invalid bearers from one address are throttled too", %{handle: handle} do
-      stub(Environment, :once_events_rate_limit_bucket_size, fn -> 2 end)
-      headers = %{"x-forwarded-for" => unique_address()}
-      request = %GetArgvHashKeyRequest{project_id: handle}
-
-      statuses =
-        for _ <- 1..4 do
-          assert_raise GRPC.RPCError, fn ->
-            RunEventService.get_argv_hash_key(request, stream_with("not-a-token", headers))
-          end
-        end
-
-      assert Enum.map(statuses, & &1.status) == [
-               GRPC.Status.unauthenticated(),
-               GRPC.Status.unauthenticated(),
-               GRPC.Status.resource_exhausted(),
-               GRPC.Status.resource_exhausted()
-             ]
-    end
-
     test "an unknown project still runs the permission check, so it costs the same as a forbidden one", %{
       member: member,
       run: run
