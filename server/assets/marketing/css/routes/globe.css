@@ -75,8 +75,9 @@
       overflow: hidden;
 
       & > [data-part="reel"] {
+        --i: 0;
         display: block;
-        transform: translateY(calc(var(--i, 0) * -5%));
+        transform: translateY(calc(var(--i) * -5%));
         transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 
         &[data-snap] {
@@ -448,7 +449,7 @@
               &::after {
                 --dot: var(--noora-purple-300);
                 transition: width 0.4s ease;
-                width: max(0px, calc(var(--dots, 0) * 8 * var(--u) - 4 * var(--u)));
+                width: max(0px, calc(var(--dots) * 8 * var(--u) - 4 * var(--u)));
               }
             }
           }
