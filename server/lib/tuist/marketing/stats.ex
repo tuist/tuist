@@ -100,7 +100,16 @@ defmodule Tuist.Marketing.Stats do
     # per poller, independent of the number of open conference displays.
     task =
       Task.Supervisor.async_nolink(__MODULE__.TaskSupervisor, fn ->
-        KeyValueStore.get_or_update([:marketing, :cache_globe], [ttl: to_timeout(second: 25)], &CacheGlobe.snapshot/0)
+        KeyValueStore.get_or_update(
+          [:marketing, :cache_globe],
+          [
+            persist_across_deployments: true,
+            ttl: to_timeout(second: 25),
+            lock_timeout: to_timeout(second: 30),
+            lock_expiry: to_timeout(second: 30)
+          ],
+          &CacheGlobe.snapshot/0
+        )
       end)
 
     {:noreply, Map.put(stats, :globe_task, task.ref)}

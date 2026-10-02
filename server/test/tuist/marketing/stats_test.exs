@@ -14,7 +14,13 @@ defmodule Tuist.Marketing.StatsTest do
     stub(Tuist.Tests, :last_24h_test_run_count, fn -> 400 end)
     stub(Tuist.Tests, :last_24h_flaky_test_case_run_count, fn -> 50 end)
     stub(CacheGlobe, :snapshot, fn -> CacheGlobe.empty() end)
-    stub(Tuist.KeyValueStore, :get_or_update, fn [:marketing, :cache_globe], _opts, fun -> fun.() end)
+
+    stub(Tuist.KeyValueStore, :get_or_update, fn [:marketing, :cache_globe], opts, fun ->
+      assert opts[:persist_across_deployments]
+      assert opts[:lock_expiry] > 15_000
+      assert opts[:lock_timeout] >= opts[:lock_expiry]
+      fun.()
+    end)
 
     start_supervised!({Task.Supervisor, name: Stats.TaskSupervisor})
 
