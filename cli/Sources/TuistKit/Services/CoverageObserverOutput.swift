@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// What the coverage observer (`cli/CoverageObserver/TuistCoverageObserver.m`) wrote for one test
+/// What TestCoverageAttribution (https://github.com/tuist/TestCoverageAttribution) wrote for one test
 /// process: the instrumented images with the sections that name their functions, and one record
 /// per scope with the coverage counters that moved in it.
 struct CoverageObserverOutput {

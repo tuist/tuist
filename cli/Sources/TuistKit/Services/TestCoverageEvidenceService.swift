@@ -4,14 +4,13 @@ import Mockable
 import Path
 import TuistCore
 import TuistEnvironment
-import TuistLoader
 import TuistLogging
 import TuistProcess
 import TuistServer
 import XCResultParser
 
-/// A run that collects per-test coverage evidence: where the observer writes, and the
-/// environment that injects it into the test hosts.
+/// A run that collects per-test coverage evidence: where the test processes write, and the
+/// environment that tells them to.
 public struct TestCoverageEvidenceSession: Equatable, Sendable {
     public let directory: AbsolutePath
     public let environment: [String: String]
@@ -22,14 +21,13 @@ public struct TestCoverageEvidenceSession: Equatable, Sendable {
     }
 }
 
-/// The platform whose test hosts a run launches, as far as injecting the observer goes.
+/// The platform whose test processes a run launches, as far as collecting evidence goes.
 public enum TestCoverageEvidencePlatform: Equatable, Sendable {
     case macOS
     case iOSSimulator
 
-    /// From an xcodebuild `-destination` value; nil for the platforms the observer is not built
-    /// for (devices, and the other simulators), where a wrong library would keep the host from
-    /// launching.
+    /// From an xcodebuild `-destination` value; nil for devices, whose test processes cannot
+    /// write to a directory on the Mac, and for the other simulators, which nothing verified.
     public init?(destination: String) {
         let value = destination.lowercased()
         if value.contains("platform=macos") || value.contains("platform=os x") {
@@ -44,14 +42,14 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`, behind the `COVERAGE` client flag. `prepare` hands back the environment that injects
-/// the
-/// coverage observer into the test hosts; after the run `record` reduces what the observer wrote
-/// (the coverage counters each test moved) to source files, through the functions the counters
-/// belong to and `llvm-cov`'s function-to-file table, and writes the result into the result
-/// bundle. XCTest needs nothing from the project; Swift Testing needs the `.coverageAttribution`
-/// trait (`cli/CoverageObserver/CoverageAttributionTrait.swift`). Evidence only enriches a run:
-/// nothing here throws, and a run without the observer is a normal run.
+/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`, behind the `COVERAGE` client flag. The test targets
+/// link the TestCoverageAttribution package (https://github.com/tuist/TestCoverageAttribution),
+/// which records the coverage counters each test moves; Swift Testing suites also need its
+/// `.coverageAttribution` trait. `prepare` hands back the environment that tells the test
+/// processes where to write; after the run `record` reduces what they wrote to source files,
+/// through the functions the counters belong to and `llvm-cov`'s function-to-file table, and
+/// writes the result into the result bundle. Evidence only enriches a run: nothing here throws,
+/// and a run whose targets don't link the package is a normal run.
 @Mockable
 public protocol TestCoverageEvidenceServicing {
     func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession?
@@ -65,8 +63,9 @@ public protocol TestCoverageEvidenceServicing {
 
 public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     static let enabledVariable = "TUIST_COVERAGE_EVIDENCE"
-    static let observerPathVariable = "TUIST_COVERAGE_OBSERVER_PATH"
-    static let observerDirectoryVariable = "TUIST_COVERAGE_OBSERVER_DIR"
+    /// Where TestCoverageAttribution writes; xcodebuild passes it to the test processes with the
+    /// `TEST_RUNNER_` prefix.
+    static let attributionDirectoryVariable = "TEST_COVERAGE_ATTRIBUTION_DIR"
 
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
@@ -79,29 +78,15 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     public func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession? {
         guard ClientFeatureFlags.contains("COVERAGE"), Environment.current.isVariableTruthy(Self.enabledVariable)
         else { return nil }
-        guard let platform else {
+        guard platform != nil else {
             Logger.current.debug("Coverage evidence is only collected on macOS and the iOS simulator")
             return nil
         }
         do {
-            guard let observer = try await observerPath(platform: platform) else {
-                Logger.current.debug("The coverage observer was not found next to tuist; no coverage evidence")
-                return nil
-            }
             let directory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-coverage-evidence")
-            var libraries = [observer.pathString]
-            if platform == .iOSSimulator {
-                // On the simulator the variable replaces Xcode's own injection unless it carries it
-                // too, and a host without it never connects to xcodebuild.
-                guard let injector = try await xctestBundleInjector() else { return nil }
-                libraries.append(injector.pathString)
-            }
             return TestCoverageEvidenceSession(
                 directory: directory,
-                environment: [
-                    "TEST_RUNNER_DYLD_INSERT_LIBRARIES": libraries.joined(separator: ":"),
-                    "TEST_RUNNER_\(Self.observerDirectoryVariable)": directory.pathString,
-                ]
+                environment: ["TEST_RUNNER_\(Self.attributionDirectoryVariable)": directory.pathString]
             )
         } catch {
             Logger.current.debug("Coverage evidence could not be set up: \(error.localizedDescription)")
@@ -349,33 +334,5 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     private func modificationDate(_ path: AbsolutePath) -> Date {
         (try? FileManager.default.attributesOfItem(atPath: path.pathString)[.modificationDate] as? Date) ?? .distantPast
-    }
-
-    private func observerPath(platform: TestCoverageEvidencePlatform) async throws -> AbsolutePath? {
-        let name = switch platform {
-        case .macOS: "libtuist_coverage_observer.dylib"
-        case .iOSSimulator: "libtuist_coverage_observer_iossimulator.dylib"
-        }
-        var directories: [AbsolutePath] = []
-        if let override = Environment.current.variables[Self.observerPathVariable], !override.isEmpty {
-            directories.append(try AbsolutePath(validating: override))
-        } else if let bundle = try? AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path) {
-            directories += [bundle, bundle.parentDirectory, bundle.parentDirectory.appending(component: "lib")]
-        }
-        for directory in directories {
-            let candidate = directory.appending(component: name)
-            if try await fileSystem.exists(candidate) { return candidate }
-        }
-        return nil
-    }
-
-    private func xctestBundleInjector() async throws -> AbsolutePath? {
-        let platformPath = try await commandRunner
-            .run(arguments: ["/usr/bin/xcrun", "--sdk", "iphonesimulator", "--show-sdk-platform-path"])
-            .concatenatedString()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let injector = try AbsolutePath(validating: platformPath)
-            .appending(components: "Developer", "usr", "lib", "libXCTestBundleInject.dylib")
-        return try await fileSystem.exists(injector) ? injector : nil
     }
 }

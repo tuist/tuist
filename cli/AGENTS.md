@@ -10,7 +10,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Rosalind app bundle analysis: `cli/Sources/Rosalind/AGENTS.md`
 - Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
-- Coverage observer injected into test hosts (per-test coverage evidence): `cli/CoverageObserver/AGENTS.md`
+- Per-test coverage evidence is recorded by the TestCoverageAttribution package test targets link (https://github.com/tuist/TestCoverageAttribution); the CLI only tells the test processes where to write and reduces it: `cli/Sources/TuistXCResultService/AGENTS.md`
 - Cache client: `cli/Sources/TuistCache`
 - Bazel Remote Execution API (REAPI) client: `cli/Sources/TuistREAPI` (see `cli/Sources/TuistREAPI/AGENTS.md`)
 - Dependencies tooling: `cli/Sources/TuistDependencies`

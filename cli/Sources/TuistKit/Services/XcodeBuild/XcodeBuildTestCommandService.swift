@@ -654,7 +654,7 @@ extension XcodeBuildTestCommandService {
 }
 
 extension XcodeBuildTestCommandService {
-    /// Runs xcodebuild with the coverage observer injected when the run collects evidence, and
+    /// Runs xcodebuild telling the test processes where to record when the run collects evidence, and
     /// reduces what it wrote before anything else (a stress pass) runs tests over the same
     /// derived data. The run's own outcome is what the caller sees.
     private func runCollectingCoverageEvidence(

@@ -107,7 +107,7 @@ struct TestCoverageEvidenceServiceTests {
         }
     }
 
-    @Test func onlyInjectsWhereTheObserverIsBuiltFor() {
+    @Test func collectsOnlyWhereTheTestProcessesCanWriteToTheMac() {
         #expect(TestCoverageEvidencePlatform(destination: "platform=macOS,arch=arm64") == .macOS)
         #expect(TestCoverageEvidencePlatform(destination: "platform=iOS Simulator,name=iPhone 16") == .iOSSimulator)
         #expect(TestCoverageEvidencePlatform(destination: "platform=tvOS Simulator,name=Apple TV") == nil)
@@ -119,5 +119,17 @@ struct TestCoverageEvidenceServiceTests {
 
         Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
         #expect(await TestCoverageEvidenceService().prepare(platform: .macOS) == nil)
+    }
+
+    @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {
+        Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+
+        let session = try #require(await TestCoverageEvidenceService().prepare(platform: .iOSSimulator))
+        defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
+
+        // The test targets link TestCoverageAttribution: nothing is injected into the test hosts.
+        #expect(session.environment == ["TEST_RUNNER_TEST_COVERAGE_ATTRIBUTION_DIR": session.directory.pathString])
+        #expect(await TestCoverageEvidenceService().prepare(platform: nil) == nil)
     }
 }
