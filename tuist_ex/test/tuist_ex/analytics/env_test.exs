@@ -85,4 +85,22 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_commit_sha(environment) == "deadbeef"
     assert Env.git_remote_url_origin(environment) == "git@github.com:tuist/tuist.git"
   end
+
+  test "never reports credentials embedded in the git remote" do
+    environment = fn
+      "GIT_REMOTE_URL" -> "https://x-access-token:secret-token@github.com/acme/private.git"
+      _ -> nil
+    end
+
+    assert Env.git_remote_url_origin(environment) == "https://github.com/acme/private.git"
+
+    # Remotes without credentials, and the forms that are not web addresses, are left as they are.
+    assert Env.without_credentials("https://github.com/acme/private.git") ==
+             "https://github.com/acme/private.git"
+
+    assert Env.without_credentials("git@github.com:acme/private.git") ==
+             "git@github.com:acme/private.git"
+
+    assert Env.without_credentials(nil) == nil
+  end
 end

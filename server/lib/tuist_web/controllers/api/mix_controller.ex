@@ -18,6 +18,14 @@ defmodule TuistWeb.API.MixController do
 
   tags ["Mix"]
 
+  # The same limits the context enforces, so a report that would be truncated
+  # or wrapped by a storage column is refused instead.
+  @limits Mix.limits()
+  @uint32 @limits.uint32
+  @int64 @limits.int64
+  @max_name 1_024
+  @max_message 10_000
+
   operation(:create_build,
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
@@ -52,6 +60,7 @@ defmodule TuistWeb.API.MixController do
            duration_ms: %Schema{
              type: :integer,
              minimum: 0,
+             maximum: @uint32,
              description: "Total compile duration in milliseconds."
            },
            started_at: %Schema{
@@ -100,21 +109,29 @@ defmodule TuistWeb.API.MixController do
            },
            machine_metrics: %Schema{
              type: :array,
+             maxItems: @limits.machine_metrics,
              description: "Machine performance samples collected during the compile.",
              items: %Schema{
                type: :object,
                properties: %{
-                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
+                 timestamp: %Schema{
+                   type: :number,
+                   minimum: 0,
+                   maximum: @limits.timestamp,
+                   description: "Unix timestamp in seconds."
+                 },
                  cpu_usage_percent: %Schema{
                    type: :number,
+                   minimum: 0,
+                   maximum: 100,
                    description: "CPU usage percentage (0-100)."
                  },
-                 memory_used_bytes: %Schema{type: :integer},
-                 memory_total_bytes: %Schema{type: :integer},
-                 network_bytes_in: %Schema{type: :integer},
-                 network_bytes_out: %Schema{type: :integer},
-                 disk_bytes_read: %Schema{type: :integer},
-                 disk_bytes_written: %Schema{type: :integer}
+                 memory_used_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 memory_total_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 network_bytes_in: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 network_bytes_out: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 disk_bytes_read: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 disk_bytes_written: %Schema{type: :integer, minimum: 0, maximum: @int64}
                },
                required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes]
              }
@@ -135,18 +152,127 @@ defmodule TuistWeb.API.MixController do
                }
              }
            },
+           files: %Schema{
+             type: :array,
+             maxItems: @limits.files,
+             description:
+               "Per-file compile profile: how long each file compiled, the project files it depends on, and how long it sat paused while other files compiled.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 path: %Schema{type: :string, maxLength: @max_name, description: "Path relative to the project root."},
+                 start_offset_ms: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Milliseconds from the start of the compile to when the file started compiling."
+                 },
+                 compile_duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 wait_duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 modules: %Schema{
+                   type: :array,
+                   maxItems: @limits.nested,
+                   items: %Schema{type: :string, maxLength: @max_name}
+                 },
+                 dependencies: %Schema{
+                   type: :array,
+                   maxItems: @limits.nested,
+                   description: "The project files this file references.",
+                   items: %Schema{
+                     type: :object,
+                     properties: %{
+                       path: %Schema{
+                         type: :string,
+                         maxLength: @max_name,
+                         description: "Path relative to the project root."
+                       },
+                       kind: %Schema{
+                         type: :string,
+                         enum: ["compile", "export", "runtime"],
+                         description:
+                           "compile: needed while the file compiles. export: its struct or an import. runtime: only called from inside functions."
+                       }
+                     },
+                     required: [:path, :kind]
+                   }
+                 },
+                 waits: %Schema{
+                   type: :array,
+                   maxItems: @limits.nested,
+                   items: %Schema{
+                     type: :object,
+                     properties: %{
+                       module: %Schema{type: :string, description: "The module the file waited on."},
+                       path: %Schema{
+                         type: :string,
+                         nullable: true,
+                         description: "The project file defining that module, when known."
+                       },
+                       kind: %Schema{type: :string, description: "What was needed, such as module or struct."},
+                       duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                       start_offset_ms: %Schema{
+                         type: :integer,
+                         nullable: true,
+                         minimum: 0,
+                         maximum: @uint32,
+                         description: "Milliseconds from the start of the compile to when the wait began, when known."
+                       }
+                     },
+                     required: [:module, :duration_ms]
+                   }
+                 }
+               },
+               required: [:path, :compile_duration_ms]
+             }
+           },
+           steps: %Schema{
+             type: :array,
+             maxItems: @limits.steps,
+             description:
+               "The work of the build besides compiling files, such as type checking a module or writing modules to disk.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 category: %Schema{
+                   type: :string,
+                   enum: ["type_check", "write", "compiler", "other"],
+                   description: "The kind of work."
+                 },
+                 title: %Schema{type: :string, maxLength: @max_name, description: "What the step did."},
+                 path: %Schema{
+                   type: :string,
+                   nullable: true,
+                   description: "The project file the step is about, when it concerns one."
+                 },
+                 start_offset_ms: %Schema{
+                   type: :integer,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Milliseconds from the start of the compile to when the step started."
+                 },
+                 duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32}
+               },
+               required: [:category, :title, :start_offset_ms, :duration_ms]
+             }
+           },
            diagnostics: %Schema{
              type: :array,
+             maxItems: @limits.diagnostics,
              description: "Compile-time diagnostics emitted during the build.",
              items: %Schema{
                type: :object,
                properties: %{
                  severity: %Schema{type: :string, enum: ["warning", "error"]},
-                 file: %Schema{type: :string, description: "Path relative to the project root."},
-                 module: %Schema{type: :string, description: "The module the diagnostic belongs to."},
-                 message: %Schema{type: :string, description: "The diagnostic message."},
-                 line: %Schema{type: :integer, nullable: true, minimum: 0},
-                 column: %Schema{type: :integer, nullable: true, minimum: 0},
+                 file: %Schema{type: :string, maxLength: @max_name, description: "Path relative to the project root."},
+                 module: %Schema{
+                   type: :string,
+                   maxLength: @max_name,
+                   description: "The module the diagnostic belongs to."
+                 },
+                 message: %Schema{type: :string, maxLength: @max_message, description: "The diagnostic message."},
+                 line: %Schema{type: :integer, nullable: true, minimum: 0, maximum: @uint32},
+                 column: %Schema{type: :integer, nullable: true, minimum: 0, maximum: @uint32},
                  compiler: %Schema{
                    type: :string,
                    description: ~s{The compiler that emitted it (e.g. "elixir", "app").}
@@ -216,6 +342,8 @@ defmodule TuistWeb.API.MixController do
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),
       diagnostics: body[:diagnostics] || [],
+      files: body[:files] || [],
+      steps: body[:steps] || [],
       machine_metrics: body[:machine_metrics] || []
     }
   end

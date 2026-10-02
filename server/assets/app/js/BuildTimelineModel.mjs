@@ -50,6 +50,11 @@ export function categoryFor(category, source = "xcode") {
     if (["Copy", "Sync", "ProcessResources"].includes(type)) return "resource";
     if (/^Link/.test(type)) return "link";
   }
+  if (source === "mix") {
+    if (category === "type_check") return "setup";
+    if (category === "write") return "resource";
+    if (category === "compiler") return "script";
+  }
   if (["compile", "link", "script", "resource", "other", "failure"].includes(category)) return category;
   if (category === "Rustc" || /compil|swiftmodule|bridgingheader|javac/i.test(category)) return "compile";
   if (["CppLink", "CppArchive"].includes(category) || /linker|staticlibrary/i.test(category)) return "link";

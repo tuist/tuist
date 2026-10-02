@@ -27,6 +27,231 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     :sys.get_state(pid)
   end
 
+  test "names a test by its own name, without ExUnit's type and describe prefixes" do
+    described =
+      new_test(
+        name: :"test create_order/2 rejects an empty cart",
+        tags: %{describe: "create_order/2", test_type: :test, file: "test/some_test.exs", line: 1}
+      )
+
+    assert %{name: "rejects an empty cart", describe: "create_order/2"} =
+             ExUnitFormatter.record(described)
+
+    property =
+      new_test(
+        name: :"property sorting is idempotent",
+        tags: %{describe: nil, test_type: :property}
+      )
+
+    assert ExUnitFormatter.record(property).name == "sorting is idempotent"
+
+    # A name that merely starts with the word is left alone after the prefix.
+    assert ExUnitFormatter.record(new_test(name: :"test test helpers work")).name ==
+             "test helpers work"
+  end
+
+  test "reports a failure without a source location without a null path" do
+    timed_out = new_test(state: {:failed, [{:error, %RuntimeError{message: "timed out"}, []}]})
+    assert [failure] = ExUnitFormatter.record(timed_out).failures
+
+    assert failure == %{
+             message: "** (RuntimeError) timed out",
+             line_number: 0,
+             issue_type: "error_thrown"
+           }
+
+    assert [%{message: "Setup failed for SomeModuleTest"} = setup_failure] =
+             ExUnitFormatter.record(new_test(state: {:invalid, SomeModuleTest})).failures
+
+    refute Map.has_key?(setup_failure, :path)
+  end
+
+  describe "merge_retries/2" do
+    defp payload do
+      %{
+        status: "failure",
+        test_modules: [
+          %{
+            name: "OrdersTest",
+            status: "failure",
+            duration: 30,
+            test_suites: [%{name: "create_order/2", status: "failure", duration: 30}],
+            test_cases: [
+              %{
+                name: "rejects an empty cart",
+                test_suite_name: "create_order/2",
+                status: "failure",
+                duration: 10,
+                failures: [%{message: "timed out", line_number: 0, issue_type: "error_thrown"}]
+              },
+              %{name: "is broken", status: "failure", duration: 10, failures: []},
+              %{name: "passes", status: "success", duration: 10, failures: []}
+            ]
+          }
+        ]
+      }
+    end
+
+    defp attempt(name, describe, status) do
+      %{
+        module: "OrdersTest",
+        describe: describe,
+        name: name,
+        status: status,
+        duration_ms: 7,
+        failures: []
+      }
+    end
+
+    test "reports a test that passes on a retry as successful, with every attempt" do
+      first = [
+        attempt("rejects an empty cart", "create_order/2", "failure"),
+        attempt("is broken", nil, "failure")
+      ]
+
+      second = [
+        attempt("rejects an empty cart", "create_order/2", "success"),
+        attempt("is broken", nil, "failure")
+      ]
+
+      merged = ExUnitFormatter.merge_retries(payload(), [first, second])
+      [module] = merged.test_modules
+      [flaky, broken, passing] = module.test_cases
+
+      assert flaky.status == "success"
+      assert flaky.duration == 24
+      # The two retries of the two retried tests add 28ms to the module and
+      # 14ms to the suite holding one of them.
+      assert module.duration == 30 + 28
+      assert [%{duration: 44}] = module.test_suites
+
+      assert flaky.repetitions == [
+               %{repetition_number: 1, name: "Run 1", status: "failure", duration: 10},
+               %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 7},
+               %{repetition_number: 3, name: "Retry 2", status: "success", duration: 7}
+             ]
+
+      # The failure of the first run is kept, so the page can show why it flaked.
+      assert [%{message: "timed out"}] = flaky.failures
+
+      assert broken.status == "failure"
+      assert length(broken.repetitions) == 3
+      refute Map.has_key?(passing, :repetitions)
+
+      # The suite recovered; the module and the run still have a broken test.
+      assert [%{name: "create_order/2", status: "success"}] = module.test_suites
+      assert module.status == "failure"
+      assert merged.status == "failure"
+    end
+
+    test "turns the run green when every failed test passes on a retry" do
+      retried = [
+        attempt("rejects an empty cart", "create_order/2", "success"),
+        attempt("is broken", nil, "success")
+      ]
+
+      merged = ExUnitFormatter.merge_retries(payload(), [retried])
+
+      assert merged.status == "success"
+      assert [%{status: "success"}] = merged.test_modules
+    end
+
+    test "leaves a run without retries untouched" do
+      assert ExUnitFormatter.merge_retries(payload(), []) == payload()
+      assert ExUnitFormatter.merge_retries(payload(), [[]]) == payload()
+    end
+
+    test "adds the time the retries took to the run" do
+      retried = [attempt("is broken", nil, "failure")]
+
+      assert ExUnitFormatter.merge_retries(Map.put(payload(), :duration, 100), [retried]).duration ==
+               107
+    end
+  end
+
+  test "keeps every suite of an umbrella in defer mode, and notes one that stopped early" do
+    submit = fn _payload, _opts -> :ok end
+
+    for events <- [
+          [
+            {:suite_started, []},
+            {:test_finished, new_test(module: AlphaTest)},
+            {:suite_finished, %{run: 1_000}}
+          ],
+          [
+            {:suite_started, []},
+            {:test_finished, new_test(module: BetaTest)},
+            :max_failures_reached,
+            {:suite_finished, %{run: 1_000}}
+          ]
+        ] do
+      {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: :defer)
+      send_lifecycle(pid, events)
+      :ok = GenServer.stop(pid)
+    end
+
+    assert [
+             {%{test_modules: [%{name: "AlphaTest"}]}, _, false},
+             {%{test_modules: [%{name: "BetaTest"}]}, _, true}
+           ] = ExUnitFormatter.take_deferred()
+  end
+
+  test "keeps the run for the caller in defer mode and writes outcomes to a file in collect mode" do
+    parent = self()
+    submit = fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end
+
+    events = [
+      {:suite_started, []},
+      {:test_finished, new_test([])},
+      {:suite_finished, %{run: 1_000}}
+    ]
+
+    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: :defer)
+    send_lifecycle(pid, events)
+    :ok = GenServer.stop(pid)
+
+    refute_received {:submitted, _}
+    assert [{%{test_modules: [_]}, opts, false}] = ExUnitFormatter.take_deferred()
+    assert ExUnitFormatter.take_deferred() == []
+    assert :ok = ExUnitFormatter.submit(%{}, opts)
+    assert_received {:submitted, %{}}
+
+    path = Path.join(System.tmp_dir!(), "tuist-ex-collect-#{System.unique_integer([:positive])}")
+    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: {:collect, path})
+    send_lifecycle(pid, events)
+    :ok = GenServer.stop(pid)
+
+    refute_received {:submitted, _}
+    assert [%{name: "example", status: "success"}] = ExUnitFormatter.read_collected(path)
+
+    # An umbrella runs a suite per application: each adds to the same file.
+    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: {:collect, path})
+    send_lifecycle(pid, events)
+    :ok = GenServer.stop(pid)
+    assert length(ExUnitFormatter.read_collected(path)) == 2
+    File.rm(path)
+    assert ExUnitFormatter.read_collected(path) == []
+  end
+
+  test "a formatter given its own submit function ignores the options of the surrounding run" do
+    previous = Application.get_env(:tuist_ex, :analytics_options)
+    Application.put_env(:tuist_ex, :analytics_options, mode: :defer, project: "acme/widgets")
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:tuist_ex, :analytics_options, previous),
+        else: Application.delete_env(:tuist_ex, :analytics_options)
+    end)
+
+    {:ok, %{opts: injected}} = ExUnitFormatter.init(submit: fn _payload, _opts -> :ok end)
+    refute Keyword.has_key?(injected, :mode)
+
+    # The one ExUnit starts for the run gets them.
+    {:ok, %{opts: run}} = ExUnitFormatter.init(seed: 1)
+    assert run[:mode] == :defer
+    assert run[:project] == "acme/widgets"
+  end
+
   test "records a passing test as success" do
     {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: fn _payload, _opts -> :ok end)
     GenServer.cast(pid, {:test_finished, new_test([])})
@@ -113,7 +338,7 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert module.status == "failure"
     assert module.duration == 5
 
-    assert Enum.any?(module.test_cases, &(&1.name == "test greets the world"))
+    assert Enum.any?(module.test_cases, &(&1.name == "greets the world"))
     assert Enum.any?(module.test_suites, &(&1.name == "greetings"))
 
     :ok = GenServer.stop(pid)

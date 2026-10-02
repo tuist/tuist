@@ -987,7 +987,7 @@
           <div data-part="cell" data-type="text_and_description">
             <div data-part="column">
               <span data-part="label">
-                {test_case_run.scheme || dgettext("dashboard_tests", "Unknown")}
+                {test_run_label(@selected_project, test_case_run.scheme)}
                 <.badge
                   :if={test_case_run.is_flaky}
                   label={dgettext("dashboard_tests", "Flaky")}

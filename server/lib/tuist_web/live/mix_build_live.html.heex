@@ -1,12 +1,10 @@
-<div id="mix-build-run">
+<div id="build-run">
   <.button
     label={dgettext("dashboard_builds", "Builds")}
     data-part="back-button"
     variant="secondary"
     size="medium"
-    navigate={
-      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"
-    }
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
   >
     <:icon_left>
       <.icon name="arrow_left" />
@@ -46,223 +44,454 @@
       </.button>
     </div>
   </div>
-  <.card
-    title={dgettext("dashboard_builds", "Build Details")}
-    icon="chart_arcs"
-    data-part="build-details"
-  >
-    <.card_section data-part="build-details-section">
-      <div data-part="metadata-grid">
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
-            <span data-part="command-label">
-              mix compile
-            </span>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+    />
+    <.tab_menu_horizontal_item
+      :if={@timeline_available}
+      label={dgettext("dashboard_builds", "Timeline")}
+      selected={@selected_tab == "timeline"}
+      patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Warnings")}
+      selected={@selected_tab == "warnings"}
+      patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Errors")}
+      selected={@selected_tab == "errors"}
+      patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
+    />
+  </.tab_menu_horizontal>
+  <section :if={@selected_tab == "timeline"}>
+    <.build_timeline_section
+      timeline={@timeline}
+      duration={@run.duration_ms}
+      version={@timeline_version}
+      source="mix"
+      url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
+      }
+    />
+  </section>
+  <%= if @selected_tab == "overview" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Build Details")}
+      icon="chart_arcs"
+      data-part="build-details"
+    >
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+              <span data-part="command-label">
+                mix compile
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+              <.badge
+                :if={@run.status == "success"}
+                label={dgettext("dashboard_builds", "Passed")}
+                color="success"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@run.status == "failure"}
+                label={dgettext("dashboard_builds", "Failed")}
+                color="destructive"
+                style="fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
+              <.build_ran_by_badge_cell build={@run} />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
+              <span data-part="label">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration_ms)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
+              <span data-part="label">
+                {Tuist.Utilities.DateFormatter.format_with_timezone(
+                  @run.inserted_at,
+                  @user_timezone
+                )}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {if(@run.git_branch == "",
+                  do: dgettext("dashboard_builds", "None"),
+                  else: @run.git_branch
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Elixir version")}</div>
+              <span data-part="label">
+                {if(@run.elixir_version == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @run.elixir_version
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "OTP version")}</div>
+              <span data-part="label">
+                {if(@run.otp_version == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @run.otp_version
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Mix environment")}</div>
+              <span data-part="label">
+                {if(@run.mix_env == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @run.mix_env
+                )}
+              </span>
+            </div>
           </div>
         </div>
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
-            <.badge
-              :if={@run.status == "success"}
-              label={dgettext("dashboard_builds", "Passed")}
-              color="success"
-              style="fill"
-              size="large"
+        <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
+          <span data-part="custom-metadata-label">
+            {dgettext("dashboard_builds", "Custom metadata")}
+          </span>
+          <.table
+            id="custom-metadata-table"
+            rows={Map.to_list(@run.custom_values)}
+            row_key={fn {key, _value} -> key end}
+          >
+            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
+              <.text_cell label={key} />
+            </:col>
+            <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
+              <a
+                :if={url?(value)}
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-part="custom-metadata-link"
+              >
+                {value}
+              </a>
+              <.text_cell :if={not url?(value)} label={value} />
+            </:col>
+          </.table>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
+      title={dgettext("dashboard_builds", "Errors and Warnings")}
+      icon="alert_triangle"
+      data-part="errors-and-warnings-card"
+    >
+      <.card_section
+        :if={not Enum.empty?(@errors_grouped_by_path)}
+        data-part="errors-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Errors")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@errors)}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{path, issues} <- Enum.take(@errors_grouped_by_path, 4)}
+            issues={issues}
+            path={path}
+            run={@run}
+            project={@selected_project}
+            type="error"
+          />
+          <div
+            :if={Enum.count(@errors_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
+          </div>
+          <div
+            :if={Enum.count(@errors_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
+          </div>
+        </div>
+      </.card_section>
+      <.card_section
+        :if={not Enum.empty?(@warnings_grouped_by_path)}
+        data-part="warnings-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Warnings")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@warnings)}
+          </span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_builds", "View more")}
+            size="medium"
+            patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+          />
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{path, issues} <- Enum.take(@warnings_grouped_by_path, 4)}
+            issues={issues}
+            path={path}
+            run={@run}
+            project={@selected_project}
+            type="warning"
+          />
+          <div
+            :if={Enum.count(@warnings_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
+          </div>
+          <div
+            :if={Enum.count(@warnings_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.tab_menu_horizontal :if={@files?}>
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "File Breakdown")}
+        selected={@selected_breakdown_tab == "file"}
+        patch={"?#{@uri.query |> Query.put("breakdown-tab", "file") |> Query.put("breakdown-page", "1")}"}
+      />
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "Module Breakdown")}
+        selected={@selected_breakdown_tab == "module"}
+        patch={"?#{@uri.query |> Query.put("breakdown-tab", "module") |> Query.put("breakdown-page", "1")}"}
+      />
+    </.tab_menu_horizontal>
+    <.card
+      :if={@files?}
+      title={
+        if @selected_breakdown_tab == "module",
+          do: dgettext("dashboard_builds", "Module Breakdown"),
+          else: dgettext("dashboard_builds", "File Breakdown")
+      }
+      icon={if @selected_breakdown_tab == "module", do: "apps", else: "file"}
+      data-part="file-breakdown-card"
+    >
+      <.card_section data-part="file-breakdown-card-section">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="breakdown-search-form"
+            phx-change="search-breakdown"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-breakdown"
+              name="search"
+              placeholder={dgettext("dashboard_builds", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@breakdown_search}
             />
-            <.badge
-              :if={@run.status == "failure"}
-              label={dgettext("dashboard_builds", "Failed")}
-              color="destructive"
-              style="fill"
-              size="large"
-            />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
-            <.build_ran_by_badge_cell build={@run} />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
-            <span data-part="label">
-              <.history />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration_ms)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
-            <span data-part="label">
-              {Tuist.Utilities.DateFormatter.format_with_timezone(
-                @run.inserted_at,
-                @user_timezone
-              )}
-            </span>
-          </div>
-        </div>
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
-            <span data-part="label">
-              <.git_branch />
-              {if(@run.git_branch == "",
-                do: dgettext("dashboard_builds", "None"),
-                else: @run.git_branch
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Elixir version")}</div>
-            <span data-part="label">
-              {if(@run.elixir_version == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: @run.elixir_version
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "OTP version")}</div>
-            <span data-part="label">
-              {if(@run.otp_version == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: @run.otp_version
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Mix environment")}</div>
-            <span data-part="label">
-              {if(@run.mix_env == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: @run.mix_env
-              )}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
-        <span data-part="custom-metadata-label">
-          {dgettext("dashboard_builds", "Custom metadata")}
-        </span>
-        <.table
-          id="custom-metadata-table"
-          rows={Map.to_list(@run.custom_values)}
-          row_key={fn {key, _value} -> key end}
-        >
-          <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-            <.text_cell label={key} />
-          </:col>
-          <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-            <a
-              :if={url?(value)}
-              href={value}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-part="custom-metadata-link"
+          </.form>
+          <.dropdown
+            id="breakdown-sort-by"
+            label={TuistWeb.MixBuildLive.breakdown_sort_label(@breakdown_sort_by)}
+            secondary_text={dgettext("dashboard_builds", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={sort_by <- ["compile-duration", "dependents", "dependencies", "name"]}
+              value={sort_by}
+              label={TuistWeb.MixBuildLive.breakdown_sort_label(sort_by)}
+              patch={TuistWeb.MixBuildLive.breakdown_sort_patch(@uri, sort_by)}
+              data-selected={@breakdown_sort_by == sort_by}
             >
-              {value}
-            </a>
-            <.text_cell :if={not url?(value)} label={value} />
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <.table
+          id="mix-breakdown-table"
+          rows={@breakdown_rows}
+          row_key={fn row -> "#{row.path}-#{row.name}" end}
+        >
+          <:col
+            :let={row}
+            label={
+              if @selected_breakdown_tab == "module",
+                do: dgettext("dashboard_builds", "Module"),
+                else: dgettext("dashboard_builds", "File")
+            }
+          >
+            <.text_and_description_cell
+              label={row.name}
+              description={if @selected_breakdown_tab == "module", do: row.path}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Compilation duration")}>
+            <.text_cell
+              label={TuistWeb.MixBuildLive.format_ms(row.compile_duration_ms)}
+              icon="history"
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Compile-time dependencies")}>
+            <.text_cell label={TuistWeb.MixBuildLive.files_label(row.compile_dependencies_count)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Compile-time dependents")}>
+            <.text_cell label={TuistWeb.MixBuildLive.files_label(row.compile_dependents_count)} />
           </:col>
         </.table>
-      </div>
-    </.card_section>
-  </.card>
-  <.card
-    :if={@errors != [] or @warnings != []}
-    title={dgettext("dashboard_builds", "Errors and Warnings")}
-    icon="alert_triangle"
-    data-part="errors-and-warnings-card"
-  >
-    <.card_section :if={@errors != []} data-part="errors-card-section">
-      <div data-part="header">
-        <span data-part="title">
-          {dgettext("dashboard_builds", "Errors")}
-        </span>
-        <span data-part="dot">
-          {dgettext("dashboard_builds", "•")}
-        </span>
-        <span data-part="count">
-          {length(@errors)}
-        </span>
-      </div>
-      <.table id="mix-errors-table" rows={@errors} row_key={& &1.id}>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "File")}>
-          <.text_cell
-            label={
-              if diagnostic.file == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: diagnostic.file
-            }
+        <.pagination_group
+          :if={@breakdown_page_count > 1}
+          current_page={@breakdown_page}
+          number_of_pages={@breakdown_page_count}
+          page_patch={
+            fn page -> "?#{Query.put(@uri.query, "breakdown-page", to_string(page))}" end
+          }
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "warnings" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Warnings")}
+      icon="alert_hexagon"
+      data-part="warnings-card"
+    >
+      <.card_section data-part="warnings-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Warnings")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@warnings)}
+          </span>
+        </div>
+        <.issue_card
+          :for={{path, issues} <- @warnings_grouped_by_path}
+          issues={issues}
+          path={path}
+          run={@run}
+          project={@selected_project}
+          type="warning"
+        />
+        <div :if={Enum.empty?(@warnings_grouped_by_path)} data-part="empty-state">
+          <div data-part="empty-state-background">
+            <.empty_tab_state_background />
+          </div>
+          <div data-part="image">
+            <img
+              src={~p"/images/empty_warnings_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_warnings_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
+          <span data-part="subtitle">
+            {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+          </span>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "errors" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Errors")}
+      icon="alert_circle"
+      data-part="errors-card"
+    >
+      <.card_section data-part="errors-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_builds", "Errors")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_builds", "•")}
+          </span>
+          <span data-part="count">
+            {length(@errors)}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <.issue_card
+            :for={{path, issues} <- @errors_grouped_by_path}
+            issues={issues}
+            path={path}
+            run={@run}
+            project={@selected_project}
+            type="error"
           />
-        </:col>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Line")}>
-          <.text_cell
-            label={
-              if is_number(diagnostic.line),
-                do: to_string(diagnostic.line),
-                else: "-"
-            }
-          />
-        </:col>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Module")}>
-          <.text_cell
-            label={
-              if diagnostic.module == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: diagnostic.module
-            }
-          />
-        </:col>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Message")}>
-          <.text_cell label={diagnostic.message} />
-        </:col>
-      </.table>
-    </.card_section>
-    <.card_section :if={@warnings != []} data-part="warnings-card-section">
-      <div data-part="header">
-        <span data-part="title">
-          {dgettext("dashboard_builds", "Warnings")}
-        </span>
-        <span data-part="dot">
-          {dgettext("dashboard_builds", "•")}
-        </span>
-        <span data-part="count">
-          {length(@warnings)}
-        </span>
-      </div>
-      <.table id="mix-warnings-table" rows={@warnings} row_key={& &1.id}>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "File")}>
-          <.text_cell
-            label={
-              if diagnostic.file == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: diagnostic.file
-            }
-          />
-        </:col>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Line")}>
-          <.text_cell
-            label={
-              if is_number(diagnostic.line),
-                do: to_string(diagnostic.line),
-                else: "-"
-            }
-          />
-        </:col>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Module")}>
-          <.text_cell
-            label={
-              if diagnostic.module == "",
-                do: dgettext("dashboard_builds", "Unknown"),
-                else: diagnostic.module
-            }
-          />
-        </:col>
-        <:col :let={diagnostic} label={dgettext("dashboard_builds", "Message")}>
-          <.text_cell label={diagnostic.message} />
-        </:col>
-      </.table>
-    </.card_section>
-  </.card>
+        </div>
+        <div :if={Enum.empty?(@errors_grouped_by_path)} data-part="empty-state">
+          <div data-part="empty-state-background">
+            <.empty_tab_state_background />
+          </div>
+          <div data-part="image">
+            <img
+              src={~p"/images/empty_errors_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_errors_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
+          <span data-part="subtitle">
+            {dgettext("dashboard_builds", "Looks like you're having a great day!")}
+          </span>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
 </div>

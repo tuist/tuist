@@ -95,6 +95,9 @@ defmodule TuistWeb.OverviewLive do
         Project.bazel_project?(project) ->
           TuistWeb.BazelOverviewLive.assign_handle_params(socket, params, full_uri.path)
 
+        Project.mix_project?(project) ->
+          TuistWeb.MixOverviewLive.assign_handle_params(socket, params, full_uri.path)
+
         true ->
           socket
       end

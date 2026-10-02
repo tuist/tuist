@@ -97,10 +97,28 @@ defmodule TuistEx.Analytics.Env do
       environment.("GITHUB_REF") || environment.("CI_COMMIT_REF_NAME") ||
         environment.("BUILDKITE_BRANCH") || environment.("CI_COMMIT_REF") || nil
 
-  def git_remote_url_origin(environment \\ &System.get_env/1),
-    do:
+  def git_remote_url_origin(environment \\ &System.get_env/1) do
+    without_credentials(
       environment.("GIT_REMOTE_URL") || environment.("BUILDKITE_REPO") ||
         git("config", ["--get", "remote.origin.url"])
+    )
+  end
+
+  # A remote can carry a token (`https://user:token@host/repo.git`), which
+  # identifies nothing about the repository and must not leave the machine.
+  @doc false
+  def without_credentials(remote) when is_binary(remote) do
+    case URI.parse(remote) do
+      %URI{scheme: scheme, userinfo: userinfo, host: host} = uri
+      when scheme in ["http", "https"] and is_binary(userinfo) and is_binary(host) ->
+        URI.to_string(%{uri | userinfo: nil, authority: nil})
+
+      _ ->
+        remote
+    end
+  end
+
+  def without_credentials(remote), do: remote
 
   defp circleci_project_handle(environment) do
     org = environment.("CIRCLE_PROJECT_USERNAME")

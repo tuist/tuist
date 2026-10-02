@@ -6,6 +6,7 @@ defmodule TuistWeb.ShardsLive do
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter

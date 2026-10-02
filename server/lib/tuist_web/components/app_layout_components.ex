@@ -29,7 +29,10 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={overview_path == @current_path}
       />
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
+        :if={
+          Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            Project.mix_project?(@selected_project)
+        }
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
@@ -60,7 +63,10 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
+        :if={
+          Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            Project.mix_project?(@selected_project)
+        }
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
@@ -127,7 +133,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
+          :if={Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)}
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}

@@ -17,6 +17,22 @@ defmodule Tuist.MixTest do
       %{user: user, project: project}
     end
 
+    test "accepts a start time without fractional seconds", %{user: user, project: project} do
+      id = UUIDv7.generate()
+
+      assert {:ok, ^id} =
+               Mix.create_build(%{
+                 id: id,
+                 project_id: project.id,
+                 account_id: user.account.id,
+                 duration_ms: 10,
+                 status: "success",
+                 started_at: "2026-09-09T10:00:00Z"
+               })
+
+      assert {:ok, %{started_at: ~N[2026-09-09 10:00:00.000000]}} = Mix.get_build(id)
+    end
+
     test "persists the build row and each diagnostic", %{user: user, project: project} do
       attrs = %{
         id: UUIDv7.generate(),
@@ -66,6 +82,77 @@ defmodule Tuist.MixTest do
 
       assert length(diagnostics) == 2
       assert Enum.map(diagnostics, & &1.severity) == ["warning", "error"]
+    end
+
+    test "persists the per-file profile and derives which files block others", %{user: user, project: project} do
+      build_id = UUIDv7.generate()
+
+      {:ok, ^build_id} =
+        Mix.create_build(%{
+          id: build_id,
+          project_id: project.id,
+          account_id: user.account.id,
+          duration_ms: 500,
+          status: "success",
+          files: [
+            %{path: "lib/macros.ex", compile_duration_ms: 300, modules: ["Demo.Macros"]},
+            %{
+              path: "lib/greeter.ex",
+              compile_duration_ms: 70,
+              modules: ["Demo.Greeter"],
+              dependencies: [
+                %{path: "lib/macros.ex", kind: "compile"},
+                %{path: "lib/user.ex", kind: "export"},
+                %{path: "lib/other.ex", kind: "runtime"}
+              ]
+            },
+            %{
+              path: "lib/other.ex",
+              compile_duration_ms: 10,
+              modules: ["Demo.Other"],
+              dependencies: [%{path: "lib/macros.ex", kind: "compile"}, %{path: "lib/greeter.ex", kind: "unknown"}]
+            }
+          ]
+        })
+
+      Mix.CompiledFile.Buffer.flush()
+
+      build = %{id: build_id, project_id: project.id}
+
+      # By name, to tell the three apart.
+      assert %{total: 3, rows: [greeter, macros, other]} = Mix.compiled_files_page(build, sort_by: "name")
+      assert Enum.map([greeter, macros, other], & &1.name) == ["lib/greeter.ex", "lib/macros.ex", "lib/other.ex"]
+
+      # Compile and export dependencies order compilation; runtime ones do not,
+      # and an unrecognised kind is stored as the weakest one.
+      assert greeter.compile_dependencies_count == 2
+      assert other.compile_dependencies_count == 1
+      assert macros.compile_dependencies_count == 0
+      assert macros.compile_dependents_count == 2
+      assert other.compile_dependents_count == 0
+      assert greeter.compile_dependents_count == 0
+
+      # Sorting, searching and paging happen in the database.
+      assert %{rows: [%{name: "lib/macros.ex"} | _]} = Mix.compiled_files_page(build, sort_by: "dependents")
+      assert %{rows: [%{name: "lib/greeter.ex"} | _]} = Mix.compiled_files_page(build, sort_by: "dependencies")
+      assert %{rows: [%{name: "lib/macros.ex", compile_duration_ms: 300} | _]} = Mix.compiled_files_page(build)
+      assert %{total: 1, rows: [%{name: "lib/greeter.ex"}]} = Mix.compiled_files_page(build, search: "GREET")
+
+      assert %{total: 3, rows: [%{name: "lib/other.ex"}]} =
+               Mix.compiled_files_page(build, sort_by: "name", page: 3, page_size: 1)
+
+      assert %{total: 3, rows: []} = Mix.compiled_files_page(build, page: 2)
+
+      # One row per module, carrying its file's numbers.
+      assert %{total: 3, rows: [%{name: "Demo.Greeter", path: "lib/greeter.ex", compile_dependencies_count: 2} | _]} =
+               Mix.compiled_files_page(build, by: :module, sort_by: "name")
+
+      assert %{total: 1} = Mix.compiled_files_page(build, by: :module, search: "macros")
+
+      # Another project asking for the same id sees nothing.
+      assert %{total: 0, rows: []} = Mix.compiled_files_page(%{build | project_id: project.id + 1})
+      refute Mix.compiled_files?(%{build | project_id: project.id + 1})
+      assert Mix.compiled_files?(build)
     end
 
     test "rejects invalid custom metadata", %{user: user, project: project} do

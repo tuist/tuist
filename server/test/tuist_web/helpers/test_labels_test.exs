@@ -80,5 +80,31 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
     test "returns Scheme for nil" do
       assert TestLabels.scheme_label(nil) == "Scheme"
     end
+
+    test "returns Command for mix projects, which have no schemes" do
+      assert TestLabels.scheme_label(%Project{build_system: :mix}) == "Command"
+    end
+  end
+
+  describe "test_run_label/2" do
+    test "names a mix test run after its command" do
+      assert TestLabels.test_run_label(%Project{build_system: :mix}, "") == "mix test"
+      assert TestLabels.test_run_label(%Project{build_system: :mix}, nil) == "mix test"
+    end
+
+    test "names other runs by their scheme, or Unknown without one" do
+      assert TestLabels.test_run_label(%Project{build_system: :xcode}, "App") == "App"
+      assert TestLabels.test_run_label(%Project{build_system: :xcode}, "") == "Unknown"
+      assert TestLabels.test_run_label(%Project{build_system: :bazel}, "//app:tests") == "bazel test //app:tests"
+    end
+  end
+
+  describe "schemes?/1" do
+    test "is false only for mix projects" do
+      refute TestLabels.schemes?(%Project{build_system: :mix})
+      assert TestLabels.schemes?(%Project{build_system: :xcode})
+      assert TestLabels.schemes?(%Project{build_system: :gradle})
+      assert TestLabels.schemes?(%Project{build_system: :bazel})
+    end
   end
 end

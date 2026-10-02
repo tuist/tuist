@@ -6,7 +6,53 @@ which installs an ExUnit formatter and posts a test-run payload to
 `POST /api/projects/:acc/:proj/tests` with `build_system: "mix"`, and
 `mix tuist.compile` which attaches an after-compiler hook to Mix's Elixir and
 app compilers and posts a compile record with per-diagnostic granularity to
-`POST /api/projects/:acc/:proj/mix/builds`. It shares the Tuist credential
+`POST /api/projects/:acc/:proj/mix/builds`. `CompileProfile` adds the per-file
+profile: compile and wait durations come from the compiler's `--profile time`
+output, while a tracer timestamps when each file started and each module
+became available. Offsets are milliseconds from the start of the compile. A
+wait is placed right before the module it waited on became available; when
+that moment was not observed its offset stays `nil` rather than being guessed.
+Both tasks take the command line of the task they wrap (`Args.split/2` keeps
+only their own options), so projects alias them as `test` and `compile`.
+`Args.run_wrapped/3` exists because of that alias: called by its own name, a
+Tuist task would follow the alias back to itself and Mix would do nothing.
+`mix tuist.compile` must never write the shared `:analytics_options`; under
+the alias it runs inside `mix tuist.test`, which owns them. A compile where
+every compiler returned `:noop` is not reported. Retries (`--retries`,
+`TUIST_TEST_RETRIES`, `tuist: [test_retries:]`) rerun failed tests with
+`mix tuist.test --failed` in a child process whose formatter writes outcomes
+to a file instead of submitting; the parent runs the suite with `--raise` so
+a passing retry can turn the exit code green, merges the attempts as
+repetitions and submits once. Sharding (`Shards`, `mix tuist.test.build`) plans with ExUnit modules, since
+that is what runs report timings for, discovered by parsing the test files
+without loading them, and runs test files, since that is what Mix can
+select. The build archive lists symbolic links instead of storing them,
+because `:erl_tar` refuses to extract a link that leaves the directory and
+every dependency's `priv` does; links are recreated only when they stay
+inside the checkout. A shard that cannot fetch its plan fails rather than
+running everything. The downloaded build is unpacked beside the build
+directory and swapped in whole, and a link is recreated only below real
+directories and pointing inside the checkout. Retries never recover a suite
+that `--max-failures` cut short (the formatter notes `:max_failures_reached`),
+forwarded arguments are never deduplicated, and a Tuist task started outside
+the test environment re-executes itself in it (`Args.ensure_env/3`) because
+switching `Mix.env` after the task was found leaves `dev`'s dependency paths
+loaded. `CompileReporter` stops after each build and trims a build to the
+server's limits (see `Tuist.Mix.limits/0`) rather than have it refused. The tracer also records every reference a file makes to another module,
+deduplicated in its own table because they arrive by the million, and
+`CompileProfile` turns them into the project's file dependency graph with
+`mix xref`'s kinds (`compile`, `export`, `runtime`). Only project files are
+kept; a module not compiled in this run is resolved through its compiled file
+in the build directory. The same profile output also reports work around the files (type checking,
+writing modules to disk); a line is printed when its work ends, so its arrival
+time minus its duration is the start. Other Mix compilers are timed from
+`after_compiler` hooks: each starts when the previous one finishes, so the
+first compiler in the list has no known start and is not reported.
+`MachineMetrics` samples CPU and memory through Erlang's operating-system
+monitor and network and disk throughput (bytes per second) from the
+machine-wide counters in `IOCounters`: `/proc` on Linux, `netstat` and `ioreg`
+on macOS, since Erlang has no direct binding for those. Always pass `-n` to
+`netstat`; without it the command resolves names and can take seconds. It shares the Tuist credential
 file and uses the command line tool's refresh lock path. Server ingestion and
 dashboard presentation belong in `server/`.
 

@@ -552,12 +552,8 @@
             end
           }
         >
-          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
-            <.text_cell label={
-              if test_run.scheme != "" and not is_nil(test_run.scheme),
-                do: test_run.scheme,
-                else: dgettext("dashboard_tests", "Unknown")
-            } />
+          <:col :let={test_run} label={scheme_label(@selected_project)}>
+            <.text_cell label={test_run_label(@selected_project, test_run.scheme)} />
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
             <.text_cell label={

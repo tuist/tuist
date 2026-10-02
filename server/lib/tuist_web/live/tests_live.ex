@@ -214,7 +214,10 @@ defmodule TuistWeb.TestsLive do
 
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
-    duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
+
+    duration_scatter_group_by =
+      params["duration-scatter-group-by"] ||
+        if(schemes?(socket.assigns.selected_project), do: "scheme", else: "environment")
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -465,7 +468,7 @@ defmodule TuistWeb.TestsLive do
   def test_scheme_label("any"), do: dgettext("dashboard_tests", "Any")
   def test_scheme_label(scheme), do: scheme
 
-  defp with_test_run_tooltip_extra(scatter_data, group_by) do
+  defp with_test_run_tooltip_extra(scatter_data, group_by, schemes?) do
     Map.update!(scatter_data, :series, fn series ->
       Enum.map(series, fn s ->
         %{
@@ -474,7 +477,7 @@ defmodule TuistWeb.TestsLive do
             Enum.map(s.data, fn point ->
               point
               |> Map.take([:value, :id])
-              |> Map.put(:tooltipExtra, test_run_tooltip_extra(point.meta))
+              |> Map.put(:tooltipExtra, test_run_tooltip_extra(point.meta, schemes?))
             end)
         }
       end)
@@ -500,12 +503,17 @@ defmodule TuistWeb.TestsLive do
   defp scatter_name_label(value, :environment), do: environment_label(value)
   defp scatter_name_label(value, _), do: scheme_value_label(value)
 
-  defp test_run_tooltip_extra(meta) do
-    [
-      %{label: dgettext("dashboard_tests", "Scheme"), value: scheme_value_label(meta.scheme)},
-      %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
-      %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
-    ]
+  defp test_run_tooltip_extra(meta, schemes?) do
+    scheme =
+      if schemes?,
+        do: [%{label: dgettext("dashboard_tests", "Scheme"), value: scheme_value_label(meta.scheme)}],
+        else: []
+
+    scheme ++
+      [
+        %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
+        %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
+      ]
   end
 
   defp selective_testing_tooltip_extra(meta) do
@@ -524,12 +532,13 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_test_run_duration_chart(socket, "scatter", group_by, opts) do
     project_id = socket.assigns.selected_project.id
+    schemes? = schemes?(socket.assigns.selected_project)
 
     assign_async(socket, :test_run_duration_chart, fn ->
       data =
         project_id
         |> Analytics.test_run_duration_scatter_data(Keyword.put(opts, :group_by, group_by))
-        |> with_test_run_tooltip_extra(group_by)
+        |> with_test_run_tooltip_extra(group_by, schemes?)
 
       {:ok, %{test_run_duration_chart: {:scatter, data}}}
     end)

@@ -51,6 +51,7 @@ This area owns LiveView pages and components for the web UI.
 
 - Automation match previews use one stable async key and a 500ms condition-change debounce. Keep condition validation consistent across the summary, preview, and save path, including required event selections for event-driven monitors; an unchecked explicit save cancels pending existing-match actions.
 
+- `MixBuildLive` (the Mix build detail page) uses the same loader and `build_timeline_section` with `source="mix"`, and its tabs follow Xcode: Overview, Timeline, Warnings, Errors. `Tuist.Mix.Timeline` shows work only: the stretches each file was actually being compiled, plus the type checking, disk writes and other Mix compilers the client reported. The time a file spent waiting on another is never drawn as a step. The file and module breakdown tables show compile time and each file's place in the dependency graph (compile-time dependencies and dependents, computed by `Tuist.Mix.list_compiled_files/1` from the stored edges), not waits. Machine metrics appear only in Timeline.
 - Only expose Timeline when the selected build has recorded steps or aligned machine samples. Shared `BuildTimelineLoader.select_tab/3` falls back to Overview for unavailable direct links; Xcode processing refreshes recheck availability. Bazel requires a published profile; retained summary spans alone do not qualify. Availability checks use scoped existence/scalar queries, never full step downloads.
 
 - `RunnerVolumesLive` shows account-scoped Linux cache usage and job history.

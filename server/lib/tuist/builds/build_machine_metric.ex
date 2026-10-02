@@ -12,6 +12,7 @@ defmodule Tuist.Builds.BuildMachineMetric do
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :mix_build_id, Ch, type: "Nullable(UUID)"
+    field :project_id, Ch, type: "Nullable(Int64)"
     field :timestamp, Ch, type: "Float64"
     field :offset_ms, Ch, type: "Nullable(Float64)"
     field :cpu_usage_percent, Ch, type: "Float32"

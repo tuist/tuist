@@ -9,6 +9,16 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   # The formatter must never change the exit code of `mix test`: a
   # submission failure is logged through Mix.shell/0 (visible with
   # TUIST_DEBUG=1) and swallowed.
+  #
+  # What happens when the suite finishes depends on the `:mode` option:
+  #
+  #   * `:submit` (default) sends the run.
+  #   * `:defer` keeps the run for the caller, which fetches it with
+  #     `take_deferred/0`. `mix tuist.test` uses it when it may retry failed
+  #     tests, so the run is sent once, with the retries in it.
+  #   * `{:collect, path}` writes the test outcomes to a file and sends
+  #     nothing. The process retrying failed tests runs in this mode and the
+  #     parent reads the file.
   use GenServer
 
   alias TuistEx.Analytics.Contract
@@ -16,17 +26,29 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Metadata
 
+  @deferred :deferred_test_run
+
   def init(opts) do
-    analytics_opts = Application.get_env(:tuist_ex, :analytics_options, [])
-    merged = Keyword.merge(analytics_opts, Keyword.new(opts))
+    opts = Keyword.new(opts)
+
+    # The options the Mix task set apply to the formatter ExUnit starts for
+    # the run. A caller that brings its own `:submit` is driving a formatter
+    # of its own, typically a test of this module, possibly inside a suite
+    # that is itself reported, and gets exactly the options it passed.
+    analytics_opts =
+      if Keyword.has_key?(opts, :submit),
+        do: [],
+        else: Application.get_env(:tuist_ex, :analytics_options, [])
+
+    merged = Keyword.merge(analytics_opts, opts)
 
     {:ok,
      %{
        tests: [],
+       aborted?: false,
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
        opts: merged,
-       submit: Keyword.get(merged, :submit, &HTTP.submit_test_run/2),
        shell: Keyword.get(merged, :shell, &default_shell/1)
      }}
   end
@@ -39,18 +61,34 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     {:noreply, %{state | tests: [record(test) | state.tests]}}
   end
 
+  # ExUnit stopped early because of `--max-failures`: tests it never reached
+  # are neither passed nor failed, so the run cannot be recovered by retrying
+  # the failures it did see.
+  def handle_cast(:max_failures_reached, state), do: {:noreply, %{state | aborted?: true}}
+
   def handle_cast({:suite_finished, times}, state) do
     duration_ms = suite_duration_ms(times, state.monotonic_start_ns)
+    tests = Enum.reverse(state.tests)
 
     try do
-      payload = build_payload(Enum.reverse(state.tests), duration_ms, state.ran_at, state.opts)
+      case Keyword.get(state.opts, :mode, :submit) do
+        # An umbrella runs one suite per application, each with a formatter
+        # of its own, so both modes add to what the earlier suites left.
+        {:collect, path} ->
+          File.write!(path, :erlang.term_to_binary(read_collected(path) ++ tests))
 
-      case state.submit.(payload, state.opts) do
-        :ok ->
-          :ok
+        :defer ->
+          payload = build_payload(tests, duration_ms, state.ran_at, state.opts)
+          deferred = Application.get_env(:tuist_ex, @deferred, [])
 
-        {:error, reason} ->
-          state.shell.("tuist analytics: failed to submit test run: #{inspect(reason)}")
+          Application.put_env(
+            :tuist_ex,
+            @deferred,
+            deferred ++ [{payload, state.opts, state.aborted?}]
+          )
+
+        :submit ->
+          submit(build_payload(tests, duration_ms, state.ran_at, state.opts), state.opts)
       end
     rescue
       exception ->
@@ -63,6 +101,145 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   end
 
   def handle_cast(_message, state), do: {:noreply, state}
+
+  @doc """
+  Sends a test run. A failure is reported through the shell and never raised.
+  """
+  def submit(payload, opts) do
+    submit = Keyword.get(opts, :submit, &HTTP.submit_test_run/2)
+    shell = Keyword.get(opts, :shell, &default_shell/1)
+
+    case submit.(payload, opts) do
+      :ok -> :ok
+      {:error, reason} -> shell.("tuist analytics: failed to submit test run: #{inspect(reason)}")
+    end
+
+    :ok
+  end
+
+  @doc """
+  Returns the runs kept by `:defer` mode, one `{payload, opts, aborted?}` per
+  suite that ran (an umbrella runs one per application), and forgets them.
+  `aborted?` says the suite stopped before running every test.
+  """
+  def take_deferred do
+    deferred = Application.get_env(:tuist_ex, @deferred, [])
+    Application.delete_env(:tuist_ex, @deferred)
+    deferred
+  end
+
+  @doc """
+  Reads the outcomes a `{:collect, path}` run wrote, as a list of records.
+  """
+  def read_collected(path) do
+    case File.read(path) do
+      {:ok, binary} -> :erlang.binary_to_term(binary)
+      _ -> []
+    end
+  rescue
+    _ -> []
+  end
+
+  @doc """
+  Folds retry attempts into a run. `attempts` is one list of records per
+  retry, in order. A test that was retried gets a repetition per attempt, its
+  status becomes that of its last attempt, and module, suite and run statuses
+  are recomputed, the same shape the other build systems report.
+  """
+  def merge_retries(payload, []), do: payload
+
+  def merge_retries(payload, attempts) do
+    retries =
+      attempts
+      |> Enum.with_index(1)
+      |> Enum.flat_map(fn {records, retry} -> Enum.map(records, &{retry, &1}) end)
+      |> Enum.reject(fn {_retry, record} -> record.status == "skipped" end)
+      |> Enum.group_by(fn {_retry, record} ->
+        {record.module, record.describe || "", record.name}
+      end)
+
+    modules =
+      Enum.map(payload.test_modules, fn module ->
+        cases =
+          Enum.map(module.test_cases, fn test_case ->
+            key = {module.name, Map.get(test_case, :test_suite_name) || "", test_case.name}
+            retry_test_case(test_case, Map.get(retries, key, []))
+          end)
+
+        # A retry adds the time it took to its test, and so to the suite and
+        # module holding it and to the run.
+        %{
+          module
+          | test_cases: cases,
+            status: status_of(cases),
+            duration: module.duration + added(module.test_cases, cases),
+            test_suites:
+              Enum.map(module.test_suites, fn suite ->
+                in_suite = &(Map.get(&1, :test_suite_name) == suite.name)
+                suite_cases = Enum.filter(cases, in_suite)
+
+                %{
+                  suite
+                  | status: status_of(suite_cases),
+                    duration:
+                      suite.duration +
+                        added(Enum.filter(module.test_cases, in_suite), suite_cases)
+                }
+              end)
+        }
+      end)
+
+    added =
+      added(
+        Enum.flat_map(payload.test_modules, & &1.test_cases),
+        Enum.flat_map(modules, & &1.test_cases)
+      )
+
+    payload = %{payload | test_modules: modules, status: aggregate_status(modules)}
+
+    if Map.has_key?(payload, :duration),
+      do: Map.update!(payload, :duration, &(&1 + added)),
+      else: payload
+  end
+
+  defp added(before, merged), do: duration_of(merged) - duration_of(before)
+  defp duration_of(cases), do: cases |> Enum.map(&Map.get(&1, :duration, 0)) |> Enum.sum()
+
+  defp retry_test_case(test_case, []), do: test_case
+
+  defp retry_test_case(test_case, retries) do
+    first = %{
+      repetition_number: 1,
+      name: "Run 1",
+      status: test_case.status,
+      duration: test_case.duration
+    }
+
+    repetitions =
+      Enum.map(retries, fn {retry, record} ->
+        %{
+          repetition_number: retry + 1,
+          name: "Retry #{retry}",
+          status: record.status,
+          duration: record.duration_ms
+        }
+      end)
+
+    {_retry, last} = List.last(retries)
+
+    test_case
+    |> Map.put(:status, last.status)
+    |> Map.put(:duration, test_case.duration + Enum.sum(Enum.map(repetitions, & &1.duration)))
+    |> Map.put(
+      :failures,
+      Map.get(test_case, :failures, []) ++
+        Enum.flat_map(retries, fn {_, record} -> record.failures end)
+    )
+    |> Map.put(:repetitions, [first | repetitions])
+  end
+
+  defp status_of(cases),
+    do: if(Enum.any?(cases, &(&1.status == "failure")), do: "failure", else: "success")
 
   # Phoenix's HTTP stack (used by the pluggable submit function) sends a few
   # informational messages back to the caller process. Swallow them so tests
@@ -78,12 +255,27 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     %{
       module: inspect(test.module),
       describe: describe,
-      name: Atom.to_string(test.name),
+      name: display_name(test, describe),
       status: status(test.state),
       duration_ms: microseconds_to_milliseconds(test.time),
       failures: failures(test.state, test.tags[:file]),
       is_quarantined: test.tags[:quarantined] == true
     }
+  end
+
+  # ExUnit registers a test as "<type> <describe> <name>", for example
+  # "test create_order/2 rejects an empty cart". The type says nothing and the
+  # describe block is reported as the suite, so only the test's own name is
+  # kept.
+  defp display_name(test, describe) do
+    type = test.tags[:test_type] || :test
+
+    test.name
+    |> Atom.to_string()
+    |> String.replace_prefix("#{type} ", "")
+    |> then(
+      &if(describe in [nil, ""], do: &1, else: String.replace_prefix(&1, describe <> " ", ""))
+    )
   end
 
   defp status(nil), do: "success"
@@ -102,22 +294,20 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   defp format_failure({kind, error, stacktrace}, test_file) do
     {path, line_number} = failure_location(stacktrace, test_file)
 
-    %{
-      message: safe_format_banner(kind, error),
-      path: path,
-      line_number: line_number,
-      issue_type: issue_type(error)
-    }
+    failure(safe_format_banner(kind, error), path, line_number, issue_type(error))
   end
 
-  defp invalid_failure(module) do
-    %{
-      message: "Setup failed for #{inspect(module)}",
-      path: nil,
-      line_number: 0,
-      issue_type: "error_thrown"
-    }
-  end
+  defp invalid_failure(module),
+    do: failure("Setup failed for #{inspect(module)}", nil, 0, "error_thrown")
+
+  # A failure without a source location (a timeout, an exit, a failed
+  # `setup_all`) has no path. The key is left out rather than sent as null,
+  # which the server rejects along with the whole run.
+  defp failure(message, nil, _line_number, issue_type),
+    do: %{message: message, line_number: 0, issue_type: issue_type}
+
+  defp failure(message, path, line_number, issue_type),
+    do: %{message: message, path: path, line_number: line_number, issue_type: issue_type}
 
   defp issue_type(%ExUnit.AssertionError{}), do: "assertion_failure"
   defp issue_type(_), do: "error_thrown"
@@ -208,6 +398,8 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       ci_run_id: Env.ci_run_id(environment),
       ci_project_handle: Env.ci_project_handle(environment),
       ci_host: Env.ci_host(environment),
+      shard_plan_id: Keyword.get(opts, :shard_plan_id),
+      shard_index: Keyword.get(opts, :shard_index),
       custom_metadata: Metadata.collect(opts),
       test_modules: modules
     }

@@ -22,13 +22,44 @@ defmodule Mix.Tasks.Tuist.TestTest do
     end)
   end
 
-  test "splits mix task args at `--` and parses only the left side" do
+  test "takes the same command line as mix test, keeping only its own options" do
+    assert {[url: "https://tuist.example", retries: 2],
+            ["test/a_test.exs:12", "--trace", "--only", "slow"]} =
+             Task.split_args([
+               "test/a_test.exs:12",
+               "--url",
+               "https://tuist.example",
+               "--trace",
+               "--retries=2",
+               "--only",
+               "slow"
+             ])
+  end
+
+  test "still accepts the `--` separator older versions required" do
     assert {[url: "https://tuist.example"], ["--trace"]} =
              Task.split_args(["--url", "https://tuist.example", "--", "--trace"])
   end
 
   test "parses --project when no forwarded args are given" do
     assert {[project: "acme/widgets"], []} = Task.split_args(["--project", "acme/widgets"])
+  end
+
+  test "rejects an own option without a usable value" do
+    assert_raise Mix.Error, ~r/--retries expects a number/, fn ->
+      Task.split_args(["--retries", "many"])
+    end
+
+    assert_raise Mix.Error, ~r/--project expects a value/, fn ->
+      Task.split_args(["--project"])
+    end
+  end
+
+  test "retries are off unless asked for, by flag first and then the environment" do
+    assert Task.retries([], fn _ -> nil end) == 0
+    assert Task.retries([retries: 2], fn _ -> "5" end) == 2
+    assert Task.retries([], fn "TUIST_TEST_RETRIES" -> "3" end) == 3
+    assert Task.retries([], fn "TUIST_TEST_RETRIES" -> "nope" end) == 0
   end
 
   test "configure/1 appends the analytics formatter without dropping existing ones" do

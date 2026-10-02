@@ -28,6 +28,11 @@ defmodule TuistWeb.BuildsLive do
           |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
           |> TuistWeb.GradleBuildsLive.assign_initial_configuration_insights()
 
+        Project.mix_project?(project) ->
+          socket
+          |> TuistWeb.MixBuildsLive.assign_configuration_insights_options(params)
+          |> TuistWeb.MixBuildsLive.assign_initial_configuration_insights()
+
         true ->
           TuistWeb.XcodeBuildsLive.assign_mount(socket, params)
       end
@@ -48,6 +53,13 @@ defmodule TuistWeb.BuildsLive do
          |> TuistWeb.GradleBuildsLive.assign_handle_params(params)
          |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
          |> TuistWeb.GradleBuildsLive.assign_configuration_insights()}
+
+      Project.mix_project?(project) ->
+        {:noreply,
+         socket
+         |> TuistWeb.MixBuildsLive.assign_handle_params(params)
+         |> TuistWeb.MixBuildsLive.assign_configuration_insights_options(params)
+         |> TuistWeb.MixBuildsLive.assign_configuration_insights()}
 
       true ->
         {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
@@ -114,6 +126,9 @@ defmodule TuistWeb.BuildsLive do
 
       Project.gradle_project?(project) ->
         TuistWeb.GradleBuildsLive.handle_event("select_widget", params, socket)
+
+      Project.mix_project?(project) ->
+        TuistWeb.MixBuildsLive.handle_event("select_widget", params, socket)
 
       true ->
         TuistWeb.XcodeBuildsLive.handle_event("select_widget", params, socket)
