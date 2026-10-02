@@ -4,11 +4,11 @@ date: "2026-10-01"
 url: "https://toss.im/"
 founded_date: "2013"
 company: "Toss"
-excerpt: "Toss, Korea's financial super-app, is split into close to 1,000 modules. This is how the team used Tuist's binary cache to take builds that finish within a minute from about 20% to about 70% of local builds."
+excerpt: "Toss, Korea's leading financial super-app, is split into close to 1,000 modules. This is how the team used Tuist's binary cache to more than triple the share of local builds that finish within a minute."
 translations:
   ko:
     title: "토스팀의 개발 속도를 높이기 위한 여정"
-    excerpt: "슈퍼앱 토스는 1,000개에 가까운 모듈로 잘게 나뉘어 있어요. 이런 환경에서 Tuist의 바이너리 캐시를 활용해, 1분 안에 끝나는 로컬 빌드 비율을 약 20%에서 약 70%까지 끌어올린 과정을 소개해요."
+    excerpt: "슈퍼앱 토스는 1,000개에 가까운 모듈로 잘게 나뉘어 있어요. 이런 환경에서 Tuist의 바이너리 캐시를 활용해, 1분 안에 끝나는 로컬 빌드 비율을 3배 이상으로 끌어올린 과정을 소개해요."
     body: |
       ## 풀어야 했던 문제
 
@@ -20,7 +20,7 @@ translations:
 
       ### 빌드는 왜 느렸을까요
 
-      토스팀의 목표는 분명했어요. 코드를 한 줄 고치면 1분 안에 결과를 확인할 수 있어야 한다는 것이었어요. 하지만 실제로는 로컬 빌드의 약 20%만 1분 안에 끝났어요.
+      토스팀의 목표는 분명했어요. 코드를 한 줄 고치면 1분 안에 결과를 확인할 수 있어야 한다는 것이었어요. 하지만 실제로는 로컬 빌드의 일부만 1분 안에 끝났어요.
 
       빌드를 분석해 보니 문제는 두 가지였어요. 하나는 컴파일이에요. 코드를 고칠 때마다 앱의 많은 부분을 다시 컴파일해야 했어요. 다른 하나는 컴파일이 시작되기 전에 쓰이는 시간이에요. 증분 빌드를 할 때마다 Xcode가 의존성 그래프를 계산하고, 모듈마다 Swift 빌드 계획을 세우고, 수백 개의 Xcode 프로젝트로 이루어진 워크스페이스의 build description을 만드는 데 많은 시간이 걸렸어요. 여러 모듈이 의존하는 기반 모듈을 한 줄만 고쳐도, 앱의 많은 부분에서 재컴파일과 Swift 빌드 계획이 다시 실행됐어요.
 
@@ -79,7 +79,7 @@ translations:
 
       토스팀의 iOS 개발자가 토스 앱을 빌드하는 경험이 정말 많이 달라졌어요. 제품 개발자는 본인이 담당하는 모듈만 빌드하면 되는 환경이 마련됐고, 브랜치나 빌드 환경을 바꿔도 전체를 다시 빌드하는 일이 없어졌어요. 그리고 이런 환경에서는 Example 앱으로 개발할 때의 생산성도 한층 더 높아졌어요.
 
-      - **1분 안에 끝나는 빌드**가 로컬 빌드의 약 20%에서 약 70%로 늘었어요.
+      - **1분 안에 끝나는 빌드**의 비율이 3배 이상으로 늘었어요.
       - **그래프의 대부분을 캐시에서 받아 와요.** 대부분의 모듈을 캐시할 수 있고, 캐시를 준비할 때도 대부분 리모트 캐시에서 받아 와요.
 
       빌드가 빨라진 것은 AI 에이전트에게도 아주 큰 영향을 줬어요. AI 에이전트도 코드를 고친 뒤 빌드로 결과를 확인하기 때문에, 빌드가 빨라진 만큼 AI와 함께하는 개발도 훨씬 빨라졌어요.
@@ -99,7 +99,7 @@ Toss's iOS project already used Tuist to [generate its Xcode projects](https://t
 
 ### Why builds were slow
 
-The Toss team's goal was simple to state: after changing a line of code, a developer should see the result in under a minute. In practice, most developers were far from it. Only about 20% of local builds finished within that minute.
+The Toss team's goal was simple to state: after changing a line of code, a developer should see the result in under a minute. In practice, only a small share of local builds finished within that minute.
 
 Profiling showed two problems. One was compilation: every change meant recompiling a large part of the app. The other was the time spent *before* the compiler did any real work. On every incremental build, Xcode spent a long time computing the dependency graph, planning Swift builds module by module, and creating the build description for a workspace made of hundreds of Xcode projects. A one-line change in a foundational module could trigger recompilation and Swift planning across a large part of the app.
 
@@ -132,7 +132,7 @@ Before prebuilding could pay off, the graph itself had to change. If a module si
 - **Unified build variants.** Internal and production builds originally produced different binaries because of conditional compilation flags, which forced developers to rebuild the cache when switching between them. The team removed those flags from shared modules and introduced a single shared cache configuration, so one set of binaries serves both.
 - **Guarded cacheability in CI.** A pull request check now alerts when a change reduces the share of modules that can be cached, so regressions are caught before they reach the main branch.
 
-### A focus workflow developers can live with
+### A focus workflow that fits how developers actually work
 
 On top of Tuist's focused generation, the team built a small workspace configuration layer. A developer declares the scheme they are working on in a local config file. The setup script works out which modules must stay as source, including the modules that depend on them, and Tuist generates a workspace where everything else is a prebuilt XCFramework. Inside Toss, developers can easily edit this configuration with [necto](https://github.com/toss/necto), an iOS debugging tool the team recently open-sourced.
 
@@ -158,7 +158,7 @@ Toss and the Tuist team worked through these together, and the fixes now ship in
 
 For Toss's iOS developers, the experience of building the Toss app changed dramatically. Product developers now only need to build the modules they own, and switching branches or build environments no longer means rebuilding everything. In this setup, working in example apps became even more productive.
 
-- **Builds within one minute** went from about 20% to about 70% of local builds.
+- **Builds within one minute** more than tripled as a share of local builds.
 - **Most of the graph is served from cache:** most modules can be cached, and most cache warms are served from the remote cache.
 
 Faster builds also had a big impact on AI agents. Agents verify their changes by building too, so as builds got faster, development with AI got much faster as well.
