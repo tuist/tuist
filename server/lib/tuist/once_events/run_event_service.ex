@@ -23,10 +23,12 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Tuist.Authentication
   alias Tuist.Authorization
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.RateLimit
 
   require Logger
 
@@ -47,6 +49,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   @project_header "once-project-id"
   @max_project_id_bytes 256
   @reauthenticate_after_ms to_timeout(minute: 5)
+  @subject_cache_ttl_ms to_timeout(minute: 1)
 
   # ---- GetServerCapabilities -----------------------------------------
 
@@ -258,11 +261,58 @@ defmodule Tuist.OnceEvents.RunEventService do
         _ -> %{}
       end
 
+    rate_limit!(headers)
+
     with token when is_binary(token) <- extract_bearer(headers),
-         subject when not is_nil(subject) <- Authentication.authenticated_subject(token) do
+         subject when not is_nil(subject) <- authenticated_subject(token) do
       project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header)))
     else
       _ -> {:error, "missing or invalid bearer"}
+    end
+  end
+
+  # Bounds what one client address can spend on credential checks, valid or not.
+  # The ingress always sets `x-forwarded-for` to the connecting address, and it is
+  # the only way to reach this port, so a call without it is not limited.
+  defp rate_limit!(headers) do
+    with address when is_binary(address) <- client_address(headers),
+         {:deny, _limit} <-
+           RateLimit.hit("once-events:#{address}",
+             limit: Environment.once_events_rate_limit_bucket_size(),
+             window: to_timeout(minute: 1)
+           ) do
+      raise GRPC.RPCError, status: :resource_exhausted, message: "too many requests"
+    end
+
+    :ok
+  end
+
+  defp client_address(headers) do
+    with forwarded when is_binary(forwarded) <- header_value(headers, "x-forwarded-for"),
+         [first | _] <- String.split(forwarded, ","),
+         address when address != "" <- String.trim(first) do
+      binary_part(address, 0, min(byte_size(address), 64))
+    else
+      _ -> nil
+    end
+  end
+
+  # Same short cache as the HTTP API, so a long run does not pay for password
+  # checks and membership reads on every reconnect. Only a successful lookup is
+  # stored, so a token that does not exist yet is not remembered as invalid, and
+  # the key holds a hash instead of the token.
+  defp authenticated_subject(token) do
+    key = [__MODULE__, "authenticated_subject", Base.encode16(:crypto.hash(:sha256, token))]
+    opts = [ttl: @subject_cache_ttl_ms, cache: :tuist]
+
+    case KeyValueStore.get(key, opts) do
+      nil ->
+        subject = Authentication.authenticated_subject(token)
+        if subject, do: KeyValueStore.put(key, subject, opts)
+        subject
+
+      subject ->
+        subject
     end
   end
 
@@ -279,15 +329,28 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   defp project_for(_subject, nil), do: {:error, "no project named for the events"}
 
+  # An unknown project runs the same permission check, against a placeholder, so
+  # it does about the same work and takes about the same time as a project the
+  # caller cannot access, and neither reveals whether a handle exists.
   defp project_for(subject, hint) do
     with {:ok, handle} <- parse_handle(hint),
-         {:ok, project} <- Projects.get_project_by_slug(handle),
-         :ok <- Authorization.authorize(:run_create, subject, project) do
+         project = find_project(handle),
+         :ok <- Authorization.authorize(:run_create, subject, project || missing_project()),
+         %Project{} <- project do
       {:ok, project}
     else
       _ -> {:error, "no access to the requested project"}
     end
   end
+
+  defp find_project(handle) do
+    case Projects.get_project_by_slug(handle) do
+      {:ok, project} -> project
+      _ -> nil
+    end
+  end
+
+  defp missing_project, do: %Project{id: -1, account_id: -1}
 
   # Handles reach the database, which rejects what it cannot store, so shape is
   # checked first: printable text without NUL, `account/project`, bounded length.

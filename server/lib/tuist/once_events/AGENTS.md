@@ -15,5 +15,5 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 - Authentication reuses `Tuist.Authentication.authenticated_subject/1`, so a login session, an account token and a project token all work. A project token identifies its project. Every other credential names it in the `once-project-id` call metadata (`account/project`, the key RFC 0008 defines in `tuist/once`), and `Tuist.Authorization` `:run_create` decides access. Never add a separate token lookup here.
 - Unknown projects and projects without access must return the same message, and handles are validated for shape and length before any database lookup.
 - The credential is read when a stream opens and again every few minutes while it stays open, so a revoked token or a removed member cannot keep writing for hours.
-- Not done yet: the gRPC endpoint has no rate limiting, and the subject is not cached the way the HTTP API caches it, so a valid account token costs several queries and a password check per call.
+- Credential work is bounded: the subject lookup is cached for a minute under a hash of the token (successes only), and each client address is limited per minute (`once_events_rate_limit_bucket_size`, keyed on the ingress's `x-forwarded-for`). An unknown project runs the same permission check, against a placeholder, as one the caller cannot access.
 

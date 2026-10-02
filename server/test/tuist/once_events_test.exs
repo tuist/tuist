@@ -6,6 +6,7 @@ defmodule Tuist.OnceEventsTest do
 
   alias Once.Events.V1.AckDisposition
   alias Once.Events.V1.ActionCompleted
+  alias Once.Events.V1.ArgvHashKey
   alias Once.Events.V1.BatchAck
   alias Once.Events.V1.CacheDownload
   alias Once.Events.V1.ContentRef
@@ -18,6 +19,9 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.TestCaseCompleted
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.Accounts.Organization
+  alias Tuist.Authentication
+  alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
@@ -496,6 +500,85 @@ defmodule Tuist.OnceEventsTest do
     end
   end
 
+  describe "the cost of authenticating" do
+    setup %{project: project} do
+      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(member, organization)
+      %{member: member, handle: "#{project.account.name}/#{project.name}"}
+    end
+
+    test "the same credential is resolved once and then served from the cache", %{
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      session = login_session(member)
+
+      expect(Authentication, :authenticated_subject, 1, fn token ->
+        Mimic.call_original(Authentication, :authenticated_subject, [token])
+      end)
+
+      for _ <- 1..3, do: publish(session, %{"once-project-id" => handle}, run)
+
+      for _ <- 1..3, do: assert_received({:ack, %BatchAck{}})
+    end
+
+    test "a request over the limit from one address is refused before any credential work", %{
+      member: member,
+      handle: handle
+    } do
+      stub(Environment, :once_events_rate_limit_bucket_size, fn -> 2 end)
+      session = login_session(member)
+      busy = %{"x-forwarded-for" => unique_address()}
+      quiet = %{"x-forwarded-for" => unique_address()}
+      request = %GetArgvHashKeyRequest{project_id: handle}
+
+      for _ <- 1..2, do: RunEventService.get_argv_hash_key(request, stream_with(session, busy))
+
+      reject(&Authentication.authenticated_subject/1)
+
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.get_argv_hash_key(request, stream_with(session, busy))
+        end
+
+      assert error.status == GRPC.Status.resource_exhausted()
+      assert %ArgvHashKey{} = RunEventService.get_argv_hash_key(request, stream_with(session, quiet))
+    end
+
+    test "invalid bearers from one address are throttled too", %{handle: handle} do
+      stub(Environment, :once_events_rate_limit_bucket_size, fn -> 2 end)
+      headers = %{"x-forwarded-for" => unique_address()}
+      request = %GetArgvHashKeyRequest{project_id: handle}
+
+      statuses =
+        for _ <- 1..4 do
+          assert_raise GRPC.RPCError, fn ->
+            RunEventService.get_argv_hash_key(request, stream_with("not-a-token", headers))
+          end
+        end
+
+      assert Enum.map(statuses, & &1.status) == [
+               GRPC.Status.unauthenticated(),
+               GRPC.Status.unauthenticated(),
+               GRPC.Status.resource_exhausted(),
+               GRPC.Status.resource_exhausted()
+             ]
+    end
+
+    test "an unknown project still runs the permission check, so it costs the same as a forbidden one", %{
+      member: member,
+      run: run
+    } do
+      expect(Authorization, :authorize, 1, fn action, subject, object ->
+        Mimic.call_original(Authorization, :authorize, [action, subject, object])
+      end)
+
+      assert unauthenticated?(fn -> publish(login_session(member), %{"once-project-id" => "nobody/nothing"}, run) end)
+    end
+  end
+
   defmodule HeadersAdapter do
     @moduledoc false
     def get_headers(headers), do: headers
@@ -610,7 +693,7 @@ defmodule Tuist.OnceEventsTest do
   test "authenticates the configured project slug and rejects another project", %{project: project} do
     stream = %GRPC.Server.Stream{adapter: HeadersAdapter, payload: %{"authorization" => "Bearer " <> project.token}}
     request = %GetArgvHashKeyRequest{project_id: "#{project.account.name}/#{project.name}"}
-    assert %Once.Events.V1.ArgvHashKey{key_bytes: key} = RunEventService.get_argv_hash_key(request, stream)
+    assert %ArgvHashKey{key_bytes: key} = RunEventService.get_argv_hash_key(request, stream)
     assert byte_size(key) == 32
 
     assert_raise GRPC.RPCError, ~r/project token does not match/, fn ->
@@ -868,6 +951,8 @@ defmodule Tuist.OnceEventsTest do
     flag
   end
 
+  defp unique_address, do: "10.#{:rand.uniform(250)}.#{:rand.uniform(250)}.#{System.unique_integer([:positive])}"
+
   defp publish(token, headers, run) do
     RunEventService.publish_run_events([empty_batch(run)], stream_with(token, headers))
   end
@@ -929,7 +1014,7 @@ defmodule Tuist.OnceEventsTest do
   end
 
   defp user_stream(user, extra_headers) do
-    {:ok, token, _claims} = Tuist.Authentication.encode_and_sign(user, %{}, token_type: :access, ttl: {1, :hour})
+    {:ok, token, _claims} = Authentication.encode_and_sign(user, %{}, token_type: :access, ttl: {1, :hour})
     test_process = self()
 
     %GRPC.Server.Stream{
