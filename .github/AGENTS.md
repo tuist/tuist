@@ -65,7 +65,8 @@ restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 ## Pull request quality
 
 `workflows/pr-quality.yml` runs `scripts/pr-quality/run.mjs` using Jev and
-updates one advisory GitHub comment. Setup and limitations live in
+updates one advisory GitHub comment per publishing identity. Manual runs update
+the authenticated user’s comment; workflow runs update the bot’s comment. Setup and limitations live in
 `PR_QUALITY.md`. Resolve the Jev key with `op run` from
 `op://tuist/JEV_API_KEY/password`, using the existing 1Password service-account
 secret; do not add a separate GitHub secret for it. Keep execution on trusted base code; contributor commits may

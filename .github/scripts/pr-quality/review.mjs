@@ -141,28 +141,33 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
     throw new Error(`Jev request failed${status}. Check credentials, quota, input size, or service availability and rerun.`);
   }
   const result = evaluateResponse(response, threshold);
-  // Retain the report envelope used by the Actions summary and PR comment.
-  return { threshold, model: 'jev-latest', passed: result.passed, unassessedBinaryFiles: binaryFiles, batches: [{ batch: 1, ...result }] };
+  return { threshold, model: 'jev-latest', unassessedBinaryFiles: binaryFiles, ...result };
+}
+
+function escapeMarkdown(value) {
+  return value.replace(/[&<>`@\r\n|]/g, (character) => `&#${character.charCodeAt(0)};`);
 }
 
 export function summary(report) {
   const lines = [
-    '# Jev quality gate', '',
-    `**${report.passed ? 'PASS' : 'FAIL'}** — every applicable dimension must score at least ${report.threshold}/10.`,
-    `Head: \`${report.head}\`; base: \`${report.base}\`.`, '',
-    'Scores are independent; confidence is informational. Hints are predefined rubric choices, not root-cause explanations.', '',
+    '## Pull request quality', '',
+    report.passed
+      ? `✅ **Above the advisory threshold** of ${report.threshold}/10.`
+      : `⚠️ **Below the advisory threshold** of ${report.threshold}/10.`, '',
+    '| Dimension | Score / 10 | Confidence | Result | Rubric hint |',
+    '| --- | ---: | ---: | --- | --- |',
   ];
+  for (const rating of report.ratings) {
+    const label = rating.label.replace('API', '[application programming interface](https://developer.mozilla.org/en-US/docs/Glossary/API)');
+    lines.push(rating.applicable
+      ? `| ${label} | ${rating.score.toFixed(2)} | ${Math.round(rating.confidence * 100)}% | ${rating.passed ? '✅ Pass' : '⚠️ Below threshold'} | ${rating.hint ?? '-'} |`
+      : `| ${label} | - | - | ➖ Unassessed | Insufficient relevant evidence |`);
+  }
   if (report.unassessedBinaryFiles?.length) {
-    lines.push('Binary files not assessed by Jev:', '', ...report.unassessedBinaryFiles.map((file) => `- \`${file}\``), '');
+    lines.push('', 'Binary files not assessed by Jev:', '',
+      ...report.unassessedBinaryFiles.map((file) => `- ${escapeMarkdown(file)}`));
   }
-  for (const batch of report.batches) {
-    lines.push(`## Batch ${batch.batch}`, '', '| Dimension | Score / 10 | Confidence | Result | Rubric hint |', '| --- | ---: | ---: | --- | --- |');
-    for (const rating of batch.ratings) {
-      lines.push(rating.applicable
-        ? `| ${rating.label} | ${rating.score.toFixed(3)} | ${rating.confidence.toFixed(2)} | ${rating.passed ? 'PASS' : 'FAIL'} | ${rating.hint ?? '—'} |`
-        : `| ${rating.label} | — | — | N/A | Insufficient relevant evidence |`);
-    }
-    lines.push('');
-  }
+  lines.push('', `Reviewed commit: \`${report.head}\`.`, '',
+    'Scores and predefined hints are advisory model judgments. Confidence is informational. They do not identify specific faulty lines or replace tests and human review.');
   return lines.join('\n');
 }

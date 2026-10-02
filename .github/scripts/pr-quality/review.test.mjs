@@ -105,9 +105,9 @@ test('SDK sends authenticated typed questions to the fixed API and returns gate 
   assert.equal(calls, 1);
   assert.equal(report.passed, false);
   const markdown = summary({ ...report, head: 'a'.repeat(40), base: 'b'.repeat(40) });
-  assert.match(markdown, /\*\*FAIL\*\*/);
+  assert.match(markdown, /⚠️ Below threshold/);
   assert.match(markdown, /Security/);
-  assert.match(markdown, /6.000/);
+  assert.match(markdown, /6.00/);
 });
 
 test('missing key makes no request; API failures never leak response bodies', async () => {
@@ -133,7 +133,7 @@ test('sends implementations and tests over the old 48 KB boundary in one complet
     },
   });
   assert.equal(calls, 1);
-  assert.equal(result.batches.length, 1);
+  assert.equal(result.ratings.length, 19);
   assert.equal(result.passed, false);
 });
 

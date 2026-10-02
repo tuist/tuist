@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { formatComment, marker, runReview } from './run.mjs';
 
 const pr = { number: 12, state: 'open', title: 'Change', body: null, head: { sha: 'a'.repeat(40) }, base: { sha: 'b'.repeat(40) } };
-const report = { passed: false, threshold: 7, batches: [{ batch: 1, ratings: [{ key: 'correctness', label: 'Correctness', applicable: true, score: 6, confidence: 0.9, passed: false, hint: 'An edge case is missing.' }] }] };
+const report = { passed: false, threshold: 7, ratings: [{ key: 'correctness', label: 'Correctness', applicable: true, score: 6, confidence: 0.9, passed: false, hint: 'An edge case is missing.' }] };
 
 function fixture(overrides = {}) {
   const calls = [];
@@ -84,4 +84,18 @@ test('binary filenames cannot inject markup or mentions into the comment', () =>
   const body = formatComment({ ...report, unassessedBinaryFiles: ['`<img>\n|@someone'] }, pr);
   assert.doesNotMatch(body, /<img>/);
   assert.match(body, /&#96;/);
+});
+
+test('manual runs update the authenticated author’s existing comment', async () => {
+  const { options } = fixture({ commentAuthor: 'pepicrft' });
+  options.api = async (path, settings) => {
+    if (path.startsWith('pulls/')) return pr;
+    if (settings?.paginate) return [
+      { id: 1, user: { login: 'someone-else' }, body: marker },
+      { id: 2, user: { login: 'pepicrft' }, body: marker },
+    ];
+    assert.equal(path, 'issues/comments/2');
+    assert.equal(settings.method, 'PATCH');
+  };
+  await runReview(options);
 });

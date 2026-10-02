@@ -46,9 +46,11 @@ node .github/scripts/pr-quality/run.mjs 12345
 
 This fetches commits without switching branches and writes `pr-quality.json` and
 `pr-quality.md` in the current directory. Add `--post` to publish the comment.
-The workflow updates comments belonging to `github-actions[bot]`; local runs
-using a personal token create comments under that identity, without modifying
-another author's comments. Use `JEV_MIN_SCORE` to override the advisory default
+The workflow updates its existing `github-actions[bot]` comment. Local runs
+update the authenticated user's existing quality comment. Each publishing
+identity keeps one comment per pull request, without modifying another
+author's comments. Results use ✅ for passing scores, ⚠️ for scores below the
+advisory threshold, and ➖ for unassessed dimensions. Use `JEV_MIN_SCORE` to override the advisory default
 of 7 out of 10.
 
 ## Interpretation and limits
