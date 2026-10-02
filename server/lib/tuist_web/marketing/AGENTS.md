@@ -3,6 +3,7 @@
 This area owns marketing controllers and components for the public site.
 
 ## Responsibilities
+- Browser newsletter issue documents include the shared analytics component; their email versions must omit scripts.
 - Render marketing pages and UI components.
 - Bridge marketing content from `Tuist.Marketing` into controllers/views.
 - Anonymous marketing responses are `public` and stored by shared caches without `Set-Cookie`, so the CSRF token embedded in the HTML (`<meta name="csrf-token">`, hidden `_csrf_token` inputs) belongs to whichever session produced the cached copy and never validates for anyone else. Do not add a CSRF-protected POST that depends on a token from a cacheable page. Endpoints submitted from these pages (newsletter signup and confirm, the One Tap start request) are routed through the `:same_origin_csrf_exemption` pipeline, where `TuistWeb.Plugs.SameOriginCSRFExemptionPlug` accepts browser-proven same-origin requests instead; keep that pipeline on scopes holding only the routes meant to be exempt.
