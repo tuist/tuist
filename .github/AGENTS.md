@@ -67,7 +67,7 @@ restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 `workflows/pr-quality.yml` runs `scripts/pr-quality/run.mjs` using Jev and
 updates one advisory GitHub comment per publishing identity. Manual runs update
 the authenticated user’s comment; workflow runs update the bot’s comment. Setup and limitations live in
-`PR_QUALITY.md`. Resolve the Jev key with `op read` from
+`PR_QUALITY.md`. Set `PR_QUALITY_INFERENCE_BASE_URL` and `PR_QUALITY_INFERENCE_MODEL` repository variables plus the `PR_QUALITY_INFERENCE_TOKEN` secret to route every evaluation through an Atlas profile. The base is `https://atlas.tuist.dev/inference` (the client adds `/v1/systemone`); the model is the profile name. Without a configured relay, resolve the Jev key with `op read` from
 `op://tuist/JEV_API_KEY/password` in its own step, mask it, and pass it through
 `$GITHUB_ENV`; never expose `OP_SERVICE_ACCOUNT_TOKEN` (or `op run`) to the
 evaluator step, since this is a `pull_request_target` job. Keep execution on trusted base code; contributor commits may
