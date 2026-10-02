@@ -14,6 +14,8 @@ defmodule Tuist.IngestRepo do
     otp_app: :tuist,
     adapter: Ecto.Adapters.ClickHouse
 
+  use Tuist.ClickHouse.ArrayInParams
+
   alias Tuist.ClickHouseRetry
   alias Tuist.IngestRepo.ShadowWrite
 

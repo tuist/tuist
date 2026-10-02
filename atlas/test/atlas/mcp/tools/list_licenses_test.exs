@@ -43,7 +43,7 @@ defmodule Atlas.MCP.Tools.ListLicensesTest do
   test "rejects non-executive users" do
     conn = insert_user!(%{role: :employee}) |> mcp_conn()
 
-    assert {:error, "License tools are only available to executives."} =
+    assert {:error, "License tools require the licenses:read scope."} =
              ListLicenses.execute(conn, %{})
   end
 

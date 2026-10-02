@@ -91,7 +91,6 @@ defmodule Atlas.Slack.ConversationResponder do
       reply_context
 
     thread_messages = load_thread_messages(event, app_key, channel_id, thread_ts)
-    agent_identity = ConversationAgent.agent_identity(app_key, channel)
     client_opts = Runner.client_opts(llm)
 
     slack_session_opts =
@@ -105,9 +104,9 @@ defmodule Atlas.Slack.ConversationResponder do
           load_project_instructions: false,
           max_turns: 8
         ] ++
-        ConversationAgent.slack_session_options(app_key, channel, agent_identity, slack_session_opts)
+        ConversationAgent.slack_session_options(app_key, channel, slack_session_opts)
 
-    prompt = ConversationAgent.build_prompt(event, channel, slack_user, thread_messages, agent_identity)
+    prompt = ConversationAgent.build_prompt(event, channel, slack_user, thread_messages)
 
     opts =
       if account do

@@ -18,6 +18,7 @@ This module contains core domain abstractions and shared models used across the 
 ## Related Context
 - Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
+- SDK action records, CAS blobs, and materialized XCFrameworks share the existing `binaries` category and byte budget; preserve paths already returned to generation during eviction.
 
 - Subhash diagnostics carry optional effective destinations, foreign-build hashes, and UI-test device/runtime inputs. Missing historical inputs remain nil; RunTarget destinations retain declared graph metadata.
 - External destination traversal exposes additional roots through GraphTraversing; local package test roots must have effective destinations inferred from production consumers before propagating them to test-only dependencies.

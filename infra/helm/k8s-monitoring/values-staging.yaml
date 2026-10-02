@@ -41,3 +41,8 @@ k8s-monitoring:
           tailscale.com/expose: "true"
           tailscale.com/hostname: tuist-alloy-receiver-staging
           tailscale.com/tags: tag:tuist-k8s-staging
+
+    # BER1's edge node, while the rack is at home. Its pods' logs reach the
+    # receiver above over the tailnet; see alloy-rack-edge in values.yaml.
+    alloy-rack-edge:
+      enabled: true

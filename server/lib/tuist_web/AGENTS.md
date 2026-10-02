@@ -15,6 +15,10 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - Routes without `:robots_txt` metadata default to `Disallow` entries derived from the router.
 - If a route should not contribute any `robots.txt` entry, opt it out explicitly with `metadata: %{robots_txt: false}`.
 
+## Browser Telemetry
+- `BrowserTelemetry.Enrichment` adds reserved measurement context using route metadata and gateway-observed authentication. Browser URL/session/navigation fields remain untrusted; never equate authentication or metadata completeness with humanity.
+- Preserve raw LCP values and attribution. Keep the schema contract and staged alert rollout in `infra/helm/k8s-monitoring/browser-rum.md` aligned.
+
 ## Asynchronous Loading
 - Let a failing load fail. A function that raises leaves the assign in
   `AsyncResult.failed`, which the template renders with
@@ -26,6 +30,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - Frontend assets (JS/CSS) are in `server/assets`.
 
 ## Related Context (Downlinks)
+- Browser telemetry: `server/lib/tuist_web/browser_telemetry/AGENTS.md`
 - Api: `server/lib/tuist_web/api/AGENTS.md`
 - Channels: `server/lib/tuist_web/channels/AGENTS.md`
 - Components: `server/lib/tuist_web/components/AGENTS.md`

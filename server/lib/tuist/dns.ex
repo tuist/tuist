@@ -17,9 +17,20 @@ defmodule Tuist.DNS do
   resolver instead: a host outside public DNS such as `localhost`, nameservers
   that do not answer, or a network that intercepts DNS, whose answers do not
   carry the authoritative flag.
+
+  Finding those nameservers costs two more lookups — the zone's NS records and
+  each nameserver's address — and `:inet_res.lookup/5` does not go through the
+  resolver's cache, so a caller polling a host twice a second would pay them on
+  every call. The set is cached in memory per node instead: a zone's NS records
+  change on the order of years, and the cost of being a few minutes stale is
+  asking a nameserver that no longer serves the zone, which reads as
+  `:unavailable` and falls back to the pod's resolver.
   """
 
+  alias Tuist.KeyValueStore
+
   @timeout_ms 1_000
+  @nameservers_ttl to_timeout(minute: 10)
 
   @doc """
   `:ok` once `host` resolves. `{:error, :not_published}` when the zone's
@@ -88,6 +99,36 @@ defmodule Tuist.DNS do
         :error -> []
       end
 
+    # Keyed by the parents rather than the host, which is what makes one
+    # lookup serve every instance in the zone, and by the resolver, so a caller
+    # pointing at its own nameservers never reads a set discovered through the
+    # pod's. A failed discovery is not cached: it falls back to the pod's
+    # resolver, whose negative answers are exactly what this module exists to
+    # avoid holding on to.
+    key = [
+      __MODULE__,
+      :zone_nameservers,
+      name |> parent_domains() |> Enum.join(","),
+      inspect(lookup_opts)
+    ]
+
+    case KeyValueStore.get(key) do
+      nil ->
+        case resolve_zone_nameservers(name, lookup_opts) do
+          [] ->
+            []
+
+          addresses ->
+            KeyValueStore.put(key, addresses, ttl: @nameservers_ttl)
+            addresses
+        end
+
+      addresses ->
+        addresses
+    end
+  end
+
+  defp resolve_zone_nameservers(name, lookup_opts) do
     name
     |> parent_domains()
     |> Enum.find_value([], fn domain ->

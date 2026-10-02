@@ -1,0 +1,257 @@
+name: Runner Image Release
+
+# Releases the macOS runner images (`ghcr.io/tuist/tuist-runner:macos-<xcode>-<semver>`)
+# off the server deploy path. A release rebuilds only the profiles that need
+# it (see .github/scripts/runner-image-release-plan.sh), re-tags the rest,
+# tags `runner-image@<semver>`, and dispatches Server Production Deployment
+# so the fleet rolls through the canary cascade.
+#
+# Dispatch with no inputs to reconcile after a macos-tahoe-xcode base moves;
+# macos-xcode-image.yml does this for bases of active profiles.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/runner-image/**
+      - .github/scripts/runner-image-release-plan.sh
+      - .github/workflows/runner-image-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: runner-image-release
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+
+jobs:
+  plan:
+    name: Plan runner image release
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: "0"
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+      previous: ${{ steps.plan.outputs.previous }}
+      build-count: ${{ steps.plan.outputs.build-count }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      carry: ${{ steps.plan.outputs.carry }}
+      manifest: ${{ steps.plan.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq oras"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run --skip-tools release:check runner-image
+      - name: Log in to GHCR
+        run: printf '%s' "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHOULD_RELEASE: ${{ steps.check.outputs.runner-image-should-release }}
+          NEXT_VERSION_NUMBER: ${{ steps.check.outputs.runner-image-next-version-number }}
+        run: .github/scripts/runner-image-release-plan.sh
+
+  build:
+    name: Build runner image (Xcode ${{ matrix.xcode }})
+    needs: plan
+    if: needs.plan.outputs.release == 'true' && needs.plan.outputs.build-count != '0'
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build profile
+        id: build
+        working-directory: infra/runner-image
+        env:
+          XCODE: ${{ matrix.xcode }}
+          BASE_IMAGE: ${{ matrix.base }}
+        run: |
+          set -euo pipefail
+          PROFILE="macos-${XCODE//./-}"
+          echo "Building profile ${PROFILE} from base ${BASE_IMAGE}"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-runner" \
+            runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+
+      # packer-plugin-tart sometimes drops `nvram.bin` from the built bundle,
+      # which fails `tart push` after the disk upload.
+      - name: Restore nvram.bin if missing
+        env:
+          BASE_IMAGE: ${{ matrix.base }}
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            echo "nvram.bin missing, restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+          fi
+
+      - name: Push profile to GHCR
+        timeout-minutes: 90
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-runner
+          remote-names: |
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.plan.outputs.version }}
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true
+
+  carry:
+    name: Re-tag unchanged runner images
+    needs: plan
+    if: needs.plan.outputs.release == 'true' && needs.plan.outputs.carry != '[]'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked jq oras"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Re-tag the previous release's images
+        env:
+          CARRY: ${{ needs.plan.outputs.carry }}
+          PREVIOUS: ${{ needs.plan.outputs.previous }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
+          for xcode in $(jq -r '.[]' <<< "$CARRY"); do
+            profile="macos-${xcode//./-}"
+            oras tag "ghcr.io/tuist/tuist-runner:${profile}-${PREVIOUS}" "${profile}-${VERSION}"
+          done
+
+  release:
+    name: Release runner image
+    needs: [plan, build, carry]
+    if: >-
+      always() &&
+      needs.plan.outputs.release == 'true' &&
+      contains(fromJSON('["success", "skipped"]'), needs.build.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.carry.result)
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Verify every profile is published
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for xcode in $(jq -r '.[]' infra/runner-image/profiles.json); do
+            image_tag="macos-${xcode//./-}-${VERSION}"
+            if ! .github/scripts/ghcr-image-published.sh tuist/tuist-runner "$image_tag"; then
+              echo "::error::ghcr.io/tuist/tuist-runner:${image_tag} is not published"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Prepare release
+        id: notes
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          MANIFEST: ${{ needs.plan.outputs.manifest }}
+          MATRIX: ${{ needs.plan.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          jq . <<< "$MANIFEST" > build-manifest.json
+          LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          {
+            echo "body<<EOF"
+            echo "Active runner image tags:"
+            jq -r --arg v "$VERSION" --argjson built "$(jq '[.include[].xcode]' <<< "$MATRIX")" \
+              '.[] | "- `ghcr.io/tuist/tuist-runner:macos-\(.xcode | gsub("\\."; "-"))-\($v)` (\(if (.xcode | IN($built[])) then "rebuilt" else "unchanged" end) on `\(.base_digest)`)"' \
+              build-manifest.json
+            echo
+            git cliff --include-path "infra/runner-image/**/*" --config infra/runner-image/cliff.toml --repository "." 2>/dev/null -- "${LATEST_VERSION}..HEAD" \
+              | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create runner-image GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Runner Image ${{ needs.plan.outputs.version }}
+          tag_name: runner-image@${{ needs.plan.outputs.version }}
+          files: build-manifest.json
+          body: ${{ steps.notes.outputs.body }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+  deploy:
+    name: Deploy runner image
+    needs: release
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Server Production Deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run server-production-deployment.yml --repo "${{ github.repository }}" --ref main

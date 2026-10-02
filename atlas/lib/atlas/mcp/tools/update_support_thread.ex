@@ -20,7 +20,7 @@ defmodule Atlas.MCP.Tools.UpdateSupportThread do
   def description, do: "Assign a support conversation or change its lifecycle state."
 
   def execute(conn, %{"thread_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Support tools"),
+    with :ok <- Tool.authorize_scope(conn, "support:write", "Support tools"),
          thread when not is_nil(thread) <- Support.get_thread(id),
          {:ok, thread} <- maybe_assign(thread, args["owner_id"], Tool.current_user(conn)),
          {:ok, thread} <- maybe_set_status(thread, args["status"], Tool.current_user(conn)) do

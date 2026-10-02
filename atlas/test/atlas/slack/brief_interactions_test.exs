@@ -1,6 +1,8 @@
 defmodule Atlas.Slack.BriefInteractionsTest do
   use Atlas.DataCase, async: true
 
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Briefs.Brief
   alias Atlas.Briefs.BriefItem
   alias Atlas.Briefs.Notifier
@@ -11,7 +13,7 @@ defmodule Atlas.Slack.BriefInteractionsTest do
 
   test "resolves a Slack user id to an executive before changing a brief item" do
     executive = insert_user!(:executive)
-    insert_slack_user!(executive)
+    insert_slack_user!(executive, :executive)
     item = insert_item!()
 
     payload = %{
@@ -29,7 +31,7 @@ defmodule Atlas.Slack.BriefInteractionsTest do
 
   test "rejects a matched Slack user who is not an executive" do
     employee = insert_user!(:employee)
-    insert_slack_user!(employee)
+    insert_slack_user!(employee, :employee)
     item = insert_item!()
 
     payload = %{
@@ -47,22 +49,32 @@ defmodule Atlas.Slack.BriefInteractionsTest do
   end
 
   defp insert_user!(role) do
-    %User{}
-    |> User.changeset(%{
-      email: "brief-#{role}-#{System.unique_integer([:positive])}@example.com",
-      name: "Brief #{role}",
-      role: role
-    })
-    |> Repo.insert!()
+    user =
+      %User{}
+      |> User.changeset(%{
+        email: "brief-#{role}-#{System.unique_integer([:positive])}@example.com",
+        name: "Brief #{role}"
+      })
+      |> Repo.insert!()
+
+    if role == :executive do
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
+      |> Repo.insert!()
+    end
+
+    user
   end
 
-  defp insert_slack_user!(user) do
-    slack_user_id = if user.role == :executive, do: "U-EXECUTIVE", else: "U-EMPLOYEE"
+  defp insert_slack_user!(user, role) do
+    slack_user_id = if role == :executive, do: "U-EXECUTIVE", else: "U-EMPLOYEE"
 
     %SlackUser{slack_app: :company}
     |> SlackUser.changeset(%{
       slack_user_id: slack_user_id,
-      name: "brief-#{user.role}",
+      name: "brief-#{role}",
       email: user.email
     })
     |> Repo.insert!()

@@ -60,7 +60,7 @@ defmodule Atlas.MCP.Tools.ListAuditActivities do
   def description, do: "List Atlas audit activities. Only available to admins."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Audit tools") do
+    with :ok <- Tool.authorize_scope(conn, "audit:read", "Audit tools") do
       {activities, meta} =
         args
         |> list_opts()

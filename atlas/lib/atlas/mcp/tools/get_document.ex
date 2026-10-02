@@ -114,7 +114,7 @@ defmodule Atlas.MCP.Tools.GetDocument do
     start_page = input_start_page(args)
     page_size = page_size(args)
 
-    with :ok <- Tool.authorize_executive(conn, "Document tools"),
+    with :ok <- Tool.authorize_scope(conn, "documents:read", "Document tools"),
          %Document{} = document <-
            Documents.get_document(document_id, pages: false) do
       {pages, page_meta} =

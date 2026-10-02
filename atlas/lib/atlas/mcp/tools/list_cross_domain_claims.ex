@@ -29,7 +29,7 @@ defmodule Atlas.MCP.Tools.ListCrossDomainClaims do
   def description, do: "List current, versioned claims supported by evidence from at least two domains."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Cross-domain claim tools") do
+    with :ok <- Tool.authorize_scope(conn, "engineering:read", "Cross-domain claim tools") do
       claims = Claims.list_current(account_id: args["account_id"], claim_kind: args["claim_kind"])
       {:ok, %{claims: Enum.map(claims, &BriefSerializer.claim/1), count: length(claims)}}
     end

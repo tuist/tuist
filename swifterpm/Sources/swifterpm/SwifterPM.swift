@@ -189,6 +189,9 @@ public struct SwifterPM: Sendable {
             packageDir: package,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: try await MirrorConfig.load(
+                packageDir: package, configPath: request.registryConfigurationPath
+            ),
             resolved: resolved,
             progress: request.quiet ? nil : RestoreProgressReporter(),
             disableSandbox: request.disableSandbox
@@ -305,6 +308,9 @@ public struct SwifterPM: Sendable {
                 packageDir: package,
                 cache: cache,
                 registryConfig: registryConfig,
+                mirrors: try await MirrorConfig.load(
+                    packageDir: package, configPath: request.registryConfigurationPath
+                ),
                 resolved: resolved,
                 progress: request.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: request.disableSandbox

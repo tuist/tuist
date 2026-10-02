@@ -8,9 +8,7 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
   import AtlasWeb.Components.EmptyCardSection
   import AtlasWeb.CoreComponents, only: []
 
-  alias Atlas.Audit
   alias Atlas.Inference
-  alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Token
   alias AtlasWeb.Utilities.Query
 
@@ -56,12 +54,9 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
 
   def handle_event("revoke_token", _params, socket) do
     token = socket.assigns.token
-    profile = socket.assigns.profile
 
     case Inference.revoke_token(token) do
       {:ok, token} ->
-        record_token_audit(:"inference_token.revoked", profile, token)
-
         {:noreply,
          socket
          |> put_flash(:info, gettext("Token revoked."))
@@ -279,17 +274,4 @@ defmodule AtlasWeb.Admin.InferenceTokenLive do
 
   defp with_query(path, ""), do: path
   defp with_query(path, query), do: path <> "?" <> query
-
-  defp record_token_audit(action, %ModelBinding{} = profile, %Token{} = token) do
-    Audit.record(action, %{
-      target_type: "inference_token",
-      target_id: token.id,
-      target_label: token.name,
-      metadata: %{
-        "profile_id" => profile.id,
-        "profile_name" => profile.name,
-        "path" => "/admin/inference/tokens/#{token.id}"
-      }
-    })
-  end
 end

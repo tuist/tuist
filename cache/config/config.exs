@@ -57,7 +57,8 @@ config :cache, Oban,
     s3_transfers: 1
   ],
   plugins: [
-    {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
+    # `interval` is in milliseconds but `max_age` is in seconds.
+    {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: 60 * 60 * 24},
     # Containers are stopped mid-job on every deploy, which strands `executing`
     # rows that no other plugin clears. 2h is deliberately well above anything
     # expected to run here rather than a measured ceiling — a rescue that fires

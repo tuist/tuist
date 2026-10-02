@@ -10,7 +10,6 @@ defmodule Atlas.Accounts do
   import Ecto.Query
 
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttention
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.ContractValue
@@ -28,7 +27,6 @@ defmodule Atlas.Accounts do
   alias Atlas.Accounts.Revenue
   alias Atlas.Accounts.ServiceLevels
   alias Atlas.Accounts.Term
-  alias Atlas.Accounts.Workers.GenerateAccountAttentionSuggestions
   alias Atlas.Accounts.Workers.GenerateOutcomeProposals
   alias Atlas.Audit
   alias Atlas.Documents.Document
@@ -40,7 +38,6 @@ defmodule Atlas.Accounts do
   defdelegate list_overview_summary_candidate_ids(opts \\ []), to: Query
   defdelegate list_outcome_review_candidate_ids(opts \\ []), to: Query
   defdelegate list_outcome_proposal_candidate_ids(opts \\ []), to: Query
-  defdelegate list_attention_suggestion_candidate_ids(opts \\ []), to: Query
   defdelegate list_parent_account_options(account_id \\ nil), to: Query
   defdelegate list_stripe_customer_account_ids(), to: Query
   defdelegate list_attention_outcomes(opts \\ []), to: Query
@@ -59,15 +56,6 @@ defmodule Atlas.Accounts do
   defdelegate reject_outcome_proposal(proposal, reason, actor \\ nil), to: OutcomeProposals, as: :reject
   defdelegate approve_outcome_proposal(proposal, actor \\ nil), to: OutcomeProposals, as: :approve
   defdelegate generate_outcome_proposals(account_id), to: OutcomeProposals, as: :generate
-  defdelegate list_account_attention_suggestions(account_or_id, opts \\ []), to: AccountAttention, as: :list
-  defdelegate list_due_account_attention_suggestions(), to: AccountAttention, as: :list_due_for_delivery
-  defdelegate get_account_attention_suggestion(id), to: AccountAttention, as: :get
-  defdelegate get_account_attention_suggestion(account, id), to: AccountAttention, as: :get
-  defdelegate generate_account_attention_suggestions(account_id), to: AccountAttention, as: :generate
-  defdelegate deliver_account_attention_suggestion(suggestion), to: AccountAttention, as: :deliver
-  defdelegate action_account_attention_suggestion(suggestion, note \\ nil), to: AccountAttention, as: :mark_actioned
-  defdelegate dismiss_account_attention_suggestion(suggestion, note \\ nil), to: AccountAttention, as: :dismiss
-  defdelegate snooze_account_attention_suggestion(suggestion, until, note \\ nil), to: AccountAttention, as: :snooze
   defdelegate get_account(id), to: Query
   defdelegate revenue_snapshot(opts \\ []), to: Revenue, as: :snapshot
   defdelegate stripe_invoices(account, opts \\ []), to: Invoices
@@ -236,15 +224,11 @@ defmodule Atlas.Accounts do
       |> Account.edit_changeset(attrs)
       |> reject_parent_account_cycle(account)
 
-    attention_relevant_change? = attention_relevant_change?(changeset)
     handle_snapshot_relevant_change? = handle_snapshot_relevant_change?(changeset)
 
     case Repo.update(changeset) do
       {:ok, updated} = result ->
         audit_account("account.updated", updated, changeset)
-
-        if attention_relevant_change?,
-          do: enqueue_account_attention_suggestion_generation(updated.id, "account_updated")
 
         if handle_snapshot_relevant_change?,
           do: broadcast_account_snapshot_change(updated)
@@ -274,21 +258,6 @@ defmodule Atlas.Accounts do
         plan_tier: account.plan_tier
       }
     })
-  end
-
-  defp attention_relevant_change?(changeset) do
-    relevant_fields = [
-      :attention_context,
-      :description,
-      :status,
-      :segment,
-      :deal_stage,
-      :current_value,
-      :next_renewal_date,
-      :poc_end_date
-    ]
-
-    Enum.any?(relevant_fields, &Map.has_key?(changeset.changes, &1))
   end
 
   @doc """
@@ -463,7 +432,6 @@ defmodule Atlas.Accounts do
       {:ok, event} ->
         Search.index_account_event(event)
         audit_event("account_note.created", event, changeset, actor: author)
-        enqueue_account_attention_suggestion_generation(event.account_id, "account_note")
 
       _result ->
         :ok
@@ -473,19 +441,6 @@ defmodule Atlas.Accounts do
   def enqueue_outcome_proposal_generation(account_id, source \\ "system") when is_binary(account_id) do
     %{account_id: account_id, source: source}
     |> GenerateOutcomeProposals.new(
-      unique: [
-        period: {6, :hour},
-        fields: [:worker, :args],
-        keys: [:account_id],
-        states: [:available, :scheduled, :executing, :retryable]
-      ]
-    )
-    |> Oban.insert()
-  end
-
-  def enqueue_account_attention_suggestion_generation(account_id, source \\ "system") when is_binary(account_id) do
-    %{account_id: account_id, source: source}
-    |> GenerateAccountAttentionSuggestions.new(
       unique: [
         period: {6, :hour},
         fields: [:worker, :args],

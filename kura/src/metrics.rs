@@ -61,6 +61,7 @@ pub struct MetricsInner {
     // being written an artifact can be shed under size pressure. The claim
     // sizing signal, mirrored to the control plane through the usage batch.
     segment_shed_age_seconds: Histogram,
+    disk_pressure_reclaimed_bytes: Counter,
     capacity_eviction_reports_dropped: Counter,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
@@ -69,6 +70,7 @@ pub struct MetricsInner {
     action_cache_cascade_removed: Counter,
     reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
     reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
+    reapi_inline_fallbacks: Counter,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -119,6 +121,7 @@ pub struct MetricsInner {
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_sync_lag_seconds: Family<SyncRegionLabels, Gauge>,
     region_listing_bound_lag_seconds: Gauge,
     region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
     region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
@@ -148,6 +151,7 @@ pub struct MetricsInner {
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
     analytics_queue_depth: Gauge,
     analytics_queue_capacity: Gauge,
+    analytics_outbox_depth_entries: Gauge,
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
@@ -557,8 +561,12 @@ pub mod shed_kind {
     // query operators are told to reach for first.
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+    // One request asking for more response bytes than a single response may
+    // carry at normal memory pressure. It sheds on an idle pool, so it stays
+    // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
+    pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
 
-    pub const ALL: [&str; 8] = [
+    pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -567,6 +575,7 @@ pub mod shed_kind {
         MEMORY_PRESSURE_WRITE,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
+        REAPI_REQUEST_BUDGET,
     ];
 }
 
@@ -594,6 +603,7 @@ impl Metrics {
         let action_cache_cascade_removed = Counter::default();
         let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
         let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
+        let reapi_inline_fallbacks = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_size_bytes =
@@ -620,6 +630,7 @@ impl Metrics {
         // One hour up to 30 days: below the first bucket the ring is churning
         // artifacts it just stored; the top buckets distinguish rings holding
         // days of history, which is what per-plan retention floors care about.
+        let disk_pressure_reclaimed_bytes = Counter::default();
         let segment_shed_age_seconds = Histogram::new([
             3_600.0,
             21_600.0,
@@ -691,6 +702,7 @@ impl Metrics {
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_sync_lag_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_listing_bound_lag_seconds = Gauge::default();
         let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
@@ -724,6 +736,7 @@ impl Metrics {
             });
         let analytics_queue_depth = Gauge::default();
         let analytics_queue_capacity = Gauge::default();
+        let analytics_outbox_depth_entries = Gauge::default();
         let analytics_circuit_state = Family::<AnalyticsRouteLabels, Gauge>::default();
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
@@ -988,6 +1001,11 @@ impl Metrics {
             reapi_chunking_events.clone(),
         );
         registry.register(
+            "kura_reapi_inline_fallbacks_total",
+            "Optional output files left un-inlined because response materialization admission was refused",
+            reapi_inline_fallbacks.clone(),
+        );
+        registry.register(
             "kura_reapi_chunking_bytes_total",
             "Content-defined chunking bytes by logical or recipe representation",
             reapi_chunking_bytes.clone(),
@@ -1051,6 +1069,11 @@ impl Metrics {
             "kura_segment_evicted_artifacts_total",
             "Artifacts removed when old segments are evicted",
             segment_evicted_artifacts.clone(),
+        );
+        registry.register(
+            "kura_disk_pressure_reclaimed_bytes_total",
+            "Segment bytes unlinked by quota pressure reclamation",
+            disk_pressure_reclaimed_bytes.clone(),
         );
         registry.register(
             "kura_segment_shed_age_seconds",
@@ -1283,6 +1306,11 @@ impl Metrics {
             region_watermark_age_seconds.clone(),
         );
         registry.register(
+            "kura_region_sync_lag_seconds",
+            "Seconds between the newest version the remote gateway lists for its region and the newest version applied from it, by origin region",
+            region_sync_lag_seconds.clone(),
+        );
+        registry.register(
             "kura_region_listing_bound_lag_seconds",
             "Seconds between now and the newest version_ms this node serves to an ascending region read, saturating at 86400 when the listing is bounded whole",
             region_listing_bound_lag_seconds.clone(),
@@ -1426,6 +1454,11 @@ impl Metrics {
             "kura_analytics_queue_capacity",
             "Configured capacity of the in-memory analytics queue",
             analytics_queue_capacity.clone(),
+        );
+        registry.register(
+            "kura_analytics_outbox_depth_entries",
+            "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it.",
+            analytics_outbox_depth_entries.clone(),
         );
         registry.register(
             "kura_analytics_circuit_state",
@@ -1872,6 +1905,7 @@ impl Metrics {
                 action_cache_cascade_removed,
                 reapi_chunking_events,
                 reapi_chunking_bytes,
+                reapi_inline_fallbacks,
                 artifact_read_bytes,
                 artifact_write_bytes,
                 artifact_write_size_bytes,
@@ -1885,6 +1919,7 @@ impl Metrics {
                 segment_refresh_duration,
                 segment_evicted_artifacts,
                 segment_shed_age_seconds,
+                disk_pressure_reclaimed_bytes,
                 capacity_eviction_reports_dropped,
                 replication_requests,
                 replication_request_duration,
@@ -1932,6 +1967,7 @@ impl Metrics {
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
+                region_sync_lag_seconds,
                 region_listing_bound_lag_seconds,
                 region_sync_entries_listed,
                 region_sync_bytes_fetched,
@@ -1961,6 +1997,7 @@ impl Metrics {
                 analytics_batch_duration,
                 analytics_queue_depth,
                 analytics_queue_capacity,
+                analytics_outbox_depth_entries,
                 analytics_circuit_state,
                 analytics_circuit_transitions,
                 segment_generation_counts,
@@ -2353,6 +2390,10 @@ impl Metrics {
             .inc_by(artifacts);
     }
 
+    pub fn record_disk_pressure_reclamation(&self, bytes: u64) {
+        self.disk_pressure_reclaimed_bytes.inc_by(bytes);
+    }
+
     pub fn record_segment_shed_age(&self, seconds: f64) {
         self.segment_shed_age_seconds.observe(seconds);
     }
@@ -2375,6 +2416,10 @@ impl Metrics {
                 outcome: outcome.to_owned(),
             })
             .inc();
+    }
+
+    pub fn record_reapi_inline_fallback(&self) {
+        self.reapi_inline_fallbacks.inc();
     }
 
     pub fn record_reapi_chunking_bytes(&self, kind: &str, bytes: u64) {
@@ -2704,6 +2749,14 @@ impl Metrics {
             .set(seconds as i64);
     }
 
+    pub fn set_region_sync_lag(&self, region: &str, seconds: u64) {
+        self.region_sync_lag_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
     pub fn set_region_listing_bound_lag(&self, seconds: u64) {
         self.region_listing_bound_lag_seconds.set(seconds as i64);
     }
@@ -2714,6 +2767,7 @@ impl Metrics {
         };
         self.region_sync_last_success_age_seconds.remove(&labels);
         self.region_watermark_age_seconds.remove(&labels);
+        self.region_sync_lag_seconds.remove(&labels);
         self.region_sync_last_cycle_duration_seconds.remove(&labels);
     }
 
@@ -2918,6 +2972,14 @@ impl Metrics {
     pub fn update_analytics_queue(&self, capacity: usize, depth: usize) {
         self.analytics_queue_capacity.set(capacity as i64);
         self.analytics_queue_depth.set(depth as i64);
+    }
+
+    /// Publish the current number of entries sitting in the analytics
+    /// outbox column family. Called once at startup for now; the follow-up
+    /// outbox forwarder task refreshes it on every drain tick.
+    pub fn update_analytics_outbox_depth(&self, entries: usize) {
+        self.analytics_outbox_depth_entries
+            .set(i64::try_from(entries).unwrap_or(i64::MAX));
     }
 
     pub fn update_analytics_circuit_state(&self, pipeline: &str, state: i64) {
@@ -4567,6 +4629,7 @@ mod tests {
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
+        metrics.update_analytics_outbox_depth(0);
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
@@ -4698,6 +4761,7 @@ mod tests {
         assert!(rendered.contains("kura_analytics_queue_capacity"));
         assert!(rendered.contains("kura_analytics_circuit_state"));
         assert!(rendered.contains("kura_analytics_circuit_transitions_total"));
+        assert!(rendered.contains("kura_analytics_outbox_depth_entries 0"));
         assert!(rendered.contains("kura_segment_generation_count"));
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));

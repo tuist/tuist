@@ -16,8 +16,8 @@ name: macOS + Xcode Image
 # Prereleases publish both: the exact tag is immutable and records
 # which beta an image holds, the channel tag moves onto each new
 # one. `profiles.json` and the chart catalog both name the channel,
-# so a beta bump is a republish here plus the next runner-image
-# release, with no repo edit. Naming the exact tag instead would
+# so a beta bump is a republish here, which dispatches
+# runner-image-release.yml, with no repo edit. Naming the exact tag instead would
 # strand every Runner Profile pointing at it once beta 7 landed,
 # and a stranded macOS profile queues its jobs forever. Newest
 # dispatch wins the channel.
@@ -66,6 +66,9 @@ jobs:
     # leave little room for the image upload that follows.
     # Three hours covers both phases and the upload's retry budget.
     timeout-minutes: 180
+    outputs:
+      tag: ${{ steps.build.outputs.tag }}
+      channel_tag: ${{ steps.build.outputs.channel_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -260,3 +263,28 @@ jobs:
       - name: Cleanup
         if: always()
         run: tart delete macos-tahoe-xcode 2>/dev/null || true
+
+  roll-runner-images:
+    name: Roll runner images onto the new base
+    needs: build
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dispatch Runner Image Release for active profiles on this base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          CHANNEL_TAG: ${{ needs.build.outputs.channel_tag }}
+        run: |
+          set -euo pipefail
+          if jq -e --arg tag "$TAG" --arg channel "$CHANNEL_TAG" \
+            'map(gsub("\\."; "-")) | any(. == $tag or (. == $channel and $channel != ""))' \
+            infra/runner-image/profiles.json >/dev/null; then
+            gh workflow run runner-image-release.yml --repo "${{ github.repository }}" --ref main
+          else
+            echo "No active runner image profile builds on :${TAG}"
+          fi

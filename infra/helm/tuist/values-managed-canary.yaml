@@ -133,6 +133,15 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Provisioned in this environment's own Stripe account (test mode) by
+      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
+      # them once its account is switched, which the flag still gates.
+      usage_meters:
+        cache_egress_megabytes: "price_1UITAiQ9gGM5W1agQo117CYC"
+        cache_requests: "price_1UITAkQ9gGM5W1ag7kkpTbOX"
+        passing_test_cases: "price_1UITAlQ9gGM5W1ag0ql0psQC"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
       # macOS baseline machine-minute, carried as a subscription item whose
       # quantity is the minutes. Never blank it once an account carries the
@@ -167,10 +176,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build-canary.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events-canary.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events-canary.tuist.dev as GRPC end-to-end, so
+  # Once CLIs that discover the host via `/.well-known/once` can stream
+  # live run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
   # alongside the live pod on the canary nodepool. Steady-state
@@ -221,14 +236,10 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # scw-fr-par-runners is the macOS-serving private (runner-cache)
-      # region: the canary cluster's Elastic Metal node (kuraFleet) hosts
-      # the per-account cache pods and dispatch routes the Mac fleet's
-      # build cache to it over the Private Network. ca-east (Canada East /
-      # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
-      # an implementation detail behind it (ovhFleet below, replicas 1) —
-      # mirroring staging.
-      value: eu-west,scw-fr-par-runners,ca-east
+      # Public validation uses the existing OVH ca-east fleet. Retire the
+      # Dedibox EU-West instances before the later fleet-retirement change.
+      # Preserve the Scaleway private cache beside the Mac mini fleet.
+      value: scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -247,12 +258,6 @@ server:
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
-    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
-      # The production default is @daily, which would leave an instance
-      # eligible for up to another day against the one-day window above.
-      # Hourly closes that to an hour; staging's */5 buys nothing here, where
-      # nobody is watching a single instance through its cycle.
-      value: "0 * * * *"
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # This environment's rollouts run expedited, so the value only shapes
     # interim-paced ordering here; kept aligned with production.
@@ -295,29 +300,19 @@ clickhouse:
     # canary is for is the shape production will run, which staging does not
     # exercise: two replicas here, one on each AX42-1.
     #
-    # Still one replica, running the configuration a second one needs, so
-    # that configuration reaches it in a deploy of its own. A joining replica
-    # fetches every part from the address its peer registered in Keeper, and
-    # before this configuration that address is the pod's name under a
-    # Service that is not headless, which does not resolve. The StatefulSet
-    # creates a new replica before it restarts the old one, so adding the
-    # second replica in the same deploy would leave it unable to catch up and
-    # the rollout waiting on it until helm gives up.
-    #
     # Keeper stays at one member. Growing a live ensemble to three is a
     # membership change, not a replica count: new members started with a
     # three-server configuration can elect a leader between themselves with
     # none of the existing member's metadata.
-    replicas: 1
+    replicas: 2
     persistence:
       size: 200Gi
       localVolume:
-        # The box that has held the data since the migration began. The
-        # second one, bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv, is
-        # joined, tainted and idle until it becomes replica 1. See `nodeNames`
-        # in values.yaml.
+        # Replica 0 on the box that has held the data since the migration
+        # began, replica 1 on the second. See `nodeNames` in values.yaml.
         nodeNames:
           - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM with
     # a tailnet address, so the Service name every other writer resolves does
@@ -383,6 +378,17 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-canary-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
   privateGateway:
     enabled: true
   resources:
@@ -420,7 +426,7 @@ kuraController:
 # on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-ca-east]
+  nodePools: [kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
@@ -579,32 +585,6 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
-# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
-# env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
-# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
-# in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
-# adoptable box hangs helm --wait.
-dediboxFleet:
-  enabled: true
-  machine:
-    adoptTag: tuist-kura-canary
-    offer: Start-9-M
-    datacenter: DC2
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
-    # (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 500
-  scaleway:
-    externalSecrets:
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (generated fresh into this item).
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
-
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
 # whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
@@ -703,6 +683,10 @@ ovhFleets:
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-canary
   replicas: 1
   # The minis drop inbound :22 from everything except the tailnet, loopback
   # and this list, so internet SSH scan traffic can't exhaust launchd's ssh

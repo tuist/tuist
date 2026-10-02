@@ -51,6 +51,9 @@ type fakeBackend struct {
 	// LOCAL failure to measure an image (the read-only attach failed), which is
 	// not evidence about the image's contents.
 	digestErr error
+	// perStagingFile, when set, is the space each file under the convergence
+	// staging dir takes, modelling a partial master download on disk.
+	perStagingFile uint64
 	// growErr, when set, fails every grow.
 	growErr error
 	// grown records every grow: the image's content at the time and the size
@@ -122,6 +125,16 @@ func (f *fakeBackend) isMounted(string) (bool, error) {
 	return !f.notMounted, nil
 }
 
+func (f *fakeBackend) capacityBytes(string) (uint64, error) { return f.totalBytes, nil }
+
+// allocatedBytes models a master image as the provisioned cap, like freeBytes.
+func (f *fakeBackend) allocatedBytes(path string) (uint64, error) {
+	if _, err := os.Stat(path); err != nil {
+		return 0, err
+	}
+	return f.perMaster, nil
+}
+
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 	var masters uint64
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
@@ -134,7 +147,16 @@ func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 		}
 		return nil
 	})
-	used := masters * f.perMaster
+	var staged uint64
+	if f.perStagingFile > 0 {
+		_ = filepath.Walk(filepath.Join(root, convergeDirName), func(_ string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				staged++
+			}
+			return nil
+		})
+	}
+	used := masters*f.perMaster + staged*f.perStagingFile
 	if used > f.totalBytes {
 		return 0, nil
 	}
@@ -209,8 +231,8 @@ func TestVolumeDisabled(t *testing.T) {
 	if err != nil || att.Attached {
 		t.Fatalf("disabled manager should not attach: att=%+v err=%v", att, err)
 	}
-	if warm, _, err := m.Materialize(att, "42"); err != nil || warm {
-		t.Fatalf("disabled Materialize = %v, %v; want false, nil", warm, err)
+	if source, _, err := m.Materialize(att, "42"); err != nil || source != MaterializedCold {
+		t.Fatalf("disabled Materialize = %v, %v; want cold, nil", source, err)
 	}
 	out, err := m.Finalize(att, "42", true, true)
 	if err != nil || out != VolumeOutcomeNone {
@@ -225,9 +247,9 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 		t.Fatalf("branch should attach: %+v", att)
 	}
 	// No master for account 42 yet: cold materialize.
-	warm, base, err := m.Materialize(att, "42")
-	if err != nil || warm || base != 0 {
-		t.Fatalf("cold Materialize = %v, %v, %v; want false, 0, nil", warm, base, err)
+	source, base, err := m.Materialize(att, "42")
+	if err != nil || source != MaterializedCold || base != 0 {
+		t.Fatalf("cold Materialize = %v, %v, %v; want cold, 0, nil", source, base, err)
 	}
 	// The reconciler records the dispatched account on the attachment (what
 	// maybeMaterializeVolume does); Finalize checks it before promoting.
@@ -266,9 +288,9 @@ func TestWarmMaterializeAndPromote(t *testing.T) {
 	seedMasterGen(t, m, "42", masterImageContent("42"), 3)
 
 	att := mustAllocate(t, m, "vm2")
-	warm, base, err := m.Materialize(att, "42")
-	if err != nil || !warm || base != 3 {
-		t.Fatalf("warm Materialize = %v, %v, %v; want true, 3, nil", warm, base, err)
+	source, base, err := m.Materialize(att, "42")
+	if err != nil || source != MaterializedWarm || base != 3 {
+		t.Fatalf("warm Materialize = %v, %v, %v; want warm, 3, nil", source, base, err)
 	}
 	att.SourceAccount = "42"
 	// The account's cached image is now the branch's image.
@@ -296,9 +318,9 @@ func TestMaterializeIsAccountScoped(t *testing.T) {
 	seedMaster(t, m, "42")
 
 	att := mustAllocate(t, m, "vm3")
-	warm, _, err := m.Materialize(att, "99") // dispatched to 99, which has no master here
-	if err != nil || warm {
-		t.Fatalf("Materialize(99) = %v, %v; want cold (false), nil", warm, err)
+	source, _, err := m.Materialize(att, "99") // dispatched to 99, which has no master here
+	if err != nil || source != MaterializedCold {
+		t.Fatalf("Materialize(99) = %v, %v; want cold, nil", source, err)
 	}
 	att.SourceAccount = "99"
 	if branchHasWarmCache(m, att) {
@@ -557,9 +579,9 @@ func TestAdmissionKeepsTheMasterItMaterializes(t *testing.T) {
 	seedMaster(t, m, "b")
 
 	att := mustAllocate(t, m, "vm-a")
-	warm, _, err := m.Materialize(att, "a")
-	if err != nil || !warm {
-		t.Fatalf("Materialize = warm %v, err %v; want a warm admission", warm, err)
+	source, _, err := m.Materialize(att, "a")
+	if err != nil || source != MaterializedWarm {
+		t.Fatalf("Materialize = %v, err %v; want a warm admission", source, err)
 	}
 	if !masterExists(m, "a") {
 		t.Fatal("admission evicted the master it was materializing")
@@ -720,9 +742,9 @@ func TestMaterializedImageIsGuestWritable(t *testing.T) {
 	}
 
 	att := mustAllocate(t, m, "vm-warm")
-	warm, _, err := m.Materialize(att, "42")
-	if err != nil || !warm {
-		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	source, _, err := m.Materialize(att, "42")
+	if err != nil || source != MaterializedWarm {
+		t.Fatalf("Materialize = %v, err %v; want warm", source, err)
 	}
 
 	fi, err := os.Stat(m.BranchImage(att))
@@ -809,8 +831,8 @@ func TestInstallMasterGrowsTheImageToTheCeiling(t *testing.T) {
 	}
 
 	att := mustAllocate(t, m, "vm-warm")
-	if warm, _, err := m.Materialize(att, "42"); err != nil || !warm {
-		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	if source, _, err := m.Materialize(att, "42"); err != nil || source != MaterializedWarm {
+		t.Fatalf("Materialize = %v, err %v; want warm", source, err)
 	}
 	if len(be.grown) != 1 {
 		t.Fatalf("grown = %+v; materializing a branch must not grow it, a job would wait on it", be.grown)
@@ -1030,11 +1052,11 @@ func TestInstallMasterFastForwardsAndRefusesRegression(t *testing.T) {
 // content into the convergence staging dir and returns its path.
 func stageConvergeImage(t *testing.T, m *VolumeManager, vm, content string) string {
 	t.Helper()
-	staging := m.ConvergeStagingDir(vm)
+	staging := m.ConvergeStagingDir(vm, ReservedTuistCacheVolume)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	img := filepath.Join(staging, convergeImageName)
+	img := filepath.Join(staging, "head.sparseimage")
 	if err := os.WriteFile(img, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1174,7 +1196,7 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 // it would be counted against capacity and could be evicted as one.
 func TestConvergeStagingIsNotAMaster(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	staging := m.ConvergeStagingDir("vmX")
+	staging := m.ConvergeStagingDir("42", ReservedTuistCacheVolume)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1525,6 +1547,61 @@ func TestCacheImageBudgetIsWhatTheFixedSplitHandsOut(t *testing.T) {
 	}
 }
 
+// The guest divides the budget by what each cache holds, so its measurements are
+// the only per-cache sizes the fleet has, and the limits beside them are what the
+// rule and its floors get retuned from. The status share is guest-writable and
+// the guest runs untrusted CI, so anything malformed is dropped rather than
+// recorded.
+func TestReadCacheLimits(t *testing.T) {
+	const gib = 1 << 30
+	dir := t.TempDir()
+	if got := readCacheLimits(dir); got != nil {
+		t.Fatalf("a job that staged no division = %v; want none", got)
+	}
+
+	lines := []string{
+		"attach\tbinary\t1610612736\t3221225472",
+		"attach\tcompilation\t13958643712\t22548578304",
+		"teardown\tbinary\t2147483648\t4294967296",
+		"teardown\tcompilation\t18253611008\t21474836480",
+		"teardown\tbinary\tnot-a-number\t4294967296",
+		"sometime\tbinary\t1\t2",
+		"teardown\tsomething\t1\t2",
+		"teardown\tbinary\t1",
+		"",
+	}
+	if err := os.WriteFile(filepath.Join(dir, cacheLimitsFile), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readCacheLimits(dir)
+	want := []cacheLimitSample{
+		{when: "attach", cache: "binary", heldBytes: 1.5 * gib, limitBytes: 3 * gib},
+		{when: "attach", cache: "compilation", heldBytes: 13 * gib, limitBytes: 21 * gib},
+		{when: "teardown", cache: "binary", heldBytes: 2 * gib, limitBytes: 4 * gib},
+		{when: "teardown", cache: "compilation", heldBytes: 17 * gib, limitBytes: 20 * gib},
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("samples = %v; want %v (the malformed lines dropped)", got, want)
+	}
+}
+
+// The file is guest-written, so a job that appends without bound must not make
+// the host hold or record it.
+func TestReadCacheLimitsIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	var lines []string
+	for i := 0; i < 500; i++ {
+		lines = append(lines, "teardown\tbinary\t1024\t2048")
+	}
+	if err := os.WriteFile(filepath.Join(dir, cacheLimitsFile), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(readCacheLimits(dir)); got > cacheLimitsMaxSamples {
+		t.Fatalf("read %d samples; want at most %d", got, cacheLimitsMaxSamples)
+	}
+}
+
 func TestWriteNodeName(t *testing.T) {
 	dir := t.TempDir()
 
@@ -1614,8 +1691,9 @@ func TestCacheMasterNodeLabels(t *testing.T) {
 		t.Fatalf("CacheMasterNodeLabels: %v", err)
 	}
 	want := map[string]string{
-		"tuist.dev/cache-master-42": "true",
-		"tuist.dev/cache-master-7":  "true",
+		"tuist.dev/cache-master-42":              "true",
+		"tuist.dev/cache-master-7":               "true",
+		"tuist.dev/cache-volumes-per-repository": "true",
 	}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("labels = %v; want %v", labels, want)
@@ -1644,7 +1722,7 @@ func TestCacheMasterNodeLabelsDropsEvictedAccount(t *testing.T) {
 	// Only the surviving master is advertised. This is the case the server's
 	// old dispatch-history model could not see at all: the accounts still ran
 	// here most recently, but their masters are gone.
-	want := map[string]string{"tuist.dev/cache-master-9": "true"}
+	want := map[string]string{"tuist.dev/cache-master-9": "true", "tuist.dev/cache-volumes-per-repository": "true"}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("labels after eviction = %v; want %v", labels, want)
 	}
@@ -1675,7 +1753,7 @@ func TestCacheMasterNodeLabelsSkipsNonAccountDirs(t *testing.T) {
 	if _, ok := labels["tuist.dev/cache-master-42"]; !ok {
 		t.Fatalf("account 42 should be advertised: %v", labels)
 	}
-	if len(labels) != 1 {
+	if _, ok := labels["tuist.dev/cache-master-not-an-account"]; ok || len(labels) != 2 {
 		t.Fatalf("only account-id dirs should be advertised; got %v", labels)
 	}
 }
@@ -1733,7 +1811,7 @@ func TestDeclinedMaterializeDoesNotConverge(t *testing.T) {
 
 	store := NewStore()
 	store.Put("ns", "pod", &Entry{VMName: "vm-declined", Volume: att, VolumeStatusDir: statusDir})
-	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r := &Reconciler{Store: store, Volumes: m, Converge: startTestConvergeWorker(t, m), ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
 	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
 	}})

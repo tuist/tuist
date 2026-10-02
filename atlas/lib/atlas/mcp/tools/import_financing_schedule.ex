@@ -49,7 +49,7 @@ defmodule Atlas.MCP.Tools.ImportFinancingSchedule do
   end
 
   def execute(conn, %{"financing_id" => id, "installments" => installments}) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(id) do
       normalized = Enum.map(installments, &normalize/1)
 

@@ -19,7 +19,7 @@ defmodule Atlas.MCP.Tools.GetDataCenter do
   end
 
   def execute(conn, %{"data_center_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools") do
       case Assets.get_data_center(id) do
         nil -> {:error, "Data center not found."}
         dc -> {:ok, Serializer.data_center(dc)}

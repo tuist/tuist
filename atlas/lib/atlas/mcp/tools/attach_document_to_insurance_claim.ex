@@ -36,7 +36,7 @@ defmodule Atlas.MCP.Tools.AttachDocumentToInsuranceClaim do
   end
 
   def execute(conn, %{"claim_id" => claim_id, "document_id" => document_id, "kind" => kind} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = claim <- Policies.get_claim(claim_id) do
       opts =
         case Map.get(args, "notes") do

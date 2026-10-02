@@ -58,7 +58,7 @@ defmodule Atlas.MCP.Tools.CreateDocumentUpload do
       "Reserve a document row and return a short-lived presigned URL. Upload the bytes with an HTTP PUT to that URL, sending the `Content-Type` header returned in `required_headers` verbatim, then call `finalize_document_upload` with the returned `document_id` to promote the row and enqueue processing."
 
   def execute(conn, %{"original_filename" => filename, "content_type" => content_type} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Document tools"),
+    with :ok <- Tool.authorize_scope(conn, "documents:write", "Document tools"),
          %User{} = user <- Tool.current_user(conn) do
       attrs =
         %{

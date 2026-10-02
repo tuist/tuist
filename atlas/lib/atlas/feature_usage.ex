@@ -18,7 +18,6 @@ defmodule Atlas.FeatureUsage do
 
   import Ecto.Query
 
-  alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Audit
@@ -159,8 +158,6 @@ defmodule Atlas.FeatureUsage do
         },
         interface: "worker"
       )
-
-      Accounts.enqueue_account_attention_suggestion_generation(account.id, "feature_usage_refreshed")
 
       {:ok, result}
     else

@@ -91,7 +91,7 @@ defmodule Atlas.MCP.Tools.FinanceGetTransaction do
   end
 
   def execute(conn, %{"transaction_id" => transaction_id}) do
-    with :ok <- Tool.authorize_executive(conn) do
+    with :ok <- Tool.authorize_scope(conn, "finance:read", "Finance tools") do
       transactions = Finance.list_transactions(limit: 1, id: transaction_id)
 
       case transactions do

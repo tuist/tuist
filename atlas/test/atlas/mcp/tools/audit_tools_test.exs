@@ -53,10 +53,10 @@ defmodule Atlas.MCP.Tools.AuditToolsTest do
   test "rejects non-executive users" do
     conn = %{role: :employee} |> insert_user!() |> mcp_conn()
 
-    assert {:error, "Audit tools are only available to executives."} =
+    assert {:error, "Audit tools require the audit:read scope."} =
              execute_tool(ListAuditActivities, conn, %{})
 
-    assert {:error, "Audit tools are only available to executives."} =
+    assert {:error, "Audit tools require the audit:read scope."} =
              execute_tool(GetAuditActivity, conn, %{"activity_id" => Ecto.UUID.generate()})
   end
 end

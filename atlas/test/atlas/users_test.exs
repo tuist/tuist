@@ -1,6 +1,8 @@
 defmodule Atlas.UsersTest do
   use Atlas.DataCase, async: true
 
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Users
   alias Atlas.Users.User
   alias Ueberauth.Auth.Info
@@ -12,7 +14,7 @@ defmodule Atlas.UsersTest do
       assert {:ok, user} = Users.find_or_create_user_from_auth(auth)
       assert user.email == "alice@tuist.dev"
       assert user.name == "Alice"
-      assert user.role == :employee
+      assert Roles.list_roles_for_user(user) == []
     end
 
     test "matches the allowed domain case-insensitively" do
@@ -38,21 +40,24 @@ defmodule Atlas.UsersTest do
       assert updated.name == "Carol Smith"
     end
 
-    test "preserves the stored role on subsequent sign-ins" do
-      %User{}
-      |> User.changeset(%{
-        email: "chief@tuist.dev",
-        name: "Chief",
-        role: :executive
-      })
+    test "preserves the stored role assignments on subsequent sign-ins" do
+      user =
+        %User{}
+        |> User.changeset(%{email: "chief@tuist.dev", name: "Chief"})
+        |> Repo.insert!()
+
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
       |> Repo.insert!()
 
       auth = build_auth(email: "chief@tuist.dev", name: "Chief Executive")
 
       assert {:ok, user} = Users.find_or_create_user_from_auth(auth)
       assert user.name == "Chief Executive"
-      assert user.role == :executive
-      assert Users.executive?(user)
+      assert Enum.any?(Roles.list_roles_for_user(user), &(&1.id == executive_role.id))
+      assert Users.has_scope?(user, "admin:read")
     end
   end
 

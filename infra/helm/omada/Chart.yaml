@@ -1,0 +1,21 @@
+apiVersion: v2
+name: tuist-omada
+description: >
+  Wraps mbentley's Omada SDN Controller chart so the controller's lifecycle is
+  handled the way everything else here is, rather than by hand on a box.
+
+  Deployed to evaluate whether the controller can take over switch management
+  from infra/rack-switch-fleet's SSH driver. On 6.3 its Open API can write
+  everything the fleet renders; what adoption does to a configured switch is
+  still open.
+
+  See infra/rack-switch-fleet/omada-assessment.md. Deployed to the staging
+  cluster by .github/workflows/omada-deployment.yml, while the rack is at home.
+type: application
+version: 0.1.0
+appVersion: "6.3.0.45"
+
+dependencies:
+  - name: omada-controller-helm
+    version: "1.5.3"
+    repository: oci://registry-1.docker.io/mbentley

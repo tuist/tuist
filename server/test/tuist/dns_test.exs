@@ -95,6 +95,38 @@ defmodule Tuist.DNSTest do
     assert reason != :not_published
   end
 
+  test "the zone's nameservers are found once and reused across calls" do
+    # Three sequential lookups with a one-second budget each, on a path that
+    # polls twice a second per instance coming up, aimed at the zone's real
+    # authoritative nameservers.
+    opts = start_nameserver(:published)
+
+    assert :ok = DNS.record_published(@host, opts)
+    assert_received {:asked, "tuist.test", :ns, true}
+    assert_received {:asked, "ns.tuist.test", :a, true}
+    assert_received {:asked, @host, :a, false}
+
+    assert :ok = DNS.record_published(@host, opts)
+
+    refute_received {:asked, "tuist.test", :ns, _rd}
+    refute_received {:asked, "ns.tuist.test", :a, _rd}
+    assert_received {:asked, @host, :a, false}
+  end
+
+  test "a zone whose nameservers cannot be found is asked about again" do
+    # Caching the failure would leave every later call falling back to the
+    # pod's resolver, whose negative answers are what this module exists to
+    # keep out of the path.
+    opts = start_nameserver(:published)
+    unknown = "app.nowhere.test"
+
+    assert {:error, _reason} = DNS.record_published(unknown, opts)
+    assert_received {:asked, "nowhere.test", :ns, true}
+
+    assert {:error, _reason} = DNS.record_published(unknown, opts)
+    assert_received {:asked, "nowhere.test", :ns, true}
+  end
+
   test "a host outside public DNS resolves through the pod's resolver" do
     assert :ok = DNS.record_published("localhost")
     assert :ok = DNS.record_published("127.0.0.1")

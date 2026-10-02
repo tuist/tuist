@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.RecoverAsset do
   end
 
   def execute(conn, %{"asset_id" => id, "on" => on}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          {:ok, date} <- Date.from_iso8601(on),
          %_{} = asset <- Assets.get_asset(id) do
       case Assets.recover(asset, on: date) do

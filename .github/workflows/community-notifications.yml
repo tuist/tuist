@@ -1,0 +1,57 @@
+name: Notify Slack of community contributions
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Only load the trusted event SHA, never the PR head or merge commit.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Filter author and prepare notification
+        id: notification
+        uses: actions/github-script@v7
+        env:
+          TEAM_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.COMMUNITY_SLACK_WEBHOOK_URL }}
+        with:
+          github-token: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+          script: |
+            const { writeFile } = require('node:fs/promises');
+            const { join } = require('node:path');
+            const { communityNotification } = require('./.github/scripts/community-notifications.cjs');
+            const payload = await communityNotification({
+              github,
+              context,
+              hasTeamToken: Boolean(process.env.TEAM_TOKEN),
+            });
+            if (!payload) {
+              core.info('No community notification needed.');
+              return;
+            }
+            if (!process.env.SLACK_WEBHOOK_URL) {
+              throw new Error('Configure the COMMUNITY_SLACK_WEBHOOK_URL repository secret.');
+            }
+            await writeFile(join(process.env.RUNNER_TEMP, 'community-slack-payload.json'), JSON.stringify(payload));
+            core.setOutput('send', 'true');
+      - name: Send to the community triage channel
+        if: steps.notification.outputs.send == 'true'
+        uses: slackapi/slack-github-action@v2
+        with:
+          errors: true
+          webhook: ${{ secrets.COMMUNITY_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ runner.temp }}/community-slack-payload.json

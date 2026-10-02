@@ -65,9 +65,15 @@ defmodule Atlas.MCP.ToolCase do
       name: "Test User"
     }
 
-    %User{}
-    |> User.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
+    {role, scopes, attrs} = AtlasWeb.ConnCase.extract_role_and_scopes(attrs)
+
+    user =
+      %User{}
+      |> User.changeset(Map.merge(defaults, attrs))
+      |> Repo.insert!()
+
+    AtlasWeb.ConnCase.assign_role_or_scopes(user, role, scopes)
+    user
   end
 
   def mcp_conn(user), do: %{assigns: %{current_user: user}}

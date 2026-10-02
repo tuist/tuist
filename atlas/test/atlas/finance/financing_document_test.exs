@@ -36,6 +36,14 @@ defmodule Atlas.Finance.FinancingDocumentTest do
              Financings.attach_document(financing, document.id, "supplier_contract")
   end
 
+  test "accepts a document whose text extraction failed but whose bytes are stored" do
+    financing = insert_financing!()
+    document = insert_document!("Scanned Ratenzahlung", %{status: "failed"})
+
+    assert {:ok, %FinancingDocument{}} =
+             Financings.attach_document(financing, document.id, "schedule")
+  end
+
   test "detaches the relationship without deleting the document" do
     financing = insert_financing!()
     document = insert_document!("Financing agreement")

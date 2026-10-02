@@ -37,7 +37,7 @@ defmodule Atlas.MCP.Tools.SetFinancingLines do
   end
 
   def execute(conn, %{"financing_id" => id, "lines" => lines}) when is_list(lines) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(id) do
       lines =
         Enum.map(lines, fn line ->

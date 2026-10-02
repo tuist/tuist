@@ -9,6 +9,7 @@ defmodule TuistWeb.UsageLive do
 
   alias Tuist.Authorization
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
   alias Tuist.Kura.Usage
   alias Tuist.Runners.Allowance
@@ -43,30 +44,29 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
+     |> assign(:usage_based_pricing, FeatureFlags.usage_based_pricing_enabled?(account))
+     |> assign(:cache_view, "charge")
      |> assign(:prepaid_balance, prepaid_balance)}
   end
 
   @widgets ["egress", "ingress", "requests"]
+  @cache_views ["charge", "egress", "requests"]
 
   @impl true
   def handle_params(
         params,
         uri,
-        %{assigns: %{selected_account: account, periods: periods, prepaid_balance: prepaid_balance}} = socket
+        %{
+          assigns: %{
+            selected_account: account,
+            periods: periods,
+            prepaid_balance: prepaid_balance,
+            usage_based_pricing: usage_based_pricing
+          }
+        } = socket
       ) do
-    {start_dt, end_dt} = period = selected_period(periods, params["period"])
+    period = selected_period(periods, params["period"])
     selected_widget = widget_param(params["widget"])
-
-    # The page reports one billing period, so the cache traffic beside
-    # the runner usage is scoped to the same window rather than to a
-    # range of its own. Daily buckets: a period is a month, and an hourly
-    # bucket over a month is unreadable.
-    base_opts = [bucket: :day]
-    egress_opts = Keyword.merge(base_opts, direction: "egress", metric: :bytes)
-    ingress_opts = Keyword.merge(base_opts, direction: "ingress", metric: :bytes)
-    requests_opts = Keyword.put(base_opts, :metric, :requests)
-
-    usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
 
     runner_breakdown = Allowance.period_breakdown(account, period)
 
@@ -80,19 +80,46 @@ defmodule TuistWeb.UsageLive do
      |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
-     |> assign_async(
-       [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
-       fn ->
-         {:ok,
-          %{
-            totals: Usage.totals(account.id, start_dt, usage_end, base_opts),
-            egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, egress_opts),
-            ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, ingress_opts),
-            requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, requests_opts),
-            per_region: Usage.per_region(account.id, start_dt, usage_end, base_opts)
-          }}
-       end
-     )}
+     |> assign_usage_pricing(usage_based_pricing, account, period)
+     |> assign_cache_traffic(usage_based_pricing, account, period)}
+  end
+
+  defp assign_cache_traffic(socket, true, _account, _period), do: socket
+
+  defp assign_cache_traffic(socket, false, account, {start_dt, end_dt}) do
+    # The page reports one billing period, so the cache traffic beside
+    # the runner usage is scoped to the same window rather than to a
+    # range of its own. Daily buckets: a period is a month, and an hourly
+    # bucket over a month is unreadable.
+    base_opts = [bucket: :day]
+    egress_opts = Keyword.merge(base_opts, direction: "egress", metric: :bytes)
+    ingress_opts = Keyword.merge(base_opts, direction: "ingress", metric: :bytes)
+    requests_opts = Keyword.put(base_opts, :metric, :requests)
+
+    usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
+
+    assign_async(
+      socket,
+      [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
+      fn ->
+        {:ok,
+         %{
+           totals: Usage.totals(account.id, start_dt, usage_end, base_opts),
+           egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, egress_opts),
+           ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, ingress_opts),
+           requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, requests_opts),
+           per_region: Usage.per_region(account.id, start_dt, usage_end, base_opts)
+         }}
+      end
+    )
+  end
+
+  defp assign_usage_pricing(socket, false, _account, _period), do: assign(socket, :usage_pricing, nil)
+
+  defp assign_usage_pricing(socket, true, account, period) do
+    assign_async(socket, :usage_pricing, fn ->
+      {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
+    end)
   end
 
   # A prepaid balance is what the account holds today, so it describes
@@ -132,6 +159,10 @@ defmodule TuistWeb.UsageLive do
   end
 
   @impl true
+  def handle_event("select_cache_view", %{"widget" => view}, socket) do
+    {:noreply, assign(socket, :cache_view, cache_view_param(view))}
+  end
+
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     {:noreply, push_patch_with_param(socket, "widget", widget)}
   end
@@ -159,6 +190,9 @@ defmodule TuistWeb.UsageLive do
     push_patch(socket, to: "/#{socket.assigns.selected_account.name}/usage?#{query}")
   end
 
+  defp cache_view_param(view) when view in @cache_views, do: view
+  defp cache_view_param(_view), do: "charge"
+
   defp widget_param(widget) when widget in @widgets, do: widget
   defp widget_param(_), do: "egress"
 
@@ -171,22 +205,7 @@ defmodule TuistWeb.UsageLive do
     {axis_formatter, tooltip_format} = formatters_for(selected_widget)
 
     %{
-      legend: %{
-        left: "left",
-        top: "bottom",
-        orient: "horizontal",
-        textStyle: %{
-          color: "var:noora-surface-label-secondary",
-          fontFamily: "monospace",
-          fontWeight: 400,
-          fontSize: 10,
-          lineHeight: 12
-        },
-        icon:
-          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-        itemWidth: 8,
-        itemHeight: 4
-      },
+      legend: chart_legend(),
       grid: %{width: "97%", left: "0.4%", height: "78%", top: "8%"},
       xAxis: %{
         boundaryGap: false,
@@ -209,6 +228,25 @@ defmodule TuistWeb.UsageLive do
       # Always daily now: the window is a billing period, so there is no
       # hourly preset left to format for.
       tooltip: tooltip_format
+    }
+  end
+
+  defp chart_legend do
+    %{
+      left: "left",
+      top: "bottom",
+      orient: "horizontal",
+      textStyle: %{
+        color: "var:noora-surface-label-secondary",
+        fontFamily: "monospace",
+        fontWeight: 400,
+        fontSize: 10,
+        lineHeight: 12
+      },
+      icon:
+        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+      itemWidth: 8,
+      itemHeight: 4
     }
   end
 
@@ -478,6 +516,201 @@ defmodule TuistWeb.UsageLive do
   """
   def money_label(nil), do: "—"
   def money_label(money), do: CldrHelpers.format_money(money)
+
+  @doc """
+  Chart options for a usage pricing chart whose values are in `unit`:
+  `:currency`, `:bytes`, or `:count`.
+  """
+  def usage_chart_options(dates, unit) do
+    formatter =
+      case unit do
+        :currency -> "fn:formatCurrency"
+        :bytes -> "fn:formatBytes"
+        :count -> "fn:formatNumber"
+      end
+
+    dates
+    |> runner_chart_options()
+    |> Map.merge(%{
+      legend: chart_legend(),
+      grid: %{left: 12, right: 16, top: 16, bottom: 40, containLabel: true},
+      tooltip: %{valueFormat: formatter}
+    })
+    |> put_in([:yAxis, :axisLabel, :formatter], formatter)
+  end
+
+  def cache_chart_unit("charge"), do: :currency
+  def cache_chart_unit("egress"), do: :bytes
+  def cache_chart_unit("requests"), do: :count
+
+  @doc """
+  Every date a usage pricing chart draws, spend and projection alike.
+  """
+  def usage_chart_dates(%{days: days, projected_days: projected_days}) do
+    (days ++ projected_days)
+    |> Enum.map(& &1.date)
+    |> Enum.uniq()
+    |> Enum.sort(Date)
+  end
+
+  @doc """
+  The cache usage card's chart for the selected view, followed by the
+  projection for the days the period has not reached yet. The charge is split
+  by meter, and egress and requests by cache.
+  """
+  def cache_chart_series(%{charge_days: charge_days} = cache, "charge") do
+    dates = usage_chart_dates(cache)
+
+    [
+      bar_series(
+        dgettext("dashboard_usage", "Egress"),
+        "primary",
+        dates,
+        Enum.filter(charge_days, &(&1.meter == :egress)),
+        :dollars
+      ),
+      bar_series(
+        dgettext("dashboard_usage", "Requests"),
+        "secondary",
+        dates,
+        Enum.filter(charge_days, &(&1.meter == :requests)),
+        :dollars
+      )
+    ] ++ projected_series(cache.projected_days, dates, :dollars)
+  end
+
+  def cache_chart_series(%{days: days} = cache, view) do
+    field = if view == "egress", do: :bytes, else: :requests
+    dates = usage_chart_dates(cache)
+
+    project_series(days, dates, field) ++ projected_series(cache.projected_days, dates, field)
+  end
+
+  @doc """
+  The daily value of billable passing test cases by project, followed by the
+  projection for the days the period has not reached yet.
+  """
+  def tests_chart_series(%{days: days, projected_days: projected_days} = tests) do
+    dates = usage_chart_dates(tests)
+
+    project_series(days, dates, :dollars) ++ projected_series(projected_days, dates, :dollars)
+  end
+
+  defp project_series(days, dates, field) do
+    days
+    |> Enum.group_by(& &1.project)
+    |> Enum.sort_by(fn {_project, rows} -> -Enum.sum(Enum.map(rows, &Map.fetch!(&1, field))) end)
+    |> Enum.with_index()
+    |> Enum.map(fn {{project, rows}, index} ->
+      bar_series(
+        project_label(project),
+        Enum.at(@repository_colors, rem(index, length(@repository_colors))),
+        dates,
+        rows,
+        field
+      )
+    end)
+  end
+
+  defp projected_series([], _dates, _field), do: []
+
+  defp projected_series(projected_days, dates, field),
+    do: [bar_series(dgettext("dashboard_usage", "Projected"), "lines", dates, projected_days, field)]
+
+  defp bar_series(name, color, dates, rows, field) do
+    %{
+      color: "var:noora-chart-#{color}",
+      data: bar_series_data(dates, rows, field),
+      name: name,
+      type: "bar",
+      stack: "spend"
+    }
+  end
+
+  defp bar_series_data(dates, rows, field) do
+    per_day =
+      rows
+      |> Enum.group_by(& &1.date, &Map.fetch!(&1, field))
+      |> Map.new(fn {date, values} -> {date, Enum.sum(values)} end)
+
+    Enum.map(dates, fn date -> [date, chart_value(Map.get(per_day, date, 0), field)] end)
+  end
+
+  defp chart_value(value, :dollars), do: Float.round(value / 1, 2)
+  defp chart_value(value, _field), do: round(value)
+
+  def runner_usage?(%{minutes: minutes, by_repository: by_repository}), do: minutes > 0 or by_repository != []
+
+  def cache_used?(%{egress: egress, requests: requests}), do: egress.quantity > 0 or requests.quantity > 0
+
+  def tests_used?(tests), do: tests.passed + not_billed_test_cases(tests) > 0
+
+  attr :title, :string, required: true
+  attr :get_started_href, :string, required: true
+  attr :rest, :global
+
+  def usage_empty_state(assigns) do
+    ~H"""
+    <.empty_card_section title={@title} get_started_href={@get_started_href} {@rest}>
+      <:image>
+        <img
+          src={~p"/images/empty_bar_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_bar_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
+      </:image>
+    </.empty_card_section>
+    """
+  end
+
+  def egress_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
+
+  def request_rate_label,
+    do: "$0.01 " <> dgettext("dashboard_usage", "per %{count}", count: CldrHelpers.format_number(1_000))
+
+  def passing_test_case_rate_label, do: "$2 " <> dgettext("dashboard_usage", "per million")
+
+  def project_label(nil), do: dgettext("dashboard_usage", "Unknown project")
+  def project_label(project), do: project
+
+  def usage_charge_description(%{billed: nil}),
+    do: dgettext("dashboard_usage", "What this period comes to. There is no subscription to bill it to.")
+
+  def usage_charge_description(_section), do: dgettext("dashboard_usage", "What you'll owe for this period")
+
+  def usage_total_label(%{billed: nil}), do: dgettext("dashboard_usage", "Estimated for this period")
+  def usage_total_label(_section), do: dgettext("dashboard_usage", "Billed this period")
+
+  def not_billed_test_cases(%{failed: failed, skipped: skipped, on_runners: on_runners}),
+    do: failed + skipped + on_runners
+
+  def egress_pace_label(%{projected: nil}), do: nil
+
+  def egress_pace_label(%{projected: projected}),
+    do: dgettext("dashboard_usage", "On track for about %{size} this period.", size: format_bytes(projected))
+
+  def requests_pace_label(%{projected: nil}), do: nil
+
+  def requests_pace_label(%{projected: projected}),
+    do:
+      dgettext("dashboard_usage", "On track for about %{count} requests this period.",
+        count: CldrHelpers.format_number(projected)
+      )
+
+  def tests_pace_label(%{projected: nil}), do: nil
+
+  def tests_pace_label(%{projected: projected}),
+    do:
+      dgettext("dashboard_usage", "On track for about %{count} passing test cases this period.",
+        count: CldrHelpers.format_number(projected)
+      )
 
   def region_label(""), do: dgettext("dashboard_usage", "Unknown")
   def region_label(nil), do: dgettext("dashboard_usage", "Unknown")

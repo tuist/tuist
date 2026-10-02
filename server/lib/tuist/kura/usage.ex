@@ -5,10 +5,10 @@ defmodule Tuist.Kura.Usage do
 
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.UsageEvent
   alias Tuist.Projects
 
@@ -21,7 +21,7 @@ defmodule Tuist.Kura.Usage do
   and is treated as unattributable traffic.
   """
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Accounts.get_account_ids_by_handles()
+    account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Identity.account_ids()
     insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0))
   end
 

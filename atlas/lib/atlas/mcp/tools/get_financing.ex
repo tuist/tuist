@@ -19,7 +19,7 @@ defmodule Atlas.MCP.Tools.GetFinancing do
   end
 
   def execute(conn, %{"financing_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Financing tools") do
       case Financings.get(id) do
         nil -> {:error, "Financing not found."}
         financing -> {:ok, Serializer.financing(financing)}

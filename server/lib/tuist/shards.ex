@@ -211,18 +211,22 @@ defmodule Tuist.Shards do
     end
   end
 
+  def plan_object_prefix(account, project, plan_id) do
+    "#{account.id}/#{project.id}/shards/#{plan_id}/"
+  end
+
   def bundle_object_key(account, project, plan_id) do
-    "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
+    plan_object_prefix(account, project, plan_id) <> "bundle.zip"
   end
 
   def artifact_object_key(account, project, plan_id, artifact) do
-    base = "#{account.id}/#{project.id}/shards/#{plan_id}"
+    prefix = plan_object_prefix(account, project, plan_id)
 
     case artifact do
-      nil -> "#{base}/bundle.zip"
-      "shared" -> "#{base}/shared.aar"
-      "module:" <> module_name -> "#{base}/modules/#{module_name}.aar"
-      _ -> "#{base}/bundle.zip"
+      nil -> prefix <> "bundle.zip"
+      "shared" -> prefix <> "shared.aar"
+      "module:" <> module_name -> prefix <> "modules/#{module_name}.aar"
+      _ -> prefix <> "bundle.zip"
     end
   end
 

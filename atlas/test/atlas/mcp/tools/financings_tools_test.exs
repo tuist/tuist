@@ -35,7 +35,7 @@ defmodule Atlas.MCP.Tools.FinancingsToolsTest do
   test "list_financings denies non-executives" do
     non_exec = insert_user!()
     assert {:error, message} = ListFinancings.execute(mcp_conn(non_exec), %{})
-    assert message =~ "executives"
+    assert message =~ "assets:read"
   end
 
   test "list_financings searches by reference, provider, or supplier" do

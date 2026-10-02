@@ -150,10 +150,18 @@ struct TuistCacheEECanaryAcceptanceTests {
             ["--path", fixtureDirectory.pathString]
         )
 
+        let fileSystem = FileSystem()
+        let binaries = try CacheDirectoriesProvider().cacheDirectory(for: .binaries)
+        #expect(try await !fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
+        try await TuistTest.run(CleanCommand.self, ["binaries", "--path", fixtureDirectory.pathString])
+        #expect(try await fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
+
         // When: Generate with focus on App
         try await TuistTest.run(
             GenerateCommand.self, ["App", "--path", fixtureDirectory.pathString, "--no-open"]
         )
+
+        #expect(try await !fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
 
         // Then: Cached frameworks should be linked as xcframeworks
         try TuistAcceptanceTest.expectXCFrameworkLinked(
@@ -186,20 +194,18 @@ struct TuistCacheEECanaryAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
+        let testArguments = [
+            "--path", fixtureDirectory.pathString,
+            "--derived-data-path", temporaryDirectory.pathString,
+            "--platform", "macOS",
+            "--",
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
 
         // When: Run tests for the first time
-        try await TuistTest.run(
-            TestCommand.self,
-            [
-                "--path", fixtureDirectory.pathString,
-                "--derived-data-path", temporaryDirectory.pathString,
-                "--platform", "macOS",
-                "--",
-                "CODE_SIGN_IDENTITY=",
-                "CODE_SIGNING_REQUIRED=NO",
-                "CODE_SIGNING_ALLOWED=NO",
-            ]
-        )
+        try await TuistTest.run(TestCommand.self, testArguments)
 
         let unchangedTestTargetName = "MultiPlatformTransitiveDynamicFrameworkTests"
         let unchangedTestHash = try await selectiveTestingHash(
@@ -231,22 +237,31 @@ struct TuistCacheEECanaryAcceptanceTests {
         )
 
         // When: Run tests again
-        try await TuistTest.run(
-            TestCommand.self,
-            [
-                "--path", fixtureDirectory.pathString,
-                "--derived-data-path", temporaryDirectory.pathString,
-                "--platform", "macOS",
-                "--",
-                "CODE_SIGN_IDENTITY=",
-                "CODE_SIGNING_REQUIRED=NO",
-                "CODE_SIGNING_ALLOWED=NO",
-            ]
-        )
+        try await TuistTest.run(TestCommand.self, testArguments)
 
         // Then: Expect MultiPlatformTransitiveDynamicFrameworkTests to be skipped (unchanged)
         TuistTest.expectLogs(
             "The following targets have not changed since the last successful run and will be skipped: MultiPlatformTransitiveDynamicFrameworkTests"
+        )
+
+        // When: Run tests again on a different toolchain
+        Logger.testingLogHandler.flush()
+        let otherToolchain = SwiftlangVersionOverridingProvider(
+            reportedSwiftlangVersion: "999.0.0.0.0",
+            underlying: SwiftVersionProvider.current
+        )
+        try await SwiftVersionProvider.$current.withValue(otherToolchain) {
+            let otherToolchainTestHash = try await selectiveTestingHash(
+                for: unchangedTestTargetName,
+                fixtureDirectory: fixtureDirectory
+            )
+            #expect(otherToolchainTestHash != unchangedTestHash)
+            try await TuistTest.run(TestCommand.self, testArguments)
+        }
+
+        // Then: Expect every target to run, since none has passed on that toolchain yet
+        TuistTest.expectLogs(
+            "Testing the following targets: MacOSStaticFrameworkTests, MultiPlatformTransitiveDynamicFrameworkTests"
         )
     }
 
@@ -474,5 +489,23 @@ struct TuistCacheEECanaryAcceptanceTests {
             )
             try await Task.sleep(for: .milliseconds(100))
         }
+    }
+}
+
+/// Reports the installed compiler under another build number, as a CI image that moved to a new Xcode would.
+private struct SwiftlangVersionOverridingProvider: SwiftVersionProviding {
+    let reportedSwiftlangVersion: String
+    let underlying: SwiftVersionProviding
+
+    func swiftVersion() async throws -> String {
+        try await underlying.swiftVersion()
+    }
+
+    func swiftlangVersion() async throws -> String {
+        reportedSwiftlangVersion
+    }
+
+    func swiftDefaultLanguageModeVersion() async throws -> String {
+        try await underlying.swiftDefaultLanguageModeVersion()
     }
 }

@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Noora
@@ -6,6 +5,7 @@ import Path
 import TuistAlert
 import TuistConfigLoader
 import TuistEnvironment
+import TuistProcess
 import TuistServer
 import TuistSupport
 

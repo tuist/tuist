@@ -93,15 +93,20 @@ public struct GitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing {
 
     private static func testsSection(_ reports: [RunReportTestRun]) -> String {
         let rows = reports.map { report in
-            "| \(report.scheme) | \(report.succeeded ? "✅" : "❌") | \(report.totalTests) | \(report.skippedTests) | \(report.ranTests) |"
+            "| \(report.scheme) | \(report.succeeded ? "✅" : "❌") | \(testModulesText(report)) | \(report.totalTests) |"
         }
         return """
         #### Tests 🧪
 
-        | Scheme | Status | Tests | Skipped | Ran |
-        |:-:|:-:|:-:|:-:|:-:|
+        | Scheme | Status | Ran test modules | Test cases |
+        |:-:|:-:|:-:|:-:|
         \(rows.joined(separator: "\n"))
         """
+    }
+
+    private static func testModulesText(_ report: RunReportTestRun) -> String {
+        guard let skippedTestModules = report.skippedTestModules else { return "\(report.ranTestModules)" }
+        return "\(report.ranTestModules)/\(report.ranTestModules + skippedTestModules)"
     }
 
     private static func failedTestsSection(_ failedTestNames: [String]) -> String {

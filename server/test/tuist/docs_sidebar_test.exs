@@ -85,6 +85,27 @@ defmodule Tuist.Docs.SidebarTest do
     refute Sidebar.item_or_children_active?(item, "/en/other")
   end
 
+  test "localizes each Insights item by its catalogue path, not by English label" do
+    tree = Sidebar.tree_for_tab(:guides, "es")
+
+    insights_by_group =
+      for %Sidebar.Group{label: group, items: items} <- tree,
+          group in ["Builds", "Tests", "Bundles"],
+          item <- items,
+          item.slug in [
+            "/es/guides/features/build-insights",
+            "/es/guides/features/test-insights",
+            "/es/guides/features/bundle-insights"
+          ],
+          into: %{} do
+        {group, item.label}
+      end
+
+    assert insights_by_group["Builds"] == "Análisis de builds"
+    assert insights_by_group["Tests"] == "Insights"
+    assert insights_by_group["Bundles"] == "Insights"
+  end
+
   test "returns the top-level category for localized slugs" do
     assert Sidebar.category_for_slug("/en/guides/install-tuist") == "Guides"
     assert Sidebar.category_for_slug("/ko/guides/install-tuist") == "Guides"

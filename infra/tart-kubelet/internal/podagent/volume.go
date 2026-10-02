@@ -12,24 +12,27 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// Per-account cache volumes for the macOS runner fleet.
+// Cache volumes for the macOS runner fleet, one per (account, volume).
 //
-// A VolumeManager owns the lifecycle of per-account cache masters kept as
-// sparse APFS disk images under a single quota-bounded runner-cache root. The
-// model is "materialize after dispatch":
+// A VolumeManager owns the lifecycle of cache masters kept as sparse APFS disk
+// images under a single quota-bounded runner-cache root, keyed by account and
+// volume. A job's volume is its repository's; a job with no repository uses
+// ReservedTuistCacheVolume. The model is "materialize after dispatch":
 //
 //   - A warm-pool VM boots GENERIC — an empty, writable directory is attached
 //     as a virtio-fs share at the cache root. No account data, no prediction.
-//   - The server stamps the pod's `tuist.dev/runner-account` label when it
-//     claims a job. The reconciler then calls Materialize, which APFS-
-//     clonefiles that account's master IMAGE into the VM's branch (instant,
-//     CoW) and the guest is signalled to attach it and proceed warm.
-//   - On job end Finalize promotes the branch image back to the account's
+//   - The server stamps the pod's `tuist.dev/runner-account` and
+//     `tuist.dev/runner-cache-volume` labels when it claims a job. The
+//     reconciler then calls Materialize, which APFS-clonefiles that volume's
+//     master IMAGE into the VM's branch (instant, CoW) and the guest is
+//     signalled to attach it and proceed warm.
+//   - On job end Finalize promotes the branch image back to that volume's
 //     master (job succeeded AND the cache changed) or discards it.
 //
 // The cache is a disk image rather than a directory tree because the share
@@ -62,11 +65,34 @@ import (
 // (VZXHCIController runtime attach): only the device swaps — an image on a
 // virtio-fs share today, a hot-attached block device once tart exposes the API.
 
-// ReservedTuistCacheVolume is the reserved volume name for the managed Tuist
-// module cache. Masters are keyed (account_id, volume_name) on disk so that
-// generic, user-declared volumes (spec #69) are new names rather than a
-// re-keying migration.
+// ReservedTuistCacheVolume is the account-wide volume, used by jobs with no
+// repository. Masters are keyed (account_id, volume_name) on disk.
 const ReservedTuistCacheVolume = "tuist-cache"
+
+// A repository's volume is "repo-" plus the first 16 hex characters of the
+// SHA-256 of its lowercased name, as the server derives it at claim.
+const (
+	repositoryVolumePrefix  = "repo-"
+	repositoryVolumeHashLen = 16
+)
+
+// isVolumeName reports whether name is a volume the server can stamp. It
+// becomes a directory name and part of a Node label key.
+func isVolumeName(name string) bool {
+	if name == ReservedTuistCacheVolume {
+		return true
+	}
+	hash, ok := strings.CutPrefix(name, repositoryVolumePrefix)
+	if !ok || len(hash) != repositoryVolumeHashLen {
+		return false
+	}
+	for _, r := range hash {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
 
 // cacheHomeSubdir is the single top-level directory the Tuist CLI writes under
 // its cache home (TUIST_XDG_CACHE_HOME/tuist/...), which the guest points at
@@ -143,6 +169,13 @@ type volumeBackend interface {
 	// (statfs). Ground truth for admission and watermarks: per-file sizes
 	// cannot be summed because CoW clones share blocks.
 	freeBytes(root string) (uint64, error)
+	// capacityBytes reports the size of the filesystem holding root: the quota
+	// of the runner-cache volume, which bounds how large a master this host can
+	// keep at all.
+	capacityBytes(root string) (uint64, error)
+	// allocatedBytes reports the disk space the file at path occupies, which is
+	// what deleting it can return (less any blocks a CoW clone still shares).
+	allocatedBytes(path string) (uint64, error)
 	// isMounted reports whether root is an actually-mounted volume rather than
 	// a stale/absent mountpoint on the boot filesystem. freeBytes cannot tell
 	// the two apart — df against a bare mountpoint dir happily reports the boot
@@ -182,7 +215,8 @@ const (
 type VolumeAttachment struct {
 	// Attached is false when the feature is off or admission declined.
 	Attached bool
-	// VolumeName is the reserved/generic volume name (tuist-cache in v1).
+	// VolumeName is the volume the branch materializes from and promotes into,
+	// set from the pod's volume label at materialize.
 	VolumeName string
 	// BranchPath is the per-VM branch directory shared into the VM. It holds
 	// exactly one file: the branch cache image.
@@ -203,8 +237,8 @@ type VolumeAttachment struct {
 	PromotedGeneration int
 }
 
-// VolumeManager manages per-account cache-volume master images under a single
-// quota-bounded runner-cache root. Safe for concurrent use.
+// VolumeManager manages cache-volume master images under a single quota-bounded
+// runner-cache root. Safe for concurrent use.
 type VolumeManager struct {
 	// Root is the runner-cache root — a dedicated quota-bounded APFS volume
 	// provisioned at host bootstrap. Empty disables the whole feature: every
@@ -243,6 +277,11 @@ type VolumeManager struct {
 	// branches materialized and not yet finalized. A warm standby's branch is
 	// not in it, because it writes nothing until it has a job.
 	reserved map[string]bool
+
+	// converging is the space the in-flight convergence download still needs, or
+	// nil. Admission counts it, so a job admitted mid-download is not promised
+	// space the download is about to write into.
+	converging *convergeReservation
 
 	// retained is the set of branch dirs (keyed by VM name) that belong to
 	// VMs still running after a kubelet restart. ReattachBranch adds to it
@@ -327,11 +366,13 @@ func (m *VolumeManager) BranchImage(att VolumeAttachment) string {
 	return filepath.Join(att.BranchPath, branchImageName)
 }
 
-// ConvergeStagingDir is scratch on the runner-cache volume where a downloaded
-// HEAD image is written before InstallMaster replaces the local master with it —
-// on the same volume as the masters so the clone stays a same-volume CoW op.
-func (m *VolumeManager) ConvergeStagingDir(vm string) string {
-	return filepath.Join(m.Root, convergeDirName, vm)
+// ConvergeStagingDir is scratch on the runner-cache volume where a HEAD image for
+// (account, volume) is downloaded before InstallMaster replaces the local master
+// with it — on the same volume as the masters so the clone stays a same-volume
+// CoW op. Keyed by the volume rather than by a VM so a download that yields to a
+// job resumes from the bytes it already has.
+func (m *VolumeManager) ConvergeStagingDir(account, volume string) string {
+	return filepath.Join(m.Root, convergeDirName, account, volume)
 }
 
 // convergeDirName is the top-level scratch dir for convergence downloads. It
@@ -391,12 +432,29 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 	}, nil
 }
 
-// Materialize clonefiles the given account's master image into the VM's branch,
-// making the branch a warm, private CoW copy of the account's cache. It is
-// called once, after the server has stamped the pod's account label. Returns
-// warm=true when a master existed and was cloned; warm=false when the account
-// has no master on this host yet (a cold first job whose writes Finalize will
-// promote into that account's first master).
+// MaterializeSource is where a branch's image came from.
+type MaterializeSource string
+
+const (
+	MaterializedWarm MaterializeSource = "warm"
+	// MaterializedSeeded: a clone of the account's ReservedTuistCacheVolume
+	// master, for a repository volume with no master on this host.
+	MaterializedSeeded MaterializeSource = "seeded"
+	MaterializedCold   MaterializeSource = "cold"
+)
+
+// masterKey names one master: <root>/<account>/<volume>.
+type masterKey struct {
+	account string
+	volume  string
+}
+
+// Materialize clonefiles the master of the given account and the attachment's
+// volume into the VM's branch, making the branch a warm, private CoW copy of
+// that cache. It is called once, after the server has stamped the pod's account
+// and volume labels. A repository volume with no master here is seeded from the
+// account's ReservedTuistCacheVolume master when there is one; otherwise the job
+// runs cold and Finalize promotes its writes into the volume's first master.
 //
 // Every path leaves an image at the branch: the guest is already pointed at the
 // share and cannot attach what isn't there, and a missing image kills the job
@@ -410,55 +468,82 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 // cloned from, captured under the same lock as the clone so a background converge
 // cannot advance it out from under the value. This is the base the job builds on
 // — the guest sends it at promote and the server's fast-forward accepts the bump
-// only if HEAD is still at it. A cold clone (no master) has base 0.
-func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm bool, baseGeneration int, err error) {
+// only if HEAD is still at it. A cold or seeded branch has base 0.
+func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (source MaterializeSource, baseGeneration int, err error) {
 	if !m.Enabled() || !att.Attached || account == "" {
-		return false, 0, nil
+		return MaterializedCold, 0, nil
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if err := m.reserveLocked(att, account); err != nil {
-		return false, 0, err
+	source, from := m.materializeSourceLocked(account, att.VolumeName)
+	if err := m.reserveLocked(att, from); err != nil {
+		return MaterializedCold, 0, err
 	}
 
 	// The CAS store is folded into the cache image (casStoreDir), so it is cloned
 	// into the branch as part of the one image below — no separate CAS clone.
 
 	dest := m.BranchImage(att)
-	master := m.masterImage(account, att.VolumeName)
-	if _, statErr := os.Stat(master); statErr != nil {
-		// No master for this account here yet: cold path. The guest warms from
-		// the remote cache and Finalize promotes the result into a new master.
-		return false, 0, m.createBranchImageLocked(dest)
+	if source == MaterializedCold {
+		// No master to clone: the guest warms from the remote cache and Finalize
+		// promotes the result into the volume's first master.
+		return MaterializedCold, 0, m.createBranchImageLocked(dest)
 	}
 
-	base, err := m.masterGenerationLocked(account, att.VolumeName)
-	if err != nil {
-		return false, 0, err
+	if source == MaterializedWarm {
+		if baseGeneration, err = m.masterGenerationLocked(from.account, from.volume); err != nil {
+			return MaterializedCold, 0, err
+		}
 	}
 
 	// Clone beside the destination and rename, so a clone that fails partway
 	// never leaves a torn image the guest could attach.
+	master := m.masterImage(from.account, from.volume)
 	tmp := dest + ".materialize.tmp"
 	_ = os.Remove(tmp)
 	if err := m.backend.clonePath(master, tmp); err != nil {
 		_ = os.Remove(tmp)
-		return false, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
+		return MaterializedCold, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
 	}
 	_ = os.Remove(dest)
 	if err := os.Rename(tmp, dest); err != nil {
 		_ = os.Remove(tmp)
-		return false, 0, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
+		return MaterializedCold, 0, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
 	}
 	if err := chmodImageGuestWritable(dest); err != nil {
-		return false, 0, fmt.Errorf("make materialized image guest-writable: %w", err)
+		return MaterializedCold, 0, fmt.Errorf("make materialized image guest-writable: %w", err)
 	}
 	// Mark the master used so LRU tracks materialization, not just promotion —
-	// an account whose jobs keep landing here stays hot.
-	_ = os.Chtimes(master, m.now(), m.now())
-	return true, base, nil
+	// a volume whose jobs keep landing here stays hot. A seed source is not
+	// marked, so it ages out.
+	if source == MaterializedWarm {
+		_ = os.Chtimes(master, m.now(), m.now())
+	}
+	return source, baseGeneration, nil
+}
+
+// materializeSourceLocked picks the master a branch for (account, volume) is
+// cloned from: the volume's own, else for a repository volume the account's
+// ReservedTuistCacheVolume master, else none.
+func (m *VolumeManager) materializeSourceLocked(account, volume string) (MaterializeSource, masterKey) {
+	own := masterKey{account: account, volume: volume}
+	if m.hasMasterLocked(own) {
+		return MaterializedWarm, own
+	}
+	if volume != ReservedTuistCacheVolume {
+		seed := masterKey{account: account, volume: ReservedTuistCacheVolume}
+		if m.hasMasterLocked(seed) {
+			return MaterializedSeeded, seed
+		}
+	}
+	return MaterializedCold, masterKey{}
+}
+
+func (m *VolumeManager) hasMasterLocked(key masterKey) bool {
+	_, err := os.Stat(m.masterImage(key.account, key.volume))
+	return err == nil
 }
 
 // MaterializeEmpty gives a branch an empty image without consulting any
@@ -471,7 +556,7 @@ func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.reserveLocked(att, ""); err != nil {
+	if err := m.reserveLocked(att, masterKey{}); err != nil {
 		return err
 	}
 	return m.createBranchImageLocked(m.BranchImage(att))
@@ -481,15 +566,18 @@ func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
 // other reserved branch's worst-case remaining growth. statfs free already
 // reflects what reserved branches have written; reserving CapGiB per branch keeps
 // enough headroom that all of them reaching the cap cannot ENOSPC the volume. If
-// it doesn't fit, it evicts LRU masters other than keepAccount's, the master
-// about to be cloned; if it still doesn't, it declines with errAdmissionDeclined.
-// Reserving an already-reserved branch again is a no-op.
-func (m *VolumeManager) reserveLocked(att VolumeAttachment, keepAccount string) error {
+// it doesn't fit, it evicts LRU masters other than keep, the master about to be
+// cloned; if it still doesn't, it declines with errAdmissionDeclined. Reserving
+// an already-reserved branch again is a no-op.
+func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) error {
 	if m.reserved[att.BranchPath] {
 		return nil
 	}
 	want := m.capBytes() * uint64(len(m.reserved)+1)
-	free, err := m.ensureFreeLocked(want, keepAccount)
+	free, err := m.admitBesideConvergenceLocked(want, keep)
+	if errors.Is(err, errNoRoom) && m.dropConvergeStagingLocked() {
+		free, err = m.ensureFreeLocked(want, keep)
+	}
 	if errors.Is(err, errNoRoom) {
 		// Surfaced so a host wedged under disk pressure does not look identical to
 		// one where the feature is simply idle.
@@ -507,6 +595,57 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keepAccount string) 
 	}
 	m.reserved[att.BranchPath] = true
 	return nil
+}
+
+// dropConvergeStagingLocked is admission's last resort before declining a job:
+// a partial convergence download, in flight or paused, is removed and the job
+// takes its space. A refresh can take the volume below the watermark while it
+// runs (see PrepareConvergeSpace), so on a host that pauses downloads for jobs
+// the partial is often still there when one lands. Reports whether anything
+// was removed; the download starts over later.
+func (m *VolumeManager) dropConvergeStagingLocked() bool {
+	if m.converging != nil {
+		m.converging.cancel(errConvergeDisplaced)
+		m.converging = nil
+	}
+	staging := filepath.Join(m.Root, convergeDirName)
+	entries, err := os.ReadDir(staging)
+	if err != nil || len(entries) == 0 {
+		return false
+	}
+	if err := os.RemoveAll(staging); err != nil {
+		return false
+	}
+	log.Log.WithName("cache-volumes").Info("admission dropped a partial convergence download to make room for a job")
+	return true
+}
+
+// admitBesideConvergenceLocked makes room for want bytes of branch growth and
+// for the bytes an in-flight convergence download has not written yet. A job
+// outranks a download: when both do not fit, the download is cancelled and
+// the job is admitted against the space without it. A job's download (one that
+// may evict) keeps its bytes by evicting LRU masters first, as it would have
+// for itself; a prefetch evicts nothing to stay.
+func (m *VolumeManager) admitBesideConvergenceLocked(want uint64, keep masterKey) (uint64, error) {
+	r := m.converging
+	if r == nil || r.remaining() == 0 {
+		return m.ensureFreeLocked(want, keep)
+	}
+	outstanding := r.remaining()
+	if r.mayEvict {
+		if free, err := m.ensureFreeLocked(want+outstanding, keep); !errors.Is(err, errNoRoom) {
+			return free, err
+		}
+	}
+	free, err := m.ensureFreeLocked(want, keep)
+	if err != nil {
+		return free, err
+	}
+	if free < want+outstanding {
+		r.cancel(errConvergeDisplaced)
+		m.converging = nil
+	}
+	return free, nil
 }
 
 // createBranchImageLocked puts an empty, guest-writable cache image at dest,
@@ -545,6 +684,18 @@ func joinFallback(err, fallbackErr error) error {
 // head.Generation > this; a promote installs its branch only when the accepted
 // generation exceeds this. Both comparisons are against the same monotonic
 // counter the server assigns, so the local master and the HEAD stay on one scale.
+// MasterInstalledAt reports when the (account, volume) master was last installed,
+// by a promote or a convergence: the mtime of its generation sidecar, which only
+// InstallMaster writes. The image's own mtime is touched on every materialize
+// for LRU, so it says when the master was last used, not how old it is.
+func (m *VolumeManager) MasterInstalledAt(account, volume string) (time.Time, error) {
+	info, err := os.Stat(m.masterGenerationPath(account, volume))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
 func (m *VolumeManager) MasterGeneration(account, volume string) (int, error) {
 	if volume == "" {
 		volume = ReservedTuistCacheVolume
@@ -918,8 +1069,8 @@ func (m *VolumeManager) SweepBranches() error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// Convergence scratch is per-job too, so it can't survive a restart either
-	// (a live VM's convergence completed before its job started).
+	// A partial convergence download is only resumed by the in-memory queue that
+	// started it, which a restart empties.
 	_ = os.RemoveAll(filepath.Join(m.Root, convergeDirName))
 	entries, err := os.ReadDir(m.branchesRoot())
 	if err != nil {
@@ -1069,18 +1220,30 @@ func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error)
 	return len(masters), free, nil
 }
 
-// cacheMasterNodeLabelPrefix advertises one resident per-account cache master
-// per Node label, mirroring how golden base VMs are advertised. The suffix is
-// the account id, which is exactly what the master directories are named after
-// (the server stamps `tuist.dev/runner-account` with the account id and
-// Materialize uses that as the directory), so the server can read the label set
-// as account ids with no translation.
+// cacheMasterNodeLabelPrefix advertises one resident cache master per Node
+// label, mirroring how golden base VMs are advertised. The suffix is
+// `<account id>` for a ReservedTuistCacheVolume master and
+// `<account id>.<volume>` for a repository's: the master's directory names, as
+// the server stamped them on the pod. The longest name is 54 characters.
 const cacheMasterNodeLabelPrefix = "tuist.dev/cache-master-"
 
-// CacheMasterNodeLabels returns the Node labels advertising which accounts'
-// cache masters are resident on this host, for the node maintainer to publish.
+// repositoryVolumesNodeLabel tells the server this host reads the Pod's volume
+// label, so it may stamp a repository volume on jobs dispatched here. A host
+// without it gets ReservedTuistCacheVolume.
+const repositoryVolumesNodeLabel = "tuist.dev/cache-volumes-per-repository"
+
+func cacheMasterNodeLabel(key masterKey) string {
+	if key.volume == ReservedTuistCacheVolume {
+		return cacheMasterNodeLabelPrefix + key.account
+	}
+	return cacheMasterNodeLabelPrefix + key.account + "." + key.volume
+}
+
+// CacheMasterNodeLabels returns the Node labels advertising which (account,
+// volume) cache masters are resident on this host, for the node maintainer to
+// publish.
 //
-// The server prefers handing a polling node a queued job whose account's master
+// The server prefers handing a polling node a queued job whose volume's master
 // is already here, so the job materializes warm instead of cold. It cannot see
 // this host's disk, and the alternative was for it to model residency from its
 // own dispatch history plus the admission arithmetic. That model could not see
@@ -1105,15 +1268,16 @@ func (m *VolumeManager) CacheMasterNodeLabels() (map[string]string, error) {
 		return nil, err
 	}
 
+	labels[repositoryVolumesNodeLabel] = "true"
 	for _, master := range masters {
-		// A directory name that is not an account id cannot have come from
-		// Materialize. Skip it rather than emit a label that might be invalid:
-		// one bad key fails the whole Node update, which would take the
-		// advertisement for every other account down with it.
-		if !isAccountID(master.account) {
+		// A directory name that is not an account id or a volume cannot have come
+		// from Materialize. Skip it rather than emit a label that might be
+		// invalid: one bad key fails the whole Node update, which would take the
+		// advertisement for every other master down with it.
+		if !isAccountID(master.key.account) || !isVolumeName(master.key.volume) {
 			continue
 		}
-		labels[cacheMasterNodeLabelPrefix+master.account] = "true"
+		labels[cacheMasterNodeLabel(master.key)] = "true"
 	}
 	return labels, nil
 }
@@ -1144,7 +1308,15 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 		return 0, err
 	}
 	target := m.lowWatermarkBytes()
-	if free >= target {
+	// A refresh in flight returns its master's bytes when it installs, so the
+	// space it is borrowing is not a reason to evict other masters.
+	settled := func(free uint64) uint64 {
+		if m.converging == nil {
+			return free
+		}
+		return free + m.refreshCreditLocked(m.converging.key)
+	}
+	if settled(free) >= target {
 		return 0, nil
 	}
 	masters, err := m.mastersByLRULocked()
@@ -1152,7 +1324,7 @@ func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
 		return 0, err
 	}
 	for _, mm := range masters {
-		if free >= target {
+		if settled(free) >= target {
 			break
 		}
 		if err := os.RemoveAll(mm.path); err != nil {
@@ -1179,6 +1351,166 @@ func (m *VolumeManager) lowWatermarkBytes() uint64 {
 
 var errNoRoom = errors.New("runner-cache root has no room for a cache volume")
 
+// errMasterTooLargeToKeep: the master is larger than the runner-cache volume can
+// hold while keeping the watermark free, so the evictor would drop it as soon as
+// it was installed.
+var errMasterTooLargeToKeep = errors.New("cache master is larger than this host can keep")
+
+// errNoRoomToConverge: the download would take the volume below the space the
+// watermark and admission need, and the convergence may not evict for it.
+var errNoRoomToConverge = errors.New("runner-cache root has no room to download this master")
+
+// errConvergeDisplaced: a job was admitted into the space a convergence download
+// had reserved. Jobs outrank downloads, so the download stops and its partial
+// image is dropped to give the space back.
+var errConvergeDisplaced = errors.New("a job needed the space this download reserved")
+
+// convergeReservation is the space a convergence download still needs: the
+// bytes it has not written yet. Bytes already written show up in free space,
+// so admission counts only what is outstanding.
+type convergeReservation struct {
+	m           *VolumeManager
+	outstanding atomic.Int64
+	// mayEvict mirrors PrepareConvergeSpace: whether LRU masters may be
+	// evicted to keep this reservation when a job is admitted.
+	mayEvict bool
+	cancel   context.CancelCauseFunc
+	// key is the volume being converged, whose resident master the install
+	// replaces (see refreshCreditLocked).
+	key masterKey
+}
+
+// Wrote records bytes the download has written.
+func (r *convergeReservation) Wrote(n int) {
+	if r != nil {
+		r.outstanding.Add(-int64(n))
+	}
+}
+
+// Release ends the reservation once the download stops writing.
+func (r *convergeReservation) Release() {
+	if r == nil {
+		return
+	}
+	r.m.mu.Lock()
+	defer r.m.mu.Unlock()
+	if r.m.converging == r {
+		r.m.converging = nil
+	}
+}
+
+func (r *convergeReservation) remaining() uint64 {
+	if n := r.outstanding.Load(); n > 0 {
+		return uint64(n)
+	}
+	return 0
+}
+
+// PrepareConvergeSpace makes room for the remaining bytes of a total-byte HEAD
+// image before its download continues, declines one this host could not keep,
+// and reserves the remaining bytes against later admissions. It must run before
+// any byte lands: a download that fills the volume fails, and it takes the space
+// admitted jobs are growing into with it.
+//
+// Room means the download still leaves what the evictor keeps free, or what
+// admission needs for every reserved branch plus one more, whichever is larger,
+// so neither drops the master the moment it is installed. With mayEvict, LRU
+// masters other than key are evicted for it, as admission does for a job; a
+// prefetch for a volume that has not run here passes false and only uses space
+// that is already free.
+//
+// A job admitted while the download runs counts the reservation too (see
+// reserveLocked), and cancel is how admission stops the download when the job
+// and the download do not both fit. The caller must Release the reservation.
+func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool, cancel context.CancelCauseFunc) (*convergeReservation, error) {
+	capacity, err := m.backend.capacityBytes(m.Root)
+	if err != nil {
+		return nil, err
+	}
+	watermark := m.lowWatermarkBytes()
+	if capacity <= watermark || total > capacity-watermark {
+		return nil, errMasterTooLargeToKeep
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	headroom := watermark
+	if admission := m.capBytes() * uint64(len(m.reserved)+1); admission > headroom {
+		headroom = admission
+	}
+	// Two states must fit. While it downloads, the transfer must leave every
+	// admitted job the growth it was promised. Once installed, the replaced
+	// master's bytes come back, and the host must then have the headroom, or
+	// the new master would be the evictor's first victim. Requiring the headroom
+	// on top of both images at once would refuse every refresh of a master
+	// larger than a third of what the watermark leaves (22 GiB on an M2-L).
+	want := remaining + m.capBytes()*uint64(len(m.reserved))
+	if afterInstall := saturatingSub(remaining+headroom, m.refreshCreditLocked(key)); afterInstall > want {
+		want = afterInstall
+	}
+	if !mayEvict {
+		free, err := m.backend.freeBytes(m.Root)
+		if err != nil {
+			return nil, err
+		}
+		if free < want {
+			return nil, errNoRoomToConverge
+		}
+	} else if _, err := m.ensureFreeLocked(want, key); err != nil {
+		if errors.Is(err, errNoRoom) {
+			return nil, errNoRoomToConverge
+		}
+		return nil, err
+	}
+
+	r := &convergeReservation{m: m, mayEvict: mayEvict, cancel: cancel, key: key}
+	r.outstanding.Store(int64(remaining))
+	m.converging = r
+	return r, nil
+}
+
+// refreshCreditLocked is the space installing a new master for key returns by
+// replacing the resident one: its allocated bytes. None while any job holds a
+// branch, because a branch cloned from the master shares its blocks and
+// deleting the master frees nothing of them.
+func (m *VolumeManager) refreshCreditLocked(key masterKey) uint64 {
+	if len(m.reserved) > 0 {
+		return 0
+	}
+	bytes, err := m.backend.allocatedBytes(m.masterImage(key.account, key.volume))
+	if err != nil {
+		return 0
+	}
+	return bytes
+}
+
+func saturatingSub(a, b uint64) uint64 {
+	if b >= a {
+		return 0
+	}
+	return a - b
+}
+
+// HasMaster reports whether the (account, volume) master is resident.
+func (m *VolumeManager) HasMaster(account, volume string) bool {
+	if !m.Enabled() {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hasMasterLocked(masterKey{account: account, volume: volume})
+}
+
+// jobsRunning is how many branches are materialized for a job and not yet
+// finalized: VMs that are running a job rather than waiting for one.
+func (m *VolumeManager) jobsRunning() int {
+	if !m.Enabled() {
+		return 0
+	}
+	return m.reservedBranches()
+}
+
 var errAdmissionDeclined = errors.New("cache volume admission declined")
 
 func (m *VolumeManager) reservedBranches() int {
@@ -1188,11 +1520,11 @@ func (m *VolumeManager) reservedBranches() int {
 }
 
 // ensureFreeLocked makes sure at least want bytes are free, evicting LRU
-// masters other than keepAccount's as needed. Returns errNoRoom when even a
+// masters other than keep as needed. Returns errNoRoom when even a
 // fully-evicted root cannot fit the request (caller declines to the cold path). The returned free-bytes
 // value is the space available after any eviction, so the caller can log why a
 // decline happened without a second statfs.
-func (m *VolumeManager) ensureFreeLocked(want uint64, keepAccount string) (uint64, error) {
+func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, error) {
 	free, err := m.backend.freeBytes(m.Root)
 	if err != nil {
 		return 0, err
@@ -1208,7 +1540,7 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keepAccount string) (uint6
 		if free >= want {
 			return free, nil
 		}
-		if keepAccount != "" && mm.account == keepAccount {
+		if mm.key == keep {
 			continue
 		}
 		if err := os.RemoveAll(mm.path); err != nil {
@@ -1227,7 +1559,7 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keepAccount string) (uint6
 }
 
 type masterEntry struct {
-	account string
+	key     masterKey
 	path    string
 	modTime time.Time
 }
@@ -1276,7 +1608,7 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 				continue
 			}
 			out = append(out, masterEntry{
-				account: acct.Name(),
+				key:     masterKey{account: acct.Name(), volume: vol.Name()},
 				path:    m.volumeDir(acct.Name(), vol.Name()),
 				modTime: info.ModTime(),
 			})

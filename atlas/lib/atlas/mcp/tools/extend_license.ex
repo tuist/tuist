@@ -29,7 +29,7 @@ defmodule Atlas.MCP.Tools.ExtendLicense do
   end
 
   def execute(conn, %{"license_id" => license_id, "expires_on" => expires_on}) do
-    with :ok <- Tool.authorize_executive(conn, "License tools"),
+    with :ok <- Tool.authorize_scope(conn, "licenses:write", "License tools"),
          {:ok, license} <- fetch_license(license_id) do
       case Licenses.extend_license(license, %{"expires_on" => expires_on}) do
         {:ok, license} -> {:ok, LicenseSerializer.license(license)}

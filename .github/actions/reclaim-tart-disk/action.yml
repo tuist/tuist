@@ -9,8 +9,8 @@ description: |
   and friends, ~80 GB each on the 512 GB M2-L) survive across
   runs whenever there's headroom. `tart prune --older-than` is
   access-time based, so sibling matrix legs (e.g. xcode 26.5
-  next to 26.4.1 in `server-production-deployment.yml`'s
-  `runner-image-build` matrix) and back-to-back releases hit a
+  next to 26.4.1 in `runner-image-release.yml`'s `build` matrix)
+  and back-to-back releases hit a
   warm cache and skip a ~10 min pull per Xcode.
 
 inputs:

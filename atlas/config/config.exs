@@ -7,8 +7,6 @@
 # General application configuration
 import Config
 
-alias Atlas.Accounts.Workers.DeliverDueAccountAttentionSuggestions
-alias Atlas.Accounts.Workers.ScheduleAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
 alias Atlas.Accounts.Workers.ScheduleServiceLevelExtractions
 alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
@@ -26,12 +24,18 @@ alias Atlas.Licenses.RateLimiter
 alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
 alias Atlas.Memory.Workers.RefreshBulletin, as: RefreshMemoryBulletin
+alias Atlas.Nudges.Workers.EvaluateSignals, as: EvaluateNudgeSignals
+alias Atlas.Nudges.Workers.ExpireStaleNudges
+alias Atlas.Nudges.Workers.ReconcileDeliveryOutcomes, as: ReconcileNudgeDeliveryOutcomes
+alias Atlas.Nudges.Workers.RefreshAnalyticsSnapshots, as: RefreshNudgeAnalyticsSnapshots
+alias Atlas.Nudges.Workers.RefreshFeatureFirstSeen, as: RefreshNudgeFeatureFirstSeen
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
 alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 alias Ueberauth.Strategy.Google
@@ -85,8 +89,11 @@ config :atlas, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"0 3 * * *", ScheduleOverviewSummaries},
-       {"20 4 * * *", ScheduleAccountAttentionSuggestions},
-       {"30 4 * * *", DeliverDueAccountAttentionSuggestions},
+       {"15 3 * * *", RefreshNudgeAnalyticsSnapshots},
+       {"45 3 * * *", RefreshNudgeFeatureFirstSeen},
+       {"20 4 * * *", EvaluateNudgeSignals},
+       {"30 4 * * *", ExpireStaleNudges},
+       {"* * * * *", ReconcileNudgeDeliveryOutcomes},
        {"15 3 * * *", ScheduleStripeInvoiceReconciliations},
        {"5 * * * *", SyncNotes, args: %{mode: "incremental"}},
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
@@ -111,7 +118,10 @@ config :atlas, Oban,
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
-       {"* * * * *", ErrorsSummaryWorker}
+       {"* * * * *", ErrorsSummaryWorker},
+       # Weekly digest of inbound emails the classifier silenced so
+       # the team stays aware of what was filtered.
+       {"0 9 * * 1", SupportInboxWeeklyDigest}
      ]},
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
@@ -228,10 +238,7 @@ config :logger, :default_formatter,
 
 config :mdex_native, syntax_highlighter: :lumis
 
-# An operator grant is a live bearer that arrives as a query parameter on the
-# redirect back from ops. Phoenix logs request and LiveView event parameters,
-# so name it here rather than rely on the log level being high enough.
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "operator_grant"]
+config :phoenix, :filter_parameters, ["password", "token", "secret", "key"]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

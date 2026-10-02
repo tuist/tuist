@@ -15,12 +15,8 @@ defmodule AtlasWeb.LayoutLive do
     mount_authenticated(session, socket)
   end
 
-  def on_mount(:admin, _params, session, socket) do
-    mount_authenticated(session, socket, require_executive?: true)
-  end
-
-  def on_mount(:executive, _params, session, socket) do
-    mount_authenticated(session, socket, require_executive?: true)
+  def on_mount({:scope, scope}, _params, session, socket) when is_binary(scope) do
+    mount_authenticated(session, socket, scope: scope)
   end
 
   defp load_user(%{"user_id" => user_id}) when is_binary(user_id), do: Users.get_user(user_id)
@@ -32,13 +28,19 @@ defmodule AtlasWeb.LayoutLive do
         {:halt, redirect(socket, to: ~p"/login")}
 
       user ->
-        if Keyword.get(opts, :require_executive?, false) and not Users.executive?(user) do
-          {:halt,
-           socket
-           |> put_flash(:error, gettext("You do not have access to that page."))
-           |> redirect(to: ~p"/commercial/sales")}
-        else
-          {:cont, socket |> assign_user(user) |> assign_search_palette()}
+        case Keyword.get(opts, :scope) do
+          nil ->
+            {:cont, socket |> assign_user(user) |> assign_search_palette()}
+
+          scope ->
+            if Users.has_scope?(user, scope) do
+              {:cont, socket |> assign_user(user) |> assign_search_palette()}
+            else
+              {:halt,
+               socket
+               |> put_flash(:error, gettext("You do not have access to that page."))
+               |> redirect(to: ~p"/commercial/sales")}
+            end
         end
     end
   end

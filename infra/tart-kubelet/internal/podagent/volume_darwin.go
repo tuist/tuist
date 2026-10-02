@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // darwinVolumeBackend implements volumeBackend with the real macOS mechanics:
@@ -156,15 +158,26 @@ func (darwinVolumeBackend) isMounted(root string) (bool, error) {
 
 // freeBytes reports available bytes on the filesystem holding root via `df`.
 // statfs would avoid the fork, but df is dependency-free and the call is off
-// the per-job hot path (admission + reconcile tick only).
+// the per-job hot path (admission, convergence and the reconcile tick only).
 func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
+	// Column 4 is available 1K blocks.
+	return dfKilobytes(root, 3, "available")
+}
+
+// capacityBytes reports the size of the filesystem holding root via `df`. For
+// the runner-cache APFS volume that is its quota.
+func (darwinVolumeBackend) capacityBytes(root string) (uint64, error) {
+	// Column 2 is the filesystem's size in 1K blocks.
+	return dfKilobytes(root, 1, "size")
+}
+
+func dfKilobytes(root string, column int, name string) (uint64, error) {
 	out, err := runCmd(30*time.Second, "df", "-P", "-k", root)
 	if err != nil {
 		return 0, err
 	}
-	// POSIX df: header line, then one data line. Column 4 is available 1K
-	// blocks. Filesystems with spaces in the device name still keep the
-	// numeric columns right-aligned, so index from the end is safest.
+	// POSIX df: header line, then one data line: filesystem, size, used,
+	// available, capacity, mount point.
 	sc := bufio.NewScanner(strings.NewReader(out))
 	var last string
 	for sc.Scan() {
@@ -178,12 +191,38 @@ func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
 		return 0, fmt.Errorf("df returned no data line: %q", out)
 	}
 	fields := strings.Fields(last)
-	if len(fields) < 4 {
+	if len(fields) <= column {
 		return 0, fmt.Errorf("df line has too few columns: %q", last)
 	}
-	availKB, err := strconv.ParseUint(fields[3], 10, 64)
+	kb, err := strconv.ParseUint(fields[column], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("parse df available column %q: %w", fields[3], err)
+		return 0, fmt.Errorf("parse df %s column %q: %w", name, fields[column], err)
 	}
-	return availKB * 1024, nil
+	return kb * 1024, nil
+}
+
+// noPageCache stops reads and writes through f from filling the unified buffer
+// cache. A convergence streams a whole master through the host, and on a host
+// whose guest is already backed by swap those pages come out of the guest's.
+func noPageCache(f *os.File) {
+	_, _ = unix.FcntlInt(f.Fd(), unix.F_NOCACHE, 1)
+}
+
+// PhysicalMemoryBytes is the host's installed RAM.
+func PhysicalMemoryBytes() (uint64, error) {
+	return unix.SysctlUint64("hw.memsize")
+}
+
+// allocatedBytes reports the blocks a sparse image actually occupies, not its
+// nominal size.
+func (darwinVolumeBackend) allocatedBytes(path string) (uint64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, fmt.Errorf("stat %s: unexpected FileInfo backing type", path)
+	}
+	return uint64(st.Blocks) * 512, nil
 }

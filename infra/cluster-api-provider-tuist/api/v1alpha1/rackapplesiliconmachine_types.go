@@ -5,51 +5,35 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// RackAppleSiliconMachineSpec is the desired state of one Mac mini we own.
+// RackAppleSiliconMachineSpec is one Mac mini we own as a node. The RackHost
+// controller creates it, and the CAPI Machine that owns it, for each RackHost.
 //
 // It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
 // bootstrap, same host-config drift loop, same tailnet egress Service, but the
-// host comes from a RackHost in the cluster's own inventory rather than from a
-// provider's server list, and there is no order, no reinstall and no release
-// path, because nobody bills us per host and no API can wipe one.
-//
-// Everything about the HOST lives on the RackHost (address, serial, outlet,
-// position). Everything about the WORKLOAD lives here (sizing, fleet
-// membership, kubelet version). That split is the point of having two kinds: a
-// MachineDeployment clones this spec N times, and a spec carrying an address
-// could not be cloned more than once.
+// host is a RackHost in the cluster's own inventory rather than a server from
+// a provider's list, and there is no order and no release path, because
+// nobody bills us per host. Reinstalling is the tuist.dev/os-reinstall
+// annotation, not a provider API.
 type RackAppleSiliconMachineSpec struct {
-	// ProviderID, set by the controller once a RackHost is claimed, takes the
-	// shape `rack-applesilicon://<site>/<serial>`; composed from the two
-	// durable physical facts, so re-cabling a host to a new address does not
-	// change its identity to CAPI. CAPI core expects this to populate; without
-	// it the parent Machine never goes Ready. The scheme is deliberately
-	// foreign to the Hetzner CCM so it never reaps the node, the same guard
-	// every other kind here uses.
+	// ProviderID takes the shape `rack-applesilicon://<site>/<serial>`;
+	// composed from the two durable physical facts, so re-cabling a host to a
+	// new address does not change its identity to CAPI. CAPI core expects this
+	// to populate; without it the parent Machine never goes Ready. The scheme
+	// is deliberately foreign to the Hetzner CCM so it never reaps the node,
+	// the same guard every other kind here uses.
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`
 
-	// AdoptPool is the RackHost pool this Machine claims from: the analog of
-	// the Scaleway kind's adoptPoolPrefix. The controller claims the first free
-	// RackHost whose `spec.pool` matches.
-	//
-	// Optional on purpose, even though every chart-rendered MachineTemplate
-	// sets it. A required field here is a schema constraint on a resource CAPI
-	// CLONES, so a MachineTemplate that lacks it fails
-	// `InfrastructureTemplateCloningFailed` on every MachineSet scale-up: and
-	// that drift stays invisible until the next scale-up, which is typically
-	// an operator recovering a host by deleting its Machine. The controller
-	// surfaces an empty value as a `NoAdoptPool` condition instead of scanning
-	// every RackHost in the namespace.
+	// Host is the RackHost this machine is.
 	// +optional
-	AdoptPool string `json:"adoptPool,omitempty"`
+	Host string `json:"host,omitempty"`
 
-	// FleetName groups Machines that share an SSH key and a sudo password. Set
-	// by the MachineTemplate to the parent MachineDeployment's name. Unlike the
-	// Scaleway fleets, the keypair is NOT minted in-cluster: rack hosts are
-	// provisioned out of band by MDM, which authorizes a key the operator never
-	// generated, so the fleet Secret is synced from 1Password by ESO and the
-	// controller only ever reads it.
+	// FleetName groups Machines that share an SSH key and a sudo password: the
+	// operator's `--rackhost-fleet-name`. Unlike the Scaleway fleets, the
+	// keypair is NOT minted in-cluster: rack hosts are provisioned out of band
+	// by MDM, which authorizes a key the operator never generated, so the
+	// fleet Secret is synced from 1Password by ESO and the controller only
+	// ever reads it.
 	// +optional
 	FleetName string `json:"fleetName,omitempty"`
 
@@ -120,12 +104,6 @@ type RackAppleSiliconMachineStatus struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 
-	// RackHost is the name of the claimed RackHost, empty before the claim.
-	// It is the Machine's half of the binding whose other half is that host's
-	// `status.claimedBy`; the delete path releases exactly this host.
-	// +optional
-	RackHost string `json:"rackHost,omitempty"`
-
 	// Addresses surfaces the host's address so kubectl describe and event
 	// correlation can map back to a physical box.
 	// +optional
@@ -134,15 +112,80 @@ type RackAppleSiliconMachineStatus struct {
 	// Conditions are CAPI-style condition entries (Provisioned, Bootstrapped).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+
+	// OSUpdate is the progress of the latest in-place macOS update requested
+	// with the tuist.dev/os-update annotation.
+	// +optional
+	OSUpdate *OSUpdateStatus `json:"osUpdate,omitempty"`
+}
+
+// OSUpdateStatus tracks one in-place macOS update of a rack host.
+type OSUpdateStatus struct {
+	// ID names this update's job directory on the host, so a resumed update
+	// recognises the download and install it started and never one an earlier
+	// update left.
+	// +optional
+	ID string `json:"id,omitempty"`
+
+	// Target is the requested macOS version, e.g. "26.7".
+	// +optional
+	Target string `json:"target,omitempty"`
+
+	// Reinstall is set when the host is erased and Target installed from the
+	// full installer, as the tuist.dev/os-reinstall annotation asks, rather
+	// than updated in place.
+	// +optional
+	Reinstall bool `json:"reinstall,omitempty"`
+
+	// Label is the softwareupdate label resolved for Target, or for a
+	// reinstall the title of its full installer.
+	// +optional
+	Label string `json:"label,omitempty"`
+
+	// FromVersion is the macOS version the host ran when the update started.
+	// +optional
+	FromVersion string `json:"fromVersion,omitempty"`
+
+	// Phase is one of Preparing, Draining, Downloading, Installing, Converging,
+	// Succeeded or Failed. A reinstall replaces Installing with Erasing,
+	// Enrolling, Bootstrapping and, when the SSH user has no secure token yet,
+	// Restarting.
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// Reason is a machine-readable cause when Phase is Failed.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// Message describes what the update is doing or why it stopped.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// +optional
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+
+	// +optional
+	PhaseStartedAt *metav1.Time `json:"phaseStartedAt,omitempty"`
+
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// BootTimeBefore is the host's boot time (Unix seconds), recorded before the
+	// install, erase or restart starts, so the reboot is detected by the boot
+	// time moving.
+	// +optional
+	BootTimeBefore int64 `json:"bootTimeBefore,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=rackapplesiliconmachines,scope=Namespaced,categories=cluster-api,shortName=rasm
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
-// +kubebuilder:printcolumn:name="RackHost",type=string,JSONPath=".status.rackHost"
+// +kubebuilder:printcolumn:name="Host",type=string,JSONPath=".spec.host"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
+// +kubebuilder:printcolumn:name="OSUpdate",type=string,priority=1,JSONPath=".status.osUpdate.phase"
+// +kubebuilder:printcolumn:name="OSTarget",type=string,priority=1,JSONPath=".status.osUpdate.target"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackAppleSiliconMachine is one Mac mini we own, joined as a cluster Node.

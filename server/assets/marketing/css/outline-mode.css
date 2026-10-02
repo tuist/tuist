@@ -14,7 +14,13 @@
   --marketing-outline-glyph: var(--marketing-illustration-neutral-9);
   --marketing-outline-text: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 
-  & :is(#marketing-navbar *, #marketing-not-found, #marketing-not-found *, #marketing-footer, #marketing-footer *) {
+  /* (The canvases' color probes — transient spans the dither hooks use to
+     resolve tokens — must keep their color, or a theme change made in
+     this mode resolves their ramps to black.) */
+  &
+    :is(#marketing-navbar *, #marketing-not-found, #marketing-not-found *, #marketing-footer, #marketing-footer *):not(
+      [data-color-probe]
+    ) {
     outline: 1px solid var(--marketing-outline-frame);
     outline-offset: -1px;
     box-shadow: none !important;
@@ -81,10 +87,12 @@
     }
   }
 
-  /* The brand: no box around it; the image logo gives way to the inline
-     wordmark drawn as glyph strokes. */
-  /* (!important: the navbar's and footer's own theme-variant rules for the
-     logo pair, and the generic box rule above, are more specific.) */
+  /* The brand: no box around it; the inline wordmark (mark and letters
+     alike, whatever fill its paths carry) is drawn as glyph strokes. The
+     paths must be in the tree — a <use> copy would keep its fills, since
+     selectors cannot reach a use element's shadow tree. */
+  /* (!important: the navbar's and footer's own rules for the logo, and the
+     generic box rule above, are more specific.) */
   & :is(#marketing-navbar, #marketing-footer) [data-part="brand"] {
     &,
     & > [data-part="tuist"] {
@@ -92,16 +100,11 @@
     }
 
     & [data-part="logo"] {
-      display: none !important;
-    }
-
-    & [data-part="logo-outline"] {
-      display: block !important;
       outline: none !important;
-      height: 32px;
       overflow: visible;
 
       & * {
+        fill: none !important;
         stroke: var(--marketing-outline-glyph) !important;
       }
     }
@@ -153,14 +156,17 @@
 }
 
 /* The spotlight overlay: over everything, out of the way of the pointer,
-   masked to a soft-edged circle — opaque out to the radius less the
-   feather, gone at the radius — whose centre and radius the hook sets as
-   custom properties, easing the radius itself while the spotlight grows
-   or shrinks. Where the feather fades, the overlay's strokes blend over
-   the real page, so the hover spotlight is sized (in the hook) to stop
-   short of the dithered "404" below the copy. The properties are
-   registered as non-inheriting so a change to them (every frame of a
-   move) restyles the overlay alone, not every element of the copy. */
+   masked to a circle — opaque out to the radius less the feather, gone
+   at the radius — whose centre and radius the hook sets as custom
+   properties, easing the radius itself while the spotlight grows or
+   shrinks. The hook replaces this gradient with an ordered-dither mask
+   (not-found-portal.js) where mask compositing is supported, so the edge
+   breaks up cell by cell; this soft feather is the fallback. Over the
+   feather the overlay's strokes blend with the real page, so the hover
+   spotlight is sized (in the hook) to stop short of the dithered "404"
+   below the copy. The properties are registered as non-inheriting so a
+   change to them (every frame of a move) restyles the overlay alone, not
+   every element of the copy. */
 @property --marketing-outline-x {
   syntax: "<length>";
   inherits: false;
@@ -181,9 +187,10 @@
 
 #marketing-outline-overlay {
   --marketing-outline-feather: 64px;
-  position: absolute;
-  top: 0;
-  left: 0;
+  /* The viewport, not the page: the copies inside are page-sized and the
+     hook translates them by the scroll, so the mask is rasterized over
+     the visible area only. */
+  position: fixed;
   z-index: 2147483000;
   -webkit-mask-image: radial-gradient(
     circle at var(--marketing-outline-x) var(--marketing-outline-y),
@@ -198,9 +205,68 @@
   /* Its own layer, so the mask animates in the compositor rather than
      repainting the cloned page every frame. */
   will-change: transform;
+  inset: 0;
   /* Opaque: the strokes have transparent fills, so without this the real
      page's filled text would show through them inside the spotlight. */
   background: var(--noora-surface-background-primary);
   overflow: hidden;
   pointer-events: none;
+}
+
+/* The portal's specks: a viewport-fixed canvas over the overlay on which
+   the page's text fades away in dither particles along the circle's edge
+   (PortalDither). The inks are the outline view's own: glyph and frame
+   neutrals with a hint of the text boxes' purple. They are registered as
+   colors so the canvas can read them resolved (light-dark() included)
+   from computed style; unregistered, the canvas would get the raw
+   light-dark() text, reject it and paint in its default black. */
+@property --marketing-portal-ink-1 {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --marketing-portal-ink-2 {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --marketing-portal-ink-3 {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --marketing-portal-ink-4 {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+/* Peak opacity of the specks. A light ink at the same opacity reads far
+   weaker on a dark ground than a dark one on white, so dark mode gets
+   more. */
+@property --marketing-portal-speck-opacity {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0.4;
+}
+
+#marketing-outline-portal {
+  --marketing-portal-ink-1: var(--marketing-illustration-neutral-9);
+  --marketing-portal-ink-2: var(--marketing-illustration-neutral-7);
+  --marketing-portal-ink-3: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+  --marketing-portal-ink-4: var(--marketing-illustration-neutral-5);
+  --marketing-portal-speck-opacity: 0.4;
+  position: fixed;
+  z-index: 2147483001;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] #marketing-outline-portal {
+  --marketing-portal-speck-opacity: 0.85;
 }

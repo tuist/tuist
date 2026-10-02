@@ -16,6 +16,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
+  alias Tuist.Accounts.SSOLoginDomainRecheck
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserNotifier
@@ -24,13 +25,16 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Base64
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.CacheEndpoints
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
@@ -458,6 +462,16 @@ defmodule Tuist.Accounts do
 
   def sso_login_domain_record_value(%Organization{}), do: nil
 
+  defdelegate sso_login_domain_expiring?(organization), to: SSOLoginDomainRecheck, as: :expiring?
+
+  defdelegate sso_login_domain_awaiting_record?(organization),
+    to: SSOLoginDomainRecheck,
+    as: :awaiting_record?
+
+  defdelegate sso_login_domain_days_until_expiry(organization),
+    to: SSOLoginDomainRecheck,
+    as: :days_until_expiry
+
   defp persist_verified_sso_login_domain(organization_id, domain, token) do
     Repo.transaction(fn ->
       from(o in Organization,
@@ -498,6 +512,7 @@ defmodule Tuist.Accounts do
             if(is_nil(domain), do: nil, else: generate_random_string(32))
           )
           |> Map.put(:sso_login_domain_verified_at, nil)
+          |> Map.put(:sso_login_domain_last_verified_at, nil)
         end
 
       :error ->
@@ -541,6 +556,7 @@ defmodule Tuist.Accounts do
     Map.drop(attrs, [
       :sso_login_domain_verification_token,
       :sso_login_domain_verified_at,
+      :sso_login_domain_last_verified_at,
       :sso_legacy_email_domain_fallback
     ])
   end
@@ -933,21 +949,7 @@ defmodule Tuist.Accounts do
   def create_user(email, opts \\ []) do
     token = Tuist.Tokens.generate_token()
 
-    suffix = Keyword.get(opts, :suffix, "")
-
-    handle =
-      Keyword.get(
-        opts,
-        :handle
-      ) ||
-        (email
-         |> String.split("@")
-         |> List.first()
-         |> String.replace(".", "-")
-         |> String.replace("_", "-")
-         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
-         |> String.trim("-")
-         |> String.downcase()) <> suffix
+    {handle, opts} = user_handle(email, opts)
 
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
@@ -963,7 +965,8 @@ defmodule Tuist.Accounts do
           token: token,
           password: password,
           confirmed_at: confirmed_at,
-          created_at: created_at
+          created_at: created_at,
+          provisioned_by_organization_id: Keyword.get(opts, :provisioned_by_organization_id)
         })
       )
       |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
@@ -1037,6 +1040,30 @@ defmodule Tuist.Accounts do
     end
   end
 
+  defp user_handle(email, opts) do
+    suffix = Keyword.get(opts, :suffix, "")
+
+    handle =
+      Keyword.get(
+        opts,
+        :handle
+      ) ||
+        (email
+         |> String.split("@")
+         |> List.first()
+         |> String.replace(".", "-")
+         |> String.replace("_", "-")
+         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
+         |> String.downcase()) <> suffix
+
+    if not Keyword.has_key?(opts, :handle) and StableEndpoint.reserved_handle?(handle) do
+      {handle <> "1", Keyword.put(opts, :suffix, "1")}
+    else
+      {handle, opts}
+    end
+  end
+
   defp parse_account_changeset_error(%Changeset{} = changeset, email, opts) do
     attempt = Keyword.get(opts, :attempt, 0)
     suffix = Keyword.get(opts, :suffix, "")
@@ -1065,17 +1092,33 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}, opts \\ []) do
+  def update_account_current_month_usage(
+        account_id,
+        %{remote_cache_hits_count: remote_cache_hits_count} = usage,
+        opts \\ []
+      ) do
     %Account{id: account_id}
     |> Account.billing_changeset(%{
       current_month_remote_cache_hits_count: remote_cache_hits_count,
+      current_month_cache_egress_megabytes: Map.get(usage, :cache_egress_megabytes, 0),
+      current_month_cache_requests: Map.get(usage, :cache_requests, 0),
       current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
     })
     |> Repo.update!()
   end
 
+  @doc """
+  The account's usage since its free tier last started counting: remote cache
+  hits, which gate an Air account on the old pricing, and metered cache egress
+  and requests, which gate one on usage-based pricing.
+  """
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    CommandEvents.account_month_usage(account_id, date)
+    counted_from = Account |> Repo.get!(account_id) |> CommandEvents.usage_counted_from(date)
+    cache = UsagePricing.metered_cache_usage(account_id, counted_from, date)
+
+    account_id
+    |> CommandEvents.account_month_usage(date)
+    |> Map.merge(%{cache_egress_megabytes: cache.egress_megabytes, cache_requests: cache.requests})
   end
 
   def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do
@@ -2039,6 +2082,13 @@ defmodule Tuist.Accounts do
   def update_account(%Account{} = account, attrs) do
     account
     |> Account.update_changeset(attrs)
+    |> Changeset.validate_change(:name, fn :name, name ->
+      if String.downcase(name) == String.downcase(account.name) or Identity.rename_allowed?(account) do
+        []
+      else
+        [name: "cannot be changed until the cache supports account renames"]
+      end
+    end)
     |> Repo.update()
   end
 
@@ -2820,13 +2870,21 @@ defmodule Tuist.Accounts do
         # Module, and Gradle lanes uniformly, and it is the same call whether
         # the client is a developer machine or a runner. The write is buffered
         # in memory and flushed periodically, so this stays one ETS insert,
-        # except for the origin of a request that has an instance provisioned
-        # for it: the job placing that instance may run on another node, so the
-        # origin it places from is written through first.
+        # except for the request this node acts on: the job placing that
+        # instance may run on another node, so the origin it places from is
+        # written through first.
+        #
+        # Acting is claimed rather than done on every request. Every client of
+        # an account with nothing serving asks, and asks again every
+        # `@provisioning_cache_max_age` seconds, so without the claim a CI
+        # fleet — or an account its region keeps refusing, which never stops
+        # asking — would pay a write-through and a unique job insert per
+        # request forever, to schedule work that is deduplicated anyway.
         urls = kura_cache_endpoint_urls(account, Origins.value(origin))
         provisioning? = urls == [] and Demand.instance_expected?(account)
-        Demand.record(account.id, origin, persist_origin: provisioning?)
-        if provisioning?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
+        kick? = provisioning? and Demand.claim_provision_kick(account.id)
+        Demand.record(account.id, origin, persist_origin: kick?)
+        if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
 
         case urls do
           [] -> %{endpoints: absent_kura_endpoint_urls(account, technology), provisioning: provisioning?}
@@ -2891,9 +2949,10 @@ defmodule Tuist.Accounts do
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
 
-  Two sources, each read from the record that owns it: Tuist-managed instances
+  Sources are read from the record that owns them: Tuist-managed instances
   from `kura_servers`, and enrolled self-hosted nodes from their registration
-  heartbeats. Whether these are handed to the CLI at all is decided upstream by
+  heartbeats. Stable hostname hand-out also preserves eligible custom URLs.
+  Whether these are handed to the CLI at all is decided upstream by
   how the client is routed, so provisioning is the only server-side gate.
 
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`) derives
@@ -2901,10 +2960,19 @@ defmodule Tuist.Accounts do
   drift.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
-    managed_urls = Kura.managed_cache_endpoint_urls(account, origin)
+    servers = Kura.managed_cache_endpoints(account, origin)
+    managed_urls = StableEndpoint.resolve(account, Enum.uniq(Enum.map(servers, & &1.url)), servers)
     registered_urls = registered_kura_endpoint_urls(account)
+    stable_host = StableEndpoint.host(account)
 
-    Enum.uniq(managed_urls ++ registered_urls)
+    custom_urls =
+      if stable_host != nil and "https://#{stable_host}" in managed_urls do
+        account |> custom_cache_endpoints() |> Enum.map(& &1.url)
+      else
+        []
+      end
+
+    Enum.uniq(managed_urls ++ registered_urls ++ custom_urls)
   end
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that

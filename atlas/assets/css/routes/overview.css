@@ -19,9 +19,14 @@
   & [data-part="widgets"] {
     display: grid;
     gap: var(--noora-spacing-4);
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
 
-    @media (max-width: 1280px) {
+    /* Six tiles only fit on one line each above ~1570px: below that the widest
+       value (cache operations, ten digits) wraps and that tile grows taller
+       than the rest, so the row stops lining up. Six is 3x2, so the fallback
+       is three columns rather than an intermediate step that would leave a
+       ragged last row. */
+    @media (max-width: 1600px) {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
@@ -34,7 +39,7 @@
     }
   }
 
-  /* At the 5-column density the trend row is tight; keep the badge and its
+  /* At the 6-column density the trend row is tight; keep the badge and its
      label on the same line so widgets are visually uniform. The badge is
      unbreakable already; only the label needs guarding. */
   & [data-part="widgets"] [data-part="trend"] > [data-part="label"] {

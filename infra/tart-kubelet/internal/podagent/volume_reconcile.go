@@ -1,15 +1,12 @@
 package podagent
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,6 +22,12 @@ import (
 // authoritative "which account did this VM actually run" signal used to
 // promote a cache-volume branch to the right master.
 const runnerAccountLabel = "tuist.dev/runner-account"
+
+// runnerCacheVolumeLabel is the Pod label the Tuist server stamps at dispatch,
+// in the same patch as runnerAccountLabel, with the job's cache volume. Like the
+// account it is invisible to the guest, so a job cannot pick another
+// repository's volume. Absent means ReservedTuistCacheVolume.
+const runnerCacheVolumeLabel = "tuist.dev/runner-cache-volume"
 
 // runnerCacheUntrustedLabel marks a Pod whose job the server could not
 // positively confirm as trusted (same-repo, non-fork). When present, the host
@@ -43,6 +46,22 @@ func RunnerAccountFromPod(pod *corev1.Pod) string {
 	return pod.Labels[runnerAccountLabel]
 }
 
+// RunnerCacheVolumeFromPod returns the Pod's cache volume, or false when the
+// label is not a volume name and the job must not touch any master.
+func RunnerCacheVolumeFromPod(pod *corev1.Pod) (string, bool) {
+	if pod == nil {
+		return ReservedTuistCacheVolume, true
+	}
+	volume, ok := pod.Labels[runnerCacheVolumeLabel]
+	if !ok {
+		return ReservedTuistCacheVolume, true
+	}
+	if !isVolumeName(volume) {
+		return "", false
+	}
+	return volume, true
+}
+
 // RunnerCacheUntrusted reports whether the server marked this Pod's job as
 // untrusted (a fork it could not confirm as same-repo). Exported so state
 // recovery in package main can preserve the untrusted decision.
@@ -51,18 +70,23 @@ func RunnerCacheUntrusted(pod *corev1.Pod) bool {
 }
 
 // ReattachVolumeForPod reconstructs the cache-volume attachment for a VM that
-// survived a kubelet restart. It preserves the untrusted decision: SourceAccount
-// is set from the account label ONLY for a trusted pod. An untrusted branch is
-// reattached (so its live virtio-fs mount isn't swept and it's cleaned at job
-// end) but keeps SourceAccount empty, so Finalize's SourceAccount==account guard
-// discards it — recovery can never revive attacker-controlled content into the
-// account's master. Both recoverState and the createPod adoption path use this.
+// survived a kubelet restart, on the volume the pod's label names. It preserves
+// the untrusted decision: SourceAccount is set from the account label ONLY for a
+// trusted pod with a well-formed volume. Any other branch is reattached (so its
+// live virtio-fs mount isn't swept and it's cleaned at job end) but keeps
+// SourceAccount empty, so Finalize's SourceAccount==account guard discards it —
+// recovery can never revive attacker-controlled content into a master. Both
+// recoverState and the createPod adoption path use this.
 func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (VolumeAttachment, bool) {
-	att, ok := volumes.ReattachBranch(ReservedTuistCacheVolume, vm)
+	volume, validVolume := RunnerCacheVolumeFromPod(pod)
+	if !validVolume {
+		volume = ReservedTuistCacheVolume
+	}
+	att, ok := volumes.ReattachBranch(volume, vm)
 	if !ok {
 		return VolumeAttachment{}, false
 	}
-	if !RunnerCacheUntrusted(pod) {
+	if validVolume && !RunnerCacheUntrusted(pod) {
 		att.SourceAccount = RunnerAccountFromPod(pod)
 	}
 	return att, true
@@ -339,13 +363,14 @@ func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, erro
 	return r.Volumes.AllocateBranch(ReservedTuistCacheVolume, vmName)
 }
 
-// maybeMaterializeVolume clonefiles the dispatched account's cache master into
-// this VM's branch and signals the guest, exactly once per VM. The Tuist
-// server stamps the pod's runner-account label when it claims a job, so this
-// runs on the reconcile that observes that label — the account is known before
-// any cache bytes reach the VM, which is what makes the shared-host model safe.
-// A cold first job (no master yet) still writes cache-ready so the guest stops
-// waiting; its writes become the account's first master at Finalize.
+// maybeMaterializeVolume clonefiles the dispatched job's cache master, for its
+// account and volume, into this VM's branch and signals the guest, exactly once
+// per VM. The Tuist server stamps the pod's runner-account and cache-volume
+// labels when it claims a job, so this runs on the reconcile that observes them —
+// the account and volume are known before any cache bytes reach the VM, which is
+// what makes the shared-host model safe. A cold first job (no master yet) still
+// writes cache-ready so the guest stops waiting; its writes become the volume's
+// first master at Finalize.
 func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	if r.Volumes == nil {
 		return
@@ -360,12 +385,18 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	}
 
 	// Fork-exclusion: an untrusted job never touches the shared cache. It gets an
-	// EMPTY image rather than the account's master, and SourceAccount stays empty
-	// so Finalize's SourceAccount==account guard discards the branch — the job can
-	// neither read the account's warm master nor promote into it. It still needs
-	// an image of its own: cache-ready tells the guest to attach, and signalling
-	// without one would drop every fork job onto the local cold cache.
-	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
+	// EMPTY image rather than a master, and SourceAccount stays empty so
+	// Finalize's SourceAccount==account guard discards the branch — the job can
+	// neither read a warm master nor promote into it. It still needs an image of
+	// its own: cache-ready tells the guest to attach, and signalling without one
+	// would drop every fork job onto the local cold cache. A malformed volume
+	// label is isolated the same way.
+	volume, validVolume := RunnerCacheVolumeFromPod(pod)
+	if !validVolume {
+		log.Log.WithName("volume").Info("cache volume label is not a volume name; running the job on an empty image",
+			"vm", entry.VMName, "account", account, "volume", pod.Labels[runnerCacheVolumeLabel])
+	}
+	if pod.Labels[runnerCacheUntrustedLabel] == "true" || !validVolume {
 		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil && !errors.Is(err, errAdmissionDeclined) {
 			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
 		}
@@ -384,10 +415,11 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// the guest, so the job starts warm without ever blocking on a download.
 	// A declined branch has no image, so the guest's attach fails and it runs on
 	// its local cold cache. That is logged and counted where admission declines.
-	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
+	entry.Volume.VolumeName = volume
+	source, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
 	declined := errors.Is(err, errAdmissionDeclined)
 	if err != nil && !declined {
-		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
+		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account, "volume", volume)
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true
@@ -404,21 +436,27 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
+	// One line per job, with the account the materialize counter cannot carry,
+	// so warm rates can be compared per account: the fleet-wide rate moves with
+	// the mix of accounts as much as with anything the host does.
+	result := string(source)
+	if declined {
+		result = "declined"
+	}
+	log.Log.WithName("volume").Info("materialized cache volume",
+		"vm", entry.VMName, "account", account, "volume", volume, "result", result, "base_generation", baseGeneration)
 	// A declined job was refused space in this volume, and converging downloads
 	// into the same volume with nothing reserved.
 	if declined {
 		return
 	}
-	RecordVolumeMaterialized(warm)
+	RecordVolumeMaterialized(source)
 
-	// Converge the on-disk master toward the account's HEAD in the background,
-	// off the job-start critical path. The running job already holds its own
-	// CoW branch, so refreshing the master (an atomic swap of a separate dir)
-	// never touches the job in flight — it just makes the NEXT job on this host
-	// start from the account's current warm set instead of paying remote misses
-	// for the delta. Best-effort and self-limiting: one goroutine per VM
-	// (materialize runs at most once per VM), bounded by a download deadline.
-	go r.convergeMaster(entry.VMName, entry.VolumeStatusDir, entry.Volume.VolumeName, account)
+	// Queue the volume's HEAD for the host's converge worker, off the job-start
+	// critical path. The running job already holds its own CoW branch, so
+	// refreshing the master never touches the job in flight — it makes the NEXT
+	// job on this host start from the volume's current warm set.
+	go r.queueConvergence(entry.VMName, entry.VolumeStatusDir, entry.Volume.VolumeName, account)
 }
 
 // writeCacheReady drops the cache-ready marker into the writable status share.
@@ -560,6 +598,68 @@ func readFillPercent(statusDir string) int {
 	return pct
 }
 
+// cacheLimitsFile carries what the guest's division of the shared budget
+// measured and decided: one "<when>\t<cache>\t<held bytes>\t<limit bytes>" line
+// per cache, appended at attach and again at teardown. Those sizes are the only
+// per-cache measurement the fleet has, and the limits beside them are what the
+// division's rule and its floors are retuned from. The runner log carries the
+// same numbers, but the host re-emits only a bounded tail of it, so a verbose
+// job's attach lines fall off before they reach the log store.
+const cacheLimitsFile = "cache-limits"
+
+// cacheLimitsMaxSamples bounds what one job can make the host record. A division
+// stages four lines; the file is guest-written and the guest runs untrusted
+// customer CI.
+const cacheLimitsMaxSamples = 8
+
+// cacheLimitSample is one cache's size and limit at one end of a job.
+type cacheLimitSample struct {
+	when, cache           string
+	heldBytes, limitBytes float64
+}
+
+// readCacheLimits returns what the guest staged, dropping every line that is not
+// a measurement. A job that ran on a host staging the fixed split stages nothing,
+// which reads as none.
+func readCacheLimits(statusDir string) []cacheLimitSample {
+	b, ok := readGuestFile(statusDir, cacheLimitsFile, guestMarkerMaxBytes)
+	if !ok {
+		return nil
+	}
+	var samples []cacheLimitSample
+	for _, line := range strings.Split(string(b), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), "\t")
+		if len(fields) != 4 {
+			continue
+		}
+		when, cache := fields[0], fields[1]
+		if when != "attach" && when != "teardown" {
+			continue
+		}
+		if cache != "binary" && cache != "compilation" {
+			continue
+		}
+		held, err := strconv.ParseUint(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		limit, err := strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			continue
+		}
+		samples = append(samples, cacheLimitSample{
+			when:       when,
+			cache:      cache,
+			heldBytes:  float64(held),
+			limitBytes: float64(limit),
+		})
+		if len(samples) == cacheLimitsMaxSamples {
+			break
+		}
+	}
+	return samples
+}
+
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
 // staged by the host at materialize. The guest sends it as the fast-forward base
 // at promote so the server accepts the bump only if HEAD is still at it.
@@ -671,25 +771,19 @@ func readVolumeHead(statusDir string) *volumeHead {
 	return &h
 }
 
-// convergeMaster fast-forwards this host's master for the account to the
-// account's HEAD when the host is behind, by downloading the latest master
-// archive and atomically swapping it in. Runs in the background off the
-// job-start critical path (see maybeMaterializeVolume): it refreshes the master
-// dir, which the in-flight job's CoW branch does not reference, so the NEXT job
-// clonefiles the fresher set. Takes plain values, not the shared *Entry, so it
-// can't race the reconciler mutating that entry. Best-effort and bounded: no
-// HEAD, already-current, or any download/extract failure leaves the local
-// master untouched (the status quo — jobs just pay a few remote misses).
-func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account string) {
-	if r.Volumes == nil || !r.Volumes.Enabled() {
+// queueConvergence hands the volume's HEAD, as the job's guest relays it, to the
+// host's converge worker, which fast-forwards the master off every job's
+// critical path. Runs in the background of materialize: it waits for the guest
+// to stage the HEAD, then returns. Takes plain values, not the shared *Entry, so
+// it can't race the reconciler mutating that entry.
+func (r *Reconciler) queueConvergence(vmName, statusDir, volumeName, account string) {
+	if r.Volumes == nil || !r.Volumes.Enabled() || r.Converge == nil {
 		return
 	}
 	// Wait (bounded) for the guest to stage the HEAD. The guest writes
 	// volume-head.json only after it receives the dispatch response, which the
-	// server returns after stamping the label that triggered this convergence,
-	// so the file lands a beat later than this goroutine starts. Reading it once
-	// would usually miss it and permanently skip convergence; since this runs in
-	// the background, it can afford to wait for the file to appear.
+	// server returns after stamping the label that triggered this, so the file
+	// lands a beat later than this goroutine starts.
 	logger := log.Log.WithName("volume")
 	head := awaitVolumeHead(statusDir, r.ConvergeHeadWaitInterval, r.ConvergeHeadWaitAttempts)
 	// Each of these three used to share one silent `return`, which made the most
@@ -712,104 +806,27 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
-	// Skip if this host's master is already at or past the HEAD generation. The
-	// generation is monotonic (the server only ever fast-forwards it), so a local
-	// generation >= the HEAD's means this host already holds that HEAD (or its own
-	// newer promote) and has nothing to adopt.
+	key := masterKey{account: account, volume: volumeName}
+	// A job dispatched with a HEAD this host already proved does not reproduce
+	// its digests relays that proof with its promote. The converge worker
+	// usually runs after the job that first relayed the HEAD has gone, so a
+	// later job with the same HEAD is what lets the server retire it.
+	r.Converge.RelayDisproof(key, *head, statusDir)
+	// The healthy no-op, logged so it can be told apart from a convergence that
+	// failed or never ran. The worker checks again before it downloads, since a
+	// promote can land in between.
 	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
-		// The healthy no-op. Logged so it can be told apart from a convergence
-		// that failed or never ran, which is the distinction that matters when
-		// asking why a fleet is not converging.
 		logger.Info("converge: host already at or past the HEAD; nothing to adopt",
 			"vm", vmName, "account", account, "volume", volumeName,
 			"local_generation", local, "head_generation", head.Generation)
 		return
 	}
-
-	staging := r.Volumes.ConvergeStagingDir(vmName)
-	_ = os.RemoveAll(staging)
-	if err := os.MkdirAll(staging, 0o755); err != nil {
-		logger.Error(err, "converge: mkdir staging", "vm", vmName)
-		return
-	}
-	defer os.RemoveAll(staging)
-
-	image := filepath.Join(staging, convergeImageName)
-	if err := downloadMasterImage(head.DownloadURL, image); err != nil {
-		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
-		return
-	}
-	// Verify the downloaded bytes against the HEAD's content digest before
-	// anything parses them: the promoting guest hashed the settled image file,
-	// so anything short of bit-for-bit equality — corruption in the object
-	// store, on the wire, or in this host's RAM — declines here. This is the
-	// check the inventory digest below cannot make: that one hashes entry names
-	// and sizes, so a flipped bit INSIDE a cached file sails through it.
-	//
-	// The same measure-vs-mismatch split as the inventory check applies: a
-	// hashing failure is a local read fault that says nothing about the object
-	// and declines quietly, while a hash that differs is proof about the object,
-	// reproducible on every host — staged for the guest to report so the server
-	// can retire a HEAD nothing can adopt (see stageUnverifiableHead).
-	if head.ContentDigest != "" {
-		got, err := fileSHA256(image)
-		switch {
-		case err != nil:
-			logger.Error(err, "converge: cannot hash the downloaded image; keeping local master",
-				"vm", vmName, "account", account, "volume", volumeName, "want", head.ContentDigest)
-			return
-		case got != head.ContentDigest:
-			logger.Info("converge: image content hash does not match HEAD; keeping local master",
-				"vm", vmName, "account", account, "want", head.ContentDigest, "got", got)
-			stageUnverifiableHead(statusDir, head.Digest)
-			return
-		}
-	}
-	// Verify the downloaded image's inventory matches the HEAD digest before
-	// adopting it, so the host never records a generation for an image that isn't
-	// the one the HEAD advertised. On mismatch, stay on the local master (status
-	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
-	// presigned URL or a partial download can still surface one.
-	//
-	// Being unable to MEASURE the image and measuring a DIFFERENT image are kept
-	// apart. The first is a local fault (the read-only attach failed, the disk is
-	// unhappy) and says nothing about the object, so it declines quietly. The
-	// second is proof about the object itself, reproducible on every host that
-	// fetches it — and since the account cannot promote past a HEAD it cannot
-	// adopt, that proof is the only thing that can unwedge it, so it is staged for
-	// the guest to report (see stageUnverifiableHead).
-	if head.Digest != "" {
-		got, err := r.Volumes.ImageDigest(image)
-		switch {
-		case err != nil:
-			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
-				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
-			return
-		case got != head.Digest:
-			logger.Info("converge: image digest does not match HEAD; keeping local master",
-				"vm", vmName, "account", account, "want", head.Digest, "got", got)
-			stageUnverifiableHead(statusDir, head.Digest)
-			return
-		}
-	}
-	// Adopt the HEAD wholesale: a plain generation-gated whole-image replace. HEAD
-	// is a monotonic fast-forward lineage (the server rejects any bump that does
-	// not build on the current tip), so replacing a behind master with it strands
-	// nothing — the local master is meant to match HEAD exactly.
-	installed, err := r.Volumes.InstallMaster(account, volumeName, image, head.Generation)
-	if err != nil {
-		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
-		return
-	}
-	if !installed {
-		// A promote or another convergence moved the master past this HEAD while
-		// the download was in flight, so the generation gate declined the swap.
-		logger.Info("converge: master moved past this HEAD mid-download; discarding",
-			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
-		return
-	}
-	RecordVolumeConverged()
-	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+	r.Converge.Enqueue(convergeRequest{
+		key:       key,
+		head:      *head,
+		source:    convergeSourceJob,
+		statusDir: statusDir,
+	})
 }
 
 // unverifiableHeadFile carries, into the writable status share, the HEAD digest
@@ -859,18 +876,6 @@ func awaitVolumeHead(statusDir string, interval time.Duration, attempts int) *vo
 	return readVolumeHead(statusDir)
 }
 
-// convergeImageName is the downloaded HEAD image inside the convergence staging
-// dir. It deliberately does NOT use the master image's name: staging lives under
-// Root, and a file named like a master could be picked up by the master scan.
-const convergeImageName = "head.sparseimage"
-
-// convergeDownloadTimeout bounds the HEAD image fetch. The object is the cache
-// image itself — gigabytes, not a manifest — so the ceiling is generous. It runs
-// in the background off the job-start path, so a slow fetch delays only the NEXT
-// job's warmth; the bound just keeps a stalled transfer from leaking a goroutine
-// and staging disk forever.
-const convergeDownloadTimeout = 30 * time.Minute
-
 // fileSHA256 returns the lowercase hex SHA-256 of the file's bytes — the same
 // digest the promoting guest computed over its settled image and the object
 // store verified at ingest, so all three measure the identical byte stream.
@@ -880,30 +885,12 @@ func fileSHA256(path string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
+	noPageCache(f)
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// downloadMasterImage fetches the account's master image from a presigned URL to
-// dst. The object IS the image — a settled APFS filesystem carrying the
-// symlinks, xattrs and modes the cache needs — so there is nothing to unpack.
-func downloadMasterImage(url, dst string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), convergeDownloadTimeout)
-	defer cancel()
-
-	// No -L: a presigned object-storage URL is fetched directly (200, no
-	// redirect), so refuse to follow redirects — that removes redirect-based
-	// SSRF where a hostile/misconfigured endpoint bounces this host to an
-	// internal address. The server also validates the URL host is public before
-	// handing it over (see volume_head_payload).
-	if out, err := exec.CommandContext(ctx, "curl", "-fsS", "-o", dst, url).CombinedOutput(); err != nil {
-		_ = os.Remove(dst)
-		return fmt.Errorf("curl master image: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
 }
 
 // finalizeVolume promotes or discards the entry's cache-volume branch and
@@ -962,6 +949,9 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
 		RecordVolumeFill(pct)
 	}
+	// Record what the guest's division measured and decided. Nothing else reports
+	// what either cache in the image actually holds.
+	RecordVolumeCacheLimits(readCacheLimits(entry.VolumeStatusDir))
 
 	// Consumed: the branch has been renamed away (promote) or removed
 	// (discard). Clear the flag so a later teardown path does not re-run

@@ -52,7 +52,7 @@ defmodule Atlas.MCP.Tools.ReplyToSupportThread do
       "Queue a reply to a customer support conversation through contact@tuist.dev. The body is written in Markdown and delivered as sanitized HTML (with a plain-text fallback)."
 
   def execute(conn, %{"thread_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Support tools"),
+    with :ok <- Tool.authorize_scope(conn, "support:write", "Support tools"),
          {:ok, reply_attrs} <- reply_attrs(args) do
       case Support.reply(id, reply_attrs, Tool.current_user(conn)) do
         {:ok, %{thread: thread, message: message}} ->

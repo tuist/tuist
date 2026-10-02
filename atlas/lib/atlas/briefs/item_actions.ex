@@ -19,7 +19,7 @@ defmodule Atlas.Briefs.ItemActions do
     opts = Keyword.put(opts, :actor, actor)
 
     with %User{} <- actor,
-         true <- Users.executive?(actor) do
+         true <- Users.has_scope?(actor, "briefs:write") do
       case action do
         "claim" -> claim(item_id, actor, opts)
         "acknowledge" -> acknowledge(item_id, actor, opts)

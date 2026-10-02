@@ -45,7 +45,14 @@ kuraController:
     dnsNames:
       - "*.kura.tuist.dev"
   telemetry:
-    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+    # Trailing dot makes this an absolute domain name, so a resolver with
+    # ndots >= 5 (kubelet's default) does not first try the 4-dot host
+    # against every search domain and pay three NXDOMAIN round trips per
+    # connect. Cross-region Kura pods, where every DNS lookup is a WAN
+    # round trip to CoreDNS, were losing every OTLP span on that budget
+    # (Atlas issue 56d8db50). Same reasoning applied to the analytics
+    # endpoint in #13459.
+    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces
   analytics:
     enabled: true
   sharedSecrets:
@@ -81,6 +88,28 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
+
+  # Once events ingress. gRPC does not go through the main ingress controller
+  # or through Cloudflare:
+  #
+  # - The main controller runs with upstream keepalive off, which makes
+  #   ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that
+  #   header, and Cowboy, which serves the events listener, resets the stream
+  #   with PROTOCOL_ERROR. The `nginx-grpc` class is the platform's dedicated
+  #   gRPC controller, with keepalive on (see `grpc-ingress-nginx` in
+  #   helm/platform/values.yaml).
+  # - Cloudflare answers gRPC requests to a proxied host with a 403. The cache's
+  #   gRPC hosts are DNS-only for the same reason, so this one is too, and
+  #   cert-manager issues a certificate clients trust, where the Cloudflare
+  #   Origin CA certificate would only be trusted by Cloudflare.
+  #
+  # Each environment sets only `enabled` and `host`.
+  events:
+    className: nginx-grpc
+    tlsSecretName: tuist-events-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 
   # ingress-nginx defaults `proxy-body-size` to 1m, which rejects large
   # `createBundle` requests (the JSON manifest carries one entry per

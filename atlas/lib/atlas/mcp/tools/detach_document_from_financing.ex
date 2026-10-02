@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.DetachDocumentFromFinancing do
   end
 
   def execute(conn, %{"link_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools") do
       case Financings.detach_document(id) do
         {:ok, _link} -> {:ok, %{deleted: true}}
         {:error, :not_found} -> {:error, "Attachment not found."}

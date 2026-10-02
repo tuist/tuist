@@ -27,7 +27,10 @@ defmodule Atlas.Finance.Financings do
   alias Atlas.Repo
 
   @dashboard_prefix "/operations/hardware/financings"
-  @accepted_document_statuses ~w(uploaded processing ready)
+  # `failed` means text extraction did not produce searchable pages, but the
+  # file bytes are safely in object storage and reachable via the download URL.
+  # The financing needs the link; a missing search index does not disqualify it.
+  @accepted_document_statuses ~w(uploaded processing ready failed)
 
   ## ------------------------------------------------------------------
   ## Reads

@@ -30,7 +30,7 @@ defmodule Atlas.MCP.Tools.ListBriefs do
   def description, do: "List persisted daily and weekly attention briefs for leadership."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Leadership brief tools") do
+    with :ok <- Tool.authorize_scope(conn, "briefs:read", "Leadership brief tools") do
       {briefs, _meta} =
         Briefs.list_briefs(
           cadence: args["cadence"],

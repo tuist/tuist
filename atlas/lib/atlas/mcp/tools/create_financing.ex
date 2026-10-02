@@ -38,7 +38,7 @@ defmodule Atlas.MCP.Tools.CreateFinancing do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools") do
       case Financings.create(args) do
         {:ok, financing} -> {:ok, Serializer.financing(financing)}
         {:error, changeset} -> {:error, "Could not create financing: #{Tool.format_changeset_errors(changeset)}"}

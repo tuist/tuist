@@ -19,7 +19,7 @@ defmodule Atlas.MCP.Tools.GetInsurancePolicy do
   end
 
   def execute(conn, %{"policy_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools") do
       case Policies.get(id) do
         nil -> {:error, "Insurance policy not found."}
         policy -> {:ok, Serializer.policy(policy)}

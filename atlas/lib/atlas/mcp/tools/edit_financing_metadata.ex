@@ -32,7 +32,7 @@ defmodule Atlas.MCP.Tools.EditFinancingMetadata do
   end
 
   def execute(conn, %{"financing_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(id) do
       attrs = Map.delete(args, "financing_id")
 

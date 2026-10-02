@@ -61,6 +61,9 @@ func (in *KuraInstanceList) DeepCopyObject() runtime.Object {
 
 func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 	*out = *in
+	if in.ClientHostAliases != nil {
+		out.ClientHostAliases = append([]string{}, in.ClientHostAliases...)
+	}
 	if in.Replicas != nil {
 		out.Replicas = new(int32)
 		*out.Replicas = *in.Replicas
@@ -116,6 +119,10 @@ func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
 
 func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	*out = *in
+	if in.StableEndpoint != nil {
+		out.StableEndpoint = new(StableEndpointStatus)
+		*out.StableEndpoint = *in.StableEndpoint
+	}
 	if in.EndpointLastCheckedAt != nil {
 		out.EndpointLastCheckedAt = in.EndpointLastCheckedAt.DeepCopy()
 	}
@@ -146,6 +153,13 @@ func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {
 
 func (in *KuraInstanceCPUAutosize) DeepCopyInto(out *KuraInstanceCPUAutosize) {
 	*out = *in
+	if in.SamplesMilli != nil {
+		out.SamplesMilli = make([]int32, len(in.SamplesMilli))
+		copy(out.SamplesMilli, in.SamplesMilli)
+	}
+	if in.SampledAt != nil {
+		out.SampledAt = in.SampledAt.DeepCopy()
+	}
 	if in.BucketStartedAt != nil {
 		out.BucketStartedAt = in.BucketStartedAt.DeepCopy()
 	}

@@ -6,12 +6,19 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle string `json:"accountHandle"`
-	TenantID      string `json:"tenantID"`
-	Region        string `json:"region"`
-	Image         string `json:"image"`
-	Replicas      *int32 `json:"replicas,omitempty"`
-	PublicHost    string `json:"publicHost,omitempty"`
+	// StableHost is rendered independently from its regional DNS advertisement.
+	StableHost      string `json:"stableHost,omitempty"`
+	StableAdvertise bool   `json:"stableAdvertise,omitempty"`
+	StableAWSRegion string `json:"stableAWSRegion,omitempty"`
+	AccountHandle   string `json:"accountHandle"`
+	TenantID        string `json:"tenantID"`
+	Region          string `json:"region"`
+	Image           string `json:"image"`
+	Replicas        *int32 `json:"replicas,omitempty"`
+	PublicHost      string `json:"publicHost,omitempty"`
+	// ClientHostAliases retain renamed client endpoints on the same backend.
+	// They affect DNS, ingress and public TLS only, never workload or peer identity.
+	ClientHostAliases []string `json:"clientHostAliases,omitempty"`
 	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.
@@ -261,6 +268,7 @@ type KuraInstancePeerRole struct {
 }
 
 type KuraInstanceStatus struct {
+	StableEndpoint *StableEndpointStatus `json:"stableEndpoint,omitempty"`
 	// PrivateURL is published only after the private gateway, DNS, certificate,
 	// and primary have been observed ready for EndpointObservedGeneration.
 	EndpointLastCheckedAt      *metav1.Time `json:"endpointLastCheckedAt,omitempty"`
@@ -304,7 +312,21 @@ type KuraInstanceStatus struct {
 	NodePortCache int32  `json:"nodePortCache,omitempty"`
 }
 
-// KuraInstanceCPUAutosize retains the highest per-pod CPU seen in each of a
+// StableEndpointStatus retains the routing identity until DNS withdrawal and
+// the drain have completed, including when intent is removed or the CR deleted.
+type StableEndpointStatus struct {
+	Host               string `json:"host"`
+	SetIdentifier      string `json:"setIdentifier"`
+	AWSRegion          string `json:"awsRegion"`
+	Target             string `json:"target,omitempty"`
+	HealthCheckID      string `json:"healthCheckID,omitempty"`
+	Ready              bool   `json:"ready"`
+	ObservedGeneration int64  `json:"observedGeneration"`
+	LastCheckedAt      string `json:"lastCheckedAt,omitempty"`
+	WithdrawnAt        string `json:"withdrawnAt,omitempty"`
+}
+
+// KuraInstanceCPUAutosize retains the highest ten-minute mean CPU in each of a
 // ring of fixed-length windows, oldest first, with BucketStartedAt the start
 // of the last. A window that closed with no reading holds -1, which is not
 // the same as a reading of zero. The peak is taken across the instance's pods
@@ -315,6 +337,12 @@ type KuraInstanceStatus struct {
 // shown it will admit, and expires so a box that has since freed up is
 // retried.
 type KuraInstanceCPUAutosize struct {
+	// SamplesMilli contains up to ten consecutive minute observations of the
+	// busiest replica. Missing minutes restart this short window. SampledAt
+	// also distinguishes sustained history from legacy instantaneous peaks.
+	// +kubebuilder:validation:MaxItems=10
+	SamplesMilli     []int32      `json:"samplesMilli,omitempty"`
+	SampledAt        *metav1.Time `json:"sampledAt,omitempty"`
 	RequestMilli     int32        `json:"requestMilli,omitempty"`
 	PeakMilli        int32        `json:"peakMilli,omitempty"`
 	BucketStartedAt  *metav1.Time `json:"bucketStartedAt,omitempty"`

@@ -10,13 +10,14 @@ defmodule AtlasWeb.LoginLive do
     user_id = session["user_id"]
 
     if user_id && Atlas.Users.get_user(user_id) do
-      {:ok, redirect(socket, to: ~p"/")}
+      {:ok, redirect(socket, to: session["return_to"] || ~p"/")}
     else
       socket =
         socket
         |> assign(:page_title, "Log in")
         |> assign(:google_configured?, google_configured?())
         |> assign(:dev_routes?, Application.get_env(:atlas, :dev_routes, false))
+        |> assign(:return_to, session["return_to"])
 
       {:ok, socket}
     end
@@ -70,6 +71,7 @@ defmodule AtlasWeb.LoginLive do
           <div :if={@dev_routes?} data-part="oauth">
             <form method="post" action={~p"/dev/login"}>
               <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+              <input :if={@return_to} type="hidden" name="return_to" value={@return_to} />
               <.button
                 type="submit"
                 variant="secondary"

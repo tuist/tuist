@@ -15,7 +15,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which server-production-deployment.yml's release-runner-image flow picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which runner-image-release.yml picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/runner-image/runner\\.pkr\\.hcl$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""

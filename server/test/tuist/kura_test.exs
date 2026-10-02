@@ -1100,6 +1100,30 @@ defmodule Tuist.KuraTest do
       assert Kura.managed_cache_endpoint_urls(account) == [active_again.url]
     end
 
+    test "an account rename keeps the published endpoint until new DNS and HTTPS are ready" do
+      account = AccountsFixtures.organization_fixture().account
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+      stub(Provisioner, :public_url, fn _, _ -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+
+      stub(Provisioner, :public_url, fn current, _ ->
+        assert current.name == renamed.name
+        "https://new-name.kura.tuist.dev"
+      end)
+
+      stub(DNS, :record_published, fn _ -> {:error, :not_published} end)
+      assert {:error, {:public_host_not_resolvable, _, _}} = Kura.activate_server(server, "0.5.2")
+      assert Kura.managed_cache_endpoint_urls(renamed) == ["http://localhost:4100"]
+      stub(DNS, :record_published, fn _ -> :ok end)
+      stub(Req, :get, fn _, _ -> {:error, %Mint.TransportError{reason: :closed}} end)
+      assert {:error, {:public_endpoint_not_ready, _, _}} = Kura.activate_server(server, "0.5.2")
+      assert Kura.managed_cache_endpoint_urls(renamed) == ["http://localhost:4100"]
+      stub(Req, :get, fn _, _ -> {:ok, %Req.Response{status: 200}} end)
+      assert {:ok, _} = Kura.activate_server(server, "0.5.2")
+      assert Kura.managed_cache_endpoint_urls(renamed) == ["https://new-name.kura.tuist.dev"]
+    end
+
     test "a changed public URL moves what the account resolves, leaving nothing behind" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)

@@ -6,6 +6,7 @@ defmodule Atlas.Slack.API do
 
   Slack docs:
   - users.info — https://api.slack.com/methods/users.info
+  - users.lookupByEmail — https://api.slack.com/methods/users.lookupByEmail
   - conversations.replies — https://api.slack.com/methods/conversations.replies
   - chat.getPermalink — https://api.slack.com/methods/chat.getPermalink
   - chat.unfurl — https://api.slack.com/methods/chat.unfurl
@@ -49,6 +50,16 @@ defmodule Atlas.Slack.API do
 
     case request(app_key, "users.info", user: user_id) do
       {:ok, %{"ok" => true, "user" => user}} -> {:ok, normalize_user(user, user_id)}
+      {:ok, %{"ok" => false, "error" => error}} -> {:error, error}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def lookup_user_by_email(app_key, email) when is_binary(email) do
+    app_key = Bot.normalize_app_key!(app_key)
+
+    case request(app_key, "users.lookupByEmail", email: email) do
+      {:ok, %{"ok" => true, "user" => %{"id" => user_id}}} -> {:ok, user_id}
       {:ok, %{"ok" => false, "error" => error}} -> {:error, error}
       {:error, reason} -> {:error, reason}
     end

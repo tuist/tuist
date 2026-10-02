@@ -117,7 +117,8 @@ public struct CacheURLStore: CacheURLStoring {
             return [try await getCacheURL(for: serverURL, accountHandle: accountHandle)]
         }
 
-        return try await getCacheEndpointsService.getCacheEndpoints(
+        return try await Self.fetchCacheEndpoints(
+            service: getCacheEndpointsService,
             serverURL: serverURL,
             accountHandle: accountHandle
         )
@@ -204,7 +205,8 @@ public struct CacheURLStore: CacheURLStoring {
     private func resolutionWaitingForProvisioning(serverURL: URL, accountHandle: String?) async throws
         -> CacheEndpointsResolution
     {
-        var resolution = try await getCacheEndpointsService.getCacheEndpoints(
+        var resolution = try await Self.fetchCacheEndpoints(
+            service: getCacheEndpointsService,
             serverURL: serverURL,
             accountHandle: accountHandle
         )
@@ -231,6 +233,18 @@ public struct CacheURLStore: CacheURLStoring {
         return resolution
     }
 
+    private static func fetchCacheEndpoints(
+        service: GetCacheEndpointsServicing,
+        serverURL: URL,
+        accountHandle: String?
+    ) async throws -> CacheEndpointsResolution {
+        do {
+            return try await service.getCacheEndpoints(serverURL: serverURL, accountHandle: accountHandle)
+        } catch let GetCacheEndpointsServiceError.forbidden(message) {
+            throw CacheURLStoreError.forbidden(message)
+        }
+    }
+
     private static func isBeingPrepared(_ resolution: CacheEndpointsResolution) -> Bool {
         resolution.endpoints.isEmpty && resolution.provisioning
     }
@@ -247,7 +261,8 @@ public struct CacheURLStore: CacheURLStoring {
         let (outcomes, continuation) = AsyncThrowingStream<CacheEndpointsResolution?, any Error>.makeStream()
         let request = Task {
             do {
-                let resolution = try await getCacheEndpointsService.getCacheEndpoints(
+                let resolution = try await Self.fetchCacheEndpoints(
+                    service: getCacheEndpointsService,
                     serverURL: serverURL,
                     accountHandle: accountHandle
                 )
@@ -303,6 +318,9 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     case endpointBeingPrepared
     case noReachableEndpoints
     case invalidURL(String)
+    /// The server refused to name the account's endpoints to the caller, for example because the
+    /// logged-in user is not a member of the account.
+    case forbidden(String)
 
     /// Whether the failure is an endpoint that is not serving *yet*, rather than
     /// one that is wrong.
@@ -315,13 +333,14 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     /// later request, so a long-lived process should carry on rather than refuse
     /// to start over a state that is about to fix itself.
     ///
-    /// `invalidURL` is excluded: a malformed endpoint is a misconfiguration that
-    /// no amount of waiting corrects, so it stays fatal.
+    /// `invalidURL` and `forbidden` are excluded: a malformed endpoint and an
+    /// account the caller does not belong to are misconfigurations that no amount
+    /// of waiting corrects.
     public var isTransientAbsence: Bool {
         switch self {
         case .noEndpointsAvailable, .endpointBeingPrepared, .noReachableEndpoints:
             true
-        case .invalidURL:
+        case .invalidURL, .forbidden:
             false
         }
     }
@@ -336,6 +355,8 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
             return "None of the cache endpoints are reachable."
         case let .invalidURL(url):
             return "Invalid cache endpoint URL: \(url)."
+        case let .forbidden(message):
+            return message
         }
     }
 }

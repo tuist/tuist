@@ -4,6 +4,7 @@ defmodule Atlas.MCP.ServerTest do
 
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Server
+  alias Atlas.Users
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -32,9 +33,13 @@ defmodule Atlas.MCP.ServerTest do
 
     tools = response["result"]["tools"]
 
+    assert Enum.any?(tools, &(&1["name"] == "get_mcp_connection_status"))
     assert Enum.any?(tools, &(&1["name"] == "list_accounts"))
-    assert Enum.any?(tools, &(&1["name"] == "act_on_account_attention_suggestion"))
-    assert Enum.any?(tools, &(&1["name"] == "list_account_attention_suggestions"))
+    assert Enum.any?(tools, &(&1["name"] == "list_account_nudges"))
+    assert Enum.any?(tools, &(&1["name"] == "claim_nudge"))
+    assert Enum.any?(tools, &(&1["name"] == "dismiss_nudge"))
+    assert Enum.any?(tools, &(&1["name"] == "send_nudge"))
+    assert Enum.any?(tools, &(&1["name"] == "release_nudge"))
     refute Enum.any?(tools, &(&1["name"] == "list_account_outcomes"))
     refute Enum.any?(tools, &(&1["name"] == "generate_account_outcome_proposals"))
     assert Enum.any?(tools, &(&1["name"] == "create_account"))
@@ -122,7 +127,7 @@ defmodule Atlas.MCP.ServerTest do
       assert instructions =~ "list_contract_templates"
       assert instructions =~ "get_contract_template"
       assert instructions =~ "Never create a substitute document from scratch"
-      assert instructions =~ "embedded resource"
+      assert instructions =~ "signed `download_url`"
       assert instructions =~ "current request over pasted conversation context"
     end
 
@@ -245,9 +250,10 @@ defmodule Atlas.MCP.ServerTest do
     assert Enum.any?(tools, &(&1["name"] == "edit_stripe_draft_invoice"))
   end
 
-  test "hides audit tools from non-executive MCP sessions" do
-    conn = %{assigns: %{current_user: %User{role: :employee}}}
+  test "hides audit tools from MCP sessions without admin scope" do
+    conn = %{assigns: %{current_user: %User{}}}
 
+    stub(Users, :has_scope?, fn %User{}, "admin:read" -> false end)
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -273,9 +279,10 @@ defmodule Atlas.MCP.ServerTest do
     refute Enum.any?(tools, &(&1["name"] == "check_letter_delivery"))
   end
 
-  test "shows audit tools to executive MCP sessions" do
-    conn = %{assigns: %{current_user: %User{role: :executive}}}
+  test "shows audit tools to MCP sessions with admin scope" do
+    conn = %{assigns: %{current_user: %User{}}}
 
+    stub(Users, :has_scope?, fn %User{}, "admin:read" -> true end)
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -305,7 +312,9 @@ defmodule Atlas.MCP.ServerTest do
     owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Atlas.Repo, shared: false)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
 
-    conn = %{assigns: %{current_user: %User{role: :executive}}}
+    conn = %{assigns: %{current_user: %User{}}}
+
+    stub(Users, :has_scope?, fn %User{}, _scope -> true end)
 
     response =
       Server.handle_message(conn, %{

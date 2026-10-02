@@ -1,0 +1,773 @@
+import Crypto
+import FileSystem
+import Foundation
+import GRPCCore
+import GRPCNIOTransportHTTP2
+import Path
+import Synchronization
+import TuistEnvironment
+
+public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:disable:this type_body_length
+    private let selector: LeastOutstandingSelector<GRPCClient<HTTP2ClientTransport.Posix>>
+    private var clients: [GRPCClient<HTTP2ClientTransport.Posix>] { selector.clients }
+    private let connections: [Task<Void, Error>]
+
+    /// Reserves a client with the lowest in-flight count for the duration of
+    /// `operation`. Replaces the previous round-robin picker so a connection whose
+    /// peer has gone silent stops collecting new RPCs until it drains, and a connection
+    /// that just failed with a transient/connection-shaped error gets a cooldown penalty
+    /// so the next retry lands elsewhere. The lease is released in `defer` so throw and
+    /// cancel paths release it too.
+    private func withClient<T: Sendable>(
+        _ operation: (GRPCClient<HTTP2ClientTransport.Posix>) async throws -> T
+    ) async throws -> T {
+        try await selector.withClient(shouldPenalize: Self.isConnectionFault, operation)
+    }
+
+    private let instanceName: String
+    private let accountHandle: String
+    private static let maximumBatchBytes: Int64 = 2 * 1024 * 1024
+    private let negotiatedBatchBytes = Mutex<Int64>(maximumBatchBytes)
+    private var batchBytes: Int64 { negotiatedBatchBytes.withLock { $0 } }
+    private let compression = Mutex((stream: false, batchUpload: false))
+    private let fileSystem: FileSysteming
+    private let token: @Sendable () async throws -> String
+    private let guards: TransferGuards
+    private let stats: REAPIStats?
+
+    public init(
+        endpoint: GRPCEndpoint,
+        accountHandle: String,
+        instanceName: String,
+        fileSystem: FileSysteming = FileSystem(),
+        guards: TransferGuards = .default,
+        stats: REAPIStats? = nil,
+        token: @escaping @Sendable () async throws -> String
+    ) async throws {
+        if let value = guards.downloadConcurrency, value <= 0 {
+            throw REAPICacheError.invalidTransferGuards(reason: "downloadConcurrency must be positive, got \(value)")
+        }
+        var clients: [GRPCClient<HTTP2ClientTransport.Posix>] = []
+        var connections: [Task<Void, Error>] = []
+        do {
+            for _ in 0 ..< 4 {
+                let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
+                let client = GRPCClient(transport: transport)
+                clients.append(client)
+                connections.append(Task { try await client.runConnections() })
+            }
+        } catch {
+            for client in clients {
+                client.beginGracefulShutdown()
+            }
+            for connection in connections {
+                connection.cancel()
+            }
+            throw error
+        }
+        selector = LeastOutstandingSelector(clients)
+        self.connections = connections
+        self.instanceName = instanceName
+        self.accountHandle = accountHandle
+        self.token = token
+        self.fileSystem = fileSystem
+        self.guards = guards
+        self.stats = stats
+    }
+
+    deinit {
+        for client in clients {
+            client.beginGracefulShutdown()
+        }
+        for connection in connections {
+            connection.cancel()
+        }
+    }
+
+    private func metadata() async throws -> Metadata {
+        var result = Metadata()
+        result.addString("Bearer \(try await token())", forKey: "authorization")
+        result.addString(accountHandle, forKey: "x-tuist-account-handle")
+        result.addString("module", forKey: "x-tuist-artifact-kind")
+        return result
+    }
+
+    private var options: CallOptions {
+        var options = CallOptions.defaults
+        options.timeout = .seconds(120)
+        return options
+    }
+
+    /// What a transfer is held to while it runs.
+    public struct TransferGuards: Sendable {
+        /// How long a transfer may be idle on top of the time its largest message legitimately
+        /// takes. A read then resumes from the byte it reached, so this is the guard a stalled
+        /// transfer hits, not a wall-clock limit on a transfer that keeps receiving data.
+        public var idleTimeout: Duration = .seconds(30)
+
+        /// The slowest link a transfer is sized for, used for both call deadlines and for how
+        /// long a message may legitimately take to arrive.
+        public var slowestBytesPerSecond: Int64 = 4096
+
+        /// The largest message a server is expected to send, which is what the idle guard waits
+        /// for before the first message of a transfer arrives. Kura reads chunk at 512 KiB.
+        public var largestExpectedMessageBytes: Int64 = 512 * 1024
+
+        /// What a transfer is allowed on top of the time its bytes take at `slowestBytesPerSecond`,
+        /// covering the round trip and the server's own work.
+        public var baseAllowance: Duration = .seconds(120)
+
+        /// What a batch call (`BatchReadBlobs`, `BatchUpdateBlobs`) is allowed on top of the time
+        /// its bytes take at `batchSlowestBytesPerSecond`. Separate from `baseAllowance` because
+        /// streaming reads need a much more generous bound to survive partial progress + resume,
+        /// while a batch call either delivers in one shot or is better off failing fast and
+        /// retrying on another connection.
+        public var batchBaseAllowance: Duration = .seconds(30)
+
+        /// The slowest link a batch call is sized for. 64 KiB/s gives a 2 MiB batch ~62 seconds
+        /// before deadline, down from today's ~632 seconds. Tighter than streaming's 4 KiB/s floor
+        /// on purpose: a batch slot wedged on a dead TCP connection ties up one of only 8-32 slots.
+        public var batchSlowestBytesPerSecond: Int64 = 64 * 1024
+
+        /// How many concurrent transfer tasks `downloadAvailableBlobs` runs. `nil` picks the
+        /// built-in default: 8 when any blob is large enough to stream, 32 otherwise. A caller
+        /// setting this must have validated the value is positive; invalid values are rejected at
+        /// the config boundary, not silently clamped.
+        public var downloadConcurrency: Int?
+
+        public init() {}
+
+        public static let `default` = TransferGuards()
+    }
+
+    /// How long `bytes` may take on the slowest link a transfer is sized for. It bounds a single
+    /// call's deadline and, across attempts, how long resuming a blob may go on.
+    private func allowance(forBytes bytes: Int64) -> Duration {
+        guards.baseAllowance + .seconds(max(0, bytes) / guards.slowestBytesPerSecond)
+    }
+
+    /// How long a single batch call (`BatchReadBlobs`, `BatchUpdateBlobs`) may take. Tighter than
+    /// `allowance(forBytes:)` so a stalled batch retries on another connection within ~2 minutes
+    /// rather than ~10, now that `retryingDeadlineExceeded` is on for both batch RPCs.
+    private func batchAllowance(forBytes bytes: Int64) -> Duration {
+        guards.batchBaseAllowance + .seconds(max(0, bytes) / guards.batchSlowestBytesPerSecond)
+    }
+
+    /// Cap on consecutive read attempts that get no further into a blob. An attempt that reaches
+    /// further resets it, so a download that keeps progressing keeps resuming.
+    private static let maximumStalledReadAttempts = 3
+
+    /// How much of a blob one upload message carries.
+    private static let uploadChunkBytes = 1024 * 1024
+
+    /// A deadline for a call carrying `bytes`, which a link at `slowestBytesPerSecond` meets.
+    private func options(forBytes bytes: Int64) -> CallOptions {
+        var options = options
+        options.timeout = allowance(forBytes: bytes)
+        return options
+    }
+
+    /// A tighter deadline for a batch call (`BatchReadBlobs`, `BatchUpdateBlobs`). The call is
+    /// unary and can't resume, so a wedge is worth cutting fast and retrying on another connection.
+    private func batchOptions(forBytes bytes: Int64) -> CallOptions {
+        var options = options
+        options.timeout = batchAllowance(forBytes: bytes)
+        return options
+    }
+
+    /// Runs `operation`, failing it once nothing has been transferred for longer than a message
+    /// may take. `heartbeat` reports the bytes of each message as it is sent or received, because
+    /// a message only counts as activity once it is whole: a link at `slowestBytesPerSecond`
+    /// needs `bytes / slowestBytesPerSecond` for one, and cutting sooner would abandon a transfer
+    /// that is still being delivered.
+    private func withIdleGuard<T: Sendable>(
+        expectedMessageBytes: Int,
+        _ operation: @escaping @Sendable (@escaping @Sendable (Int) -> Void) async throws -> T
+    ) async throws -> T {
+        let state = Mutex(IdleGuardState(largestMessageBytes: Int64(expectedMessageBytes)))
+        let guards = guards
+        return try await withThrowingTaskGroup(of: IdleGuardOutcome<T>.self) { group in
+            group.addTask {
+                .delivered(try await operation { bytes in
+                    state.withLock {
+                        $0.lastActivity = ContinuousClock.now
+                        $0.largestMessageBytes = max($0.largestMessageBytes, Int64(bytes))
+                    }
+                })
+            }
+            group.addTask {
+                while true {
+                    let allowance = state.withLock {
+                        guards.idleTimeout
+                            + .seconds($0.largestMessageBytes / guards.slowestBytesPerSecond)
+                            - (ContinuousClock.now - $0.lastActivity)
+                    }
+                    guard allowance > .zero else { return .idle }
+                    try await Task.sleep(for: allowance)
+                }
+            }
+            defer { group.cancelAll() }
+            switch try await group.next() {
+            case let .delivered(value): return value
+            case .idle, nil: throw REAPICacheError.transferStalled
+            }
+        }
+    }
+
+    private struct IdleGuardState {
+        var lastActivity = ContinuousClock.now
+        var largestMessageBytes: Int64
+    }
+
+    private enum IdleGuardOutcome<T: Sendable>: Sendable {
+        case delivered(T)
+        case idle
+    }
+
+    /// Whether a failed transfer can be tried again. A refusal of the request itself, such as a
+    /// missing blob or rejected credentials, is not retried; a transfer that broke or stalled is.
+    private static func isResumable(_ error: any Error) -> Bool {
+        if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
+        guard let error = error as? RPCError else { return false }
+        return [.unavailable, .deadlineExceeded, .resourceExhausted, .aborted, .internalError, .unknown, .dataLoss]
+            .contains(error.code)
+    }
+
+    /// Whether a failure is specifically about the current connection, as opposed to a request
+    /// problem or server-side backpressure. Narrower than `isResumable`: a server-wide
+    /// `.resourceExhausted` or a bad blob returning `.internalError` would otherwise cool a
+    /// healthy client and attract retries onto the few remaining connections, which is both
+    /// unfair and compounds the server-side pressure that caused the error.
+    private static func isConnectionFault(_ error: any Error) -> Bool {
+        guard let error = error as? RPCError else { return false }
+        return [.unavailable, .deadlineExceeded].contains(error.code)
+    }
+
+    public func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        try REAPI.validate(digest)
+        do {
+            return try await retry {
+                try await withClient { client in
+                    try await Build_Bazel_Remote_Execution_V2_ActionCache.Client(wrapping: client).getActionResult(
+                        .with {
+                            $0.instanceName = instanceName
+                            $0.actionDigest = digest
+                            $0.digestFunction = .sha256
+                        }, metadata: try await metadata(), options: options
+                    )
+                }
+            }
+        } catch let error as RPCError where error.code == .notFound {
+            return nil
+        }
+    }
+
+    public func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
+        try REAPI.validate(digest)
+        _ = try await retry {
+            try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_ActionCache.Client(wrapping: client).updateActionResult(
+                    .with {
+                        $0.instanceName = instanceName
+                        $0.actionDigest = digest
+                        $0.actionResult = result
+                        $0.digestFunction = .sha256
+                    }, metadata: try await metadata(), options: options
+                )
+            }
+        }
+    }
+
+    /// The message a cache node refused the account with for billing reasons, such as an exhausted free tier or
+    /// a failed subscription payment. gRPC has no status for payment required, so the node marks the permission
+    /// denial with a `tuist-refusal-reason` metadata entry. `nil` for every other error.
+    public static func billingRefusalMessage(of error: Error) -> String? {
+        guard let error = error as? RPCError, error.code == .permissionDenied,
+              error.metadata[stringValues: "tuist-refusal-reason"].contains(where: { $0 == "payment_required" }),
+              !error.message.isEmpty
+        else { return nil }
+        return error.message
+    }
+
+    public func validateCapabilities() async throws {
+        var options = options
+        options.timeout = .seconds(10)
+        let response = try await withClient { client in
+            try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
+                .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
+            )
+        }
+        guard response.hasCacheCapabilities, response.cacheCapabilities.digestFunctions.contains(.sha256) else {
+            throw REAPICacheError.unsupportedEndpoint
+        }
+        compression.withLock {
+            $0 = (
+                response.cacheCapabilities.supportedCompressors.contains(.zstd),
+                response.cacheCapabilities.supportedBatchUpdateCompressors.contains(.zstd)
+            )
+        }
+        let advertised = response.cacheCapabilities.maxBatchTotalSizeBytes
+        if advertised > 0 { negotiatedBatchBytes.withLock { $0 = min(advertised, Self.maximumBatchBytes) } }
+    }
+
+    /// Streaming reads resume from the byte they reached, so a deadline-exceeded attempt that
+    /// already covered a slow link's share of the payload is not worth repeating twice more; its
+    /// caller passes `retryingDeadlineExceeded: false`. Batch calls use the shorter `batchAllowance`
+    /// (around 62 seconds for a 2 MiB payload) so retrying on deadline is cheap and lets the next
+    /// attempt land on a different connection via `LeastOutstandingSelector`. Deadline retries are
+    /// bounded to two total attempts so a server that is slow for its own reasons does not get
+    /// three times the load from each client.
+    private func retry<T>(
+        retryingDeadlineExceeded: Bool = true,
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        var attempt = 0
+        var deadlineAttempts = 0
+        while true {
+            do { return try await operation() } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                if (error as? RPCError)?.code == .deadlineExceeded {
+                    if !retryingDeadlineExceeded { throw error }
+                    deadlineAttempts += 1
+                    if deadlineAttempts >= 2 { throw error }
+                }
+                guard attempt < 2, Self.isRetryable(error) else { throw error }
+                try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
+                attempt += 1
+            }
+        }
+    }
+
+    /// A transfer that stalled is tried again like a transient server failure: a write carries the
+    /// blob from its first byte, so the attempt it replaces delivered nothing that can be kept.
+    private static func isRetryable(_ error: any Error) -> Bool {
+        if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
+        guard let error = error as? RPCError else { return false }
+        return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
+    }
+
+    private func batches(_ digests: [REAPI.Digest]) -> [[REAPI.Digest]] {
+        var result: [[REAPI.Digest]] = []
+        var batch: [REAPI.Digest] = []
+        var bytes: Int64 = 0
+        for digest in digests {
+            if !batch.isEmpty, bytes + digest.sizeBytes > batchBytes || batch.count == 128 {
+                result.append(batch); batch = []; bytes = 0
+            }
+            batch.append(digest); bytes += digest.sizeBytes
+        }
+        if !batch.isEmpty { result.append(batch) }
+        return result
+    }
+
+    public func uploadBlobs(_ blobs: [REAPI.Digest: URL]) async throws {
+        let upload = try await uploadAvailableBlobs(blobs)
+        guard upload.available.count == blobs.count else {
+            throw REAPICacheError.uploadFailed(reason: upload.failures.values.sorted().first ?? "no reason was reported")
+        }
+    }
+
+    public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
+        for digest in blobs.keys {
+            try REAPI.validate(digest)
+        }
+        let failures = Mutex<[REAPI.Digest: String]>([:])
+        // Missing-blob requests contain only digests, so batch by metadata count, not file size.
+        let digests = Array(blobs.keys)
+        let queries = stride(from: 0, to: digests.count, by: 1024).map {
+            Array(digests[$0 ..< min($0 + 1024, digests.count)])
+        }
+        let missingBlobs = Mutex<Set<REAPI.Digest>>([])
+        let existing = try await transfer(queries) { batch in
+            do {
+                let response = try await self.retry {
+                    try await self.withClient { client in
+                        try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client)
+                            .findMissingBlobs(.with {
+                                $0.instanceName = self.instanceName; $0.blobDigests = batch; $0.digestFunction = .sha256
+                            }, metadata: try await self.metadata(), options: self.options)
+                    }
+                }
+                let missing = Set(response.missingBlobDigests)
+                guard missing.isSubset(of: Set(batch)) else { throw REAPICacheError.invalidDigest }
+                missingBlobs.withLock { $0.formUnion(missing) }
+                return Set(batch).subtracting(missing)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                let reason = REAPICall.findMissingBlobs.describeFailure(error)
+                failures.withLock { $0.merge(batch.map { ($0, reason) }) { _, reason in reason } }
+                self.stats?.recordFindMissingFailure()
+                return []
+            }
+        }
+        let uploaded = try await transfer(batches(missingBlobs.withLock { Array($0) })) { batch in
+            var successful = Set<REAPI.Digest>()
+            if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
+                do {
+                    try await self.retry { try await self.uploadBlob(digest, from: blobs[digest]!) }
+                    successful.insert(digest)
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    let reason = REAPICall.byteStreamWrite.describeFailure(error)
+                    failures.withLock { $0[digest] = reason }
+                }
+            } else {
+                var rejections: [REAPI.Digest: String] = [:]
+                var batchFailure: String?
+                do {
+                    try await self.retry {
+                        rejections = [:]
+                        let pending = Set(batch).subtracting(successful)
+                        var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
+                        for digest in pending {
+                            let data = try await self.fileSystem.readFile(at: AbsolutePath(validating: blobs[digest]!.path))
+                            let compressed = self.compression.withLock { $0.batchUpload } && data.count >= REAPICompression
+                                .threshold
+                                ? try REAPICompression.compress(data) : data
+                            requests.append(.with {
+                                $0.digest = digest
+                                $0.data = compressed.count < data.count ? compressed : data
+                                $0.compressor = compressed.count < data.count ? .zstd : .identity
+                            })
+                        }
+                        let result = try await self.withClient { client in
+                            try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
+                                .Client(wrapping: client)
+                                .batchUpdateBlobs(
+                                    .with {
+                                        $0.instanceName = self.instanceName; $0.digestFunction = .sha256
+                                        $0.requests = requests
+                                    },
+                                    metadata: try await self.metadata(),
+                                    options: self.batchOptions(forBytes: requests.reduce(0) { $0 + Int64($1.data.count) })
+                                )
+                        }
+                        successful
+                            .formUnion(result.responses.filter { $0.status.code == 0 && pending.contains($0.digest) }
+                                .map(\.digest))
+                        for response in result.responses where response.status.code != 0 && pending.contains(response.digest) {
+                            rejections[response.digest] = "\(REAPICall.batchUpdateBlobs.rawValue) rejected the blob "
+                                + "with status \(response.status.code): \(response.status.message)"
+                        }
+                        if result.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
+                            throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
+                        }
+                    }
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    batchFailure = REAPICall.batchUpdateBlobs.describeFailure(error)
+                }
+                let rejected = Set(batch).subtracting(successful)
+                if batchFailure != nil, !rejected.isEmpty {
+                    self.stats?.recordBatchUploadFailure(digestsLost: rejected.count)
+                }
+                failures.withLock {
+                    for digest in rejected {
+                        $0[digest] = rejections[digest] ?? batchFailure
+                            ?? "\(REAPICall.batchUpdateBlobs.rawValue) returned no status for the blob"
+                    }
+                }
+            }
+            return successful
+        }
+        let available = existing.union(uploaded)
+        return REAPIBlobUpload(
+            available: available,
+            failures: failures.withLock { $0 }.filter { !available.contains($0.key) }
+        )
+    }
+
+    public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+        try await downloadAvailableBlobs(blobs, onDownloaded: { _ in })
+    }
+
+    public func downloadAvailableBlobs(
+        _ blobs: [REAPI.Digest: URL],
+        orderedDigests: [REAPI.Digest] = [],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> Set<REAPI.Digest> {
+        for digest in blobs.keys {
+            try REAPI.validate(digest)
+        }
+        var seen = Set<REAPI.Digest>()
+        var ordered = orderedDigests.filter { blobs[$0] != nil && seen.insert($0).inserted }
+        ordered.append(contentsOf: blobs.keys.filter { !seen.contains($0) })
+        let usesStreams = blobs.keys.contains { $0.sizeBytes > batchBytes }
+        let maxConcurrentTasks = guards.downloadConcurrency ?? (usesStreams ? 8 : 32)
+        return try await transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
+            if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
+                // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
+                do {
+                    try await self.downloadBlob(digest, to: blobs[digest]!)
+                } catch let error as RPCError where error.code == .notFound {
+                    // A legitimate server-reported miss, equivalent to a `NOT_FOUND` status in
+                    // the batch response. Not a network loss; do not count it in stats so the
+                    // conservation across paths holds.
+                    return []
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    self.stats?.recordStreamDownloadFailure(digestsLost: 1)
+                    return []
+                }
+                // `onDownloaded` lives outside the counted block: a local-admission failure here
+                // is a caller-side problem, matching the batch path, which silently drops the
+                // digest without recording it as a network loss either.
+                do {
+                    try await onDownloaded(digest)
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    return []
+                }
+                return [digest]
+            }
+            var successful = Set<REAPI.Digest>()
+            do {
+                try await self.retry {
+                    let pending = batch.filter { !successful.contains($0) }
+                    let response = try await self.withClient { client in
+                        try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
+                            .Client(wrapping: client)
+                            .batchReadBlobs(
+                                .with {
+                                    $0.instanceName = self.instanceName
+                                    $0.digests = pending
+                                    $0.acceptableCompressors = [.zstd]
+                                    $0.digestFunction = .sha256
+                                },
+                                metadata: try await self.metadata(),
+                                options: self.batchOptions(forBytes: pending.reduce(0) { $0 + $1.sizeBytes })
+                            )
+                    }
+                    for output in response.responses where output.status.code == 0 {
+                        guard batch.contains(output.digest), !successful.contains(output.digest),
+                              let path = blobs[output.digest] else { continue }
+                        do {
+                            let data: Data
+                            switch output.compressor {
+                            case .identity: data = output.data
+                            case .zstd: data = try REAPICompression.decompress(output.data, size: output.digest.sizeBytes)
+                            default: continue
+                            }
+                            guard REAPI.digest(data) == output.digest else { continue }
+                            // These are private download files; the caller publishes verified content atomically.
+                            try Data().write(to: path)
+                            let handle = try FileHandle(forWritingTo: path)
+                            do {
+                                try handle.write(contentsOf: data)
+                                try handle.close()
+                            } catch {
+                                try? handle.close()
+                                throw error
+                            }
+                            try await onDownloaded(output.digest)
+                            successful.insert(output.digest)
+                        } catch {
+                            if error is CancellationError || Task.isCancelled { throw error }
+                        }
+                    }
+                    if response.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
+                        throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
+                    }
+                }
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                let lost = Set(batch).subtracting(successful).count
+                if lost > 0 { self.stats?.recordBatchDownloadFailure(digestsLost: lost) }
+            }
+            return successful
+        }
+    }
+
+    private func transfer(
+        _ batches: [[REAPI.Digest]],
+        maxConcurrentTasks: Int = 8,
+        operation: @escaping @Sendable ([REAPI.Digest]) async throws -> Set<REAPI.Digest>
+    ) async throws -> Set<REAPI.Digest> {
+        var successful = Set<REAPI.Digest>()
+        try await withThrowingTaskGroup(of: Set<REAPI.Digest>.self) { group in
+            var pending = batches.makeIterator()
+            func enqueue(_ batch: [REAPI.Digest]) {
+                group.addTask {
+                    do { return try await operation(batch) } catch {
+                        if error is CancellationError || Task.isCancelled { throw error }
+                        return []
+                    }
+                }
+            }
+            for _ in 0 ..< maxConcurrentTasks {
+                if let batch = pending.next() { enqueue(batch) }
+            }
+            while let completed = try await group.next() {
+                successful.formUnion(completed)
+                if let batch = pending.next() { enqueue(batch) }
+            }
+        }
+        return successful
+    }
+
+    private func streamOptions(_ digest: REAPI.Digest, from offset: Int64 = 0) -> CallOptions {
+        options(forBytes: digest.sizeBytes - offset)
+    }
+
+    private func uploadBlob(_ digest: REAPI.Digest, from path: URL) async throws {
+        let compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
+        let encoding = compressed ? "compressed-blobs/zstd" : "blobs"
+        let resource = "\(instanceName)/uploads/\(UUID().uuidString)/\(encoding)/\(digest.hash)/\(digest.sizeBytes)"
+        let sentBytes = Mutex<Int64>(0)
+        // A write cannot resume: a stream carries the blob from its first byte, and the committed
+        // size of an unfinished upload is not reported, so a broken attempt starts over.
+        let committedSize = try await withIdleGuard(expectedMessageBytes: Self.uploadChunkBytes) { heartbeat in
+            let request = StreamingClientRequest<Google_Bytestream_WriteRequest>(
+                metadata: try await self.metadata()
+            ) { writer in
+                let handle = try FileHandle(forReadingFrom: path)
+                defer { try? handle.close() }
+                let encoder = compressed ? try REAPICompression.Encoder() : nil
+                var offset: Int64 = 0
+                var consumed: Int64 = 0
+                repeat {
+                    let input = try handle.read(upToCount: Self.uploadChunkBytes) ?? Data()
+                    consumed += Int64(input.count)
+                    guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
+                        throw REAPICacheError.corruptBlob
+                    }
+                    let finished = consumed == digest.sizeBytes
+                    let data = try encoder?.encode(input, finish: finished) ?? input
+                    // A zstd frame can buffer an input chunk without emitting any bytes yet.
+                    if !data.isEmpty || finished {
+                        try await writer.write(.with {
+                            $0.resourceName = resource
+                            $0.writeOffset = offset
+                            $0.data = data
+                            $0.finishWrite = finished
+                        })
+                        offset += Int64(data.count)
+                        sentBytes.withLock { $0 = offset }
+                        heartbeat(data.count)
+                    }
+                } while consumed < digest.sizeBytes
+            }
+            return try await self.withClient { client in
+                try await Google_Bytestream_ByteStream.Client(wrapping: client)
+                    .write(request: request, options: self.streamOptions(digest)).committedSize
+            }
+        }
+        // REAPI permits -1 when a concurrent compressed upload has already completed.
+        guard committedSize == (compressed ? sentBytes.withLock { $0 } : digest.sizeBytes)
+            || (compressed && committedSize == -1) else { throw REAPICacheError.corruptBlob }
+    }
+
+    /// Reads a blob, resuming from the byte it reached when a read breaks partway. The bytes and the
+    /// hash of everything received so far carry across attempts, so a broken transfer costs the rest
+    /// of the blob rather than all of it.
+    public func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws {
+        try REAPI.validate(digest)
+        // Streaming owns this temporary file; syncing an empty file before filling it adds no durability.
+        try Data().write(to: path)
+        do {
+            let handle = try FileHandle(forWritingTo: path)
+            defer { try? handle.close() }
+            let progress = ReadProgress()
+            let startedReading = ContinuousClock.now
+            var stalledAttempts = 0
+            var failure: (any Error)?
+            while true {
+                let before = progress.received
+                do {
+                    try await readAttempt(digest, from: before, into: handle, progress: progress)
+                    failure = nil
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw error }
+                    guard Self.isResumable(error) else { throw error }
+                    failure = error
+                }
+                let received = progress.received
+                if received == digest.sizeBytes { break }
+                // Resuming is bounded by the bytes it has to show for itself: a download may take as
+                // long as a link at `slowestBytesPerSecond` needs for what it has received. A server
+                // that hands over a chunk and stalls falls behind that and is given up on, instead of
+                // resuming until the build around it has run out of time.
+                if received > 0, ContinuousClock.now - startedReading > allowance(forBytes: received) {
+                    throw failure ?? REAPICacheError.transferStalled
+                }
+                if received > before {
+                    stalledAttempts = 0
+                } else {
+                    stalledAttempts += 1
+                    guard stalledAttempts <= Self.maximumStalledReadAttempts else {
+                        throw failure ?? REAPICacheError.corruptBlob
+                    }
+                }
+                try await Task.sleep(for: .milliseconds(200 + Int.random(in: 0 ... 100)))
+            }
+            let hash = progress.hash
+            guard hash == digest.hash else { throw REAPICacheError.corruptBlob }
+        } catch {
+            try? await fileSystem.remove(AbsolutePath(validating: path.path))
+            throw error
+        }
+    }
+
+    /// How much of a blob has been written to its file, and the hash over exactly those bytes, so
+    /// that a read resumed after a break continues both.
+    private final class ReadProgress: Sendable {
+        private struct State {
+            var received: Int64 = 0
+            var hasher = SHA256()
+        }
+
+        private let state = Mutex(State())
+
+        var received: Int64 { state.withLock { $0.received } }
+        var hash: String { state.withLock { REAPI.hashString($0.hasher.finalize()) } }
+
+        func consumed(_ data: Data) {
+            state.withLock {
+                $0.hasher.update(data: data)
+                $0.received += Int64(data.count)
+            }
+        }
+    }
+
+    private func readAttempt(
+        _ digest: REAPI.Digest,
+        from offset: Int64,
+        into handle: FileHandle,
+        progress: ReadProgress
+    ) async throws {
+        let compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
+        let encoding = compressed ? "compressed-blobs/zstd" : "blobs"
+        // Bytes a broken attempt wrote but did not count are dropped, so the file, the counter and
+        // the hash describe the same prefix of the blob.
+        try handle.truncate(atOffset: UInt64(offset))
+        try handle.seek(toOffset: UInt64(offset))
+        try await withIdleGuard(expectedMessageBytes: Int(guards.largestExpectedMessageBytes)) { heartbeat in
+            try await self.withClient { client in
+                try await Google_Bytestream_ByteStream.Client(wrapping: client).read(
+                    .with {
+                        $0.resourceName = "\(self.instanceName)/\(encoding)/\(digest.hash)/\(digest.sizeBytes)"
+                        $0.readOffset = offset
+                    },
+                    metadata: try await self.metadata(), options: self.streamOptions(digest, from: offset)
+                ) { response in
+                    // `read_offset` names an offset into the uncompressed blob, so a resumed compressed
+                    // read arrives as a new zstd stream that its own decoder starts on.
+                    let decoder = compressed ? try REAPICompression.Decoder(size: digest.sizeBytes - offset) : nil
+                    func consume(_ data: Data) throws {
+                        let remaining = digest.sizeBytes - progress.received
+                        guard Int64(data.count) <= remaining else { throw REAPICacheError.corruptBlob }
+                        try handle.write(contentsOf: data)
+                        progress.consumed(data)
+                    }
+                    for try await message in response.messages {
+                        heartbeat(message.data.count)
+                        if let decoder { try decoder.decode(message.data, consume: consume) } else { try consume(message.data) }
+                    }
+                    // A stream that ends early is resumed instead of being called corrupt, so the
+                    // decoder is only held to the whole blob once the blob is whole.
+                    if progress.received == digest.sizeBytes { try decoder?.finish() }
+                }
+            }
+        }
+    }
+}

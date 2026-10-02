@@ -7,6 +7,7 @@ defmodule Tuist.ReapiCache do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseTimeSeries
+  alias Tuist.Ingestion.DedupToken
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache.CacheEvent
 
@@ -23,7 +24,10 @@ defmodule Tuist.ReapiCache do
     entries =
       Enum.map(events, fn event ->
         %{
-          id: UUIDv7.generate(),
+          # A producer-supplied event_id becomes the row's identity so a
+          # retried Kura batch dedupes via the INSERT block token below.
+          # Falls back to a server-minted UUIDv7 for an older Kura node.
+          id: Map.get(event, :event_id) || UUIDv7.generate(),
           client_kind: event.client_kind,
           operation: event.operation,
           outcome: event.outcome,
@@ -47,7 +51,11 @@ defmodule Tuist.ReapiCache do
         }
       end)
 
-    IngestRepo.insert_all(CacheEvent, entries)
+    IngestRepo.insert_all(
+      CacheEvent,
+      entries,
+      DedupToken.insert_all_opts(events, "reapi-cache-events")
+    )
   end
 
   defp duration_us(event) do

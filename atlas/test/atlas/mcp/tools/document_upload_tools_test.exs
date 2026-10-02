@@ -38,7 +38,7 @@ defmodule Atlas.MCP.Tools.DocumentUploadToolsTest do
                  "content_type" => "application/pdf"
                })
 
-      assert message =~ "executives"
+      assert message =~ "documents:write"
     end
 
     test "surfaces missing arguments explicitly" do

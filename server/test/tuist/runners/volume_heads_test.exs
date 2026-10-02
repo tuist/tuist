@@ -7,6 +7,19 @@ defmodule Tuist.Runners.VolumeHeadsTest do
   alias Tuist.Runners.VolumeHead
   alias Tuist.Runners.VolumeHeads
 
+  describe "volume_name_for_repository/1" do
+    test "names a repository's volume by a hash of its lowercased name" do
+      assert VolumeHeads.volume_name_for_repository("acme/cli") == "repo-eae044a4c27633ea"
+      assert VolumeHeads.volume_name_for_repository("Acme/CLI") == "repo-eae044a4c27633ea"
+      assert VolumeHeads.volume_name_for_repository("acme/app") == "repo-5f89da0438fa1b17"
+    end
+
+    test "uses the account volume for a job with no repository" do
+      assert VolumeHeads.volume_name_for_repository("") == "tuist-cache"
+      assert VolumeHeads.volume_name_for_repository(nil) == "tuist-cache"
+    end
+  end
+
   describe "get_head/2" do
     test "returns nil for an account that has never promoted a volume" do
       account = account_fixture()

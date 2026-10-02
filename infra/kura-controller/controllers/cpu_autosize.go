@@ -7,14 +7,17 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
 
 const (
-	cpuBucketDuration = 6 * time.Hour
-	cpuBucketCount    = 28
+	cpuBucketDuration   = 6 * time.Hour
+	cpuBucketCount      = 28
+	cpuSampleInterval   = time.Minute
+	cpuSustainedSamples = 10
 
 	cpuHeadroomNumerator   = 5
 	cpuHeadroomDenominator = 4
@@ -25,10 +28,11 @@ const (
 
 	cpuScheduleCapTTL = 24 * time.Hour
 
-	// This read is optional and runs before primary selection on the single
-	// reconcile worker, so it may not outlast a metrics-server that accepts the
-	// connection and never answers. Losing a sample costs nothing: the ring
-	// holds six-hour windows and the next pass is 30 seconds away.
+	// This read is optional and runs before primary selection, holding a
+	// reconcile worker for its duration, so it may not outlast a
+	// metrics-server that accepts the connection and never answers. Losing a
+	// sample costs nothing: the ring holds six-hour windows and the next pass
+	// is 30 seconds away.
 	cpuMetricsTimeout = 2 * time.Second
 )
 
@@ -53,6 +57,48 @@ var cpuRequestBands = []int32{50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2000,
 // aggregated API.
 type PodMetricsClient interface {
 	PodCPUMilli(ctx context.Context, namespace string, selector map[string]string) (map[string]int64, error)
+}
+
+// A rebuild consumes CPU on both the joining replica and its serving donor.
+// Keep the existing reservation for the whole instance until every replica is
+// caught up. Ordinary replication after the initial cycle still counts.
+func (r *KuraInstanceReconciler) observeSteadyCPUUsage(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus) {
+	if r.MetricsClient == nil {
+		return
+	}
+	if !r.cpuObservationEligible(ctx, instance, pods, samples) {
+		if state := instance.Status.CPUAutosize; state != nil {
+			// Do not splice observations across a maintenance window, even when
+			// it starts and ends within one metrics-server sampling minute.
+			state.SamplesMilli = nil
+		}
+		return
+	}
+	r.observeCPUUsage(ctx, instance, pods)
+}
+
+func (r *KuraInstanceReconciler) cpuObservationEligible(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus) bool {
+	if len(pods) != int(replicas(instance)) {
+		return false
+	}
+	for i := range pods {
+		pod := &pods[i]
+		status, observed := samples[pod.Name]
+		if pod.DeletionTimestamp != nil || !podReady(pod) || !observed || !status.Ready || status.BackfillInitialCycle != backfillCycleComplete {
+			return false
+		}
+		// The marker precedes pod deletion. Exclude the source's CPU before
+		// the first replacement becomes visible, too. A failed lookup is
+		// missing evidence, never evidence of an idle or settled instance.
+		node := &corev1.Node{}
+		if pod.Spec.NodeName == "" || r.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node) != nil {
+			return false
+		}
+		if _, evacuating := node.Annotations[EvacuateNodeAnnotation]; evacuating {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *KuraInstanceReconciler) observeCPUUsage(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {
@@ -85,9 +131,51 @@ func (r *KuraInstanceReconciler) observeCPUUsage(ctx context.Context, instance *
 		return
 	}
 
-	instance.Status.CPUAutosize = observeCPUPeak(instance.Status.CPUAutosize, peak, time.Now())
+	instance.Status.CPUAutosize = observeCPUSample(instance.Status.CPUAutosize, peak, time.Now())
 }
 
+// A reconcile can run repeatedly on the same metrics-server reading. Count
+// at most one observation per minute, and require ten consecutive observed
+// minutes before feeding their mean to the long-lived sizing history.
+func observeCPUSample(state *kurav1alpha1.KuraInstanceCPUAutosize, milli int64, now time.Time) *kurav1alpha1.KuraInstanceCPUAutosize {
+	next := state.DeepCopy()
+	if next == nil {
+		next = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: cpuColdStartMilli}
+	}
+	minute := now.UTC().Truncate(cpuSampleInterval)
+	if next.SampledAt == nil {
+		// Legacy buckets contain instantaneous peaks, not sustained demand.
+		// Preserve the reservation and scheduling cap while rebuilding evidence.
+		next.PeakMilli = 0
+		next.BucketStartedAt = nil
+		next.BucketPeaksMilli = nil
+		next.SamplesMilli = nil
+	} else {
+		gap := minute.Sub(next.SampledAt.Time)
+		if gap <= 0 {
+			return next
+		}
+		if gap > cpuSampleInterval {
+			next.SamplesMilli = nil
+		}
+	}
+	next.SampledAt = &metav1.Time{Time: minute}
+	next.SamplesMilli = append(next.SamplesMilli, clampMilli(milli))
+	if len(next.SamplesMilli) > cpuSustainedSamples {
+		next.SamplesMilli = next.SamplesMilli[len(next.SamplesMilli)-cpuSustainedSamples:]
+	}
+	if len(next.SamplesMilli) < cpuSustainedSamples {
+		return next
+	}
+	var total int64
+	for _, sample := range next.SamplesMilli {
+		total += int64(sample)
+	}
+	return observeCPUPeak(next, (total+cpuSustainedSamples-1)/cpuSustainedSamples, now)
+}
+
+// Retain peaks of sustained demand so quiet weekends do not erase weekday
+// requirements. Raw metrics must pass through observeCPUSample first.
 func observeCPUPeak(state *kurav1alpha1.KuraInstanceCPUAutosize, peakMilli int64, now time.Time) *kurav1alpha1.KuraInstanceCPUAutosize {
 	next := state.DeepCopy()
 	if next == nil {

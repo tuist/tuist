@@ -30,7 +30,7 @@ defmodule AtlasWeb.SlackInstallController do
   end
 
   defp require_executive(%{assigns: %{current_user: %User{} = user}} = conn) do
-    if Users.executive?(user) do
+    if Users.has_scope?(user, "admin:write") do
       {:ok, user}
     else
       {:halt,

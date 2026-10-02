@@ -49,11 +49,11 @@ defmodule Atlas.MCP.Tools.GenerateEnterpriseContract do
 
   @impl EMCP.Tool
   def description do
-    "Use this whenever the user asks to generate or prepare an enterprise contract, contract package, Master Services Agreement, or order form. Returns the official Atlas workflow that retrieves customer data and attaches the correct Word templates."
+    "Use this whenever the user asks to generate or prepare an enterprise contract, contract package, Master Services Agreement, or order form. Returns the official Atlas workflow that retrieves customer data and fetches the correct Word templates."
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Enterprise contracts"),
+    with :ok <- Tool.authorize_scope(conn, "contracts:write", "Enterprise contracts"),
          {:ok, account} <- fetch_account(args) do
       args = Map.put(args, "account", account)
       result = ContractPrompt.template(conn, args)

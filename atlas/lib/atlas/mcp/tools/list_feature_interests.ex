@@ -25,7 +25,7 @@ defmodule Atlas.MCP.Tools.ListFeatureInterests do
   def description, do: "List requested product capabilities, ranked by the number of interested accounts."
 
   def execute(conn, _args) do
-    with :ok <- Tool.authorize_executive(conn, "Feature interest tools") do
+    with :ok <- Tool.authorize_scope(conn, "accounts:read", "Feature interest tools") do
       interests = Accounts.list_feature_interests() |> Enum.map(&FeatureInterests.feature_interest/1)
       {:ok, %{feature_interests: interests, count: length(interests)}}
     end

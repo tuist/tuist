@@ -59,7 +59,7 @@ plans = [
   }
 ]
 
-features = [
+base_price = [
   %{
     name: dgettext("marketing", "Base price"),
     description: nil,
@@ -75,45 +75,133 @@ features = [
         description: dgettext("marketing", "Usage/seat based pricing")
       }
     ]
-  },
-  %{
-    name: dgettext("marketing", "Cache"),
-    description:
-      dgettext(
-        "marketing",
-        "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
-      ),
-    hint: dgettext("marketing", "How do we calculate units?"),
-    hint_text:
-      dgettext(
-        "marketing",
-        "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
-      ),
-    values: [
-      "200",
-      %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
-      dgettext("marketing", "Custom")
+  }
+]
+
+metered =
+  if @usage_based_pricing do
+    [
+      %{
+        name: dgettext("marketing", "Cache egress"),
+        description:
+          dgettext(
+            "marketing",
+            "Data downloaded from the Module, Xcode, Gradle, and Bazel caches. Uploads and storage are free."
+          ),
+        hint: dgettext("marketing", "How is egress measured?"),
+        hint_text:
+          dgettext(
+            "marketing",
+            "Every cache shares one allowance each billing period, and traffic from Tuist Runners counts at half."
+          ),
+        values: [
+          "100 GB",
+          %{
+            value: "100 GB",
+            description: "+ $0.35 " <> dgettext("marketing", "per additional GB")
+          },
+          dgettext("marketing", "Custom")
+        ]
+      },
+      %{
+        name: dgettext("marketing", "Cache requests"),
+        description: dgettext("marketing", "Downloads served from any of your caches."),
+        hint: dgettext("marketing", "How are requests counted?"),
+        hint_text:
+          dgettext(
+            "marketing",
+            "Each download from a cache is one request. Every cache shares one allowance each billing period, and requests from Tuist Runners count at half."
+          ),
+        values: [
+          "1M",
+          %{
+            value: "1M",
+            description: "+ $0.01 " <> dgettext("marketing", "per additional 1,000")
+          },
+          dgettext("marketing", "Custom")
+        ]
+      },
+      %{
+        name: dgettext("marketing", "Test Insights"),
+        description:
+          dgettext(
+            "marketing",
+            "Track test results over time and catch flaky tests before they slow your team down."
+          ),
+        hint: dgettext("marketing", "Which test cases are billed?"),
+        hint_text:
+          dgettext(
+            "marketing",
+            "Only passing test cases are billed. Failed and skipped test cases, and tests run on Tuist Runners, are free."
+          ),
+        values: [
+          dgettext("marketing", "5M passing test cases"),
+          %{
+            value: dgettext("marketing", "5M passing test cases"),
+            description: "+ $2 " <> dgettext("marketing", "per additional million")
+          },
+          dgettext("marketing", "Custom")
+        ]
+      },
+      %{
+        name: dgettext("marketing", "Selective Testing"),
+        description:
+          dgettext(
+            "marketing",
+            "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
+          ),
+        hint: nil,
+        values: [
+          dgettext("marketing", "Unlimited"),
+          dgettext("marketing", "Unlimited"),
+          dgettext("marketing", "Unlimited")
+        ]
+      }
     ]
-  },
-  %{
-    name: dgettext("marketing", "Tests"),
-    description:
-      dgettext(
-        "marketing",
-        "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
-      ),
-    hint: dgettext("marketing", "How do we calculate units?"),
-    hint_text:
-      dgettext(
-        "marketing",
-        "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
-      ),
-    values: [
-      "200",
-      %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
-      dgettext("marketing", "Custom")
+  else
+    [
+      %{
+        name: dgettext("marketing", "Cache"),
+        description:
+          dgettext(
+            "marketing",
+            "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
+          ),
+        hint: dgettext("marketing", "How do we calculate units?"),
+        hint_text:
+          dgettext(
+            "marketing",
+            "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+          ),
+        values: [
+          "200",
+          %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
+          dgettext("marketing", "Custom")
+        ]
+      },
+      %{
+        name: dgettext("marketing", "Tests"),
+        description:
+          dgettext(
+            "marketing",
+            "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
+          ),
+        hint: dgettext("marketing", "How do we calculate units?"),
+        hint_text:
+          dgettext(
+            "marketing",
+            "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+          ),
+        values: [
+          "200",
+          %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
+          dgettext("marketing", "Custom")
+        ]
+      }
     ]
-  },
+  end
+
+included = [
   %{
     name: dgettext("marketing", "Generated Projects"),
     description:
@@ -224,7 +312,9 @@ features = [
       }
     ]
   }
-] %>
+]
+
+features = base_price ++ metered ++ included %>
 <%!-- Redesigned pricing page (styles in css/routes/pricing.css). --%>
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-pricing">
@@ -373,7 +463,7 @@ features = [
                       id={"#{feature.name}-hint"}
                       size="large"
                       description={feature.hint_text}
-                      title={dgettext("marketing", "Hint")}
+                      title={feature.name}
                     >
                       <:trigger :let={attrs}>
                         <span {attrs}>

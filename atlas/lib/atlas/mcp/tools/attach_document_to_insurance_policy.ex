@@ -36,7 +36,7 @@ defmodule Atlas.MCP.Tools.AttachDocumentToInsurancePolicy do
   end
 
   def execute(conn, %{"policy_id" => policy_id, "document_id" => document_id, "kind" => kind} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = policy <- Policies.get(policy_id) do
       opts =
         case Map.get(args, "notes") do

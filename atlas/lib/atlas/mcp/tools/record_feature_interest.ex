@@ -27,7 +27,7 @@ defmodule Atlas.MCP.Tools.RecordFeatureInterest do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Feature interest tools"),
+    with :ok <- Tool.authorize_scope(conn, "accounts:write", "Feature interest tools"),
          {:ok, account} <- AccountLookup.resolve(args),
          {:ok, event} <- Accounts.get_account_event(account, args["account_event_id"]) do
       case Accounts.record_feature_interest_from_event(event, interest_attrs(args), Tool.current_user(conn)) do

@@ -35,10 +35,10 @@ defmodule Atlas.MCP.Tools.CheckOutAirGappedLicenseTest do
              })
   end
 
-  test "preserves the executive-only authorization error" do
+  test "preserves the scope authorization error" do
     conn = insert_user!(%{role: :employee}) |> mcp_conn()
 
-    assert {:error, "License tools are only available to executives."} =
+    assert {:error, "License tools require the licenses:write scope."} =
              CheckOutAirGappedLicense.execute(conn, %{"license_id" => Ecto.UUID.generate()})
   end
 

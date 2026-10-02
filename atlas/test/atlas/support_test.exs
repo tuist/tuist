@@ -13,6 +13,7 @@ defmodule Atlas.SupportTest do
   alias Atlas.Support.Workers.DeliverChatEmailVerification
   alias Atlas.Support.Workers.DeliverReply
   alias Atlas.Support.Workers.PostNotification
+  alias Atlas.SupportInbox.Workers.ClassifyInbound
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -32,9 +33,11 @@ defmodule Atlas.SupportTest do
       assert message.inbox_email_id == inbox_email.id
       assert message.message_id == "account-#{suffix}@customer-#{suffix}.example"
 
+      # Ingest now enqueues the classifier first; PostNotification is
+      # chained by ClassifyInbound after the decision is persisted.
       assert_enqueued(
-        worker: PostNotification,
-        args: %{"event" => "inbound_received", "thread_id" => thread.id, "message_id" => message.id}
+        worker: ClassifyInbound,
+        args: %{"thread_id" => thread.id, "message_id" => message.id}
       )
 
       {[listed_thread], _meta} = Support.list_threads(status: "open")
@@ -74,6 +77,7 @@ defmodule Atlas.SupportTest do
       assert is_nil(reply_thread.resolved_at)
       assert reply_message.in_reply_to == "root-#{suffix}@customer-#{suffix}.example"
       assert reply_message.references == ["root-#{suffix}@customer-#{suffix}.example"]
+      assert reply_message.metadata["subject"] == "Re: Build cache question"
       assert length(Support.get_thread(reply_thread.id).messages) == 2
     end
 

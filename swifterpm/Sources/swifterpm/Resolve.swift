@@ -97,14 +97,18 @@ enum PackageResolver {
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
         // `swift package resolve` also reads pins from
         // `<scratch>/workspace-state.json` when Package.resolved is missing,
         // so a stale workspace state silently pins the resolve at whatever
         // the previous install had checked out — the exact scenario `update`
         // exists to escape. Clear both together and let SwiftPM rewrite each
         // from the fresh solver output.
-        let workspaceStatePath = (scratchDir ?? packageDir.appendingPathComponent(".build"))
-            .appendingPathComponent("workspace-state.json")
+        let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
+        // Native SwiftPM updates an existing git checkout in place, which would rewrite a
+        // cached source through its `checkouts/<identity>` symlink.
+        try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
+        try await copyBinaryArtifactSymlinks(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
@@ -152,6 +156,40 @@ enum PackageResolver {
                 try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
+        }
+    }
+
+    /// Only links whose target still has a `.git` can be checked out in place.
+    private static func detachNativeCheckoutSymlinks(scratchDir: URL) async throws {
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        guard try await fileSystem.exists(checkouts.absolutePath) else { return }
+        for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
+            where fileSystem.isSymlink(entry)
+        {
+            guard try await fileSystem.exists(entry.appendingPathComponent(".git").absolutePath) else {
+                continue
+            }
+            try await fileSystem.removePath(entry)
+        }
+    }
+
+    /// SwiftPM extracts a changed binary target over `artifacts/<identity>/<target>` but expects an
+    /// unchanged one to still be there, so each link becomes a copy SwiftPM can overwrite.
+    private static func copyBinaryArtifactSymlinks(scratchDir: URL) async throws {
+        let artifacts = scratchDir.appendingPathComponent("artifacts")
+        guard try await fileSystem.exists(artifacts.absolutePath) else { return }
+        for package in try await fileSystem.contentsOfDirectory(at: artifacts)
+            where fileSystem.isDirectoryAndNotSymlink(package)
+        {
+            for entry in try await fileSystem.contentsOfDirectory(at: package)
+                where fileSystem.isSymlink(entry)
+            {
+                let cached = entry.resolvingSymlinksInPath()
+                try await fileSystem.removePath(entry)
+                if try await fileSystem.exists(cached.absolutePath) {
+                    try await fileSystem.copy(cached.absolutePath, to: entry.absolutePath)
+                }
+            }
         }
     }
 
@@ -453,7 +491,10 @@ enum PackageResolver {
             return try await ResolvedFile.read(packageDir: packageDir)
         }
         if preferResolvedFile,
-           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir)
+           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
+           try await localPackageDependenciesArePinned(
+               by: existing, packageDir: packageDir, disableSandbox: disableSandbox
+           )
         {
             return try await normalizeLoadedResolvedFile(
                 existing, packageDir: packageDir, writeResolvedFile: writeResolvedFile
@@ -485,6 +526,64 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             progress: progress
         )
+    }
+
+    /// The `originHash` only covers the root `Package.swift`, so it stays the same
+    /// when a local package declares different dependencies, whether its manifest
+    /// was edited or branches on `Context.environment`. Every remote dependency a
+    /// local package's products require must have a pin that satisfies its
+    /// requirement for the resolved file to be current. SwiftPM does not pin a local
+    /// package's test-only or unused dependencies.
+    private static func localPackageDependenciesArePinned(
+        by resolved: ResolvedPins,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            for dependency in try ManifestParser.requiredDependencies(localPackage.manifest) {
+                guard resolved.pins.contains(where: { pin($0, satisfies: dependency) }) else {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private static func pin(_ pin: ResolvedPin, satisfies dependency: ManifestDependency) -> Bool {
+        let identity = dependency.identity.lowercased()
+        var pinIdentities: Set<String> = [pin.identity.lowercased()]
+        if let originalLocation = pin.originalLocation {
+            pinIdentities.insert(ResolvedPin.identity(package: nil, location: originalLocation))
+        }
+        // A registry pin that replaced a source-control dependency is identified as
+        // `scope.name`, and SwiftPM does not always record its `originalLocation`.
+        if PinKind.isRegistry(pin.kind),
+           let name = pin.identity.split(separator: ".", maxSplits: 1).last
+        {
+            pinIdentities.insert(name.lowercased())
+        }
+        guard pinIdentities.contains(identity) else {
+            return false
+        }
+        switch dependency.requirement {
+        case let .branch(branch):
+            return pin.state.branch == branch
+        case let .revision(revision):
+            return pin.state.revision == revision
+        case .exact, .range:
+            guard let range = ManifestParser.versionRange(for: dependency.requirement),
+                  let version = pin.state.version.flatMap({ try? SemVer($0) })
+            else { return false }
+            return range.contains(version)
+        }
     }
 
     /// Reject an out-of-date `Package.resolved` under `--force-resolved-versions`

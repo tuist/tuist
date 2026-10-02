@@ -59,7 +59,7 @@
     }
   }
 
-  & [data-part="runner-usage-card-detail-section"] {
+  & [data-part="usage-detail-section"] {
     display: grid;
     /* Chart takes the room it needs to be readable; the receipts sit
        beside it at a width that keeps the figures on one line. */
@@ -130,7 +130,8 @@
           font-variant-numeric: tabular-nums;
         }
 
-        &[data-kind="credit"] > dd {
+        &[data-kind="credit"] > dd,
+        &[data-kind="free"] > dd {
           color: var(--noora-surface-label-secondary);
         }
 
@@ -154,7 +155,7 @@
     }
   }
 
-  & [data-part="runner-usage-card-section"] {
+  & [data-part="usage-summary-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);

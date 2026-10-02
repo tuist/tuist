@@ -32,7 +32,7 @@ Before an agent starts an email claim, it must ask the user to confirm the email
 
 The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can discover capabilities and read public integration guidance, but it is not treated as a signed-in user. After claim, the credential is user-scoped and each tool applies its normal authorization checks. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
-Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's project are not members of it, so they additionally present an operator grant minted at `ops.tuist.dev` in an `x-tuist-operator-grant` header. The grant is verified on every request, honoured only for the operator it was minted for, and scoped to the single account it names — nothing is stored between requests, so it is sent with each call and cannot outlive its expiry. A header carrying a grant that is not honoured fails the request with `operator_grant_rejected` rather than falling back to unprivileged access.
+Tools resolve to the projects the authenticated user can already read. Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
 <summary>Claude Code</summary>
@@ -251,6 +251,23 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_workflows` | List continuous-integration workflow rollups for an account. | `account_handle` |
 | `list_runner_profiles` | List continuous-integration runner profiles for an account. Requires the same administrator permission as the dashboard settings page. | `account_handle` |
+
+Runner volume tools expose the same data as the Volumes dashboard. Read tools
+require runner access; clearing requires account administration and user confirmation.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_runner_volumes` | Filter by name and repository, sort and paginate volumes. | `account_handle` |
+| `get_runner_volume` | Repository, platform, capacity, used space and last use. | `account_handle`, `volume_id` |
+| `list_runner_volume_jobs` | Paginated job and workflow references, cache status, hit outcome and mount time. | `account_handle`, `volume_id` |
+| `list_runner_job_volumes` | Volumes mounted by a job. | `account_handle`, `workflow_job_id` |
+| `get_runner_volume_analytics` | Storage series, job runs, hit rate and trends. Optional `volume_id`, `start` and `end` (ISO 8601); defaults to seven days, maximum 90. | `account_handle` |
+| `clear_runner_volume` | Clear saved contents. Running jobs keep their private copies but cannot save them; later jobs start empty. | `account_handle`, `volume_id` |
+
+Lists accept `page` and `page_size` (up to 100). Volume inventory also accepts
+`name` and `repository` (exact matches, combined with AND), `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)
+and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
+`null`. Cache status describes whether volume changes were saved, not job success.
 
 #### Webhooks
 

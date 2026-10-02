@@ -63,6 +63,13 @@ connector:
     enabled: true
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    # The pool's nodes register with `tuist.dev/runner-cache=true:NoSchedule`
+    # (infra/helm/tuist/templates/kura-fleet.yaml). Without this the router
+    # has no schedulable node.
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
 
 macminiEgress:
   enabled: true

@@ -95,6 +95,8 @@ The gate is off by default. Set a mode:
 - **`report`**: warns about each flaky test case. The run still exits on its own result.
 - **`enforce`**: a flaky test case fails the run, with the same exit code as a failed test.
 
+In both modes, <.localized_link href="/guides/features/selective-testing/generated-xcode-project">selective testing</.localized_link> doesn't skip a test target with a flaky new test case on the next run. The target runs again, and the gate stresses the test case again, until it passes all its reruns.
+
 Start with `report` for a couple of weeks to see what `enforce` would have blocked.
 
 Pass it ahead of the passthrough arguments, or set `TUIST_TEST_STRESS_NEW_TESTS` to vary the mode per CI lane:

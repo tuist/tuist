@@ -75,6 +75,10 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
            true <- valid_event?(operation, outcome, action_digest, size, duration_us, Map.get(event, "observed_at_ms")) do
         {:ok,
          %{
+           # Preserved unchanged from the producer so a retried Kura batch
+           # dedupes at INSERT time via Tuist.Ingestion.DedupToken; nil for
+           # a pre-event_id Kura, in which case dedup is skipped.
+           event_id: optional_present_string(event, "event_id"),
            client_kind: "bazel",
            operation: operation,
            outcome: outcome,
@@ -152,6 +156,16 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
     case Map.get(event, key) do
       value when is_binary(value) -> value
       _ -> ""
+    end
+  end
+
+  # Same as `optional_string/2` but returns `nil` (not `""`) when the field
+  # is missing, because `event_id` must survive as-is or be absent — an
+  # empty string is not a valid producer identity.
+  defp optional_present_string(event, key) do
+    case Map.get(event, key) do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
     end
   end
 end

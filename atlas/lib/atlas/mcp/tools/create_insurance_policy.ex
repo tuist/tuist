@@ -50,7 +50,7 @@ defmodule Atlas.MCP.Tools.CreateInsurancePolicy do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools") do
       case Policies.create(args) do
         {:ok, policy} -> {:ok, Serializer.policy(policy)}
         {:error, changeset} -> {:error, "Could not create policy: #{Tool.format_changeset_errors(changeset)}"}

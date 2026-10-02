@@ -3,8 +3,6 @@ defmodule Atlas.Slack.InteractionsTest do
   use Mimic
 
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttentionSlackNotifier
-  alias Atlas.Accounts.AccountAttentionSuggestion
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.Event
   alias Atlas.Outreach.Recommendation
@@ -12,6 +10,8 @@ defmodule Atlas.Slack.InteractionsTest do
   alias Atlas.Repo
   alias Atlas.Slack.API
   alias Atlas.Slack.Interactions
+  alias Atlas.Tasks
+  alias Atlas.Tasks.SlackNotifier, as: TasksSlackNotifier
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -129,53 +129,95 @@ defmodule Atlas.Slack.InteractionsTest do
     assert Repo.get!(Recommendation, recommendation.id).reviewed_by_id == user.id
   end
 
-  test "snoozes an account attention suggestion from Slack" do
-    account =
-      %Account{}
-      |> Account.changeset(%{
-        account_key: "slack-attention:#{System.unique_integer([:positive])}",
-        name: "Acme Platforms",
-        segment: :customer
-      })
+  test "snoozes a task reminder from Slack and reschedules the reminder" do
+    user =
+      %User{}
+      |> User.changeset(%{email: "reminder-owner@tuist.dev", name: "Reminder Owner"})
       |> Repo.insert!()
 
-    suggestion =
-      %AccountAttentionSuggestion{account_id: account.id}
-      |> AccountAttentionSuggestion.changeset(%{
-        status: "pending",
-        kind: "usage_change",
-        suggestion_key: "usage_change:test-sharding",
-        title: "Check in about test sharding",
-        rationale: "The account's usage changed.",
-        suggested_action: "Ask whether the workflow changed.",
-        evidence: %{
-          "items" => [
-            %{
-              "source_type" => "account",
-              "source_id" => account.id,
-              "observation" => "The account is configured for attention."
-            }
-          ]
-        },
-        confidence: "0.90",
-        generated_by_agent: "account_attention_agent"
-      })
-      |> Repo.insert!()
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+    {:ok, task} = Tasks.create_task(%{title: "Ship spec", assignee_id: user.id, remind_at: past}, user)
+    original_version = task.reminder_version
 
     payload = %{
       "type" => "block_actions",
-      "container" => %{"channel_id" => "C_SALES"},
+      "user" => %{"name" => "reminder-owner", "profile" => %{"email" => user.email}},
       "actions" => [
         %{
-          "action_id" => AccountAttentionSlackNotifier.action_id("snooze"),
-          "value" => suggestion.id
+          "action_id" => TasksSlackNotifier.snooze_action_id(:tomorrow),
+          "value" => task.id
         }
       ]
     }
 
-    assert {:ok, "Snoozed \"Check in about test sharding\" until next week."} =
-             Interactions.handle_interaction(payload, :company)
+    assert {:ok, message} = Interactions.handle_interaction(payload, :company)
+    assert message =~ "snoozed until tomorrow"
 
-    assert Repo.get!(AccountAttentionSuggestion, suggestion.id).status == "snoozed"
+    reloaded = Tasks.get_task(task.id)
+    assert reloaded.reminder_version == original_version + 1
+    assert DateTime.to_date(reloaded.remind_at) == Date.add(Date.utc_today(), 1)
+  end
+
+  test "re-renders the source Slack reminder without snooze buttons after a successful snooze" do
+    user =
+      %User{}
+      |> User.changeset(%{email: "reminder-source@tuist.dev", name: "Reminder Source"})
+      |> Repo.insert!()
+
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+    {:ok, task} = Tasks.create_task(%{title: "Follow up with account", assignee_id: user.id, remind_at: past}, user)
+
+    expect(API, :update_message, fn :company, "D_USER", "1700000000.000200", text, blocks ->
+      assert text =~ "snoozed until next week"
+      rendered = Jason.encode!(blocks)
+      assert rendered =~ "Snoozed until next week"
+      assert rendered =~ "View tasks"
+      refute rendered =~ "task_reminder_snooze:"
+      {:ok, %{"ok" => true}}
+    end)
+
+    payload = %{
+      "type" => "block_actions",
+      "container" => %{"channel_id" => "D_USER", "message_ts" => "1700000000.000200"},
+      "user" => %{"name" => "reminder-source", "profile" => %{"email" => user.email}},
+      "actions" => [
+        %{
+          "action_id" => TasksSlackNotifier.snooze_action_id(:next_week),
+          "value" => task.id
+        }
+      ]
+    }
+
+    assert {:ok, message} = Interactions.handle_interaction(payload, :company)
+    assert message =~ "snoozed until next week"
+  end
+
+  test "keeps the snooze successful when the message refresh call fails" do
+    user =
+      %User{}
+      |> User.changeset(%{email: "reminder-refresh-fail@tuist.dev", name: "Reminder Refresh"})
+      |> Repo.insert!()
+
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+    {:ok, task} = Tasks.create_task(%{title: "Refresh fails", assignee_id: user.id, remind_at: past}, user)
+
+    expect(API, :update_message, fn :company, "D_FAIL", "1700000000.000300", _text, _blocks ->
+      {:error, :message_not_found}
+    end)
+
+    payload = %{
+      "type" => "block_actions",
+      "container" => %{"channel_id" => "D_FAIL", "message_ts" => "1700000000.000300"},
+      "user" => %{"name" => "reminder-refresh-fail", "profile" => %{"email" => user.email}},
+      "actions" => [
+        %{
+          "action_id" => TasksSlackNotifier.snooze_action_id(:end_of_week),
+          "value" => task.id
+        }
+      ]
+    }
+
+    assert {:ok, message} = Interactions.handle_interaction(payload, :company)
+    assert message =~ "snoozed until the end of the week"
   end
 end

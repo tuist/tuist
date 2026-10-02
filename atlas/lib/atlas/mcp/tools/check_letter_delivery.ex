@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.CheckLetterDelivery do
   def description, do: "Check and persist the latest delivery status for a stored letter."
 
   def execute(conn, %{"letter_id" => letter_id}) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools") do
+    with :ok <- Tool.authorize_scope(conn, "letters:write", "Letter tools") do
       case Letters.check_delivery(letter_id, Tool.current_user(conn)) do
         {:ok, letter} -> {:ok, %{letter: LetterSerializer.letter(letter)}}
         {:error, :not_found} -> {:error, "Letter not found."}

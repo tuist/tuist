@@ -33,7 +33,7 @@ defmodule Atlas.MCP.Tools.UpdateInsuranceClaim do
   end
 
   def execute(conn, %{"claim_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = claim <- Policies.get_claim(id) do
       attrs = args |> Map.delete("claim_id") |> normalize()
 

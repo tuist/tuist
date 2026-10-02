@@ -1,0 +1,134 @@
+[data-part="admin-roles"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > .noora-card,
+  & > .noora-card__section {
+    min-width: 0;
+    width: 100%;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    margin: 0;
+    max-width: 60rem;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="header-actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="roles-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="role-details-card-section"],
+  & [data-part="role-scopes-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & #role-scopes-table [data-part="cell"][data-column-label="Read"],
+  & #role-scopes-table [data-part="cell"][data-column-label="Write"] {
+    width: 4rem;
+  }
+
+  & [data-part="scope-toggle"] {
+    cursor: pointer;
+  }
+
+  & [data-part="form-actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="delete-role-card-section"] {
+    box-shadow: var(--noora-border-light-error);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="delete-role-card-section"] > [data-part="header"] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+  }
+
+  & [data-part="delete-role-card-section"] > [data-part="header"] > [data-part="title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & [data-part="delete-role-card-section"] > [data-part="header"] > [data-part="subtitle"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+
+  & [data-part="delete-role-card-section"] > [data-part="content"] {
+    flex-shrink: 0;
+  }
+
+  & [data-part="delete-role-card-section"] .noora-modal [data-part="body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    min-width: 392px;
+
+    @media (max-width: 768px) {
+      & {
+        min-width: 80vw;
+      }
+    }
+  }
+
+  @media (max-width: 720px) {
+    & > [data-part="header"] {
+      flex-direction: column;
+    }
+
+    & [data-part="header-actions"] {
+      justify-content: flex-start;
+    }
+
+    & [data-part="delete-role-card-section"] {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+}

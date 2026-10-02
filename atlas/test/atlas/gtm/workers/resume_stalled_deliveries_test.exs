@@ -10,6 +10,7 @@ defmodule Atlas.GTM.Workers.ResumeStalledDeliveriesTest do
   alias Atlas.GTM.Subscriber
   alias Atlas.GTM.Workers.DeliverAutomatedEmail
   alias Atlas.GTM.Workers.DeliverBroadcast
+  alias Atlas.GTM.Workers.DeliverDirectEmail
   alias Atlas.GTM.Workers.ResumeStalledDeliveries
 
   setup do
@@ -150,6 +151,28 @@ defmodule Atlas.GTM.Workers.ResumeStalledDeliveriesTest do
 
     assert {:ok, %{deliveries: 1}} = perform_job(ResumeStalledDeliveries, %{})
     assert_enqueued(worker: DeliverAutomatedEmail, args: %{"delivery_id" => delivery.id})
+  end
+
+  test "re-queues a stalled direct delivery on its own worker" do
+    delivery =
+      %Delivery{}
+      |> Delivery.changeset(%{
+        kind: "direct",
+        recipient_email: "recipient@example.com",
+        subject: "Your Tuist pricing is changing",
+        status: "failed",
+        error: "provider down",
+        attempts: 1,
+        metadata: %{"body_markdown" => "Your price changes on 22 October 2026."}
+      })
+      |> Repo.insert!()
+
+    long_ago = DateTime.utc_now() |> DateTime.add(-2, :day) |> DateTime.truncate(:second)
+    Repo.update_all(from(d in Delivery, where: d.id == ^delivery.id), set: [updated_at: DateTime.to_naive(long_ago)])
+
+    assert {:ok, %{deliveries: 1}} = perform_job(ResumeStalledDeliveries, %{})
+    assert_enqueued(worker: DeliverDirectEmail, args: %{"delivery_id" => delivery.id})
+    refute_enqueued(worker: DeliverAutomatedEmail)
   end
 
   test "does not count a broadcast that already has a job queued", %{audience: audience, subscriber: subscriber} do

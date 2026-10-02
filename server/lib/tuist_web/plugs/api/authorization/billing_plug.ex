@@ -75,6 +75,12 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
       {:air, _, false, _} ->
         conn
 
+      {:air, :payment_failed, true, account_handle} ->
+        conn
+        |> put_status(:payment_required)
+        |> json(%{message: payment_failed_message(account_handle)})
+        |> halt()
+
       {:air, _, true, account_handle} ->
         conn
         |> put_status(:payment_required)
@@ -113,6 +119,20 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
     end
   end
 
+  @doc """
+  The refusal for an account that lost its paid plan because Stripe gave up
+  collecting a subscription payment. Upgrading would open a second
+  subscription beside the one that owes, so it points to the billing page.
+  """
+  def payment_failed_message(account_handle) do
+    dgettext(
+      "dashboard_account",
+      "A payment for the subscription of the account '%{account}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice at %{url} to restore access.",
+      account: account_handle,
+      url: url(~p"/#{account_handle}/billing")
+    )
+  end
+
   defp get_subscription_data(%{assigns: %{selected_project: selected_project}}) do
     {:ok, account} = Accounts.get_account_by_id(selected_project.account_id)
     %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} = account
@@ -125,14 +145,18 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
     subscription_plan = if(is_nil(subscription), do: :air, else: subscription.plan)
 
-    # `get_current_active_subscription/1` matches "active" and "trialing", so
-    # both count as live here. Comparing against "active" alone rejected every
-    # subscription in trial.
+    # `get_current_active_subscription/1` only returns live subscriptions, so
+    # every status it matches counts as live here. Comparing against "active"
+    # alone rejected every subscription in trial or retrying a payment.
+    #
+    # An account without one is on Air, where `:payment_failed` marks one that
+    # got there because Stripe gave up collecting its subscription payment.
     subscription_active? =
-      if(is_nil(subscription),
-        do: subscription_plan == :air,
-        else: subscription.status in ["active", "trialing"]
-      )
+      cond do
+        not is_nil(subscription) -> subscription.status in Billing.live_subscription_statuses()
+        thresholds_surpassed and Billing.payment_failed?(account) -> :payment_failed
+        true -> true
+      end
 
     {subscription_plan, subscription_active?, thresholds_surpassed, account.name}
   end

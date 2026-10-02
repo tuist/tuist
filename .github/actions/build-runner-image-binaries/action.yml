@@ -4,11 +4,10 @@ description: |
   into `infra/runner-image/build/`, ready for `packer build`.
 
   Shared because the template has TWO callers — `runner-image.yml` (the
-  standalone bake) and `server-production-deployment.yml`'s `runner-image-build`
-  matrix (the one a release goes through) — and every `provisioner "file"` in
-  that template is a MANDATORY input. A binary added to the template but built in
-  only one of them fails the other with `Bad source './build/<name>'`, which on
-  the production path takes down the whole cascade rather than just the image.
+  standalone bake) and `runner-image-release.yml` (the one a release goes
+  through) — and every `provisioner "file"` in that template is a MANDATORY
+  input. A binary added to the template but built in only one of them fails the
+  other with `Bad source './build/<name>'`.
   That already happened once, with `tuist-cas-proxy`. Adding a new provisioned
   binary means adding it here, once.
 

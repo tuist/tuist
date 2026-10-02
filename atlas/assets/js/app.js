@@ -21,6 +21,7 @@ import "../css/routes/mcps.css"
 import "../css/routes/admin_audit.css"
 import "../css/routes/admin_identities.css"
 import "../css/routes/admin_users.css"
+import "../css/routes/admin_roles.css"
 import "../css/routes/admin_memory.css"
 import "../css/routes/admin_inference.css"
 import "../css/components/empty_card_section.css"
@@ -33,11 +34,14 @@ import "../css/routes/financings.css"
 import "../css/routes/data_centers.css"
 import "../css/routes/insurance.css"
 import "../css/routes/notes.css"
+import "../css/routes/tasks.css"
 import "../css/routes/projects.css"
 import "../css/routes/domains.css"
 import "../css/routes/errors.css"
 import "../css/routes/postmortems.css"
 import "../css/routes/postmortem_public.css"
+import "../css/routes/poc_public.css"
+import "../css/routes/pocs.css"
 import "../css/routes/specs.css"
 
 import "phoenix_html"
@@ -51,11 +55,12 @@ import OriginalEmailPreview from "./hooks/original_email_preview"
 import ScreenshotPaste from "./hooks/screenshot_paste"
 import SearchPalette from "./hooks/search_palette"
 import Clipboard from "./hooks/clipboard"
+import MermaidDiagram from "./hooks/mermaid_diagram"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ...Noora.Hooks, IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard},
+  hooks: {...colocatedHooks, ...Noora.Hooks, IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram},
 })
 
 // Show progress bar on live navigation and form submits. Skipped when the page

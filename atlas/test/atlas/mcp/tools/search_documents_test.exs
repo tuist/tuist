@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.SearchDocumentsTest do
   test "rejects non-executive users" do
     conn = %{role: :employee} |> insert_user!() |> mcp_conn()
 
-    assert {:error, "Document tools are only available to executives."} =
+    assert {:error, "Document tools require the documents:read scope."} =
              execute_tool(SearchDocuments, conn, %{"query" => "board consent"})
   end
 

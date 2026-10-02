@@ -137,10 +137,13 @@ case "$CHANNEL" in
         exit 0
       fi
       BRANCH="releases/${line}.x"
-      SHA=$(git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" | cut -f1) ||
-        die "${line}.0 has a release candidate but its branch ${BRANCH} does not exist."
     fi
     target="$(line_from_branch "$BRANCH").0"
+    # The line's HEAD comes from the remote, not from the checkout: promotion
+    # runs from the default branch so it uses current tooling, and the release
+    # branch is never checked out locally.
+    SHA=$(git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" | cut -f1) ||
+      die "${target} cannot be promoted: its release branch ${BRANCH} does not exist."
     tag_exists "$target" && die "${target} has already been promoted to stable."
     n=$(highest_prerelease_n "$target" rc)
     [[ -z "$n" ]] && die "No RC has been published for ${target}; promote only after at least one RC has soaked."

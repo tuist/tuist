@@ -7,7 +7,9 @@ defmodule Tuist do
   if it comes from the database, an external API or others.
   """
   use Boundary,
-    deps: [],
+    # `Once` holds the generated `once.events.v1` protobuf and gRPC modules
+    # that `Tuist.OnceEvents` projects from.
+    deps: [Once],
     exports: [
       # Marketing
       # -----
@@ -83,6 +85,7 @@ defmodule Tuist do
       Kura.SelfHostedClient,
       Kura.SelfHostedClients,
       Kura.Mesh,
+      Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
       Gradle,
@@ -98,6 +101,13 @@ defmodule Tuist do
       Bazel.ProfileUpload,
       Bazel.Action,
       Bazel.Timeline,
+      OnceEvents,
+      OnceEvents.Analytics,
+      OnceEvents.CacheAnalytics,
+      OnceEvents.Run,
+      OnceEvents.Action,
+      OnceEvents.TestCaseRun,
+      OnceEvents.TestSuiteRun,
       ReapiCache,
       ReapiCache.CacheEvent,
       CacheActionItems,
@@ -152,6 +162,8 @@ defmodule Tuist do
       Billing.Entitlements,
       Billing.Workers.CreateRunnerPrepaidGrantWorker,
       Billing.Subscription,
+      Billing.UsagePricing,
+      Billing.UsageMeterProvisioning,
       AppBuilds,
       AppBuilds.Preview,
       AppBuilds.AppBuild,
@@ -231,6 +243,9 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.CacheVolumes,
+      Runners.CacheVolumes.Query,
+      Runners.CacheVolumes.Schemas,
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,
@@ -279,6 +294,7 @@ defmodule Tuist do
       Runners.RunnerSessions,
       Runners.PromExPlugin,
       Runners.Telemetry,
+      Runners.VolumePrefetch,
       Kubernetes.Client
     ]
 end

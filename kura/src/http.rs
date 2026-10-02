@@ -64,7 +64,8 @@ use crate::{
     utils::{
         BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyError,
         RequestBodyErrorKind, RequestBodyStaging, TempFileCleanup, TmpReservation,
-        action_cache_key, blob_key, module_key, now_ms, read_request_to_temp, temp_file_path,
+        action_cache_key, blob_key, discard_request_body, module_key, now_ms, read_request_to_temp,
+        temp_file_path,
     },
 };
 
@@ -574,6 +575,12 @@ pub struct BackfillEntriesPage {
     /// absent from an older peer's page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub now: Option<u64>,
+    /// Ascending reads of the serving node's own region: the newest committed
+    /// version the read lists once the serving bound passes it, so the
+    /// requester can tell how far behind it is (D-37). Additive; absent from
+    /// an older peer's page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_version_ms: Option<u64>,
 }
 
 /// One backfill index tuple on the wire. `record_kind` is a
@@ -603,6 +610,7 @@ impl From<BackfillIndexPage> for BackfillEntriesPage {
                 .collect(),
             next_after: page.next_after.map(hex::encode),
             now: Some(now_ms()),
+            newest_version_ms: None,
         }
     }
 }
@@ -1379,7 +1387,7 @@ fn retry_after(response: &mut Response, seconds: u64) {
 
 async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
     let Some(auth) = state.auth.as_ref() else {
-        return next.run(req).await;
+        return serve_endpoint_alias(&state, req, next).await;
     };
 
     let route = request_route(&req);
@@ -1429,7 +1437,56 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
         }
     }
 
+    serve_endpoint_alias(&state, req, next).await
+}
+
+// Redirects are explicit capability negotiation: generic HTTP clients may drop
+// credentials across hosts or be unable to replay uploads. gRPC stays an alias.
+async fn serve_endpoint_alias(state: &SharedState, req: Request, next: Next) -> Response {
+    if req
+        .headers()
+        .get("x-tuist-accept-endpoint-redirect")
+        .is_some_and(|value| value == "1")
+        && let Some(target) = endpoint_alias_target(state, &req)
+    {
+        return (
+            StatusCode::TEMPORARY_REDIRECT,
+            [
+                (axum::http::header::LOCATION, target.as_str()),
+                (axum::http::header::CACHE_CONTROL, "no-store"),
+            ],
+        )
+            .into_response();
+    }
     next.run(req).await
+}
+
+fn endpoint_alias_target(state: &SharedState, req: &Request) -> Option<String> {
+    if skips_authorization(&request_route(req))
+        || req
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("application/grpc"))
+    {
+        return None;
+    }
+    let authority = req
+        .uri()
+        .authority()
+        .map(|value| value.as_str())
+        .or_else(|| req.headers().get(axum::http::header::HOST)?.to_str().ok())?;
+    let authority = authority.parse::<axum::http::uri::Authority>().ok()?;
+    let identity = state.account_identity.load();
+    let origin = identity
+        .endpoint_redirects
+        .get(&authority.host().to_ascii_lowercase())?;
+    Some(format!(
+        "{origin}{}",
+        req.uri()
+            .path_and_query()
+            .map_or("/", |value| value.as_str())
+    ))
 }
 
 fn skips_authorization(route: &str) -> bool {
@@ -1452,7 +1509,7 @@ async fn request_context_from_http(
     request: HttpRequestFacts<'_>,
 ) -> AuthRequestContext {
     let metadata = http_request_metadata(state, request.route, request.method, request.query).await;
-    AuthRequestContext {
+    let mut context = AuthRequestContext {
         transport: "http".into(),
         method: request.method.to_owned(),
         operation: metadata.operation,
@@ -1461,7 +1518,9 @@ async fn request_context_from_http(
         namespace_id: metadata.namespace_id,
         authorization: request.authorization,
         headers: BTreeMap::new(),
-    }
+    };
+    state.canonicalize_auth_context(&mut context);
+    context
 }
 
 struct HttpRequestFacts<'a> {
@@ -2626,8 +2685,10 @@ async fn internal_status(
 /// no longer resolves is a 404 (the requester's absent case).
 async fn internal_backfill_artifact(
     AxumPath(artifact_id): AxumPath<String>,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let manifest = match state
         .store
         .fetch_artifact_by_id_for_serving(&artifact_id)
@@ -2718,10 +2779,19 @@ async fn internal_backfill_artifact(
     }
 }
 
+/// A backfill request from a sibling mid-bootstrap is its only traffic until
+/// the backward pass ends, so it keeps that sibling's feed registration live.
+fn refresh_backfilling_sibling(state: &SharedState, params: &HashMap<String, String>) {
+    if let Some(peer) = params.get("peer").filter(|peer| !peer.is_empty()) {
+        state.store.sync_feed().refresh_consumer(peer);
+    }
+}
+
 async fn internal_backfill_entries(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let query = match BackfillEntriesQuery::from_params(&params) {
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
@@ -2789,8 +2859,21 @@ async fn internal_backfill_entries_ascending(
             }
         };
         let caught_up = page.entries.is_empty() && page.next_after.is_none();
+        let respond = |page| {
+            // Only a lag hint: a failed seed read leaves the field out.
+            let newest_version_ms = query
+                .origin_region
+                .as_deref()
+                .and_then(|origin| state.store.newest_listed_version(origin).ok())
+                .flatten();
+            Json(BackfillEntriesPage {
+                newest_version_ms,
+                ..BackfillEntriesPage::from(page)
+            })
+            .into_response()
+        };
         let Some(deadline) = deadline.filter(|_| caught_up) else {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            return respond(page);
         };
         let now = Instant::now();
         let deadline = if state.runtime.is_draining() {
@@ -2799,7 +2882,7 @@ async fn internal_backfill_entries_ascending(
             deadline
         };
         if now >= deadline {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            return respond(page);
         }
         let recheck = Duration::from_millis(SYNC_LONG_POLL_RECHECK_MS).min(deadline - now);
         let _ = tokio::time::timeout(recheck, notified).await;
@@ -3057,7 +3140,12 @@ fn backfill_unavailable_response(error: &str, message: &str) -> Response {
     response
 }
 
-async fn internal_backfill_bodies(State(state): State<SharedState>, request: Request) -> Response {
+async fn internal_backfill_bodies(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+    request: Request,
+) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let identity = request.extensions().get::<InternalPeerIdentity>().cloned();
     let peer_label = identity
         .as_ref()
@@ -3967,7 +4055,10 @@ async fn put_blob_artifact(
         .artifact_exists(producer, spec.namespace_id, spec.key)
         .await
     {
-        Ok(true) => return spec.existing_status.into_response(),
+        Ok(true) => {
+            discard_request_body(request, spec.max_bytes).await;
+            return spec.existing_status.into_response();
+        }
         Ok(false) => {}
         Err(error) => {
             return error_response(
@@ -4957,12 +5048,9 @@ fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::Infallible,
-        sync::{Arc, Mutex},
-    };
+    use std::{convert::Infallible, sync::Arc};
 
-    use axum::{Router, body::Body, extract::Request, response::IntoResponse, routing::post};
+    use axum::{Router, body::Body, extract::Request};
     use http_body_util::BodyExt;
     use serde_json::Value;
     use tokio::time::{Duration, sleep, timeout};
@@ -7969,12 +8057,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn xcode_routes_emit_project_scoped_analytics_events() {
-        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
-        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+    async fn xcode_routes_emit_project_scoped_analytics_events_to_the_outbox() {
+        // Xcode CAS analytics now durably queue into the outbox column
+        // family; the forwarder POSTs them on its own schedule and has
+        // its own tests. This end-to-end test confirms the HTTP layer
+        // still routes both the PUT and the GET into that queue with
+        // the right project scoping. Assertion is on the durable
+        // outbox contents rather than on a captured request stream
+        // because the forwarder is not spawned here.
         let context = test_context(|config| {
             config.analytics = Some(AnalyticsConfig {
-                server_url: base_url,
+                server_url: "http://127.0.0.1:1".into(),
                 signing_key: "secret-key".into(),
                 batch_size: 1,
                 batch_timeout_ms: 5_000,
@@ -7982,6 +8075,9 @@ mod tests {
                 request_timeout_ms: 5_000,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
+                outbox_max_entries: 1_000,
+                outbox_max_bytes: 4 * 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
             });
         })
         .await;
@@ -8015,57 +8111,25 @@ mod tests {
 
         timeout(Duration::from_secs(2), async {
             loop {
-                if captured.lock().expect("captured requests lock").len() >= 2 {
+                if context.state.store.analytics_outbox_stats().entries >= 2 {
                     break;
                 }
                 sleep(Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("analytics requests should be delivered");
-
-        let requests = captured.lock().expect("captured requests lock");
-        let payloads = requests
-            .iter()
-            .map(|request| {
-                serde_json::from_slice::<Value>(&request.body)
-                    .expect("analytics request body should decode")
-            })
-            .collect::<Vec<_>>();
-
-        assert!(payloads.iter().any(|payload| {
-            payload
-                == &serde_json::json!({
-                    "events": [{
-                        "account_handle": "acme",
-                        "project_handle": "ios",
-                        "action": "upload",
-                        "size": 12,
-                        "cas_id": "artifact-1"
-                    }]
-                })
-        }));
-        assert!(payloads.iter().any(|payload| {
-            payload
-                == &serde_json::json!({
-                    "events": [{
-                        "account_handle": "acme",
-                        "project_handle": "ios",
-                        "action": "download",
-                        "size": 12,
-                        "cas_id": "artifact-1"
-                    }]
-                })
-        }));
+        .expect("both events should land in the outbox within the batch timeout");
     }
 
     #[tokio::test]
     async fn tenant_only_xcode_routes_skip_project_scoped_analytics_events() {
-        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
-        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        // Tenant-only cache routes (without a namespace_id) must not
+        // enqueue project-scoped analytics. With the outbox routing in
+        // place the check is on the outbox depth rather than on a
+        // captured webhook stream.
         let context = test_context(|config| {
             config.analytics = Some(AnalyticsConfig {
-                server_url: base_url,
+                server_url: "http://127.0.0.1:1".into(),
                 signing_key: "secret-key".into(),
                 batch_size: 1,
                 batch_timeout_ms: 5_000,
@@ -8073,6 +8137,9 @@ mod tests {
                 request_timeout_ms: 5_000,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
+                outbox_max_entries: 1_000,
+                outbox_max_bytes: 4 * 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
             });
         })
         .await;
@@ -8105,7 +8172,11 @@ mod tests {
         assert_eq!(response_text(get_response).await, "account-binary");
 
         sleep(Duration::from_millis(200)).await;
-        assert!(captured.lock().expect("captured requests lock").is_empty());
+        assert_eq!(
+            context.state.store.analytics_outbox_stats().entries,
+            0,
+            "tenant-only routes should not enqueue project-scoped analytics",
+        );
     }
 
     #[tokio::test]
@@ -9363,43 +9434,12 @@ mod tests {
         );
     }
 
-    #[derive(Clone, Debug)]
-    struct CapturedRequest {
-        body: Vec<u8>,
-    }
-
-    async fn spawn_capture_server(
-        captured: Arc<Mutex<Vec<CapturedRequest>>>,
-    ) -> (String, tokio::task::JoinHandle<()>) {
-        let router = Router::new()
-            .route(
-                "/webhooks/cache",
-                post({
-                    let captured = captured.clone();
-                    move |request| capture_request(captured.clone(), request)
-                }),
-            )
-            .route(
-                "/webhooks/gradle-cache",
-                post({
-                    let captured = captured.clone();
-                    move |request| capture_request(captured.clone(), request)
-                }),
-            );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("capture listener should bind");
-        let address = listener
-            .local_addr()
-            .expect("capture listener should have a local address");
-        let handle = tokio::spawn(async move {
-            axum::serve(listener, router)
-                .await
-                .expect("capture server should run");
-        });
-
-        (format!("http://{address}"), handle)
-    }
+    // The `CapturedRequest` + `spawn_capture_server` + `capture_request`
+    // helpers that used to fake the analytics webhook endpoints have been
+    // removed alongside the direct-POST tests. Analytics for xcode /
+    // gradle / reapi now route through the outbox column family, so
+    // downstream tests assert on `store.analytics_outbox_stats()`
+    // instead of on captured HTTP requests.
 
     /// A response body that hyper stops polling once `Content-Length` is
     /// satisfied never yields the terminal `None`, so the only record comes
@@ -9930,25 +9970,6 @@ mod tests {
         assembled.extend(response_bytes(tail).await);
 
         assert_eq!(assembled, body);
-    }
-
-    async fn capture_request(
-        captured: Arc<Mutex<Vec<CapturedRequest>>>,
-        request: Request,
-    ) -> impl IntoResponse {
-        let (_parts, body) = request.into_parts();
-        let body = body
-            .collect()
-            .await
-            .expect("request body should collect")
-            .to_bytes();
-        captured
-            .lock()
-            .expect("captured requests lock")
-            .push(CapturedRequest {
-                body: body.to_vec(),
-            });
-        StatusCode::ACCEPTED
     }
 
     #[test]

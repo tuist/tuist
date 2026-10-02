@@ -1,6 +1,7 @@
 defmodule Tuist.Docs.RedirectsTest do
   use ExUnit.Case, async: true
 
+  alias Tuist.Docs
   alias Tuist.Docs.Redirects
 
   describe "resolve/2" do
@@ -62,8 +63,43 @@ defmodule Tuist.Docs.RedirectsTest do
                {:ok, "https://projectdescription.tuist.dev/documentation/projectdescription?tab=api"}
     end
 
+    test "redirects any legacy automate page to the continuous integration guide" do
+      assert Redirects.resolve("/en/docs/guides/automate/anything") ==
+               {:ok, "/en/docs/guides/integrations/continuous-integration"}
+    end
+
+    test "keeps the suffix for legacy develop pages" do
+      assert Redirects.resolve("/en/docs/guides/develop/projects/manifests") ==
+               {:ok, "/en/docs/guides/features/projects/manifests"}
+    end
+
     test "returns none when there is no matching redirect" do
       assert Redirects.resolve("/en/docs/guides/features/cache") == :none
+    end
+  end
+
+  describe "rules/0" do
+    test "every exact and prefix-discard rule lands on an existing docs page" do
+      missing =
+        for {kind, from, _to} <- Redirects.rules(),
+            kind in [:exact, :prefix_discard],
+            request_path = "/en/docs" <> from <> if(kind == :prefix_discard, do: "any-page", else: ""),
+            {:ok, "/en/docs" <> destination} = Redirects.resolve(request_path),
+            destination != "" and is_nil(Docs.get_page("/en" <> destination)),
+            do: {from, destination}
+
+      assert missing == []
+    end
+
+    test "every prefix rule points at a section that contains docs pages" do
+      slugs = Docs.slugs()
+
+      empty =
+        for {:prefix, from, to} <- Redirects.rules(),
+            not Enum.any?(slugs, &String.starts_with?(&1, "/en" <> to)),
+            do: {from, to}
+
+      assert empty == []
     end
   end
 end

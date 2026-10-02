@@ -39,14 +39,29 @@ defmodule Tuist.Runners.GitLab.Client do
     })
   end
 
+  def get_running_job(url, token) when is_binary(token) and token != "" do
+    request(url, :get, "/job", %{token: token})
+  end
+
+  def get_running_job(_, _), do: {:error, :unauthorized}
+
+  def cache_branches(url, token, project_id, ref) do
+    # The job-token allowlist supports branch listing, not general project reads.
+    query = URI.encode_query(%{regex: "^" <> Regex.escape(ref) <> "$", per_page: 100})
+    request(url, :get, "/projects/#{project_id}/repository/branches?#{query}", %{token: token})
+  end
+
   def update_job(url, %{"id" => id, "token" => token}, state, reason) do
     request(url, :put, "/jobs/#{id}", %{token: token, state: state, failure_reason: reason})
   end
 
-  def reject_job(url, %{"id" => id, "token" => token} = payload, message) do
-    trace = "Tuist: #{message}\n"
+  # Writes the start of the job log; GitLab answers 416 once it has bytes.
+  def write_trace(url, %{"id" => id, "token" => token}, trace) do
+    request(url, :patch, "/jobs/#{id}/trace", %{token: token}, trace)
+  end
 
-    case request(url, :patch, "/jobs/#{id}/trace", %{token: token}, trace) do
+  def reject_job(url, payload, message) do
+    case write_trace(url, payload, "Tuist: #{message}\n") do
       {:ok, _} -> update_job(url, payload, "failed", "script_failure")
       {:error, {:http_status, 416}} -> update_job(url, payload, "failed", "script_failure")
       error -> error
@@ -67,12 +82,16 @@ defmodule Tuist.Runners.GitLab.Client do
             redirect: false,
             retry: false,
             receive_timeout: to_timeout(minute: 1)
-          ] ++ if(trace, do: [body: trace], else: [json: body])
+          ] ++ request_body(method, body, trace)
         )
 
       handle_response(response, method)
     end
   end
+
+  defp request_body(:get, _body, _trace), do: []
+  defp request_body(_method, body, nil), do: [json: body]
+  defp request_body(_method, _body, trace), do: [body: trace]
 
   defp handle_response({:ok, %{headers: %{"job-status" => [state]}}}, _method) when state in ["canceled", "canceling"],
     do: {:error, :cancelled}
@@ -113,7 +132,7 @@ defmodule Tuist.Runners.GitLab.Client do
 
   defp decode_response(body) when is_binary(body) do
     case JSON.decode(body) do
-      {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
+      {:ok, decoded} when is_map(decoded) or is_list(decoded) -> {:ok, decoded}
       _ -> {:error, :invalid_response}
     end
   end

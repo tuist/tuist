@@ -398,7 +398,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		case isAlive(p):
 			alive++
 			staleImage := isStaleImage(p, pool)
-			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool)
 			switch {
 			case staleImage || staleRuntimeClassRevision:
 				staleAlive++
@@ -1074,7 +1074,7 @@ func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
 // replacement because its image or RuntimeClass revision no longer
 // matches the pool's current template.
 func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
-	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool)
+	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool)
 }
 
 // isStaleImage returns true when the Pod's runner container image
@@ -1168,4 +1168,15 @@ func randHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func isStaleCacheVolumes(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "linux" {
+		return false
+	}
+	revision := pod.Annotations["tuist.dev/cache-volume-revision"]
+	if revision == "" && pool.Spec.CacheVolumeRoot == "" {
+		return false
+	}
+	return revision != podtemplate.CacheVolumeRevision(pool)
 }

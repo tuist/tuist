@@ -5,6 +5,18 @@ defmodule Tuist.OpenGraphImageRendererTest do
 
   alias Tuist.OpenGraphImageRenderer
 
+  # `capture_log/1` captures events from every process, so crash reports from
+  # concurrently running async tests would leak into it. This handler forwards
+  # only events logged by processes spawned on behalf of the test process.
+  defmodule CallerLogHandler do
+    @moduledoc false
+    def log(event, %{config: %{test_pid: test_pid}}) do
+      if test_pid in List.wrap(event.meta[:callers]) do
+        send(test_pid, {:caller_log_event, event})
+      end
+    end
+  end
+
   setup do
     if !Process.whereis(OpenGraphImageRenderer.TaskSupervisor) do
       start_supervised!({Task.Supervisor, name: OpenGraphImageRenderer.TaskSupervisor})
@@ -21,6 +33,9 @@ defmodule Tuist.OpenGraphImageRendererTest do
         exit({:timeout, {NimblePool, :checkout, [OpenGraphImageRenderer]}})
       end
 
+      :ok = :logger.add_handler(__MODULE__, CallerLogHandler, %{config: %{test_pid: self()}})
+      on_exit(fn -> :logger.remove_handler(__MODULE__) end)
+
       log =
         capture_log(fn ->
           assert {:fallback, image} = OpenGraphImageRenderer.run_render("Tuist", checkout_timeout)
@@ -30,7 +45,7 @@ defmodule Tuist.OpenGraphImageRendererTest do
       # The single, intended warning still surfaces the reason.
       assert log =~ "Headless browser Open Graph image rendering failed"
       # The noisy per-request crash report that floods Sentry must be gone.
-      refute log =~ "terminating"
+      refute_received {:caller_log_event, _}
     end
   end
 

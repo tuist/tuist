@@ -50,7 +50,7 @@ defmodule Atlas.MCP.Tools.EditInsurancePolicy do
   end
 
   def execute(conn, %{"policy_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = policy <- Policies.get(id) do
       attrs = Map.delete(args, "policy_id")
 

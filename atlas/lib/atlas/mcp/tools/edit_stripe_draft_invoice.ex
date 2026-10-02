@@ -147,7 +147,7 @@ defmodule Atlas.MCP.Tools.EditStripeDraftInvoice do
       "Edit an existing Stripe draft invoice for an account. By default re-extracts line items from the account's latest signed order form in Atlas and attaches them to the invoice. Also accepts optional invoice fields to update (description, footer, days_until_due, metadata). Use this when a previous create_stripe_draft_invoice call left an invoice with missing or stale items, or when a teammate asks to edit an existing draft."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Finance tools"),
+    with :ok <- Tool.authorize_scope(conn, "finance:write", "Finance tools"),
          {:ok, account} <- AccountLookup.resolve(args),
          {:ok, invoice_id} <- fetch_invoice_id(args) do
       edit_attrs = build_edit_attrs(args)

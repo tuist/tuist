@@ -17,6 +17,9 @@ defmodule AtlasWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias Atlas.Authorization
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Users.User
 
   using do
@@ -50,16 +53,53 @@ defmodule AtlasWeb.ConnCase do
   def log_in_user(conn, attrs \\ %{}) do
     defaults = %{
       email: "test-#{System.unique_integer([:positive])}@tuist.dev",
-      name: "Test User",
-      role: :employee
+      name: "Test User"
     }
+
+    {role, scopes, attrs} = extract_role_and_scopes(attrs)
 
     {:ok, user} =
       %User{}
       |> User.changeset(Map.merge(defaults, attrs))
       |> Atlas.Repo.insert()
 
+    assign_role_or_scopes(user, role, scopes)
+
     conn = Plug.Test.init_test_session(conn, %{"user_id" => user.id})
     {conn, user}
+  end
+
+  @doc false
+  def extract_role_and_scopes(attrs) do
+    {role, attrs} = Map.pop(attrs, :role)
+    {scopes, attrs} = Map.pop(attrs, :scopes)
+    {role, scopes, attrs}
+  end
+
+  @doc false
+  def assign_role_or_scopes(_user, nil, nil), do: :ok
+  def assign_role_or_scopes(_user, :employee, nil), do: :ok
+
+  def assign_role_or_scopes(user, :executive, _scopes) do
+    role = Roles.ensure_executive_role!()
+    %UserRole{} |> UserRole.changeset(%{user_id: user.id, role_id: role.id}) |> Atlas.Repo.insert!()
+    :ok
+  end
+
+  def assign_role_or_scopes(user, _role, scopes) when is_list(scopes) do
+    scope_strings = scopes |> Enum.map(&to_string/1) |> Authorization.expand()
+
+    {:ok, ad_hoc} =
+      Roles.create_role(%{
+        name: "Test scopes #{user.email}",
+        slug: "test-#{user.id}",
+        scopes: scope_strings
+      })
+
+    %UserRole{}
+    |> UserRole.changeset(%{user_id: user.id, role_id: ad_hoc.id})
+    |> Atlas.Repo.insert!()
+
+    :ok
   end
 end

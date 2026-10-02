@@ -26,7 +26,7 @@ defmodule Atlas.MCP.Tools.AddSupportThreadNote do
   def description, do: "Add a private team note to a customer support conversation."
 
   def execute(conn, %{"thread_id" => id, "body" => body}) do
-    with :ok <- Tool.authorize_executive(conn, "Support tools") do
+    with :ok <- Tool.authorize_scope(conn, "support:write", "Support tools") do
       case Support.add_note(id, %{"body" => body}, Tool.current_user(conn)) do
         {:ok, message} ->
           {:ok, %{message: SupportSerializer.message(message)}}

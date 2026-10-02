@@ -5,6 +5,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - JSON-RPC request handling
 - MCP tools and prompts
 - MCP authorization/serialization helpers
+- Operator reads: for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), `Tuist.MCP.Authorization.authorize_request/4` falls back to a grant-free read for the resource's account. It goes through the `:ops_access` policies and never applies to writes. There is no MCP operator-grant header; grants from ops.tuist.dev only apply to the browser session.
 - Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
 ## Prompt/Skill Sync
@@ -37,3 +38,8 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - The Bazel comparison prompt honors step-list coverage: trace profiles contain all recorded intervals; retained summaries have at most 32 actions plus setup. Recommend step detail tools for published action outcomes/logs and invocation logs for broader output; unknown or absent diagnostics never imply success.
 
 - Numeric retained Bazel IDs stay readable across profile publication; missing indexed rows report unavailable rather than an empty available timeline. Gradle step tools include zero-duration cache and skip outcomes.
+
+- Runner-volume tools share `Runners.CacheVolumes.Query` with the public API and
+  derive schemas from `Runners.CacheVolumes.Schemas`. Reads require runners-read;
+  clearing requires account-update and carries destructive annotations. Keep
+  account scoping, unknown values and the runners feature gate intact.

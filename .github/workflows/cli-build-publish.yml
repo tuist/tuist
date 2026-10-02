@@ -118,9 +118,10 @@ jobs:
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update version in Constants.swift
+      - name: Stamp the release version
         run: |
-          sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ inputs.version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
+          sed -i '' -e "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
+          grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
 
       - name: Update CHANGELOG.md
         working-directory: cli
@@ -156,7 +157,7 @@ jobs:
           name: cli-artifacts
           path: |
             cli/CHANGELOG.md
-            cli/Sources/TuistConstants/Constants.swift
+            cli/Sources/tuist/ReleaseVersion.swift
             mise.toml
             build/ProjectDescription.xcframework.zip
             build/tuist.zip
@@ -184,9 +185,10 @@ jobs:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      - name: Update version in Constants.swift
+      - name: Stamp the release version
         run: |
-          sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ inputs.version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
+          sed -i "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
+          grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
 
       - name: Install caddy
         run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
@@ -300,6 +302,13 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          # The action's `token` input defaults to github.token, and a non-empty
+          # input wins over the GITHUB_TOKEN env var, so the job-level env never
+          # reached it and every release was cut with github.token. GitHub answers
+          # 403 "Resource not accessible by integration" to that token when the
+          # tag it has to create points at the soaked release-branch commit rather
+          # than the tip of main, so the release token is passed explicitly.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
           # Pin the tag to the exact commit that was built, passed in as a
           # resolved SHA. github.sha would resolve to the caller's triggering
           # commit under workflow_call (main HEAD for a backport), not the

@@ -73,6 +73,10 @@ protect_breaking_commits = false
 filter_commits = true
 tag_pattern = "kura@[0-9].*"
 skip_tags = "beta|alpha"
-ignore_tags = "rc"
+# Canary and RC tags are excluded from cliff's --bumped-version base so a
+# fresh canary can be cut against the last stable instead of chasing the
+# previous canary, and so RCs on a soaking line don't freeze the next
+# stable bump computation.
+ignore_tags = "rc|canary"
 topo_order = false
 sort_commits = "newest"

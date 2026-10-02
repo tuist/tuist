@@ -612,7 +612,7 @@ fn eviction_event(
         node_id: node_id.to_owned(),
         region: region.to_owned(),
         segment_id: eviction.segment_id,
-        reason: "capacity".to_owned(),
+        reason: eviction.reason.to_owned(),
         evicted_at_unix_ms: eviction.evicted_at_ms,
         segment_created_at_unix_ms: eviction.segment_created_at_ms,
         newest_content_at_unix_ms: eviction.newest_content_at_ms,
@@ -866,6 +866,7 @@ mod tests {
 
     fn capacity_eviction(segment_id: &str) -> CapacityEviction {
         CapacityEviction {
+            reason: "capacity",
             segment_id: segment_id.to_owned(),
             segment_created_at_ms: 1_000,
             newest_content_at_ms: 2_000,
@@ -873,6 +874,14 @@ mod tests {
             artifact_count: 3,
             bytes: 512,
         }
+    }
+
+    #[test]
+    fn eviction_event_preserves_pressure_reason() {
+        let mut eviction = capacity_eviction("pressure-segment");
+        eviction.reason = "disk_pressure";
+        let event = eviction_event("acme", "node-1", "eu-west", eviction);
+        assert_eq!(event.reason, "disk_pressure");
     }
 
     #[test]

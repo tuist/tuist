@@ -69,9 +69,9 @@ defmodule Tuist.ReleaseTest do
                  max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
                  max_rows_to_read = 100000000 MIN 1 MAX 100000000,
                  max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
-                 max_result_rows = 201 MIN 1 MAX 201,
+                 max_result_rows = 10001 MIN 1 MAX 10001,
                  max_result_bytes = 5242880 MIN 1 MAX 5242880,
-                 max_block_size = 201 MIN 1 MAX 201,
+                 max_block_size = 10001 MIN 1 MAX 10001,
                  max_threads = 2 MIN 1 MAX 2
                """,
                "GRANT SELECT ON `tuist`.* TO `tuist_ops_readonly`",

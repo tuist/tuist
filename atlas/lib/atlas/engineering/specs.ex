@@ -529,6 +529,10 @@ defmodule Atlas.Engineering.Specs do
       |> Repo.insert()
       |> unwrap_or_rollback()
     end)
+    |> tap(fn
+      {:ok, comment} -> record_comment_event("spec_comment.added", comment, spec, user)
+      _ -> :ok
+    end)
   end
 
   def add_comment(_spec, _attrs, _user), do: {:error, :unauthorized}
@@ -538,6 +542,10 @@ defmodule Atlas.Engineering.Specs do
       comment
       |> Comment.changeset(attrs)
       |> Repo.update()
+      |> tap(fn
+        {:ok, updated} -> record_comment_event("spec_comment.updated", updated, user)
+        _ -> :ok
+      end)
     else
       {:error, :unauthorized}
     end
@@ -547,7 +555,12 @@ defmodule Atlas.Engineering.Specs do
 
   def delete_comment(%Comment{} = comment, %User{} = user) do
     if can_edit_comment?(comment, user) do
-      Repo.delete(comment)
+      comment
+      |> Repo.delete()
+      |> tap(fn
+        {:ok, deleted} -> record_comment_event("spec_comment.deleted", deleted, user)
+        _ -> :ok
+      end)
     else
       {:error, :unauthorized}
     end
@@ -648,6 +661,27 @@ defmodule Atlas.Engineering.Specs do
       metadata: %{
         "number" => spec.number && to_string(spec.number),
         "status" => spec.status && Atom.to_string(spec.status),
+        "path" => spec.number && "/engineering/specs/#{spec.number}"
+      }
+    })
+  end
+
+  defp record_comment_event(action, %Comment{} = comment, %User{} = user) do
+    case Repo.get(Spec, comment.spec_id) do
+      %Spec{} = spec -> record_comment_event(action, comment, spec, user)
+      _ -> :ok
+    end
+  end
+
+  defp record_comment_event(action, %Comment{} = comment, %Spec{} = spec, %User{} = user) do
+    Audit.record(action, %{
+      actor: user,
+      target_type: "spec_comment",
+      target_id: comment.id,
+      target_label: title(spec),
+      metadata: %{
+        "spec_id" => spec.id,
+        "number" => spec.number && to_string(spec.number),
         "path" => spec.number && "/engineering/specs/#{spec.number}"
       }
     })

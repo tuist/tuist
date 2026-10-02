@@ -28,7 +28,7 @@ defmodule Atlas.MCP.Tools.RecordAssetWarrantyExtension do
   end
 
   def execute(conn, %{"asset_id" => asset_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = asset <- Assets.get_asset(asset_id) do
       attrs = normalize_attrs(args)
 

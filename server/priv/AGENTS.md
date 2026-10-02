@@ -3,6 +3,7 @@
 This directory contains database migrations and other private assets.
 
 ## Responsibilities
+- Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
@@ -24,6 +25,10 @@ This directory contains database migrations and other private assets.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
+- Runner cache migrations create indexes concurrently with DDL transactions and
+  migration locks disabled; verify both forward migration and rollback.
+- Runner cache size measurements reference uses and cascade with their retention;
+  historical observations must not be overwritten by subsequent agent reports.
 - Declare table engines in new ClickHouse migrations through
   `Tuist.IngestRepo.Migration.engine/1`, as in
   `engine: Migration.engine("ReplacingMergeTree(inserted_at)")`, never as a
@@ -52,3 +57,15 @@ This directory contains database migrations and other private assets.
 - Runner Kura enrollment uses `20260911090100` after its incoming main-branch migration collided with Bazel’s `20260910160000`. Re-execution is safe: enrollment selects only live rows without an existing storage pin.
 
 - Automation `event_generation` is nullable and falls back to `baseline_generation` for historical rows. It preserves recovery history across one-time action requests and cancellation; condition changes advance both generations. Keep attempt revision checks separate from event queries.
+
+- Cache-volume image publication adds nullable digests and published generation,
+  plus a base HEAD generation defaulting to zero. This is separate from the
+  invalidation epoch; schema rollback follows local-image fleet cleanup.
+  Its version is `20260924130000`; the prototype `20260923120000` collided with
+  main's account cache-meter migration. Prototype databases need their migration
+  history reconciled before either migration runs; verify the corresponding
+  columns instead of assuming which migration the old version represents.
+
+- Kura identity backfill is forward-only: audit historical provisioner references and reservation collisions before deployment. Unknown/conflicting references abort; never guess a live volume namespace. See `kura/docs/account-renames.md` at repository root.
+
+- Kura client URL expiry is separate from handle ownership: `client_url_expires_at` is set to 90 days when a name is retired, cleared on rename-back, and never deletes its reservation. Historical names with unknown rename dates get 90 days from the expiry migration. Both migrations are forward-only.

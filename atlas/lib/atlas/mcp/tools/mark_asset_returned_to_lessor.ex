@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.MarkAssetReturnedToLessor do
   end
 
   def execute(conn, %{"asset_id" => asset_id, "on" => on}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = asset <- Assets.get_asset(asset_id) do
       case Assets.mark_returned_to_lessor(asset, on: Date.from_iso8601!(on)) do
         {:ok, updated} -> {:ok, Serializer.asset(updated)}

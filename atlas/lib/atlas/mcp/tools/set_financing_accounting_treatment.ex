@@ -26,7 +26,7 @@ defmodule Atlas.MCP.Tools.SetFinancingAccountingTreatment do
   end
 
   def execute(conn, %{"financing_id" => id, "accounting_treatment" => treatment} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(id) do
       case Financings.set_accounting_treatment(financing, treatment, Map.get(args, "evidence")) do
         {:ok, updated} -> {:ok, Serializer.financing(updated)}

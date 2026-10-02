@@ -7,6 +7,7 @@ defmodule Tuist.Tests.AnalyticsTest do
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestModuleRun
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -297,11 +298,34 @@ defmodule Tuist.Tests.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testAnother",
-          status: 0,
+          status: 2,
           is_flaky: false,
           duration: 150,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         }
+      ])
+
+      module_run = fn test_run_id, name ->
+        %{
+          id: UUIDv7.generate(),
+          name: name,
+          test_run_id: test_run_id,
+          project_id: project.id,
+          status: 0,
+          is_flaky: false,
+          duration: 100,
+          test_suite_count: 1,
+          test_case_count: 1,
+          avg_test_case_duration: 100,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        }
+      end
+
+      # TestE ran on two shards, so it is reported twice.
+      IngestRepo.insert_all(TestModuleRun, [
+        module_run.(test_run_one.id, "TestB"),
+        module_run.(test_run_two.id, "TestE"),
+        module_run.(test_run_two.id, "TestE")
       ])
 
       # Create command events linked to test runs
@@ -346,25 +370,24 @@ defmodule Tuist.Tests.AnalyticsTest do
       result_one = Enum.find(got, &(&1.test_run_id == test_run_one.id))
       result_two = Enum.find(got, &(&1.test_run_id == test_run_two.id))
 
-      # Verify test_run_one metrics (1 test case run)
-      # Cache: 3 cacheable targets, 2 hits (A local, B remote) = 66%
-      # Skipped: 1 local test target hit (TestA) = 1 skipped
-      # Ran: 1 total - 1 skipped = 0 ran
       assert result_one.test_run_id == test_run_one.id
       assert result_one.total_tests == 1
-      assert result_one.cache_hit_rate == "66 %"
-      assert result_one.skipped_tests == 1
-      assert result_one.ran_tests == 0
+      assert result_one.skipped_tests == 0
+      assert result_one.ran_tests == 1
+      assert result_one.module_cache_hit_rate == "66 %"
+      assert result_one.xcode_cache_hit_rate == nil
+      assert result_one.has_selective_testing_data
+      assert result_one.ran_test_modules == 1
+      assert result_one.skipped_test_modules == 1
 
-      # Verify test_run_two metrics (3 test case runs: 2 success, 1 failure)
-      # Cache: 4 cacheable targets, 2 hits (E, F remote) = 50%
-      # Skipped: 2 test target hits (TestC local, TestD remote) = 2 skipped
-      # Ran: 3 total - 2 skipped = 1 ran
       assert result_two.test_run_id == test_run_two.id
       assert result_two.total_tests == 3
-      assert result_two.cache_hit_rate == "50 %"
-      assert result_two.skipped_tests == 2
-      assert result_two.ran_tests == 1
+      assert result_two.skipped_tests == 1
+      assert result_two.ran_tests == 2
+      assert result_two.module_cache_hit_rate == "50 %"
+      assert result_two.has_selective_testing_data
+      assert result_two.ran_test_modules == 1
+      assert result_two.skipped_test_modules == 2
     end
 
     test "handles test runs without command events" do
@@ -413,15 +436,158 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert length(got) == 1
       result = List.first(got)
 
-      # Without command event, no cache targets or test target hits
-      # Cache: 0 cacheable targets = 0%
-      # Skipped: 0 test target hits = 0 skipped
-      # Ran: 1 total - 0 skipped = 1 ran
       assert result.test_run_id == test_run.id
       assert result.total_tests == 1
-      assert result.cache_hit_rate == "0 %"
       assert result.skipped_tests == 0
       assert result.ran_tests == 1
+      assert result.module_cache_hit_rate == nil
+      assert result.xcode_cache_hit_rate == nil
+      refute result.has_selective_testing_data
+      assert result.ran_test_modules == 0
+      assert result.skipped_test_modules == 0
+    end
+
+    test "returns metrics for test runs where selective testing skipped every test module" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          is_flaky: false,
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_run_id: test_run.id,
+        test_targets: ["TestA", "TestB"],
+        local_test_target_hits: ["TestA"],
+        remote_test_target_hits: ["TestB"],
+        created_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got = Analytics.test_runs_metrics(project.id, [test_run])
+
+      # Then
+      assert [result] = got
+      assert result.test_run_id == test_run.id
+      assert result.total_tests == 0
+      assert result.ran_test_modules == 0
+      assert result.skipped_test_modules == 2
+    end
+
+    test "reads the module cache hit rate from the build's command event when the test command has none" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      build_run_id = UUIDv7.generate()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          build_run_id: build_run_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          is_flaky: false,
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        build_run_id: build_run_id,
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        ran_at: ~U[2024-04-30 09:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        build_run_id: build_run_id,
+        test_run_id: test_run.id,
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # When
+      [result] = Analytics.test_runs_metrics(project.id, [test_run])
+
+      # Then
+      assert result.module_cache_hit_rate == "75 %"
+    end
+
+    test "reads the Xcode cache hit rate from the latest version of the test run's build" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      build_run_id = UUIDv7.generate()
+
+      {:ok, _placeholder} =
+        RunsFixtures.build_fixture(
+          id: build_run_id,
+          project_id: project.id,
+          status: "processing",
+          cacheable_tasks_count: 0,
+          inserted_at: ~N[2024-04-30 09:00:00.000000]
+        )
+
+      {:ok, _processed} =
+        RunsFixtures.build_fixture(
+          id: build_run_id,
+          project_id: project.id,
+          cacheable_tasks_count: 10,
+          cacheable_task_local_hits_count: 6,
+          cacheable_task_remote_hits_count: 2,
+          inserted_at: ~N[2024-04-30 09:05:00.000000]
+        )
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          build_run_id: build_run_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          is_flaky: false,
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      # When
+      [result] = Analytics.test_runs_metrics(project.id, [test_run])
+
+      # Then
+      assert result.xcode_cache_hit_rate == "80 %"
+      assert result.module_cache_hit_rate == nil
     end
   end
 

@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.TerminateFinancing do
   end
 
   def execute(conn, %{"financing_id" => id, "on" => on} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          {:ok, date} <- Date.from_iso8601(on),
          %_{} = financing <- Financings.get(id) do
       case Financings.terminate(financing, on: date, reason: Map.get(args, "reason")) do

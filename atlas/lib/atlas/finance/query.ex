@@ -100,6 +100,7 @@ defmodule Atlas.Finance.Query do
       account: {account, source: {source, atlas_account: atlas_account}},
       category: category
     )
+    |> maybe_filter_transaction_id(Keyword.get(opts, :id))
     |> maybe_filter_provider(Keyword.get(opts, :provider))
     |> maybe_filter_source_key(Keyword.get(opts, :source_key))
     |> maybe_filter_atlas_account_id(Keyword.get(opts, :atlas_account_id))
@@ -128,6 +129,12 @@ defmodule Atlas.Finance.Query do
   end
 
   defp maybe_filter_category_direction(query, _direction), do: query
+
+  defp maybe_filter_transaction_id(query, id) when is_binary(id) and id != "" do
+    where(query, [transaction], transaction.id == ^id)
+  end
+
+  defp maybe_filter_transaction_id(query, _id), do: query
 
   defp maybe_filter_provider(query, provider) when is_binary(provider) and provider != "" do
     where(query, [transaction], transaction.provider == ^provider)

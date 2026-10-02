@@ -28,7 +28,7 @@ defmodule Atlas.MCP.Tools.GetAuditActivity do
   def description, do: "Get one Atlas audit activity by id. Only available to admins."
 
   def execute(conn, %{"activity_id" => id}) when is_binary(id) do
-    with :ok <- Tool.authorize_executive(conn, "Audit tools") do
+    with :ok <- Tool.authorize_scope(conn, "audit:read", "Audit tools") do
       case Audit.get_activity(id) do
         nil -> {:error, "Audit activity not found: #{id}"}
         activity -> {:ok, %{activity: Audit.serialize(activity)}}

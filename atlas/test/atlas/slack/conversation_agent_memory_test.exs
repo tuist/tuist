@@ -2,7 +2,6 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
   use Atlas.DataCase, async: true
 
   alias Atlas.Accounts.Account
-  alias Atlas.Agents.Identity
   alias Atlas.Memory
   alias Atlas.Repo
   alias Atlas.Search
@@ -33,12 +32,11 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
     end
   end
 
-  describe "slack_session_options/4" do
+  describe "slack_session_options/3" do
     test "mounts memory tools on internal company channels" do
       channel = insert_channel!()
-      identity = Identity.default()
 
-      opts = ConversationAgent.slack_session_options(:company, channel, identity)
+      opts = ConversationAgent.slack_session_options(:company, channel)
       tools = Keyword.fetch!(opts, :tools)
       names = Enum.map(tools, &Tool.name/1)
 
@@ -53,9 +51,8 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
     test "does not mount memory tools on account-linked channels" do
       account = insert_account!()
       channel = insert_channel!(%{account_id: account.id})
-      identity = Identity.default()
 
-      opts = ConversationAgent.slack_session_options(:company, channel, identity)
+      opts = ConversationAgent.slack_session_options(:company, channel)
       names = opts |> Keyword.fetch!(:tools) |> Enum.map(&Tool.name/1)
 
       refute "memory_save" in names
@@ -65,7 +62,6 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
 
     test "searches Atlas records through the Slack tool" do
       channel = insert_channel!()
-      identity = Identity.default()
 
       {:ok, record} =
         Search.upsert_record(
@@ -81,7 +77,7 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
 
       tool =
         :company
-        |> ConversationAgent.slack_session_options(channel, identity)
+        |> ConversationAgent.slack_session_options(channel)
         |> Keyword.fetch!(:tools)
         |> Enum.find(&(Tool.name(&1) == "search_atlas"))
 
@@ -94,11 +90,10 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
 
     test "rejects document search through the Slack tool in ordinary internal channels" do
       channel = insert_channel!()
-      identity = Identity.default()
 
       tool =
         :company
-        |> ConversationAgent.slack_session_options(channel, identity)
+        |> ConversationAgent.slack_session_options(channel)
         |> Keyword.fetch!(:tools)
         |> Enum.find(&(Tool.name(&1) == "search_atlas"))
 
@@ -107,13 +102,13 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
     end
   end
 
-  describe "build_prompt/5" do
+  describe "build_prompt/4" do
     test "prepends the global bulletin on internal company channels" do
       channel = insert_channel!()
       {:ok, _bulletin} = Memory.upsert_bulletin(:global, "Acme renews in Q3.")
       event = %{"ts" => "1.0", "thread_ts" => nil, "user" => "U1", "channel" => channel.channel_id}
 
-      prompt = ConversationAgent.build_prompt(event, channel, nil, [], Identity.default())
+      prompt = ConversationAgent.build_prompt(event, channel, nil, [])
 
       assert prompt =~ "Workspace memory bulletin:\nAcme renews in Q3."
     end
@@ -124,7 +119,7 @@ defmodule Atlas.Slack.ConversationAgentMemoryTest do
       {:ok, _bulletin} = Memory.upsert_bulletin(:global, "Acme renews in Q3.")
       event = %{"ts" => "1.0", "thread_ts" => nil, "user" => "U1", "channel" => channel.channel_id}
 
-      prompt = ConversationAgent.build_prompt(event, channel, nil, [], Identity.default())
+      prompt = ConversationAgent.build_prompt(event, channel, nil, [])
 
       refute prompt =~ "Workspace memory bulletin"
     end

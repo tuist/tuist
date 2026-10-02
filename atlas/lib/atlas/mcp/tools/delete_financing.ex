@@ -26,7 +26,7 @@ defmodule Atlas.MCP.Tools.DeleteFinancing do
   end
 
   def execute(conn, %{"financing_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(id) do
       case Financings.delete(financing) do
         {:ok, deleted} -> {:ok, %{financing_id: deleted.id, deleted: true}}

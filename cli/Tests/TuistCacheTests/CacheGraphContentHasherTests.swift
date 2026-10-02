@@ -3,6 +3,8 @@ import Mockable
 import Testing
 import struct TSCUtility.Version
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistHasher
 import TuistSupport
 import TuistTesting
@@ -30,8 +32,36 @@ struct CacheGraphContentHasherTests {
         )
     }
 
+    @Test(.withMockedEnvironment(), .withMockedSwiftVersionProvider, .withMockedXcodeController, arguments: [false, true])
+    func computesSDKFingerprintsOnlyForModernCaching(legacy: Bool) async throws {
+        Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = legacy ? "1" : nil
+        let target = Target.test(name: "Shared", destinations: [.iPhone, .mac], product: .staticFramework)
+        let project = Project.test(path: "/synthetic", targets: [target], type: .external(hash: "revision"))
+        let graphTarget = GraphTarget(path: project.path, target: target, project: project)
+        let graph = Graph.test(projects: [project.path: project])
+        given(graphContentHasher).contentHashes(for: .any, include: .any, destination: .any, additionalStrings: .any)
+            .willReturn([graphTarget: .test()])
+        given(defaultConfigurationFetcher).fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        given(try #require(SwiftVersionProvider.mocked)).swiftlangVersion().willReturn("test")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("test")
+        let hasher = CacheGraphContentHasher(
+            graphContentHasher: graphContentHasher, contentHasher: ContentHasher(),
+            versionFetcher: CacheVersionFetcher(), defaultConfigurationFetcher: defaultConfigurationFetcher
+        )
+        let result = try await hasher.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+        #expect(result[graphTarget]?.binaryCacheFingerprints.count == (legacy ? 0 : 3))
+    }
+
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_scopesSettingsToSelectedConfiguration() async throws {
         // Given
         let requestedConfigurationName = "Debug-SharedCache"
@@ -69,6 +99,7 @@ struct CacheGraphContentHasherTests {
             .willReturn(requestedConfigurationName)
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -103,7 +134,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_scopesSettingsToDefaultConfiguration() async throws {
         // Given
         let defaultConfigurationName = "Debug-SharedCache"
@@ -132,6 +164,7 @@ struct CacheGraphContentHasherTests {
             .willReturn(defaultConfigurationName)
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -162,7 +195,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_scopesSettingsWhenConfigurationIsImplicit() async throws {
         // Given
         let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
@@ -190,6 +224,7 @@ struct CacheGraphContentHasherTests {
             .willReturn(selectedConfiguration.name)
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -220,7 +255,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(
@@ -241,6 +277,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -265,7 +302,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
         // Given
         let excludedTarget = GraphTarget(
@@ -291,6 +329,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -315,7 +354,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
         // Given
         let project = Project.test()
@@ -348,6 +388,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -372,7 +413,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_target_is_test_bundle_hashes_are_not_computed() async throws {
         // Given
         let included = Target.test(name: "Included", product: .framework)
@@ -411,6 +453,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -435,7 +478,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_framework_depends_on_XCTest_hashes_are_computed() async throws {
         // Given
         let testSupport = Target.test(name: "TestSupport", product: .framework)
@@ -473,6 +517,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -497,7 +542,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_framework_enables_testing_search_paths_hashes_are_computed() async throws {
         // Given
         let testSupport = Target.test(
@@ -536,6 +582,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(
@@ -560,7 +607,8 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_when_targets_are_libraries_hashes_are_computed() async throws {
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
@@ -599,6 +647,7 @@ struct CacheGraphContentHasherTests {
             .willReturn("Debug")
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
 
         // When
         _ = try await subject.contentHashes(

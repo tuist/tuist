@@ -25,7 +25,7 @@ defmodule Atlas.MCP.Tools.CreateDataCenter do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools") do
       case Assets.create_data_center(args) do
         {:ok, dc} -> {:ok, Serializer.data_center(dc)}
         {:error, changeset} -> {:error, "Could not create data center: #{Tool.format_changeset_errors(changeset)}"}

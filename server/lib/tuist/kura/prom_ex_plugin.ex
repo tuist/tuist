@@ -361,11 +361,19 @@ defmodule Tuist.Kura.PromExPlugin do
   @doc false
   def execute_new_instance_readiness_telemetry_event do
     case Kura.new_instance_readiness(@readiness_window_seconds) do
-      # No new instance in the window leaves the series stale rather than
-      # reporting a percentile of nothing: a fleet that provisioned nothing has
-      # no speed to report, and a zero would read as instant.
+      # No new instance in the window reports the count as zero and leaves the
+      # percentile alone: a fleet that provisioned nothing has no speed to
+      # report, and a zero there would read as instant.
+      #
+      # The count has to be emitted rather than skipped. A `last_value` is an
+      # ETS row the exporter reads with no TTL and no delete path, so a series
+      # that stops being emitted goes stale rather than absent; leaving both
+      # stale would let the alert keep evaluating the previous day's percentile
+      # against the previous day's sample gate, staying green through exactly
+      # the wedged-provisioning day it should notice. A zero count closes the
+      # gate instead, which is the No Data the rule is configured for.
       %{count: 0} ->
-        :ok
+        :telemetry.execute([:tuist, :kura, :lifecycle, :new_instance_readiness], %{count: 0}, %{})
 
       %{count: count, p90_seconds: p90_seconds} ->
         :telemetry.execute(

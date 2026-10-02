@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.ReturnAsset do
   end
 
   def execute(conn, %{"asset_id" => asset_id, "on" => on} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          {:ok, date} <- parse_date(on),
          %_{} = asset <- Assets.get_asset(asset_id) do
       case Assets.return_asset(asset, on: date, notes: Map.get(args, "notes")) do

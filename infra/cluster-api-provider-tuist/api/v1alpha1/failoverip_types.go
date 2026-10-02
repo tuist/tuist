@@ -12,7 +12,7 @@ type FailoverIPSpec struct {
 	IP string `json:"ip"`
 
 	// Vendor is the provider whose API moves the IP.
-	// +kubebuilder:validation:Enum=ovh;dedibox
+	// +kubebuilder:validation:Enum=ovh
 	Vendor string `json:"vendor"`
 
 	// Region is the Kura region this IP fronts (informational; matches the pool
@@ -36,8 +36,7 @@ type FailoverIPSpec struct {
 type FailoverIPStatus struct {
 	// ActiveNode is the node the IP is currently routed to.
 	ActiveNode string `json:"activeNode,omitempty"`
-	// Target is the vendor-opaque destination (OVH service name, or Dedibox
-	// "zone/server-id") the IP routes to.
+	// Target is the OVH service name the IP routes to.
 	Target string `json:"target,omitempty"`
 	// Message surfaces the last reconcile outcome (e.g. "no eligible box").
 	Message string `json:"message,omitempty"`

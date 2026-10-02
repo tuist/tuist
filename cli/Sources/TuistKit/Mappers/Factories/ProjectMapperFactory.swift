@@ -96,6 +96,8 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         // Entitlements
         mappers.append(GenerateEntitlementsProjectMapper())
 
+        mappers.append(CleanGeneratedProjectFilesMapper())
+
         // Privacy Manifest
         mappers.append(GeneratePrivacyManifestProjectMapper())
 

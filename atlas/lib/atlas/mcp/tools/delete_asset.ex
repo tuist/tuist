@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.DeleteAsset do
   end
 
   def execute(conn, %{"asset_id" => asset_id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = asset <- Assets.get_asset(asset_id) do
       case Assets.delete_asset(asset) do
         {:ok, deleted} -> {:ok, %{asset_id: deleted.id, deleted: true}}

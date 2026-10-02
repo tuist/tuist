@@ -23,7 +23,8 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   ## What this must not disturb
 
   **Archival.** A seeded instance that stores nothing is reclaimed once it has
-  been in service for `Tuist.Environment.kura_unused_days/0`
+  been in service for the plan-specific unused window (24 hours on Air and
+  seven days on Pro by default)
   (`Tuist.Kura.Lifecycle`). The account's first cache request returns it, so
   reclaiming it early costs one provision. The seed declines while that hold is
   in place (`Tuist.Kura.Demand.unused_hold?/1`); otherwise every new project

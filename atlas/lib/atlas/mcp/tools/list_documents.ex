@@ -83,7 +83,7 @@ defmodule Atlas.MCP.Tools.ListDocuments do
       "List executive documents stored in Atlas, including document type, correspondent, tags, date, and a shareable url to open each file."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Document tools"),
+    with :ok <- Tool.authorize_scope(conn, "documents:read", "Document tools"),
          {:ok, account_id} <- account_id(args) do
       documents =
         [

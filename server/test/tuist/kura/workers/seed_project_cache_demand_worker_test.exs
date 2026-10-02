@@ -265,7 +265,7 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorkerTest do
           account_id: account.id,
           region: @region,
           date: Date.add(Date.utc_today(), -days),
-          snapshot_count: 96,
+          snapshot_count: 96 * 2,
           max_occupancy_percent: 0,
           max_live_segment_bytes: 0
         })

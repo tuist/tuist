@@ -26,6 +26,7 @@ defmodule Tuist.Runners.Buildkite.Job do
     field :build_number, :integer, default: 0
     field :queue_key, :string, default: ""
     field :reserved_until, :utc_datetime
+    field :cache_volume_identity, :map
 
     belongs_to :account, Account
 

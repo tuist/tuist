@@ -33,7 +33,7 @@ defmodule Atlas.MCP.Tools.AttachDocumentToFinancing do
   end
 
   def execute(conn, %{"financing_id" => financing_id, "document_id" => document_id, "kind" => kind} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Financing tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Financing tools"),
          %_{} = financing <- Financings.get(financing_id) do
       opts = if is_binary(args["notes"]), do: [notes: args["notes"]], else: []
 

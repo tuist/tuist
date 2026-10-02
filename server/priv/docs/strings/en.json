@@ -422,7 +422,7 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing",
+              "text": "Selection",
               "items": {
                 "generated-xcode-project": {
                   "text": "Generated Xcode project"
@@ -430,7 +430,7 @@
               }
             },
             "test-sharding": {
-              "text": "Test sharding",
+              "text": "Sharding",
               "items": {
                 "generated-xcode-project": {
                   "text": "Generated Xcode project"
@@ -438,7 +438,7 @@
               }
             },
             "insights": {
-              "text": "Build insights",
+              "text": "Insights",
               "items": {
                 "generated-xcode-project": {
                   "text": "Generated Xcode project"
@@ -446,10 +446,10 @@
               }
             },
             "test-insights": {
-              "text": "Test insights",
+              "text": "Insights",
               "items": {
                 "flaky-tests": {
-                  "text": "Flaky tests",
+                  "text": "Flakiness",
                   "items": {
                     "generated-xcode-project": {
                       "text": "Generated Xcode project"
@@ -459,7 +459,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Bundle insights",
+              "text": "Insights",
               "items": {
                 "apple": {
                   "text": "Apple"

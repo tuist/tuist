@@ -13,12 +13,19 @@ public struct SelectiveTestingGraph: Codable {
     /// (let xcodebuild fail naturally).
     public let attemptedTestPlans: [String]
 
+    /// The test identifiers the build was restricted to, as `Target[/Suite[/Test]]`. xcodebuild
+    /// records a test plan's selection in the `.xctestrun` but never a command-line `-only-testing`,
+    /// so a later `test-without-building` has no other way to know what the build was asked for.
+    public let requestedTestIdentifiers: [String]
+
     public init(
         testTargetHashes: [String: String],
-        attemptedTestPlans: [String] = []
+        attemptedTestPlans: [String] = [],
+        requestedTestIdentifiers: [String] = []
     ) {
         self.testTargetHashes = testTargetHashes
         self.attemptedTestPlans = attemptedTestPlans
+        self.requestedTestIdentifiers = requestedTestIdentifiers
     }
 
     public static let fileName = "selective-testing-graph.json"
@@ -28,5 +35,7 @@ public struct SelectiveTestingGraph: Codable {
         testTargetHashes = try container.decode([String: String].self, forKey: .testTargetHashes)
         attemptedTestPlans =
             try container.decodeIfPresent([String].self, forKey: .attemptedTestPlans) ?? []
+        requestedTestIdentifiers =
+            try container.decodeIfPresent([String].self, forKey: .requestedTestIdentifiers) ?? []
     }
 }

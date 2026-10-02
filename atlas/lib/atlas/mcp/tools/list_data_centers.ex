@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.ListDataCenters do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools") do
       filters =
         args
         |> Map.take(["status"])

@@ -445,7 +445,8 @@ func TestGuestGivesTheCompilerTheDividedLimit(t *testing.T) {
 // Each prune needs the limits decided from the sizes just before it: the attach
 // prune from what the job inherited, the teardown prune from what the job left.
 // The binary cache's limit is exported after the attach prune, because it has to
-// fit beside what the compilation cache holds once pruned.
+// fit beside what the compilation cache holds once pruned, and the division is
+// staged for the host after that, so what is recorded is what was applied.
 func TestGuestDividesTheBudgetBeforeEachPrune(t *testing.T) {
 	order := func(t *testing.T, text string, calls ...string) {
 		t.Helper()
@@ -472,11 +473,135 @@ func TestGuestDividesTheBudgetBeforeEachPrune(t *testing.T) {
 	}
 
 	order(t, guestShellFunction(t, "wait_for_cache_ready"),
-		"set_cache_limits attach", "prune_cas_stores attach", "limit_binary_cache", "setup_cas_store")
+		"set_cache_limits attach", "prune_cas_stores attach", "limit_binary_cache", "stage_cache_limits attach", "setup_cas_store")
 
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "runner-image", "dispatch-poll.sh"))
 	if err != nil {
 		t.Fatalf("read dispatch-poll.sh: %v", err)
 	}
-	order(t, string(b), "set_cache_limits teardown", "prune_cas_stores teardown")
+	order(t, string(b), "set_cache_limits teardown", "stage_cache_limits teardown", "prune_cas_stores teardown")
+}
+
+// The division measures both caches at both ends of every job and then throws
+// the numbers away into a log the host only re-emits a bounded tail of. Staging
+// them is what makes the rule and its floors tunable from the fleet rather than
+// from the few lines that survive.
+func TestGuestStagesWhatItDivided(t *testing.T) {
+	const mib = 1 << 20
+	statusDir := t.TempDir()
+	mount := t.TempDir()
+	for dir, size := range map[string]int{
+		filepath.Join(mount, "tuist", "Binaries", "a"):      10 * mib,
+		filepath.Join(mount, casStoreDir, "plugin", "v1.1"): 20 * mib,
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "data"), make([]byte, size), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, content := range map[string]string{
+		"cache-budget-bytes": fmt.Sprint(48 * mib),
+		"cas-enabled":        fmt.Sprint(11 * mib),
+	} {
+		if err := os.WriteFile(filepath.Join(statusDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	script := guestShellScript(t,
+		"set_cache_limits attach\nlimit_binary_cache\nstage_cache_limits attach\nset_cache_limits teardown\nstage_cache_limits teardown\n"+
+			`printf 'exported=%s' "${TUIST_CACHE_MAX_BYTES:-}"`,
+		"allocated_bytes", "split_by_use", "cache_budget_shares", "within_room", "set_cache_limits", "limit_binary_cache", "stage_cache_limits")
+	cmd := exec.Command("/bin/bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"CACHE_MOUNT="+mount,
+		"CAS_STORE_DIR="+casStoreDir,
+		"STATUS_SHARE="+statusDir,
+		"CAS_ENABLED_MARKER=cas-enabled",
+		"CACHE_BUDGET_MARKER=cache-budget-bytes",
+		"CACHE_LIMITS_FILE=cache-limits",
+		fmt.Sprintf("CACHE_SPLIT_FLOOR_BYTES=%d", 4<<20),
+		"TUIST_CACHE_MAX_BYTES=", "CACHE_BUDGET_BYTES=", "CAS_LIMIT_BYTES=",
+		"BINARY_CACHE_SHARE_BYTES=", "BINARY_CACHE_HELD_BYTES=", "COMPILATION_CACHE_HELD_BYTES=",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("staging the division: %v\n%s", err, out)
+	}
+	var exported int64
+	if _, err := fmt.Sscanf(string(out[strings.LastIndex(string(out), "exported=")+len("exported="):]), "%d", &exported); err != nil {
+		t.Fatalf("the binary cache limit was never exported:\n%s", out)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(statusDir, "cache-limits"))
+	if err != nil {
+		t.Fatalf("the division staged nothing: %v", err)
+	}
+	got := map[string][2]int64{}
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 4 {
+			t.Fatalf("line %q is not <when>\\t<cache>\\t<held>\\t<limit>", line)
+		}
+		var held, limit int64
+		if _, err := fmt.Sscanf(fields[2]+" "+fields[3], "%d %d", &held, &limit); err != nil {
+			t.Fatalf("line %q does not carry two byte counts: %v", line, err)
+		}
+		got[fields[0]+"/"+fields[1]] = [2]int64{held, limit}
+	}
+	if len(got) != 4 {
+		t.Fatalf("staged %v; want a line per cache at attach and at teardown", got)
+	}
+	binaryHeld, casHeld := duBytes(t, filepath.Join(mount, "tuist")), duBytes(t, filepath.Join(mount, casStoreDir))
+	if got["attach/binary"] != [2]int64{binaryHeld, exported} {
+		t.Fatalf("attach binary = %v; want what it holds (%d) and the exported limit (%d)", got["attach/binary"], binaryHeld, exported)
+	}
+	if got["teardown/compilation"][0] != casHeld {
+		t.Fatalf("teardown compilation held = %d; want %d", got["teardown/compilation"][0], casHeld)
+	}
+	for key, sample := range got {
+		if sample[1] <= 0 {
+			t.Fatalf("%s carries no limit: %v", key, sample)
+		}
+	}
+
+	// The two halves of the contract meet here: what the script writes is what
+	// the host's reader turns into metrics.
+	samples := readCacheLimits(statusDir)
+	if len(samples) != len(got) {
+		t.Fatalf("the host read %d of the %d lines the guest staged", len(samples), len(got))
+	}
+	for _, sample := range samples {
+		key := sample.when + "/" + sample.cache
+		if read := [2]int64{int64(sample.heldBytes), int64(sample.limitBytes)}; read != got[key] {
+			t.Fatalf("the host read %v for %s; the guest staged %v", read, key, got[key])
+		}
+	}
+}
+
+// A host that stages the fixed split gets no division, so there is nothing to
+// record and the file stays absent rather than carrying a made-up one.
+func TestGuestStagesNothingWithoutADivision(t *testing.T) {
+	statusDir := t.TempDir()
+	mount := t.TempDir()
+	if err := os.WriteFile(filepath.Join(statusDir, "cache-max-bytes"), []byte("7340032"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := guestShellScript(t, "set_cache_limits attach\nstage_cache_limits attach",
+		"allocated_bytes", "split_by_use", "cache_budget_shares", "within_room", "set_cache_limits", "stage_cache_limits")
+	cmd := exec.Command("/bin/bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"CACHE_MOUNT="+mount, "CAS_STORE_DIR="+casStoreDir, "STATUS_SHARE="+statusDir,
+		"CAS_ENABLED_MARKER=cas-enabled", "CACHE_BUDGET_MARKER=cache-budget-bytes", "CACHE_LIMITS_FILE=cache-limits",
+		"TUIST_CACHE_MAX_BYTES=", "CACHE_BUDGET_BYTES=", "CAS_LIMIT_BYTES=",
+		"BINARY_CACHE_SHARE_BYTES=", "BINARY_CACHE_HELD_BYTES=", "COMPILATION_CACHE_HELD_BYTES=",
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("staging on the fixed split: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(statusDir, "cache-limits")); !os.IsNotExist(err) {
+		t.Fatalf("the fixed split staged a division file")
+	}
 }

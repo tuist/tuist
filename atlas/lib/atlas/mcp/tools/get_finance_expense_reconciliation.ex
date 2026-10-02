@@ -134,7 +134,7 @@ defmodule Atlas.MCP.Tools.GetFinanceExpenseReconciliation do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn),
+    with :ok <- Tool.authorize_scope(conn, "finance:read", "Finance tools"),
          {:ok, date_from} <- parse_date(Map.get(args, "date_from"), :from),
          {:ok, date_to} <- parse_date(Map.get(args, "date_to"), :to),
          :ok <- validate_period(date_from, date_to),

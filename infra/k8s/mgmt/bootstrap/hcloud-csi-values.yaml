@@ -122,7 +122,10 @@ node:
                   - clickhouse
               # Nodes the in-house CAPI provider brings up on
               # non-Hetzner infrastructure (OVHcloud, Dedibox,
-              # Scaleway, Vultr) for the kura cache fleets. hcloud Volumes
+              # Scaleway, Vultr) for the kura cache fleets. `rack` is
+              # a machine in one of our own racks, such as a rack's
+              # edge node (infra/rack-switch-fleet), which labels
+              # itself when it joins. hcloud Volumes
               # can't attach anywhere off Hetzner, so the driver only
               # crash-loops there; the server provisions those PVCs
               # from local NVMe instead. Keying on the provider label
@@ -137,6 +140,7 @@ node:
                   - dedibox
                   - scaleway
                   - vultr
+                  - rack
               - key: kubernetes.io/os
                 operator: NotIn
                 values:

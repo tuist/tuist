@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.GetAssetBookValue do
   end
 
   def execute(conn, %{"asset_id" => asset_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools"),
          %_{} = asset <- Assets.get_asset(asset_id),
          {:ok, date} <- parse_date(Map.get(args, "on")) do
       {:ok, AssetsSerializer.book_value(asset, on: date)}

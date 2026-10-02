@@ -3,7 +3,6 @@ package shared
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
-	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/dedibox"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
 )
 
@@ -29,8 +27,8 @@ const defaultFailoverIPResync = 5 * time.Minute
 
 // FailoverIPMover routes a vendor failover IP to a box and reports where it
 // currently points, so the reconciler only moves it when it is not already on
-// the elected box. Target strings are vendor-opaque (OVH service name; Dedibox
-// "zone/server-id") and round-trip through TargetForNode / CurrentTarget / Move.
+// the elected box. Target strings are OVH service names and round-trip through
+// TargetForNode / CurrentTarget / Move.
 type FailoverIPMover interface {
 	// CurrentTarget returns where ip routes now, or "" if unassigned.
 	CurrentTarget(ctx context.Context, ip string) (string, error)
@@ -302,55 +300,4 @@ func ovhServiceNameFromProviderID(providerID string) (string, error) {
 		return "", fmt.Errorf("providerID %q has no service name", providerID)
 	}
 	return svc, nil
-}
-
-// DediboxFailoverMover routes a Scaleway Dedibox failover IP to a server by
-// re-attaching it. The target is "zone/server-id" parsed from the node
-// providerID.
-type DediboxFailoverMover struct {
-	Client *dedibox.Client
-	Zones  []string
-}
-
-func (m DediboxFailoverMover) CurrentTarget(ctx context.Context, ip string) (string, error) {
-	fip, _, err := m.Client.FailoverIPByAddress(ctx, m.Zones, ip)
-	if err != nil {
-		return "", err
-	}
-	if fip.ServerID == nil || fip.ServerZone == nil {
-		return "", nil
-	}
-	return fmt.Sprintf("%s/%d", *fip.ServerZone, *fip.ServerID), nil
-}
-
-func (m DediboxFailoverMover) TargetForNode(node *corev1.Node) (string, error) {
-	rest, ok := strings.CutPrefix(node.Spec.ProviderID, "dedibox://")
-	if !ok || rest == "" {
-		return "", fmt.Errorf("providerID %q is not a Dedibox id", node.Spec.ProviderID)
-	}
-	return rest, nil
-}
-
-func (m DediboxFailoverMover) Move(ctx context.Context, ip, target string) error {
-	zone, serverID, err := parseDediboxTarget(target)
-	if err != nil {
-		return err
-	}
-	fip, _, err := m.Client.FailoverIPByAddress(ctx, m.Zones, ip)
-	if err != nil {
-		return err
-	}
-	return m.Client.AttachFailoverIP(ctx, zone, serverID, fip.ID)
-}
-
-func parseDediboxTarget(target string) (string, uint64, error) {
-	zone, idStr, ok := strings.Cut(target, "/")
-	if !ok || zone == "" || idStr == "" {
-		return "", 0, fmt.Errorf("dedibox target %q is not zone/server-id", target)
-	}
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return "", 0, fmt.Errorf("parsing dedibox server id from %q: %w", target, err)
-	}
-	return zone, id, nil
 }
