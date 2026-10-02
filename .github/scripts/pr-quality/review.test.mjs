@@ -98,11 +98,11 @@ test('SDK sends authenticated typed questions to the fixed API and returns gate 
       const request = JSON.parse(options.body);
       assert.equal(request.state.diff.replace(/^\[line_\d+\] /gm, ''), diff);
       assert.equal(request.model, 'jev-latest');
-      assert.equal(Object.keys(request.questions).length, 65);
+      assert.equal(Object.keys(request.questions).length, calls === 1 ? 63 : 1);
       return Response.json(response(5, JSON.parse(options.body).questions));
     },
   });
-  assert.equal(calls, 1);
+  assert.equal(calls, 3);
   assert.equal(report.passed, false);
   const markdown = summary({ ...report, head: 'a'.repeat(40), base: 'b'.repeat(40) });
   assert.match(markdown, /⚠️ Below threshold/);
@@ -118,7 +118,7 @@ test('missing key makes no request; API failures never leak response bodies', as
   }), (error) => /HTTP 401/.test(error.message) && !error.message.includes('private'));
 });
 
-test('sends implementations and tests over the old 48 KB boundary in one complete request', async () => {
+test('keeps the complete diff in quality and focused evidence requests over the old 48 KB boundary', async () => {
   const implementation = diff + ' context\n'.repeat(5500);
   const tests = diff.replaceAll('a.js', 'a.test.js');
   const completeDiff = implementation + tests;
@@ -132,7 +132,7 @@ test('sends implementations and tests over the old 48 KB boundary in one complet
       return Response.json(response(5, JSON.parse(options.body).questions));
     },
   });
-  assert.equal(calls, 1);
+  assert.equal(calls, 3);
   assert.equal(result.ratings.length, 21);
   assert.equal(result.passed, false);
 });
@@ -153,10 +153,34 @@ test('focused weakness hints need selected changed-line evidence', async () => {
   const report = await review({ diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder',
     fetch: async (_url, options) => {
       const data = response(6, JSON.parse(options.body).questions);
-      data.answers.promptInjection_weakness.choice = 'review_manipulation';
+      if (data.answers.promptInjection_weakness) data.answers.promptInjection_weakness.choice = 'review_manipulation';
       return Response.json(data);
     },
   });
   assert.deepEqual(report.findings, []);
   assert.equal(report.ratings.find((rating) => rating.key === 'promptInjection').hint, null);
+});
+
+test('focused concerns trigger validated source selection with full context', async () => {
+  const inputs = [];
+  const report = await review({ diff, task: 'Change', repositoryContext: 'Guidance', threshold: 7, apiKey: 'test-placeholder',
+    fetch: async (_url, options) => {
+      const input = JSON.parse(options.body);
+      inputs.push(input);
+      const data = response(6, input.questions);
+      if (data.answers.maliciousBehavior_weakness) {
+        data.answers.maliciousBehavior_weakness.choice = 'credential_theft';
+      } else {
+        data.answers.maliciousBehavior_evidence_0.choice = 'line_1';
+      }
+      return Response.json(data);
+    },
+  });
+  assert.equal(inputs.length, 2);
+  assert.equal(inputs[1].state.task, 'Change');
+  assert.match(inputs[1].state.repositoryContext, /Guidance/);
+  assert.match(inputs[1].state.diff, /\[line_1\] \+new/);
+  assert.equal(report.findings[0].file, 'a.js');
+  assert.equal(report.findings[0].line, 1);
+  assert.equal(report.findings[0].source, 'new');
 });

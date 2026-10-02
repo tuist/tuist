@@ -72,8 +72,8 @@ the authenticated user’s comment; workflow runs update the bot’s comment. Se
 secret; do not add a separate GitHub secret for it. Keep execution on trusted base code; contributor commits may
 be fetched and diffed but never checked out or executed. Low scores are advisory;
 provider and input failures must not reuse previous scores. The two focused
-security checks select candidate evidence from actual changed lines in the
-same Jev request. Keep the no-issue option, validate selected locations, and
+security ratings run with the quality checks. A focused concern triggers a
+separate Jev request to select candidate evidence from actual changed lines. Keep the no-issue option, validate selected locations, and
 distinguish documentation and security tests from malicious behavior. Preserve the
 vendored evaluator and rubric license notices. Validate with
 `npm test --prefix .github/scripts/pr-quality` and

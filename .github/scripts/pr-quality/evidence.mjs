@@ -37,14 +37,14 @@ export function changedLines(diff) {
   return candidates;
 }
 
-export function evidenceQuestions(candidates) {
+export function evidenceQuestions(candidates, checkKeys = checks.map((check) => check.key)) {
   const questions = {};
   // Jev accepts at most 255 choices. Include a no-issue option in every group.
   for (let offset = 0; offset < candidates.length; offset += 254) {
     const criteria = Object.fromEntries(candidates.slice(offset, offset + 254).map((_item, index) => [
       `line_${offset + index}`, null,
     ]));
-    for (const check of checks) {
+    for (const check of checks.filter((check) => checkKeys.includes(check.key))) {
       questions[`${check.key}_evidence_${offset}`] = {
         type: 'choice',
         instructions: `Choice labels line_N refer to the prefixes [line_N] in state.diff. Select the changed line with the strongest concrete evidence of ${check.label} concerns in this group, using the complete diff for context. Choose no_material_issue if no line supports a concern. A removal can introduce a risk by removing protection; do not flag removal of malicious code itself. ${check.guidance}`,

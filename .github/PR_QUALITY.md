@@ -68,8 +68,10 @@ The evaluator rejects text diffs over 1,000,000 bytes and combined descriptions
 and guidance over 64,000 bytes rather than silently sampling. Binary changes
 are listed as unassessed; binary-only changes cannot be scored. The evaluator
 uses only root guidance, not nested repository guidance or unchanged source
-files. Focused evidence is selected through Jev choice questions in the same request
-as the quality ratings. Each group contains at most 254 changed lines plus a
+files. Both focused ratings are part of the quality request. When a focused rating
+selects a weakness or falls below the threshold, a separate Jev choice request
+for that check selects source evidence from the complete text diff. This avoids
+combining all quality questions and evidence options into one oversized request. Each group contains at most 254 changed lines plus a
 no-issue option, within Jev's 255-option limit. The complete diff is annotated with changed-line identifiers, so choice
 options reference evidence without duplicating source text. Every added and
 removed text line is considered, and a group can select at most one candidate per focused
