@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -15,9 +16,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if len(os.Args) == 2 && os.Args[1] == "mount-worker" {
-		if err := mountWorker(); err != nil {
+	if len(os.Args) >= 2 && os.Args[1] == "mount-worker" {
+		if err := mountWorker(len(os.Args) == 3 && os.Args[2] == "mirror"); err != nil {
 			os.Stderr.WriteString(err.Error())
+			if errors.Is(err, errMirrorSkipped) {
+				os.Exit(mirrorSkippedExit)
+			}
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -58,6 +62,10 @@ func testMountServer(t *testing.T, root string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	work, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -66,15 +74,11 @@ func testMountServer(t *testing.T, root string) string {
 			if err != nil {
 				return
 			}
-			if err := mountRequest(conn, source); err != nil {
-				conn.Write([]byte(err.Error()))
-			} else {
-				conn.Write([]byte("ok"))
-			}
+			conn.Write([]byte(mountReply(mountRequest(conn, source, work))))
 			conn.Close()
 		}
 	}()
-	t.Cleanup(func() { listener.Close(); <-done; source.Close() })
+	t.Cleanup(func() { listener.Close(); <-done; source.Close(); work.Close() })
 	return socket
 }
 
@@ -117,7 +121,7 @@ func TestMountBrokerRequiresNamespaceDescriptor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer target.Close()
-	data, _ := json.Marshal(source)
+	data, _ := json.Marshal(mountMessage{Source: source})
 	if _, _, err = conn.WriteMsgUnix(data, unix.UnixRights(int(target.Fd()), int(target.Fd())), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -221,5 +225,114 @@ func TestBindIntoUnprivilegedSeparatePIDAndMountNamespace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "from-container")); !os.IsNotExist(err) {
 		t.Fatalf("mount leaked into broker namespace: %v", err)
+	}
+}
+
+func TestMirrorRejectsPathsOutsideTheTarget(t *testing.T) {
+	dir := t.TempDir()
+	for _, path := range []string{"target", "other", "_tuist_cache/scope"} {
+		if err := os.MkdirAll(filepath.Join(dir, path), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	work, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer work.Close()
+	target, err := unix.Open(filepath.Join(dir, "target"), unix.O_PATH|unix.O_DIRECTORY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(target)
+	mirror, err := mirrorTarget(work, "target", target)
+	if err != nil {
+		t.Fatalf("same directory rejected: %v", err)
+	}
+	mirror.Close()
+	for _, path := range []string{"other", "_tuist_cache/scope", "../escape", "/abs", "target/../other", "."} {
+		if mirror, err := mirrorTarget(work, path, target); err == nil {
+			mirror.Close()
+			t.Fatalf("accepted mirror %q", path)
+		}
+	}
+}
+
+func TestMirrorMakesTheMountVisibleToDockerd(t *testing.T) {
+	if os.Getenv("TUIST_TEST_BIND_MOUNTS") != "1" {
+		t.Skip("requires privileged Linux test container")
+	}
+	root := t.TempDir()
+	source := digest("scope") + "/data"
+	if err := os.MkdirAll(filepath.Join(root, source), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, source, "retained"), []byte("saved"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	socket := testMountServer(t, root)
+	// The broker's namespace is the one dockerd uses to resolve `docker run -v`.
+	target := filepath.Join(filepath.Dir(socket), "repo", "deps")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { unix.Unmount(target, unix.MNT_DETACH) })
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("unshare", "--mount", "--pid", "--fork", "--mount-proc", "setpriv", "--bounding-set=-sys_admin", executable, "test-bind", socket, source, target)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("unprivileged container mount: %s %v", output, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(target, "retained")); err != nil || string(data) != "saved" {
+		t.Fatalf("broker namespace does not see the volume: %v", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(target, "from-container")); err != nil || string(data) != "retained" {
+		t.Fatalf("broker namespace does not see the client's writes: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "from-child"), []byte("child"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(root, source, "from-child")); err != nil || string(data) != "child" {
+		t.Fatalf("broker-side writes did not reach the volume: %v", err)
+	}
+}
+
+func TestMirrorMismatchStillAttachesTheJobMount(t *testing.T) {
+	if os.Getenv("TUIST_TEST_BIND_MOUNTS") != "1" {
+		t.Skip("requires privileged Linux test container")
+	}
+	root := t.TempDir()
+	source := digest("scope") + "/data"
+	if err := os.MkdirAll(filepath.Join(root, source), 0755); err != nil {
+		t.Fatal(err)
+	}
+	socket := testMountServer(t, root)
+	target := filepath.Join(filepath.Dir(socket), "repo", "deps")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Like a `container:` job whose own volume covers the target: the client
+	// sees a different directory than the broker does at the same path.
+	cmd := exec.Command("unshare", "--mount", "--pid", "--fork", "--mount-proc", "sh", "-c",
+		`mount -t tmpfs none "$3" && exec setpriv --bounding-set=-sys_admin "$0" test-bind "$1" "$2" "$3"`,
+		executable, socket, source, target)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("job mount failed because of the mirror: %s %v", output, err)
+	}
+	if !strings.Contains(string(output), "will not see") {
+		t.Fatalf("missing mirror warning: %s", output)
+	}
+	if data, err := os.ReadFile(filepath.Join(root, source, "from-container")); err != nil || string(data) != "retained" {
+		t.Fatalf("job writes did not reach the volume: %v", err)
+	}
+	if entries, err := os.ReadDir(target); err != nil || len(entries) != 0 {
+		t.Fatalf("broker namespace must keep its own empty directory: %v %v", entries, err)
 	}
 }

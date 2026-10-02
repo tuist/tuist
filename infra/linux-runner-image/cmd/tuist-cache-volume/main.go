@@ -29,13 +29,19 @@ var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var errInvalidPath = errors.New("invalid cache path")
 
+// A mount worker exits with mirrorSkippedExit when the job's mount succeeded but
+// the copy for Docker children in the broker's namespace did not.
+var errMirrorSkipped = errors.New("mirror skipped")
+
+const mirrorSkippedExit = 3
+
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
 
 func main() {
 	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
 		var err error
-		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
-			err = mountWorker()
+		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "mirror")) {
+			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
 			err = serveMounts(os.Args[2], os.Args[3])
 		} else {
@@ -43,6 +49,9 @@ func main() {
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			if errors.Is(err, errMirrorSkipped) {
+				os.Exit(mirrorSkippedExit)
+			}
 			os.Exit(1)
 		}
 		return

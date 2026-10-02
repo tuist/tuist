@@ -66,13 +66,13 @@ pipelines can save; tags, merge requests, child and other pipelines cannot.
 Saved changes become available only after the job and local writers are gone.
 
 Tuist embeds GitLab Runner's shell executor in the isolated Linux runner.
-A job's `image:` does not select a Docker executor. Docker child containers
-need explicit private-root mounts and separate validation. macOS support is
-not included. Caches must not contain secrets or irreplaceable data.
+A job's `image:` does not select a Docker executor. `docker run` containers
+started after the attachment see volumes inside the checkout through the
+checkout mount; paths outside the work directory, such as `~/.gradle`, are
+visible to shell commands only. macOS support is not included. Caches must not
+contain secrets or irreplaceable data.
 
-Targets are attached as symlinks. Cache download directories such as `~/.npm`
-or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
-Other tools that replace their cache directory are also incompatible. For a
-workspace path, ignore the link without a trailing slash (for example `.gradle`,
-not `.gradle/`, in `.gitignore`). Paths must be a single line without control
-characters; use a plain YAML string instead of `path: |`.
+Paths are mounted as ordinary directories, so tools can use their usual locations
+such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
+Use a different key for each directory. Paths must be a single line without
+control characters; use a plain YAML string instead of `path: |`.
