@@ -33,6 +33,8 @@ defmodule Tuist.Marketing.CacheGlobe do
   end
 
   def snapshot(now \\ DateTime.utc_now()) do
+    # ClickHouse rejects fractional seconds in DateTime query parameters.
+    now = DateTime.truncate(now, :second)
     midnight = now |> DateTime.to_date() |> DateTime.new!(~T[00:00:00])
 
     rows =
