@@ -1,8 +1,6 @@
 defmodule Tuist.Tests.Coverage.HistoryTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
-  import Ecto.Query
-
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
@@ -51,7 +49,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
   @epoch ~U[2026-01-05 00:00:00.000000Z]
 
-  describe "branch_history/3 and branch_points/3" do
+  describe "branch_history/3" do
     test "list the commits measured on the branch in the order they were measured when the graph has no head", %{
       project: project,
       account: account
@@ -70,9 +68,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # Other) so it does not chain.
       assert Enum.map(history.commits, &{&1.git_commit_sha, &1.coverage, &1.chained}) ==
                [{"c", 100.0, false}, {"b", 75.0, true}, {"a", 25.0, true}]
-
-      assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
-               [{"a", 25.0}, {"b", 75.0}]
     end
 
     test "walk the graph from the branch's head, unmeasured commits included", %{
@@ -104,9 +99,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       assert Enum.map(history.commits, &{&1.git_commit_sha, &1.depth, &1.measured}) ==
                [{"m", 0, true}, {"c", 1, false}, {"b", 2, false}, {"a", 3, true}]
-
-      assert Enum.map(History.branch_points(project, "main"), &{&1.git_commit_sha, &1.coverage}) ==
-               [{"a", 25.0}, {"m", 50.0}]
 
       # The feature branch holds what it added, not the history it was cut
       # from, which `main` above already lists.
@@ -176,36 +168,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
     end
 
-    test "draw the trend from the ref's commits made in the period, however far back", %{
-      project: project,
-      account: account
-    } do
-      # One commit a day, 300 days: past the 200 commits a branch's list reads.
-      commits =
-        for day <- 0..299 do
-          sha = "c#{day}"
-          parents = if day == 0, do: [], else: ["c#{day - 1}"]
-          CoverageFixtures.commit(sha, parents, day * 24 * 60)
-        end
-
-      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c299"}])
-
-      for day <- [0, 10, 250, 299] do
-        run(project, account, %{git_commit_sha: "c#{day}"}, [1, 0])
-      end
-
-      points = History.branch_points(project, "main")
-      assert Enum.map(points, & &1.git_commit_sha) == ["c0", "c10", "c250", "c299"]
-
-      since = DateTime.add(~U[2026-09-01 00:00:00Z], 5, :day)
-
-      assert project |> History.branch_points("main", since: since) |> Enum.map(& &1.git_commit_sha) == [
-               "c10",
-               "c250",
-               "c299"
-             ]
-    end
-
     test "page a branch's commits from a cursor, both ways", %{project: project, account: account} do
       commits =
         for index <- 0..6 do
@@ -270,7 +232,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) ==
                ["c4"]
 
-      assert Enum.map(History.commit_cursor_page(project, "main", status: "pending").commits, & &1.git_commit_sha) ==
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "in-progress").commits, & &1.git_commit_sha) ==
                ["c6", "c3", "c1"]
 
       assert Enum.map(History.commit_cursor_page(project, "main", search: "C3 ").commits, & &1.git_commit_sha) == ["c3"]
@@ -304,21 +266,23 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # Labelled commits are all measured.
       assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
 
-      assert Enum.map(History.commit_cursor_page(project, "main", status: "pending").commits, & &1.git_commit_sha) == [
-               "c",
-               "b",
-               "a"
-             ]
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "in-progress").commits, & &1.git_commit_sha) ==
+               [
+                 "c",
+                 "b",
+                 "a"
+               ]
     end
 
     test "chain a complete commit whatever it measured", %{project: project, account: account} do
       run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0])
       run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00], scheme: "Other"}, [1, 1])
 
-      assert Enum.map(History.branch_points(project, "main"), & &1.git_commit_sha) == ["a"]
+      chained = fn -> Enum.map(History.branch_history(project, "main").commits, &{&1.git_commit_sha, &1.chained}) end
+      assert chained.() == [{"b", false}, {"a", true}]
 
       Commits.signal_complete(project, "b")
-      assert Enum.map(History.branch_points(project, "main"), & &1.git_commit_sha) == ["a", "b"]
+      assert chained.() == [{"b", true}, {"a", true}]
     end
   end
 

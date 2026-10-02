@@ -503,13 +503,13 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert table =~ "p1"
       refute table =~ "p2"
 
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-status=pending")
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-status=in-progress")
       table = lv |> element("#coverage-commits-table") |> render()
       assert table =~ "p2"
       refute table =~ "p1"
       assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "In Progress")
 
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-search=p1&commits-status=pending")
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-search=p1&commits-status=in-progress")
       assert has_element?(lv, "[data-part='empty-commits']", "No commit matches these filters")
       assert has_element?(lv, "#coverage-commits-filter-form")
     end

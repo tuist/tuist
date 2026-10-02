@@ -568,8 +568,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{"head" => _row} = Commits.by_shas(project.id, ["head"])
     assert "head" in Enum.map(Commits.all(project.id), & &1.git_commit_sha)
 
-    assert [%{git_commit_sha: "base", coverage: 71.4}, %{git_commit_sha: "head", coverage: 71.4, chained: true}] =
-             History.branch_points(project, "main")
+    assert [%{git_commit_sha: "head", coverage: 71.4, chained: true}, %{git_commit_sha: "base", coverage: 71.4}] =
+             History.branch_history(project, "main").commits
 
     assert [%{git_commit_sha: "head", measured: true, coverage: 71.4} | _] =
              History.branch_history(project, "main").commits
@@ -842,11 +842,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     head_run(project, account, head_files())
 
-    assert [%{git_commit_sha: "base", coverage: 71.4}, %{git_commit_sha: "head", coverage: 71.4, measured_coverage: 28.6}] =
-             History.branch_points(project, "main")
+    chained = fn -> project |> History.branch_history("main") |> Map.fetch!(:commits) |> Enum.filter(& &1.chained) end
+
+    assert [%{git_commit_sha: "head", coverage: 71.4, measured_coverage: 28.6}, %{git_commit_sha: "base", coverage: 71.4}] =
+             chained.()
 
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
-    assert [%{git_commit_sha: "base"}] = History.branch_points(project, "main")
+    assert [%{git_commit_sha: "base"}] = chained.()
   end
 
   test "a carried commit lists its files and targets, and details a file, over its reported coverage", %{

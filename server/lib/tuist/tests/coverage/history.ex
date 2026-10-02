@@ -155,34 +155,6 @@ defmodule Tuist.Tests.Coverage.History do
       effective_partial_schemes(a) == effective_partial_schemes(b)
   end
 
-  @doc """
-  One point per chained commit of the branch, oldest first, with the
-  commit's totals: what the trend chart draws. The period bounds when the
-  commits were made and nothing else caps it, so a trend reaches as far
-  back as coverage is kept. A commit's figure pools the
-  schemes that measured it; a scheme's own totals are read per commit
-  (`Tuist.Tests.Coverage.Comparison.compare/3`), where a baseline makes
-  them comparable.
-  """
-  def branch_points(%Project{} = project, branch, opts \\ []) do
-    case branch_ref(project, branch) do
-      nil ->
-        project
-        |> branch_history(branch, opts)
-        |> Map.fetch!(:commits)
-        |> Enum.filter(& &1.chained)
-        |> Enum.reverse()
-
-      ref ->
-        project.id
-        |> point_rows(ref.id, opts)
-        |> Enum.map(&(&1 |> with_coverage() |> Map.put(:measured, true)))
-        |> chain()
-        |> Enum.filter(& &1.chained)
-        |> Enum.reverse()
-    end
-  end
-
   @max_trend_points 40
 
   @doc """
@@ -191,7 +163,7 @@ defmodule Tuist.Tests.Coverage.History do
   most #{@max_trend_points} points: one per commit when they fit, otherwise
   the latest complete commit of each day, week or month, the finest of them
   that fits, and by month only the most recent #{@max_trend_points}. Each
-  point carries the commit's totals, as `branch_points/3` does, and, when
+  point carries the commit's totals and, when
   grouped, the `period` it stands for: the start of its day, week or month
   in UTC. Returns `%{grouping: :commit | :day | :week | :month, points:}`.
 
@@ -318,33 +290,6 @@ defmodule Tuist.Tests.Coverage.History do
     end)
   end
 
-  # Chaining decides which commits the trend draws, and a commit chains
-  # against the one chained before it, so every measured commit of the
-  # period is read, newest first; only the columns the chaining rule and the
-  # chart need, not the runs and the carried ancestors each row also holds.
-  defp point_rows(project_id, ref_id, opts) do
-    from(c in CoverageCommit,
-      where: c.project_id == ^project_id and c.ref_id == ^ref_id,
-      order_by: [desc: c.position],
-      select: %{
-        git_commit_sha: c.git_commit_sha,
-        committed_at: c.committed_at,
-        covered_lines: c.covered_lines,
-        executable_lines: c.executable_lines,
-        unmeasured_files_count: c.unmeasured_files_count,
-        reported_covered_lines: c.reported_covered_lines,
-        reported_executable_lines: c.reported_executable_lines,
-        reported_kind: c.reported_kind,
-        schemes: c.schemes,
-        partial_schemes: c.partial_schemes,
-        complete: c.complete
-      }
-    )
-    |> Commits.comparable()
-    |> in_period(opts)
-    |> Repo.all()
-  end
-
   # Positions follow the graph, and the period follows when the commits were
   # made: the range of a ref's coverage the trend draws, however long.
   defp in_period(query, opts) do
@@ -391,7 +336,7 @@ defmodule Tuist.Tests.Coverage.History do
   (`since`/`until`); `page_size` is 20 by default.
 
   `search` keeps the commits whose SHA starts with it and `status` those of
-  one status: `complete` (its pipeline signalled it finished), `pending`
+  one status: `complete` (its pipeline signalled it finished), `in-progress`
   (measured, not yet signalled) or `not-measured` (on the branch, no run
   measured it). Each is stored, so they narrow the query the page is read
   with.
@@ -434,7 +379,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp by_status(query, "complete", measured),
     do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: m.complete)
 
-  defp by_status(query, "pending", measured),
+  defp by_status(query, "in-progress", measured),
     do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: not m.complete)
 
   defp by_status(query, _unknown, _measured), do: where(query, false)
@@ -448,7 +393,7 @@ defmodule Tuist.Tests.Coverage.History do
     case status do
       "" -> query
       "complete" -> where(query, [c], c.complete)
-      "pending" -> where(query, [c], not c.complete)
+      "in-progress" -> where(query, [c], not c.complete)
       _other -> where(query, false)
     end
   end
