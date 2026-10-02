@@ -4,11 +4,11 @@
 {{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
 {{- /*
 OVH fleet — a customer-facing Kura cache region on OVHcloud bare metal. Like the
-Dedibox and Elastic Metal kinds it self-joins via the reconciler's SSH bootstrap
+Elastic Metal kind it self-joins via the reconciler's SSH bootstrap
 (noop-bootstrap; this cluster's control plane is externally managed, so CABPK has
 no CA to mint a kubeadm join).
 
-Scripted install (same as Dedibox): the operator pre-orders the box and sets its
+Scripted install: the operator pre-orders the box and sets its
 displayName to `adoptDisplayNamePrefix`. The reconciler claims a free box by
 `datacenter` + `offer` scoped to that displayName — the env boundary, since one
 OVH account holds every env's boxes — registers the fleet SSH key, drives the OVH

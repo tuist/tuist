@@ -9374,18 +9374,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Hashable, Sendable {
-            /// The build system used by the project.
+            /// The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/build_system`.
-            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case xcode = "xcode"
-                case gradle = "gradle"
-                case bazel = "bazel"
-            }
-            /// The build system used by the project.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Project/build_system`.
-            public var build_system: Components.Schemas.Project.build_systemPayload?
+            public var build_system: Swift.String?
             /// The default branch of the project.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/default_branch`.
@@ -9421,7 +9413,7 @@ public enum Components {
             /// Creates a new `Project`.
             ///
             /// - Parameters:
-            ///   - build_system: The build system used by the project.
+            ///   - build_system: The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.
             ///   - default_branch: The default branch of the project.
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
@@ -9429,7 +9421,7 @@ public enum Components {
             ///   - token: Deprecated. Always returns an empty string.
             ///   - visibility: The visibility of the project
             public init(
-                build_system: Components.Schemas.Project.build_systemPayload? = nil,
+                build_system: Swift.String? = nil,
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
@@ -12543,6 +12535,10 @@ public enum Components {
         public struct CacheAccess: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheAccess/accounts`.
             public var accounts: [Swift.String]
+            /// The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheAccess/payment_failed`.
+            public var payment_failed: [Swift.String]?
             /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
             ///
             /// - Remark: Generated from `#/components/schemas/CacheAccess/payment_required`.
@@ -12553,19 +12549,23 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - accounts:
+            ///   - payment_failed: The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
             ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
             ///   - projects:
             public init(
                 accounts: [Swift.String],
+                payment_failed: [Swift.String]? = nil,
                 payment_required: [Swift.String],
                 projects: [Swift.String]
             ) {
                 self.accounts = accounts
+                self.payment_failed = payment_failed
                 self.payment_required = payment_required
                 self.projects = projects
             }
             public enum CodingKeys: String, CodingKey {
                 case accounts
+                case payment_failed
                 case payment_required
                 case projects
             }
@@ -59931,6 +59931,10 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/accounts`.
                         public var accounts: [Swift.String]
+                        /// The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/payment_failed`.
+                        public var payment_failed: [Swift.String]?
                         /// Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
                         ///
                         /// - Remark: Generated from `#/paths/api/cache/access/GET/responses/200/content/json/payment_required`.
@@ -59941,19 +59945,23 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - accounts:
+                        ///   - payment_failed: The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.
                         ///   - payment_required: Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.
                         ///   - projects:
                         public init(
                             accounts: [Swift.String],
+                            payment_failed: [Swift.String]? = nil,
                             payment_required: [Swift.String],
                             projects: [Swift.String]
                         ) {
                             self.accounts = accounts
+                            self.payment_failed = payment_failed
                             self.payment_required = payment_required
                             self.projects = projects
                         }
                         public enum CodingKeys: String, CodingKey {
                             case accounts
+                            case payment_failed
                             case payment_required
                             case projects
                         }
@@ -84171,6 +84179,7 @@ public enum Operations {
                         case xcode = "xcode"
                         case gradle = "gradle"
                         case bazel = "bazel"
+                        case once = "once"
                     }
                     /// The build system used by the project.
                     ///

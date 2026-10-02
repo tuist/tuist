@@ -19,9 +19,7 @@ import (
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
@@ -33,7 +31,6 @@ import (
 
 const (
 	testNamespace = "ns"
-	testPool      = "ber1-staging"
 	testFleet     = "tuist-tuist-ber1-fleet"
 )
 
@@ -43,7 +40,6 @@ func rackHost(name string, mutate ...func(*infrav1.RackHost)) *infrav1.RackHost 
 	h := &infrav1.RackHost{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNamespace},
 		Spec: infrav1.RackHostSpec{
-			Pool:     testPool,
 			Serial:   "C07FC05JQ6NY",
 			Address:  "192.168.0.41",
 			SSHUser:  "tuist",
@@ -54,6 +50,7 @@ func rackHost(name string, mutate ...func(*infrav1.RackHost)) *infrav1.RackHost 
 				Outlet: "0",
 			},
 		},
+		Status: infrav1.RackHostStatus{Machine: "ber1-0"},
 	}
 	for _, m := range mutate {
 		m(h)
@@ -65,7 +62,7 @@ func rackMachine(name string, mutate ...func(*infrav1.RackAppleSiliconMachine)) 
 	m := &infrav1.RackAppleSiliconMachine{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNamespace},
 		Spec: infrav1.RackAppleSiliconMachineSpec{
-			AdoptPool: testPool,
+			Host:      "mini-01",
 			FleetName: testFleet,
 		},
 	}
@@ -126,25 +123,18 @@ func getHost(t *testing.T, r *RackAppleSiliconMachineReconciler, name string) *i
 	return h
 }
 
-// --- claim ------------------------------------------------------------------
+// --- host -------------------------------------------------------------------
 
-func TestClaimBindsAFreeHostAndComposesTheProviderID(t *testing.T) {
+func TestHostOfResolvesItsHostAndComposesTheProviderID(t *testing.T) {
 	machine := rackMachine("ber1-0")
 	r := newRackReconciler(t, rackHost("mini-01"), machine)
 
-	host, result, err := r.claimRackHost(context.Background(), machine)
+	host, _, err := r.hostOf(context.Background(), machine)
 	if err != nil {
-		t.Fatalf("claimRackHost: %v", err)
+		t.Fatalf("hostOf: %v", err)
 	}
-	if host == nil {
-		t.Fatalf("no host claimed; result = %+v", result)
-	}
-
-	if machine.Status.RackHost != "mini-01" {
-		t.Fatalf("machine.Status.RackHost = %q, want mini-01", machine.Status.RackHost)
-	}
-	if claimed := getHost(t, r, "mini-01"); claimed.Status.ClaimedBy != "ber1-0" {
-		t.Fatalf("host.Status.ClaimedBy = %q, want ber1-0", claimed.Status.ClaimedBy)
+	if host == nil || host.Name != "mini-01" {
+		t.Fatalf("resolved %v, want mini-01", host)
 	}
 	// The providerID is composed from the two DURABLE physical facts, not the
 	// address: re-cabling a box onto a new IP must not change its identity to
@@ -152,280 +142,82 @@ func TestClaimBindsAFreeHostAndComposesTheProviderID(t *testing.T) {
 	if want := "rack-applesilicon://ber1/C07FC05JQ6NY"; ptr.Deref(machine.Spec.ProviderID, "") != want {
 		t.Fatalf("providerID = %q, want %q", ptr.Deref(machine.Spec.ProviderID, ""), want)
 	}
-	if !conditions.IsTrue(machine, shared.ProvisionedCondition) {
-		t.Fatal("Provisioned condition not set after a successful claim")
-	}
-}
-
-// The address is per-host state and must never end up in the Machine's spec:
-// the spec is what a MachineTemplate clones, so an address there would be
-// copied onto every replica.
-func TestClaimKeepsTheAddressOutOfTheSpec(t *testing.T) {
-	machine := rackMachine("ber1-0")
-	r := newRackReconciler(t, rackHost("mini-01"), machine)
-
-	if _, _, err := r.claimRackHost(context.Background(), machine); err != nil {
-		t.Fatalf("claimRackHost: %v", err)
-	}
 	if len(machine.Status.Addresses) != 1 || machine.Status.Addresses[0].Address != "192.168.0.41" {
-		t.Fatalf("addresses = %+v, want the host address in status", machine.Status.Addresses)
+		t.Fatalf("addresses = %+v, want the host address", machine.Status.Addresses)
+	}
+	if !conditions.IsTrue(machine, shared.ProvisionedCondition) {
+		t.Fatal("Provisioned not set once the host resolved")
 	}
 }
 
-func TestClaimIsIdempotentForTheHostAlreadyHeld(t *testing.T) {
-	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
-	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := newRackReconciler(t, host, machine)
-
-	got, _, err := r.claimRackHost(context.Background(), machine)
-	if err != nil {
-		t.Fatalf("claimRackHost: %v", err)
-	}
-	if got == nil || got.Name != "mini-01" {
-		t.Fatalf("re-claim returned %v, want the held host", got)
-	}
-}
-
-// A claim we no longer hold, because the inventory record was deleted or
-// someone released it out of band, must be dropped rather than bootstrapped. Pushing
-// config to a host another Machine now holds would have two Machines fighting
-// over one Node.
-func TestClaimDropsAStolenOrVanishedHost(t *testing.T) {
+// A machine that is not its host's may not dial the box: two machines pushing
+// config to one host would fight over its Node.
+func TestHostOfRefusesAHostThatIsNotItsOwn(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		objs  []runtime.Object
-		wants string
+		name    string
+		machine *infrav1.RackAppleSiliconMachine
+		objs    []runtime.Object
+		reason  string
 	}{
 		{
-			name:  "host deleted from inventory",
-			objs:  []runtime.Object{rackHost("mini-02")},
-			wants: "mini-02",
+			name:    "no host named",
+			machine: rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.Host = "" }),
+			reason:  "NoHost",
+		},
+		{name: "host gone", machine: rackMachine("ber1-0"), reason: "HostNotFound"},
+		{
+			name:    "host keeps another machine",
+			machine: rackMachine("ber1-0"),
+			objs:    []runtime.Object{rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.Machine = "ber1-7" })},
+			reason:  "NotTheHostsMachine",
 		},
 		{
-			name: "claim taken by another machine",
-			objs: []runtime.Object{
-				rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "someone-else" }),
-				rackHost("mini-02"),
-			},
-			wants: "mini-02",
+			name:    "host with no address",
+			machine: rackMachine("ber1-0"),
+			objs:    []runtime.Object{rackHost("mini-01", func(h *infrav1.RackHost) { h.Spec.Address = "" })},
+			reason:  "IncompleteHost",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-				m.Status.RackHost = "mini-01"
-				m.Status.Ready = true
-			})
-			r := newRackReconciler(t, append(tc.objs, machine)...)
+			r := newRackReconciler(t, append(tc.objs, tc.machine)...)
 
-			host, _, err := r.claimRackHost(context.Background(), machine)
+			host, _, err := r.hostOf(context.Background(), tc.machine)
 			if err != nil {
-				t.Fatalf("claimRackHost: %v", err)
+				t.Fatalf("hostOf: %v", err)
 			}
-			if host == nil || host.Name != tc.wants {
-				t.Fatalf("claimed %v, want %s", host, tc.wants)
+			if host != nil {
+				t.Fatalf("resolved %s; this machine would dial a box that is not its own", host.Name)
 			}
-			if machine.Status.Ready {
-				t.Fatal("machine still reports Ready after losing its host")
+			if cond := conditions.Get(tc.machine, shared.ProvisionedCondition); cond == nil || cond.Reason != tc.reason {
+				t.Fatalf("Provisioned = %+v, want reason %s", cond, tc.reason)
+			}
+			if tc.machine.Spec.ProviderID != nil {
+				t.Fatal("a providerID was composed for a machine with no host of its own")
 			}
 		})
 	}
 }
 
-// Two machines racing for the last free host. The claim is an Update carrying
-// the resourceVersion the host was read at, so the apiserver rejects whichever
-// write is second. A merge patch would let both "succeed", both bootstrap the
-// same box, and the second would take over the first's Node.
-//
-// The race has to be injected, not simulated by calling the two claims in
-// order: sequential calls never collide, because the second one's List already
-// shows the host claimed and the filter drops it before any write. What has to
-// be exercised is a claim whose candidate list was read BEFORE a competing
-// claim landed: the only window in which the concurrency check does any work.
-func TestClaimRaceIsResolvedByOptimisticConcurrency(t *testing.T) {
-	scheme := runtime.NewScheme()
-	for _, add := range []func(*runtime.Scheme) error{
-		corev1.AddToScheme, infrav1.AddToScheme, clusterv1.AddToScheme, rbacv1.AddToScheme,
-	} {
-		if err := add(scheme); err != nil {
-			t.Fatalf("scheme: %v", err)
-		}
-	}
-
-	var (
-		inner    client.Client
-		raceOnce sync.Once
-	)
-	c := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithRuntimeObjects(rackHost("mini-01"), rackMachine("ber1-0")).
-		WithStatusSubresource(&infrav1.RackAppleSiliconMachine{}, &infrav1.RackHost{}).
-		WithInterceptorFuncs(interceptor.Funcs{
-			List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-				if err := cl.List(ctx, list, opts...); err != nil {
-					return err
-				}
-				// The instant our candidate list is in hand, a competing
-				// machine claims the host. Everything the caller does from
-				// here on is against a view that is already one write stale.
-				if _, ok := list.(*infrav1.RackHostList); ok {
-					raceOnce.Do(func() {
-						stolen := &infrav1.RackHost{}
-						if err := inner.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "mini-01"}, stolen); err != nil {
-							t.Fatalf("competing read: %v", err)
-						}
-						stolen.Status.ClaimedBy = "ber1-9"
-						if err := inner.Status().Update(ctx, stolen); err != nil {
-							t.Fatalf("competing claim: %v", err)
-						}
-					})
-				}
-				return nil
-			},
-		}).
-		Build()
-	inner = c
-
-	r := &RackAppleSiliconMachineReconciler{
-		Client:             c,
-		Recorder:           fakeRecorder(),
-		CredentialsManager: &credentials.Manager{Client: c, Namespace: testNamespace},
-		SecretsNamespace:   testNamespace,
-	}
+// A quarantined host is left alone until the quarantine expires: bootstrapping
+// it on every reconcile is exactly what the quarantine holds off.
+func TestQuarantinedHostIsNotBootstrapped(t *testing.T) {
 	machine := rackMachine("ber1-0")
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Status.Quarantined = true
+		h.Status.QuarantinedAt = ptr.To(metav1.Now())
+	})
+	// No fleet Secret: reaching the bootstrap would fail on the credentials.
+	r := newRackReconciler(t, host, machine)
 
-	host, result, err := r.claimRackHost(context.Background(), machine)
+	result, err := r.reconcileNormal(context.Background(), machine)
 	if err != nil {
-		t.Fatalf("claimRackHost: %v", err)
+		t.Fatalf("reconcileNormal: %v", err)
 	}
-	if host != nil {
-		t.Fatalf("claimed %s on a stale read; the competing claim was silently overwritten", host.Name)
+	if machine.Status.Phase != "Quarantined" || result.RequeueAfter == 0 {
+		t.Fatalf("phase %q, result %+v; want a Quarantined machine waiting", machine.Status.Phase, result)
 	}
-	if !result.Requeue && result.RequeueAfter == 0 {
-		t.Fatal("lost the race without requeueing; the machine would sit idle until the next resync")
-	}
-	if machine.Status.RackHost != "" {
-		t.Fatalf("machine bound itself to %q despite losing the race", machine.Status.RackHost)
-	}
-
-	final := &infrav1.RackHost{}
-	if err := c.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: "mini-01"}, final); err != nil {
-		t.Fatalf("get host: %v", err)
-	}
-	if final.Status.ClaimedBy != "ber1-9" {
-		t.Fatalf("host is claimed by %q; the winner's claim was clobbered", final.Status.ClaimedBy)
-	}
-}
-
-// The filter is the other half: once a competing claim IS visible, the host
-// must be passed over before any write is attempted.
-func TestClaimSkipsAHostAlreadyVisiblyClaimed(t *testing.T) {
-	first := rackMachine("ber1-0")
-	second := rackMachine("ber1-1")
-	r := newRackReconciler(t, rackHost("mini-01"), first, second)
-	ctx := context.Background()
-
-	if _, _, err := r.claimRackHost(ctx, first); err != nil {
-		t.Fatalf("first claim: %v", err)
-	}
-	host, result, err := r.claimRackHost(ctx, second)
-	if err != nil {
-		t.Fatalf("second claim: %v", err)
-	}
-	if host != nil {
-		t.Fatalf("second machine also claimed %s; the pool has one host", host.Name)
-	}
-	if result.RequeueAfter == 0 && !result.Requeue {
-		t.Fatal("second machine neither claimed nor requeued; it would sit idle")
-	}
-	if claimed := getHost(t, r, "mini-01"); claimed.Status.ClaimedBy != "ber1-0" {
-		t.Fatalf("host claimed by %q, want the first machine to keep it", claimed.Status.ClaimedBy)
-	}
-}
-
-func TestClaimRefusesAnUnscopedScan(t *testing.T) {
-	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.AdoptPool = "" })
-	r := newRackReconciler(t, rackHost("mini-01"), machine)
-
-	host, result, err := r.claimRackHost(context.Background(), machine)
-	if err != nil {
-		t.Fatalf("claimRackHost: %v", err)
-	}
-	if host != nil {
-		t.Fatal("claimed a host with no adoptPool; an unscoped scan can take another environment's box")
-	}
-	if result.RequeueAfter == 0 {
-		t.Fatal("expected a requeue: an operator fixes this on the template, the CR need not be recreated")
-	}
-	cond := conditions.Get(machine, shared.ProvisionedCondition)
-	if cond == nil || cond.Reason != "NoAdoptPool" {
-		t.Fatalf("condition = %+v, want NoAdoptPool", cond)
-	}
-	if claimed := getHost(t, r, "mini-01"); claimed.Status.ClaimedBy != "" {
-		t.Fatalf("host was claimed anyway by %q", claimed.Status.ClaimedBy)
-	}
-}
-
-// selectClaimableHosts decides what a machine may take, and its skip tally is
-// what turns "no host" into an actionable message. Getting the filter wrong is
-// how a quarantined box gets handed straight back to the machine that
-// quarantined it.
-func TestSelectClaimableHostsFiltersAndExplains(t *testing.T) {
-	hosts := []infrav1.RackHost{
-		*rackHost("free-b"),
-		*rackHost("free-a"),
-		*rackHost("mine", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" }),
-		*rackHost("theirs", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-9" }),
-		*rackHost("bad", func(h *infrav1.RackHost) { h.Status.Quarantined = true }),
-		*rackHost("bench", func(h *infrav1.RackHost) { h.Spec.Unclaimable = true }),
-		*rackHost("no-address", func(h *infrav1.RackHost) { h.Spec.Address = "" }),
-		*rackHost("no-site", func(h *infrav1.RackHost) { h.Spec.Location.Site = "" }),
-		*rackHost("other-pool", func(h *infrav1.RackHost) { h.Spec.Pool = "production" }),
-	}
-
-	candidates, skipped := selectClaimableHosts(hosts, testPool, "ber1-0")
-
-	// A host this machine already holds sorts FIRST, then the rest by name.
-	// Recovering the existing claim has to win over any free host, or a crash
-	// between the RackHost write and the Machine write leaves the machine
-	// holding two boxes with nothing able to free the first.
-	var names []string
-	for _, c := range candidates {
-		names = append(names, c.Name)
-	}
-	if got, want := strings.Join(names, ","), "mine,free-a,free-b"; got != want {
-		t.Fatalf("candidates = %s, want %s", got, want)
-	}
-	if skipped != (skippedHosts{claimed: 1, quarantined: 1, unclaimable: 1, incomplete: 2}) {
-		t.Fatalf("skip tally = %+v", skipped)
-	}
-
-	msg := skipped.describe()
-	for _, want := range []string{"1 already claimed", "1 quarantined", "1 marked unclaimable", "2 missing an address"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("message %q does not mention %q; an operator cannot tell which of four problems this is", msg, want)
-		}
-	}
-}
-
-func TestNoAvailableHostSaysThePoolIsEmpty(t *testing.T) {
-	machine := rackMachine("ber1-0")
-	r := newRackReconciler(t, machine)
-
-	host, result, err := r.claimRackHost(context.Background(), machine)
-	if err != nil || host != nil {
-		t.Fatalf("claimRackHost = %v, %v; want no host and no error", host, err)
-	}
-	if result.RequeueAfter == 0 {
-		t.Fatal("expected a requeue while waiting for inventory")
-	}
-	cond := conditions.Get(machine, shared.ProvisionedCondition)
-	if cond == nil || cond.Reason != "NoAvailableHost" {
-		t.Fatalf("condition = %+v, want NoAvailableHost", cond)
-	}
-	if !strings.Contains(cond.Message, "no hosts at all") {
-		t.Fatalf("message %q should say the pool is empty rather than implying contention", cond.Message)
+	if cond := conditions.Get(machine, BootstrappedCondition); cond != nil {
+		t.Fatalf("Bootstrapped = %+v; a quarantined host was bootstrapped", cond)
 	}
 }
 
@@ -474,11 +266,10 @@ func registryWithShelly(d power.Driver) *power.Registry {
 
 func TestBootstrapFailureCyclesTheOutletAtTheRebootThreshold(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		// One short of the threshold, so this failure crosses it.
 		m.Status.BootstrapAttempts = 2
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	host := rackHost("mini-01")
 	r := newRackReconciler(t, host, machine)
 	driver := &stubPowerDriver{on: true}
 	r.Power = registryWithShelly(driver)
@@ -494,18 +285,14 @@ func TestBootstrapFailureCyclesTheOutletAtTheRebootThreshold(t *testing.T) {
 	if !machine.Status.BootstrapRebootIssued {
 		t.Fatal("BootstrapRebootIssued not set; the next attempt would power-cycle the box again")
 	}
-	if machine.Status.RackHost != "mini-01" {
-		t.Fatal("a reboot must not release the host")
-	}
 }
 
 func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 4
 		m.Status.BootstrapRebootIssued = true
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	host := rackHost("mini-01")
 	r := newRackReconciler(t, host, machine)
 	driver := &stubPowerDriver{on: true}
 	r.Power = registryWithShelly(driver)
@@ -521,10 +308,9 @@ func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 // otherwise a transient PDU error costs the host its only recovery.
 func TestFailedPowerCycleIsRetriedOnTheNextAttempt(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 2
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	host := rackHost("mini-01")
 	r := newRackReconciler(t, host, machine)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true, err: errors.New("plug unreachable")})
 
@@ -533,66 +319,51 @@ func TestFailedPowerCycleIsRetriedOnTheNextAttempt(t *testing.T) {
 	if machine.Status.BootstrapRebootIssued {
 		t.Fatal("BootstrapRebootIssued set despite a failed cycle; the host would never get its reboot")
 	}
-	if machine.Status.RackHost != "mini-01" {
-		t.Fatal("a failed reboot must not release the host")
-	}
 }
 
-// This is the load-bearing divergence from the Scaleway kind. Releasing the
-// host without quarantining it hands the same broken box straight back on the
-// next reconcile, and the Machine loops on it forever.
-func TestBootstrapExhaustionQuarantinesTheHostRatherThanReleasingIt(t *testing.T) {
+// Giving up on a host quarantines it rather than retrying it on every
+// reconcile, and the machine stays the host's: there is no other box for it.
+func TestBootstrapExhaustionQuarantinesTheHost(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 7
+		m.Status.BootstrapRebootIssued = true
 		m.Status.Ready = true
 		m.Spec.ProviderID = ptr.To("rack-applesilicon://ber1/C07FC05JQ6NY")
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	spare := rackHost("mini-02")
-	r := newRackReconciler(t, host, spare, machine)
+	host := rackHost("mini-01")
+	r := newRackReconciler(t, host, machine)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true})
 
 	r.handleBootstrapFailure(context.Background(), machine, host, errors.New("unrecoverable"))
 
 	quarantined := getHost(t, r, "mini-01")
-	if !quarantined.Status.Quarantined {
-		t.Fatal("host not quarantined; the machine would re-claim the box it just gave up on")
-	}
-	if quarantined.Status.ClaimedBy != "" {
-		t.Fatalf("host still claimed by %q after exhaustion", quarantined.Status.ClaimedBy)
+	if !quarantined.Status.Quarantined || quarantined.Status.QuarantinedAt == nil {
+		t.Fatalf("host not quarantined: %+v", quarantined.Status)
 	}
 	if !strings.Contains(quarantined.Status.QuarantineReason, "unrecoverable") {
 		t.Fatalf("quarantine reason %q does not carry the cause", quarantined.Status.QuarantineReason)
 	}
-
-	// The machine must look hostless, not like a Ready machine pointing at a
-	// box it no longer holds.
-	if machine.Status.RackHost != "" || machine.Status.Ready || machine.Spec.ProviderID != nil || machine.Status.Addresses != nil {
-		t.Fatalf("machine still bound to the quarantined host: %+v / %v", machine.Status, machine.Spec.ProviderID)
+	if quarantined.Status.Machine != "ber1-0" || machine.Spec.Host != "mini-01" {
+		t.Fatal("exhaustion unbound the machine from its host")
+	}
+	if ptr.Deref(machine.Spec.ProviderID, "") != "rack-applesilicon://ber1/C07FC05JQ6NY" {
+		t.Fatal("the providerID is the box's identity and must survive a quarantine")
+	}
+	if machine.Status.Ready || machine.Status.Phase != "Quarantined" {
+		t.Fatalf("machine reads Ready=%t phase %q, want not ready and Quarantined", machine.Status.Ready, machine.Status.Phase)
 	}
 	if machine.Status.BootstrapAttempts != 0 || machine.Status.BootstrapRebootIssued {
-		t.Fatal("failure counters describe the discarded host and must reset with it")
-	}
-
-	// And the next claim must land on the spare rather than the quarantined box.
-	next, _, err := r.claimRackHost(context.Background(), machine)
-	if err != nil {
-		t.Fatalf("re-claim: %v", err)
-	}
-	if next == nil || next.Name != "mini-02" {
-		t.Fatalf("re-claimed %v, want the spare mini-02", next)
+		t.Fatal("failure counters must start over when the quarantine expires")
 	}
 }
 
-// The TOFU pin belongs to the host that was given up on. Carrying it to the
-// replacement makes every bootstrap fail on a fingerprint mismatch.
+// The TOFU pin is dropped with the rest of the identity: a host re-imaged under
+// a new host key would fail every bootstrap on the old pin.
 func TestBootstrapExhaustionDropsTheHostFingerprint(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 7
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	host := rackHost("mini-01")
 	r := newRackReconciler(t, host, machine)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true})
 
@@ -617,53 +388,32 @@ func TestBootstrapExhaustionDropsTheHostFingerprint(t *testing.T) {
 
 // --- delete -----------------------------------------------------------------
 
-func TestDeleteReleasesTheHostWithoutQuarantiningOrWipingIt(t *testing.T) {
+func TestDeleteDropsTheIdentityAndLeavesTheHostAlone(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Finalizers = []string{RackMachineFinalizer}
 		m.DeletionTimestamp = ptr.To(metav1.Now())
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) {
-		h.Status.ClaimedBy = "ber1-0"
-		h.Status.ClaimedAt = ptr.To(metav1.Now())
-	})
-	r := newRackReconciler(t, host, machine)
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-0"}}
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "tart-kubelet-ber1-0", Namespace: testNamespace}}
+	r := newRackReconciler(t, rackHost("mini-01"), machine, node, sa)
+	ctx := context.Background()
 
-	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+	if _, err := r.reconcileDelete(ctx, machine); err != nil {
 		t.Fatalf("reconcileDelete: %v", err)
 	}
 
-	released := getHost(t, r, "mini-01")
-	if released.Status.ClaimedBy != "" || released.Status.ClaimedAt != nil {
-		t.Fatalf("claim not released: %+v", released.Status)
+	if err := r.Get(ctx, types.NamespacedName{Name: "ber1-0"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
+		t.Error("the Node survived its machine")
 	}
-	// An ordinary delete is not a verdict on the hardware. Quarantining here
-	// would take a healthy box out of the pool on every scale-down.
-	if released.Status.Quarantined {
+	if err := r.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "tart-kubelet-ber1-0"}, &corev1.ServiceAccount{}); !apierrors.IsNotFound(err) {
+		t.Error("the node identity survived its machine")
+	}
+	// An ordinary delete is not a verdict on the hardware.
+	if getHost(t, r, "mini-01").Status.Quarantined {
 		t.Fatal("an ordinary delete quarantined the host")
 	}
 	if len(machine.Finalizers) != 0 {
 		t.Fatalf("finalizer not removed: %v", machine.Finalizers)
-	}
-}
-
-// A delete must never steal a claim that has already moved on: a retried
-// delete, or one racing a re-claim, would otherwise release a host another
-// Machine is actively bootstrapping.
-func TestDeleteLeavesAClaimHeldBySomeoneElseAlone(t *testing.T) {
-	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
-		m.Finalizers = []string{RackMachineFinalizer}
-		m.DeletionTimestamp = ptr.To(metav1.Now())
-	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-7" })
-	r := newRackReconciler(t, host, machine)
-
-	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
-		t.Fatalf("reconcileDelete: %v", err)
-	}
-	if got := getHost(t, r, "mini-01"); got.Status.ClaimedBy != "ber1-7" {
-		t.Fatalf("claim held by %q was released by another machine's delete", got.Status.ClaimedBy)
 	}
 }
 
@@ -678,7 +428,7 @@ func TestDeleteOfAHostlessMachineCompletes(t *testing.T) {
 		t.Fatalf("reconcileDelete: %v", err)
 	}
 	if len(machine.Finalizers) != 0 {
-		t.Fatal("a machine that never claimed a host must still be able to finish deleting")
+		t.Fatal("a machine with no host must still be able to finish deleting")
 	}
 }
 
@@ -728,11 +478,6 @@ func TestReconcileRefusesToMintFleetCredentials(t *testing.T) {
 			}
 			if !strings.Contains(cond.Message, tc.mention) {
 				t.Errorf("message %q does not say what is missing (%q)", cond.Message, tc.mention)
-			}
-			// Nothing may have been claimed: a claim taken before the
-			// credentials exist holds a box hostage through the ESO outage.
-			if got := getHost(t, r, "mini-01"); got.Status.ClaimedBy != "" {
-				t.Fatalf("claimed %s before the fleet credential was readable", got.Name)
 			}
 			// And nothing may have been minted into the Secret.
 			minted := &corev1.Secret{}
@@ -970,7 +715,7 @@ func TestNodeLabelsMatchTheScalewayKind(t *testing.T) {
 
 // A serial-less inventory record still has to produce a well-formed providerID:
 // a missing serial degrades the identity's durability, it does not break the
-// Machine, so the claim filter deliberately does not require one.
+// Machine, so hostOf deliberately does not require one.
 func TestProviderIDFallsBackToTheRecordNameWithoutASerial(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Spec.Serial = "" })
 	if want, got := "rack-applesilicon://ber1/mini-01", rackProviderID(host); got != want {
@@ -1009,23 +754,14 @@ func TestNodeDriftDetectionSharedWithTheScalewayKind(t *testing.T) {
 
 // --- watches ----------------------------------------------------------------
 
-// A host becoming claimable must wake the machines that could take it, or a
-// rack bring-up appears stuck for a requeue interval per host.
-func TestRackHostEventWakesHolderAndWaitingMachines(t *testing.T) {
-	holder := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Status.RackHost = "mini-01" })
-	waiting := rackMachine("ber1-1")
-	otherPool := rackMachine("prod-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.AdoptPool = "production" })
-	settled := rackMachine("ber1-2", func(m *infrav1.RackAppleSiliconMachine) { m.Status.RackHost = "mini-09" })
-	r := newRackReconciler(t, holder, waiting, otherPool, settled, rackHost("mini-01"))
-
-	requests := r.rackMachinesForRackHost(context.Background(), rackHost("mini-01"))
-
-	var names []string
-	for _, req := range requests {
-		names = append(names, req.Name)
+func TestRackHostEventWakesItsMachine(t *testing.T) {
+	requests := rackMachineForRackHost(context.Background(), rackHost("mini-01"))
+	if len(requests) != 1 || requests[0].Name != "ber1-0" {
+		t.Fatalf("woke %v, want the host's machine ber1-0", requests)
 	}
-	if len(names) != 2 || !containsString(names, "ber1-0") || !containsString(names, "ber1-1") {
-		t.Fatalf("woke %v, want the holder and the machine waiting in that pool", names)
+	none := rackHost("mini-02", func(h *infrav1.RackHost) { h.Status.Machine = "" })
+	if requests := rackMachineForRackHost(context.Background(), none); len(requests) != 0 {
+		t.Fatalf("a host with no machine woke %v", requests)
 	}
 }
 
@@ -1124,11 +860,10 @@ func TestRackEgressServiceFrontsTheAddressNotAnFQDN(t *testing.T) {
 // the Machine, one after the host it held.
 func TestDeleteRemovesBothEgressServices(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Finalizers = []string{RackMachineFinalizer}
 		m.DeletionTimestamp = ptr.To(metav1.Now())
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	host := rackHost("mini-01")
 	r := withEgress(newRackReconciler(t, host, machine))
 	ctx := context.Background()
 
@@ -1149,6 +884,28 @@ func TestDeleteRemovesBothEgressServices(t *testing.T) {
 		if !apierrors.IsNotFound(err) {
 			t.Fatalf("Service %s survived the delete (err=%v); it would strand an egress proxy binding", n, err)
 		}
+	}
+}
+
+// The host-named Service is the host's current machine's first-dial path, so a
+// machine that is not the host's leaves it.
+func TestDeleteLeavesTheHostServiceOfItsCurrentMachine(t *testing.T) {
+	machine := rackMachine("ber1-9", func(m *infrav1.RackAppleSiliconMachine) {
+		m.Finalizers = []string{RackMachineFinalizer}
+		m.DeletionTimestamp = ptr.To(metav1.Now())
+	})
+	r := withEgress(newRackReconciler(t, rackHost("mini-01"), machine))
+	ctx := context.Background()
+	if err := r.Create(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "rack-mini-01", Namespace: "tailscale-operator"}}); err != nil {
+		t.Fatalf("seed Service: %v", err)
+	}
+
+	if _, err := r.reconcileDelete(ctx, machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	if err := r.Get(ctx, types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-mini-01"}, &corev1.Service{}); err != nil {
+		t.Fatalf("deleted the host Service ber1-0 dials the host through (err=%v)", err)
 	}
 }
 
@@ -1201,25 +958,18 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 	}
 }
 
-// --- letting go of a host must retire everything tied to it ------------------
+// --- quarantine retires the identity -----------------------------------------
 
 // Bootstrap starts tart-kubelet (loadTartKubeletLaunchd) BEFORE its last fatal
 // step, installLogShipper. So a host can exhaust its attempts while already
 // running the kubelet, holding a valid long-lived token and registering a Node
-// under this Machine's name.
-//
-// The Scaleway kind gets away with dropping only the bootstrap Secret because
-// releasing a host there triggers a provider reinstall that wipes it. Nothing
-// wipes hardware we own, so the quarantined host keeps running with credentials
-// that still work. Its replacement is issued the SAME token and the SAME Node
-// name, and the stale Node keeps the old host's providerID, which tart-kubelet
-// will not overwrite. Two physical machines then answer for one Node.
+// under this Machine's name. Nothing wipes hardware we own, so the quarantined
+// host would keep working credentials through the quarantine.
 func TestQuarantineRevokesTheNodeIdentityAndDropsTheStaleNode(t *testing.T) {
 	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 7
 	})
-	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	host := rackHost("mini-01")
 	// The host got far enough to register: a Node exists and an identity was minted.
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-0"}}
 	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
@@ -1232,63 +982,9 @@ func TestQuarantineRevokesTheNodeIdentityAndDropsTheStaleNode(t *testing.T) {
 	r.handleBootstrapFailure(ctx, machine, host, errors.New("install log shipper: boom"))
 
 	if err := r.Get(ctx, types.NamespacedName{Name: "ber1-0"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
-		t.Error("the stale Node survived quarantine; the replacement host inherits it, keeping the quarantined host's providerID")
+		t.Error("the half-registered Node survived quarantine")
 	}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "tart-kubelet-ber1-0"}, &corev1.ServiceAccount{}); !apierrors.IsNotFound(err) {
-		t.Error("the node identity survived quarantine; the quarantined host keeps working credentials while a replacement is issued the same ones")
-	}
-}
-
-// A claim recorded on the RackHost but not on the Machine is the crash window
-// between the two status writes, which Claimable() deliberately tolerates. But
-// tolerating it is only half: selection then sorts by name, so a newly freed
-// host that sorts earlier wins and the Machine silently ends up holding two.
-// Orphan reclaim cannot clean that up, because the Machine still exists.
-func TestClaimPrefersAHostThisMachineAlreadyHolds(t *testing.T) {
-	mine := rackHost("mini-09", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	freeAndEarlier := rackHost("mini-01")
-	machine := rackMachine("ber1-0") // status.rackHost lost
-	r := newRackReconciler(t, mine, freeAndEarlier, machine)
-
-	host, _, err := r.claimRackHost(context.Background(), machine)
-	if err != nil {
-		t.Fatalf("claimRackHost: %v", err)
-	}
-	if host == nil || host.Name != "mini-09" {
-		t.Fatalf("claimed %v, want the host it already holds (mini-09)", host)
-	}
-	if got := getHost(t, r, "mini-01"); got.Status.ClaimedBy != "" {
-		t.Errorf("also claimed mini-01 (%s); this Machine now holds two hosts and orphan reclaim will not free either", got.Status.ClaimedBy)
-	}
-}
-
-// The TOFU pin is per HOST. Losing a claim and taking a different box means
-// verifying the new host's key against the old host's fingerprint, which fails
-// every dial and eventually quarantines a perfectly healthy machine.
-func TestLosingAClaimDropsTheHostFingerprint(t *testing.T) {
-	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
-		m.Status.RackHost = "mini-01" // inventory record since deleted
-	})
-	replacement := rackHost("mini-02")
-	r := newRackReconciler(t, replacement, machine)
-	ctx := context.Background()
-
-	if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, "pw", "tuist"); err != nil {
-		t.Fatalf("seed credentials: %v", err)
-	}
-	if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, "SHA256:the-old-host"); err != nil {
-		t.Fatalf("seed fingerprint: %v", err)
-	}
-
-	if _, _, err := r.claimRackHost(ctx, machine); err != nil {
-		t.Fatalf("claimRackHost: %v", err)
-	}
-
-	creds, err := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name)
-	if err != nil {
-		t.Fatalf("read bootstrap secret: %v", err)
-	}
-	if creds != nil && creds.HostFingerprint != "" {
-		t.Fatalf("fingerprint %q from the lost host survived; the replacement will fail SSH verification on every attempt", creds.HostFingerprint)
+		t.Error("the node identity survived quarantine; the quarantined host keeps working credentials")
 	}
 }

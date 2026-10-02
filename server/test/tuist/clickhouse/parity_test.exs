@@ -74,6 +74,107 @@ defmodule Tuist.ClickHouse.ParityTest do
       # so two weeks of it still reads all of it.
       assert opts |> Keyword.fetch!(:settings) |> Keyword.fetch!(:max_execution_time) == 1800
     end
+
+    # Answers the catalogue queries for a `test_suite_runs`-shaped table:
+    # deduplicated, partitioned by the month of `inserted_at`, with its first
+    # row at `earliest`. Every fingerprint goes to `on_fingerprint`.
+    defp stub_monthly_server(repo, earliest, on_fingerprint) do
+      stub(repo, :query!, fn sql, _params, opts ->
+        cond do
+          sql =~ "SELECT count() AS rows" ->
+            on_fingerprint.(sql, opts)
+
+          sql =~ "SELECT name, type FROM system.columns" ->
+            %{rows: [["duration", "UInt64"]]}
+
+          sql =~ "SELECT name FROM system.columns" ->
+            %{rows: [["inserted_at"]]}
+
+          sql =~ "SELECT engine FROM system.tables" ->
+            %{rows: [["ReplacingMergeTree(inserted_at)"]]}
+
+          sql =~ "SELECT engine, partition_key FROM system.tables" ->
+            %{rows: [["ReplacingMergeTree(inserted_at)", "toYYYYMM(inserted_at)"]]}
+
+          sql =~ "SELECT min(`inserted_at`)" ->
+            %{rows: [[earliest]]}
+
+          true ->
+            %{rows: []}
+        end
+      end)
+    end
+
+    defp compare_in_full(table) do
+      Parity.compare(
+        source_repo: Tuist.IngestRepo,
+        target_repo: Tuist.ClickHouseRepo,
+        tables: [table],
+        derived: [],
+        as_of: ~U[2026-09-26 06:00:00Z]
+      )
+    end
+
+    test "fingerprints a deduplicating table partitioned by month one month at a time" do
+      # `test_suite_runs` on production: read with `FINAL` in one go, its 530
+      # million rows needed more than the fingerprint's memory ceiling on both
+      # servers. `FINAL` never merges across partitions, so a month read on its
+      # own holds exactly the rows the whole read would have.
+      test = self()
+
+      fingerprint = fn sql, _opts ->
+        send(test, {:fingerprint, sql})
+        %{rows: [[1, 1, ~N[2026-07-14 10:00:00], ~N[2026-07-14 10:00:00]]]}
+      end
+
+      stub_monthly_server(Tuist.IngestRepo, ~N[2026-07-14 10:00:00], fingerprint)
+
+      stub_monthly_server(Tuist.ClickHouseRepo, ~N[2026-07-14 10:00:00], fn _sql, _opts ->
+        %{rows: [[1, 1, ~N[2026-07-14 10:00:00], ~N[2026-07-14 10:00:00]]]}
+      end)
+
+      compare_in_full("test_suite_runs")
+
+      assert_received {:fingerprint, july}
+      assert july =~ "FINAL"
+      assert july =~ "`inserted_at` >= toDateTime64('2026-07-14 10:00:00', 6)"
+      assert july =~ "`inserted_at` < toDateTime64('2026-08-01 00:00:00', 6)"
+      assert_received {:fingerprint, august}
+      assert august =~ "`inserted_at` >= toDateTime64('2026-08-01 00:00:00', 6)"
+      assert august =~ "`inserted_at` < toDateTime64('2026-09-01 00:00:00', 6)"
+      assert_received {:fingerprint, september}
+      assert september =~ "`inserted_at` >= toDateTime64('2026-09-01 00:00:00', 6)"
+      assert september =~ "`inserted_at` < toDateTime64('2026-09-26 06:00:00', 6)"
+      refute_received {:fingerprint, _}
+    end
+
+    test "adds the months up into one fingerprint of the table" do
+      months = fn september_rows ->
+        fn sql, _opts ->
+          cond do
+            sql =~ ">= toDateTime64('2026-07" -> %{rows: [[2, 10, ~N[2026-07-14 10:00:00], ~N[2026-07-30 08:00:00]]]}
+            # A month with no rows reports ClickHouse's zero time as its bounds.
+            sql =~ ">= toDateTime64('2026-08" -> %{rows: [[0, 0, ~N[1970-01-01 00:00:00], ~N[1970-01-01 00:00:00]]]}
+            true -> %{rows: [[september_rows, 20, ~N[2026-09-02 09:00:00], ~N[2026-09-25 23:00:00]]]}
+          end
+        end
+      end
+
+      stub_monthly_server(Tuist.IngestRepo, ~N[2026-07-14 10:00:00], months.(3))
+      stub_monthly_server(Tuist.ClickHouseRepo, ~N[2026-07-14 10:00:00], months.(4))
+
+      assert {:ok, %{differing: [%{table: "test_module_runs", source: source, destination: destination}]}} =
+               compare_in_full("test_module_runs")
+
+      assert source == %{
+               "rows" => 5,
+               "sum_duration" => 30,
+               "min_time" => ~N[2026-07-14 10:00:00],
+               "max_time" => ~N[2026-09-25 23:00:00]
+             }
+
+      assert destination["rows"] == 6
+    end
   end
 
   describe "compare/1 over a window" do

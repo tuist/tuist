@@ -49,7 +49,7 @@ defmodule Tuist.Kura.ClaimSizing do
 
   @default_policy %{
     retention_floor_days: 3,
-    ceiling: %{air: "64Gi", pro: "64Gi", enterprise: "256Gi"},
+    ceiling: %{air: "64Gi", pro: "256Gi", enterprise: "256Gi"},
     # Ordered shortest window first; the first rung a reading satisfies wins.
     # The absolute arm does not move when the floor is recalibrated. A tier
     # appears twice where volume can stand in for elapsed time: the ring the

@@ -35,13 +35,16 @@ defmodule TuistWeb.OpsAccountHelpers do
   # active (there's nothing to cancel).
   def subscription_status(%Account{subscriptions: [%{cancel_at_period_end: true} | _]}), do: :cancelled
   def subscription_status(%Account{subscriptions: [%{status: "trialing"} | _]}), do: :trialing
+  def subscription_status(%Account{subscriptions: [%{status: "past_due"} | _]}), do: :past_due
   def subscription_status(_), do: :active
 
   def status_label(:active), do: dgettext("dashboard", "Active")
   def status_label(:trialing), do: dgettext("dashboard", "Trialing")
+  def status_label(:past_due), do: dgettext("dashboard", "Past due")
   def status_label(:cancelled), do: dgettext("dashboard", "Cancelled")
 
   def status_color(:active), do: "success"
   def status_color(:trialing), do: "information"
+  def status_color(:past_due), do: "destructive"
   def status_color(:cancelled), do: "warning"
 end

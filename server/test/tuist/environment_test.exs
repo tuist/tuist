@@ -3,6 +3,18 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "atlas_token_issuer/1" do
+    test "has no default, so Atlas tokens do not verify until it is configured" do
+      assert Environment.atlas_token_issuer(%{}) == nil
+    end
+
+    test "reads the configured issuer" do
+      secrets = %{"atlas" => %{"token_issuer" => "https://atlas-cluster.example"}}
+
+      assert Environment.atlas_token_issuer(secrets) == "https://atlas-cluster.example"
+    end
+  end
+
   describe "clickhouse_max_memory_usage_for_user_bytes/2" do
     test "uses the runtime environment value without mutating process-wide state" do
       environment = %{"TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES" => "8589934592"}
@@ -529,6 +541,16 @@ defmodule Tuist.EnvironmentTest do
 
     test "returns nil when Kura endpoints are not configured" do
       assert Environment.kura_endpoints(%{}) == nil
+    end
+  end
+
+  describe "license_key/1" do
+    # `[:license]` is the key path behind the TUIST_LICENSE env var, so the unified
+    # value reaches the license dispatch through this reader. Moving or dropping this
+    # fallback would send TUIST_LICENSE to a different branch than the one that
+    # tells certificates from online keys.
+    test "reads the unified license value" do
+      assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
     end
   end
 end

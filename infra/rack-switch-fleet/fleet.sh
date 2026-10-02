@@ -90,12 +90,33 @@ cmd_render() {
   done
   rm -f "$rendered" "$object"
   render_edge "$check" || stale=1
+  render_cables "$check" || stale=1
   if (( stale )); then
     echo "the rendered configs no longer match the site definition; run 'mise run rack:fleet render'" >&2
     return 1
   fi
   (( check )) && echo "rendered configs are up to date with the site definition"
   return 0
+}
+
+# The site's cable schedule, from the same site definition.
+render_cables() {
+  local check="$1" target rendered status=0
+  target="$FLEET_ROOT/cables/$SITE.md"
+  rendered="$(mktemp)"
+  fleet_cable_schedule "$(site_file)" > "$rendered"
+  if (( check )); then
+    if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+      echo "stale: ${target#"$FLEET_ROOT"/}" >&2
+      status=1
+    fi
+  else
+    mkdir -p "$(dirname "$target")"
+    cp "$rendered" "$target"
+    echo "rendered ${target#"$FLEET_ROOT"/}"
+  fi
+  rm -f "$rendered"
+  return "$status"
 }
 
 # The edge node's files for the rack-edge chart, from the same site definition.
@@ -105,10 +126,29 @@ render_edge() {
   [ -n "$dir" ] || return 0
   rendered="$(mktemp)"
   mkdir -p "$dir"
-  for file in mgmt-path.sh dnsmasq.conf; do
+  local -a files=(mgmt-path.sh dnsmasq.conf dnsmasq-machines.conf tailnet-routes.sh)
+  local node
+  while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")
+  for file in "$dir"/keepalived-*.conf; do
+    [ -e "$file" ] || continue
+    case " ${files[*]} " in *" $(basename "$file") "*) continue;; esac
+    if (( check )); then
+      echo "stale: ${file#"$FLEET_ROOT"/} belongs to an edge the site no longer has" >&2
+      status=1
+    else
+      rm -f "$file"
+      echo "removed ${file#"$FLEET_ROOT"/}"
+    fi
+  done
+  for file in "${files[@]}"; do
     case "$file" in
       mgmt-path.sh) fleet_edge_path "$(site_file)" > "$rendered";;
       dnsmasq.conf) fleet_edge_dhcp "$(site_file)" > "$rendered";;
+      dnsmasq-machines.conf) fleet_edge_machines_dhcp "$(site_file)" > "$rendered";;
+      tailnet-routes.sh) fleet_edge_routes "$(site_file)" > "$rendered";;
+      keepalived-*.conf)
+        node="${file#keepalived-}"
+        fleet_edge_keepalived "$(site_file)" "${node%.conf}" > "$rendered";;
     esac
     if (( check )); then
       if ! diff -q "$rendered" "$dir/$file" >/dev/null 2>&1; then

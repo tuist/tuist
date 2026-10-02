@@ -25,7 +25,7 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
     refute html =~ "atlas.tuist.dev"
   end
 
-  test "renders the analytics config the Faro Web SDK reads, and needs no third-party origin in the content security policy" do
+  test "renders the Faro analytics configuration without external Grafana requests" do
     stub(Tuist.Environment, :analytics_enabled?, fn -> true end)
     stub(Tuist.Environment, :faro_collector_url, fn -> "/-/faro" end)
 
@@ -37,11 +37,39 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
     assert html =~ ~s("page_section":"marketing")
     assert html =~ ~s("app_name":"tuist-web")
 
-    # The SDK is bundled into our own JavaScript rather than fetched from a CDN,
-    # so nothing here may add a script or connect origin.
     refute html =~ "<script src"
     refute Keyword.fetch!(content_security_policy, :script_src_elem) =~ "grafana"
     refute Keyword.fetch!(content_security_policy, :connect_src) =~ "grafana"
+  end
+
+  test "loads Glossia independently on every hosted production surface without a Faro collector" do
+    stub(Tuist.Environment, :prod?, fn -> true end)
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Environment, :analytics_enabled?, fn -> false end)
+    stub(Tuist.Environment, :faro_collector_url, fn -> nil end)
+
+    for section <- ["marketing", "docs", "dashboard", "api-docs"] do
+      html = render_component(&LayoutComponents.head_analytics_scripts/1, %{page_section: section})
+      script = html |> Floki.parse_fragment!() |> Floki.find("script[src]") |> hd()
+
+      assert Floki.attribute(script, "src") == ["https://cdn.glossia.ai/web.js"]
+      assert Floki.attribute(script, "data-domain") == ["tuist.dev"]
+      assert Floki.attribute(script, "async") == ["async"]
+      assert html =~ ~s("enabled":false)
+    end
+
+    policy = Router.csp_opts(%{})
+    assert Keyword.fetch!(policy, :script_src_elem) =~ "https://cdn.glossia.ai"
+    assert Keyword.fetch!(policy, :connect_src) =~ "https://cdn.glossia.ai"
+  end
+
+  test "omits Glossia outside production and on self-hosted installations" do
+    for {production?, hosted?} <- [{false, true}, {true, false}] do
+      stub(Tuist.Environment, :prod?, fn -> production? end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> hosted? end)
+      html = render_component(&LayoutComponents.head_analytics_scripts/1, %{page_section: "dashboard"})
+      refute html =~ "cdn.glossia.ai"
+    end
   end
 
   test "reports analytics disabled when no collector is configured" do
@@ -54,6 +82,8 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
   end
 
   test "omits analytics from embedded blog visualizations" do
+    stub(Tuist.Environment, :prod?, fn -> true end)
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Environment, :analytics_enabled?, fn -> true end)
     stub(Tuist.Environment, :faro_collector_url, fn -> "/-/faro" end)
 
@@ -64,5 +94,6 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
       })
 
     assert html =~ ~s("enabled":false)
+    refute html =~ "cdn.glossia.ai"
   end
 end

@@ -153,6 +153,31 @@ connector:
 # templates/macmini-egress.yaml — see that file's header for why a
 # ProxyGroup + per-target ExternalName is necessary on top of the
 # Connector subnet router.
+# Exposes in-cluster Services to tailnet peers over direct paths, through a
+# ProxyGroup with static endpoints. See templates/tailnet-ingress.yaml. A
+# Service opts in with `loadBalancerClass: tailscale` and the
+# `tailscale.com/proxy-group` annotation naming this ProxyGroup.
+tailnetIngress:
+  enabled: false
+  proxyGroup:
+    name: tailnet-ingress
+    replicas: 2
+    # Tailscale identity the proxies register under. Per-env overlays set
+    # `tag:tuist-k8s-<env>`, which the tailnet policy's grants and
+    # `autoApprovers.services` entries are scoped to.
+    tags:
+      - "tag:tuist-k8s-staging"
+  staticEndpoints:
+    # UDP NodePorts the operator picks from, one per proxy, and advertises on
+    # the external IPs of the nodes below. Must be free, inside the cluster's
+    # NodePort range, and open to inbound UDP on those nodes.
+    ports:
+      - port: 31940
+        endPort: 31949
+    # Nodes whose external IPs are advertised. They need a public address.
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: general
+
 macminiEgress:
   enabled: false
   proxyGroup:

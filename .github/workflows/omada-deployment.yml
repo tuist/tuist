@@ -15,8 +15,8 @@ name: Rack Fleet Controller Deployment
 # one, and the rack's objects need their CRD where the rack is.
 #
 # And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which runs the
-# switches' path into the tailnet and their DHCP on the rack's edge node, a node
-# of this cluster that rack:edge-join adds.
+# switches' path into the tailnet and their DHCP on the rack's edge node, a
+# RackLinuxMachine of this cluster.
 #
 # THE IMAGES. rack-switch-controller-image.yml and rack-edge-image.yml build
 # `sha-<12 sha>` only for a push that changes their image's inputs, so the image

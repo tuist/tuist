@@ -1,6 +1,7 @@
 package cachevolumes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -16,7 +17,7 @@ type memoryBackend struct {
 	failSeal                  bool
 }
 
-func (b *memoryBackend) Attach(slot Slot, path string) error {
+func (b *memoryBackend) Attach(_ context.Context, slot Slot, path string) error {
 	b.attached++
 	if slot.ParentID != "" {
 		return os.CopyFS(path, os.DirFS(b.parents[slot.ParentID]))
@@ -53,7 +54,7 @@ func newStore(t *testing.T) (*Store, *memoryBackend) {
 }
 func TestParallelJobsCloneWarmParentAndCannotMutateEachOther(t *testing.T) {
 	s, b := newStore(t)
-	if warm, err := s.Acquire(identity(first), "p1", "u1"); err != nil || warm {
+	if warm, err := s.Acquire(context.Background(), identity(first), "p1", "u1"); err != nil || warm {
 		t.Fatal(warm, err)
 	}
 	slots, _ := s.slots()
@@ -70,7 +71,7 @@ func TestParallelJobsCloneWarmParentAndCannotMutateEachOther(t *testing.T) {
 		x.ImageDigest = strings.Repeat("a", 40)
 		x.ContentDigest = strings.Repeat("b", 64)
 		uid := []string{"u2", "u3"}[i]
-		if warm, err := s.Acquire(x, "p"+uid, uid); err != nil || !warm {
+		if warm, err := s.Acquire(context.Background(), x, "p"+uid, uid); err != nil || !warm {
 			t.Fatal(warm, err)
 		}
 	}
@@ -92,7 +93,7 @@ func TestParallelJobsCloneWarmParentAndCannotMutateEachOther(t *testing.T) {
 }
 func TestTeardownFenceOverridesRemoteDeleteAndAPIErrors(t *testing.T) {
 	s, b := newStore(t)
-	s.Acquire(identity(first), "p", "u")
+	s.Acquire(context.Background(), identity(first), "p", "u")
 	if err := s.Reconcile(func(string, string) (bool, error) { return false, nil }, func(Slot, bool) (string, error) { return "delete", nil }); err != nil {
 		t.Fatal(err)
 	}
@@ -108,13 +109,13 @@ func TestTeardownFenceOverridesRemoteDeleteAndAPIErrors(t *testing.T) {
 }
 func TestRestartAndRetryPreserveLeaseAndWarmResult(t *testing.T) {
 	s, b := newStore(t)
-	s.Acquire(identity(first), "p", "u")
+	s.Acquire(context.Background(), identity(first), "p", "u")
 	reopened, err := Open(s.path, b)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if warm, err := reopened.Acquire(identity(first), "p", "u"); err != nil || warm {
+	if warm, err := reopened.Acquire(context.Background(), identity(first), "p", "u"); err != nil || warm {
 		t.Fatal("changed cold result on retry", warm, err)
 	}
 	if b.attached != 1 {
@@ -138,7 +139,7 @@ func TestDiscardedPRCannotBeSealedAndDeletionRequiresAcknowledgement(t *testing.
 	s, b := newStore(t)
 	x := identity(first)
 	x.CanPublish = false
-	s.Acquire(x, "p", "u")
+	s.Acquire(context.Background(), x, "p", "u")
 	done := func(string, string) (bool, error) { return true, nil }
 	if err := s.Reconcile(done, func(Slot, bool) (string, error) { return "seal", nil }); err == nil {
 		t.Fatal("sealed PR")
@@ -166,18 +167,18 @@ func TestRejectsTraversalAndCrossPodRetry(t *testing.T) {
 	s, _ := newStore(t)
 	x := identity(first)
 	x.ParentID = "../../escape"
-	if _, err := s.Acquire(x, "p", "u"); err == nil {
+	if _, err := s.Acquire(context.Background(), x, "p", "u"); err == nil {
 		t.Fatal("accepted unsafe parent")
 	}
-	s.Acquire(identity(first), "p", "u")
-	if _, err := s.Acquire(identity(first), "other", "other"); err == nil {
+	s.Acquire(context.Background(), identity(first), "p", "u")
+	if _, err := s.Acquire(context.Background(), identity(first), "other", "other"); err == nil {
 		t.Fatal("accepted foreign retry")
 	}
 }
 
 type blockingBackend struct{ sealing, resume chan struct{} }
 
-func (*blockingBackend) Attach(Slot, string) error                  { return nil }
+func (*blockingBackend) Attach(context.Context, Slot, string) error { return nil }
 func (*blockingBackend) Measure(Slot, string) (int64, int64, error) { return 0, 100, nil }
 func (b *blockingBackend) Seal(Slot, string) error                  { close(b.sealing); <-b.resume; return nil }
 func (*blockingBackend) Delete(Slot, string) error                  { return nil }
@@ -189,7 +190,7 @@ func TestSlowSealDoesNotBlockAnotherLease(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if _, err := s.Acquire(identity(first), "p1", "u1"); err != nil {
+	if _, err := s.Acquire(context.Background(), identity(first), "p1", "u1"); err != nil {
 		t.Fatal(err)
 	}
 	complete := make(chan error, 1)
@@ -198,7 +199,7 @@ func TestSlowSealDoesNotBlockAnotherLease(t *testing.T) {
 	}()
 	<-b.sealing
 	attached := make(chan error, 1)
-	go func() { _, err := s.Acquire(identity(second), "p2", "u2"); attached <- err }()
+	go func() { _, err := s.Acquire(context.Background(), identity(second), "p2", "u2"); attached <- err }()
 	select {
 	case err := <-attached:
 		if err != nil {
@@ -214,7 +215,7 @@ func TestSlowSealDoesNotBlockAnotherLease(t *testing.T) {
 }
 func TestScratchCleanupWaitsForMountsAndNeverFollowsSymlinks(t *testing.T) {
 	s, _ := newStore(t)
-	if _, err := s.Acquire(identity(first), "p", "u"); err != nil {
+	if _, err := s.Acquire(context.Background(), identity(first), "p", "u"); err != nil {
 		t.Fatal(err)
 	}
 	outside := t.TempDir()
@@ -249,7 +250,7 @@ func TestRejectedAdmissionSurvivesRestartAndReportFailure(t *testing.T) {
 			for i := 1; i <= count; i++ {
 				x := identity(fmt.Sprintf("00000000-0000-0000-0000-%012d", i))
 				x.Scope = fmt.Sprintf("%064x", i)
-				if _, err := s.Acquire(x, "p", "u"); err != nil {
+				if _, err := s.Acquire(context.Background(), x, "p", "u"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -258,7 +259,7 @@ func TestRejectedAdmissionSurvivesRestartAndReportFailure(t *testing.T) {
 			rejected.BaseGeneration = 1
 			rejected.ImageDigest = strings.Repeat("a", 40)
 			rejected.ContentDigest = strings.Repeat("b", 64)
-			if _, err := s.Acquire(rejected, "p", "u"); err == nil {
+			if _, err := s.Acquire(context.Background(), rejected, "p", "u"); err == nil {
 				t.Fatal("accepted over capacity")
 			}
 			reopened, err := Open(s.path, b)
@@ -267,7 +268,7 @@ func TestRejectedAdmissionSurvivesRestartAndReportFailure(t *testing.T) {
 			}
 			defer reopened.Close()
 			reopened.MaxSlots = 100
-			if _, err := reopened.Acquire(rejected, "p", "u"); err == nil {
+			if _, err := reopened.Acquire(context.Background(), rejected, "p", "u"); err == nil {
 				t.Fatal("retry attached a rejected lease")
 			}
 			seen := false
@@ -314,7 +315,7 @@ func TestPoisonedImageIsDeletedAndAcknowledgedInsteadOfSealed(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if _, err := s.Acquire(identity(first), "p", "u"); err != nil {
+	if _, err := s.Acquire(context.Background(), identity(first), "p", "u"); err != nil {
 		t.Fatal(err)
 	}
 	done := func(string, string) (bool, error) { return true, nil }
@@ -335,5 +336,50 @@ func TestPoisonedImageIsDeletedAndAcknowledgedInsteadOfSealed(t *testing.T) {
 	slots, err := s.slots()
 	if err != nil || len(slots) != 0 {
 		t.Fatal(slots, err)
+	}
+}
+
+type cancelledAttachBackend struct {
+	memoryBackend
+	cancel context.CancelFunc
+}
+
+func (b *cancelledAttachBackend) Attach(context.Context, Slot, string) error {
+	b.cancel()
+	return nil
+}
+func TestCancelledAcquisitionNeverPublishesAndWaitsForWriterFence(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	b := &cancelledAttachBackend{cancel: cancel}
+	s, err := Open(t.TempDir(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.Acquire(ctx, identity(first), "pod", "uid"); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	slots, err := s.slots()
+	if err != nil || len(slots) != 1 || slots[0].State != "allocated" {
+		t.Fatal(slots, err)
+	}
+	if err := s.Reconcile(func(string, string) (bool, error) { return false, nil }, func(Slot, bool) (string, error) { t.Fatal("reported incomplete live allocation"); return "seal", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if b.deleted != 0 || b.sealed != 0 {
+		t.Fatal("changed storage before writer fence")
+	}
+	if err := s.Reconcile(func(string, string) (bool, error) { return true, nil }, func(slot Slot, _ bool) (string, error) {
+		if slot.State != "deleted" {
+			t.Fatal(slot.State)
+		}
+		return "forget", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	slots, err = s.slots()
+	if err != nil || len(slots) != 0 || b.deleted != 1 || b.sealed != 0 {
+		t.Fatal(slots, b.deleted, b.sealed, err)
 	}
 }

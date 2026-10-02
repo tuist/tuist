@@ -468,7 +468,7 @@ defmodule TuistWeb.TestsLive do
   def test_scheme_label("any"), do: dgettext("dashboard_tests", "Any")
   def test_scheme_label(scheme), do: scheme
 
-  defp with_test_run_tooltip_extra(scatter_data, group_by, schemes?) do
+  defp with_test_run_tooltip_extra(scatter_data, group_by, project) do
     Map.update!(scatter_data, :series, fn series ->
       Enum.map(series, fn s ->
         %{
@@ -477,7 +477,7 @@ defmodule TuistWeb.TestsLive do
             Enum.map(s.data, fn point ->
               point
               |> Map.take([:value, :id])
-              |> Map.put(:tooltipExtra, test_run_tooltip_extra(point.meta, schemes?))
+              |> Map.put(:tooltipExtra, test_run_tooltip_extra(point.meta, project))
             end)
         }
       end)
@@ -503,10 +503,12 @@ defmodule TuistWeb.TestsLive do
   defp scatter_name_label(value, :environment), do: environment_label(value)
   defp scatter_name_label(value, _), do: scheme_value_label(value)
 
-  defp test_run_tooltip_extra(meta, schemes?) do
+  defp test_run_tooltip_extra(meta, project) do
+    # Not "Scheme": Bazel, Gradle and Once each call this something else, and
+    # Mix has nothing of the kind, so its runs do not show one.
     scheme =
-      if schemes?,
-        do: [%{label: dgettext("dashboard_tests", "Scheme"), value: scheme_value_label(meta.scheme)}],
+      if schemes?(project),
+        do: [%{label: scheme_label(project), value: scheme_value_label(meta.scheme)}],
         else: []
 
     scheme ++
@@ -531,14 +533,13 @@ defmodule TuistWeb.TestsLive do
   defp test_status_label(status, _), do: String.capitalize(status)
 
   defp assign_test_run_duration_chart(socket, "scatter", group_by, opts) do
-    project_id = socket.assigns.selected_project.id
-    schemes? = schemes?(socket.assigns.selected_project)
+    project = socket.assigns.selected_project
 
     assign_async(socket, :test_run_duration_chart, fn ->
       data =
-        project_id
+        project.id
         |> Analytics.test_run_duration_scatter_data(Keyword.put(opts, :group_by, group_by))
-        |> with_test_run_tooltip_extra(group_by, schemes?)
+        |> with_test_run_tooltip_extra(group_by, project)
 
       {:ok, %{test_run_duration_chart: {:scatter, data}}}
     end)

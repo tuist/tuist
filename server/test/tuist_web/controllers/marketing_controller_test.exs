@@ -63,6 +63,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Tuist · Build infrastructure for productive teams"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/")
+      end
+    end
   end
 
   describe "GET /blog/:year/:month/:day/:slug" do
@@ -76,6 +84,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert [author] = Regex.run(~r|article:author" content="([^"]*)"|, html, capture: :all_but_first)
       assert author =~ ~r|\Ahttps://|
       assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
+    end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get(post.slug)
+      end
     end
   end
 
@@ -342,7 +360,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end)
 
       # When
-      conn = post(conn, ~p"/newsletter", %{"email" => email})
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter", %{"email" => email})
 
       # Then
       assert json_response(conn, 200) == %{
@@ -593,6 +614,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "POST /newsletter/verify" do
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      reject(&Email.add_to_newsletter_list/1)
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter/verify", %{"token" => signed_newsletter_token("test@example.com")})
+      end
+    end
+
     test "subscribes email with a valid token", %{conn: conn} do
       # Given
       email = "test@example.com"

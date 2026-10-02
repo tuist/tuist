@@ -16,6 +16,10 @@ one bucket and the key layout and metadata contract in
 - `ReleaseWorker` — downloads one release from GitHub, builds the source
   archive, uploads it with its digest as object metadata, reads the object back
   to confirm the digest landed, then writes the catalog entry.
+  Permanently unavailable submodules are removed individually while sibling
+  submodules continue. Git's `fatal: repository '<address>' not found` output
+  is permanent, but retry hints and transient statuses take priority and defer
+  the release without publishing an incomplete archive.
 - `Metadata` / `S3` — the writer's object-storage surface.
 - `Repair` — the gated entry point for bulk repairs that can replace published
   bytes.

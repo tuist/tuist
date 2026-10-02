@@ -124,6 +124,7 @@ defmodule Tuist.OpenGraphImageTemplates do
 
     OpenGraphImages.cached_key(:docs_open_graph_template_assets, [
       {:module, DocsImage},
+      {:module, OpenGraphImageRenderer},
       {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end
@@ -131,6 +132,7 @@ defmodule Tuist.OpenGraphImageTemplates do
   defp case_study_asset_hash do
     OpenGraphImages.cached_key(:marketing_case_study_open_graph_template_assets, [
       {:module, MarketingImages},
+      {:module, OpenGraphImageRenderer},
       {:module, CoverArtwork}
     ])
   end
@@ -138,6 +140,7 @@ defmodule Tuist.OpenGraphImageTemplates do
   defp blog_cover_asset_hash do
     OpenGraphImages.cached_key(:marketing_blog_cover_open_graph_template_assets, [
       {:module, MarketingImages},
+      {:module, OpenGraphImageRenderer},
       {:module, BlogCoverArtwork}
     ])
   end
