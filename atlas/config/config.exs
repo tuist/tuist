@@ -38,7 +38,6 @@ alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
-alias Ueberauth.Strategy.Google
 
 # Configure the mailer
 #
@@ -248,13 +247,5 @@ config :req_llm, receive_timeout: llm_receive_timeout
 # tzdata 1.1.3 ships 2025a data, but its runtime updater crashes on IANA
 # 2026b under OTP 29 because it passes 24:00 transitions to :calendar.
 config :tzdata, :autoupdate, :disabled
-
-# Sign-in is restricted to the `tuist.dev` Google Workspace. The `hd`
-# parameter scopes Google's account picker to that hosted domain, but
-# it's only a hint — the callback re-validates the email domain server-side.
-config :ueberauth, Ueberauth,
-  providers: [
-    google: {Google, [default_scope: "email profile", hd: "tuist.dev"]}
-  ]
 
 import_config "#{config_env()}.exs"
