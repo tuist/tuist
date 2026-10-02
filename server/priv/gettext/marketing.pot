@@ -488,7 +488,7 @@ msgid "Stay updated with the latest changes and improvements in Tuist. Read our 
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:37
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:536
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr ""
@@ -697,7 +697,7 @@ msgstr ""
 msgid "View all"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:192
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "View in web browser"
 msgstr ""
@@ -2458,62 +2458,62 @@ msgstr ""
 msgid "System theme"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:201
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "All issues"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:428
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Food for thought"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:526
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Get the next issue in your inbox"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:222
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Issue %{number}"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:487
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:488
 #, elixir-autogen, elixir-format
 msgid "Next issue"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:464
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:465
 #, elixir-autogen, elixir-format
 msgid "Previous issue"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:547
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Share it"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:479
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:480
 #, elixir-autogen, elixir-format
 msgid "This is the first issue"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:502
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "This is the latest issue"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:318
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Tools & sites"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:286
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:287
 #, elixir-autogen, elixir-format
 msgid "Welcome to issue %{number}"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:359
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "Worthy Five: %{name}"
 msgstr ""

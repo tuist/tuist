@@ -111,7 +111,7 @@ msgstr ""
 msgid "Emails"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:187
+#: lib/tuist_web/controllers/error_html.ex:188
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
 #: lib/tuist_web/live/ops_database_live.html.heex:323
 #, elixir-autogen, elixir-format
@@ -134,7 +134,7 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:209
+#: lib/tuist_web/controllers/error_html.ex:210
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
 msgstr ""

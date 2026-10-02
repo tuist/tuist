@@ -224,6 +224,27 @@ these records beyond the account handle. Sign-in attempts additionally carry an
 explicit outcome. Logs deliberately exclude credentials, tokens, and request
 bodies.
 
+### Website localization analytics
+
+Hosted production marketing, documentation and dashboard pages send pageviews to
+Glossia for the `tuist.dev` project. The browser sends the full page address and
+referrer, browser languages, timezone, screen width and a per-tab session
+identifier stored in session storage. Page addresses can include organization
+and project names or query parameters. No Tuist user identifiers, account
+identifiers or authentication tokens are explicitly attached.
+
+Glossia stores events in its `analytics_events` ClickHouse table, deriving
+country and a daily-rotated visitor hash from the request's network address and
+browser identification header. Page addresses are reduced to hostname and path
+for storage, while the referrer is retained. The raw network address and browser
+header are not stored in the event row. Retention follows Glossia's configured retention;
+the inspected event-table migration does not define an automatic expiry.
+These external records are outside the standard Tuist export archive. For a
+transparency request, retrieve matching events from the Glossia `tuist.dev`
+project using available page, time and session context; they are not an
+account-indexed browsing history. Embedded blog visualizations, development,
+staging and self-hosted installations do not send these pageviews.
+
 ### Browser performance telemetry
 
 When Faro collection is enabled, browser measurements, events and error reports are forwarded through Alloy to Grafana Cloud Loki (`service_name="tuist-web"`). Existing browser-reported fields include page URL/referrer, user agent, ephemeral Faro session ID, navigation ID, timestamps, web-vital values and timing attribution. With the optional browser telemetry gateway enabled, measurements also carry a schema version, reported-page surface, server-validated authenticated/anonymous state at collection time, trusted Cloudflare collector-request Ray ID (when available), metadata-quality reason and automation status (`unknown` in this version). These fields support incident investigation and population/ingestion-quality monitoring.
