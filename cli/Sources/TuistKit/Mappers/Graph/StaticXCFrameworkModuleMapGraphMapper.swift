@@ -400,15 +400,12 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     ///   binary-cache substitution case where the linker was a source target that got cached; only
     ///   counted when the linking target is still in the substituted graph, since a target replaced
     ///   by a cached binary never runs `ProcessXCFramework`).
-    /// * The generated targets `GraphTraverser.targetsProcessingStaticXCFramework(at:)` returns, which
-    ///   `map` adds only for the xcframeworks a consumer needs a vendor module map for, because finding
-    ///   them is the expensive part. Those are the targets whose `linkableDependencies` link the
-    ///   xcframework, including the ones a static consumer relinks transitively through
-    ///   `LinkGenerator.staticDependenciesPrecompiledLibrariesAndFrameworks` (a static SwiftPM shim like
-    ///   `GoogleMapsTarget` that wraps `GoogleMaps.xcframework` isn't a direct graph edge for its
-    ///   consumer, but Xcode still processes the transitively-relinked xcframework), and the static
-    ///   targets whose "Static XCFramework Dependencies" phase (`copyProductDependencies`) makes Xcode
-    ///   process it, including the ones a cached static xcframework dependency brings along.
+    ///
+    /// `map` adds, only for the xcframeworks a consumer needs a vendor module map for, the generated targets
+    /// `GraphTraverser.targetsProcessingStaticXCFramework(at:)` returns: the ones a static consumer relinks the
+    /// xcframework into transitively (a static SwiftPM shim like `GoogleMapsTarget` wrapping
+    /// `GoogleMaps.xcframework`), and the static targets whose "Static XCFramework Dependencies" phase processes it.
+    /// Finding those is the expensive part, so it isn't done here.
     ///
     /// A link under a platform condition (a SwiftPM binary target consumed with
     /// `.when(platforms: [.iOS])`) still makes Xcode process the xcframework on the destinations the

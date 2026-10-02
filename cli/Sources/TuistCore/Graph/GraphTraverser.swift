@@ -1194,13 +1194,13 @@ public class GraphTraverser: GraphTraversing {
                 dependingOn: xcframework,
                 in: dependents,
                 isTarget: { $0.canLinkStaticProducts() },
-                throughDependency: { !(self.canDependencyLinkStaticProducts(dependency: $0) || $0.isPrecompiledMacro) }
+                throughDependency: isWalkedThroughByStaticLinking
             )
             let copyingTargets = targets(
                 dependingOn: xcframework,
                 in: dependents,
                 isTarget: { $0.product.isStatic },
-                throughDependency: { $0.isPrecompiled && !$0.isDynamicPrecompiled && !$0.isPrecompiledMacro }
+                throughDependency: isWalkedThroughByStaticXCFrameworkCopying
             )
             for graphTarget in linkingTargets.union(copyingTargets) {
                 guard case let .condition(condition) = combinedCondition(
@@ -1995,7 +1995,7 @@ public class GraphTraverser: GraphTraversing {
         let result = filterDependencies(
             from: dependency,
             test: isDependencyStatic,
-            skip: or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro)
+            skip: { !self.isWalkedThroughByStaticLinking($0) }
         )
         transitiveStaticDependenciesCache[dependency] = result
         return result
@@ -2011,6 +2011,19 @@ public class GraphTraverser: GraphTraversing {
         case .local:
             return false
         }
+    }
+
+    /// Whether a target's static linking reaches past `dependency`: `transitiveStaticDependencies` walks through it,
+    /// and `targetsProcessingStaticXCFramework(at:)` walks back through it.
+    private func isWalkedThroughByStaticLinking(_ dependency: GraphDependency) -> Bool {
+        !(canDependencyLinkStaticProducts(dependency: dependency) || isDependencyPrecompiledMacro(dependency))
+    }
+
+    /// Whether a static target's "Static XCFramework Dependencies" phase reaches past `dependency`:
+    /// `staticPrecompiledXCFrameworksDependencies` walks through it, and `targetsProcessingStaticXCFramework(at:)`
+    /// walks back through it.
+    private func isWalkedThroughByStaticXCFrameworkCopying(_ dependency: GraphDependency) -> Bool {
+        dependency.isPrecompiled && !dependency.isDynamicPrecompiled && !isDependencyPrecompiledMacro(dependency)
     }
 
     private func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
@@ -2334,7 +2347,7 @@ public class GraphTraverser: GraphTraversing {
                     return false
                 }
             },
-            skip: { $0.isDynamicPrecompiled || !$0.isPrecompiled || $0.isPrecompiledMacro }
+            skip: { !self.isWalkedThroughByStaticXCFrameworkCopying($0) }
         )
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
