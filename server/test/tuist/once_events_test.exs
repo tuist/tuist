@@ -9,6 +9,7 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.BatchAck
   alias Once.Events.V1.CacheDownload
   alias Once.Events.V1.ContentRef
+  alias Once.Events.V1.GetArgvHashKeyRequest
   alias Once.Events.V1.RunCompleted
   alias Once.Events.V1.RunEvent
   alias Once.Events.V1.RunEventBatch
@@ -22,6 +23,7 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.RunEventService
   alias Tuist.OnceEvents.TestCaseRun
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -243,6 +245,88 @@ defmodule Tuist.OnceEventsTest do
     assert attempts == [1, 2]
   end
 
+  describe "authentication with a signed-in user" do
+    setup %{project: project} do
+      member = AccountsFixtures.user_fixture(preload: [:account])
+
+      Tuist.Accounts.add_user_to_organization(
+        member,
+        Tuist.Repo.get!(Tuist.Accounts.Organization, project.account.organization_id)
+      )
+
+      %{member: member, handle: "#{project.account.name}/#{project.name}"}
+    end
+
+    test "a member of the project's account can publish events when it names the project", %{
+      project: project,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      RunEventService.publish_run_events([empty_batch(run)], user_stream(member, %{"x-once-project" => handle}))
+
+      assert_received {:ack, %BatchAck{} = ack}
+      assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+      assert ack.dashboard_url =~ "/#{project.account.name}/#{project.name}/once/runs/"
+    end
+
+    test "publishing without naming a project is rejected", %{member: member, run: run} do
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.publish_run_events([empty_batch(run)], user_stream(member, %{}))
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "a user outside the project's account cannot publish events", %{handle: handle, run: run} do
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.publish_run_events([empty_batch(run)], user_stream(outsider, %{"x-once-project" => handle}))
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "naming a project that does not exist is rejected", %{member: member, run: run} do
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.publish_run_events(
+            [empty_batch(run)],
+            user_stream(member, %{"x-once-project" => "nobody/nothing"})
+          )
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "the argv hash key is issued for the project named in the request", %{member: member, handle: handle} do
+      key =
+        RunEventService.get_argv_hash_key(
+          %GetArgvHashKeyRequest{project_id: handle},
+          user_stream(member, %{})
+        )
+
+      assert byte_size(key.key_bytes) == 32
+    end
+
+    test "the argv hash key is refused to a user outside the project's account", %{handle: handle} do
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.get_argv_hash_key(
+            %GetArgvHashKeyRequest{project_id: handle},
+            user_stream(outsider, %{})
+          )
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+  end
+
   defmodule HeadersAdapter do
     @moduledoc false
     def get_headers(headers), do: headers
@@ -356,7 +440,7 @@ defmodule Tuist.OnceEventsTest do
 
   test "authenticates the configured project slug and rejects another project", %{project: project} do
     stream = %GRPC.Server.Stream{adapter: HeadersAdapter, payload: %{"authorization" => "Bearer " <> project.token}}
-    request = %Once.Events.V1.GetArgvHashKeyRequest{project_id: "#{project.account.name}/#{project.name}"}
+    request = %GetArgvHashKeyRequest{project_id: "#{project.account.name}/#{project.name}"}
     assert %Once.Events.V1.ArgvHashKey{key_bytes: key} = RunEventService.get_argv_hash_key(request, stream)
     assert byte_size(key) == 32
 
@@ -584,6 +668,26 @@ defmodule Tuist.OnceEventsTest do
       end
 
     Projector.project(%RunEvent{epoch_ms: 1_789_405_000_000, payload: {kind, payload}}, run.project_id, run.run_id)
+  end
+
+  defp empty_batch(run) do
+    %RunEventBatch{run_id: run.run_id, batch_id: "batch-user", seq_from: 1, events: []}
+  end
+
+  defp user_stream(user, extra_headers) do
+    {:ok, token, _claims} = Tuist.Authentication.encode_and_sign(user, %{}, token_type: :access, ttl: {1, :hour})
+    test_process = self()
+
+    %GRPC.Server.Stream{
+      adapter: HeadersAdapter,
+      payload: Map.put(extra_headers, "authorization", "Bearer " <> token),
+      __interface__: %{
+        send_reply: fn stream, reply, _opts ->
+          send(test_process, {:ack, reply})
+          stream
+        end
+      }
+    }
   end
 
   defp reply_stream(project) do

@@ -5,9 +5,12 @@ defmodule Tuist.OnceEvents.RunEventService do
 
   Handles the four RPCs the client uses to negotiate capabilities, obtain a
   project-scoped argv hash key, stream run events, and probe run
-  acknowledgement state on reconnect. Auth resolution is v0: the bearer
-  token in the `authorization` metadata is matched against a project token;
-  a follow-up folds full OAuth in through the shared HTTP interceptor.
+  acknowledgement state on reconnect. The bearer token in the
+  `authorization` metadata is resolved by the same code as the HTTP API, so a
+  signed-in user, an account token or a project token all work. A project token
+  already identifies its project. Every other credential names the project it
+  reports to in the `x-once-project` metadata (`account/project`), and must be
+  allowed to create runs in it.
   """
   use GRPC.Server, service: Once.Events.V1.RunEventService.Service
 
@@ -17,6 +20,8 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Once.Events.V1.RunEventAck
   alias Once.Events.V1.RunFinalization
   alias Once.Events.V1.ServerCapabilities
+  alias Tuist.Authentication
+  alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
@@ -39,6 +44,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   @dedup_retention_seconds 86_400
   @argv_hash_key_ttl_ms 24 * 60 * 60 * 1000
   @argv_hash_key_grace_ms 24 * 60 * 60 * 1000
+  @project_header "x-once-project"
 
   # ---- GetServerCapabilities -----------------------------------------
 
@@ -210,9 +216,6 @@ defmodule Tuist.OnceEvents.RunEventService do
     end
   end
 
-  # v0 auth: expect a `authorization: Bearer <token>` header and match it to
-  # a project token. Follow-up: reuse `TuistWeb.API.Authentication` so this
-  # accepts the same OAuth surface as the HTTP API.
   defp require_project!(stream) do
     case resolve_project(stream, nil) do
       {:ok, project} -> project
@@ -228,30 +231,45 @@ defmodule Tuist.OnceEvents.RunEventService do
         _ -> %{}
       end
 
-    bearer = extract_bearer(headers)
-
-    with token when is_binary(token) <- bearer,
-         %Project{} = project <- Projects.get_project_by_full_token(token) do
-      cond do
-        is_nil(hint_project_id) or hint_project_id == "" -> {:ok, project}
-        to_string(project.id) == hint_project_id -> {:ok, project}
-        "#{project.account.name}/#{project.name}" == hint_project_id -> {:ok, project}
-        true -> {:error, "project token does not match requested project"}
-      end
+    with token when is_binary(token) <- extract_bearer(headers),
+         subject when not is_nil(subject) <- Authentication.authenticated_subject(token) do
+      project_for(subject, present(hint_project_id) || present(header_value(headers, @project_header)))
     else
       _ -> {:error, "missing or invalid bearer"}
     end
   end
 
-  defp extract_bearer(map) when is_map(map) do
-    value =
-      Enum.find_value(map, fn
-        {"authorization", v} -> v
-        {"Authorization", v} -> v
-        _ -> nil
-      end)
+  defp project_for(%Project{} = project, hint) do
+    cond do
+      is_nil(hint) -> {:ok, project}
+      to_string(project.id) == hint -> {:ok, project}
+      "#{project.account.name}/#{project.name}" == hint -> {:ok, project}
+      true -> {:error, "project token does not match requested project"}
+    end
+  end
 
-    case value do
+  defp project_for(_subject, nil), do: {:error, "no project named for the events"}
+
+  defp project_for(subject, hint) do
+    with {:ok, project} <- Projects.get_project_by_slug(hint),
+         :ok <- Authorization.authorize(:run_create, subject, project) do
+      {:ok, project}
+    else
+      _ -> {:error, "no access to the requested project"}
+    end
+  end
+
+  defp present(value) when is_binary(value) and value != "", do: value
+  defp present(_), do: nil
+
+  defp header_value(map, name) when is_map(map) do
+    Enum.find_value(map, fn {key, value} -> if String.downcase(to_string(key)) == name, do: value end)
+  end
+
+  defp header_value(_, _), do: nil
+
+  defp extract_bearer(map) when is_map(map) do
+    case header_value(map, "authorization") do
       "Bearer " <> token -> String.trim(token)
       "bearer " <> token -> String.trim(token)
       _ -> nil
