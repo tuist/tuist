@@ -17,6 +17,18 @@
         </div>
         <h1 data-part="label">{Path.basename(@path)}</h1>
       </div>
+      <.link_button
+        :if={@commit}
+        navigate={
+          "/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/files/#{encode_path(@path)}"
+        }
+        label={dgettext("dashboard_tests", "File: %{name}", name: Path.basename(@path))}
+        size="large"
+        underline
+        data-part="file-link"
+      >
+        <:icon_left><.file /></:icon_left>
+      </.link_button>
       <div :if={parent_dir(@path) || @commit} data-part="badges">
         <.badge
           :if={parent_dir(@path)}

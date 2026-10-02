@@ -5,7 +5,7 @@ defmodule TuistWeb.CoverageFileLive do
   over the branch's complete commits there (`History.trend_points/3`,
   `History.file_points/3`). Opened from a commit's page (`commit`), it is
   that commit's file instead: its figures and functions alone, with no
-  period to pick. The branch is the one its link names (`branch`, the
+  period to pick, and a link to the file on the default branch. The branch is the one its link names (`branch`, the
   project's default one unless set), and the period is picked in the header
   with the Code Coverage page's picker. It leads back to
   the page it was opened from (`from`), or to the Code Coverage page.

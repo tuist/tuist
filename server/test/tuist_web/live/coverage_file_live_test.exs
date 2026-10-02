@@ -51,6 +51,7 @@ defmodule TuistWeb.CoverageFileLiveTest do
     assert has_element?(lv, "[data-part='title'] h1[data-part='label']", "A.swift")
     assert has_element?(lv, "#coverage-file-page > [data-part='header'] #coverage-date-range-picker")
     refute has_element?(lv, "#coverage-branch-dropdown")
+    refute has_element?(lv, "[data-part='file-link']")
     assert has_element?(lv, "#widget-coverage", "50.0%")
     assert has_element?(lv, "#widget-coverage-covered-lines", "2")
     assert has_element?(lv, "#widget-coverage-executable-lines", "4")

@@ -266,6 +266,9 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, "#coverage-branch-dropdown")
     refute has_element?(lv, "#coverage-date-range-picker")
 
+    # It links to the same file without a commit, on the default branch.
+    assert has_element?(lv, "[data-part='file-link'][href='#{base}/files/Sources/A.swift']", "File: A.swift")
+
     # Without `from` it leads to the commit's files.
     {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b")
     assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=files']", "Commit b")
