@@ -8,11 +8,11 @@ struct MirrorsTests {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
             let shared = root.appendingPathComponent("shared")
-            try await writeMirrors(
+            try await writeMirrorsConfiguration(
                 ["https://a.example/A.zip": "https://mirror.example/package/A.zip"],
                 to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
             )
-            try await writeMirrors(
+            try await writeMirrorsConfiguration(
                 ["https://b.example/B.zip": "https://mirror.example/shared/B.zip"],
                 to: shared.appendingPathComponent("mirrors.json")
             )
@@ -31,8 +31,10 @@ struct MirrorsTests {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
             let shared = root.appendingPathComponent("shared")
-            try await writeMirrors([:], to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json"))
-            try await writeMirrors(
+            try await writeMirrorsConfiguration(
+                [:], to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+            )
+            try await writeMirrorsConfiguration(
                 ["https://b.example/B.zip": "https://mirror.example/shared/B.zip"],
                 to: shared.appendingPathComponent("mirrors.json")
             )
@@ -53,15 +55,15 @@ struct MirrorsTests {
             let package = root.appendingPathComponent("App")
             let home = root.appendingPathComponent("home")
             let custom = root.appendingPathComponent("custom-mirrors.json")
-            try await writeMirrors(
+            try await writeMirrorsConfiguration(
                 ["https://a.example/A.zip": "https://mirror.example/package/A.zip"],
                 to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
             )
-            try await writeMirrors(
+            try await writeMirrorsConfiguration(
                 ["https://c.example/C.zip": "https://mirror.example/custom/C.zip"],
                 to: custom
             )
-            try await writeMirrors(
+            try await writeMirrorsConfiguration(
                 ["https://h.example/H.zip": "https://mirror.example/home/H.zip"],
                 to: home.appendingPathComponent(".swiftpm/configuration/mirrors.json")
             )
@@ -209,14 +211,5 @@ struct MirrorsTests {
         ManifestDependency(
             identity: identity.lowercased(), kind: .sourceControl, location: location, requirement: .branch("main")
         )
-    }
-
-    private func writeMirrors(_ mirrors: [String: String], to path: URL) async throws {
-        let object = mirrors.map { ["original": $0.key, "mirror": $0.value] }
-        let data = try JSONSerialization.data(withJSONObject: ["object": object, "version": 1])
-        try await fileSystem.makeDirectory(
-            at: path.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories]
-        )
-        try await fileSystem.atomicWrite(data, to: path)
     }
 }

@@ -439,7 +439,9 @@ struct ResolveTests {
 
             let package = root.appendingPathComponent("App")
             try await writeAppPackageManifest(at: package, dependencyURL: original)
-            try await writePackageMirrors([original: mirrorURL], packageDir: package)
+            try await writeMirrorsConfiguration(
+                [original: mirrorURL], to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+            )
             let cacheDirectory = root.appendingPathComponent("cache")
 
             let cold = try await resolveIgnoringAmbientMirrorConfig(
@@ -489,7 +491,10 @@ struct ResolveTests {
 
             let package = root.appendingPathComponent("App")
             try await writeAppPackageManifest(at: package, dependencyURL: original)
-            try await writePackageMirrors([original: "file://\(mirror.path)"], packageDir: package)
+            try await writeMirrorsConfiguration(
+                [original: "file://\(mirror.path)"],
+                to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+            )
             try await ResolvedFile.write(
                 packageDir: package,
                 resolved: ResolvedPins(
@@ -530,8 +535,8 @@ struct ResolveTests {
         }
     }
 
-    @Test
-    func aPinTheMirrorRenamesIsResolvedAgain() async throws {
+    @Test(arguments: [false, true])
+    func aPinTheMirrorRenamesIsResolvedAgain(skipUpdate: Bool) async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
             try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
@@ -542,7 +547,10 @@ struct ResolveTests {
 
             let package = root.appendingPathComponent("App")
             try await writeAppPackageManifest(at: package, dependencyURL: original)
-            try await writePackageMirrors([original: "file://\(mirror.path)"], packageDir: package)
+            try await writeMirrorsConfiguration(
+                [original: "file://\(mirror.path)"],
+                to: package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+            )
             let cacheDirectory = root.appendingPathComponent("cache")
             _ = try await resolveIgnoringAmbientMirrorConfig(
                 package: package, cache: cacheDirectory, scratch: root.appendingPathComponent("cold")
@@ -566,7 +574,10 @@ struct ResolveTests {
             )
 
             let result = try await resolveIgnoringAmbientMirrorConfig(
-                package: package, cache: cacheDirectory, scratch: root.appendingPathComponent("warm")
+                package: package,
+                cache: cacheDirectory,
+                scratch: root.appendingPathComponent("warm"),
+                skipUpdate: skipUpdate
             )
 
             #expect(result.pins.map(\.identity) == ["mirrored"])
@@ -608,22 +619,11 @@ struct ResolveTests {
         }
     }
 
-    private func writePackageMirrors(_ mirrors: [String: String], packageDir: URL) async throws {
-        let configuration = packageDir.appendingPathComponent(".swiftpm/configuration")
-        try await fileSystem.makeDirectory(
-            at: configuration.absolutePath, options: [.createTargetParentDirectories]
-        )
-        let object = mirrors.map { ["original": $0.key, "mirror": $0.value] }
-        try await fileSystem.atomicWrite(
-            try JSONSerialization.data(withJSONObject: ["object": object, "version": 1]),
-            to: configuration.appendingPathComponent("mirrors.json")
-        )
-    }
-
     private func resolveIgnoringAmbientMirrorConfig(
         package: URL,
         cache: URL,
-        scratch: URL
+        scratch: URL,
+        skipUpdate: Bool = false
     ) async throws -> SwifterPMResolutionResult {
         try await withoutAmbientMirrorConfig {
             try await SwifterPM().resolve(
@@ -632,6 +632,7 @@ struct ResolveTests {
                     cacheDirectory: cache,
                     scratchDirectory: scratch,
                     disableSandbox: true,
+                    skipUpdate: skipUpdate,
                     disablePackageInfoCache: true,
                     quiet: true
                 )
@@ -742,9 +743,8 @@ struct ResolveTests {
         )
         let configuration = root.appendingPathComponent("configuration")
         try await fileSystem.makeDirectory(at: configuration.absolutePath)
-        try await fileSystem.atomicWrite(
-            #"{"object":[{"mirror":"\#(mirror.absoluteString)","original":"\#(original)"}],"version":1}"#,
-            to: configuration.appendingPathComponent("mirrors.json")
+        try await writeMirrorsConfiguration(
+            [original: mirror.absoluteString], to: configuration.appendingPathComponent("mirrors.json")
         )
         return SwifterPMRestoreRequest(
             packageDirectory: package,

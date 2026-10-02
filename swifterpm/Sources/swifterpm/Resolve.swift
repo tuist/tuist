@@ -489,10 +489,14 @@ enum PackageResolver {
         // read the file as-is even when it predates the `originHash` field
         // (SwiftPM Package.resolved v2). Tightening this to `readIfCurrent`
         // would silently fall through to a full resolve for every v2 file.
+        // SwiftPM still resolves again, even with `--skip-update`, when a mirror now maps a pin
+        // to a package with another identity.
         if skipUpdate, resolvedFileExists {
-            return try await ResolvedFile.read(packageDir: packageDir)
+            let existing = try await ResolvedFile.read(packageDir: packageDir)
+            if existing.pins.allSatisfy(mirrors.isConsistent(with:)) {
+                return existing
+            }
         }
-        // SwiftPM resolves again when a mirror now maps a pin to a package with another identity.
         if preferResolvedFile,
            let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
            existing.pins.allSatisfy(mirrors.isConsistent(with:)),

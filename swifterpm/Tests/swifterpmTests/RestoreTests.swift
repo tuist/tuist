@@ -1005,6 +1005,14 @@ struct RestoreTests {
         .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func initCommittedGitRepository(at repo: URL) async throws -> String {
+        try await SystemProcess.run("/usr/bin/git", ["init", "-q"], workingDirectory: repo)
+        try await commitAll(in: repo, message: "initial")
+        return try await SystemProcess.output(
+            "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: repo
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func commitAll(in repo: URL, message: String) async throws {
         try await SystemProcess.run("/usr/bin/git", ["add", "."], workingDirectory: repo)
         try await SystemProcess.run(
@@ -1313,11 +1321,7 @@ struct RestoreTests {
         try await withTemporaryDirectory { root in
             let repo = root.appendingPathComponent("Dependency")
             try await writeMinimalPackageManifest(at: repo, name: "Dependency")
-            try await SystemProcess.run("/usr/bin/git", ["init", "-q"], workingDirectory: repo)
-            try await commitAll(in: repo, message: "initial")
-            let revision = try await SystemProcess.output(
-                "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: repo
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let revision = try await initCommittedGitRepository(at: repo)
             let mirror = "file://\(root.appendingPathComponent("missing/Dependency.git").path)"
             let pin = ResolvedPin(
                 identity: "dependency",
@@ -1348,11 +1352,7 @@ struct RestoreTests {
         try await withTemporaryDirectory { root in
             let repo = root.appendingPathComponent("dependency-mirror")
             try await writeMinimalPackageManifest(at: repo, name: "Dependency")
-            try await SystemProcess.run("/usr/bin/git", ["init", "-q"], workingDirectory: repo)
-            try await commitAll(in: repo, message: "initial")
-            let revision = try await SystemProcess.output(
-                "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: repo
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let revision = try await initCommittedGitRepository(at: repo)
             let mirrors = MirrorConfig(["acme.dependency": "file://\(repo.path)"])
             // What SwiftPM writes for `.package(id: "acme.dependency", ...)` mirrored to git.
             let pin = ResolvedPin(
