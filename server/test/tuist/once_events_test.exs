@@ -17,6 +17,7 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.TargetCompleted
   alias Once.Events.V1.TestCaseCompleted
   alias Once.Events.V1.TestSuiteStarted
+  alias Tuist.Accounts.Organization
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
@@ -251,7 +252,7 @@ defmodule Tuist.OnceEventsTest do
 
       Tuist.Accounts.add_user_to_organization(
         member,
-        Tuist.Repo.get!(Tuist.Accounts.Organization, project.account.organization_id)
+        Tuist.Repo.get!(Organization, project.account.organization_id)
       )
 
       %{member: member, handle: "#{project.account.name}/#{project.name}"}
@@ -263,7 +264,7 @@ defmodule Tuist.OnceEventsTest do
       handle: handle,
       run: run
     } do
-      RunEventService.publish_run_events([empty_batch(run)], user_stream(member, %{"x-once-project" => handle}))
+      RunEventService.publish_run_events([empty_batch(run)], user_stream(member, %{"once-project-id" => handle}))
 
       assert_received {:ack, %BatchAck{} = ack}
       assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
@@ -284,7 +285,7 @@ defmodule Tuist.OnceEventsTest do
 
       error =
         assert_raise GRPC.RPCError, fn ->
-          RunEventService.publish_run_events([empty_batch(run)], user_stream(outsider, %{"x-once-project" => handle}))
+          RunEventService.publish_run_events([empty_batch(run)], user_stream(outsider, %{"once-project-id" => handle}))
         end
 
       assert error.status == GRPC.Status.unauthenticated()
@@ -295,7 +296,7 @@ defmodule Tuist.OnceEventsTest do
         assert_raise GRPC.RPCError, fn ->
           RunEventService.publish_run_events(
             [empty_batch(run)],
-            user_stream(member, %{"x-once-project" => "nobody/nothing"})
+            user_stream(member, %{"once-project-id" => "nobody/nothing"})
           )
         end
 
@@ -324,6 +325,119 @@ defmodule Tuist.OnceEventsTest do
         end
 
       assert error.status == GRPC.Status.unauthenticated()
+    end
+  end
+
+  describe "authentication with the other credentials the CLI uses" do
+    setup %{project: project} do
+      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(member, organization)
+      viewer = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      %{
+        member: member,
+        viewer: viewer,
+        outsider: AccountsFixtures.user_fixture(preload: [:account]),
+        handle: "#{project.account.name}/#{project.name}"
+      }
+    end
+
+    test "the login session `once auth login` stores is accepted for a member", %{
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      publish(login_session(member), %{"once-project-id" => handle}, run)
+
+      assert_received {:ack, %BatchAck{disposition: disposition}}
+      assert disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+    end
+
+    test "the login session is refused to an outsider, a viewer and a session without the runs scope", %{
+      member: member,
+      viewer: viewer,
+      outsider: outsider,
+      handle: handle,
+      run: run
+    } do
+      headers = %{"once-project-id" => handle}
+
+      assert unauthenticated?(fn -> publish(login_session(outsider), headers, run) end)
+      assert unauthenticated?(fn -> publish(login_session(viewer), headers, run) end)
+
+      assert unauthenticated?(fn ->
+               publish(login_session(member, %{"scopes" => ["project:cache:read"]}), headers, run)
+             end)
+    end
+
+    test "a login session limited to other projects is refused", %{
+      member: member,
+      handle: handle,
+      run: run,
+      project: project
+    } do
+      session = login_session(member, %{"all_projects" => false, "project_ids" => [project.id + 1_000_000]})
+
+      assert unauthenticated?(fn -> publish(session, %{"once-project-id" => handle}, run) end)
+    end
+
+    test "an account token is accepted only for the projects it covers", %{project: project, handle: handle, run: run} do
+      other_project = ProjectsFixtures.project_fixture(account_id: project.account.id)
+
+      covering = account_token(project.account, ["ci"], all_projects: false, project_ids: [project.id])
+      elsewhere = account_token(project.account, ["ci"], all_projects: false, project_ids: [other_project.id])
+      without_scope = account_token(project.account, ["project:cache:read"], all_projects: true)
+      headers = %{"once-project-id" => handle}
+
+      publish(covering, headers, run)
+      assert_received {:ack, %BatchAck{}}
+
+      assert unauthenticated?(fn -> publish(elsewhere, headers, run) end)
+      assert unauthenticated?(fn -> publish(without_scope, headers, run) end)
+    end
+
+    test "an account token of another account is refused", %{handle: handle, run: run} do
+      other = ProjectsFixtures.project_fixture()
+      token = account_token(other.account, ["ci"], all_projects: true)
+
+      assert unauthenticated?(fn -> publish(token, %{"once-project-id" => handle}, run) end)
+    end
+
+    test "a project token accepts its own handle whatever the casing", %{project: project, run: run} do
+      handle = String.upcase("#{project.account.name}/#{project.name}")
+
+      RunEventService.publish_run_events(
+        [empty_batch(run)],
+        project_token_stream(project, %{"once-project-id" => handle})
+      )
+
+      assert_received {:ack, %BatchAck{}}
+    end
+
+    test "a project token refuses the handle of another project", %{project: project, run: run} do
+      other = ProjectsFixtures.project_fixture()
+      handle = "#{other.account.name}/#{other.name}"
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 [empty_batch(run)],
+                 project_token_stream(project, %{"once-project-id" => handle})
+               )
+             end)
+    end
+
+    test "a project id the database cannot store is refused instead of crashing the call", %{member: member} do
+      for invalid <- ["a\0/b", "a/b/c", "/", "only-one-part", String.duplicate("a", 5_000)] do
+        assert unauthenticated?(fn ->
+                 RunEventService.get_argv_hash_key(
+                   %GetArgvHashKeyRequest{project_id: invalid},
+                   user_stream(member, %{})
+                 )
+               end),
+               "#{inspect(invalid)} should be refused"
+      end
     end
   end
 
@@ -672,6 +786,66 @@ defmodule Tuist.OnceEventsTest do
 
   defp empty_batch(run) do
     %RunEventBatch{run_id: run.run_id, batch_id: "batch-user", seq_from: 1, events: []}
+  end
+
+  defp publish(token, headers, run) do
+    RunEventService.publish_run_events([empty_batch(run)], stream_with(token, headers))
+  end
+
+  defp unauthenticated?(fun) do
+    fun.()
+    false
+  rescue
+    error in GRPC.RPCError -> error.status == GRPC.Status.unauthenticated()
+  end
+
+  # The credential `once auth login` stores: an account JWT issued for a user.
+  defp login_session(user, overrides \\ %{}) do
+    claims =
+      Map.merge(
+        %{
+          "type" => "account",
+          "scopes" => ["project:runs:write", "project:cache:read"],
+          "all_projects" => true,
+          "user_id" => user.id
+        },
+        overrides
+      )
+
+    {:ok, token, _claims} =
+      Tuist.Guardian.encode_and_sign(user.account, claims, token_type: "access_token", ttl: {1, :hour})
+
+    token
+  end
+
+  defp account_token(account, scopes, opts) do
+    {:ok, {_account_token, token}} =
+      Tuist.Accounts.create_account_token(%{
+        account: account,
+        scopes: scopes,
+        name: "events-#{System.unique_integer([:positive])}",
+        all_projects: Keyword.get(opts, :all_projects, true),
+        project_ids: Keyword.get(opts, :project_ids, [])
+      })
+
+    token
+  end
+
+  defp project_token_stream(project, headers), do: stream_with(project.token, headers)
+
+  defp stream_with(token, headers) do
+    test_process = self()
+
+    %GRPC.Server.Stream{
+      adapter: HeadersAdapter,
+      payload: Map.put(headers, "authorization", "Bearer " <> token),
+      __interface__: %{
+        send_reply: fn stream, reply, _opts ->
+          send(test_process, {:ack, reply})
+          stream
+        end
+      }
+    }
   end
 
   defp user_stream(user, extra_headers) do

@@ -9,7 +9,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   `authorization` metadata is resolved by the same code as the HTTP API, so a
   signed-in user, an account token or a project token all work. A project token
   already identifies its project. Every other credential names the project it
-  reports to in the `x-once-project` metadata (`account/project`), and must be
+  reports to in the `once-project-id` metadata (`account/project`), and must be
   allowed to create runs in it.
   """
   use GRPC.Server, service: Once.Events.V1.RunEventService.Service
@@ -44,7 +44,8 @@ defmodule Tuist.OnceEvents.RunEventService do
   @dedup_retention_seconds 86_400
   @argv_hash_key_ttl_ms 24 * 60 * 60 * 1000
   @argv_hash_key_grace_ms 24 * 60 * 60 * 1000
-  @project_header "x-once-project"
+  @project_header "once-project-id"
+  @max_project_id_bytes 256
 
   # ---- GetServerCapabilities -----------------------------------------
 
@@ -240,10 +241,12 @@ defmodule Tuist.OnceEvents.RunEventService do
   end
 
   defp project_for(%Project{} = project, hint) do
+    handle = "#{project.account.name}/#{project.name}"
+
     cond do
       is_nil(hint) -> {:ok, project}
       to_string(project.id) == hint -> {:ok, project}
-      "#{project.account.name}/#{project.name}" == hint -> {:ok, project}
+      String.downcase(handle) == String.downcase(hint) -> {:ok, project}
       true -> {:error, "project token does not match requested project"}
     end
   end
@@ -251,11 +254,24 @@ defmodule Tuist.OnceEvents.RunEventService do
   defp project_for(_subject, nil), do: {:error, "no project named for the events"}
 
   defp project_for(subject, hint) do
-    with {:ok, project} <- Projects.get_project_by_slug(hint),
+    with {:ok, handle} <- parse_handle(hint),
+         {:ok, project} <- Projects.get_project_by_slug(handle),
          :ok <- Authorization.authorize(:run_create, subject, project) do
       {:ok, project}
     else
       _ -> {:error, "no access to the requested project"}
+    end
+  end
+
+  # Handles reach the database, which rejects what it cannot store, so shape is
+  # checked first: printable text without NUL, `account/project`, bounded length.
+  defp parse_handle(hint) do
+    with true <- byte_size(hint) <= @max_project_id_bytes,
+         true <- String.printable?(hint) and not String.contains?(hint, <<0>>),
+         [account, project] when account != "" and project != "" <- String.split(hint, "/") do
+      {:ok, "#{account}/#{project}"}
+    else
+      _ -> :error
     end
   end
 
