@@ -210,6 +210,7 @@ config :esbuild,
   atlas: [
     args: [
       "js/app.js",
+      "js/docs.js",
       "--bundle",
       "--target=es2022",
       "--outdir=../priv/static/assets/js",
