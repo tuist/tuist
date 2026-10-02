@@ -282,8 +282,6 @@ defmodule Tuist.OnceEvents.RunEventService do
     Enum.find_value(map, fn {key, value} -> if String.downcase(to_string(key)) == name, do: value end)
   end
 
-  defp header_value(_, _), do: nil
-
   defp extract_bearer(map) when is_map(map) do
     case header_value(map, "authorization") do
       "Bearer " <> token -> String.trim(token)
