@@ -90,6 +90,8 @@ defmodule AtlasWeb.Router do
     get "/models", InferenceController, :models
     post "/chat/completions", InferenceController, :chat_completions
     post "/embeddings", InferenceController, :embeddings
+    post "/systemone", InferenceController, :decisions
+    post "/decisions", InferenceController, :decisions
   end
 
   scope "/api", AtlasWeb do

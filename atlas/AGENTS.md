@@ -14,6 +14,12 @@ Do not add README entries for internal operational details such as env var names
 - Transient OAuth refresh failures (transport errors, HTTP 429/5xx) preserve the refresh credential for a later attempt without returning an expired access token. Definitive refresh failures still require reauthorization.
 - The monorepo release workflow is `.github/workflows/atlas-release.yml`, chart `infra/helm/atlas`, namespace `atlas-production` on the separate Atlas workload cluster. The Tuist production context does not target this deployment.
 
+## Inference relay
+
+- Providers may configure a relative `decision_path` in addition to their base endpoint. Jev uses `https://api.typesafe.ai/v1` with `systemone`. `/inference/v1/systemone` and `/inference/v1/decisions` forward native decision payloads through the profile-bound token, replace only the model alias, and record the `decision` operation with token counts and the profile's configured input/output prices. Decision calls are non-streaming, use dedicated profile tokens (Atlas role tokens are rejected), and disable automatic upstream retries, including transport timeouts. Successful responses without valid input/output usage produce a warning and an audit `usage_reported: false` flag; recorded costs only cover provider-reported usage.
+- The relay preserves native question and answer formats. A configurable path does not translate between providers. Add adapters only against a published contract; OpenAI Decisions has no verified contract here yet.
+- Decision usage stores the same metadata as other inference calls, never the submitted state, questions, or answers. Existing usage retention and export behavior apply.
+
 ## CSS & Styling
 
 - **Always** use `data-part` attributes as CSS selectors instead of classes. This is the project's convention for styling components, matching the Noora design system pattern. For example:
