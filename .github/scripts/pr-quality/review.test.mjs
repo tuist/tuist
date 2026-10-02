@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { separateBinaryChanges, validateDiff, buildQuestions, evaluateResponse, parseThreshold, review, summary } from './review.mjs';
 
-function response(score = 6) {
-  return { answers: Object.fromEntries(Object.entries(buildQuestions()).map(([id, question]) => [id,
+function response(score = 6, questions = buildQuestions()) {
+  return { answers: Object.fromEntries(Object.entries(questions).map(([id, question]) => [id,
     question.type === 'noul' ? { type: 'noul', noul: 0.9 }
       : question.type === 'score' ? { type: 'score', score, confidence: 0.8 }
         : { type: 'choice', choice: 'no_material_issue', confidence: 0.8 },
@@ -11,11 +11,11 @@ function response(score = 6) {
 }
 const diff = 'diff --git a/a.js b/a.js\n--- a/a.js\n+++ b/a.js\n@@ -1 +1 @@\n-old\n+new\n';
 
-test('preserves all 19 dimensions and the ten-level scoring rubric', () => {
+test('preserves all 21 dimensions and the ten-level scoring rubric', () => {
   const questions = buildQuestions();
-  assert.equal(Object.keys(questions).length, 57);
+  assert.equal(Object.keys(questions).length, 63);
   assert.equal(questions.correctness_score.criteria.length, 10);
-  assert.equal(evaluateResponse(response(), 7).ratings.length, 19);
+  assert.equal(evaluateResponse(response(), 7).ratings.length, 21);
 });
 
 test('threshold accepts only finite values from 1 to 10', () => {
@@ -78,7 +78,7 @@ test('reviews text changes and reports binary files as unassessed', async () => 
       const { state } = JSON.parse(options.body);
       assert.equal(state.diff, diff);
       assert.match(state.repositoryContext, /not assessed:\n- app\/favicon.ico/);
-      return Response.json(response(6));
+      return Response.json(response(6, JSON.parse(options.body).questions));
     },
   });
   assert.equal(report.passed, true);
@@ -98,8 +98,8 @@ test('SDK sends authenticated typed questions to the fixed API and returns gate 
       const request = JSON.parse(options.body);
       assert.equal(request.state.diff, diff);
       assert.equal(request.model, 'jev-latest');
-      assert.equal(Object.keys(request.questions).length, 57);
-      return Response.json(response(5));
+      assert.equal(Object.keys(request.questions).length, 65);
+      return Response.json(response(5, JSON.parse(options.body).questions));
     },
   });
   assert.equal(calls, 1);
@@ -129,11 +129,11 @@ test('sends implementations and tests over the old 48 KB boundary in one complet
       calls++;
       assert.equal(JSON.parse(options.body).state.diff, completeDiff);
       // A weak dimension still fails the complete review.
-      return Response.json(response(5));
+      return Response.json(response(5, JSON.parse(options.body).questions));
     },
   });
   assert.equal(calls, 1);
-  assert.equal(result.ratings.length, 19);
+  assert.equal(result.ratings.length, 21);
   assert.equal(result.passed, false);
 });
 
@@ -147,4 +147,16 @@ test('provider input limits fail closed without splitting or leaking error bodie
     },
   }), (error) => /Split the PR into smaller coherent changes/.test(error.message) && !error.message.includes('private'));
   assert.equal(calls, 1);
+});
+
+test('focused weakness hints need selected changed-line evidence', async () => {
+  const report = await review({ diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder',
+    fetch: async (_url, options) => {
+      const data = response(6, JSON.parse(options.body).questions);
+      data.answers.promptInjection_weakness.choice = 'review_manipulation';
+      return Response.json(data);
+    },
+  });
+  assert.deepEqual(report.findings, []);
+  assert.equal(report.ratings.find((rating) => rating.key === 'promptInjection').hint, null);
 });

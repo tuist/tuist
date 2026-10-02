@@ -16,7 +16,7 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, thres
     throw new Error('Expected a pull request with valid commit identifiers.');
   }
   git('fetch', '--no-tags', 'origin', pr.base.sha, `refs/pull/${pr.number}/head`);
-  const diff = git('diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--unified=20', `${pr.base.sha}...${pr.head.sha}`, '--');
+  const diff = git('-c', 'core.quotePath=false', 'diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--unified=20', `${pr.base.sha}...${pr.head.sha}`, '--');
   let repositoryContext = 'No root AGENTS.md found.';
   try { repositoryContext = git('show', `${pr.base.sha}:AGENTS.md`); } catch { /* Guidance is optional. */ }
   let report;
@@ -24,6 +24,7 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, thres
     report = await evaluate({ diff, task: `${pr.title ?? ''}\n\n${pr.body ?? ''}`, repositoryContext, threshold, apiKey });
     report.head = pr.head.sha;
     report.base = pr.base.sha;
+    report.repository = pr.base.repo?.full_name;
   } catch {
     // Provider failures can echo source text or credentials. Publish a fixed message.
   }

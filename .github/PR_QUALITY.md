@@ -55,10 +55,12 @@ of 7 out of 10.
 
 ## Interpretation and limits
 
-Jev evaluates 19 dimensions, including correctness, complexity, testability,
+Jev evaluates 21 dimensions, including correctness, complexity, testability,
 security, and performance. Each dimension includes applicability, score,
-confidence, and a predefined weakness hint. These hints are not findings tied
-to individual lines. A reviewer should investigate them rather than treat a
+confidence, and a predefined weakness hint. The general quality hints are not findings tied
+to individual lines. The focused malicious-behavior and prompt-injection checks
+also select candidate evidence from changed lines, with commit-specific source
+links, source excerpts, and confidence. A reviewer should investigate them rather than treat a
 score as evidence of a defect. Scores use the mutable `jev-latest` model and
 are not guaranteed to remain comparable across model updates.
 
@@ -66,8 +68,24 @@ The evaluator rejects text diffs over 1,000,000 bytes and combined descriptions
 and guidance over 64,000 bytes rather than silently sampling. Binary changes
 are listed as unassessed; binary-only changes cannot be scored. The evaluator
 uses only root guidance, not nested repository guidance or unchanged source
-files. For actionable line-specific findings, use a different reviewer that
-returns and validates file locations and evidence.
+files. Focused evidence is selected through Jev choice questions in the same request
+as the quality ratings. Each group contains at most 254 changed lines plus a
+no-issue option, within Jev's 255-option limit. Every added and removed text
+line is considered, and a group can select at most one candidate per focused
+check. Locations and excerpts come from the local diff, so Jev cannot invent
+a file or line. Removed lines link to the base commit. Focused hints without selected source evidence are omitted. Missing or invalid
+evidence answers fail the review rather than appearing as a clean result.
+
+The focused questions cover credential theft, unexpected transmission of
+sensitive data, hidden execution, privileged workflow or installation behavior,
+and attempts to manipulate reviewers or model tools through untrusted text.
+They distinguish these from legitimate security tests, documentation, and
+quoted attack examples. Selected lines remain candidates for human
+investigation, not proof of a malicious author. No selected lines does not
+establish safety. Extra evidence choices consume tokens; provider input
+limits can reject a large request rather than returning a partial review.
+Contributor instructions in the title or description can affect the focused
+ratings, but source evidence is limited to changed code and documentation.
 
 Failed evaluations replace the comment with a fixed failure message. Run logs
 never include provider error bodies. Before publishing, the script verifies
