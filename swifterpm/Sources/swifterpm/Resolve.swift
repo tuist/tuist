@@ -494,13 +494,20 @@ enum PackageResolver {
         // to a package with another identity.
         if skipUpdate, resolvedFileExists {
             let existing = try await ResolvedFile.read(packageDir: packageDir)
-            if existing.pins.allSatisfy(mirrors.isConsistent(with:)) {
+            if existing.pins.allSatisfy(mirrors.isConsistent(with:)),
+               try await mirroredRegistryDependenciesArePinned(
+                   by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+               )
+            {
                 return existing
             }
         }
         if preferResolvedFile,
            let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
            existing.pins.allSatisfy(mirrors.isConsistent(with:)),
+           try await mirroredRegistryDependenciesArePinned(
+               by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+           ),
            try await localPackageDependenciesArePinned(
                by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
            )
@@ -536,6 +543,30 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             progress: progress
         )
+    }
+
+    /// The `originHash` does not cover the mirrors, and a registry pin only records the identity
+    /// a mirror resolved to, so a changed registry mirror shows up as a dependency of the root or
+    /// of a local package whose mirrored identity has no pin.
+    private static func mirroredRegistryDependenciesArePinned(
+        by resolved: ResolvedPins,
+        mirrors: MirrorConfig,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        guard !mirrors.isEmpty else { return true }
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        var dependencies = try ManifestParser.dependencies(manifest)
+        for localPackage in try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        ) {
+            dependencies.append(contentsOf: try ManifestParser.requiredDependencies(localPackage.manifest))
+        }
+        return mirrors.registryDependenciesArePinned(dependencies, by: resolved.pins)
     }
 
     /// The `originHash` only covers the root `Package.swift`, so it stays the same

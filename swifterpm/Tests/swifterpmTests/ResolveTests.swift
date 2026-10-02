@@ -593,6 +593,166 @@ struct ResolveTests {
     }
 
     @Test
+    func removingARenamingMirrorResolvesThePinAgain() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let mirror = root.appendingPathComponent("mirror/Mirrored.git")
+            try await SystemProcess.run("git", ["clone", "-q", "--bare", dependency.path, mirror.path])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let mirrors = package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+            try await writeMirrorsConfiguration([dependency.path: "file://\(mirror.path)"], to: mirrors)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let mirrored = try await resolveIgnoringAmbientMirrorConfig(
+                package: package, cache: cacheDirectory, scratch: scratch
+            )
+            #expect(mirrored.pins.map(\.identity) == ["mirrored"])
+
+            try await writeMirrorsConfiguration([:], to: mirrors)
+            let result = try await resolveIgnoringAmbientMirrorConfig(
+                package: package, cache: cacheDirectory, scratch: scratch
+            )
+
+            #expect(result.pins.map(\.identity) == ["dependency"])
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["dependency"])
+        }
+    }
+
+    @Test
+    func changingARegistryMirrorResolvesAgainWithTheNewIdentity() async throws {
+        try await withLocalHTTPServer { server in
+            try await withTemporaryDirectory { root in
+                let archive = try await writeRegistryArchive(root: root)
+                for identity in ["dependency", "other"] {
+                    serveRegistryRelease(archive, scope: "swifterpm-tests", name: identity, server: server)
+                }
+                let configuration = root.appendingPathComponent("configuration")
+                try await fileSystem.makeDirectory(at: configuration.absolutePath)
+                try await fileSystem.atomicWrite(
+                    #"{"registries":{"[default]":{"url":"\#(server.url(path: "").absoluteString)"}},"version":1}"#,
+                    to: configuration.appendingPathComponent("registries.json")
+                )
+                let package = root.appendingPathComponent("App")
+                try await writeRegistryAppPackageManifest(at: package, identity: "acme.dependency")
+                let mirrors = package.appendingPathComponent(".swiftpm/configuration/mirrors.json")
+                try await writeMirrorsConfiguration(["acme.dependency": "swifterpm-tests.dependency"], to: mirrors)
+                let request = SwifterPMResolutionRequest(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("cache"),
+                    scratchDirectory: root.appendingPathComponent("scratch"),
+                    registryConfigurationPath: configuration,
+                    disableSandbox: true,
+                    disablePackageInfoCache: true,
+                    quiet: true
+                )
+                let cold = try await withoutAmbientMirrorConfig { try await SwifterPM().resolve(request) }
+                #expect(cold.pins.map(\.identity) == ["swifterpm-tests.dependency"])
+                // A warm resolution caches the root manifest dump, with the mirror already applied.
+                let warm = try await withoutAmbientMirrorConfig { try await SwifterPM().resolve(request) }
+                #expect(warm.pins.map(\.identity) == ["swifterpm-tests.dependency"])
+
+                try await writeMirrorsConfiguration(["acme.dependency": "swifterpm-tests.other"], to: mirrors)
+                let requestsBefore = server.requestedPaths.count
+                let second = try await withoutAmbientMirrorConfig { try await SwifterPM().resolve(request) }
+
+                #expect(second.pins.map(\.identity) == ["swifterpm-tests.other"])
+                let requested = server.requestedPaths.dropFirst(requestsBefore)
+                #expect(!requested.isEmpty)
+                #expect(requested.allSatisfy { $0.hasPrefix("/swifterpm-tests/other") })
+            }
+        }
+    }
+
+    /// A source archive with fixed timestamps, so its checksum (which SwiftPM records as a
+    /// fingerprint outside the test directory) is the same on every run.
+    private func writeRegistryArchive(root: URL) async throws -> Data {
+        let source = root.appendingPathComponent("archive/dependency")
+        try await writeLibraryPackageManifest(at: source, name: "Dependency")
+        try await SystemProcess.run(
+            "/usr/bin/find", [source.path, "-exec", "touch", "-t", "202601010000", "{}", "+"]
+        )
+        let archive = root.appendingPathComponent("archive/dependency.zip")
+        try await SystemProcess.run(
+            "/usr/bin/zip", ["-qrX", archive.path, "dependency"],
+            workingDirectory: source.deletingLastPathComponent()
+        )
+        return try await fileSystem.readFile(at: archive.absolutePath)
+    }
+
+    private func serveRegistryRelease(_ archive: Data, scope: String, name: String, server: LocalHTTPServer) {
+        let json = ["Content-Version": "1", "Content-Type": "application/json"]
+        let release = "/\(scope)/\(name)/1.0.0"
+        server.respond(
+            to: "/\(scope)/\(name)",
+            with: [.init(statusCode: 200, headers: json, body: #"{"releases":{"1.0.0":{}}}"#)]
+        )
+        server.respond(
+            to: release,
+            with: [
+                .init(
+                    statusCode: 200,
+                    headers: json,
+                    body: """
+                    {"id":"\(scope).\(name)","version":"1.0.0","resources":[{"name":"source-archive",\
+                    "type":"application/zip","checksum":"\(Hashing.sha256Hex(archive))"}],"metadata":{}}
+                    """
+                ),
+            ]
+        )
+        server.respond(
+            to: "\(release).zip",
+            with: [.init(statusCode: 200, headers: ["Content-Version": "1", "Content-Type": "application/zip"], data: archive)]
+        )
+        server.respond(
+            to: "\(release)/Package.swift",
+            with: [
+                .init(
+                    statusCode: 200,
+                    headers: ["Content-Version": "1", "Content-Type": "text/x-swift"],
+                    body: """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+
+                    let package = Package(
+                        name: "Dependency",
+                        products: [.library(name: "Dependency", targets: ["Dependency"])],
+                        targets: [.target(name: "Dependency")]
+                    )
+
+                    """
+                ),
+            ]
+        )
+    }
+
+    private func writeRegistryAppPackageManifest(at packageDir: URL, identity: String) async throws {
+        try await fileSystem.makeDirectory(
+            at: packageDir.appendingPathComponent("Sources/App").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "App",
+                dependencies: [.package(id: "\(identity)", exact: "1.0.0")],
+                targets: [.target(name: "App", dependencies: [.product(name: "Dependency", package: "\(identity)")])]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "import Dependency\n", to: packageDir.appendingPathComponent("Sources/App/App.swift")
+        )
+    }
+
+    @Test
     func pruningKeepsPinsNamedAfterTheirMirror() async throws {
         try await withTemporaryDirectory { root in
             let original = "https://git.invalid/acme/dependency.git"

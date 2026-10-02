@@ -52,7 +52,7 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedRoot")),
                 to: cacheDir.appendingPathComponent("root.json"))
             if let rootPath = try? cacheDir.appendingPathComponent("root.json").absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath)
+                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath, packageDir: package)
             }
 
             try await PackageInfoCacheWriter.write(
@@ -101,7 +101,7 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedDependency")),
                 to: packageInfoPath)
             if let packageInfoAbsolute = try? packageInfoPath.absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute)
+                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute, packageDir: checkout)
             }
 
             try await PackageInfoCacheWriter.write(
@@ -315,7 +315,10 @@ struct PackageInfoCacheTests {
 
             let sidecar = try await fileSystem.readFile(
                 at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
-            #expect(String(data: sidecar, encoding: .utf8) == ManifestEnvironmentFingerprint.current())
+            #expect(
+                String(data: sidecar, encoding: .utf8)
+                    == (await ManifestEnvironmentFingerprint.current(packageDir: package))
+            )
         }
     }
 

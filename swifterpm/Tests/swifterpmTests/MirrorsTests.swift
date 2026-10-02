@@ -183,6 +183,32 @@ struct MirrorsTests {
     }
 
     @Test
+    func pinsNamedAfterARemovedMirrorAreInconsistent() {
+        let mirrors = MirrorConfig()
+        let location = "https://github.com/acme/foo.git"
+
+        #expect(!mirrors.isConsistent(with: sourceControlPin(identity: "foo-mirror", location: location)))
+        // `--use-registry-identity-for-scm` pins carry a registry identity the location cannot give.
+        #expect(mirrors.isConsistent(with: sourceControlPin(identity: "acme.foo", location: location)))
+    }
+
+    @Test
+    func registryDependenciesNeedAPinUnderTheirMirroredIdentity() {
+        let mirrors = MirrorConfig(["acme.dependency": "proxy.other"])
+        let dependency = ManifestDependency(
+            identity: "acme.dependency", kind: .registry, location: "", requirement: .branch("main")
+        )
+
+        #expect(!mirrors.registryDependenciesArePinned([dependency], by: [registryPin(identity: "proxy.dependency")]))
+        #expect(mirrors.registryDependenciesArePinned([dependency], by: [registryPin(identity: "proxy.other")]))
+        #expect(
+            mirrors.registryDependenciesArePinned(
+                [sourceControlDependency("foo", "https://github.com/acme/foo.git")], by: []
+            )
+        )
+    }
+
+    @Test
     func dependencyIdentitiesFollowTheirMirror() {
         let mirrors = MirrorConfig([
             "https://github.com/acme/bar.git": "https://proxy.example/acme/bar-mirror.git",

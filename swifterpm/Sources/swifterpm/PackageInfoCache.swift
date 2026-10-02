@@ -188,7 +188,7 @@ enum PackageInfoCacheWriter {
             packageDir: packageDir, disableSandbox: disableSandbox)
         try await fileSystem.atomicWrite(data, to: destination)
         if let destinationPath = try? destination.absolutePath {
-            try? await ManifestEnvironmentFingerprint.write(forCacheFile: destinationPath)
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: destinationPath, packageDir: packageDir)
         }
         return data
     }
@@ -208,7 +208,7 @@ enum PackageInfoCacheWriter {
         // the environment it was produced under is unknown. Treat it as stale (see
         // `ManifestLoader.readCachedManifest`) so an upgrade re-dumps under the current
         // environment instead of reusing contents of unknown provenance.
-        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: destinationPath) {
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: destinationPath, packageDir: packageDir) {
         case .matching:
             return true
         case .mismatching, .missing:

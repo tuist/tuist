@@ -32,7 +32,7 @@ func writeCachedManifest(_ manifest: [String: Any], packageDir: URL) async throw
     // A seeded cache is only reusable once it carries a matching environment sidecar;
     // otherwise the freshness check treats it as a miss (see readCachedManifest).
     if let cacheAbsolutePath = try? cachePath.absolutePath {
-        try await ManifestEnvironmentFingerprint.write(forCacheFile: cacheAbsolutePath)
+        try await ManifestEnvironmentFingerprint.write(forCacheFile: cacheAbsolutePath, packageDir: packageDir)
     }
 }
 

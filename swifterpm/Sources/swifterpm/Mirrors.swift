@@ -41,6 +41,10 @@ struct MirrorConfig: Sendable {
         return MirrorConfig(try await mirrors(at: sharedPath))
     }
 
+    var isEmpty: Bool {
+        mirrors.isEmpty
+    }
+
     func effectiveLocation(for location: String) -> String {
         mirrors[location] ?? location
     }
@@ -76,18 +80,33 @@ struct MirrorConfig: Sendable {
         return Self.identity(forLocation: effective)
     }
 
-    /// False when SwiftPM would not use `pin` as recorded because a mirror now maps its
-    /// location to a package with another identity, or to a registry identity. SwiftPM then
-    /// resolves again and rewrites the pin.
+    /// False when SwiftPM would not use `pin` as recorded because the mirrors now give its
+    /// location another identity: a mirror was added, changed or removed, or maps the location
+    /// to a registry identity. SwiftPM then resolves again and rewrites the pin.
     func isConsistent(with pin: ResolvedPin) -> Bool {
         if PinKind.isRegistry(pin.kind) {
             return effectiveLocation(for: pin.identity) == pin.identity
         }
         guard PinKind.isSourceControl(pin.kind) else { return true }
         let effective = effectiveSourceControlLocation(for: pin.location)
-        guard effective != pin.location else { return true }
+        // `--use-registry-identity-for-scm` names a source-control pin after its registry
+        // identity, which cannot be derived from the location.
+        if effective == pin.location, Self.isRegistryIdentity(pin.identity) {
+            return true
+        }
         return !Self.isRegistryIdentity(effective)
             && Self.identity(forLocation: effective) == pin.identity.lowercased()
+    }
+
+    /// False when a dependency the mirrors resolve to a registry identity has no pin under that
+    /// identity. A registry pin records the identity after mirroring, so a mirror changed since
+    /// the pin was written can only be noticed from the dependency's side.
+    func registryDependenciesArePinned(_ dependencies: [ManifestDependency], by pins: [ResolvedPin]) -> Bool {
+        let pinned = Set(pins.map { $0.identity.lowercased() })
+        return dependencies.allSatisfy { dependency in
+            let identity = identity(of: dependency)
+            return !Self.isRegistryIdentity(identity) || pinned.contains(identity)
+        }
     }
 
     private static func identity(forLocation location: String) -> String {
