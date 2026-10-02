@@ -18,7 +18,7 @@ struct ModelsTests {
 
         #expect(try pin.revision() == "abcdef1234567890")
         #expect(try pin.versionString() == "1.2.3")
-        #expect(PinKind.checkoutDirectoryName(pin) == "foo")
+        #expect(PinKind.checkoutDirectoryName(pin, mirrors: MirrorConfig()) == "foo")
         #expect(PinKind.isSourceControl(pin.kind))
         #expect(!PinKind.isRegistry(pin.kind))
 
@@ -66,7 +66,7 @@ struct ModelsTests {
             state: ResolvedState(branch: nil, revision: nil, version: "1.2.3\nbeta")
         )
 
-        #expect(PinKind.checkoutDirectoryName(sourcePin) == "Foo_0ABar")
+        #expect(PinKind.checkoutDirectoryName(sourcePin, mirrors: MirrorConfig()) == "Foo_0ABar")
         #expect(try PinKind.registryDownloadSubpath(registryPin) == "example/bad_package/1.2.3_beta")
     }
 

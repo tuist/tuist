@@ -336,6 +336,7 @@ enum PackageResolver {
         packageDir: URL,
         scratchDir: URL,
         cacheRoot: URL,
+        mirrors: MirrorConfig,
         disableSandbox: Bool
     ) async throws {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
@@ -351,7 +352,7 @@ enum PackageResolver {
             packageDir: packageDir, disableSandbox: disableSandbox
         )
         var expectedIdentities = Set(
-            try ManifestParser.dependencies(manifest).map { $0.identity.lowercased() }
+            try ManifestParser.dependencies(manifest).map { mirrors.identity(of: $0) }
         )
         let localPackages = try await ManifestFileSystemDependencyGraph.collect(
             rootPackageDir: packageDir,
@@ -360,7 +361,7 @@ enum PackageResolver {
         )
         for localPackage in localPackages {
             for dependency in try ManifestParser.dependencies(localPackage.manifest) {
-                expectedIdentities.insert(dependency.identity.lowercased())
+                expectedIdentities.insert(mirrors.identity(of: dependency))
             }
         }
         var identitiesToInspect = Array(expectedIdentities)
@@ -388,7 +389,7 @@ enum PackageResolver {
                 return
             }
             for dependency in dependencies {
-                let dependencyIdentity = dependency.identity.lowercased()
+                let dependencyIdentity = mirrors.identity(of: dependency)
                 if expectedIdentities.insert(dependencyIdentity).inserted {
                     identitiesToInspect.append(dependencyIdentity)
                 }
@@ -452,6 +453,7 @@ enum PackageResolver {
         scratchDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
+        mirrors: MirrorConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -490,10 +492,12 @@ enum PackageResolver {
         if skipUpdate, resolvedFileExists {
             return try await ResolvedFile.read(packageDir: packageDir)
         }
+        // SwiftPM resolves again when a mirror now maps a pin to a package with another identity.
         if preferResolvedFile,
            let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
+           existing.pins.allSatisfy(mirrors.isConsistent(with:)),
            try await localPackageDependenciesArePinned(
-               by: existing, packageDir: packageDir, disableSandbox: disableSandbox
+               by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
            )
         {
             return try await normalizeLoadedResolvedFile(
@@ -536,6 +540,7 @@ enum PackageResolver {
     /// package's test-only or unused dependencies.
     private static func localPackageDependenciesArePinned(
         by resolved: ResolvedPins,
+        mirrors: MirrorConfig,
         packageDir: URL,
         disableSandbox: Bool
     ) async throws -> Bool {
@@ -549,7 +554,7 @@ enum PackageResolver {
         )
         for localPackage in localPackages {
             for dependency in try ManifestParser.requiredDependencies(localPackage.manifest) {
-                guard resolved.pins.contains(where: { pin($0, satisfies: dependency) }) else {
+                guard resolved.pins.contains(where: { pin($0, satisfies: dependency, mirrors: mirrors) }) else {
                     return false
                 }
             }
@@ -557,8 +562,12 @@ enum PackageResolver {
         return true
     }
 
-    private static func pin(_ pin: ResolvedPin, satisfies dependency: ManifestDependency) -> Bool {
-        let identity = dependency.identity.lowercased()
+    private static func pin(
+        _ pin: ResolvedPin,
+        satisfies dependency: ManifestDependency,
+        mirrors: MirrorConfig
+    ) -> Bool {
+        let identity = mirrors.identity(of: dependency)
         var pinIdentities: Set<String> = [pin.identity.lowercased()]
         if let originalLocation = pin.originalLocation {
             pinIdentities.insert(ResolvedPin.identity(package: nil, location: originalLocation))

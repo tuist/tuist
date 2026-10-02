@@ -4,7 +4,11 @@ import Foundation
 /// SwiftPM loads them: the package's own configuration applies as a whole when it has any
 /// entry, otherwise the shared one does, and a location is mirrored only on an exact match.
 struct MirrorConfig: Sendable {
-    private var mirrors: [String: String] = [:]
+    private let mirrors: [String: String]
+
+    init(_ mirrors: [String: String] = [:]) {
+        self.mirrors = mirrors
+    }
 
     static func load(packageDir: URL, configPath: URL?) async throws -> MirrorConfig {
         let environment = Environment.current
@@ -19,17 +23,83 @@ struct MirrorConfig: Sendable {
         }
         let local = try await mirrors(at: localPath)
         if !local.isEmpty {
-            return MirrorConfig(mirrors: local)
+            return MirrorConfig(local)
         }
         guard let sharedPath = try await sharedMirrorsPath(configPath: configPath, environment: environment)
         else {
             return MirrorConfig()
         }
-        return MirrorConfig(mirrors: try await mirrors(at: sharedPath))
+        return MirrorConfig(try await mirrors(at: sharedPath))
     }
 
     func effectiveLocation(for location: String) -> String {
         mirrors[location] ?? location
+    }
+
+    /// Where SwiftPM fetches a pin from. Package.resolved records the original location of a
+    /// source-control pin and SwiftPM maps it through the mirrors when loading the file, so
+    /// checkouts and `workspace-state.json` follow the mirror. Registry pins already carry the
+    /// identity SwiftPM resolved after mirroring.
+    func effectiveLocation(of pin: ResolvedPin) -> String {
+        PinKind.isSourceControl(pin.kind) ? effectiveLocation(for: pin.location) : pin.location
+    }
+
+    /// The identity SwiftPM gives a manifest dependency once mirrors apply. `dump-package`
+    /// already maps the mirrors it can see, in which case this is the identity it reported.
+    func identity(of dependency: ManifestDependency) -> String {
+        let location = dependency.kind == .registry ? dependency.identity : dependency.location
+        let effective = effectiveLocation(for: location)
+        guard effective != location else { return dependency.identity.lowercased() }
+        return Self.identity(forLocation: effective)
+    }
+
+    /// False when SwiftPM would not use `pin` as recorded because a mirror now maps its
+    /// location to a package with another identity, or to a registry identity. SwiftPM then
+    /// resolves again and rewrites the pin.
+    func isConsistent(with pin: ResolvedPin) -> Bool {
+        if PinKind.isRegistry(pin.kind) {
+            return effectiveLocation(for: pin.identity) == pin.identity
+        }
+        guard PinKind.isSourceControl(pin.kind) else { return true }
+        let effective = effectiveLocation(for: pin.location)
+        guard effective != pin.location else { return true }
+        return !Self.isRegistryIdentity(effective)
+            && Self.identity(forLocation: effective) == pin.identity.lowercased()
+    }
+
+    private static func identity(forLocation location: String) -> String {
+        isRegistryIdentity(location)
+            ? location.lowercased()
+            : ResolvedPin.identity(package: nil, location: location)
+    }
+
+    /// `PackageIdentity.isRegistry`: a scope of up to 39 alphanumerics and hyphens and a name of
+    /// up to 100 alphanumerics, hyphens and underscores, joined by a dot. Hyphens and
+    /// underscores may not lead, trail or repeat.
+    static func isRegistryIdentity(_ location: String) -> Bool {
+        let parts = location.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2 else { return false }
+        return isValidRegistryComponent(parts[0], maxLength: 39, punctuation: ["-"])
+            && isValidRegistryComponent(parts[1], maxLength: 100, punctuation: ["-", "_"])
+    }
+
+    private static func isValidRegistryComponent(
+        _ component: Substring,
+        maxLength: Int,
+        punctuation: Set<Character>
+    ) -> Bool {
+        guard !component.isEmpty, component.count <= maxLength else { return false }
+        var previousIsPunctuation = true
+        for character in component {
+            if punctuation.contains(character) {
+                guard !previousIsPunctuation else { return false }
+                previousIsPunctuation = true
+            } else {
+                guard character.isASCII, character.isLetter || character.isNumber else { return false }
+                previousIsPunctuation = false
+            }
+        }
+        return !previousIsPunctuation
     }
 
     private static func mirrors(at path: URL) async throws -> [String: String] {

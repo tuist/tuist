@@ -250,8 +250,10 @@ enum PinKind {
         kind == "registry"
     }
 
-    static func checkoutDirectoryName(_ pin: ResolvedPin) -> String {
-        let trimmed = pin.location.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    /// SwiftPM names a checkout after the repository it clones, which is the mirror when one
+    /// applies.
+    static func checkoutDirectoryName(_ pin: ResolvedPin, mirrors: MirrorConfig) -> String {
+        let trimmed = mirrors.effectiveLocation(of: pin).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let withoutGit = trimmed.hasSuffix(".git") ? String(trimmed.dropLast(4)) : trimmed
         let name = withoutGit.split(separator: "/").last.map(String.init).flatMap {
             $0.isEmpty ? nil : $0

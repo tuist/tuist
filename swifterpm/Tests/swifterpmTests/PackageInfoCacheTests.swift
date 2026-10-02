@@ -15,6 +15,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -58,6 +59,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -106,6 +108,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [pin], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -138,6 +141,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -184,6 +188,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -248,6 +253,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true
@@ -295,6 +301,7 @@ struct PackageInfoCacheTests {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
+                mirrors: MirrorConfig(),
                 cacheDir: cacheDir,
                 disableSandbox: false,
                 quiet: true

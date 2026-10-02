@@ -85,6 +85,7 @@ struct ResolveTests {
                 packageDir: root,
                 cache: cache,
                 registryConfig: RegistryConfig(),
+                mirrors: MirrorConfig(),
                 disableSandbox: true,
                 scmToRegistryTransformation: .disabled,
                 preferResolvedFile: true,
@@ -209,7 +210,7 @@ struct ResolveTests {
                 try await fileSystem.exists(
                     freshScratch
                         .appendingPathComponent("checkouts")
-                        .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                        .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: MirrorConfig()))
                         .appendingPathComponent(".swifterpm-cache-marker")
                         .absolutePath
                 )
@@ -245,7 +246,7 @@ struct ResolveTests {
                 )
                 let checkout = scratch
                     .appendingPathComponent("checkouts")
-                    .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                    .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: MirrorConfig()))
                 #expect(fileSystem.isDirectoryAndNotSymlink(checkout))
                 #expect(try await fileSystem.exists(checkout.appendingPathComponent("Package.swift").absolutePath))
 
@@ -283,7 +284,7 @@ struct ResolveTests {
             )
             let checkout = scratch
                 .appendingPathComponent("checkouts")
-                .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: MirrorConfig()))
             let cache = try await Cache(root: cacheDirectory)
             try await fileSystem.remove((try cache.sourcePath(pin: pin)).absolutePath)
 
@@ -426,6 +427,231 @@ struct ResolveTests {
     }
 
     @Test
+    func aMirroredSourceControlDependencyResolvesAndRestoresThroughTheMirror() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let mirror = root.appendingPathComponent("mirror/Mirrored.git")
+            try await SystemProcess.run("git", ["clone", "-q", "--bare", dependency.path, mirror.path])
+            let original = "https://git.invalid/acme/dependency.git"
+            let mirrorURL = "file://\(mirror.path)"
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: original)
+            try await writePackageMirrors([original: mirrorURL], packageDir: package)
+            let cacheDirectory = root.appendingPathComponent("cache")
+
+            let cold = try await resolveIgnoringAmbientMirrorConfig(
+                package: package, cache: cacheDirectory, scratch: root.appendingPathComponent("cold")
+            )
+
+            // SwiftPM names the pin after the mirror but records the original location.
+            #expect(cold.pins.map(\.identity) == ["mirrored"])
+            #expect(cold.pins.map(\.location) == [original])
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package, cacheRoot: cacheDirectory, registryConfig: RegistryConfig()
+                )
+            )
+
+            let warmScratch = root.appendingPathComponent("warm")
+            let warm = try await resolveIgnoringAmbientMirrorConfig(
+                package: package, cache: cacheDirectory, scratch: warmScratch
+            )
+
+            #expect(warm.pins.map(\.identity) == ["mirrored"])
+            #expect(
+                try await fileSystem.exists(
+                    warmScratch.appendingPathComponent("checkouts/Mirrored/Package.swift").absolutePath
+                )
+            )
+            let dependencyState = try #require(try await workspaceStateDependencies(scratch: warmScratch).first)
+            let packageRef = try #require(dependencyState["packageRef"] as? [String: Any])
+            #expect(packageRef["identity"] as? String == "mirrored")
+            #expect(packageRef["location"] as? String == mirrorURL)
+            #expect(dependencyState["subpath"] as? String == "Mirrored")
+        }
+    }
+
+    @Test
+    func restoringAMirroredSourceControlPinFetchesItFromTheMirror() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let mirror = root.appendingPathComponent("mirror/dependency.git")
+            try await SystemProcess.run("git", ["clone", "-q", "--bare", dependency.path, mirror.path])
+            let revision = try await SystemProcess.output(
+                "git", ["rev-parse", "HEAD"], workingDirectory: dependency
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let original = "https://git.invalid/acme/dependency.git"
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: original)
+            try await writePackageMirrors([original: "file://\(mirror.path)"], packageDir: package)
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: ResolvedPins(
+                    originHash: nil,
+                    pins: [
+                        ResolvedPin(
+                            identity: "dependency",
+                            kind: "remoteSourceControl",
+                            location: original,
+                            state: ResolvedState(branch: nil, revision: revision, version: "1.0.0")
+                        ),
+                    ],
+                    version: 3
+                )
+            )
+            let scratch = root.appendingPathComponent("scratch")
+
+            try await withoutAmbientMirrorConfig {
+                try await SwifterPM().restore(
+                    SwifterPMRestoreRequest(
+                        packageDirectory: package,
+                        cacheDirectory: root.appendingPathComponent("cache"),
+                        scratchDirectory: scratch,
+                        disableSandbox: true,
+                        disablePackageInfoCache: true,
+                        quiet: true
+                    )
+                )
+            }
+
+            #expect(
+                try await fileSystem.exists(
+                    scratch.appendingPathComponent("checkouts/dependency/Package.swift").absolutePath
+                )
+            )
+            let resolved = try await ResolvedFile.read(packageDir: package)
+            #expect(resolved.pins.map(\.location) == [original])
+        }
+    }
+
+    @Test
+    func aPinTheMirrorRenamesIsResolvedAgain() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let mirror = root.appendingPathComponent("mirror/Mirrored.git")
+            try await SystemProcess.run("git", ["clone", "-q", "--bare", dependency.path, mirror.path])
+            let original = "https://git.invalid/acme/dependency.git"
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: original)
+            try await writePackageMirrors([original: "file://\(mirror.path)"], packageDir: package)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            _ = try await resolveIgnoringAmbientMirrorConfig(
+                package: package, cache: cacheDirectory, scratch: root.appendingPathComponent("cold")
+            )
+            // The lockfile as it reads when committed from a machine without the mirror, with the
+            // cache holding that pin too so the resolution takes the warm path.
+            var resolved = try await ResolvedFile.read(packageDir: package)
+            let cache = try await Cache(root: cacheDirectory)
+            let minted = try cache.sourcePath(pin: resolved.pins[0])
+            resolved.pins[0].identity = "dependency"
+            let renamed = try cache.sourcePath(pin: resolved.pins[0])
+            try await fileSystem.makeDirectory(
+                at: renamed.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.copy(minted.absolutePath, to: renamed.absolutePath)
+            try await ResolvedFile.write(packageDir: package, resolved: resolved)
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: package, cacheRoot: cacheDirectory, registryConfig: RegistryConfig()
+                )
+            )
+
+            let result = try await resolveIgnoringAmbientMirrorConfig(
+                package: package, cache: cacheDirectory, scratch: root.appendingPathComponent("warm")
+            )
+
+            #expect(result.pins.map(\.identity) == ["mirrored"])
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["mirrored"])
+        }
+    }
+
+    @Test
+    func pruningKeepsPinsNamedAfterTheirMirror() async throws {
+        try await withTemporaryDirectory { root in
+            let original = "https://git.invalid/acme/dependency.git"
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: original)
+            let resolved = ResolvedPins(
+                originHash: "stale",
+                pins: [
+                    ResolvedPin(
+                        identity: "mirrored",
+                        kind: "remoteSourceControl",
+                        location: original,
+                        state: ResolvedState(branch: nil, revision: "abc", version: "1.0.0")
+                    ),
+                ],
+                version: 3
+            )
+            try await ResolvedFile.write(packageDir: package, resolved: resolved)
+
+            // Mirrors passed with `--config-path` are not visible to `dump-package`, which still
+            // reports the dependency under its original identity.
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: root.appendingPathComponent("scratch"),
+                cacheRoot: root.appendingPathComponent("cache"),
+                mirrors: MirrorConfig([original: "https://proxy.example/acme/Mirrored.git"]),
+                disableSandbox: true
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["mirrored"])
+        }
+    }
+
+    private func writePackageMirrors(_ mirrors: [String: String], packageDir: URL) async throws {
+        let configuration = packageDir.appendingPathComponent(".swiftpm/configuration")
+        try await fileSystem.makeDirectory(
+            at: configuration.absolutePath, options: [.createTargetParentDirectories]
+        )
+        let object = mirrors.map { ["original": $0.key, "mirror": $0.value] }
+        try await fileSystem.atomicWrite(
+            try JSONSerialization.data(withJSONObject: ["object": object, "version": 1]),
+            to: configuration.appendingPathComponent("mirrors.json")
+        )
+    }
+
+    private func resolveIgnoringAmbientMirrorConfig(
+        package: URL,
+        cache: URL,
+        scratch: URL
+    ) async throws -> SwifterPMResolutionResult {
+        try await withoutAmbientMirrorConfig {
+            try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cache,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    disablePackageInfoCache: true,
+                    quiet: true
+                )
+            )
+        }
+    }
+
+    private func workspaceStateDependencies(scratch: URL) async throws -> [[String: Any]] {
+        let state = try #require(
+            try JSONSerialization.jsonObject(
+                with: await fileSystem.readFile(
+                    at: scratch.appendingPathComponent("workspace-state.json").absolutePath
+                )
+            ) as? [String: Any]
+        )
+        let object = try #require(state["object"] as? [String: Any])
+        return try #require(object["dependencies"] as? [[String: Any]])
+    }
+
+    @Test
     func restoringAMirroredBinaryTargetDownloadsItFromTheMirror() async throws {
         try await withLocalHTTPServer { server in
             try await withTemporaryDirectory { root in
@@ -532,10 +758,16 @@ struct ResolveTests {
     }
 
     private func restoreIgnoringAmbientMirrorConfig(_ request: SwifterPMRestoreRequest) async throws {
+        try await withoutAmbientMirrorConfig {
+            try await SwifterPM().restore(request)
+        }
+    }
+
+    private func withoutAmbientMirrorConfig<T>(_ body: () async throws -> T) async throws -> T {
         var environment = ProcessInfo.processInfo.environment
         environment["SWIFTPM_MIRROR_CONFIG"] = nil
-        try await Environment.$values.withValue(environment) {
-            try await SwifterPM().restore(request)
+        return try await Environment.$values.withValue(environment) {
+            try await body()
         }
     }
 
@@ -1631,6 +1863,7 @@ struct ResolveTests {
             scratchDir: root.appendingPathComponent("scratch"),
             cache: Cache(root: root.appendingPathComponent("cache")),
             registryConfig: RegistryConfig(),
+            mirrors: MirrorConfig(),
             disableSandbox: true,
             scmToRegistryTransformation: .disabled,
             preferResolvedFile: true,

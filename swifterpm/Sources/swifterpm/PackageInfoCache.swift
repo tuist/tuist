@@ -39,6 +39,7 @@ enum PackageInfoCacheWriter {
         packageDir: URL,
         scratchDir: URL,
         resolved: ResolvedPins,
+        mirrors: MirrorConfig,
         cacheDir customCacheDir: URL?,
         disableSandbox: Bool,
         quiet: Bool
@@ -67,7 +68,7 @@ enum PackageInfoCacheWriter {
             .sorted { $0.identity < $1.identity }
 
         let packages = try await ConcurrentTasks.map(packagePins) { pin in
-            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin)
+            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
             let packageInfoPath =
                 cacheDir
                 .appendingPathComponent("packages")
@@ -160,7 +161,11 @@ enum PackageInfoCacheWriter {
         }
     }
 
-    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin) throws -> URL {
+    private static func packagePathForPin(
+        scratchDir: URL,
+        pin: ResolvedPin,
+        mirrors: MirrorConfig
+    ) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return
                 scratchDir
@@ -170,7 +175,7 @@ enum PackageInfoCacheWriter {
         return
             scratchDir
             .appendingPathComponent("checkouts")
-            .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+            .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: mirrors))
     }
 
     private static func cachedOrDumpPackageJSON(
