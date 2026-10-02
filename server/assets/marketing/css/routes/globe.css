@@ -1,0 +1,579 @@
+/* Cache globe page (/globe): a display page for a screen at a booth or
+   on a wall. The Figma frame is 1920×1080 with 72px side gutters around an
+   outlined stage, and the whole layout is authored in that coordinate
+   space: `--u` is one design pixel, scaled so the frame fills the viewport
+   (the hero row and the globe column absorb any extra width or height, so a
+   16:9 TV and a 16:10 laptop both fill without scrolling). Inside the stage,
+   three rows — the wordmark bar, the hero (counter panel on the left, globe
+   on the right), the serving-region strip — and the cells inside them meet
+   at 1px hairlines: the stage ground is the stroke colour and every block
+   paints the surface over it, so a seam costs a single pixel and the stage
+   never outgrows the viewport. Below 1024px the stage gives way to a
+   stacked, scrolling flow at a comfortable size. */
+#marketing-globe {
+  --u: min(100vw / 1920, 100dvh / 1080);
+  --seam: 1px;
+  --stroke: var(--marketing-stroke-default);
+  /* The cache page's dither ramp, so the sphere and the specks it sheds
+     read the same here. */
+  --marketing-cache-globe-dither-shallow: var(--marketing-illustration-neutral-3);
+  --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-4);
+  --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-5);
+  --marketing-cache-globe-marker: var(--noora-purple-300);
+  /* Origin dots and arc heads: white on the dark page, the palette's dark
+     grey in light mode. */
+  --marketing-cache-globe-origin: light-dark(var(--noora-neutral-light-1100), #ffffff);
+  /* Shared type ramp, in design pixels: the code face for eyebrows, the
+     body face for labels and copy (Desktop/Heading/MediumRegular, 20/26),
+     and Geist Pixel for the figures — linked from Google Fonts by the page
+     (see the LiveView's head_stylesheets), with its shape axis pinned to
+     the Grid instance below. The code face stands in while it loads. */
+  --font-eyebrow: var(--noora-font-weight-regular) calc(20 * var(--u)) / calc(26 * var(--u)) var(--noora-font-code);
+  --font-label: var(--noora-font-weight-regular) calc(20 * var(--u)) / calc(26 * var(--u)) var(--noora-font-body);
+  --font-figure: var(--noora-font-weight-regular) calc(48 * var(--u)) / calc(62 * var(--u)) "Geist Pixel",
+    var(--noora-font-code);
+  --font-figure-shape: "ELSH" 40;
+  /* Every Geist Pixel figure glows: a 6px white drop shadow at 100%, straight
+     from the Figma, dropped in the light theme where a white halo has
+     nothing to glow against. */
+  --figure-glow: 0 0 calc(6 * var(--u)) light-dark(rgb(255 255 255 / 0%), rgb(255 255 255 / 100%));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  padding-inline: calc(72 * var(--u));
+  width: 100%;
+  min-height: 100dvh;
+  color: var(--noora-surface-label-primary);
+  /* Every figure on the page rolls or refreshes in place: tabular digits
+     keep columns from jittering as values change. */
+  font-variant-numeric: tabular-nums;
+
+  /* Odometer figures: the hook renders a live figure as columns, and each
+     digit column clips a reel of glyphs one line tall each, slid by --i
+     lines. The columns overlap by the glow's blur so the clipping never cuts
+     the halo between digits. Applies wherever a figure is a reel: the stat
+     row and the hit-rate percentages. */
+  & [data-part="value"] {
+    display: flex;
+    align-items: baseline;
+
+    & > [data-part="char"] {
+      display: block;
+    }
+
+    & > [data-part="char"][data-digit] {
+      /* Soft edges: a digit rolling in or out fades at the top and bottom
+         of the column instead of being cut off by the clip. The fade sits in
+         the line box's leading, above and below where a resting digit
+         reaches. */
+      mask-image: linear-gradient(180deg, transparent 0%, black 18%, black 82%, transparent 100%);
+      box-sizing: content-box;
+      margin-inline: calc(-6 * var(--u));
+      padding-inline: calc(6 * var(--u));
+      height: 1lh;
+      overflow: hidden;
+
+      & > [data-part="reel"] {
+        --i: 0;
+        display: block;
+        transform: translateY(calc(var(--i) * -5%));
+        transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+        &[data-snap] {
+          transition: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          transition: none;
+        }
+
+        & > span {
+          display: block;
+          height: 1lh;
+        }
+      }
+    }
+  }
+
+  @media (max-width: 1023px) {
+    --u: calc(100vw / 960);
+    padding-inline: calc(24 * var(--u));
+    min-height: 0;
+  }
+
+  /* The outlined stage: a grid of the three rows over the stroke-coloured
+     ground, so the gaps between blocks read as hairlines. The hero row's
+     floor is what the counter panel needs (its four blocks plus seams), and
+     it grows from there to fill the viewport. */
+  & > [data-part="stage"] {
+    display: grid;
+    grid-template-rows: calc(72 * var(--u)) minmax(calc(828 * var(--u) + 3 * var(--seam)), 1fr) calc(144 * var(--u));
+    flex-grow: 1;
+    align-items: stretch;
+    justify-items: stretch;
+    gap: var(--seam);
+    box-sizing: border-box;
+    border-inline: var(--seam) solid var(--stroke);
+    background: var(--stroke);
+    min-width: 0;
+
+    @media (max-width: 1023px) {
+      grid-template-rows: auto;
+    }
+  }
+
+  /* The full-screen button promotes the page body (navbar and footer sit
+     outside <main>), so it needs its own ground and vertical centring. */
+  &:fullscreen {
+    --u: min(100vw / 1920, 100vh / 1080);
+    justify-content: center;
+    background: var(--noora-surface-background-primary);
+    overflow: auto;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  /* pages.css gives every marketing section a margin: the stage owns its
+     spacing, so the blocks sit flush on the grid, each painting the surface
+     over the stroke-coloured ground. */
+  & > [data-part="stage"] > header,
+  & > [data-part="stage"] > section {
+    box-sizing: border-box;
+    margin: 0;
+    background: var(--noora-surface-background-primary);
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* Wordmark bar: logo on the left; data status, demo toggle and display
+     controls on the right in the eyebrow face. */
+  & > [data-part="stage"] > [data-part="navbar"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: calc(24 * var(--u));
+    padding: calc(20 * var(--u)) calc(16 * var(--u));
+
+    @media (max-width: 1023px) {
+      flex-wrap: wrap;
+    }
+
+    & > [data-part="tuist"] {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+
+      & > [data-part="logo"] {
+        display: block;
+        width: calc(84 * var(--u));
+        height: calc(32 * var(--u));
+        color: var(--noora-surface-label-primary);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--noora-purple-400);
+        outline-offset: 4px;
+      }
+    }
+
+    & > [data-part="toolbar"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: calc(24 * var(--u));
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) calc(16 * var(--u)) / calc(22 * var(--u)) var(--noora-font-code);
+
+      & > [data-part="status"] {
+        display: flex;
+        align-items: center;
+        gap: calc(10 * var(--u));
+
+        & > [data-part="dot"] {
+          border-radius: 50%;
+          background: var(--marketing-illustration-neutral-4);
+          width: calc(8 * var(--u));
+          height: calc(8 * var(--u));
+        }
+
+        &[data-state="live"] > [data-part="dot"] {
+          box-shadow: 0 0 0 calc(3 * var(--u)) var(--noora-alpha-purple);
+          background: var(--noora-purple-400);
+        }
+
+        &[data-state="demo"] > [data-part="dot"] {
+          background: var(--noora-purple-300);
+        }
+      }
+
+      & > [data-part="mode"] {
+        color: inherit;
+        text-decoration: none;
+
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--noora-purple-400);
+          outline-offset: 4px;
+        }
+      }
+
+      & > [data-part="controls"] {
+        display: flex;
+        align-items: center;
+        gap: calc(24 * var(--u));
+
+        & > button {
+          display: inline-flex;
+          align-items: center;
+          gap: calc(8 * var(--u));
+          cursor: pointer;
+          border: 0;
+          background: transparent;
+          padding: calc(8 * var(--u)) 0;
+          color: inherit;
+          font: inherit;
+
+          &:hover {
+            color: var(--noora-surface-label-primary);
+          }
+
+          &:focus-visible {
+            outline: 2px solid var(--noora-purple-400);
+            outline-offset: 4px;
+          }
+
+          & > svg {
+            display: block;
+            width: calc(16 * var(--u));
+            height: calc(16 * var(--u));
+          }
+        }
+      }
+    }
+  }
+
+  /* Hero: the counter panel takes 927.6 of the 1776px frame, the globe the
+     remaining 844.4, with a seam between. Both columns are outlined; the
+     section itself is just the grid. */
+  & > [data-part="stage"] > [data-part="hero"] {
+    display: grid;
+    grid-template-columns: calc(927.6 * var(--u)) minmax(0, 1fr);
+    gap: var(--seam);
+    border: 0;
+    background: transparent;
+
+    @media (max-width: 1023px) {
+      grid-template-columns: 1fr;
+    }
+
+    /* Counter panel: four blocks stacked at the Figma heights
+       (270 / 152 / 258 / 148) with seams between. */
+    & > [data-part="panel"] {
+      display: grid;
+      grid-template-rows: calc(270 * var(--u)) calc(152 * var(--u)) minmax(calc(258 * var(--u)), 1fr) calc(
+          148 * var(--u)
+        );
+      gap: var(--seam);
+      min-width: 0;
+
+      @media (max-width: 1023px) {
+        grid-template-rows: auto;
+      }
+
+      & > * {
+        box-sizing: border-box;
+        margin: 0;
+        background: var(--noora-surface-background-primary);
+        min-width: 0;
+      }
+    }
+
+    & [data-part="eyebrow"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: calc(20 * var(--u));
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--font-eyebrow);
+      text-transform: uppercase;
+
+      & > [data-part="separator"] {
+        font: var(--noora-font-weight-medium) calc(20 * var(--u)) / calc(24 * var(--u)) var(--noora-font-body);
+      }
+    }
+
+    /* The counter: eyebrow over the split-flap row. The SplitFlap hook
+       draws the tiles (90×128, 8px apart) into the canvas, which the CSS
+       sizes from the digit count so one design unit stays one tile unit. */
+    & > [data-part="panel"] > [data-part="counter"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: calc(20 * var(--u));
+      padding: calc(48 * var(--u)) calc(16 * var(--u));
+
+      & > [data-part="digits"] {
+        display: block;
+        max-width: 100%;
+
+        & > [data-part="flaps"] {
+          --tiles: 7;
+          display: block;
+          width: calc((var(--tiles) * 90 + (var(--tiles) - 1) * 8) * var(--u));
+          height: calc(128 * var(--u));
+        }
+      }
+    }
+
+    /* The two supporting figures: equal cells, a hairline between. */
+    & > [data-part="panel"] > [data-part="stats"] {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--seam);
+      border: 0;
+      background: transparent;
+
+      @media (max-width: 600px) {
+        grid-template-columns: 1fr;
+      }
+
+      & > [data-part="stat"] {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: calc(16 * var(--u));
+        box-sizing: border-box;
+        background: var(--noora-surface-background-primary);
+        padding: calc(24 * var(--u)) calc(16 * var(--u));
+        min-width: 0;
+
+        & > [data-part="value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--font-figure);
+          font-variation-settings: var(--font-figure-shape);
+          text-shadow: var(--figure-glow);
+          white-space: nowrap;
+        }
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--font-label);
+        }
+      }
+    }
+
+    /* Reuse breakdown: a two-column grid of label + dotted bar rows with
+       the share right- and bottom-aligned. The bar is 320×10 with 40 dots
+       (4×6, 8px pitch, 2px inset): the first --dots are purple, the rest
+       neutral. */
+    & > [data-part="panel"] > [data-part="breakdown"] {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: calc(20 * var(--u));
+      /* 32px top and bottom from the Noora scale (a fixed length, so this
+         block alone does not scale with the stage; its row absorbs the
+         difference), 16 design px on the sides like every other block. */
+      padding: var(--noora-spacing-9) calc(16 * var(--u));
+
+      & > [data-part="rows"] {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: calc(32 * var(--u));
+        row-gap: calc(20 * var(--u));
+
+        @media (max-width: 600px) {
+          grid-template-columns: 1fr;
+        }
+
+        & > [data-part="row"] {
+          --dots: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: calc(16 * var(--u));
+          padding: calc(8 * var(--u)) 0;
+          min-width: 0;
+
+          & > [data-part="text"] {
+            display: flex;
+            flex-grow: 1;
+            flex-direction: column;
+            gap: calc(12 * var(--u));
+            min-width: 0;
+
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--font-label);
+              white-space: nowrap;
+            }
+
+            & > [data-part="bar"] {
+              position: relative;
+              box-sizing: border-box;
+              padding: calc(2 * var(--u));
+              /* 40 dots at an 8px pitch (4 on, 4 off) plus the 2px insets. */
+              width: calc(40 * 8 * var(--u));
+              max-width: 100%;
+              height: calc(10 * var(--u));
+              overflow: hidden;
+
+              &::before,
+              &::after {
+                position: absolute;
+                top: calc(2 * var(--u));
+                bottom: calc(2 * var(--u));
+                left: calc(2 * var(--u));
+                background: repeating-linear-gradient(
+                  90deg,
+                  var(--dot) 0 calc(4 * var(--u)),
+                  transparent calc(4 * var(--u)) calc(8 * var(--u))
+                );
+                content: "";
+              }
+
+              &::before {
+                --dot: var(--marketing-illustration-neutral-4);
+                right: calc(2 * var(--u));
+              }
+
+              /* Lit dots: whole dots only, --dots of the 40 (the hook rounds
+                 the share), so a fill never ends on a sliver. */
+              &::after {
+                --dot: var(--noora-purple-300);
+                transition: width 0.4s ease;
+                width: max(0px, calc(var(--dots) * 8 * var(--u) - 4 * var(--u)));
+              }
+            }
+          }
+
+          & > [data-part="value"] {
+            flex-shrink: 0;
+            color: var(--noora-surface-label-primary);
+            font:
+              var(--noora-font-weight-regular) calc(24 * var(--u)) / calc(31 * var(--u)) "Geist Pixel",
+              var(--noora-font-code);
+            font-variation-settings: var(--font-figure-shape);
+            text-shadow: var(--figure-glow);
+          }
+        }
+      }
+    }
+
+    & > [data-part="panel"] > [data-part="copy"] {
+      display: flex;
+      align-items: center;
+      padding: calc(48 * var(--u)) calc(16 * var(--u));
+      color: var(--noora-surface-label-secondary);
+      font: var(--font-label);
+      text-wrap: pretty;
+    }
+
+    /* The globe column: the canvas fills the outlined cell and the
+       DitherGlobe sizes the sphere to 0.86 of the cell's shorter side —
+       the Figma's 730px sphere centred in 844×856. */
+    & > [data-part="illustration"] {
+      position: relative;
+      box-sizing: border-box;
+      margin: 0;
+      background: var(--noora-surface-background-primary);
+      min-width: 0;
+      overflow: hidden;
+
+      @media (max-width: 1023px) {
+        aspect-ratio: 1;
+      }
+
+      & > canvas {
+        display: block;
+        position: absolute;
+        cursor: grab;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        /* Vertical pans still scroll the page on touch; horizontal drags
+           rotate the globe. */
+        touch-action: pan-y;
+
+        &.dragging {
+          cursor: grabbing;
+        }
+      }
+    }
+  }
+
+  /* Serving regions strip: a legend cell then one cell per region, equal
+     widths, hairlines between; the region name on the first line and the
+     five-minute count below. */
+  & > [data-part="stage"] > [data-part="regions"] {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: var(--seam);
+    border: 0;
+    background: transparent;
+
+    @media (max-width: 1023px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: row;
+    }
+
+    & > * {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: calc(16 * var(--u));
+      box-sizing: border-box;
+      background: var(--noora-surface-background-primary);
+      padding: calc(20 * var(--u)) calc(16 * var(--u));
+      min-width: 0;
+    }
+
+    & > [data-part="legend"] {
+      justify-content: space-between;
+      color: var(--noora-surface-label-secondary);
+      font: var(--font-eyebrow);
+      text-transform: uppercase;
+
+      @media (max-width: 1023px) {
+        grid-column: 1 / -1;
+        justify-content: center;
+        gap: calc(8 * var(--u));
+      }
+
+      & > [data-part="unit"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: calc(8 * var(--u));
+
+        & > [data-part="separator"] {
+          font: var(--noora-font-weight-medium) calc(20 * var(--u)) / calc(24 * var(--u)) var(--noora-font-body);
+        }
+      }
+    }
+
+    & > [data-part="region"] {
+      & > [data-part="name"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--font-label);
+        white-space: nowrap;
+      }
+
+      & > [data-part="value"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--font-figure);
+        font-variation-settings: var(--font-figure-shape);
+        text-shadow: var(--figure-glow);
+        white-space: nowrap;
+      }
+    }
+  }
+}
