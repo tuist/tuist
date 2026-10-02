@@ -36,7 +36,7 @@ defmodule Tuist.Marketing.CacheGlobeTest do
       %{event | event_id: "globe-unknown", region: "unknown"}
     ])
 
-    snapshot = CacheGlobe.snapshot(~U[2025-01-10 12:00:00Z])
+    snapshot = CacheGlobe.snapshot(~U[2025-01-10 12:00:00.123456Z])
 
     assert snapshot.downloads == 10
     assert snapshot.bytes == 4096
