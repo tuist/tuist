@@ -10,8 +10,13 @@ defmodule TuistWeb.Webhooks.BillingController do
   @impl true
   def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
     customer = event.data.object
-    {:ok, account} = Accounts.get_account_from_customer_id(customer.id)
-    {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
+
+    # Stripe also notifies us about customers no Tuist account owns, and customers can
+    # have their email removed, which accounts.billing_email (NOT NULL) can't store.
+    with email when is_binary(email) <- customer.email,
+         {:ok, account} <- Accounts.get_account_from_customer_id(customer.id) do
+      {:ok, _} = Accounts.update_account(account, %{billing_email: email})
+    end
 
     :ok
   end
