@@ -4,7 +4,6 @@ category: "vision"
 tags: ["vision", "agents", "infrastructure", "operations", "observability"]
 excerpt: "How we use AI agents, Kubernetes, Elixir, Grafana, and Atlas to run Tuist, debug production, and connect company operations through shared context."
 author: pepicrft
-og_image_path: /marketing/images/blog/2026/10/02/the-languages-agents-speak/og.png
 ---
 
 What an exciting time to be a builder. For the first time in a long time, we are even questioning whether GitHub will remain the dominant go-to option for hosting code, or whether pull requests will still be needed. No one knows what the future might look like, but everyone is trying, and we find it exciting.
