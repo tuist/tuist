@@ -2567,6 +2567,9 @@ impl ByteStream for ReapiService {
                 "read_limit is not supported on compressed-blobs; leave it at 0 and consume the response stream",
             ));
         }
+        if resource.size_bytes == 0 && resource.hash() == EMPTY_BLOB_SHA256 {
+            return Ok(Response::new(Box::pin(tokio_stream::empty())));
+        }
         let manifest = match self
             .state
             .store
@@ -3286,6 +3289,11 @@ async fn batch_read_one_atomic(
     digest: &reapi::Digest,
     budget: &AtomicMaterializationBudget<'_>,
 ) -> Result<Option<Vec<u8>>, Status> {
+    // FindMissingBlobs reports the empty blob present without it ever being
+    // stored, so it has to be served here too.
+    if is_empty_blob(digest) {
+        return Ok(Some(Vec::new()));
+    }
     let key = blob_key(&digest_key(digest)?);
     let manifest = state
         .store
@@ -6664,6 +6672,49 @@ mod tests {
             .get_action_result(get_request(empty_ref_action))
             .await
             .expect("an entry referencing the empty blob for stdout and a tree leaf still serves");
+    }
+
+    #[tokio::test]
+    async fn the_empty_blob_is_served_without_being_stored() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let empty = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let batch = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: "ios".into(),
+                digests: vec![empty.clone()],
+                acceptable_compressors: vec![reapi::compressor::Value::Zstd as i32],
+                digest_function: 0,
+            }))
+            .await
+            .expect("batch_read_blobs should succeed")
+            .into_inner();
+        assert_eq!(batch.responses.len(), 1);
+        let response = &batch.responses[0];
+        assert_eq!(response.status.as_ref().map(|status| status.code), Some(0));
+        assert_eq!(response.digest.as_ref(), Some(&empty));
+        assert!(response.data.is_empty());
+
+        let mut stream = service
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!("ios/blobs/{EMPTY_BLOB_SHA256}/0"),
+                read_offset: 0,
+                read_limit: 0,
+            }))
+            .await
+            .expect("reading the empty blob should succeed")
+            .into_inner();
+        let mut data = Vec::new();
+        while let Some(response) = stream.next().await {
+            data.extend(response.expect("stream response").data);
+        }
+        assert!(data.is_empty());
     }
 
     #[tokio::test]
