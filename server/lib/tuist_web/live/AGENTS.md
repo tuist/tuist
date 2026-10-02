@@ -38,6 +38,7 @@ This area owns LiveView pages and components for the web UI.
 - GitLab disconnect disables the connection immediately and leaves upstream settlement to background polling; the disabled connection renders a pending notice and a disabled Disconnect action.
 
 - Runner job detail omits the whole Insights card unless at least one build or test run matches the runner job; candidate account projects alone do not justify an empty card. GitLab jobs link to their GitLab instance and omit the structured Steps card, which currently receives data only from GitHub completion webhooks; GitLab execution output remains available in Logs.
+- Runner job step rails share the first-start to last-end window. Missing timestamps omit the bar; zero-length steps remain visible as ticks. Keep duration slots aligned across rows so rail positions are comparable.
 
 - `BuildTimelineLoader` owns lazy metric bootstrapping, build identity, versioning, tab reentry and forced refresh for Xcode, Gradle and Bazel. It cancels superseded bootstrap tasks and rejects stale/inactive-tab hook requests. Step metadata stays out of LiveView state: every source supplies an authorized HTTP URL to `build_timeline_section`, which shares loading/error UI. Xcode keeps cancellable server navigation/log tasks; Gradle and Bazel navigate downloaded steps locally, with Bazel logs loaded separately when available.
 

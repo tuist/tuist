@@ -332,8 +332,7 @@ defmodule TuistWeb.RunnerJobLive do
   @doc """
   Left offset of a step's Gantt bar as a percentage of the job window,
   or `nil` when the step or window can't place it. The value is
-  formatted as a CSS length so the template can pass it straight into
-  `style=`.
+  formatted as a percentage for the bar's offset custom property.
   """
   def step_bar_offset_percent(step, %{min: min, max: max}) when max > min do
     case step_epoch_ms(step.started_at) do
@@ -349,11 +348,13 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
+  def step_bar_offset_percent(%{started_at: %DateTime{}}, %{min: min, max: max}) when max == min, do: "0.0%"
+
   def step_bar_offset_percent(_, _), do: nil
 
   @doc """
   Width of a step's Gantt bar as a percentage of the job window. A
-  zero-length step still returns `"0%"` so the template can fall back
+  zero-length step still returns `"0.0%"` so the stylesheet can fall back
   to a min-width tick — otherwise a 0s "Set up job" row would render
   nothing at all.
   """
@@ -370,6 +371,9 @@ defmodule TuistWeb.RunnerJobLive do
       _ -> nil
     end
   end
+
+  def step_bar_width_percent(%{started_at: %DateTime{}, completed_at: %DateTime{}}, %{min: min, max: max})
+      when max == min, do: "0.0%"
 
   def step_bar_width_percent(_, _), do: nil
 

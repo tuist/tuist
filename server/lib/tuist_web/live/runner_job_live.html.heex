@@ -534,15 +534,17 @@
                   :if={step_bar_offset && step_bar_width}
                   data-part="step-timeline-bar"
                   data-kind={to_string(step_kind)}
-                  style={"left: #{step_bar_offset}; width: #{step_bar_width};"}
+                  style={"--step-offset: #{step_bar_offset}; --step-width: #{step_bar_width};"}
                 ></span>
               </span>
               <span data-part="step-timeline-cap"></span>
             </div>
-            <span :if={step_duration} data-part="step-duration">
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
-                fractional_seconds: false
-              )}
+            <span data-part="step-duration">
+              <%= if step_duration do %>
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
+                  fractional_seconds: false
+                )}
+              <% end %>
             </span>
             <div data-part="step-meta">
               <span data-part="step-chevron">

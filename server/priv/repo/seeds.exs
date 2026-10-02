@@ -3971,11 +3971,13 @@ build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_a
     |> Enum.map_reduce(0, fn {{name, weight}, index}, elapsed ->
       raw = div(total_seconds * weight, weight_total)
 
+      remaining_steps = step_count - index - 1
+
       duration =
-        cond do
-          index == step_count - 1 -> max(total_seconds - elapsed, 0)
-          raw == 0 -> 1
-          true -> raw
+        if remaining_steps == 0 do
+          total_seconds - elapsed
+        else
+          min(max(raw, 1), total_seconds - elapsed - remaining_steps)
         end
 
       step_started = DateTime.add(started_at, elapsed, :second)

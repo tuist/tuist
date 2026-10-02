@@ -17,6 +17,7 @@ This directory contains database migrations and other private assets.
   1200px wide while retaining their aspect ratio.
 
 ## Demo Data
+- Runner job steps use weighted durations that sum to the job duration, reserving at least one second for each remaining step in the seeded jobs.
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
