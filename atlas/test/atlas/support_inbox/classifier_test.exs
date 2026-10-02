@@ -7,6 +7,7 @@ defmodule Atlas.SupportInbox.ClassifierTest do
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
   alias Atlas.SupportInbox.Classifier
+  alias ReqLLM.Error.API.Request
 
   setup :verify_on_exit!
 
@@ -95,6 +96,49 @@ defmodule Atlas.SupportInbox.ClassifierTest do
   end
 
   describe "classify/3 — classifier failure" do
+    test "keeps provider request and response bodies out of the persisted reason and logs" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("failed@customer.example")
+
+      error = %Request{
+        status: 402,
+        reason: "Provider rejected the request",
+        request_body: "private inbound email body",
+        response_body: %{"error" => %{"type" => "credit_limit", "message" => "private provider details"}}
+      }
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:ok, decision} =
+                   Classifier.classify_and_persist(thread, inbound, classifier: fn _ -> {:error, error} end)
+
+          assert decision.reason ==
+                   "Classifier unavailable: provider credits or billing need attention; defaulted to #support."
+
+          assert Repo.get!(Thread, thread.id).classifier_reason == decision.reason
+          assert decision.action_needed
+        end)
+
+      refute log =~ "private inbound email body"
+      refute log =~ "private provider details"
+      assert log =~ "provider credits or billing need attention"
+    end
+
+    test "uses a bounded fallback for unknown errors" do
+      %{thread: thread, message: inbound} = fresh_thread_with_message("unknown@customer.example")
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:ok, decision} =
+                   Classifier.classify(thread, inbound,
+                     classifier: fn _ -> {:error, String.duplicate("private", 2_000)} end
+                   )
+
+          assert decision.reason == "Classifier unavailable: classification failed; defaulted to #support."
+        end)
+
+      refute log =~ "private"
+    end
+
     test "falls back to an action-needed ping when the classifier errors" do
       %{thread: thread, message: inbound} = fresh_thread_with_message("mystery@customer.example")
 
