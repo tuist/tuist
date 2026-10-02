@@ -100,12 +100,6 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-large);
       text-wrap: pretty;
     }
-
-    & > [data-part="actions"] {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--noora-spacing-4);
-    }
   }
 
   /* Features frame: intro text (96px above the eyebrow, 8px sides — the

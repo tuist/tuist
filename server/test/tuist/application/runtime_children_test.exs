@@ -41,10 +41,7 @@ defmodule Tuist.Application.RuntimeChildrenTest do
 
   describe "marketing_stats/1" do
     test ":web starts the poller" do
-      assert RuntimeChildren.marketing_stats(:web) == [
-               {Task.Supervisor, name: Tuist.Marketing.Stats.TaskSupervisor},
-               Tuist.Marketing.Stats
-             ]
+      assert RuntimeChildren.marketing_stats(:web) == [Tuist.Marketing.Stats]
     end
 
     test "every non-web mode returns no children" do
