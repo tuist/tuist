@@ -150,7 +150,7 @@ defmodule TuistWeb.LayoutComponents do
       async
       nonce={get_csp_nonce()}
       data-domain="tuist.dev"
-      src="https://cdn.glossia.ai/web.js"
+      src="https://glossia.ai/assets/glossia-web.js"
     >
     </script>
     <script nonce={get_csp_nonce()}>
