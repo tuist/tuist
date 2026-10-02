@@ -527,18 +527,23 @@
               TuistWeb.RunnerJobLive.step_bar_offset_percent(step, job_step_window) %>
             <% step_bar_width =
               TuistWeb.RunnerJobLive.step_bar_width_percent(step, job_step_window) %>
-            <div :if={step_duration} data-part="step-duration">
-              <.badge
-                label={
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
-                    fractional_seconds: false
-                  )
-                }
-                color="neutral"
-                style="light-fill"
-                size="large"
-              />
+            <div data-part="step-timeline" aria-hidden="true">
+              <span data-part="step-timeline-cap"></span>
+              <span data-part="step-timeline-track">
+                <span
+                  :if={step_bar_offset && step_bar_width}
+                  data-part="step-timeline-bar"
+                  data-kind={to_string(step_kind)}
+                  style={"left: #{step_bar_offset}; width: #{step_bar_width};"}
+                ></span>
+              </span>
+              <span data-part="step-timeline-cap"></span>
             </div>
+            <span :if={step_duration} data-part="step-duration">
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
+                fractional_seconds: false
+              )}
+            </span>
             <div data-part="step-meta">
               <span data-part="step-chevron">
                 <.chevron_up :if={expanded} />
@@ -557,15 +562,6 @@
                 tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
               />
             </div>
-          </div>
-          <div data-part="step-timeline" aria-hidden="true">
-            <span
-              :if={step_bar_offset && step_bar_width}
-              data-part="step-timeline-bar"
-              data-kind={to_string(step_kind)}
-              style={"left: #{step_bar_offset}; width: #{step_bar_width};"}
-            >
-            </span>
           </div>
         </div>
       </.card_section>
