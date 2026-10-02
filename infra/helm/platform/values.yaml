@@ -103,6 +103,57 @@ ingress-nginx:
           prometheus.io/port: "10254"
           prometheus.io/path: /metrics
 
+# Ingress controller for gRPC backends that run in this cluster, such as the
+# Once events listener on the Tuist server.
+#
+# The main controller above turns upstream connection reuse off, and
+# ingress-nginx then adds `Connection: close` to every upstream request. HTTP/2
+# forbids that header, and a strict server such as Cowboy, which serves the Once
+# events listener, answers it by resetting the stream with PROTOCOL_ERROR, which
+# nginx reports as "upstream rejected request with error 1". A proxy hop in
+# between does not help, because nginx and other HTTP/2 servers reject the
+# header too. With upstream keepalive left on, ingress-nginx sends no
+# `Connection` header, which is how the regional Kura gateways serve gRPC.
+#
+# This controller exists so the main one can keep its setting for the HTTP
+# backends that need it. Do not copy `upstream-keepalive-connections: "0"` here.
+grpc-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: grpc-ingress-nginx-leader
+    ingressClass: nginx-grpc
+    ingressClassResource:
+      name: nginx-grpc
+      controllerValue: k8s.io/grpc-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      # Provider-specific LB annotations are set via overlays, as for the main
+      # controller (see values-hetzner.yaml).
+      annotations: {}
+    # Admission stays on the main controller only, as for the Kura gateways: the
+    # validator is cluster-wide, and a second one would run the same checks.
+    admissionWebhooks:
+      enabled: false
+    config:
+      use-proxy-protocol: "true"
+      # Explicit so the intent is visible. Anything above zero stops the
+      # `Connection` header, and 320 is the controller default.
+      upstream-keepalive-connections: "320"
+      # Below the idle timeout of the backends, as for the Kura gateways, so a
+      # reused connection is not closed under a request.
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+          prometheus.io/path: /metrics
+
 kura-eu-west-ingress-nginx:
   enabled: false
   controller:
@@ -362,6 +413,7 @@ external-dns:
     # a dozen Cloudflare API calls per sync, which syncing on events multiplies;
     # at 5,000 it is one.
     - --cloudflare-dns-records-per-page=5000
+    - --exclude-domains=cache.tuist.dev
   # Limit which records external-dns will touch; be explicit for prod safety.
   domainFilters:
     - tuist.dev
@@ -636,3 +688,17 @@ kura-runners-ingress-nginx:
       compute-full-forwarded-for: "false"
     metrics:
       enabled: true
+
+# Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
+cacheDNS:
+  enabled: false
+  hostedZoneId: ""
+  ownerId: ""
+  image: registry.k8s.io/external-dns/external-dns:v0.15.1
+  secretName: cache-dns-writer
+  solverSecretName: cache-dns-solver
+  externalSecret:
+    enabled: false
+    storeName: onepassword
+    writerItem: ""
+    solverItem: ""

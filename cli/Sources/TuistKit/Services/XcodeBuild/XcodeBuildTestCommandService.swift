@@ -603,7 +603,7 @@ extension XcodeBuildTestCommandService {
         else { return }
 
         await RunMetadataStorage.current.add(
-            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses)
+            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses, skippedTestModules: nil)
         )
     }
 

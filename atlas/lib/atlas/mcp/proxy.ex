@@ -9,9 +9,15 @@ defmodule Atlas.MCP.Proxy do
 
   alias Atlas.MCP, as: MCPContext
   alias Atlas.MCP.Proxy.Config
+  alias Atlas.MCP.Proxy.Error
   alias Atlas.MCP.Proxy.Server
+  alias Atlas.MCP.Tool
+  alias Atlas.MCP.Tools.GetMCPConnectionStatus
+  alias Atlas.TuistServer
 
   require Logger
+
+  @connection_tool "atlas_connection_status"
 
   @protocol_version "2025-03-26"
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
@@ -42,6 +48,7 @@ defmodule Atlas.MCP.Proxy do
          {:ok, tools} <- fetch_tools(server, nil) do
       {:ok, Enum.map(tools, &decorate_tool(server, &1))}
     end
+    |> public_result()
   end
 
   def list_hoisted_tools(conn, config \\ proxy_config()) do
@@ -53,9 +60,12 @@ defmodule Atlas.MCP.Proxy do
         {:ok, tools} ->
           Enum.map(tools, &hoist_tool(server, &1))
 
-        {:error, message} ->
-          Logger.warning("Skipping MCP proxy tools from #{server.name}: #{message}")
-          []
+        {:error, %Error{} = error} ->
+          Logger.warning(
+            "MCP discovery failed server=#{server.name} stage=#{error.stage} code=#{error.code} http_status=#{error.http_status}"
+          )
+
+          [connection_tool(server, error)]
       end
     end)
   end
@@ -65,6 +75,7 @@ defmodule Atlas.MCP.Proxy do
     with {:ok, server} <- fetch_server(server_name) do
       dispatch_tool(server, nil, tool_name, arguments)
     end
+    |> public_result()
   end
 
   def call_tool(_server_name, _tool_name, _arguments) do
@@ -75,7 +86,7 @@ defmodule Atlas.MCP.Proxy do
     case resolve_hoisted_tool_name(hoisted_name) do
       {:ok, %Server{} = server, tool_name} ->
         if server_allowed?(conn, server) do
-          dispatch_tool(server, conn, tool_name, arguments)
+          dispatch_hoisted_tool(server, conn, tool_name, arguments)
         else
           {:error, "Proxy tool #{hoisted_name} is not available for this MCP session."}
         end
@@ -86,6 +97,73 @@ defmodule Atlas.MCP.Proxy do
   end
 
   def call_hoisted_tool(_conn, _hoisted_name, _arguments), do: :not_proxy_tool
+
+  defp dispatch_hoisted_tool(server, conn, @connection_tool, _arguments) do
+    with {:ok, status} <- connection_status(conn, server.name) do
+      {:ok, Tool.json_response(status, GetMCPConnectionStatus)}
+    end
+  end
+
+  defp dispatch_hoisted_tool(server, conn, tool_name, arguments) do
+    server |> dispatch_tool(conn, tool_name, arguments) |> public_result()
+  end
+
+  # No schemas or failures survive this request. Reconnects, revocation, changed
+  # groups and upstream tool restrictions therefore take effect on the next check.
+  def connection_status(conn, name) do
+    with :ok <- Tool.authorize_authenticated(conn),
+         {:ok, server} <- allowed_server(conn, name) do
+      base = %{server: server.name, checked_at: DateTime.to_iso8601(DateTime.utc_now())}
+
+      status =
+        case fetch_tools(server, conn) do
+          {:ok, tools} ->
+            Map.merge(base, %{
+              status: "available",
+              message: "Live discovery succeeded. Refresh the client's tool catalog to expose these tools.",
+              stage: nil,
+              http_status: nil,
+              retryable: false,
+              tools: Enum.map(tools, &hoist_tool(server, &1))
+            })
+
+          {:error, %Error{} = error} ->
+            Map.merge(base, %{
+              status: error.code,
+              message: error.message,
+              stage: error.stage,
+              http_status: error.http_status,
+              retryable: error.retryable,
+              tools: []
+            })
+        end
+
+      {:ok, status}
+    end
+  end
+
+  defp allowed_server(conn, name) do
+    with {:ok, server} <- fetch_server(name),
+         true <- server_allowed?(conn, server) do
+      {:ok, server}
+    else
+      _ -> {:error, "MCP upstream is not available for this session."}
+    end
+  end
+
+  defp connection_tool(server, error) do
+    GetMCPConnectionStatus
+    |> Tool.descriptor()
+    |> Map.put("name", hoisted_tool_name(server.name, @connection_tool))
+    |> Map.put("inputSchema", %{"type" => "object", "properties" => %{}, "additionalProperties" => false})
+    |> Map.put(
+      "description",
+      "[#{server.name}] Upstream tools are unavailable: #{error.message} Call this tool to retry live discovery."
+    )
+  end
+
+  defp public_result({:error, %Error{message: message}}), do: {:error, message}
+  defp public_result(result), do: result
 
   def fetch_server(name) when is_binary(name) do
     proxy_config()
@@ -148,7 +226,7 @@ defmodule Atlas.MCP.Proxy do
           headers: normalize_headers(get_config(raw, :headers, [])),
           read_only: truthy?(get_config(raw, :read_only, false)),
           tool_allowlist: normalize_scopes(get_config(raw, :tool_allowlist, [])),
-          operator_grant_header: get_config(raw, :operator_grant_header),
+          atlas_identity_header: get_config(raw, :atlas_identity_header),
           bearer_token: bearer_token,
           receive_timeout: normalize_timeout(get_config(raw, :receive_timeout, 15_000))
         }
@@ -232,14 +310,34 @@ defmodule Atlas.MCP.Proxy do
   defp fetch_tools(%Server{} = server, conn, session_id) do
     case rpc_request(server, conn, session_id, "tools/list", %{}) do
       {:ok, %{"tools" => tools}} when is_list(tools) ->
-        {:ok, permitted_tools(server, tools)}
+        if Enum.all?(tools, &valid_tool?/1) do
+          tools = Enum.reject(tools, &(&1["name"] == @connection_tool))
+          {:ok, permitted_tools(server, tools)}
+        else
+          invalid_tools(server)
+        end
 
       {:ok, _other} ->
-        {:error, "Upstream MCP server did not return a tools list."}
+        invalid_tools(server)
 
       {:error, _message} = error ->
         error
     end
+  end
+
+  defp valid_tool?(%{"name" => name} = tool) when is_binary(name) and name != "" do
+    (is_nil(tool["description"]) or is_binary(tool["description"])) and
+      (is_nil(tool["_meta"]) or is_map(tool["_meta"]))
+  end
+
+  defp valid_tool?(_tool), do: false
+
+  defp invalid_tools(server) do
+    failure(
+      "invalid_response",
+      "Upstream #{server.name} did not return a valid tools list. Check the upstream MCP transport.",
+      "tools/list"
+    )
   end
 
   # One session for both calls. The permission check reads `tools/list` from the
@@ -256,129 +354,6 @@ defmodule Atlas.MCP.Proxy do
         })
       end
     end)
-    |> offer_operator_grant(server, conn)
-  end
-
-  # A refusal nobody can act on is a dead end. The upstream knows which account
-  # owns the record and says so; the operator knows why they are looking. This
-  # is the only place both are in hand, so it is where the refusal becomes the
-  # request that would lift it.
-  #
-  # Only when the user holds no usable grant — someone whose grant is for
-  # another account, or whose call failed for an unrelated reason, is told
-  # nothing new.
-  defp offer_operator_grant({:ok, %{"isError" => true} = result}, %Server{operator_grant_header: header} = server, %{
-         assigns: %{current_user: user}
-       })
-       when is_binary(header) do
-    with {:ok, account_handle} <- refused_account(result),
-         true <- offer_needed?(user, server.name, account_handle),
-         {:ok, offer} <- MCPContext.start_operator_grant_request(user, server.name, account_handle) do
-      {:ok,
-       result
-       |> append_text(grant_offer(account_handle, offer.url))
-       |> put_grant_meta(server, account_handle, offer)}
-    else
-      _ -> {:ok, result}
-    end
-  end
-
-  defp offer_operator_grant(result, _server, _conn), do: result
-
-  # Holding a grant is not the same as holding the right one. Grants name a
-  # single account, so an operator part-way through a shift that touches two
-  # customers has a live grant and still cannot read the second — asking
-  # whether one exists at all would leave exactly that person at the dead end
-  # this offer removes. One grant per user per server already treats moving
-  # accounts as a replacement, so offering here matches what storing it does.
-  defp offer_needed?(user, server_name, refused_handle) do
-    case MCPContext.proxyable_operator_grant(user, server_name) do
-      nil -> true
-      %{account_handle: held} -> String.downcase(held) != String.downcase(refused_handle)
-    end
-  end
-
-  # The wording is the upstream's, pinned by a test on its side. Failing to
-  # match costs the link, not the refusal.
-  @refused_account ~r/It belongs to the account "([a-zA-Z0-9-]+)"\./
-
-  defp refused_account(%{"content" => content}) when is_list(content) do
-    content
-    |> Enum.find_value(fn
-      %{"type" => "text", "text" => text} when is_binary(text) ->
-        case Regex.run(@refused_account, text) do
-          [_full, handle] -> handle
-          _ -> nil
-        end
-
-      _ ->
-        nil
-    end)
-    |> case do
-      nil -> :error
-      handle -> {:ok, handle}
-    end
-  end
-
-  defp refused_account(_result), do: :error
-
-  defp append_text(%{"content" => content} = result, text) when is_list(content) do
-    %{result | "content" => content ++ [%{"type" => "text", "text" => text}]}
-  end
-
-  defp append_text(result, _text), do: result
-
-  # The account is stated rather than assumed: this text is reached by way of
-  # customer data, so the handle is named for a person to check before they
-  # justify anything.
-  defp grant_offer(account_handle, url) do
-    "No operator grant for #{account_handle} is stored for this session. " <>
-      "To investigate this account, open #{url} and state why access is needed. " <>
-      "The grant is stored on return and this call will then succeed. " <>
-      "Confirm the account named on that form is the customer you mean to look at."
-  end
-
-  # The sentence above addresses whoever reads the transcript; this addresses
-  # whatever renders it. Relaying a link is left to a model noticing prose,
-  # which is the part of this hand-off that fails quietly, so the same offer
-  # goes out in a shape a client can act on: show the round trip as an
-  # affordance, then retry the call the person was already making.
-  #
-  # `_meta` is the specification's extension point and unknown keys are ignored,
-  # so a client that does not read this is no worse off than before. The prose
-  # therefore stays rather than being replaced by it.
-  #
-  # This stands in for `URLElicitationRequiredError` (-32042), which the
-  # 2025-11-25 revision added for this exact hand-off: a `url` to send someone
-  # to, an `elicitationId` tying the return to the request that caused it, and a
-  # `notifications/elicitation/complete` telling the client the out-of-band step
-  # finished. `requestUrl` and `state` below are the first two under other
-  # names; nothing here replaces the third, so a client still learns the grant
-  # landed by retrying. Atlas negotiates 2025-06-18 and emcp implements neither
-  # elicitation nor any server-to-client message, so this cannot be sent yet.
-  # When it can, this function is a deletion rather than a migration.
-  #
-  # Step-up authorization (SEP-835) is the wrong tool for this and worth not
-  # reaching for: it challenges the scopes of the client's own token at this
-  # server, whereas what is missing here is Atlas' credential to an upstream.
-  @grant_meta_key "atlas/operatorGrant"
-  @grant_required_code "operator_grant_required"
-
-  defp put_grant_meta(result, %Server{} = server, account_handle, offer) do
-    grant = %{
-      "code" => @grant_required_code,
-      "server" => server.name,
-      "account" => account_handle,
-      "requestUrl" => offer.url,
-      "state" => offer.state,
-      "expiresAt" => DateTime.to_iso8601(offer.expires_at),
-      # Nothing about the call was wrong, only the credential behind it, so the
-      # same arguments succeed once the grant is stored. A client that retries
-      # on its own needs to be told that much.
-      "retryable" => true
-    }
-
-    Map.put(result, "_meta", Map.put(result["_meta"] || %{}, @grant_meta_key, grant))
   end
 
   # Two independent filters, both fail-closed.
@@ -481,7 +456,10 @@ defmodule Atlas.MCP.Proxy do
 
     with {:ok, body, session_id} <- post_json(server, request, nil, conn),
          {:ok, _result} <- rpc_result(server, body) do
-      require_session_id(server, session_id)
+      {:ok, session_id}
+    else
+      {:error, %Error{stage: nil} = error} -> {:error, %{error | stage: "initialize"}}
+      error -> error
     end
   end
 
@@ -503,7 +481,10 @@ defmodule Atlas.MCP.Proxy do
     }
 
     with {:ok, body, _session_id} <- post_json(server, request, session_id, conn) do
-      rpc_result(server, body)
+      case rpc_result(server, body) do
+        {:error, %Error{} = error} -> {:error, %{error | stage: method}}
+        result -> result
+      end
     end
   end
 
@@ -518,13 +499,16 @@ defmodule Atlas.MCP.Proxy do
         {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
           {:ok, decode_response_body(response.body, payload), response_session_id(response)}
 
-        {:ok, %Req.Response{status: status, body: body}} ->
-          Logger.warning("MCP proxy #{server.name} HTTP error: status=#{status} body=#{inspect(body)}")
-          {:error, "Upstream MCP server #{server.name} returned HTTP #{status}."}
+        {:ok, %Req.Response{status: status}} ->
+          http_failure(server, status, payload["method"])
 
-        {:error, reason} ->
-          Logger.warning("MCP proxy #{server.name} transport error: #{inspect(reason)}")
-          {:error, "Could not reach upstream MCP server #{server.name}: #{inspect(reason)}"}
+        {:error, _reason} ->
+          failure(
+            "transport_error",
+            "Could not reach upstream #{server.name}. Retry discovery; if it persists, check upstream availability and Atlas egress.",
+            payload["method"],
+            retryable: true
+          )
       end
     end
   end
@@ -535,7 +519,7 @@ defmodule Atlas.MCP.Proxy do
       |> put_default_header("accept", "application/json, text/event-stream")
       |> put_default_header("mcp-protocol-version", @protocol_version)
       |> maybe_put_header("mcp-session-id", session_id)
-      |> maybe_put_header(server.operator_grant_header, operator_grant_token(server, conn))
+      |> maybe_put_header(server.atlas_identity_header, atlas_identity_token(server, conn))
 
     with {:ok, auth_token} <- auth_token(server, conn) do
       request = Req.new(url: server.url, headers: headers, receive_timeout: server.receive_timeout)
@@ -543,26 +527,26 @@ defmodule Atlas.MCP.Proxy do
     end
   end
 
-  # An operator grant elevates the upstream session beyond the user's own
-  # memberships, so it travels per user and per request — never from static
-  # config, which every session would share. Its absence is not an error: most
-  # requests are for data the user can already read, and the upstream refuses
-  # anything else on its own.
+  # Tells the upstream the call came through Atlas, which audits every proxied
+  # tool call; the Tuist server lets operators read customer accounts only on
+  # that condition. The token is Atlas' own ServiceAccount token, so it is only
+  # sent to upstreams configured for it. Without one (dev, test) the header is
+  # left off and the upstream falls back to the user's own access.
   #
-  # Only a read-tier grant is forwarded, so what the upstream will do for this
-  # request is bounded by the credential rather than by which tools this proxy
-  # happens to expose. Dropping an admin grant degrades the request to the
-  # user's own memberships, which is the direction worth failing in.
-  defp operator_grant_token(%Server{operator_grant_header: nil}, _conn), do: nil
+  # Only the MCP transport, where each caller is the person they authenticated
+  # as, gets it. Anything else (the Slack agent runs every conversation as one
+  # fixed operator) would hand operator reads to whoever can reach it, so an
+  # unset or unknown interface gets nothing.
+  defp atlas_identity_token(%Server{atlas_identity_header: nil}, _conn), do: nil
 
-  defp operator_grant_token(%Server{} = server, %{assigns: %{current_user: user}}) do
-    case MCPContext.proxyable_operator_grant(user, server.name) do
-      %{token: token} -> token
-      nil -> nil
+  defp atlas_identity_token(%Server{}, %{assigns: %{audit_interface: "mcp"}}) do
+    case TuistServer.workload_identity_token() do
+      {:ok, token} -> token
+      {:error, _reason} -> nil
     end
   end
 
-  defp operator_grant_token(_server, _conn), do: nil
+  defp atlas_identity_token(%Server{}, _conn), do: nil
 
   defp auth_token(%Server{auth_type: :bearer_token, bearer_token: token}, _conn), do: {:ok, token}
   defp auth_token(%Server{auth_type: :none}, _conn), do: {:ok, nil}
@@ -573,18 +557,30 @@ defmodule Atlas.MCP.Proxy do
         {:ok, token}
 
       {:error, :authorization_required} ->
-        {:error, "MCP server #{server.name} needs authorization. Open /admin/mcps to connect it."}
+        authorization_failure(server, "authorization_required", "Connect")
 
       {:error, {:refresh_failed, _reason}} ->
-        {:error, "MCP server #{server.name} needs authorization. Open /admin/mcps to reconnect it."}
+        authorization_failure(server, "refresh_failed", "Check the connection and reconnect")
 
-      {:error, reason} ->
-        {:error, "MCP server #{server.name} authorization failed: #{inspect(reason)}"}
+      {:error, :refresh_unavailable} ->
+        failure(
+          "refresh_unavailable",
+          "Upstream #{server.name} token refresh is temporarily unavailable. Retry discovery; Atlas kept the connection for a later refresh attempt.",
+          "authorization",
+          retryable: true
+        )
+
+      {:error, _reason} ->
+        authorization_failure(server, "authorization_failed", "Check the connection")
     end
   end
 
   defp auth_token(%Server{auth_type: :oauth2} = server, _conn) do
-    {:error, "MCP server #{server.name} needs an authenticated Atlas user session."}
+    failure(
+      "authentication_required",
+      "MCP server #{server.name} needs an authenticated Atlas user session.",
+      "authorization"
+    )
   end
 
   defp maybe_put_auth(request, token) when is_binary(token) and token != "" do
@@ -635,16 +631,53 @@ defmodule Atlas.MCP.Proxy do
 
   defp rpc_result(%Server{}, %{"result" => result}), do: {:ok, result}
 
-  defp rpc_result(%Server{} = server, %{"error" => %{"message" => message}}) do
-    {:error, "Upstream MCP server #{server.name} returned an error: #{message}"}
+  defp rpc_result(%Server{} = server, %{"error" => _error}) do
+    failure(
+      "rpc_error",
+      "Upstream #{server.name} returned a JSON-RPC error. Check the upstream MCP service and permissions.",
+      nil
+    )
   end
 
-  defp rpc_result(%Server{} = server, %{"error" => error}) do
-    {:error, "Upstream MCP server #{server.name} returned an error: #{inspect(error)}"}
+  defp rpc_result(%Server{} = server, _body) do
+    failure(
+      "invalid_response",
+      "Upstream #{server.name} returned an invalid JSON-RPC response. Check the upstream MCP transport.",
+      nil
+    )
   end
 
-  defp rpc_result(%Server{} = server, body) do
-    {:error, "Upstream MCP server #{server.name} returned an invalid JSON-RPC response: #{inspect(body)}"}
+  defp authorization_failure(server, code, action) do
+    failure(
+      code,
+      "#{action} Atlas → #{server.name} at #{AtlasWeb.Endpoint.url()}/admin/mcps. Client → Atlas authorization is separate.",
+      "authorization"
+    )
+  end
+
+  defp http_failure(server, status, stage) do
+    {code, action} =
+      case status do
+        401 ->
+          {"upstream_unauthorized",
+           "Check the #{server.name} connection at #{AtlasWeb.Endpoint.url()}/admin/mcps; reconnect it if authorization was revoked."}
+
+        403 ->
+          {"upstream_forbidden",
+           "Check upstream permissions, scopes and stack configuration; reconnecting the client to Atlas will not grant upstream access."}
+
+        _ ->
+          {"http_error", "Retry discovery; if it persists, check upstream availability and MCP endpoint configuration."}
+      end
+
+    failure(code, "Upstream #{server.name} returned HTTP #{status}. #{action}", stage,
+      http_status: status,
+      retryable: status == 429 or status in 500..599
+    )
+  end
+
+  defp failure(code, message, stage, opts \\ []) do
+    {:error, struct!(Error, Keyword.merge([code: code, message: message, stage: stage], opts))}
   end
 
   defp decode_response_body(body, payload) when is_binary(body) do
@@ -706,14 +739,6 @@ defmodule Atlas.MCP.Proxy do
   defp json_rpc_response?(%{"result" => _result}), do: true
   defp json_rpc_response?(%{"error" => _error}), do: true
   defp json_rpc_response?(_message), do: false
-
-  defp require_session_id(%Server{}, session_id) when is_binary(session_id) and session_id != "" do
-    {:ok, session_id}
-  end
-
-  defp require_session_id(%Server{} = server, _session_id) do
-    {:error, "Upstream MCP server #{server.name} did not return an MCP session ID."}
-  end
 
   defp response_session_id(%Req.Response{headers: headers}) when is_map(headers) do
     headers |> get_header("mcp-session-id") |> first_header_value()

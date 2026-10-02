@@ -343,6 +343,7 @@ defmodule Tuist.Docs.Sidebar do
                 ]
               },
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
+              %Item{label: "Cache volumes", slug: "/en/guides/features/runners/cache-volumes"},
               %Item{
                 label: "Docker",
                 slug: "/en/guides/features/runners/docker",
@@ -548,6 +549,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Self-hosting",
             items: [
               %Item{label: "Server", slug: "/en/guides/server/self-host/server"},
+              %Item{label: "Release channels", slug: "/en/guides/server/self-host/release-channels"},
               %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]

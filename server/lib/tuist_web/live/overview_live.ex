@@ -86,6 +86,9 @@ defmodule TuistWeb.OverviewLive do
 
     socket =
       cond do
+        Project.once_project?(project) ->
+          TuistWeb.OnceOverviewLive.assign_handle_params(socket, params, full_uri.path)
+
         Project.gradle_project?(project) ->
           TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
 

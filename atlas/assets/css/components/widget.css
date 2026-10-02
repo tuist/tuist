@@ -41,6 +41,10 @@ container.
   background-color: var(--noora-chart-tertiary, var(--noora-surface-label-secondary));
 }
 
+[data-part="widget"] [data-part="legend"][data-color="quaternary"] {
+  background-color: var(--noora-chart-quaternary, var(--noora-surface-label-secondary));
+}
+
 [data-part="widget"] [data-part="legend"][data-color="warning"] {
   background-color: var(--noora-surface-background-warning, #f97316);
 }

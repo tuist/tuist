@@ -100,6 +100,17 @@ async fn request_page(
     Ok(page)
 }
 
+/// Replication lag in seconds of origin version time: how far the newest
+/// version the remote gateway lists sits above the newest one applied here.
+fn lag_seconds(newest_version_ms: u64, applied_through_ms: u64) -> u64 {
+    newest_version_ms.saturating_sub(applied_through_ms) / 1000
+}
+
+fn record_lag(app: &SharedState, status: &LinkStatusCell, region: &str, lag_seconds: u64) {
+    status.update(|status| status.lag_seconds = Some(lag_seconds));
+    app.metrics.set_region_sync_lag(region, lag_seconds);
+}
+
 /// The watermark to read from: the persisted one, else the highest legacy
 /// `backfill/wm/` row among the region's nodes (implementation decision
 /// D-4), else nothing.
@@ -127,7 +138,7 @@ async fn backward_pass(
     region: &str,
     cancel: &CancellationToken,
     status: &LinkStatusCell,
-) -> Result<(), String> {
+) -> Result<Option<u64>, String> {
     status.update(|status| status.phase = LinkPhase::Bootstrapping);
     let started = Instant::now();
     let probe = request_page(app, peer, region, 0, None, false).await?;
@@ -137,6 +148,9 @@ async fn backward_pass(
         app.metrics.set_peer_clock_skew(peer, skew / 1000);
     }
     let watermark = seed_watermark(app, region)?;
+    if let (Some(newest), Some(watermark)) = (probe.newest_version_ms, watermark) {
+        record_lag(app, status, region, lag_seconds(newest, watermark));
+    }
     let buffered =
         watermark.map(|watermark| watermark.saturating_sub(app.config.sync_pass_start_buffer_ms));
     let window = compute_window(
@@ -174,7 +188,9 @@ async fn backward_pass(
             )
             .await?;
     }
-    Ok(())
+    // The pass applied everything the peer listed when it started; the
+    // watermark sits a buffer below that, which is not lag.
+    Ok(peer_now)
 }
 
 pub async fn run(
@@ -185,21 +201,21 @@ pub async fn run(
     status: Arc<LinkStatusCell>,
     pass_failures: Arc<AtomicU32>,
 ) {
-    loop {
+    let covered_through_ms = loop {
         let outcome = tokio::select! {
             biased;
             _ = cancel.cancelled() => return,
             outcome = backward_pass(&app, &peer, &region, &cancel, &status) => outcome,
         };
         match outcome {
-            Ok(()) => {
+            Ok(covered_through_ms) => {
                 pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
                     status.unsupported = false;
                     status.last_success = Some(Instant::now());
                 });
-                break;
+                break covered_through_ms.unwrap_or_default();
             }
             Err(error) => {
                 if error == "cancelled" {
@@ -245,7 +261,7 @@ pub async fn run(
                 }
             }
         }
-    }
+    };
 
     status.update(|status| status.phase = LinkPhase::Forward);
     let mut after: Option<String> = None;
@@ -363,10 +379,34 @@ pub async fn run(
                 );
             }
         }
+        let applied = from_version_ms
+            .max(highest.unwrap_or_default())
+            .max(covered_through_ms);
+        match page.newest_version_ms {
+            Some(newest) => record_lag(&app, &status, &region, lag_seconds(newest, applied)),
+            // An older source reports nothing; a caught-up page is all it
+            // can tell.
+            None if page.entries.is_empty() && page.next_after.is_none() => {
+                record_lag(&app, &status, &region, 0);
+            }
+            None => {}
+        }
         // The page cursor only moves when the peer scanned something; a
         // caught-up long-poll answers without one and we keep ours.
         if page.next_after.is_some() {
             after = page.next_after;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lag_is_zero_at_or_past_the_newest_version() {
+        assert_eq!(lag_seconds(10_000, 10_000), 0);
+        assert_eq!(lag_seconds(10_000, 20_000), 0);
+        assert_eq!(lag_seconds(310_000, 10_000), 300);
     }
 }

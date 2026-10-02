@@ -4,6 +4,16 @@ This is a web application written using the Phoenix web framework.
 
 Do not add README entries for internal operational details such as env var names, secret manager or External Secrets wiring, cron schedules, or implementation-specific deployment notes unless the user explicitly asks for public project documentation. Prefer code comments, infrastructure runbooks, PR descriptions, or this file for that context.
 
+## Upstream MCP discovery
+
+- `Atlas.MCP.Proxy` discovers tools using the current caller's upstream OAuth session and MCP tool groups. Client → Atlas authorization is separate from Atlas → upstream authorization; reconnect the specific upstream at `/admin/mcps` only when diagnostics support doing so.
+- `get_mcp_connection_status` performs fresh discovery for one permitted upstream. Discovery failures also expose `<server>__atlas_connection_status` instead of silently removing every trace of that upstream. Both return sanitized failure categories/stages or currently permitted tool schemas; neither calls an upstream business tool.
+- Keep discovery diagnostics free of response bodies, tokens, and raw transport errors. Do not reuse schemas across users or after an authorization change. There is no schema/failure cache; after recovery, clients must request `tools/list` again to refresh their catalog. The diagnostic remains callable from an older catalog.
+- The `tuist` upstream is proxied read-only and receives Atlas' ServiceAccount token in `x-tuist-atlas-identity`. The Tuist server lets operators read any customer account only when that header verifies, because every proxied call is recorded here as `mcp.tool_called`. Only send the header to upstreams configured with `atlas_identity_header`, and only for the MCP transport (`audit_interface: "mcp"`, set by `Atlas.MCP.Transport.StreamableHTTP`). Any other or missing interface gets no header; the Slack agent runs as one fixed operator.
+- Streamable HTTP session IDs are optional. Forward them when provided, but do not reject a successful initialization solely because the header is absent.
+- Transient OAuth refresh failures (transport errors, HTTP 429/5xx) preserve the refresh credential for a later attempt without returning an expired access token. Definitive refresh failures still require reauthorization.
+- The monorepo release workflow is `.github/workflows/atlas-release.yml`, chart `infra/helm/atlas`, namespace `atlas-production` on the separate Atlas workload cluster. The Tuist production context does not target this deployment.
+
 ## CSS & Styling
 
 - **Always** use `data-part` attributes as CSS selectors instead of classes. This is the project's convention for styling components, matching the Noora design system pattern. For example:
@@ -21,6 +31,31 @@ Do not add README entries for internal operational details such as env var names
     }
   }
   ```
+
+## Markdown
+
+- `AtlasWeb.Markdown.content/1` renders fenced `mermaid` blocks through the `MermaidDiagram` hook (`assets/js/hooks/mermaid_diagram.js`), which loads a pinned Mermaid build from jsDelivr only on pages that contain a diagram. Invalid diagrams fall back to their source.
+
+## Proof-of-concept dashboard
+
+- The sales evaluation list, form, and detail pages live under `lib/atlas_web/live/poc_live/`; the account page lists records for its account. Their rendering tests cover empty/populated lists, create/edit forms, unpublished/published details with access requests, and account filtering.
+- The internal evaluation pages are styled by `assets/css/routes/pocs.css`, imported from `assets/js/app.js`. The public brief has separate styles in `assets/css/routes/poc_public.css`.
+- Card and cell icon names must exist in `noora/lib/noora/icons/` (replace filename hyphens with underscores). Unsupported names raise during rendering; include conditional sections when verifying these pages.
+
+## Invoice processing
+
+- Rule-based document classification must still run finance invoice extraction. Classifying a document as an invoice does not create its finance entry or line items.
+- `EnsureDocumentClassifications` also repairs ready classified invoices that have no finance entry or only an unconfigured-extractor fallback, using the existing pages and unique classification jobs. Repair jobs extract costs from the stored classification without rewriting document metadata. Documents without text get a visible failed finance entry without calling the model. Transient extraction errors retry before a final failure is recorded. Existing complete finance entries, including failed extractions, are excluded from this automatic recovery. Candidate ordering uses the last extraction attempt so persistent fallback entries rotate behind invoices that have not been attempted. Transient extraction errors during ingestion leave the document ready for the repair job. Successful entries are preserved during reclassification; an intentional refresh can use `Documents.process_document(id, force_invoice_extraction?: true)`.
+
+## Tasks
+
+- General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
+- The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
+
+## Postal letters
+
+- Tax-certificate requests prepend a mailing cover page with a clean recipient address window. The two official form pages follow at 85% scale so their decorative marks clear the postal provider's restricted borders. Preserve the checksum-verified government template and apply layout changes through the incremental document update.
+- Keep the cover address inside the provider's documented left-window area. Do not remove official form text or signature content to satisfy postal layout checks.
 
 ## Project guidelines
 

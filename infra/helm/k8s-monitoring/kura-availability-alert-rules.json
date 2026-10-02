@@ -1,0 +1,88 @@
+[
+  {
+    "annotations": {
+      "description": "An instance with desired replicas has no Ready backend for at least two minutes. Treat this as unavailable cache service, not reduced redundancy. Check the public /ready endpoint, pod and node conditions, Cilium and DNS. Correlate other instances on the same node. Do not delete local data volumes to treat a node network partition; preserve data and diagnose connectivity first.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-instance-has-no-ready-replicas",
+      "summary": "Kura instance {{ $labels.statefulset }} has no ready replicas in {{ $labels.cluster }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "(max by (cluster, namespace, statefulset) (kube_statefulset_replicas{namespace=\"kura\"}) > bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace=\"kura\"}) == bool 0)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "2m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "affected_service": "Cache",
+      "severity": "critical"
+    },
+    "noDataState": "NoData",
+    "orgID": 1,
+    "ruleGroup": "Cache availability",
+    "title": "Kura instance has no ready replicas",
+    "uid": "ffz1ualjy8fswd"
+  }
+]

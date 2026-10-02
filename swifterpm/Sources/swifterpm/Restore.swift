@@ -26,6 +26,7 @@ enum WorkspaceRestorer {
         packageDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         progress: RestoreProgressReporter?,
         disableSandbox: Bool = false
@@ -65,6 +66,7 @@ enum WorkspaceRestorer {
             scratchDir: scratchDir,
             packageDir: packageDir,
             cache: cache,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: disableSandbox,
             progress: progress
@@ -90,6 +92,7 @@ enum WorkspaceRestorer {
         scratchDir: URL,
         packageDir: URL?,
         cache: Cache,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool,
         progress: RestoreProgressReporter?
@@ -122,6 +125,7 @@ enum WorkspaceRestorer {
                     context: context,
                     scratchDir: scratchDir,
                     cache: cache,
+                    mirrors: mirrors,
                     progress: progress
                 )
             }
@@ -133,6 +137,7 @@ enum WorkspaceRestorer {
         context: PackageContext,
         scratchDir: URL,
         cache: Cache,
+        mirrors: MirrorConfig,
         progress: RestoreProgressReporter?
     ) async throws {
         switch target.source {
@@ -143,14 +148,15 @@ enum WorkspaceRestorer {
                 targetName: target.name,
                 checksum: checksum
             )
-            if try await binaryArtifact(in: cachedArtifact) == nil {
+            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                 let lock = try await cache.lock(namespace: "artifacts", key: cachedArtifact.path)
                 _ = lock
-                if try await binaryArtifact(in: cachedArtifact) == nil {
+                if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                     try await downloadBinaryArtifact(
                         identity: identity,
                         targetName: target.name,
                         url: url,
+                        downloadURL: mirrors.effectiveLocation(for: url),
                         checksum: checksum,
                         cache: cache,
                         destination: cachedArtifact,
@@ -186,10 +192,11 @@ enum WorkspaceRestorer {
                 targetName: target.name,
                 checksum: checksum
             )
-            if try await binaryArtifact(in: cachedArtifact) == nil {
+            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                 try await extractBinaryArtifactArchive(
                     archivePath: artifactPath,
-                    destination: cachedArtifact
+                    destination: cachedArtifact,
+                    checksum: checksum
                 )
             }
             let scratchArtifact = artifactDirectory(
@@ -223,11 +230,14 @@ enum WorkspaceRestorer {
         identity: String,
         targetName: String,
         url: String,
+        downloadURL: String,
         checksum: String,
         cache: Cache,
         destination: URL,
         progress: RestoreProgressReporter?
     ) async throws {
+        // Keyed on the manifest URL, so adding or changing a mirror keeps the cached archive;
+        // the checksum already guarantees it holds the same bytes.
         let archivePath = cache.binaryArtifactArchivePath(
             url: url,
             checksum: checksum
@@ -247,7 +257,7 @@ enum WorkspaceRestorer {
                 expectedChecksum: checksum
             ) {
                 try? await fileSystem.removePath(archivePath)
-                let remoteURL = try artifactURL(url)
+                let remoteURL = try artifactURL(downloadURL)
                 progress?.downloadingBinaryArtifact(identity: identity, target: targetName)
                 try await HTTPClient.download(
                     url: remoteURL,
@@ -259,7 +269,8 @@ enum WorkspaceRestorer {
                 guard actualChecksum.caseInsensitiveCompare(checksum) == .orderedSame else {
                     try? await fileSystem.removePath(archivePath)
                     throw ToolError.message(
-                        "\(targetName) checksum mismatch: expected \(checksum), got \(actualChecksum)"
+                        "\(targetName) checksum mismatch for \(remoteURL.absoluteString): "
+                            + "expected \(checksum), got \(actualChecksum)"
                     )
                 }
             }
@@ -267,7 +278,8 @@ enum WorkspaceRestorer {
 
         try await extractBinaryArtifactArchive(
             archivePath: archivePath,
-            destination: destination
+            destination: destination,
+            checksum: checksum
         )
     }
 
@@ -288,7 +300,8 @@ enum WorkspaceRestorer {
 
     private static func extractBinaryArtifactArchive(
         archivePath: URL,
-        destination: URL
+        destination: URL,
+        checksum: String
     ) async throws {
         try await fileSystem.makeDirectory(
             at: destination.deletingLastPathComponent().absolutePath,
@@ -299,7 +312,7 @@ enum WorkspaceRestorer {
                 .appendingPathComponent(".\(destination.lastPathComponent).lock")
         )
         defer { _ = lock }
-        if try await binaryArtifact(in: destination) != nil {
+        if try await cachedBinaryArtifactIsUsable(destination, checksum: checksum) {
             return
         }
 
@@ -345,11 +358,25 @@ enum WorkspaceRestorer {
                     options: []
                 )
             }
+            try await fileSystem.atomicWrite(
+                checksum, to: destination.appendingPathComponent(binaryArtifactChecksumMarkerFilename)
+            )
             try? await fileSystem.removePath(temp)
         } catch {
             try? await fileSystem.removePath(temp)
             throw error
         }
+    }
+
+    private static let binaryArtifactChecksumMarkerFilename = ".swifterpm-artifact-sha"
+
+    private static func cachedBinaryArtifactIsUsable(_ directory: URL, checksum: String) async throws -> Bool {
+        guard try await binaryArtifact(in: directory) != nil else { return false }
+        let marker = directory.appendingPathComponent(binaryArtifactChecksumMarkerFilename)
+        guard try await fileSystem.exists(marker.absolutePath) else { return false }
+        let recorded = String(decoding: try await fileSystem.readFile(at: marker.absolutePath), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return recorded.caseInsensitiveCompare(checksum) == .orderedSame
     }
 
     private static func artifactURL(_ value: String) throws -> URL {
@@ -556,7 +583,7 @@ enum WorkspaceRestorer {
                 return [BinaryArtifact(path: directory, kind: ["xcframework": [:]])]
             }
             if directory.pathExtension == "artifactbundle" {
-                return [BinaryArtifact(path: directory, kind: ["artifactsArchive": [:]])]
+                return [BinaryArtifact(path: directory, kind: await artifactsArchiveKind(bundle: directory))]
             }
         }
         var result: [BinaryArtifact] = []
@@ -567,13 +594,29 @@ enum WorkspaceRestorer {
             if entry.pathExtension == "xcframework" {
                 result.append(BinaryArtifact(path: entry, kind: ["xcframework": [:]]))
             } else if entry.pathExtension == "artifactbundle" {
-                result.append(BinaryArtifact(path: entry, kind: ["artifactsArchive": [:]]))
+                result.append(BinaryArtifact(path: entry, kind: await artifactsArchiveKind(bundle: entry)))
             } else {
                 let nestedArtifacts = try await binaryArtifacts(in: entry)
                 result.append(contentsOf: nestedArtifacts)
             }
         }
         return result
+    }
+
+    /// SwiftPM 6.2+ migrates the legacy `artifactsArchive` kind to a bundle with no
+    /// artifact types, so it no longer treats an executable bundle as executable and
+    /// fails the build. Record the types from `info.json` the way SwiftPM's own resolve does.
+    private static func artifactsArchiveKind(bundle: URL) async -> [String: Any] {
+        var types: [String] = []
+        if let data = try? await fileSystem.readFile(at: bundle.appendingPathComponent("info.json").absolutePath),
+           let info = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let artifacts = info["artifacts"] as? [String: Any]
+        {
+            types = artifacts.sorted { $0.key < $1.key }.compactMap {
+                ($0.value as? [String: Any])?["type"] as? String
+            }
+        }
+        return ["typedArtifactsArchive": ["_0": types]]
     }
 
     private static func removeResourceForkDirectories(in directory: URL) async throws {
@@ -666,6 +709,10 @@ enum WorkspaceRestorer {
                 try await fileSystem.remove(destination.absolutePath)
             }
 
+            let gitDirectory = checkout.appendingPathComponent(".git")
+            if try await fileSystem.exists(gitDirectory.absolutePath) {
+                try await fileSystem.remove(gitDirectory.absolutePath)
+            }
             try await writeSourceRevisionMarker(directory: checkout, revision: expectedRevision)
             try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
             do {
@@ -786,12 +833,24 @@ enum WorkspaceRestorer {
         let markerData = try await fileSystem.readFile(at: markerPath.absolutePath)
         let recorded = String(decoding: markerData, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return recorded == expectedRevision
+        guard recorded == expectedRevision else {
+            return false
+        }
+        return try await !fileSystem.exists(
+            source.appendingPathComponent(".git/objects/info/alternates").absolutePath
+        )
     }
 
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {
         for path in try await submodulePaths(in: source) {
             let submodule = source.appendingPathComponent(path)
+            // A missing directory is acceptable. Native SPM does not initialize
+            // submodules that are not referenced by the Swift package manifest.
+            // Only an existing (but empty) submodule signals a partially
+            // initialized checkout that should not be cached.
+            guard try await fileSystem.exists(submodule.absolutePath) else {
+                continue
+            }
             guard fileSystem.isDirectoryAndNotSymlink(submodule) else {
                 return false
             }

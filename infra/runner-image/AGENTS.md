@@ -50,17 +50,28 @@ each one with a check that asserts the behaviour rather than the
 ingredient — every gap so far was found by a release failing, not
 by the image build.
 
-TCC looked like one of those gaps and was not. Scripted Finder
-automation here fails as `AppleEvent timed out (-1712)`, which
-reads as a missing `kTCCServiceAppleEvents` approval, and this
-template used to seed one. It changed nothing: seeding the
-approval into the session user's database and reading the row
-back still left every send timing out, because these VMs have no
-Finder that answers rather than one that refuses. Do not re-add
-it. The DMG step that surfaced this no longer drives Finder at
-all (`app/dmg-settings.py`), and if something else needs a GUI
-app here, the question to answer first is whether the auto-login
-session materialises, not whether it is authorised.
+TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
+anything driving Finder through `osascript`) needs a standing
+`kTCCServiceAppleEvents` approval, or the first send waits on a
+consent prompt nobody can answer and fails as `AppleEvent timed out
+(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
+at boot. Three details decide whether a row matches, and earlier
+attempts got each one wrong:
+
+- **Database.** Only the session user's
+  `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
+  A row in the system database is ignored. The user database only
+  exists once `runner` has logged in, which is why this runs at boot
+  and not in the Packer template.
+- **Client.** TCC charges the event to the responsible process, not
+  to `osascript`. For GitHub jobs that is
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
+  and GitLab agents are started directly by `dispatch-poll.sh`, so
+  theirs is expected to be its `/bin/bash`. `log stream --predicate
+  'subsystem == "com.apple.TCC"'` names it (`Prompting for access to
+  indirect object Finder by …`).
+- **Target.** `indirect_object_code_identity` must hold Finder's
+  code requirement. A row with it NULL is ignored.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`

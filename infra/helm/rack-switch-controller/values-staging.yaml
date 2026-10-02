@@ -1,0 +1,13 @@
+# Staging: BER1, while the rack is at home. Everything here mirrors
+# infra/rack-switch-fleet/sites/ber1.json: kubernetes.namespace,
+# management.controller.site, management.controller.address, and the
+# 1Password items management.controller names.
+watchNamespace: tuist-staging
+
+omada:
+  site: ber1
+  controllerAddress: 100.84.132.92
+
+credentials:
+  omadaApiItem: omada staging open api
+  deviceAccountItem: ber1 switch device account

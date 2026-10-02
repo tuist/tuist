@@ -200,6 +200,8 @@
       </.card_section>
     </.card>
 
+    <.job_volumes volumes={@volumes} account_name={@selected_account.name} />
+
     <.card
       :if={@linked_build_runs != [] or @linked_test_runs != []}
       title={dgettext("dashboard_runners", "Insights")}

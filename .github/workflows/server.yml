@@ -91,6 +91,8 @@ jobs:
           key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
+      - name: Verify isolated process hosts
+        run: bash Tests/ProcessHost/test.sh
   gettext:
     name: Gettext
     # tuist-linux-large: mix gettext.extract compiles the full project
@@ -259,8 +261,6 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
-          mix-cache-key: mix-test-v2
-          mix-cache-restore-key: mix-test-v2-
           restore-mix-cache: "false"
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
@@ -327,8 +327,6 @@ jobs:
           echo "Testing against ClickHouse ${version}"
       - uses: ./.github/actions/setup-server-mix
         with:
-          mix-cache-key: mix-test-v2
-          mix-cache-restore-key: mix-test-v2-
           restore-mix-cache: "false"
       # Not passed through mise-install-args: that path installs `--locked`, and
       # mise.lock pins the version the rest of CI runs on.

@@ -9,7 +9,9 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
+  alias Tuist.Billing.UsageMeters
   alias Tuist.Billing.UsagePricing
+  alias Tuist.Billing.Workers.SubscriptionUnpaidNotificationWorker
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
@@ -215,6 +217,52 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+  end
+
+  describe "on_subscription_change/1 when a payment is given up on" do
+    defp pro_subscription_payload(status) do
+      %{
+        id: "sub_lapsing",
+        status: status,
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+    end
+
+    test "emails the account's admins once the subscription turns unpaid" do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id", preload: [:account])
+      Billing.on_subscription_change(pro_subscription_payload("past_due"))
+
+      Billing.on_subscription_change(pro_subscription_payload("unpaid"))
+
+      assert [%{args: %{"account_id" => account_id, "user_id" => user_id}}] =
+               all_enqueued(worker: SubscriptionUnpaidNotificationWorker)
+
+      assert account_id == user.account.id
+      assert user_id == user.id
+    end
+
+    # Stripe can deliver the same event more than once; only the transition
+    # into `unpaid` is news.
+    test "does not email again when Stripe redelivers the unpaid subscription" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      Billing.on_subscription_change(pro_subscription_payload("past_due"))
+      Billing.on_subscription_change(pro_subscription_payload("unpaid"))
+
+      Billing.on_subscription_change(pro_subscription_payload("unpaid"))
+
+      assert [_one] = all_enqueued(worker: SubscriptionUnpaidNotificationWorker)
+    end
+
+    test "does not email while the payment is still being retried" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      Billing.on_subscription_change(pro_subscription_payload("active"))
+
+      Billing.on_subscription_change(pro_subscription_payload("past_due"))
+
+      assert all_enqueued(worker: SubscriptionUnpaidNotificationWorker) == []
     end
   end
 
@@ -605,6 +653,151 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert session_url == :ok
+    end
+
+    # A past due subscription is still live, so a plan change updates it in
+    # place and cannot open a second subscription. Only an account with no
+    # live subscription is sent to settle first.
+    test "lets a past due account change its plan on the subscription it has" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        status: "past_due",
+        subscription_id: "sub_past_due"
+      )
+
+      reject(&Session.create/1)
+      reject(&Stripe.Invoice.list/1)
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_past_due" ->
+        {:ok, %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
+      end)
+
+      expect(Stripe.Subscription, :update, fn "sub_past_due", %{items: items} ->
+        assert %{price: "air.usage"} in items
+        {:ok, %{}}
+      end)
+
+      # When
+      got = Billing.update_plan(%{plan: :air, account: account, success_url: "success_url"})
+
+      # Then
+      assert got == :ok
+    end
+
+    test "sends an unpaid account to its open invoice instead of opening a second checkout" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        status: "unpaid",
+        subscription_id: "sub_unpaid"
+      )
+
+      reject(&Session.create/1)
+
+      expect(Stripe.Invoice, :list, fn %{subscription: "sub_unpaid", status: "open", limit: 1} ->
+        {:ok,
+         %Stripe.List{data: [%Stripe.Invoice{id: "in_open", hosted_invoice_url: "https://invoice.stripe.com/i/open"}]}}
+      end)
+
+      # When
+      got = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then
+      assert got == {:ok, {:external_redirect, "https://invoice.stripe.com/i/open"}}
+    end
+
+    test "sends an unpaid account without an open invoice to the billing portal" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        status: "unpaid",
+        subscription_id: "sub_unpaid"
+      )
+
+      reject(&Session.create/1)
+      stub(Stripe.Invoice, :list, fn _params -> {:ok, %Stripe.List{data: []}} end)
+
+      expect(Stripe.BillingPortal.Session, :create, fn %{customer: "customer_id"} ->
+        {:ok, %{url: "https://billing.stripe.com/p/session"}}
+      end)
+
+      # When
+      got = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then
+      assert got == {:ok, {:external_redirect, "https://billing.stripe.com/p/session"}}
+    end
+
+    test "opens a checkout when the only earlier subscription was canceled" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "canceled")
+
+      expect(Session, :create, fn %{mode: "subscription", customer: "customer_id"} ->
+        {:ok, %{url: "session_url"}}
+      end)
+
+      # When
+      got = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then
+      assert got == {:ok, {:external_redirect, "session_url"}}
+    end
+  end
+
+  describe "payment_failed?/1" do
+    test "is true when the account's subscription is unpaid and nothing replaced it" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+      assert Billing.payment_failed?(account)
+    end
+
+    test "is false while Stripe is still retrying the payment" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "past_due")
+
+      refute Billing.payment_failed?(account)
+    end
+
+    test "is false when a live subscription replaced the unpaid one" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        status: "unpaid",
+        inserted_at: ~N[2026-01-01 00:00:00]
+      )
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        plan: :pro,
+        inserted_at: ~N[2026-02-01 00:00:00]
+      )
+
+      refute Billing.payment_failed?(account)
+    end
+
+    test "is false for a canceled subscription" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "canceled")
+
+      refute Billing.payment_failed?(account)
     end
   end
 
@@ -1180,8 +1373,146 @@ defmodule Tuist.BillingTest do
       assert held_id == account.id
     end
 
+    test "holds only the Air accounts whose cache usage reached an allowance", %{account: impacted} do
+      within = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      pro = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      BillingFixtures.subscription_fixture(account_id: pro.id, plan: :pro, status: "active")
+
+      period_start = ~U[2026-09-01 00:00:00Z]
+      period_end = ~U[2026-10-01 00:00:00Z]
+
+      stub(UsageMeters, :accounts_with_cache_downloads, fn ^period_start, ^period_end ->
+        [impacted.id, within.id, pro.id]
+      end)
+
+      impacted_id = impacted.id
+      within_id = within.id
+
+      stub(UsagePricing, :metered_cache_usage, fn account_id, _, _ ->
+        if account_id == within_id,
+          do: %{egress_megabytes: 99_999, requests: 999_999},
+          else: %{egress_megabytes: 150_000, requests: 10}
+      end)
+
+      expect(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: %{id: ^impacted_id}] -> {:ok, false} end)
+
+      assert %{held: [%{id: ^impacted_id}], failed: []} =
+               Billing.hold_usage_based_pricing_for_impacted_air_accounts(period_start, period_end)
+    end
+
+    test "the release frees held Air accounts, leaves held Pro ones to the switch, and turns the switch on", %{
+      account: air
+    } do
+      pro = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      BillingFixtures.subscription_fixture(account_id: pro.id, plan: :pro, status: "active")
+      enabled = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing ->
+        %FunWithFlags.Flag{
+          name: :usage_based_pricing,
+          gates: [
+            %FunWithFlags.Gate{type: :boolean, for: nil, enabled: true},
+            %FunWithFlags.Gate{type: :actor, for: "account:#{air.id}", enabled: false},
+            %FunWithFlags.Gate{type: :actor, for: "account:#{pro.id}", enabled: false},
+            %FunWithFlags.Gate{type: :actor, for: "account:#{enabled.id}", enabled: true}
+          ]
+        }
+      end)
+
+      air_id = air.id
+      expect(FunWithFlags, :clear, fn :usage_based_pricing, [for_actor: %{id: ^air_id}] -> :ok end)
+      expect(FunWithFlags, :enable, fn :usage_based_pricing_switch -> {:ok, true} end)
+
+      assert %{released: [%{id: ^air_id}], failed: [], switch: {:ok, true}} =
+               Billing.release_usage_based_pricing_holds()
+    end
+
+    test "holds a Pro subscription that arrives on the hit Price for an account the global gate reaches",
+         %{account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing -> nil end)
+
+      account_id = account.id
+      expect(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: %{id: ^account_id}] -> {:ok, false} end)
+
+      :ok = Billing.on_subscription_change(pro_subscription_event("sub_opened_before_flip", ["pro.usage"]))
+    end
+
+    test "leaves a Pro subscription alone once it carries the meters", %{account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing -> nil end)
+      reject(&FunWithFlags.disable/2)
+
+      :ok =
+        Billing.on_subscription_change(
+          pro_subscription_event("sub_on_meters", ["meter.egress", "meter.requests", "meter.tests"])
+        )
+
+      assert %{plan: :pro} = Billing.get_current_active_subscription(account)
+    end
+
+    test "never re-holds an account that already has a gate of its own, however late the webhook", %{
+      account: account
+    } do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing ->
+        %FunWithFlags.Flag{
+          name: :usage_based_pricing,
+          gates: [%FunWithFlags.Gate{type: :actor, for: "account:#{account.id}", enabled: true}]
+        }
+      end)
+
+      reject(&FunWithFlags.disable/2)
+
+      :ok = Billing.on_subscription_change(pro_subscription_event("sub_switched_late_event", ["pro.usage"]))
+    end
+
+    test "leaves an Air subscription alone, whose usage Price bills nothing", %{account: account} do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]}
+        }
+      end)
+
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing -> nil end)
+      reject(&FunWithFlags.disable/2)
+
+      :ok =
+        Billing.on_subscription_change(%{
+          id: "sub_air_renewal",
+          status: "active",
+          customer: "customer_id",
+          default_payment_method: nil,
+          items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]},
+          trial_end: nil
+        })
+
+      assert %{plan: :air} = Billing.get_current_active_subscription(account)
+    end
+
+    test "leaves an account the global gate does not reach alone" do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
+      reject(&FunWithFlags.disable/2)
+
+      :ok = Billing.on_subscription_change(pro_subscription_event("sub_before_flip", ["pro.usage"]))
+    end
+
     test "the switch is refused for an account with no subscription", %{account: account} do
       assert Billing.switch_to_usage_based_pricing(account) == {:error, :no_subscription}
+    end
+
+    defp pro_subscription_event(id, usage_price_ids) do
+      %{
+        id: id,
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: Enum.map(usage_price_ids ++ ["pro.flat.monthly"], &%{price: %{id: &1}})},
+        trial_end: nil
+      }
     end
   end
 
@@ -1941,6 +2272,35 @@ defmodule Tuist.BillingTest do
       assert got == subscription
     end
 
+    test "keeps returning the subscription while its renewal payment is being retried" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      subscription = BillingFixtures.subscription_fixture(account_id: account.id, status: "past_due")
+
+      # When
+      got = Billing.get_current_active_subscription(account)
+
+      # Then
+      assert got == subscription
+    end
+
+    test "returns nil once the subscription is unpaid" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      for status <- ~w(unpaid incomplete incomplete_expired paused) do
+        BillingFixtures.subscription_fixture(account_id: account.id, status: status)
+      end
+
+      # When
+      got = Billing.get_current_active_subscription(account)
+
+      # Then
+      assert got == nil
+    end
+
     test "returns nil if only a canceled subscription exists for a given account" do
       # Given
       organization = AccountsFixtures.organization_fixture()
@@ -1968,6 +2328,24 @@ defmodule Tuist.BillingTest do
       BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
 
       assert Billing.effective_plan(user.account) == :pro
+    end
+
+    test "keeps the plan of a past due subscription" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      subscription = BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "past_due")
+
+      assert Billing.effective_plan(account) == :pro
+      assert Billing.effective_plan(%{account | subscriptions: [subscription]}) == :pro
+    end
+
+    test "returns Air for an unpaid subscription" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      subscription = BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+      assert Billing.effective_plan(account) == :air
+      assert Billing.effective_plan(%{account | subscriptions: [subscription]}) == :air
     end
 
     test "ignores inactive subscriptions" do
@@ -2052,6 +2430,39 @@ defmodule Tuist.BillingTest do
   end
 
   describe "cache_access_blocked?/1" do
+    test "gates an account on usage-based pricing on the cache allowances, not on hits" do
+      %{account: account} =
+        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 10_000, preload: [:account])
+
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      under = %{account | current_month_cache_egress_megabytes: 99_999, current_month_cache_requests: 999_999}
+
+      refute Billing.cache_access_blocked?(under)
+      assert Billing.cache_access_blocked?(%{under | current_month_cache_egress_megabytes: 100_000})
+      assert Billing.cache_access_blocked?(%{under | current_month_cache_requests: 1_000_000})
+    end
+
+    test "keeps gating an account on the previous pricing on hits alone" do
+      %{account: account} =
+        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 0, preload: [:account])
+
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
+
+      refute Billing.cache_access_blocked?(%{account | current_month_cache_egress_megabytes: 5_000_000})
+    end
+
+    test "reads cache counters the nightly refresh has not written yet as unused" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      refute Billing.cache_access_blocked?(%{
+               account
+               | current_month_cache_egress_megabytes: nil,
+                 current_month_cache_requests: nil
+             })
+    end
+
     test "returns false when the account is on Air and under the threshold" do
       # Given
       threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
@@ -2112,6 +2523,23 @@ defmodule Tuist.BillingTest do
       refute Billing.cache_access_blocked?(account)
     end
 
+    test "returns false while a paid subscription's renewal payment is being retried" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 10,
+          preload: [:account]
+        )
+
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "past_due")
+
+      # When / Then
+      refute Billing.cache_access_blocked?(account)
+      assert Billing.cache_blocked_account_ids([account]) == MapSet.new()
+    end
+
     test "returns false when the account has no counter recorded yet" do
       # Given
       %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
@@ -2160,6 +2588,23 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert account.current_month_remote_cache_hits_count == 0
+      refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
+    end
+
+    test "unblocks an account on usage-based pricing by zeroing its cache counters too" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      account =
+        account
+        |> Ecto.Changeset.change(current_month_cache_egress_megabytes: 150_000, current_month_cache_requests: 2_000_000)
+        |> Repo.update!()
+
+      assert Billing.cache_access_blocked?(account)
+
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      assert {account.current_month_cache_egress_megabytes, account.current_month_cache_requests} == {0, 0}
       refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
     end
 

@@ -74,10 +74,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
-      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
+      connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
 
@@ -214,10 +214,19 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
-  pipeline :browser_marketing do
+  pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
+    plug :accepts, ["html"]
+  end
+
+  # The newsletter signup form submits with `Accept: application/json`.
+  pipeline :browser_marketing_form do
+    plug :put_request_kind, "marketing"
     plug :accepts, ["html", "json"]
+  end
+
+  pipeline :browser_marketing do
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -292,9 +301,9 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
-    # authentication because the grant is honoured only for the operator it
-    # was minted for.
-    plug :accept_operator_grant_header
+    # authentication because the elevation belongs to the operator behind the
+    # token.
+    plug :accept_atlas_identity_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -381,6 +390,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [
       :open_api,
+      :browser_marketing_page,
       :browser_marketing,
       :assign_current_path
     ]
@@ -507,26 +517,35 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :same_origin_csrf_exemption,
+      :browser_marketing_form,
       :browser_marketing,
       :assign_current_path
     ]
 
     for locale <- ["en"] ++ Localization.additional_locales() do
-      locale_path_prefix = Localization.locale_path_prefix(locale)
-
-      private = %{locale: locale}
-
-      post Path.join(locale_path_prefix, "/newsletter"),
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter"),
            MarketingController,
            :newsletter_signup,
            metadata: %{type: :marketing},
-           private: private
+           private: %{locale: locale}
+    end
+  end
 
-      post Path.join(locale_path_prefix, "/newsletter/verify"),
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing_page,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter/verify"),
            MarketingController,
            :newsletter_confirm,
            metadata: @marketing_route_metadata,
-           private: private
+           private: %{locale: locale}
     end
   end
 
@@ -620,6 +639,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -680,6 +700,12 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
         get "/profiles", RunnersController, :index_profiles
+        get "/volumes", RunnerVolumesController, :list
+        get "/volumes/analytics", RunnerVolumesController, :analytics
+        get "/volumes/:volume_id", RunnerVolumesController, :show
+        get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
+        get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
       scope "/webhooks" do
@@ -694,6 +720,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -946,10 +973,13 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
+    post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
+    post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
+    get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
-    get "/runners/shadow_snapshot", RunnerShadowController, :snapshot
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
@@ -1168,6 +1198,10 @@ defmodule TuistWeb.Router do
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
+    get "/sso/link", SSOLinkController, :show
+    post "/sso/link", SSOLinkController, :create
+    delete "/sso/link", SSOLinkController, :delete
+
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
@@ -1333,6 +1367,7 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+    get "/billing/pay", BillingController, :pay
 
     get "/runners/interactive/vnc",
         RunnerInteractiveVNCController,
@@ -1351,6 +1386,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/runners/profiles", RunnerProfilesLive
+      live "/runners/volumes", RunnerVolumesLive
+      live "/runners/volumes/:id", RunnerVolumesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1408,6 +1445,17 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
+      get "/once", RedirectPlug, to: "/once/builds"
+      get "/once/runs", RedirectPlug, to: "/once/build-runs"
+      live "/once/runs/:once_run_id", OnceRunLive, :overview
+      live "/once/runs/:once_run_id/cache", OnceRunLive, :cache
+      live "/once/builds", OnceRunsLive, :builds
+      live "/once/build-runs", OnceRunsLive, :build_runs
+      live "/once/tests", OnceTestsLive
+      live "/once/test-runs", OnceRunsLive, :tests
+      live "/once/test-runs/:once_run_id", OnceTestRunLive
+      live "/once/test-runs/:once_run_id/test-cases/:case_id", OnceTestCaseRunLive
+      live "/once-cache", OnceCacheLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive

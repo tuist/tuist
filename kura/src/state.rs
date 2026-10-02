@@ -85,6 +85,23 @@ fn published_siblings_linked(
     named && siblings > 0
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountIdentity {
+    pub handle: String,
+    pub aliases: Vec<String>,
+    pub endpoint_redirects: BTreeMap<String, String>,
+}
+
+impl AccountIdentity {
+    pub fn new(handle: String) -> Self {
+        Self {
+            handle,
+            aliases: Vec::new(),
+            endpoint_redirects: BTreeMap::new(),
+        }
+    }
+}
+
 pub struct AppState {
     pub config: Config,
     pub _data_dir_lock: DataDirLock,
@@ -112,6 +129,8 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into the discovery targets
     // on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// One control-plane snapshot: authorization aliases and ready endpoint targets.
+    pub account_identity: ArcSwap<AccountIdentity>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub readiness: Mutex<ReadinessState>,
     /// Process-wide byte budget shared by every transient disk writer.
@@ -243,6 +262,77 @@ impl Drop for BackfillBodiesPeerSlot {
 }
 
 impl AppState {
+    pub fn update_account_identity(
+        &self,
+        handle: Option<&str>,
+        aliases: Option<&[String]>,
+        redirects: Option<&BTreeMap<String, String>>,
+    ) {
+        let Some(handle) = handle.filter(|handle| !handle.is_empty()) else {
+            return;
+        };
+        let previous = self.account_identity.load();
+        let mut next = (**previous).clone();
+        if next.handle != handle {
+            // An older control plane may know the rename but not ready targets.
+            // Do not retain redirects pointing at a superseded canonical name.
+            next.endpoint_redirects.clear();
+            next.aliases.push(next.handle.clone());
+            next.handle = handle.to_owned();
+        }
+        if let Some(aliases) = aliases {
+            next.aliases = aliases.to_vec();
+        }
+        if let Some(redirects) = redirects {
+            next.endpoint_redirects = redirects
+                .iter()
+                .filter(|(source, target)| {
+                    let Ok(url) = reqwest::Url::parse(target) else {
+                        return false;
+                    };
+                    url.scheme() == "https"
+                        && url.username().is_empty()
+                        && url.password().is_none()
+                        && url.path() == "/"
+                        && url.query().is_none()
+                        && url.fragment().is_none()
+                        && url.host_str().is_some_and(|host| host != source.as_str())
+                })
+                .map(|(source, target)| (source.clone(), target.trim_end_matches('/').to_owned()))
+                .collect();
+        }
+        next.aliases
+            .retain(|alias| !alias.is_empty() && !alias.eq_ignore_ascii_case(&next.handle));
+        next.aliases.sort();
+        next.aliases.dedup();
+        if next != **previous {
+            self.account_identity.store(Arc::new(next));
+        }
+    }
+
+    pub fn canonicalize_auth_context(&self, context: &mut crate::auth::RequestContext) {
+        let identity = self.account_identity.load();
+        if identity.aliases.is_empty() && context.server_tenant_id == identity.handle {
+            return;
+        }
+        // Keep original and intermediate names bound to this account's current
+        // grants. Store operations still use the immutable configured tenant.
+        if context.tenant_id.as_deref().is_some_and(|tenant| {
+            let tenant = tenant.trim();
+            tenant.eq_ignore_ascii_case(&self.config.tenant_id)
+                || identity
+                    .aliases
+                    .iter()
+                    .any(|alias| tenant.eq_ignore_ascii_case(alias))
+        }) && context.tenant_id.as_deref() != Some(identity.handle.as_str())
+        {
+            context.tenant_id = Some(identity.handle.clone());
+        }
+        if context.server_tenant_id != identity.handle {
+            context.server_tenant_id = identity.handle.clone();
+        }
+    }
+
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()

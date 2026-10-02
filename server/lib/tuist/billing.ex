@@ -10,9 +10,11 @@ defmodule Tuist.Billing do
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
+  alias Tuist.Billing.PaymentFailedNotifications
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
+  alias Tuist.Billing.UsageMeters
   alias Tuist.Billing.UsagePricing
   alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
@@ -30,6 +32,19 @@ defmodule Tuist.Billing do
   # gate is on reports the meters while still carrying the usage Price, so
   # neither is billed.
   @holdable_subscription_statuses ~w(active trialing past_due unpaid paused incomplete)
+
+  # The statuses whose subscription the account keeps its plan through.
+  # `past_due` is a renewal Stripe failed to charge and is still retrying, so
+  # the customer has not lost anything yet. Once Stripe stops retrying it
+  # moves the subscription to `unpaid` or `canceled`, and the plan goes with
+  # it. `incomplete` never reached a first payment and `paused` is a trial
+  # that ended without one, so neither carries a plan either.
+  @live_subscription_statuses ~w(active trialing past_due)
+
+  # The statuses whose subscription has an invoice the customer still owes.
+  # Opening a new Checkout for such an account would create a second
+  # subscription beside the one that owes, so it is sent to settle instead.
+  @outstanding_subscription_statuses ~w(past_due unpaid)
 
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
@@ -404,10 +419,21 @@ defmodule Tuist.Billing do
     if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end
 
-  def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
-    customer_id = account.customer_id
-
+  # A live subscription, `past_due` included, is changed in place, so it can
+  # never end up with a second one. Without one, a Checkout would open a new
+  # subscription beside an `unpaid` one that still owes, so that account is
+  # sent to settle the open invoice instead.
+  def update_plan(%{account: %Account{} = account} = params) do
     current_subscription = get_current_active_subscription(account)
+
+    case is_nil(current_subscription) and outstanding_payment_url(account) do
+      url when is_binary(url) -> {:ok, {:external_redirect, url}}
+      _ -> change_plan(params, current_subscription)
+    end
+  end
+
+  defp change_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}, current_subscription) do
+    customer_id = account.customer_id
 
     subscription_items = get_subscription_items(to_string(plan), account)
 
@@ -781,16 +807,89 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  The accounts carrying an active Pro subscription, which are the ones the
-  switch to usage-based pricing applies to. Whether a given one is switched
-  is decided per account by `:usage_based_pricing_switch`.
+  Holds usage-based pricing off for every Air account whose metered cache
+  usage over `[period_start, period_end)` reached a cache allowance, and
+  answers with `%{held:, failed:}`.
+
+  Those are the Air accounts the new allowances would cut off where the
+  previous pricing may not, so they keep the previous pricing until
+  `release_usage_based_pricing_holds/0`. Every other Air account follows the
+  global gate, including one the previous cap blocks today that fits within
+  the new allowances. Test cases never count, because Air is never gated on
+  them.
+  """
+  def hold_usage_based_pricing_for_impacted_air_accounts(%DateTime{} = period_start, %DateTime{} = period_end) do
+    period_start
+    |> UsageMeters.accounts_with_cache_downloads(period_end)
+    |> Enum.chunk_every(1_000)
+    |> Enum.flat_map(&Repo.all(from(a in Account, where: a.id in ^&1, preload: :subscriptions)))
+    |> Enum.filter(fn account ->
+      # The plan check goes first so ClickHouse is only asked about Air accounts.
+      effective_plan(account) == :air and
+        account.id
+        |> UsagePricing.metered_cache_usage(period_start, period_end)
+        |> UsagePricing.cache_allowance_reached?()
+    end)
+    |> Enum.reduce(%{held: [], failed: []}, fn account, result ->
+      case FunWithFlags.disable(:usage_based_pricing, for_actor: account) do
+        {:ok, false} -> %{result | held: result.held ++ [account]}
+        {:error, reason} -> %{result | failed: result.failed ++ [{account.id, reason}]}
+      end
+    end)
+  end
+
+  @doc """
+  Ends the holds on the day the previous pricing stops, and answers with
+  `%{released:, failed:, switch:}`.
+
+  Every held account that is on Air now has its gate cleared, so it follows
+  the global gate. `:usage_based_pricing_switch` is enabled for everyone, so
+  `SwitchUsageBasedPricingWorker` moves each Pro subscription the next time
+  it runs. Held Pro accounts are left to that switch, which enables their
+  gate once their subscription carries the meters: clearing it here would
+  put them on the new pricing with the hit Price still on the subscription.
+  Held enterprise and open source accounts stay held.
+  """
+  def release_usage_based_pricing_holds do
+    result =
+      held_usage_based_pricing_account_ids()
+      |> Enum.chunk_every(1_000)
+      |> Enum.flat_map(&Repo.all(from(a in Account, where: a.id in ^&1, preload: :subscriptions)))
+      |> Enum.filter(&(effective_plan(&1) == :air))
+      |> Enum.reduce(%{released: [], failed: []}, fn account, result ->
+        case FunWithFlags.clear(:usage_based_pricing, for_actor: account) do
+          :ok -> %{result | released: result.released ++ [account]}
+          {:error, reason} -> %{result | failed: result.failed ++ [{account.id, reason}]}
+        end
+      end)
+
+    Map.put(result, :switch, FunWithFlags.enable(:usage_based_pricing_switch))
+  end
+
+  defp held_usage_based_pricing_account_ids do
+    case FunWithFlags.get_flag(:usage_based_pricing) do
+      %FunWithFlags.Flag{gates: gates} ->
+        for %FunWithFlags.Gate{type: :actor, enabled: false, for: "account:" <> id} <- gates,
+            do: String.to_integer(id)
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  The accounts carrying an active or past due Pro subscription, which are the
+  ones the switch to usage-based pricing applies to. Whether a given one is
+  switched is decided per account by `:usage_based_pricing_switch`. A past due
+  subscription keeps its plan while Stripe retries, so it is switched with the
+  rest rather than left behind on the previous pricing.
 
   Only Pro subscriptions. Enterprise terms are contracted per account, and
   open source accounts pay nothing, so neither is migrated by a schedule.
   """
   def accounts_with_pro_subscriptions do
     from(s in Subscription,
-      where: s.status == "active" and s.plan == :pro,
+      where: s.status in ["active", "past_due"] and s.plan == :pro,
       preload: :account
     )
     |> Repo.all()
@@ -975,6 +1074,13 @@ defmodule Tuist.Billing do
     Stripe.Subscription.update(subscription.subscription_id, %{cancel_at_period_end: true})
   end
 
+  @doc """
+  Handles a failed invoice charge reported by Stripe: tells the account's
+  admins about the first failure of an automatically charged subscription
+  invoice. See `Tuist.Billing.PaymentFailedNotifications`.
+  """
+  def on_invoice_payment_failed(invoice), do: PaymentFailedNotifications.enqueue(invoice)
+
   def on_subscription_change(subscription) do
     case Accounts.get_account_from_customer_id(subscription.customer) do
       {:error, :not_found} ->
@@ -1030,7 +1136,56 @@ defmodule Tuist.Billing do
         |> Repo.update!()
     end
 
+    hold_unswitched_pro_subscription(account, plan, subscription)
+    notify_when_turned_unpaid(account, current_subscription, subscription)
+
     :ok
+  end
+
+  # Only the transition is news. The row read before the update carries the
+  # previous status, so a redelivered event finds it already `unpaid`.
+  defp notify_when_turned_unpaid(account, current_subscription, %{status: "unpaid"}) do
+    if is_nil(current_subscription) or current_subscription.status != "unpaid" do
+      PaymentFailedNotifications.enqueue_subscription_unpaid(account)
+    end
+  end
+
+  defp notify_when_turned_unpaid(_account, _current_subscription, _subscription), do: nil
+
+  # Checkout fixes a subscription's line items when the page opens, not when
+  # the customer pays. One opened before the global gate went on and paid
+  # after it arrives carrying the hit Price, for an account nothing holds:
+  # the account would report the meters to a subscription that only bills
+  # hits, and be charged for neither. Holding it keeps it on the pricing its
+  # subscription carries until the switch moves it.
+  #
+  # Only the Pro hit Price bills, so only it triggers a hold; Air and open
+  # source carry a usage Price of their own and pay nothing on it. And only an
+  # account the global gate reaches is held. One with a gate of its own has
+  # been decided already, and a switched account must not be put back by a
+  # webhook that arrives late still listing its old items. A gate that cannot
+  # be written fails the webhook, so Stripe retries it.
+  defp hold_unswitched_pro_subscription(account, "pro", subscription) do
+    if subscription.status in @holdable_subscription_statuses and carries_pro_usage_price?(subscription) and
+         FeatureFlags.usage_based_pricing_enabled?(account) and not usage_based_pricing_gated?(account) do
+      {:ok, false} = FunWithFlags.disable(:usage_based_pricing, for_actor: account)
+    end
+  end
+
+  defp hold_unswitched_pro_subscription(_account, _plan, _subscription), do: nil
+
+  defp carries_pro_usage_price?(subscription) do
+    pro_usage = (Tuist.Environment.stripe_prices() || %{}) |> get_in(["pro", "usage"]) |> List.wrap()
+    Enum.any?(subscription.items.data, &(&1.price.id in pro_usage))
+  end
+
+  defp usage_based_pricing_gated?(account) do
+    target = FunWithFlags.Actor.id(account)
+
+    case FunWithFlags.get_flag(:usage_based_pricing) do
+      %FunWithFlags.Flag{gates: gates} -> Enum.any?(gates, &match?(%FunWithFlags.Gate{type: :actor, for: ^target}, &1))
+      _ -> false
+    end
   end
 
   # A payload that carries no such timestamp clears the column rather than
@@ -1157,13 +1312,20 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Given an account, it returns the latest subscription that is active or trialing.
+  The subscription statuses an account keeps its plan through: `active`,
+  `trialing`, and `past_due` while Stripe retries a failed renewal.
+  """
+  def live_subscription_statuses, do: @live_subscription_statuses
+
+  @doc """
+  Given an account, it returns the latest subscription it keeps its plan
+  through. See `live_subscription_statuses/0`.
   """
   def get_current_active_subscription(%Account{} = account) do
     Repo.one(
       from(s in Subscription,
         where: s.account_id == ^account.id,
-        where: s.status == "active" or s.status == "trialing",
+        where: s.status in ^@live_subscription_statuses,
         order_by: [desc: s.inserted_at],
         limit: 1
       )
@@ -1171,13 +1333,84 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Whether the account lost its paid plan because Stripe gave up collecting a
+  subscription payment, and nothing has replaced that subscription since.
+
+  Such an account resolves to Air like one that never subscribed, but what
+  brings its plan back is paying the open invoice, not upgrading.
+  """
+  def payment_failed?(%Account{} = account) do
+    MapSet.member?(payment_failed_account_ids([account.id]), account.id)
+  end
+
+  @doc """
+  The ids among `account_ids` for which `payment_failed?/1` holds, in one query.
+  """
+  def payment_failed_account_ids([]), do: MapSet.new()
+
+  def payment_failed_account_ids(account_ids) do
+    live_account_ids =
+      from(s in Subscription,
+        where: s.account_id in ^account_ids and s.status in ^@live_subscription_statuses,
+        select: s.account_id
+      )
+
+    from(s in Subscription,
+      where: s.account_id in ^account_ids and s.status == "unpaid",
+      where: s.account_id not in subquery(live_account_ids),
+      distinct: true,
+      select: s.account_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
+  Where the account settles what its subscription owes, or `nil` when it owes
+  nothing: the latest subscription it keeps its plan through, or still owes
+  on, is `past_due` or `unpaid`.
+
+  Paying the open invoice is what returns that subscription to `active`, so
+  this is the invoice's hosted page. Without an open invoice to pay, it is the
+  billing portal, where the payment method is updated for the next attempt.
+  """
+  def outstanding_payment_url(%Account{} = account) do
+    case outstanding_subscription(account) do
+      %Subscription{} = subscription -> payment_settlement_url(account, subscription)
+      nil -> nil
+    end
+  end
+
+  defp outstanding_subscription(%Account{} = account) do
+    from(s in Subscription,
+      where: s.account_id == ^account.id,
+      where: s.status in ^(@live_subscription_statuses ++ @outstanding_subscription_statuses),
+      order_by: [desc: s.inserted_at, desc: s.id],
+      limit: 1
+    )
+    |> Repo.one()
+    |> case do
+      %Subscription{status: status} = subscription when status in @outstanding_subscription_statuses -> subscription
+      _ -> nil
+    end
+  end
+
+  defp payment_settlement_url(%Account{} = account, %Subscription{subscription_id: subscription_id}) do
+    case Stripe.Invoice.list(%{subscription: subscription_id, status: "open", limit: 1}) do
+      {:ok, %{data: [%{hosted_invoice_url: url} | _]}} when is_binary(url) -> url
+      _ -> create_session(account.customer_id).url
+    end
+  end
+
+  @doc """
   Returns the effective plan for an account.
 
-  Accounts without an active or trialing subscription use the Air plan.
+  Accounts without a live subscription use the Air plan. See
+  `live_subscription_statuses/0`.
   """
   def effective_plan(%Account{subscriptions: subscriptions}) when is_list(subscriptions) do
     subscriptions
-    |> Enum.filter(&(&1.status in ["active", "trialing"]))
+    |> Enum.filter(&(&1.status in @live_subscription_statuses))
     |> case do
       [] -> :air
       active -> active |> latest_subscription() |> Map.fetch!(:plan)
@@ -1197,23 +1430,25 @@ defmodule Tuist.Billing do
 
   Only Air accounts are gated. An account whose paid subscription lapsed
   resolves to Air, so it is gated on the same terms as one that never
-  subscribed.
+  subscribed. A subscription Stripe is still retrying a payment for has not
+  lapsed, see `live_subscription_statuses/0`. What exhausts the free tier
+  depends on the pricing the account is on: 200 remote cache hits, or either
+  cache allowance on usage-based pricing.
   """
   def cache_access_blocked?(%Account{} = account) do
-    effective_plan(account) == :air and
-      over_free_tier?(account.current_month_remote_cache_hits_count)
+    effective_plan(account) == :air and over_free_tier?(account)
   end
 
   @doc """
   Starts `account`'s free tier over from now.
 
-  Both fields move together, and the second is the one that is easy to
-  miss. The counter is what `cache_access_blocked?/1` reads, so zeroing
-  it is what unblocks the account. `free_tier_reset_at` is what makes
-  that survive: `CommandEvents.account_month_usage/2` counts events from
-  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left
-  the timestamp behind would be recomputed straight back over the
-  threshold at the next nightly sweep.
+  The counters and the timestamp move together, and the timestamp is the one
+  that is easy to miss. The counters are what `cache_access_blocked?/1`
+  reads, so zeroing them is what unblocks the account. `free_tier_reset_at`
+  is what makes that survive: the nightly refresh counts usage from
+  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left the
+  timestamp behind would be recomputed straight back over the threshold at
+  the next sweep.
 
   This grants a fresh allowance for the rest of the month, not an
   exemption. The reset goes inert on the first of the next month, when
@@ -1223,7 +1458,9 @@ defmodule Tuist.Billing do
     account
     |> Account.free_tier_reset_changeset(%{
       free_tier_reset_at: DateTime.utc_now(),
-      current_month_remote_cache_hits_count: 0
+      current_month_remote_cache_hits_count: 0,
+      current_month_cache_egress_megabytes: 0,
+      current_month_cache_requests: 0
     })
     |> Repo.update()
   end
@@ -1231,15 +1468,15 @@ defmodule Tuist.Billing do
   @doc """
   The ids of the given accounts whose free tier is exhausted.
 
-  Only accounts already past the threshold need their plan resolved, and those
-  are resolved in one query rather than one apiece, so the cache authorization
-  paths do not scale a query per account the subject can reach.
+  Only accounts already past their threshold need their plan resolved, and
+  those are resolved in one query rather than one apiece, so the cache
+  authorization paths do not scale a query per account the subject can reach.
   """
   def cache_blocked_account_ids(accounts) do
     candidates =
       accounts
       |> Enum.uniq_by(& &1.id)
-      |> Enum.filter(&over_free_tier?(&1.current_month_remote_cache_hits_count))
+      |> Enum.filter(&over_free_tier?/1)
 
     case candidates do
       [] ->
@@ -1260,7 +1497,7 @@ defmodule Tuist.Billing do
   defp latest_active_plans(account_ids) do
     from(s in Subscription,
       where: s.account_id in ^account_ids,
-      where: s.status in ["active", "trialing"],
+      where: s.status in ^@live_subscription_statuses,
       order_by: [desc: s.inserted_at, desc: s.id],
       select: {s.account_id, s.plan}
     )
@@ -1269,11 +1506,24 @@ defmodule Tuist.Billing do
     |> Map.new(fn {account_id, [latest | _]} -> {account_id, latest} end)
   end
 
+  # Both counters are refreshed nightly, so neither check reaches ClickHouse
+  # from the cache authorization path. The flag read is an in-memory lookup.
+  defp over_free_tier?(%Account{} = account) do
+    if FeatureFlags.usage_based_pricing_enabled?(account) do
+      UsagePricing.cache_allowance_reached?(%{
+        egress_megabytes: account.current_month_cache_egress_megabytes,
+        requests: account.current_month_cache_requests
+      })
+    else
+      over_remote_cache_hit_threshold?(account.current_month_remote_cache_hits_count)
+    end
+  end
+
   # Elixir orders atoms above numbers, so a nil counter would compare as being
   # over the threshold and deny the account.
-  defp over_free_tier?(nil), do: false
+  defp over_remote_cache_hit_threshold?(nil), do: false
 
-  defp over_free_tier?(count) do
+  defp over_remote_cache_hit_threshold?(count) do
     count >= get_payment_thresholds()[:remote_cache_hits]
   end
 

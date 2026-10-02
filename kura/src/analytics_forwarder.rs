@@ -33,13 +33,14 @@
 //!
 //! # Rollout ordering
 //!
-//! The forwarder ships before the producer routing switch. Compiled but
-//! not called from [`crate::app::run`] yet: PR#4 flips the producer to
-//! append events to the outbox column family and wires the forwarder in
-//! the same commit so activation is atomic. Landing this scaffold first
-//! keeps the store methods it depends on covered by tests without
-//! coupling to a producer-side gate. The `#[allow(dead_code)]` at the
-//! module level exists for exactly that reason.
+//! The forwarder is wired into [`crate::app::run`] via
+//! [`spawn_tasks`], but the producer has not yet been flipped to append
+//! events to the outbox column family. The drain loops therefore idle
+//! against an empty pipeline until the follow-up producer PR lands.
+//! Landing the wiring first means the producer switch is a one-line
+//! routing change rather than a scaffold-plus-routing change, and any
+//! entries that end up in the outbox during a late rollout land in a
+//! release that already drains them.
 //!
 //! # Bounds
 //!
@@ -96,8 +97,6 @@
 //! matches the pre-outbox in-memory path byte-for-byte, so a server
 //! that has not rolled yet keeps accepting the same body shape and the
 //! same headers.
-
-#![allow(dead_code)]
 
 use std::{sync::Arc, time::Duration};
 
@@ -200,35 +199,53 @@ mod result_label {
     pub const READ_FAILED: &str = "outbox_read_failed";
 }
 
-/// Spawn one drain task per pipeline. The tasks exit cleanly when the
-/// shared [`CancellationToken`] fires. Callers own the join handles; the
-/// current wiring drops them at shutdown because the store is already
-/// durable, so an interrupted drain resumes on the next boot.
+/// Wire the forwarder into [`crate::app::run`]. No-op when analytics is
+/// disabled. Each pipeline runs through [`crate::replication::spawn_supervised`]
+/// so a panic in one drain loop respawns after a 1 s backoff and bumps
+/// the `background_panic_analytics_forwarder_*` metric, matching how
+/// every other long-lived background task in this crate is supervised.
 ///
-/// Not invoked from [`crate::app::run`] in this PR; the follow-up PR
-/// that flips the producer to the outbox wires this at startup in the
-/// same commit.
-pub fn spawn_forwarders(
-    store: Arc<Store>,
-    client: Client,
-    config: ForwarderConfig,
-    metrics: Metrics,
-    cancel: CancellationToken,
-) -> Vec<tokio::task::JoinHandle<()>> {
-    Pipeline::ALL
-        .iter()
-        .copied()
-        .map(|pipeline| {
-            let store = Arc::clone(&store);
-            let client = client.clone();
-            let config = config.clone();
-            let metrics = metrics.clone();
-            let cancel = cancel.clone();
-            tokio::spawn(async move {
-                drain_pipeline(store, client, config, metrics, pipeline, cancel).await;
-            })
-        })
-        .collect()
+/// The tasks live until the process exits; the store is durable, so an
+/// interrupted drain resumes on the next boot. The pattern matches
+/// [`crate::usage::Usage::spawn_tasks`], which follows the same "run
+/// until the runtime drops" contract.
+pub fn spawn_tasks(state: &crate::state::SharedState) {
+    if state.config.analytics.is_none() {
+        return;
+    }
+
+    for pipeline in Pipeline::ALL {
+        let name: &'static str = match pipeline {
+            Pipeline::GradleCache => "analytics_forwarder_gradle_cache",
+            Pipeline::XcodeCache => "analytics_forwarder_xcode_cache",
+            Pipeline::ReapiCache => "analytics_forwarder_reapi_cache",
+        };
+        crate::replication::spawn_supervised(name, state.clone(), move |state| {
+            // Every field is rebuilt per (re)spawn: on a panic, the
+            // supervisor restarts the closure, and picking up a fresh
+            // `state.client` snapshot means a TLS/cert rotation between
+            // panic and respawn is not stuck on the old handle.
+            let store = Arc::clone(&state.store);
+            let client = (**state.client.load()).clone();
+            let metrics = state.metrics.clone();
+            let analytics_config = state
+                .config
+                .analytics
+                .as_ref()
+                .expect("spawn_tasks pre-checked analytics is Some");
+            let config = ForwarderConfig::defaults(
+                analytics_config.server_url.clone(),
+                analytics_config.signing_key.clone(),
+                crate::analytics::analytics_endpoint(&state.config.node_url),
+            );
+            // No shared cancellation token: each supervised body owns
+            // its own so a panic-driven restart cannot inherit a fired
+            // token from a previous iteration. The store's durability
+            // is what makes the "drop on process exit" contract safe.
+            let cancel = CancellationToken::new();
+            drain_pipeline(store, client, config, metrics, pipeline, cancel)
+        });
+    }
 }
 
 /// Drain loop body. Exposed for tests so the loop can be run against a

@@ -32,7 +32,7 @@ the same `A-n` tag):
 | A-2 | Echo rule | a change applied from the sibling writes no row; a no-op apply writes no row |
 | A-3 | Seq monotonic across reopen; incarnation stable across reopen, new on an empty dir | values compared across `Store::open` |
 | A-4 | Trim below the consumer cursor; floor meta advances; range delete | rows below cursor gone, floor == cursor |
-| A-5 | Cap drops oldest, never blocks a write | write succeeds at cap; oldest row gone; dropped counter +1 |
+| A-5 | Cap drops oldest in batches, never blocks a write | write succeeds at cap; the feed overshoots by one trim batch, then the oldest rows go and the dropped counter rises by the batch |
 | A-6 | Activation by `{head}`; off after the stale window | no rows before the first `{head}`; rows after; rows dropped after the window |
 | A-7 | Endpoint four cases | `{entries,next,head}` / `{head}` / `410 floor` / `410 incarnation` |
 | A-8 | Long-poll wakes on commit, returns on `wait` | latency < wait when a commit lands; == wait when idle |
@@ -70,6 +70,7 @@ the same `A-n` tag):
 | A-35 | Self-hosted peer views do not expose managed pod roles | a self-hosted credential receives an empty `peer_roles` list even when the account has stored internal pod roles; the managed credential still receives them |
 | A-36 | Endpoint permission skew holds evacuation | a forbidden core Endpoints read returns “not served” without an error, so the controller retains the pod until its chart permissions catch up |
 | A-37 | Slow regional role reads do not serialize a tick | two blocked peer-role observations both start before either is released, under the reconciler's bounded worker group |
+| A-38 | The region link reports lag, not watermark age (D-37) | the newest listed version follows commits of the node's own region only and is seeded from the index after a restart; a region link held at its first bodies fetch reports the gap from its watermark to the source's newest version, then zero once caught up while the watermark age keeps growing with the idle source; a source holding its listing behind a sibling link reads as lag; an unreachable source makes the lag grow instead of freezing |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 

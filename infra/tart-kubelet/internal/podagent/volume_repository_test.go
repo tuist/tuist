@@ -345,8 +345,13 @@ func TestMaybeMaterializeVolumeConvergesThePodsVolume(t *testing.T) {
 
 	store := NewStore()
 	store.Put("ns", "pod", &Entry{VMName: "vm-a", Volume: att, VolumeStatusDir: statusDir})
-	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r := &Reconciler{Store: store, Volumes: m, Converge: startTestConvergeWorker(t, m), ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
 	r.maybeMaterializeVolume(materializePod("42", repoVolumeA))
+	// The job holds its branch until it finishes, and on a host without the
+	// memory to download beside a job the worker waits for that.
+	if _, err := m.Finalize(att, "42", true, false); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {

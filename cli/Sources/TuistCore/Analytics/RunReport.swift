@@ -7,17 +7,24 @@ public struct RunReportTestRun: Sendable, Equatable {
     public let totalTests: Int
     public let skippedTests: Int
     public let failedTestNames: [String]
+    public let ranTestModules: Int
+    /// Test modules selective testing skipped. `nil` when selective testing didn't apply.
+    public let skippedTestModules: Int?
 
     public init(
         scheme: String,
         totalTests: Int,
         skippedTests: Int,
-        failedTestNames: [String]
+        failedTestNames: [String],
+        ranTestModules: Int,
+        skippedTestModules: Int?
     ) {
         self.scheme = scheme
         self.totalTests = totalTests
         self.skippedTests = skippedTests
         self.failedTestNames = failedTestNames
+        self.ranTestModules = ranTestModules
+        self.skippedTestModules = skippedTestModules
     }
 
     public var ranTests: Int { max(0, totalTests - skippedTests) }

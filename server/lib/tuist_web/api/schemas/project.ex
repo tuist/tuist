@@ -3,7 +3,6 @@ defmodule TuistWeb.API.Schemas.Project do
   The schema for the project response.
   """
   alias OpenApiSpex.Schema
-  alias TuistWeb.API.Schemas.ProjectBuildSystem
 
   require OpenApiSpex
 
@@ -39,7 +38,13 @@ defmodule TuistWeb.API.Schemas.Project do
         description: "The visibility of the project",
         enum: [:private, :public]
       },
-      build_system: ProjectBuildSystem.schema()
+      # Not an enum: see the response-enum note in lib/tuist_web/api/AGENTS.md.
+      build_system: %Schema{
+        type: :string,
+        description:
+          "The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.",
+        example: "xcode"
+      }
     }
   })
 end

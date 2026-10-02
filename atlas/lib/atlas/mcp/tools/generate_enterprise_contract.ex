@@ -49,7 +49,7 @@ defmodule Atlas.MCP.Tools.GenerateEnterpriseContract do
 
   @impl EMCP.Tool
   def description do
-    "Use this whenever the user asks to generate or prepare an enterprise contract, contract package, Master Services Agreement, or order form. Returns the official Atlas workflow that retrieves customer data and attaches the correct Word templates."
+    "Use this whenever the user asks to generate or prepare an enterprise contract, contract package, Master Services Agreement, or order form. Returns the official Atlas workflow that retrieves customer data and fetches the correct Word templates."
   end
 
   def execute(conn, args) do

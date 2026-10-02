@@ -50,7 +50,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // settings carry no default, for staged adoption), so opt in explicitly.
         // Enabling them changes every key, but only ever at a boundary where the
         // compiler version already invalidated the cache.
-        if await isPrefixMappingSupported() {
+        if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = "YES"
             baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = "YES"
@@ -143,7 +143,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
     /// A version that can't be determined degrades to `false` — the status quo,
     /// path-dependent keys — rather than failing generation over a cache
     /// optimization.
-    private func isPrefixMappingSupported() async -> Bool {
+    static func isPrefixMappingSupported() async -> Bool {
         guard let version = try? await XcodeController.current.selectedVersion() else { return false }
         return version >= Version(27, 0, 0)
     }

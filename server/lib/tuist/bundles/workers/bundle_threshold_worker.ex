@@ -87,8 +87,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   end
 
   defp resolve_head_sha(project, bundle, fallback_sha) do
-    with "refs/pull/" <> rest <- bundle.git_ref,
-         {pr_number, _} <- Integer.parse(rest),
+    with pr_number when is_integer(pr_number) <- VCS.pull_request_number_from_git_ref(bundle.git_ref),
          {:ok, %{"head" => %{"sha" => head_sha}}} <-
            Client.get_pull_request(%{
              repository_full_handle: project.vcs_connection.repository_full_handle,

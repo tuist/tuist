@@ -1,0 +1,119 @@
+name: Kura Release Candidate
+
+# Publish a release candidate (kura@X.Y.0-rc.N) for the upcoming stable
+# minor.
+#
+# Two modes, selected by the `branch` input:
+#
+#   1. Cut a new line (branch empty): publishes X.Y.0-rc.1 for the current
+#      canary minor and, only after that publish succeeds, creates the
+#      protected releases/kura-<major>.<minor>.x branch at the built commit.
+#      The moment that RC tag exists, main's canary advances to the next
+#      minor, so main keeps moving while the line soaks.
+#
+#   2. Iterate an existing line (branch=releases/kura-X.Y.x): after fixes /
+#      regressions are cherry-picked onto the release branch via PR,
+#      publishes X.Y.0-rc.(N+1) from the branch HEAD.
+#
+# RCs are GitHub prereleases: never "Latest", never move :latest on GHCR.
+#
+# Every Monday a new line is cut from main right after the scheduled
+# kura-promote.yml run succeeds, aligned with the server + CLI trains.
+on:
+  workflow_run:
+    workflows: [Kura Promote to Stable]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Existing release branch to iterate an RC on (releases/kura-<major>.<minor>.x). Leave empty to cut a new RC line from main."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  id-token: write
+
+concurrency:
+  # Shared with kura-promote.yml so RC and stable version resolution and tag
+  # creation never race. Canaries (kura-release.yml) use their own group.
+  group: kura-stable-publish
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  prepare:
+    name: Resolve RC version
+    if: >-
+      github.repository == 'tuist/tuist' &&
+      (github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.conclusion == 'success'))
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      branch: ${{ steps.resolve.outputs.branch }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch == '' && github.event.repository.default_branch || inputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: resolve
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BRANCH" ]; then
+            mise run --no-deps --skip-tools kura:release:channel-version -- rc-new
+          else
+            mise run --no-deps --skip-tools kura:release:channel-version -- rc "$BRANCH"
+          fi
+
+  build-publish:
+    name: Build and publish RC
+    needs: prepare
+    uses: ./.github/workflows/kura-build-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ needs.prepare.outputs.sha }}
+      changelog_from: ${{ needs.prepare.outputs.changelog_from }}
+      make_latest: false
+      prerelease: true
+    secrets: inherit
+
+  create-branch:
+    name: Create the release branch
+    needs: [prepare, build-publish]
+    if: ${{ inputs.branch == '' }}
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Push the release branch at the published commit
+        env:
+          NEW_BRANCH: ${{ needs.prepare.outputs.branch }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git push origin "${SHA}:refs/heads/${NEW_BRANCH}"

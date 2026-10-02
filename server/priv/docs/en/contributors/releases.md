@@ -7,16 +7,17 @@
 ---
 # Releases
 
-Tuist publishes new versions automatically as changes are merged to the main branch. The server and app are released continuously, so improvements reach users immediately. The CLI builds on the same tooling but ships through release channels (canary, release candidate, stable) so the recommended install stays stable and slow-moving; cutting a release candidate and promoting it to stable are deliberate, maintainer-triggered steps.
+Tuist publishes new versions automatically as changes are merged to the main branch. The CLI, the server, and the Kura cache server all ship through release channels (canary, release candidate, stable) so the recommended install stays stable and slow-moving; cutting a release candidate and promoting it to stable are deliberate, weekly steps. The app is released continuously (the iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release)).
 
 ## Overview
 
 We release these main components:
-- **Tuist CLI** - The command-line tool, shipped through canary, release candidate, and stable [channels](#cli-release-channels)
-- **Tuist Server** - The backend services, released continuously
+- **Tuist CLI** - The command-line tool, shipped through canary, release candidate, and stable [channels](#release-channels)
+- **Tuist Server** - The backend services, shipped through the same channel model as the CLI
+- **Kura** - The cache server, shipped through the same channel model as the CLI
 - **Tuist App** - The macOS and iOS apps, released continuously (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release))
 
-The server and app publish automatically on every push to the main branch. The CLI publishes a canary prerelease on every push, but reaches a stable release only when a maintainer cuts and promotes it (see [CLI release channels](#cli-release-channels)).
+Every push to `main` publishes a canary prerelease for the CLI, the server, and Kura. A stable release for each of those components is cut only when a maintainer promotes a soaked release candidate, and the weekly schedule fires all three trains in lockstep (see [Release channels](#release-channels)). The app publishes stable on every push to `main`.
 
 ## How it works
 
@@ -72,7 +73,7 @@ When releasable changes are detected:
 5. **Release creation**: A GitHub release is created with artifacts
 6. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for CLI)
 
-For the server and app this produces a stable release. For the CLI this same automatic pipeline produces a **canary** prerelease only; release candidates and stable releases are cut manually (see [CLI release channels](#cli-release-channels)).
+For the app this produces a stable release on every merge. For the CLI, the server, and Kura, this same automatic pipeline produces a **canary** prerelease only; release candidates and stable releases are cut on the weekly release train (see [Release channels](#release-channels)).
 
 ### 4. Scope filtering
 
@@ -82,37 +83,45 @@ Each component only releases when it has relevant changes:
 - **App**: Commits with `(app)` scope
 - **Server**: Commits with `(server)` scope
 
-## CLI release channels
+## Release channels
 
-Unlike the server and app, the CLI is not promoted to a stable release on every push to `main`. It ships through three channels so the recommended install stays stable and slow-moving while early adopters keep per-commit builds. The <.localized_link href="/cli/release-channels">Release channels</.localized_link> page documents this from a user's perspective; this section is the maintainer runbook.
+The CLI, the server, and Kura are not promoted to a stable release on every push to `main`. Each ships through three channels so the recommended install stays stable and slow-moving while early adopters keep per-commit builds. The user-facing documentation lives at <.localized_link href="/cli/release-channels">CLI release channels</.localized_link> and <.localized_link href="/guides/server/self-host/release-channels">Server release channels</.localized_link>; this section is the maintainer runbook.
+
+Every component uses the same three channels:
 
 | Channel | Version | Cut by |
 |---------|---------|--------|
-| Canary | `X.Y.0-canary.N` | Automatically, on every CLI-touching push to `main` (`cli-release.yml`) |
-| Release candidate | `X.Y.0-rc.N` | Every Monday, or manually, on a `releases/<major>.<minor>.x` branch (`cli-rc.yml`) |
-| Stable | `X.Y.Z` | Every Monday, or manually, by promoting a soaked RC (`cli-promote.yml`); patches via `cli-backport.yml` |
+| Canary | `X.Y.0-canary.N` | Automatically, on every component-touching push to `main` (`<component>-release.yml`; for Kura, called by `server-production-deployment.yml` when `kura/` changed) |
+| Release candidate | `X.Y.0-rc.N` | Every Monday, or manually, on a `releases/<component>-<major>.<minor>.x` branch (`<component>-rc.yml`) |
+| Stable | `X.Y.Z` | Every Monday, or manually, by promoting a soaked RC (`<component>-promote.yml`); patches via `<component>-backport.yml` |
 
-Canary and RC builds are published as GitHub prereleases (never marked "Latest", never pushed to Homebrew), so package managers only resolve them on explicit opt-in. Canary always targets the next unreleased minor: once an RC line is cut, `main`'s canary advances to the following minor.
+Canary and RC builds are published as GitHub prereleases (never marked "Latest", never move `:latest` on GHCR, never pushed to Homebrew for the CLI), so package managers and image resolvers only pick them up on explicit opt-in. Canary always targets the next unreleased minor: once an RC line is cut, `main`'s canary advances to the following minor.
 
-You never hand-pick version numbers. Every channel's next version is derived from the existing git tags by `mise/tasks/cli/release/channel-version.sh`, which the workflows below invoke.
+Hosted Tuist does not wait for the stable train: the server deploys per commit, and hosted canary and production run the newest Kura canary. The deploy cascade publishes that canary itself before deploying it, so `kura-release.yml` has no trigger of its own. Changes to the Kura release tooling alone (`mise/tasks/kura/**`, the `kura-*.yml` workflows) do not cut a canary.
+
+You never hand-pick version numbers. Every channel's next version is derived from the existing git tags by `mise/tasks/<component>/release/channel-version.sh`, which the workflows below invoke.
+
+Release branches are namespaced per component (`releases/server-X.Y.x`, `releases/kura-X.Y.x`, `releases/X.Y.x` for the CLI) so the three components' lines never collide at the same minor.
 
 ### Weekly schedule
 
-Every Monday at 06:00 UTC, **CLI Promote to Stable** promotes the newest RC line that is not yet stable, which is normally the line cut the previous Monday. If there is no such line, it publishes nothing. When it completes, whatever the outcome, **CLI Release Candidate** cuts the next line from `main`.
+Every Monday at 06:00 UTC, the three components' promote jobs run in lockstep: **CLI Promote to Stable**, **Server Promote to Stable**, and **Kura Promote to Stable**. Each promotes the newest RC line that is not yet stable, which is normally the line cut the previous Monday. If there is no such line, that job publishes nothing.
+
+When a promote completes, whatever the outcome, its matching **Release Candidate** workflow (`cli-rc.yml`, `server-rc.yml`, `kura-rc.yml`) fires via `workflow_run` and cuts the next line from `main`.
 
 If either scheduled run fails or is cancelled, a message is posted to Slack. A promotion fails when the release branch has commits after its latest RC. To ship that line, cut a new RC on it and promote it manually. Otherwise, the next Monday promotes the newer line instead.
 
 ### Cutting a release candidate
 
-To cut a new line outside the weekly schedule:
+To cut a new line outside the weekly schedule (substitute the component's workflow name below):
 
-1. Run the **CLI Release Candidate** workflow (`cli-rc.yml`) with an empty `branch` input.
-2. It publishes `X.Y.0-rc.1` and, after that succeeds, creates the protected `releases/X.Y.x` branch at the built commit.
+1. Run the **&lt;Component&gt; Release Candidate** workflow (for example `server-rc.yml`) with an empty `branch` input.
+2. It publishes `X.Y.0-rc.1` and, after that succeeds, creates the protected `releases/<component>-X.Y.x` branch at the built commit.
 
 To pull a critical fix or regression into a soaking line, cherry-pick it onto the release branch through a PR (the same flow as backports; CI never cherry-picks), then iterate the RC:
 
-1. Branch off `releases/X.Y.x`, cherry-pick the fix, open a PR back into the release branch, resolve any conflicts there, and merge.
-2. Run **CLI Release Candidate** again with `branch=releases/X.Y.x`. It publishes `X.Y.0-rc.(N+1)` from the branch HEAD.
+1. Branch off `releases/<component>-X.Y.x`, cherry-pick the fix, open a PR back into the release branch, resolve any conflicts there, and merge.
+2. Run the **Release Candidate** workflow again with `branch=releases/<component>-X.Y.x`. It publishes `X.Y.0-rc.(N+1)` from the branch HEAD.
 
 A soaking line is feature-frozen: only critical fixes and regressions go onto it.
 
@@ -120,14 +129,16 @@ A soaking line is feature-frozen: only critical fixes and regressions go onto it
 
 To promote a line outside the weekly schedule, after its RC has soaked cleanly:
 
-1. Run the **CLI Promote to Stable** workflow (`cli-promote.yml`) with `branch=releases/X.Y.x`.
-2. It publishes the bare `X.Y.0` tag with `make_latest=true` and updates the Homebrew formula.
+1. Run the **&lt;Component&gt; Promote to Stable** workflow (for example `server-promote.yml`) with `branch=releases/<component>-X.Y.x`.
+2. It publishes the semver-tagged image with `make_latest=true`, moving the GHCR `:latest` tag and the GitHub "Latest" pointer. The CLI additionally updates the Homebrew formula.
 
 Promotion refuses to run unless the branch HEAD is exactly the commit the latest RC points at. So if any fix merged onto the line after the last RC, you must cut a new RC and let it soak before it can ship as stable.
 
 ### Backporting fixes to a stable line
 
-Once a line is stable, ship patches with the **CLI Backport Release** workflow (`cli-backport.yml`): cherry-pick the fix onto `releases/X.Y.x` through a PR, then run the workflow with that branch to cut `X.Y.(Z+1)`. Backports never move the "Latest" pointer or the Homebrew formula. Two lines are maintained at a time: the current line takes regressions and security fixes, the previous line takes critical and security fixes only. Other bug fixes are not backported and ship with the next minor.
+Once a line is stable, ship patches with the CLI-only **Backport Release** workflow (`cli-backport.yml`): cherry-pick the fix onto `releases/X.Y.x` through a PR, then run the workflow with that branch to cut `X.Y.(Z+1)`. Backports never move the "Latest" pointer or the Homebrew formula. Two lines are maintained at a time: the current line takes regressions and security fixes, the previous line takes critical and security fixes only. Other bug fixes are not backported and ship with the next minor.
+
+For the server and Kura, backports today are cut by running the promote workflow against the older release branch. Follow-up work will add dedicated backport workflows mirroring the CLI's.
 
 ## Writing good commit messages
 
@@ -157,17 +168,18 @@ Users need to clear their cache after updating.
 
 ## Release workflows
 
-The server, Kura, the Helm chart, and the infrastructure images release through `.github/workflows/server-production-deployment.yml`. It runs on pushes to main and cascades canary → acceptance tests → production. The app, cache, Gradle plugin, skills, Noora, and the standalone infra controllers each have a dedicated `*-release.yml` workflow. All of them share change detection: `mise/tasks/release/components.json` declares each component's tag prefix and include paths, and git cliff turns the matching commits into release notes.
+The CLI, the server, and Kura each have their own set of channel workflows, following the same shape:
 
-The CLI has its own set of workflows:
+- `<component>-release.yml` - publishes a canary on every component-touching push to `main` (Kura's is a reusable workflow that `server-production-deployment.yml` calls when `kura/` changed)
+- `<component>-rc.yml` - cuts a release candidate every Monday (via `workflow_run` after the promote), or manually cuts or iterates one
+- `<component>-promote.yml` - promotes the pending RC to stable every Monday at 06:00 UTC, or manually promotes a soaked RC
+- `<component>-build-publish.yml` - the shared build and publish pipeline the three above call
 
-- `cli-release.yml` - publishes a canary on every CLI-touching push to main
-- `cli-rc.yml` - cuts a release candidate every Monday, or manually cuts or iterates one
-- `cli-promote.yml` - promotes the pending RC to stable every Monday, or manually promotes a soaked RC
-- `cli-backport.yml` - manually cuts a patch on a stable line
-- `cli-build-publish.yml` - the shared build and publish pipeline the four above call
+The CLI additionally has `cli-backport.yml` for cutting patches on a stable line. All of a component's workflows serialize through one `<component>-publish` concurrency group so version resolution and tagging never race. Kura is the exception: its canary uses `kura-canary-publish` and its RC and promote use `kura-stable-publish`, so a long RC or promote build never holds up the deploy cascade. The tag namespaces are disjoint, so the two groups cannot collide.
 
-The CLI build (`cli-build-publish.yml`) also produces and publishes a `tuist.spec.json` artifact (generated from `tuist --experimental-dump-help`) so downstream tooling can consume the command interface. All CLI workflows serialize through one `cli-publish` concurrency group so version resolution and tagging never race.
+The Helm chart and the infrastructure images (CAPI operator, runners controller, xcresult processor image, linux runner image, and so on) still release through `.github/workflows/server-production-deployment.yml`. It runs on pushes to `main` and cascades canary → acceptance tests → production for the hosted deploy, and publishes those infra components as they change. The app, cache, Gradle plugin, skills, Noora, and the standalone infra controllers each have a dedicated `*-release.yml` workflow. All of them share change detection: `mise/tasks/release/components.json` declares each component's tag prefix and include paths, and git cliff turns the matching commits into release notes.
+
+The CLI build (`cli-build-publish.yml`) also produces and publishes a `tuist.spec.json` artifact (generated from `tuist --experimental-dump-help`) so downstream tooling can consume the command interface.
 
 ## Monitoring releases
 

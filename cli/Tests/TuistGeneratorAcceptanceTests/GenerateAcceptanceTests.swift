@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -8,6 +7,7 @@ import TuistAcceptanceTesting
 import TuistEnvironment
 import TuistLoggerTesting
 import TuistLogging
+import TuistProcess
 import TuistSupport
 import TuistTesting
 import XcodeProj

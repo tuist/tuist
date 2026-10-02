@@ -2158,7 +2158,7 @@
               "transformations": []
             }
           },
-          "description": "Public requests shed for capacity, by which limit refused them\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
+          "description": "Capacity rejections by limit. reapi_materialization is a remote-execution read refused because the response memory pool stayed full (or memory pressure shrank the per-request budget); reapi_request_budget is one request asking for more response bytes than a single response may carry at normal pressure, and sheds on an idle pool. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
           "id": 12,
           "links": [],
           "title": "capacity_sheds_total (rate)",
@@ -4639,7 +4639,7 @@
               "transformations": []
             }
           },
-          "description": "Segment count as a percentage of the segment ring's desired total\n\nPrometheus name: `kura_backfill_ring_fullness_percent`",
+          "description": "Segment count as a percentage of the effective segment-ring total. Quota-pressure reclamation can lower the denominator below the configured ceiling; a full ring can therefore represent less retained data. The pressure ceiling is process-local and resets on restart.\n\nPrometheus name: `kura_backfill_ring_fullness_percent`",
           "id": 146,
           "links": [],
           "title": "backfill_ring_fullness_percent",
@@ -6823,7 +6823,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (pod, pipeline) (kura_analytics_circuit_state{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "expr": "max by (pod, pipeline) (kura_analytics_circuit_state{cluster=~\"tuist-$env\", pod=~\"$pod\", pipeline=\"bazel_invocations\"})",
                         "instant": false,
                         "legendFormat": "{{pod}} · {{pipeline}}",
                         "range": true
@@ -6838,7 +6838,7 @@
               "transformations": []
             }
           },
-          "description": "Analytics circuit breaker state where 0=closed, 1=open, 2=half_open\n\nPrometheus name: `kura_analytics_circuit_state` · labels: pipeline",
+          "description": "Bazel invocation analytics circuit breaker state where 0=closed, 1=open, 2=half_open. Xcode, Gradle, and REAPI cache pipelines route through the durable outbox and the forwarder owns retry/backoff, so no gauge is emitted for them.\n\nPrometheus name: `kura_analytics_circuit_state` · labels: pipeline",
           "id": 165,
           "links": [],
           "title": "analytics_circuit_state",
@@ -6944,7 +6944,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (pod, pipeline, from, to) (rate(kura_analytics_circuit_transitions_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (pod, pipeline, from, to) (rate(kura_analytics_circuit_transitions_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\", pipeline=\"bazel_invocations\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "{{pod}} · {{pipeline}} / {{from}} / {{to}}",
                         "range": true
@@ -6959,7 +6959,7 @@
               "transformations": []
             }
           },
-          "description": "Analytics circuit breaker transitions by pipeline\n\nPrometheus name: `kura_analytics_circuit_transitions_total_total` · labels: pipeline, from, to",
+          "description": "Bazel invocation analytics circuit breaker transitions. Xcode, Gradle, and REAPI cache pipelines route through the durable outbox, so no transitions are emitted for them.\n\nPrometheus name: `kura_analytics_circuit_transitions_total_total` · labels: pipeline, from, to",
           "id": 166,
           "links": [],
           "title": "analytics_circuit_transitions_total (rate)",
@@ -7440,7 +7440,7 @@
               "transformations": []
             }
           },
-          "description": "Capacity-eviction reports dropped because the pending queue for the usage reporter was full\n\nPrometheus name: `kura_capacity_eviction_reports_dropped_total_total`",
+          "description": "Segment-eviction reports dropped because the shared capacity/pressure reporting queue was full\n\nPrometheus name: `kura_capacity_eviction_reports_dropped_total_total`",
           "id": 170,
           "links": [],
           "title": "capacity_eviction_reports_dropped_total (rate)",
@@ -12455,7 +12455,7 @@
               "transformations": []
             }
           },
-          "description": "Artifacts removed when old segments are evicted\n\nPrometheus name: `kura_segment_evicted_artifacts_total_total` · labels: producer, result",
+          "description": "Artifacts removed by ordinary capacity eviction or quota-pressure cleanup. Use the pressure byte panel to distinguish them. Prometheus: kura_segment_evicted_artifacts_total_total; labels: producer, result.",
           "id": 38,
           "links": [],
           "title": "segment_evicted_artifacts_total (rate)",
@@ -20502,7 +20502,7 @@
               "transformations": []
             }
           },
-          "description": "Arrival-feed rows retained between the trim floor and the head: what the sibling has not yet consumed. Near zero while a sibling long-polls over loopback. Climbing means the sibling is down or slow; at the cap (`KURA_SYNC_FEED_MAX_ROWS`, 1,000,000 by default) the oldest rows are dropped rather than a write being refused. Zero on a region of one, which carries no feed, and on a node whose feed has never been switched on by a pulling sibling.\n\nPrometheus name: `kura_sync_forward_index_entries`",
+          "description": "Arrival-feed rows retained between the trim floor and the head: what the sibling has not yet consumed. Near zero while a sibling long-polls over loopback. Climbing means the sibling is down or slow; at the cap (`KURA_SYNC_FEED_MAX_ROWS`, 1,000,000 by default) the oldest rows are dropped rather than a write being refused. The feed overshoots the cap by up to one trim batch (1,024 rows) before dropping back to it, so a pinned feed reads slightly above the cap. Zero on a region of one, which carries no feed, and on a node whose feed has never been switched on by a pulling sibling.\n\nPrometheus name: `kura_sync_forward_index_entries`",
           "id": 214,
           "links": [],
           "title": "sync_forward_index_entries",
@@ -20594,7 +20594,7 @@
               "transformations": []
             }
           },
-          "description": "Arrival-feed rows dropped at the cap before a sibling read them. Non-zero means a sibling fell off the feed and will re-bootstrap (snapshot, backward pass, forward). On loopback this should be approximately never, so treat any increase as an alert rather than a trend: the sibling was down for longer than the feed could cover, or the cap is smaller than the sizing rule requires (it must hold the writes that land during the longest backward pass a sibling can need).\n\nPrometheus name: `kura_sync_forward_index_dropped_total_total`",
+          "description": "Arrival-feed rows dropped at the cap before a sibling read them, in steps of one trim batch (1,025 rows) at a time. Non-zero means a sibling fell off the feed and will re-bootstrap (snapshot, backward pass, forward). On loopback this should be approximately never, so treat any increase as an alert rather than a trend: the sibling was down for longer than the feed could cover, or the cap is smaller than the sizing rule requires (it must hold the writes that land during the longest backward pass a sibling can need).\n\nPrometheus name: `kura_sync_forward_index_dropped_total_total`",
           "id": 215,
           "links": [],
           "title": "sync_forward_index_dropped_total (rate)",
@@ -23342,6 +23342,282 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-244": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_reapi_inline_fallbacks_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Output files skipped during best-effort wildcard inlining because the response memory budget or shared pool could not admit them. Counted per file, not per RPC; the action lookup can still succeed and the client can fetch the omitted blob separately. Explicit inline failures remain in capacity_sheds with kind=reapi_materialization. Client size-hint skips and missing blobs are not counted. Older replicas do not expose this metric and still include optional fallbacks in their shedding counters.\n\nPrometheus name: `kura_reapi_inline_fallbacks_total_total`",
+          "id": 244,
+          "links": [],
+          "title": "Optional REAPI inlining fallbacks (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-245": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_disk_pressure_reclaimed_bytes_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Quota-pressure cleanup, separate from capacity churn. Counts logical segment bytes unlinked; open readers may delay physical release. A flat rate with disk_full can mean pinned writes, the five-segment floor, or no availability progress. Prometheus name: kura_disk_pressure_reclaimed_bytes_total_total.",
+          "id": 245,
+          "links": [],
+          "title": "Disk pressure reclamation (bytes/sec)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "Bps"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-246": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (region) (kura_region_sync_lag_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{region}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Cross-region replication lag in origin version time: the newest version the remote gateway has committed for its region (`newest_version_ms` on each listing page, including what its listing still holds back) minus the newest version applied here. Zero when caught up, including while the remote region is idle — unlike `region_watermark_age_seconds`, which ages through every quiet stretch. Only the pod holding the gateway role reports it (the role moves on restarts and membership blips), so the panel aggregates by region. It is sampled on each listing response; while the link cannot reach the remote gateway it grows by the silence beyond one long-poll on top of the last sample, and `region_sync_last_success_age_seconds` says how long that has been. A remote gateway on a release without `newest_version_ms` reports only caught-up samples.\n\nPrometheus name: `kura_region_sync_lag_seconds` · labels: region",
+          "id": 246,
+          "links": [],
+          "title": "region_sync_lag_seconds",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -23840,11 +24116,24 @@
                         "x": 0,
                         "y": 21
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-244"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "HTTP, gRPC & request admission (10)"
+              "title": "HTTP, gRPC & request admission (11)"
             }
           },
           {
@@ -24348,6 +24637,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-245"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 42
                       }
                     }
                   ]
@@ -25903,6 +26205,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-246"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 42
                       }
                     }
                   ]

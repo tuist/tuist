@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Path
@@ -6,6 +5,7 @@ import TuistConfig
 import TuistCore
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 import TuistSupport
 
 public protocol SwiftPackageManagerInteracting {

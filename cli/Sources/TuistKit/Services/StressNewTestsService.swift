@@ -139,6 +139,10 @@ public struct StressNewTestsResult: Equatable, Sendable {
 
     public var blockingCandidates: [StressNewTestsCandidate] { candidates.filter(\.blocks) }
 
+    /// The test targets whose selective-testing hash is not stored, in either mode. Storing it would let
+    /// the next run skip the target, so a flaky new test case would stop being reported after one run.
+    public var withheldTargetNames: Set<String> { Set(blockingCandidates.map(\.identifier.target)) }
+
     /// Whether the run must fail: only in `enforce`, and only on a flaky test case the gate holds against the run.
     public var blocks: Bool { mode == .enforce && !blockingCandidates.isEmpty }
 

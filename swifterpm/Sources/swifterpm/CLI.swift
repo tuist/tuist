@@ -593,6 +593,8 @@ enum CLIRunner {
             let resolved = try await ResolvedFile.read(packageDir: package)
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: try await MirrorConfig.load(
+                    packageDir: package, configPath: paths.resolve(cli.configPath)),
                 resolved: resolved,
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox)
@@ -705,6 +707,8 @@ enum CLIRunner {
         if shouldRestore(restore: restore, printOnly: printOnly) {
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: try await MirrorConfig.load(
+                    packageDir: package, configPath: paths.resolve(cli.configPath)),
                 resolved: resolved,
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox)

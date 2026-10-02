@@ -71,7 +71,7 @@ python3 -m venv "$DMGBUILD_VENV"
 "$DMGBUILD_VENV/bin/dmgbuild" \
     --settings "$MISE_PROJECT_ROOT/app/dmg-settings.py" \
     -D app="$BUILD_DIRECTORY_BINARY" \
-    -D background="$MISE_PROJECT_ROOT/assets/dmg-background.png" \
+    -D background="$MISE_PROJECT_ROOT/assets/dmg-background.tiff" \
     "Tuist App" "$BUILD_DMG_PATH"
 
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"

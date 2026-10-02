@@ -121,6 +121,44 @@ defmodule Tuist.Billing.UsageMeters do
     end
   end
 
+  @doc """
+  The ids of the accounts that downloaded from a cache over
+  `[period_start, period_end)`, either through Kura or from a registered cache
+  endpoint. Those are the only accounts whose metered cache usage can be
+  above zero, so they bound any sweep over it.
+  """
+  def accounts_with_cache_downloads(%DateTime{} = period_start, %DateTime{} = period_end) do
+    kura_account_ids =
+      ClickHouseRepo.all(
+        from(e in UsageEvent,
+          where: e.direction == "egress" and e.artifact_kind in ^@cache_artifact_kinds,
+          where: e.window_start >= ^to_naive(period_start) and e.window_start < ^to_naive(period_end),
+          distinct: true,
+          select: e.account_id
+        )
+      )
+
+    Enum.uniq(kura_account_ids ++ legacy_cache_account_ids(period_start, period_end))
+  end
+
+  defp legacy_cache_account_ids(period_start, period_end) do
+    case legacy_cache_endpoints() do
+      [] ->
+        []
+
+      endpoints ->
+        from(e in CASEvent,
+          where: e.action == "download" and e.cache_endpoint in ^endpoints,
+          where: e.inserted_at >= ^to_naive(period_start) and e.inserted_at < ^to_naive(period_end),
+          distinct: true,
+          select: e.project_id
+        )
+        |> ClickHouseRepo.all()
+        |> Enum.chunk_every(@project_ids_chunk_size)
+        |> Enum.flat_map(&Repo.all(from(p in Project, where: p.id in ^&1, distinct: true, select: p.account_id)))
+    end
+  end
+
   # Kura reports a download it serves twice: once as a usage event, and once
   # to `/webhooks/cache`, which writes a CAS event. Its rollups are the only
   # source counted for it, so CAS events count what a registered cache

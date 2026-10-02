@@ -159,7 +159,9 @@ fn settle(
     match entry.access {
         Access::Invalid => Some(Outcome::Refuse(policy::invalid_credential())),
         Access::Refused => Some(Outcome::Refuse(policy::refusal(request))),
-        Access::PaymentRequired => Some(Outcome::Refuse(policy::payment_required(request))),
+        level if level.is_payment_refusal() => {
+            Some(Outcome::Refuse(policy::payment_refusal(level, request)))
+        }
         level if level >= required => entry.serves(now).then_some(Outcome::Allow),
         _ => entry
             .settles_refusals(now)
@@ -172,8 +174,8 @@ fn respond(access: Access, required: Access, request: &policy::ResolvedRequest<'
     if access == Access::Invalid {
         return Outcome::Refuse(policy::invalid_credential());
     }
-    if access == Access::PaymentRequired {
-        return Outcome::Refuse(policy::payment_required(request));
+    if access.is_payment_refusal() {
+        return Outcome::Refuse(policy::payment_refusal(access, request));
     }
     if access >= required {
         Outcome::Allow
@@ -186,7 +188,9 @@ fn respond(access: Access, required: Access, request: &policy::ResolvedRequest<'
 /// until the credential's own expiry or the ceiling, whichever comes first.
 fn entry_lifetime(access: Access, expiry: Option<Duration>) -> Duration {
     match access {
-        Access::Invalid | Access::Refused | Access::PaymentRequired => REFUSAL_TTL,
+        Access::Invalid | Access::Refused | Access::PaymentRequired | Access::PaymentFailed => {
+            REFUSAL_TTL
+        }
         _ => expiry.map_or(CONFIRMED_TTL, |left| left.min(CONFIRMED_TTL)),
     }
 }
@@ -713,13 +717,39 @@ mod tests {
         assert_eq!(fresh.status, 402);
     }
 
+    // An account whose subscription payment failed is blocked the same way,
+    // but upgrading is not what fixes it, so the message says what does.
+    #[test]
+    fn a_failed_payment_answers_with_its_own_message() {
+        let Some(Outcome::Refuse(deny)) = settle(
+            Some(&entry(Access::PaymentFailed)),
+            Access::Read,
+            &request(),
+            Instant::now(),
+        ) else {
+            panic!("expected the payment refusal to replay");
+        };
+        assert_eq!(deny.status, 402);
+        assert!(deny.message.contains("payment"));
+        assert!(!deny.message.contains("Tuist Pro"));
+
+        let Outcome::Refuse(fresh) = respond(Access::PaymentFailed, Access::Read, &request())
+        else {
+            panic!("expected a fresh payment refusal");
+        };
+        assert_eq!(fresh.status, 402);
+        assert_eq!(fresh.message, deny.message);
+    }
+
     // It grants nothing, so a write must not slip through on the ordering that
     // places it above `Refused`.
     #[test]
     fn an_exhausted_plan_grants_no_action() {
-        assert!(Access::PaymentRequired < Access::Read);
-        assert!(Access::PaymentRequired < Access::ReadWrite);
-        assert!(Access::PaymentRequired > Access::Refused);
+        for level in [Access::PaymentRequired, Access::PaymentFailed] {
+            assert!(level < Access::Read);
+            assert!(level < Access::ReadWrite);
+            assert!(level > Access::Refused);
+        }
     }
 
     #[test]

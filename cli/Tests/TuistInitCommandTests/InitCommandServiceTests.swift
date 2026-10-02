@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -6,6 +5,7 @@ import Noora
 import Testing
 import TuistAuthCommand
 import TuistConstants
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting

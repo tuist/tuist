@@ -219,10 +219,10 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert proposal.region == "scw-fr-par-runners"
       assert proposal.current_claim_size == "50Gi"
       assert proposal.direction == :grow
-      assert proposal.recommended_claim_size == "64Gi"
+      assert proposal.recommended_claim_size == "125Gi"
 
       assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
-      assert Repo.get!(Server, server.id).storage_claim_size == "64Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "125Gi"
     end
 
     test "shrinks a runner claim only after the measured low-occupancy window", %{account: account, server: server} do

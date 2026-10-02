@@ -34,6 +34,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_job_logs" in tool_names
       assert "list_runner_workflows" in tool_names
       assert "list_runner_profiles" in tool_names
+      assert "list_runner_volumes" in tool_names
+      assert "get_runner_volume" in tool_names
+      assert "list_runner_volume_jobs" in tool_names
+      assert "list_runner_job_volumes" in tool_names
+      assert "get_runner_volume_analytics" in tool_names
+      assert "clear_runner_volume" in tool_names
       assert "list_webhook_endpoints" in tool_names
       assert "get_webhook_endpoint" in tool_names
       assert "list_webhook_delivery_attempts" in tool_names
@@ -84,7 +90,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.31.2"
+      assert server.version == "1.32.0"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"

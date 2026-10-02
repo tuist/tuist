@@ -23,6 +23,28 @@ tunnelProtocol: vxlan
 
 kubeProxyReplacement: true
 
+# The agent tolerates every taint, so a node it must never run on is marked
+# with the label the chart already keys cilium-envoy on. The rack edge node
+# (infra/rack-switch-fleet) carries it: that node's own networks sit inside
+# the cluster's pod CIDR (staging gave 192.168.0.0/24, the house network the
+# edge node lives on, to a runner node), and an agent there would route them
+# into the tunnel and cut the node off. The pod anti-affinity is the chart's
+# default, which setting affinity replaces.
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            k8s-app: cilium
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: cilium.io/no-schedule
+              operator: NotIn
+              values: ["true"]
+
 # Datapath / performance
 bpf:
   masquerade: true

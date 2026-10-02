@@ -38,10 +38,13 @@ login generated in 1Password.
 
 ## What it sets, and what it deliberately does not
 
-It sets the hostname, the VLAN 1 management address from `switches.json`, and
-the SSH server, then writes the running config to startup. Everything else
-(VLANs, trunks, SNMP, ISL) is fleet configuration that applies to a pair of
-switches at once and belongs in a reviewed change, not in per-device bring-up.
+It sets the hostname, the management address from the site definition, and the
+SSH server, then writes the running config to startup. Everything else (VLANs,
+trunks, SNMP, ISL) is fleet configuration that applies to a pair of switches at
+once and belongs in a reviewed change, not in per-device bring-up. That is
+[`infra/rack-switch-fleet`](../rack-switch-fleet/AGENTS.md), which renders each
+switch's whole configuration from the site definition and applies it in an order
+chosen by blast radius.
 
 With `--import-key` it also installs the fleet SSH public key, which is what
 takes the switch from password-only to key-driveable. The web UI wants that key
@@ -60,6 +63,34 @@ Two consequences of that route:
 Without `--import-key`, the switch is left password-only, which is why the
 credentials live in 1Password rather than in someone's notes.
 
+## Tests
+
+```
+mise run rack:prep-test
+```
+
+Everything reachable without a switch on the end of a cable: argument handling,
+the inventory lookup, each switch's own address and management VLAN reaching the
+command sequence, and the key validation. They run in CI on any change here or
+under `mise/tasks/rack/`.
+
+The reason this has tests at all is the ordering they pin down. This is the
+first thing that runs at a new site, on a machine that is not the one it was
+written on, sometimes by hands that have never seen it, and console bring-up is
+the step that cannot be retried cheaply from another continent. So `--import-key`
+is validated during argument parsing, before the console is found, before
+1Password is read and before the serial session is opened. It used to be checked
+where the key is used, which meant a rejected ed25519 key surfaced with remote
+hands already holding the cable. `--dry-run --import-key <key>` is now a
+complete preflight worth running before anyone travels.
+
+The general form is worth keeping when anything else is added here: **validate
+what is cheaply knowable before doing what is expensive, and weight "expensive"
+by who pays for it.** A wasted second on the author's laptop and a wasted trip
+to a datacentre are the same code path with very different costs, and the only
+way to see the difference while writing it is to ask where the procedure will
+actually run.
+
 ## Hardware facts worth keeping
 
 - The console runs at **38400 8N1**, not the 115200 these usually default to.
@@ -75,10 +106,20 @@ credentials live in 1Password rather than in someone's notes.
   flashing across lines bricks the switch.
 - The `ip ssh version 2` command does not exist on these; SSH v2 is on by
   default and v1 is off.
+- Once SSH is up, its server allows one authentication attempt per connection
+  and does not reap abandoned sessions. Both traps, and the rest of what driving
+  this CLI over the network costs, are written up in
+  [`infra/rack-switch-fleet`](../rack-switch-fleet/AGENTS.md).
 
 ## Inventory
 
-`switches.json` is the source of truth for names and management addresses. The
-addresses sit below the DHCP pool on the prep-bay network; in the colo they move
-to the management VLAN and this file moves with them. Adding a switch is a pull
-request against that file, the same way machine inventory is.
+The inventory is the site definition,
+[`infra/rack-switch-fleet/sites/ber1.json`](../rack-switch-fleet/sites/ber1.json),
+which this task reads for the management address, netmask, VLAN and 1Password
+item. It used to be a `switches.json` next to this file; there is one copy now,
+because a name or an address written down twice is a name or an address that
+will disagree with itself. `RACK_SITE` selects a different rack.
+
+The addresses sit below the DHCP pool on the prep-bay network; in the colo they
+move to the management VLAN and the site definition moves with them. Adding a
+switch is a pull request against that file, the same way machine inventory is.

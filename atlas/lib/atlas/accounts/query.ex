@@ -4,7 +4,6 @@ defmodule Atlas.Accounts.Query do
   import Ecto.Query
 
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttentionSuggestion
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.ContractValue
@@ -196,32 +195,6 @@ defmodule Atlas.Accounts.Query do
     )
     |> order_by([account],
       asc_nulls_first: account.outcome_proposals_checked_at,
-      desc_nulls_last: account.latest_activity_at,
-      asc: account.name
-    )
-    |> maybe_limit(limit)
-    |> select([account], account.id)
-    |> Repo.all()
-  end
-
-  def list_attention_suggestion_candidate_ids(opts \\ []) do
-    now = Keyword.get(opts, :now, DateTime.utc_now())
-    stale_before = Keyword.get(opts, :stale_before, DateTime.add(now, -7, :day))
-    limit = Keyword.get(opts, :limit, 25)
-
-    Account
-    |> real_account_filter(:root)
-    |> where([account], is_nil(account.status) or account.status != "churned")
-    |> where(
-      [account],
-      is_nil(account.attention_suggestions_checked_at) or
-        account.updated_at > account.attention_suggestions_checked_at or
-        (not is_nil(account.latest_activity_at) and
-           account.latest_activity_at > account.attention_suggestions_checked_at) or
-        account.attention_suggestions_checked_at < ^stale_before
-    )
-    |> order_by([account],
-      asc_nulls_first: account.attention_suggestions_checked_at,
       desc_nulls_last: account.latest_activity_at,
       asc: account.name
     )
@@ -556,12 +529,7 @@ defmodule Atlas.Accounts.Query do
             {from(proposal in OutcomeProposal,
                order_by: [desc: proposal.inserted_at],
                limit: 20
-             ), [:outcome, :source_event, :reviewed_by]},
-          attention_suggestions:
-            from(suggestion in AccountAttentionSuggestion,
-              order_by: [desc: suggestion.inserted_at],
-              limit: 20
-            )
+             ), [:outcome, :source_event, :reviewed_by]}
         )
     end
   end

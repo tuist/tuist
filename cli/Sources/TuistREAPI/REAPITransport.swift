@@ -10,6 +10,36 @@ import TuistHTTP
 
 /// Applies the CLI's network settings to both probing and cache traffic.
 enum REAPITransport {
+    /// Pure, I/O-free part of the transport config. Extracted so tests can inspect the
+    /// fields the client sets (authority, flow-control window, keepalive) without having
+    /// to stand up TLS or a proxy. `make` fills in the TLS/proxy-dependent callback on top.
+    static func baseConfig(authority: String) -> HTTP2ClientTransport.Posix.Config {
+        var config = HTTP2ClientTransport.Posix.Config.defaults
+        config.http2.authority = authority
+        config.http2.targetWindowSize = 32 * 1024 * 1024
+        // Keepalive detects a wedged connection whose TCP socket is still open but whose peer
+        // has gone silent. Without it, a stuck stream only unblocks when the OS or peer closes
+        // the socket, which in traces from self-hosted customers has taken 60-80 seconds.
+        //
+        // Server-side policy on grpc-go, grpc-java, bazel-remote, Buildbarn and BuildBuddy
+        // defaults `keepalive.EnforcementPolicy.MinTime` to 5 minutes with
+        // `PermitWithoutStream = false`: a client that pings more often than that collects a
+        // strike and eventually gets `GOAWAY ENHANCE_YOUR_CALM`. 60 seconds is below that, but
+        // grpc-go resets the strike counter whenever the server sends data or headers, so pings
+        // issued while the server is actively replying are safe. A stream where the server
+        // itself goes quiet past 3 minutes could still accumulate strikes; our batch deadline
+        // (~62 seconds) fires well before that, which is a design feature, not an accident.
+        //
+        // `allowWithoutCalls: false` means we only ping while a stream is active, so an idle
+        // connection does not generate traffic a stricter server could count against us.
+        config.connection.keepalive = HTTP2ClientTransport.Config.Keepalive(
+            time: .seconds(60),
+            timeout: .seconds(20),
+            allowWithoutCalls: false
+        )
+        return config
+    }
+
     static func make(
         endpoint: GRPCEndpoint,
         fileSystem: FileSysteming = FileSystem()
@@ -30,9 +60,7 @@ enum REAPITransport {
         var proxyTLS = tls
         proxyTLS.applicationProtocols = ["http/1.1"]
         let proxyContext = proxy?.scheme == "https" ? try NIOSSLContext(configuration: proxyTLS) : nil
-        var config = HTTP2ClientTransport.Posix.Config.defaults
-        config.http2.authority = endpoint.authority
-        config.http2.targetWindowSize = 32 * 1024 * 1024
+        var config = baseConfig(authority: endpoint.authority)
         config.channelDebuggingCallbacks.onCreateTCPConnection = { channel in
             channel.eventLoop.makeCompletedFuture {
                 if let context {

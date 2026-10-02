@@ -2,8 +2,12 @@ defmodule AtlasWeb.SlackEventsControllerTest do
   use AtlasWeb.ConnCase, async: true
   use Mimic
 
+  import Atlas.POCsFixtures
+
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Event
+  alias Atlas.Accounts.POCs
+  alias Atlas.Accounts.POCs.AccessRequest
   alias Atlas.GTM
   alias Atlas.GTM.Opportunity
   alias Atlas.Repo
@@ -12,6 +16,7 @@ defmodule AtlasWeb.SlackEventsControllerTest do
   alias Atlas.Slack.Bot
   alias Atlas.Slack.Installation
   alias Atlas.Slack.Workers.RespondToConversation
+  alias Atlas.Users.User
 
   setup :verify_on_exit!
 
@@ -230,6 +235,84 @@ defmodule AtlasWeb.SlackEventsControllerTest do
   end
 
   describe "POST /api/slack/interactions" do
+    test "approves a public brief access request from a signed Slack action", %{conn: conn} do
+      user =
+        %User{}
+        |> User.changeset(%{
+          email: "poc-reviewer-#{System.unique_integer([:positive])}@tuist.dev",
+          name: "POC Reviewer"
+        })
+        |> Repo.insert!()
+
+      poc = poc_fixture(user)
+
+      {:ok, request, _token} =
+        POCs.create_access_request(poc, "visitor-#{System.unique_integer([:positive])}@example.com")
+
+      {:ok, request} = POCs.record_slack_message(request, "C_CUSTOMERS", "1717400000.000100")
+      slack_user_id = "U_REVIEWER_#{System.unique_integer([:positive])}"
+
+      expect(API, :get_user_info, fn :company, ^slack_user_id ->
+        {:ok, %{slack_user_id: slack_user_id, email: user.email}}
+      end)
+
+      expect(API, :update_message, fn :company, "C_CUSTOMERS", "1717400000.000100", _text, blocks ->
+        assert Jason.encode!(blocks) =~ "Approved"
+        {:ok, %{"ok" => true}}
+      end)
+
+      payload = %{
+        "type" => "block_actions",
+        "user" => %{"id" => slack_user_id},
+        "actions" => [%{"action_id" => "poc_access:approve:#{request.id}", "value" => request.id}]
+      }
+
+      conn = post_signed_interaction(conn, payload, "company-secret")
+
+      assert json_response(conn, 200) == %{
+               "response_type" => "ephemeral",
+               "text" => "Approved access for #{request.email}."
+             }
+
+      assert %AccessRequest{approved_by_user_id: approved_by_user_id, approved_at: %DateTime{}} =
+               POCs.get_access_request(request.id)
+
+      assert approved_by_user_id == user.id
+    end
+
+    test "explains when a public brief reviewer has no resolvable email", %{conn: conn} do
+      API
+      |> stub(:get_user_info, fn :company, "U_NO_EMAIL" -> {:error, "missing_scope"} end)
+
+      user =
+        %User{}
+        |> User.changeset(%{
+          email: "poc-owner-#{System.unique_integer([:positive])}@tuist.dev",
+          name: "POC Owner"
+        })
+        |> Repo.insert!()
+
+      poc = poc_fixture(user)
+
+      {:ok, request, _token} =
+        POCs.create_access_request(poc, "visitor-#{System.unique_integer([:positive])}@example.com")
+
+      payload = %{
+        "type" => "block_actions",
+        "user" => %{"id" => "U_NO_EMAIL"},
+        "actions" => [%{"action_id" => "poc_access:approve:#{request.id}", "value" => request.id}]
+      }
+
+      conn = post_signed_interaction(conn, payload, "company-secret")
+
+      assert json_response(conn, 200) == %{
+               "response_type" => "ephemeral",
+               "text" => "Atlas could not match your Slack email to a user."
+             }
+
+      assert is_nil(POCs.get_access_request(request.id).approved_at)
+    end
+
     test "handles a signed GTM opportunity action", %{conn: conn} do
       opportunity =
         insert_gtm_opportunity!()

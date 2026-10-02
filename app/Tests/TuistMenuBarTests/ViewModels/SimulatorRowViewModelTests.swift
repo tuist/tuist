@@ -1,7 +1,7 @@
-import Command
 import Foundation
 import Mockable
 import TuistCore
+import TuistProcess
 import TuistSupport
 import TuistTesting
 

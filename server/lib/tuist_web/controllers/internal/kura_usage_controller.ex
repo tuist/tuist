@@ -5,6 +5,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
   alias Boruta.Oauth.Authorization.Client
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.StorageTelemetry
   alias Tuist.Kura.Usage
@@ -78,9 +79,9 @@ defmodule TuistWeb.Internal.KuraUsageController do
   # A self-hosted credential may only report usage for its own tenant. Rejecting
   # the whole batch on any foreign `tenant_id` keeps a customer's node from
   # attributing traffic or storage telemetry to another account.
-  defp events_scoped_to_account?(events, %Account{name: name}) do
-    handle = String.downcase(name)
-    Enum.all?(events, &(String.downcase(to_string(&1["tenant_id"])) == handle))
+  defp events_scoped_to_account?(events, %Account{} = account) do
+    handles = Identity.handles(account)
+    Enum.all?(events, &(String.downcase(to_string(&1["tenant_id"])) in handles))
   end
 
   # Mirrors the IntrospectController split: the Tuist-operated control-plane

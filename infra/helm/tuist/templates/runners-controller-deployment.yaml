@@ -213,13 +213,6 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
-            {{- if .Values.runnersController.shadowScheduler.enabled }}
-            {{- if lt (int .Values.runnersController.shadowScheduler.intervalSeconds) 10 }}
-            {{- fail "runnersController.shadowScheduler.intervalSeconds must be at least 10" }}
-            {{- end }}
-            - --shadow-snapshot-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/shadow_snapshot
-            - --shadow-interval={{ .Values.runnersController.shadowScheduler.intervalSeconds }}s
-            {{- end }}
             {{- with .Values.runnersController.clusterDNS.ip }}
             # kube-dns ClusterIP staged into macOS pool Pods as
             # TUIST_CLUSTER_DNS_IP so the Tart VM can point an

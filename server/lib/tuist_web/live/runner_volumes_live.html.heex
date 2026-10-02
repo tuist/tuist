@@ -1,0 +1,555 @@
+<div id="runner-volumes">
+  <.button
+    :if={@selected}
+    navigate={~p"/#{@selected_account.name}/runners/volumes"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_runners", "Volumes")}
+    data-part="back-button"
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+  <div :if={@selected} data-part="header">
+    <div data-part="title">
+      <div data-part="volume-icon"><.database /></div>
+      <h1>{@selected.key}</h1>
+    </div>
+    <div :if={@can_manage} data-part="actions">
+      <.button
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "Clear volume")}
+        phx-click="request_delete"
+        phx-value-id={@selected.id}
+      >
+        <:icon_left><.trash /></:icon_left>
+      </.button>
+    </div>
+  </div>
+  <.async_result :let={data} assign={@data}>
+    <:loading>
+      <.card title={dgettext("dashboard_runners", "Volumes")} icon="database">
+        <div data-part="widgets">
+          <.widget
+            :for={n <- 1..3}
+            id={"volume-loading-#{n}"}
+            title={dgettext("dashboard_runners", "Loading")}
+            loading={true}
+          />
+        </div>
+      </.card>
+    </:loading>
+    <:failed>
+      <.card title={dgettext("dashboard_runners", "Volumes")} icon="database">
+        <.card_section>
+          <p role="alert" data-part="note">
+            {dgettext("dashboard_runners", "Could not load volumes. Retrying automatically.")}
+          </p>
+        </.card_section>
+      </.card>
+    </:failed>
+    <.card
+      :if={is_nil(@selected)}
+      title={dgettext("dashboard_runners", "Storage")}
+      icon="database"
+      id="account-volume-storage"
+    >
+      <:actions>
+        <.volume_date_picker
+          id="volumes-analytics-date-range-picker"
+          preset={@analytics_preset}
+          period={@analytics_period}
+        />
+      </:actions>
+      <div data-part="widgets">
+        <.widget
+          id="storage-volumes"
+          trend_value={storage_trend(data.storage_history, :volumes, @analytics_period).value}
+          trend_value_label={
+            storage_trend(data.storage_history, :volumes, @analytics_period).value_label
+          }
+          trend_label={storage_trend(data.storage_history, :volumes, @analytics_period).label}
+          trend_type={:neutral}
+          selected={@storage_metric == "volumes"}
+          phx_click="select_storage_metric"
+          phx_value_widget="volumes"
+          title={dgettext("dashboard_runners", "Volumes")}
+          value={storage_value(data.storage_history, :volumes)}
+          description={
+            dgettext(
+              "dashboard_runners",
+              "Volumes with stored copies at the end of the selected period, regardless of search. Trends compare with the end of the previous period."
+            )
+          }
+        />
+        <.widget
+          id="storage-used"
+          trend_value={storage_trend(data.storage_history, :used_bytes, @analytics_period).value}
+          trend_value_label={
+            storage_trend(data.storage_history, :used_bytes, @analytics_period).value_label
+          }
+          trend_label={storage_trend(data.storage_history, :used_bytes, @analytics_period).label}
+          trend_type={:neutral}
+          selected={@storage_metric == "used_bytes"}
+          phx_click="select_storage_metric"
+          phx_value_widget="used_bytes"
+          title={dgettext("dashboard_runners", "Total used space")}
+          value={storage_value(data.storage_history, :used_bytes)}
+          description={
+            storage_description(List.last(data.storage_history) || %{}, :unmeasured_copies)
+          }
+        />
+        <.widget
+          id="storage-hit-rate"
+          trend_value={
+            hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).value
+          }
+          trend_value_label={
+            hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).value_label
+          }
+          trend_label={
+            hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).label
+          }
+          trend_type={:regular}
+          selected={@storage_metric == "hit_rate"}
+          phx_click="select_storage_metric"
+          phx_value_widget="hit_rate"
+          title={dgettext("dashboard_runners", "Cache hit rate")}
+          value={percentage(data.activity.hit_rate)}
+          description={
+            dgettext(
+              "dashboard_runners",
+              "Percentage of volume mounts that reused saved data during the selected period."
+            )
+          }
+        />
+      </div>
+      <.card_section data-part="storage-chart-section">
+        <.chart
+          :if={inventory_chart_data?(data, @storage_metric)}
+          id="volume-storage-chart"
+          type="line"
+          series={inventory_chart_series(data, @storage_metric)}
+          extra_options={detail_chart_options(@storage_metric, @analytics_period)}
+          y_axis_min={0}
+        />
+        <.table_empty_state
+          :if={!inventory_chart_data?(data, @storage_metric)}
+          title={
+            if @storage_metric == "hit_rate",
+              do: dgettext("dashboard_runners", "No data in this period"),
+              else: dgettext("dashboard_runners", "No storage measurements yet")
+          }
+          subtitle={
+            if @storage_metric == "hit_rate" do
+              dgettext(
+                "dashboard_runners",
+                "Cache hit rate will appear after a volume mount reports its cache result."
+              )
+            else
+              dgettext(
+                "dashboard_runners",
+                "Storage history will appear after a volume reports its size."
+              )
+            end
+          }
+        />
+      </.card_section>
+    </.card>
+    <.card :if={is_nil(@selected)} title={dgettext("dashboard_runners", "Volumes")} icon="stack_2">
+      <.card_section data-part="table-section">
+        <div data-part="table-toolbar">
+          <.form for={%{}} phx-change="search" data-part="filters">
+            <.text_input
+              type="search"
+              id="volume-search"
+              name="search"
+              value={@search}
+              phx-debounce="200"
+              placeholder={dgettext("dashboard_runners", "Search volumes or repositories")}
+              show_suffix={false}
+              data-part="search"
+            />
+          </.form>
+          <.dropdown
+            id="volumes-sort-by-dropdown"
+            label={sort_label(@sort_by)}
+            secondary_text={dgettext("dashboard_runners", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={{column, label} <- sort_options()}
+              value={column}
+              label={label}
+              patch={sort_patch(assigns, column)}
+              data-selected={@sort_by == column}
+            >
+              <:right_icon :if={@sort_by == column}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <.table
+          id="volumes-table"
+          rows={data.volumes}
+          row_navigate={
+            fn volume -> ~p"/#{@selected_account.name}/runners/volumes/#{volume.id}" end
+          }
+        >
+          <:col
+            :let={volume}
+            label={dgettext("dashboard_runners", "Volume")}
+            patch={sort_patch(assigns, "volume")}
+            sort_order={@sort_by == "volume" && @sort_order}
+          >
+            <.text_cell label={volume.key} />
+          </:col>
+          <:col
+            :let={volume}
+            label={dgettext("dashboard_runners", "Repository")}
+            patch={sort_patch(assigns, "repository")}
+            sort_order={@sort_by == "repository" && @sort_order}
+          >
+            <.text_cell label={volume.repository} />
+          </:col>
+          <:col label={dgettext("dashboard_runners", "Platform")}>
+            <.badge_cell
+              label={dgettext("dashboard_runners", "Linux")}
+              color="attention"
+              style="light-fill"
+            />
+          </:col>
+          <:col
+            :let={volume}
+            label={dgettext("dashboard_runners", "Used space")}
+            patch={sort_patch(assigns, "used_space")}
+            sort_order={@sort_by == "used_space" && @sort_order}
+          >
+            <.text_cell
+              label={used_space(volume, stats(data, volume))}
+              title={measurement_coverage(stats(data, volume)[:unmeasured_copies])}
+            />
+          </:col>
+          <:col
+            :let={volume}
+            label={dgettext("dashboard_runners", "Capacity")}
+            patch={sort_patch(assigns, "capacity")}
+            sort_order={@sort_by == "capacity" && @sort_order}
+          >
+            <.text_cell
+              label={storage_capacity(stats(data, volume))}
+              title={measurement_coverage(stats(data, volume)[:unmeasured_capacity_copies])}
+            />
+          </:col>
+          <:col
+            :let={volume}
+            label={dgettext("dashboard_runners", "Last used")}
+            patch={sort_patch(assigns, "last_used")}
+            sort_order={@sort_by == "last_used" && @sort_order}
+          >
+            <.text_cell
+              label={relative_time(volume.last_used_at)}
+              title={time(volume.last_used_at)}
+            />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              title={dgettext("dashboard_runners", "No volumes found")}
+              subtitle={
+                dgettext(
+                  "dashboard_runners",
+                  "Attach a volume in your workflow or try a different search."
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+        <nav
+          :if={@page > 1 or data.more?}
+          data-part="pagination"
+          aria-label={dgettext("dashboard_runners", "Volume pages")}
+        >
+          <.button
+            disabled={@page <= 1}
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Prev")}
+            patch={
+              ~p"/#{@selected_account.name}/runners/volumes?#{Map.put(@params, "page", max(1, @page - 1))}"
+            }
+          >
+            <:icon_left><.chevron_left /></:icon_left>
+          </.button>
+          <.button
+            disabled={!data.more?}
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Next")}
+            patch={
+              ~p"/#{@selected_account.name}/runners/volumes?#{Map.put(@params, "page", @page + 1)}"
+            }
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </nav>
+      </.card_section>
+    </.card>
+    <div :for={volume <- if(@selected, do: data.volumes, else: [])} data-part="tab-panel">
+      <% metrics = stats(data, volume) %>
+      <.card
+        title={dgettext("dashboard_runners", "Volume details")}
+        icon="database"
+      >
+        <.card_section>
+          <div data-part="metadata-grid">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
+              <span data-part="label">
+                <.brand_github :if={Map.get(volume, :provider, "github") == "github"} />
+                <.brand_gitlab :if={Map.get(volume, :provider) == "gitlab"} />
+                {volume.repository}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge
+                label={"Linux · #{volume.architecture}"}
+                color="neutral"
+                style="light-fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Last used")}</div><span
+                data-part="label"
+                title={time(volume.last_used_at)}
+              ><.history />{relative_time(volume.last_used_at)}</span>
+            </div>
+            <div id="volume-capacity" data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{storage_capacity(
+                metrics
+              )}</span>
+            </div>
+          </div>
+        </.card_section>
+      </.card>
+      <.tab_menu_horizontal :if={@selected}>
+        <.tab_menu_horizontal_item
+          :for={
+            {tab, label} <- [
+              {"overview", dgettext("dashboard_runners", "Overview")},
+              {"jobs", dgettext("dashboard_runners", "Jobs")}
+            ]
+          }
+          label={label}
+          selected={@selected_tab == tab}
+          patch={
+            ~p"/#{@selected_account.name}/runners/volumes/#{@selected.id}?#{tab_params(@params, tab)}"
+          }
+        />
+      </.tab_menu_horizontal>
+      <.card
+        :if={@selected_tab == "overview"}
+        title={dgettext("dashboard_runners", "Analytics")}
+        icon="chart_arcs"
+      >
+        <:actions>
+          <.volume_date_picker
+            id="volume-analytics-date-range-picker"
+            preset={@analytics_preset}
+            period={@analytics_period}
+          />
+        </:actions>
+        <div data-part="widgets">
+          <.widget
+            id="volume-used"
+            title={dgettext("dashboard_runners", "Used space")}
+            value={storage_value(data.analytics.storage, :used_bytes)}
+            description={
+              storage_description(List.last(data.analytics.storage) || %{}, :unmeasured_copies)
+            }
+            selected={@detail_metric == "used_bytes"}
+            phx_click="select_detail_metric"
+            phx_value_widget="used_bytes"
+          />
+          <.widget
+            id="volume-hit-rate"
+            title={dgettext("dashboard_runners", "Hit rate")}
+            value={percentage(data.analytics.activity.hit_rate)}
+            description={
+              dgettext(
+                "dashboard_runners",
+                "Share of mounts with a known cache result that reused a saved cache in the selected period."
+              )
+            }
+            selected={@detail_metric == "hit_rate"}
+            phx_click="select_detail_metric"
+            phx_value_widget="hit_rate"
+          />
+          <.widget
+            id="volume-uses"
+            title={dgettext("dashboard_runners", "Job runs")}
+            value={count(data.analytics.activity.uses)}
+            description={
+              dgettext(
+                "dashboard_runners",
+                "Number of job runs that mounted this volume during the selected period."
+              )
+            }
+            selected={@detail_metric == "uses"}
+            phx_click="select_detail_metric"
+            phx_value_widget="uses"
+          />
+        </div>
+        <.card_section data-part="storage-chart-section">
+          <.chart
+            :if={detail_chart_data?(data.analytics, @detail_metric)}
+            id="volume-analytics-chart"
+            type={if @detail_metric == "uses", do: "bar", else: "line"}
+            series={detail_chart_series(data.analytics, @detail_metric)}
+            extra_options={detail_chart_options(@detail_metric, @analytics_period)}
+            y_axis_min={0}
+          />
+          <.table_empty_state
+            :if={!detail_chart_data?(data.analytics, @detail_metric)}
+            title={dgettext("dashboard_runners", "No data in this period")}
+          />
+        </.card_section>
+      </.card>
+      <.card
+        :if={@selected_tab in ["overview", "jobs"]}
+        title={
+          if @selected_tab == "overview",
+            do: dgettext("dashboard_runners", "Recent jobs"),
+            else: dgettext("dashboard_runners", "Jobs")
+        }
+        icon="stack_2"
+      >
+        <:actions :if={@selected_tab == "overview"}>
+          <.button
+            variant="secondary"
+            size="medium"
+            label={dgettext("dashboard_runners", "View more")}
+            patch={
+              ~p"/#{@selected_account.name}/runners/volumes/#{volume.id}?#{tab_params(@params, "jobs")}"
+            }
+          />
+        </:actions>
+        <.card_section data-part="table-section">
+          <.table
+            id={if @selected_tab == "overview", do: "volume-recent-jobs", else: "volume-history"}
+            rows={data.history}
+            row_navigate={
+              fn usage ->
+                ~p"/#{@selected_account.name}/runners/runs/#{usage.workflow_run_id}/jobs/#{usage.workflow_job_id}"
+              end
+            }
+          >
+            <:col :let={usage} label={dgettext("dashboard_runners", "Job")}>
+              <.text_cell label={job_label(usage)} />
+            </:col>
+            <:col :let={usage} label={dgettext("dashboard_runners", "Workflow")}>
+              <.text_cell label={workflow_label(usage)} />
+            </:col>
+            <:col :let={usage} label={dgettext("dashboard_runners", "Cache status")}>
+              <.tooltip
+                id={"volume-use-status-#{usage.id}"}
+                title={usage_description(usage.status)}
+              >
+                <:trigger :let={attrs}>
+                  <div {attrs} tabindex="0" aria-label={usage_status(usage.status)}>
+                    <.status_badge_cell
+                      label={usage_status(usage.status)}
+                      status={usage_badge_status(usage.status)}
+                    />
+                  </div>
+                </:trigger>
+              </.tooltip>
+            </:col>
+            <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
+              <.badge_cell
+                label={
+                  case usage.warm do
+                    true -> dgettext("dashboard_runners", "Hit")
+                    false -> dgettext("dashboard_runners", "Miss")
+                    nil -> "—"
+                  end
+                }
+                color={if usage.warm, do: "success", else: "neutral"}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={usage} label={dgettext("dashboard_runners", "Used space")}>
+              <.text_cell label={bytes(usage.size_bytes)} />
+            </:col>
+            <:col :let={usage} label={dgettext("dashboard_runners", "Capacity")}>
+              <.text_cell label={bytes(usage.capacity_bytes)} />
+            </:col>
+            <:col :let={usage} label={dgettext("dashboard_runners", "Mounted at")}>
+              <.text_cell
+                label={relative_time(usage.attached_at)}
+                title={time(usage.attached_at)}
+              />
+            </:col>
+            <:empty_state>
+              <.table_empty_state title={dgettext("dashboard_runners", "No recorded uses")} />
+            </:empty_state>
+          </.table>
+          <nav
+            :if={@selected_tab == "jobs" and (@page > 1 or length(data.history) == 20)}
+            data-part="pagination"
+            aria-label={dgettext("dashboard_runners", "Job history pages")}
+          >
+            <.button
+              disabled={@page <= 1}
+              variant="secondary"
+              label={dgettext("dashboard_runners", "Prev")}
+              patch={
+                ~p"/#{@selected_account.name}/runners/volumes/#{volume.id}?#{Map.merge(@params, %{"tab" => "jobs", "page" => max(1, @page - 1)})}"
+              }
+            >
+              <:icon_left><.chevron_left /></:icon_left>
+            </.button>
+            <.button
+              disabled={length(data.history) < 20}
+              variant="secondary"
+              label={dgettext("dashboard_runners", "Next")}
+              patch={
+                ~p"/#{@selected_account.name}/runners/volumes/#{volume.id}?#{Map.merge(@params, %{"tab" => "jobs", "page" => @page + 1})}"
+              }
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+          </nav>
+        </.card_section>
+      </.card>
+    </div>
+  </.async_result>
+  <.modal
+    id="volume-confirm-delete"
+    title={dgettext("dashboard_runners", "Clear volume")}
+    description={
+      dgettext(
+        "dashboard_runners",
+        "Clears the saved cache for future jobs. Running jobs can finish."
+      )
+    }
+    on_dismiss="cancel"
+  >
+    <:trigger><span hidden></span></:trigger>
+    <.line_divider />
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard_runners", "Cancel")}
+            variant="secondary"
+            phx-click="cancel"
+          />
+        </:action>
+        <:action>
+          <.button
+            label={dgettext("dashboard_runners", "Clear volume")}
+            variant="destructive"
+            phx-click="confirm"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>
