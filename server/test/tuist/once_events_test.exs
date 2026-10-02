@@ -21,7 +21,6 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.Accounts.Organization
   alias Tuist.Authentication
   alias Tuist.Authorization
-  alias Tuist.Environment
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
@@ -907,8 +906,6 @@ defmodule Tuist.OnceEventsTest do
 
     flag
   end
-
-  defp unique_address, do: "10.#{:rand.uniform(250)}.#{:rand.uniform(250)}.#{System.unique_integer([:positive])}"
 
   defp publish(token, headers, run) do
     RunEventService.publish_run_events([empty_batch(run)], stream_with(token, headers))
