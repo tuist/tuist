@@ -117,6 +117,42 @@ struct REAPICacheClientTests {
         }
     }
 
+    /// The cache never stored the empty blob (it reports it present instead), so reading it would miss.
+    @Test(.inTemporaryDirectory) func synthesizesTheEmptyBlobInsteadOfReadingIt() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state), WireCapabilities(),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let batched = directory.appending(component: "batched").url
+            try Data("stale".utf8).write(to: batched)
+            let published = Mutex<[REAPI.Digest]>([])
+            let downloaded = try await client.downloadAvailableBlobs([REAPI.emptyBlob: batched]) { digest in
+                published.withLock { $0.append(digest) }
+            }
+            #expect(downloaded == [REAPI.emptyBlob])
+            #expect(published.withLock { $0 } == [REAPI.emptyBlob])
+            #expect(try Data(contentsOf: batched).isEmpty)
+            let streamed = directory.appending(component: "streamed").url
+            try await client.downloadBlob(REAPI.emptyBlob, to: streamed)
+            #expect(try Data(contentsOf: streamed).isEmpty)
+            #expect(await state.readCalls == 0)
+            #expect(await state.readOffsets.isEmpty)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func streamsBlobsAndUsesStandardActionCacheRPCs() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()

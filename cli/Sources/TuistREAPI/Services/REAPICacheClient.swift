@@ -489,12 +489,22 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
-        var seen = Set<REAPI.Digest>()
+        var synthesized = Set<REAPI.Digest>()
+        if let path = blobs[REAPI.emptyBlob] {
+            do {
+                try Data().write(to: path)
+                try await onDownloaded(REAPI.emptyBlob)
+                synthesized.insert(REAPI.emptyBlob)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+            }
+        }
+        var seen: Set<REAPI.Digest> = [REAPI.emptyBlob]
         var ordered = orderedDigests.filter { blobs[$0] != nil && seen.insert($0).inserted }
         ordered.append(contentsOf: blobs.keys.filter { !seen.contains($0) })
         let usesStreams = blobs.keys.contains { $0.sizeBytes > batchBytes }
         let maxConcurrentTasks = guards.downloadConcurrency ?? (usesStreams ? 8 : 32)
-        return try await transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
+        return try await synthesized.union(transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
                 do {
@@ -575,7 +585,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 if lost > 0 { self.stats?.recordBatchDownloadFailure(digestsLost: lost) }
             }
             return successful
-        }
+        })
     }
 
     private func transfer(
@@ -664,6 +674,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         try REAPI.validate(digest)
         // Streaming owns this temporary file; syncing an empty file before filling it adds no durability.
         try Data().write(to: path)
+        if digest == REAPI.emptyBlob { return }
         do {
             let handle = try FileHandle(forWritingTo: path)
             defer { try? handle.close() }
