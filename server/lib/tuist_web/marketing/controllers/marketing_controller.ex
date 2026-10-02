@@ -684,7 +684,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/cache",
     "/tests",
     "/compute",
-    "/globe",
     "/previews",
     "/download",
     "/about",
