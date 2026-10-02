@@ -54,6 +54,7 @@ public class GraphTraverser: GraphTraversing {
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
         ThreadSafe([:])
+    private let dependentsByDependencyCache = ThreadSafe<[GraphDependency: [GraphDependency]]?>(nil)
 
     public required init(graph: Graph) {
         self.graph = graph
@@ -1172,6 +1173,84 @@ public class GraphTraverser: GraphTraversing {
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
         return Set(dependencies)
+    }
+
+    /// The targets whose `linkableDependencies` (without excluding the host app's dependencies) or
+    /// `copyProductDependencies` contain the static xcframework at `path`, each with the condition of that reference.
+    ///
+    /// Filtering those two calls for every target walks the graph forwards once per target, which is quadratic on
+    /// deep graphs. This walks backwards from the xcframework instead, through the same intermediate dependencies the
+    /// forward walks go through: the ones that do not link static products for `linkableDependencies`, and static
+    /// precompiled ones for `copyProductDependencies`.
+    public func targetsProcessingStaticXCFramework(at path: Path.AbsolutePath) -> Set<GraphTargetReference> {
+        let dependents = dependentsByDependency()
+        var references = Set<GraphTargetReference>()
+        let xcframeworks = dependents.keys.filter {
+            guard case let .xcframework(xcframework) = $0 else { return false }
+            return xcframework.path == path && xcframework.linking == .static
+        }
+        for xcframework in xcframeworks {
+            let linkingTargets = targets(
+                dependingOn: xcframework,
+                in: dependents,
+                isTarget: { $0.canLinkStaticProducts() },
+                throughDependency: { !(self.canDependencyLinkStaticProducts(dependency: $0) || $0.isPrecompiledMacro) }
+            )
+            let copyingTargets = targets(
+                dependingOn: xcframework,
+                in: dependents,
+                isTarget: { $0.product.isStatic },
+                throughDependency: { $0.isPrecompiled && !$0.isDynamicPrecompiled && !$0.isPrecompiledMacro }
+            )
+            for graphTarget in linkingTargets.union(copyingTargets) {
+                guard case let .condition(condition) = combinedCondition(
+                    to: xcframework,
+                    from: .target(name: graphTarget.target.name, path: graphTarget.path)
+                ) else { continue }
+                references.insert(GraphTargetReference(target: graphTarget, condition: condition))
+            }
+        }
+        return references
+    }
+
+    /// The targets `isTarget` selects among the dependents of `dependency`, walking up through the dependents
+    /// `throughDependency` selects.
+    private func targets(
+        dependingOn dependency: GraphDependency,
+        in dependents: [GraphDependency: [GraphDependency]],
+        isTarget: (Target) -> Bool,
+        throughDependency: (GraphDependency) -> Bool
+    ) -> Set<GraphTarget> {
+        var targets = Set<GraphTarget>()
+        var visited: Set<GraphDependency> = [dependency]
+        var stack = [dependency]
+        while let node = stack.popLast() {
+            for dependent in dependents[node, default: []] {
+                if let graphTarget = target(from: dependent), isTarget(graphTarget.target) {
+                    targets.insert(graphTarget)
+                }
+                if throughDependency(dependent), visited.insert(dependent).inserted {
+                    stack.append(dependent)
+                }
+            }
+        }
+        return targets
+    }
+
+    private func dependentsByDependency() -> [GraphDependency: [GraphDependency]] {
+        dependentsByDependencyCache.mutate { cache in
+            if let cache {
+                return cache
+            }
+            var dependents: [GraphDependency: [GraphDependency]] = [:]
+            for (dependency, dependencies) in graph.dependencies {
+                for child in dependencies {
+                    dependents[child, default: []].append(dependency)
+                }
+            }
+            cache = dependents
+            return dependents
+        }
     }
 
     public func executableDependencies(

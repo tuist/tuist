@@ -66,11 +66,22 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
         let sourceGraphTraverser = environment.initialGraphWithSources.map { GraphTraverser(graph: $0) }
-        let xcframeworkVariantsProcessedByGeneratedTargets = Self.xcframeworkVariantsProcessedByGeneratedTargets(
+        let xcframeworkVariantsLinkedDirectlyByGeneratedTargets = Self.xcframeworkVariantsLinkedDirectlyByGeneratedTargets(
             in: graph,
-            initialGraphWithSources: environment.initialGraphWithSources,
-            traverser: graphTraverser
+            initialGraphWithSources: environment.initialGraphWithSources
         )
+        var xcframeworkVariantsProcessedByGeneratedTargetsByPath: [AbsolutePath: Set<ProductsVariant>] = [:]
+        func xcframeworkVariantsProcessedByGeneratedTargets(_ path: AbsolutePath) -> Set<ProductsVariant> {
+            if let variants = xcframeworkVariantsProcessedByGeneratedTargetsByPath[path] {
+                return variants
+            }
+            var variants = xcframeworkVariantsLinkedDirectlyByGeneratedTargets[path, default: []]
+            for reference in graphTraverser.targetsProcessingStaticXCFramework(at: path) {
+                variants.formUnion(Self.productsVariants(of: reference.target, under: reference.condition))
+            }
+            xcframeworkVariantsProcessedByGeneratedTargetsByPath[path] = variants
+            return variants
+        }
 
         let graph = try await mapGraph(
             graph: graph
@@ -90,9 +101,9 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             // `sdk=` conditions the vendor copy is still needed for, possibly none.
             let moduleMapSDKConditions: (ConditionedXCFramework) -> [String]? = { conditionedXCFramework in
                 let targetVariants = Self.productsVariants(of: target, under: nil)
-                let producingVariants = xcframeworkVariantsProcessedByGeneratedTargets[
-                    conditionedXCFramework.xcframework.path, default: []
-                ].intersection(targetVariants)
+                let producingVariants = xcframeworkVariantsProcessedByGeneratedTargets(
+                    conditionedXCFramework.xcframework.path
+                ).intersection(targetVariants)
                 guard !producingVariants.isEmpty else { return nil }
                 let consumingCondition: PlatformCondition?
                 if case let .condition(condition) = Self.conditionThroughOtherDependencies(
@@ -389,24 +400,22 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     ///   binary-cache substitution case where the linker was a source target that got cached; only
     ///   counted when the linking target is still in the substituted graph, since a target replaced
     ///   by a cached binary never runs `ProcessXCFramework`).
-    /// * `linkableDependencies` of every generated target — the actual set of xcframeworks that
-    ///   land in the target's Frameworks build phase, including the ones a static consumer relinks
-    ///   transitively through `LinkGenerator.staticDependenciesPrecompiledLibrariesAndFrameworks`.
-    ///   The direct-edge walk misses this shape (a static SwiftPM shim like `GoogleMapsTarget` that
-    ///   wraps `GoogleMaps.xcframework` isn't a direct graph edge for its consumer, but Xcode still
-    ///   processes the transitively-relinked xcframework), which is exactly the redefinition path
-    ///   this mapper needs to cover.
-    /// * `copyProductDependencies` of every generated target. A static target does not link its
-    ///   precompiled static xcframeworks, but its "Static XCFramework Dependencies" phase still makes
-    ///   Xcode process them, including the ones a cached static xcframework dependency brings along.
+    /// * The generated targets `GraphTraverser.targetsProcessingStaticXCFramework(at:)` returns, which
+    ///   `map` adds only for the xcframeworks a consumer needs a vendor module map for, because finding
+    ///   them is the expensive part. Those are the targets whose `linkableDependencies` link the
+    ///   xcframework, including the ones a static consumer relinks transitively through
+    ///   `LinkGenerator.staticDependenciesPrecompiledLibrariesAndFrameworks` (a static SwiftPM shim like
+    ///   `GoogleMapsTarget` that wraps `GoogleMaps.xcframework` isn't a direct graph edge for its
+    ///   consumer, but Xcode still processes the transitively-relinked xcframework), and the static
+    ///   targets whose "Static XCFramework Dependencies" phase (`copyProductDependencies`) makes Xcode
+    ///   process it, including the ones a cached static xcframework dependency brings along.
     ///
     /// A link under a platform condition (a SwiftPM binary target consumed with
     /// `.when(platforms: [.iOS])`) still makes Xcode process the xcframework on the destinations the
     /// condition allows, so it counts for those destinations only.
-    private static func xcframeworkVariantsProcessedByGeneratedTargets(
+    private static func xcframeworkVariantsLinkedDirectlyByGeneratedTargets(
         in graph: Graph,
-        initialGraphWithSources: Graph?,
-        traverser: GraphTraverser
+        initialGraphWithSources: Graph?
     ) -> [AbsolutePath: Set<ProductsVariant>] {
         var variantsByPath: [AbsolutePath: Set<ProductsVariant>] = [:]
 
@@ -427,16 +436,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                             under: graph.dependencyConditions[(sourceDependency, dependency)]
                         )
                     )
-                }
-                let linkableReferences = (try? traverser.linkableDependencies(
-                    path: project.path,
-                    name: target.name,
-                    shouldExcludeHostAppDependencies: false
-                )) ?? []
-                let copiedReferences = traverser.copyProductDependencies(path: project.path, name: target.name)
-                for reference in linkableReferences.union(copiedReferences) {
-                    guard case let .xcframework(path, _, _, _, condition) = reference else { continue }
-                    record(path, on: productsVariants(of: target, under: condition))
                 }
             }
         }
