@@ -1,5 +1,6 @@
 defmodule Tuist.OpenGraphImageRendererTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import ExUnit.CaptureLog
 
@@ -23,6 +24,41 @@ defmodule Tuist.OpenGraphImageRendererTest do
     end
 
     :ok
+  end
+
+  describe "render/2" do
+    test "captures the requested canvas through a single browser session" do
+      html = "<html><body>Sharing image</body></html>"
+      browser = self()
+
+      expect(BrowseChrome, :checkout, fn Tuist.OpenGraphImagePool, capture ->
+        assert {{:ok, "image"}, :ok} = capture.(browser)
+        {:ok, "image"}
+      end)
+
+      expect(BrowseChrome.Chrome, :capture, fn ^browser, ^html, opts ->
+        assert opts == [width: 1920, height: 1080, quality: 95]
+        {:ok, "image"}
+      end)
+
+      assert {:ok, "image"} = OpenGraphImageRenderer.render(html, "Sharing image")
+    end
+
+    test "removes a browser whose capture fails before falling back" do
+      browser = self()
+
+      expect(BrowseChrome, :checkout, fn Tuist.OpenGraphImagePool, capture ->
+        assert {{:error, :browser_unavailable}, :remove} = capture.(browser)
+        {:error, :browser_unavailable}
+      end)
+
+      expect(BrowseChrome.Chrome, :capture, fn ^browser, _html, _opts ->
+        {:error, :browser_unavailable}
+      end)
+
+      assert {:fallback, image} = OpenGraphImageRenderer.render("<html></html>", "Tuist")
+      assert is_binary(image)
+    end
   end
 
   describe "run_render/2 when the browser pool checkout times out (Sentry TUIST-3R8)" do
