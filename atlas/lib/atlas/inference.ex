@@ -414,6 +414,12 @@ defmodule Atlas.Inference do
   end
 
   @doc false
+  def completion_from_stream(%{status: status} = response, chunks)
+      when is_list(chunks) and (status < 200 or status >= 300) do
+    body = chunks |> Enum.reverse() |> IO.iodata_to_binary()
+    {:ok, %{response | body: body}}
+  end
+
   def completion_from_stream(response, chunks) when is_list(chunks) do
     {events, _parser} =
       chunks

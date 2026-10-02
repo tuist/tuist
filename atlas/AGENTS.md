@@ -47,6 +47,11 @@ Do not add README entries for internal operational details such as env var names
 - Rule-based document classification must still run finance invoice extraction. Classifying a document as an invoice does not create its finance entry or line items.
 - `EnsureDocumentClassifications` also repairs ready classified invoices that have no finance entry or only an unconfigured-extractor fallback, using the existing pages and unique classification jobs. Repair jobs extract costs from the stored classification without rewriting document metadata. Documents without text get a visible failed finance entry without calling the model. Transient extraction errors retry before a final failure is recorded. Existing complete finance entries, including failed extractions, are excluded from this automatic recovery. Candidate ordering uses the last extraction attempt so persistent fallback entries rotate behind invoices that have not been attempted. Transient extraction errors during ingestion leave the document ready for the repair job. Successful entries are preserved during reclassification; an intentional refresh can use `Documents.process_document(id, force_invoice_extraction?: true)`.
 
+## Model relay and support classification
+
+- When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures.
+- Support classification failures must still notify `#support`. Persist and log a bounded explanation based on the failure status; never inspect the raw error into a support reason or log, because it can contain the full request and inbound email body.
+
 ## Tasks
 
 - General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
