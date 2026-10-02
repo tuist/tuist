@@ -281,7 +281,7 @@ export const CacheGlobe = {
   // Illustrative hit rates for the demo: each drifts a little every tick,
   // within a few points of its anchor, so the rows behave like live data.
   demoRates() {
-    const anchors = { all: 54, module: 61, gradle: 34 };
+    const anchors = { all: 54, module: 61, gradle: 34, bazel: 72 };
     this.rates ||= { ...anchors };
     for (const kind of Object.keys(anchors)) {
       const drifted = this.rates[kind] + (Math.random() - 0.5) * 3;

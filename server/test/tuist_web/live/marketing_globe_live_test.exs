@@ -12,7 +12,7 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
     {:ok, view, html} = live(conn, ~p"/globe")
 
-    assert html =~ "Compilation actions skipped"
+    assert html =~ "Cache download requests today"
     assert has_element?(view, "#marketing-globe[data-demo=false]")
     assert has_element?(view, "#marketing-globe-canvas[phx-hook=DitherGlobe]")
     assert has_element?(view, "#marketing-globe [data-part=navbar] a[href='/']")
@@ -26,6 +26,16 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     send(view.pid, {:cache_globe_updated, %{CacheGlobe.empty() | downloads: 321}})
 
     assert render(view) =~ "&quot;downloads&quot;:321"
+  end
+
+  test "live and demo requests are counted by the Cloudflare public-page limits", %{conn: conn} do
+    stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+
+    for path <- [~p"/globe", ~p"/globe?demo=true"] do
+      response = get(conn, path)
+      assert response.status == 200
+      assert get_resp_header(response, "x-tuist-public") == ["1"]
+    end
   end
 
   test "demo mode is explicit and offers a return to live activity", %{conn: conn} do

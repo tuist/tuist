@@ -83,7 +83,7 @@
       <div data-part="panel">
         <div data-part="counter">
           <h1 data-part="eyebrow" id="globe-title">
-            {dgettext("marketing", "Compilation actions skipped")}
+            {dgettext("marketing", "Cache download requests today")}
           </h1>
           <%!-- The counter tiles: the SplitFlap hook draws the row in WebGL,
         pixel for pixel from the Figma export; the CacheGlobe hook feeds it
@@ -105,7 +105,7 @@
         <div data-part="stats">
           <div data-part="stat">
             <span data-part="value" id="globe-bytes" phx-update="ignore">—</span>
-            <span data-part="label">{dgettext("marketing", "of compiled work delivered")}</span>
+            <span data-part="label">{dgettext("marketing", "of cache data delivered today")}</span>
           </div>
           <div data-part="stat">
             <span data-part="value" id="globe-region-count" phx-update="ignore">
@@ -115,9 +115,8 @@
           </div>
         </div>
 
-        <%!-- Cache hit rate, overall and for the two caches with customers and
-      hit/miss data (the binary cache's download events, for Xcode target
-      binaries and for Gradle). The rows exist for the layout; live values
+        <%!-- Cache hit rate, overall and for Xcode, Gradle and Bazel.
+      The rows exist for the layout; live values
       arrive once the snapshot carries them, and the demo ticker fills them
       with illustrative rates meanwhile. --%>
         <div data-part="breakdown" id="globe-breakdown" phx-update="ignore">
@@ -127,8 +126,9 @@
               :for={
                 {kind, label} <- [
                   {"all", dgettext("marketing", "All caches")},
-                  {"module", dgettext("marketing", "Xcode binaries")},
-                  {"gradle", dgettext("marketing", "Gradle")}
+                  {"module", dgettext("marketing", "Xcode")},
+                  {"gradle", dgettext("marketing", "Gradle")},
+                  {"bazel", dgettext("marketing", "Bazel")}
                 ]
               }
               data-part="row"
@@ -146,7 +146,7 @@
         <p data-part="copy">
           {dgettext(
             "marketing",
-            "Every skipped action is compiled code that found its next build. Served from the region closest to you."
+            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
           )}
         </p>
       </div>

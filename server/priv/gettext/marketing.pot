@@ -2549,7 +2549,7 @@ msgstr ""
 msgid "Activity delayed · showing last update"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:237
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Cache serving regions"
 msgstr ""
@@ -2619,11 +2619,6 @@ msgstr ""
 msgid "Watch the cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:108
-#, elixir-autogen, elixir-format
-msgid "of compiled work delivered"
-msgstr ""
-
 #: lib/tuist_web/marketing/live/marketing_globe_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Cache globe"
@@ -2634,32 +2629,22 @@ msgstr ""
 msgid "Full screen"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:124
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:86
-#, elixir-autogen, elixir-format
-msgid "Compilation actions skipped"
-msgstr ""
-
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:147
-#, elixir-autogen, elixir-format
-msgid "Every skipped action is compiled code that found its next build. Served from the region closest to you."
-msgstr ""
-
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:131
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Gradle"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:240
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:241
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -2669,12 +2654,32 @@ msgstr ""
 msgid "serving regions"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:130
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:128
 #, elixir-autogen, elixir-format
-msgid "Xcode binaries"
+msgid "All caches"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "Bazel"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:129
 #, elixir-autogen, elixir-format
-msgid "All caches"
+msgid "Xcode"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Cache download requests today"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:147
+#, elixir-autogen, elixir-format
+msgid "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "of cache data delivered today"
 msgstr ""
