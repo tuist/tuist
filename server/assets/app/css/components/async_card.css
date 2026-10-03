@@ -33,7 +33,8 @@
   }
 }
 
-.noora-card[data-async-card][data-state="refreshing"] :is(.noora-chart, .noora-table, .tuist-widget, [data-part="legends"]),
+.noora-card[data-async-card][data-state="refreshing"]
+  :is(.noora-chart, .noora-table, .tuist-widget, [data-part="legends"]),
 #gradle-tasks[data-state="refreshing"] :is(.noora-chart, .noora-table, .tuist-widget, [data-part="legends"]) {
   animation: tuist-chart-refresh 0s linear 200ms forwards;
 }

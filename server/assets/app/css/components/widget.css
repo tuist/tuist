@@ -13,8 +13,8 @@
 
 .tuist-widget {
   position: relative;
-  min-height: 154px;
   gap: var(--noora-spacing-5);
+  min-height: 154px;
 
   & [data-part="background"] {
     position: absolute;
@@ -50,9 +50,9 @@
 
   & > [data-part="header"] {
     display: flex;
+    flex-direction: row;
     align-items: center;
     min-height: 32px;
-    flex-direction: row;
     & > [data-part="title"] button {
       box-shadow: unset;
       background: unset;

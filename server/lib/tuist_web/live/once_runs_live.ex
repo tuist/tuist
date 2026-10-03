@@ -81,10 +81,7 @@ defmodule TuistWeb.OnceRunsLive do
     date_params =
       Map.take(params, ["analytics-date-range", "analytics-start-date", "analytics-end-date"])
 
-    analytics_period =
-      if socket.assigns[:analytics_date_params] == date_params,
-        do: socket.assigns.analytics_period,
-        else: analytics_period
+    analytics_period = analytics_period(socket, date_params, analytics_period)
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     insights_dimension = insights_dimension(params["configuration-insights-type"])
@@ -102,10 +99,7 @@ defmodule TuistWeb.OnceRunsLive do
     # The dedicated listing pages carry no date picker, the way Xcode's own
     # Build Runs page does not, so scoping their table to a period would put
     # older runs out of reach with no control to widen the window.
-    listing_opts =
-      if socket.assigns.once_show_analytics,
-        do: analytics_opts,
-        else: Keyword.drop(analytics_opts, [:start_datetime, :end_datetime])
+    listing_opts = listing_opts(socket, analytics_opts)
 
     {invocations, meta} =
       Analytics.list_invocations(
@@ -197,6 +191,18 @@ defmodule TuistWeb.OnceRunsLive do
       )
 
     {:noreply, socket}
+  end
+
+  defp analytics_period(socket, date_params, new_period) do
+    if socket.assigns[:analytics_date_params] == date_params,
+      do: socket.assigns.analytics_period,
+      else: new_period
+  end
+
+  defp listing_opts(socket, analytics_opts) do
+    if socket.assigns.once_show_analytics,
+      do: analytics_opts,
+      else: Keyword.drop(analytics_opts, [:start_datetime, :end_datetime])
   end
 
   defp maybe_assign_async(socket, keys, enabled?, query_key, fun) do
