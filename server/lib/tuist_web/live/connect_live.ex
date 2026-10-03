@@ -91,9 +91,13 @@ defmodule TuistWeb.ConnectLive do
         {dgettext("dashboard_auth", "Run the following command to install Tuist CLI.")}
       </span>
       <.terminal id="install">
-        <:tab id="mise" label={dgettext("dashboard_auth", "mise")} command="mise install tuist" />
         <:tab
-          id="homebrew"
+          id="install-mise"
+          label={dgettext("dashboard_auth", "mise")}
+          command="mise install tuist"
+        />
+        <:tab
+          id="install-homebrew"
           label={dgettext("dashboard_auth", "homebrew")}
           command="brew install tuist"
         />
@@ -106,12 +110,12 @@ defmodule TuistWeb.ConnectLive do
       </span>
       <.terminal id="init">
         <:tab
-          id="mise"
+          id="init-mise"
           label={dgettext("dashboard_auth", "mise")}
           command={"mise x tuist@latest -- tuist init #{@selected_account.name}/#{@selected_project.name}"}
         />
         <:tab
-          id="homebrew"
+          id="init-homebrew"
           label={dgettext("dashboard_auth", "homebrew")}
           command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
         />
