@@ -331,6 +331,14 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to create a project.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an OAuth or account token with account:projects:write scope to create projects in its account.")
+
+      allow([
+        :authenticated_as_account,
+        :accounts_match,
+        scopes_permit: "account:projects:write"
+      ])
     end
 
     action :read do

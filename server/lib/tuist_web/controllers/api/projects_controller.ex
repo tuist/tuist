@@ -55,7 +55,6 @@ defmodule TuistWeb.API.ProjectsController do
   )
 
   def create(%{body_params: body_params} = conn, _params) do
-    user = Authentication.current_user(conn)
     organization_handle = Map.get(body_params, :organization, nil)
     project_handle = Map.get(body_params, :name, nil)
     full_handle = Map.get(body_params, :full_handle, nil)
@@ -66,7 +65,10 @@ defmodule TuistWeb.API.ProjectsController do
         Projects.get_project_and_account_handles_from_full_handle(full_handle)
       else
         if is_nil(organization_handle) do
-          {:ok, %{project_handle: project_handle, account_handle: user.account.name}}
+          case default_account_handle(conn) do
+            nil -> {:error, :missing_account}
+            account_handle -> {:ok, %{project_handle: project_handle, account_handle: account_handle}}
+          end
         else
           {:ok, %{project_handle: project_handle, account_handle: organization_handle}}
         end
@@ -80,8 +82,29 @@ defmodule TuistWeb.API.ProjectsController do
           message: "The project full handle #{full_handle} is not in the format of account-handle/project-handle."
         })
 
+      {:error, :missing_account} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%Error{
+          message:
+            "Could not determine the account that should own the project. Supply `organization` or authenticate as a user."
+        })
+
       {:ok, handles} ->
         create_project_with_project_and_account_handles(conn, handles, build_system)
+    end
+  end
+
+  defp default_account_handle(conn) do
+    case Authentication.authenticated_subject(conn) do
+      %Tuist.Accounts.User{account: %{name: name}} ->
+        name
+
+      _ ->
+        case Authentication.authenticated_subject_account(conn) do
+          %{name: name} -> name
+          nil -> nil
+        end
     end
   end
 
@@ -90,7 +113,7 @@ defmodule TuistWeb.API.ProjectsController do
          %{project_handle: project_handle, account_handle: account_handle},
          build_system
        ) do
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
     cond do
@@ -99,7 +122,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "The account #{account_handle} was not found"})
 
-      Authorization.authorize(:project_create, user, account) != :ok ->
+      Authorization.authorize(:project_create, subject, account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{

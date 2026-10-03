@@ -72,6 +72,49 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       )
     end
 
+    test "creates a project for an OAuth account token with the account:projects:write scope",
+         %{conn: conn, user: user} do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: ["account:projects:write"],
+          all_projects: true,
+          issued_by: user
+        })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", name: "oauth-project")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["full_name"] == "#{user.account.name}/oauth-project"
+    end
+
+    test "forbids an OAuth account token without the account:projects:write scope",
+         %{conn: conn, user: user} do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: ["account:cache:read"],
+          all_projects: true,
+          issued_by: user
+        })
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects", name: "oauth-project")
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+
     test "returns newly created personal project using just project_name", %{
       conn: conn,
       user: user

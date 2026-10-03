@@ -4,6 +4,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -50,6 +51,49 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                  "plan" => "air"
                }
              ] == Enum.sort_by(response["organizations"], & &1["name"])
+    end
+
+    test "returns organizations for an OAuth account token issued by a user", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: ["account:projects:write"],
+          all_projects: true,
+          issued_by: user
+        })
+
+      # When
+      conn = get(conn, ~p"/api/organizations")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert [%{"name" => "tuist-org"}] = response["organizations"]
+    end
+
+    test "returns an empty list for an account token with no organization", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: user.account,
+          scopes: [],
+          all_projects: true
+        })
+
+      # When
+      conn = get(conn, ~p"/api/organizations")
+
+      # Then
+      %{"organizations" => []} = json_response(conn, :ok)
     end
 
     test "returns empty list when user does not belong to any organization", %{

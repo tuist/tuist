@@ -25,6 +25,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   @default_user_scopes [
     "account:cache:read",
     "account:cache:write",
+    "account:projects:write",
     "project:admin:read",
     "project:cache:read",
     "project:cache:write",

@@ -4,6 +4,8 @@ defmodule TuistWeb.API.OrganizationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Billing
   alias TuistWeb.API.Schemas.Error
@@ -46,17 +48,21 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def index(conn, _params) do
     organization_accounts =
-      case Authentication.current_user(conn) do
-        %Tuist.Accounts.User{} = user ->
+      case Authentication.authenticated_subject(conn) do
+        %User{} = user ->
           Accounts.get_user_organization_accounts(user)
 
-        nil ->
-          account =
-            conn
-            |> Authentication.authenticated_subject_account()
-            |> Tuist.Repo.preload(:organization)
+        %AuthenticatedAccount{issued_by: %User{} = user} ->
+          Accounts.get_user_organization_accounts(user)
 
-          [%{organization: account.organization, account: account}]
+        %AuthenticatedAccount{account: account} ->
+          organization_account(account)
+
+        %Tuist.Projects.Project{account: account} ->
+          organization_account(account)
+
+        nil ->
+          []
       end
 
     organizations =
@@ -74,6 +80,16 @@ defmodule TuistWeb.API.OrganizationsController do
       )
 
     json(conn, %{organizations: organizations})
+  end
+
+  defp organization_account(account) do
+    account = Tuist.Repo.preload(account, :organization)
+
+    if is_nil(account.organization) do
+      []
+    else
+      [%{organization: account.organization, account: account}]
+    end
   end
 
   operation(:create,

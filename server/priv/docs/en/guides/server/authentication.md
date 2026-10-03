@@ -119,6 +119,7 @@ The command accepts the following options:
 | `account:cache:write` | Upload account-scoped cached binaries |
 | `account:members:read` | Read account members |
 | `account:members:write` | Manage account members |
+| `account:projects:write` | Create projects under the account |
 | `account:registry:read` | Read from the Swift package registry |
 | `account:registry:write` | Publish to the Swift package registry |
 | `project:previews:read` | Download previews |
