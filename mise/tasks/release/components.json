@@ -240,6 +240,20 @@
       "cliff_config": "grafana-datasource/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["grafana-datasource/**/*"]
+    },
+    {
+      "name": "once",
+      "tag_prefix": "once@",
+      "tag_regex": "^once@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "once/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": [
+        "once/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/once.yml",
+        ".github/workflows/once-release.yml",
+        ".github/workflows/once-docs.yml"
+      ]
     }
   ]
 }
