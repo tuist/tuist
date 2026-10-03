@@ -1,4 +1,8 @@
+import FileSystem
+import FileSystemTesting
 import Mockable
+import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistOpener
@@ -7,7 +11,6 @@ import TuistTesting
 import TuistXcodeBuildProducts
 import XcodeGraph
 import XCTest
-
 @testable import TuistAutomation
 
 final class TargetRunnerErrorTests: XCTestCase {
@@ -382,6 +385,67 @@ final class TargetRunnerTests: TuistUnitTestCase {
             arguments: arguments
         )
 
+        verify(opener).open(path: .value(appPath)).called(1)
+    }
+}
+
+struct TargetRunnerDerivedDataTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func run_app_uses_build_derived_data_path(custom: Bool) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let derivedDataPath = custom ? path.appending(component: "Custom DerivedData") : nil
+        let outputPath = path.appending(component: "Products")
+        let target = GraphTarget.test(target: .test(destinations: [.mac], product: .app))
+        let appPath = outputPath.appending(component: target.target.productNameWithExtension)
+        try await FileSystem().makeDirectory(at: appPath)
+        let locator = MockXcodeProjectBuildDirectoryLocating()
+        let controller = MockXcodeBuildControlling()
+        let opener = MockOpening()
+        given(locator).locate(
+            destinationType: .value(.simulator(.macOS)),
+            projectPath: .value(workspacePath),
+            derivedDataPath: .value(derivedDataPath),
+            configuration: .value("Debug")
+        ).willReturn(outputPath)
+        given(controller).showBuildSettings(
+            .value(.workspace(workspacePath)),
+            scheme: .value("App"),
+            configuration: .value("Debug"),
+            derivedDataPath: .value(derivedDataPath)
+        ).willReturn([:])
+        given(opener).open(path: .value(appPath)).willReturn()
+        let subject = TargetRunner(
+            xcodeBuildController: controller,
+            xcodeProjectBuildDirectoryLocator: locator,
+            opener: opener
+        )
+
+        try await subject.runTarget(
+            target,
+            platform: .macOS,
+            workspacePath: workspacePath,
+            schemeName: "App",
+            configuration: "Debug",
+            derivedDataPath: derivedDataPath,
+            minVersion: nil,
+            version: nil,
+            deviceName: nil,
+            arguments: []
+        )
+
+        verify(locator).locate(
+            destinationType: .any,
+            projectPath: .any,
+            derivedDataPath: .value(derivedDataPath),
+            configuration: .any
+        ).called(1)
+        verify(controller).showBuildSettings(
+            .any,
+            scheme: .any,
+            configuration: .any,
+            derivedDataPath: .value(derivedDataPath)
+        ).called(1)
         verify(opener).open(path: .value(appPath)).called(1)
     }
 }

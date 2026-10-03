@@ -11,6 +11,7 @@ This module contains core domain abstractions and shared models used across the 
 - Keep IO-heavy or integration-specific logic in feature modules (HTTP, Server, Cache).
 
 ## Invariants
+- Simulator booting tolerates an already-booted device because callers can hold a shutdown snapshot from before app installation; other boot failures must propagate.
 - Analytics types are Codable and designed for transport to the server.
 - Models encode run metadata (command args, environment, git info, cache endpoints).
 - Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.

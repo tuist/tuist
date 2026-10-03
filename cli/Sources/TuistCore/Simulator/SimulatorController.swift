@@ -154,7 +154,7 @@ public struct SimulatorController: SimulatorControlling {
             return []
         }
 
-        let devices = try devicesJSON.flatMap { runtimeIdentifier, devicesJSON -> [SimulatorDevice] in
+        return try devicesJSON.flatMap { runtimeIdentifier, devicesJSON -> [SimulatorDevice] in
             try devicesJSON.map { deviceJSON -> SimulatorDevice in
                 var deviceJSON = deviceJSON
                 deviceJSON["runtimeIdentifier"] = runtimeIdentifier
@@ -162,7 +162,6 @@ public struct SimulatorController: SimulatorControlling {
                 return try jsonDecoder.decode(SimulatorDevice.self, from: deviceJSONData)
             }
         }
-        return devices
     }
 
     /// Returns the list of simulator runtimes that are available in the system.
@@ -178,8 +177,7 @@ public struct SimulatorController: SimulatorControlling {
         }
 
         let runtimesData = try JSONSerialization.data(withJSONObject: runtimesJSON, options: [])
-        let runtimes = try jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
-        return runtimes
+        return try jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
     }
 
     /// - Parameters:
@@ -410,11 +408,7 @@ extension SimulatorDevice {
         do {
             try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "boot", udid])
         } catch {
-            if forced,
-               String(describing: error).contains("Unable to boot device in current state: Booted")
-            {
-                // noop
-            } else {
+            if !String(describing: error).contains("Unable to boot device in current state: Booted") {
                 throw error
             }
         }

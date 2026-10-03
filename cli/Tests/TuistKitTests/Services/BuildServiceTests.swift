@@ -17,7 +17,6 @@ import TuistServer
 import TuistSupport
 import XcodeGraph
 import XCTest
-
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -77,6 +76,41 @@ struct BuildServiceTests {
             targetBuilder: targetBuilder,
             configLoader: configLoader
         )
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [
+        (false, false, false), (false, false, true), (false, true, false), (false, true, true),
+        (true, false, false), (true, false, true), (true, true, false), (true, true, true),
+    ])
+    func run_only_passes_explicit_derived_data_path(scenario: (Bool, Bool, Bool)) async throws {
+        let (generate, explicitPath, namedScheme) = scenario
+        buildGraphInspector.reset()
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let customPath = path.appending(component: "Custom DerivedData")
+        let overridePath = path.appending(component: "Override")
+        let graph = Graph.test(workspace: .test(generationOptions: .test(derivedDataPath: .custom(customPath))))
+        let scheme = Scheme.test()
+        given(configLoader).loadConfig(path: .any).willReturn(.test(project: .testGeneratedProject()))
+        given(generator).load(path: .any, options: .any).willReturn(graph)
+        given(generator).generateWithGraph(path: .any, options: .any).willReturn((workspacePath, graph, MapperEnvironment()))
+        given(buildGraphInspector).workspacePath(directory: .any).willReturn(workspacePath)
+        given(buildGraphInspector).buildableSchemes(graphTraverser: .any).willReturn([scheme])
+        given(buildGraphInspector).buildableEntrySchemes(graphTraverser: .any).willReturn([scheme])
+        given(buildGraphInspector).buildableTarget(scheme: .any, graphTraverser: .any).willReturn(.test())
+        var didBuild = false
+        targetBuilder.buildTargetStub = { _, _, _, _, _, _, derivedDataPath, _, _, _, _, _ in
+            didBuild = true
+            #expect(derivedDataPath == (explicitPath ? overridePath : nil))
+        }
+
+        try await subject.testRun(
+            schemeName: namedScheme ? scheme.name : nil,
+            generate: generate,
+            derivedDataPath: explicitPath ? overridePath.pathString : nil,
+            path: path
+        )
+        #expect(didBuild)
     }
 
     @Test func throws_an_error_if_the_project_is_not_generated() async throws {

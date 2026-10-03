@@ -246,6 +246,7 @@ struct RunCommandService {
             generate: Bool,
             clean: Bool,
             configuration: String?,
+            derivedDataPath: String? = nil,
             device: String?,
             osVersion: String?,
             rosetta: Bool,
@@ -269,12 +270,19 @@ struct RunCommandService {
                     device: device
                 )
             case let .scheme(scheme):
+                let resolvedDerivedDataPath: AbsolutePath?
+                if let derivedDataPath {
+                    resolvedDerivedDataPath = try await Environment.current.pathRelativeToWorkingDirectory(derivedDataPath)
+                } else {
+                    resolvedDerivedDataPath = nil
+                }
                 try await runScheme(
                     scheme,
                     path: runPath,
                     generate: generate,
                     clean: clean,
                     configuration: configuration,
+                    derivedDataPath: resolvedDerivedDataPath,
                     device: device,
                     version: osVersion,
                     rosetta: rosetta,
@@ -617,6 +625,7 @@ struct RunCommandService {
             generate: Bool,
             clean: Bool,
             configuration: String?,
+            derivedDataPath: AbsolutePath?,
             device: String?,
             version: Version?,
             rosetta: Bool,
@@ -679,7 +688,7 @@ struct RunCommandService {
                 clean: clean,
                 configuration: configuration,
                 buildOutputPath: nil,
-                derivedDataPath: nil,
+                derivedDataPath: derivedDataPath,
                 device: device,
                 osVersion: version.map { XcodeGraph.Version(stringLiteral: $0.description) },
                 rosetta: rosetta,
@@ -708,6 +717,7 @@ struct RunCommandService {
                 workspacePath: workspacePath,
                 schemeName: scheme.name,
                 configuration: configuration,
+                derivedDataPath: derivedDataPath,
                 minVersion: minVersion,
                 version: version,
                 deviceName: device,

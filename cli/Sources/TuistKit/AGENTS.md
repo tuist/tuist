@@ -12,6 +12,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
 
 ## Invariants
+- `tuist build` leaves DerivedData selection to Xcode unless an explicit command option overrides it; product copying must use the same resolved directory.
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
 - `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
