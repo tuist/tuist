@@ -287,8 +287,8 @@ defmodule TuistWeb.OnceOverviewLive do
             title={dgettext("dashboard_projects", "No cache activity yet")}
           >
             <:image>
-              <img src={~p"/images/empty_chart_light.png"} data-theme="light" loading="lazy" />
-              <img src={~p"/images/empty_chart_dark.png"} data-theme="dark" loading="lazy" />
+              <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+              <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
             </:image>
           </.empty_card_section>
         </div>
@@ -557,8 +557,8 @@ defmodule TuistWeb.OnceOverviewLive do
       </.card_section>
       <.empty_card_section :if={@runs.ok? && Enum.empty?(@runs.result)} title={@empty_title}>
         <:image>
-          <img src={~p"/images/empty_chart_light.png"} data-theme="light" loading="lazy" />
-          <img src={~p"/images/empty_chart_dark.png"} data-theme="dark" loading="lazy" />
+          <img src={~p"/images/empty_bar_chart_light.png"} data-theme="light" loading="lazy" />
+          <img src={~p"/images/empty_bar_chart_dark.png"} data-theme="dark" loading="lazy" />
         </:image>
       </.empty_card_section>
     </.card>
