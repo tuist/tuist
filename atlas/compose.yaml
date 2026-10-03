@@ -1,0 +1,70 @@
+name: atlas
+
+x-atlas: &atlas
+  image: ghcr.io/tuist/atlas:${ATLAS_VERSION:?Set ATLAS_VERSION to a published release}
+  env_file: .env
+  environment:
+    DATABASE_URL: ecto://atlas:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/atlas
+    SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE}
+    GUARDIAN_SECRET_KEY: ${GUARDIAN_SECRET_KEY:?Set GUARDIAN_SECRET_KEY}
+    ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
+    ATLAS_ALLOWED_EMAIL_DOMAIN: ${ATLAS_ALLOWED_EMAIL_DOMAIN:?Set ATLAS_ALLOWED_EMAIL_DOMAIN}
+    DATABASE_SSL: "false"
+    PHX_HOST: ${ATLAS_HOST:-localhost}
+    PORT: "4000"
+    ERL_FLAGS: ${ERL_FLAGS:-+S 2:2}
+    MCP_PROXY_SERVERS: ${MCP_PROXY_SERVERS:-[]}
+  mem_limit: 4g
+  init: true
+
+services:
+  postgres:
+    image: postgres:18.0
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: atlas
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *atlas
+    command: [/app/bin/migrate]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  atlas:
+    <<: *atlas
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2.11.2
+    environment:
+      ATLAS_HOST: ${ATLAS_HOST:-localhost}
+    ports:
+      - "${ATLAS_HTTP_PORT:-80}:80"
+      - "${ATLAS_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy-data:/data
+      - proxy-config:/config
+    depends_on:
+      atlas:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres:
+  proxy-data:
+  proxy-config:

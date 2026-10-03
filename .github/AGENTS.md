@@ -79,3 +79,5 @@ distinguish documentation and security tests from malicious behavior. Preserve t
 vendored evaluator and rubric license notices. Validate with
 `npm test --prefix .github/scripts/pr-quality` and
 `actionlint .github/workflows/pr-quality.yml` from the repository root.
+
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials.

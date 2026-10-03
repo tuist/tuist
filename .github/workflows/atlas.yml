@@ -8,6 +8,7 @@ on:
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
+      - .github/workflows/atlas-deployment-validation.yml
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -15,6 +16,7 @@ on:
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
+      - .github/workflows/atlas-deployment-validation.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,6 +33,9 @@ defaults:
     working-directory: atlas
 
 jobs:
+  deployment:
+    uses: ./.github/workflows/atlas-deployment-validation.yml
+
   build:
     name: Build
     runs-on: tuist-linux
