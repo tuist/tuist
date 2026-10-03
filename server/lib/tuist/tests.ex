@@ -552,7 +552,7 @@ defmodule Tuist.Tests do
           test_modules,
           shard_index,
           shard_plan,
-          Coverage.Evidence.test_marks(test.project_id, Map.get(attrs, :coverage_evidence))
+          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
         )
 
       Tuist.Tasks.run_async(fn ->
@@ -820,7 +820,7 @@ defmodule Tuist.Tests do
                 test_modules,
                 shard_index,
                 shard_plan,
-                Coverage.Evidence.test_marks(project_id, Map.get(attrs, :coverage_evidence))
+                Coverage.Evidence.test_states(project_id, Map.get(attrs, :coverage_evidence))
               )
             end
 
@@ -1948,10 +1948,9 @@ defmodule Tuist.Tests do
     _ -> :error
   end
 
-  # `evidence_marks` are the tests the report holds evidence of their own for
-  # and those it recorded only as overlapping another
-  # (`Coverage.Evidence.test_marks/2`), which flag their runs.
-  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_marks) do
+  # `evidence_states` say, per test, what the report's evidence holds for it
+  # (`Coverage.Evidence.test_states/2`), which their runs record.
+  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_states) do
     # Resolved once per run and threaded down rather than looked up where each
     # row is built: it decides `is_new` for every test case and
     # `is_default_branch` for every run row, and both used to mean a separate
@@ -2048,7 +2047,7 @@ defmodule Tuist.Tests do
           shard_index,
           existing_test_cases,
           is_default_branch,
-          evidence_marks
+          evidence_states
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -2351,7 +2350,7 @@ defmodule Tuist.Tests do
          shard_index,
          existing_test_cases,
          is_default_branch,
-         evidence_marks
+         evidence_states
        ) do
     test_case_data_list =
       test_cases
@@ -2414,8 +2413,7 @@ defmodule Tuist.Tests do
           is_flaky: is_flaky,
           is_new: is_new,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
-          has_coverage_evidence: MapSet.member?(evidence_marks.evidence, identity_key),
-          coverage_evidence_overlapped: MapSet.member?(evidence_marks.overlapped, identity_key),
+          coverage_evidence: Map.get(evidence_states, identity_key, "none"),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,

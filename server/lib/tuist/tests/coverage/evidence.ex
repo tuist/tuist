@@ -86,7 +86,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   @doc """
   The tests a report holds evidence of their own for, as `{name,
   module_name, suite_name}`: what marks their test case runs
-  (`has_coverage_evidence` on `test_case_runs`), so a test's latest evidence
+  (`coverage_evidence` `own` on `test_case_runs`), so a test's latest evidence
   is found through its runs rather than by scanning `coverage_files`. Empty
   when coverage is off for the project, as `record/3` then stores nothing.
   """
@@ -104,13 +104,18 @@ defmodule Tuist.Tests.Coverage.Evidence do
   end
 
   @doc """
-  The tests a report marks on their test case runs, as `{name, module_name,
-  suite_name}`: `evidence`, those it holds evidence of their own for
-  (`tests_with_evidence/2`), and `overlapped`, those it recorded only as
-  overlapping another test of their process (`overlapped_tests/2`).
+  What a report's evidence holds for each test it names, by `{name,
+  module_name, suite_name}`, as their test case runs record it
+  (`coverage_evidence`): `own` for the tests it holds evidence of their own
+  for (`tests_with_evidence/2`), `overlapped` for those it recorded only as
+  overlapping another test of their process (`overlapped_tests/2`). Tests it
+  doesn't name are `none`.
   """
-  def test_marks(project_id, evidence),
-    do: %{evidence: tests_with_evidence(project_id, evidence), overlapped: overlapped_tests(project_id, evidence)}
+  def test_states(project_id, evidence) do
+    overlapped = project_id |> overlapped_tests(evidence) |> Map.new(&{&1, "overlapped"})
+    own = project_id |> tests_with_evidence(evidence) |> Map.new(&{&1, "own"})
+    Map.merge(overlapped, own)
+  end
 
   @doc """
   The tests the report recorded only as overlapping another test of their

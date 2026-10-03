@@ -252,7 +252,7 @@ defmodule Tuist.Tests.Coverage.Reported do
             from(r in TestCaseRun,
               where:
                 r.project_id == ^project_id and r.test_case_id in ^ids and r.test_run_id in ^runs and
-                  r.coverage_evidence_overlapped,
+                  r.coverage_evidence == "overlapped",
               distinct: true,
               select: r.test_case_id
             )

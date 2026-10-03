@@ -180,7 +180,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     assert Evidence.overlapped_tests(project.id, nil) == MapSet.new()
   end
 
-  test "flags the test case runs of the tests the report holds evidence of, or recorded as overlapping", %{
+  test "records on each test case run whether the report holds the test's own evidence or its overlap", %{
     project: project
   } do
     modules = [
@@ -210,11 +210,11 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
         from(r in Tuist.Tests.TestCaseRun,
           where: r.test_run_id == ^measured.id,
           order_by: r.name,
-          select: {r.name, r.has_coverage_evidence, r.coverage_evidence_overlapped}
+          select: {r.name, r.coverage_evidence}
         )
       )
 
-    assert flags == [{"testAdd()", true, false}, {"testNone()", false, false}, {"testOverlap()", false, true}]
+    assert flags == [{"testAdd()", "own"}, {"testNone()", "none"}, {"testOverlap()", "overlapped"}]
   end
 
   test "a report's rows share one timestamp, later than the shard's earlier report", %{test_run: test_run} do
