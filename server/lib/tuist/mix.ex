@@ -344,34 +344,39 @@ defmodule Tuist.Mix do
   defp insert_machine_metrics(_build_id, _project_id, [], _now), do: :ok
 
   defp insert_machine_metrics(build_id, project_id, machine_metrics, now) do
-    rows =
-      machine_metrics
-      |> Enum.filter(fn sample ->
-        timestamp = number(sample, :timestamp)
-        is_number(timestamp) and timestamp >= 0 and timestamp <= @max_timestamp
-      end)
-      |> Enum.map(fn sample ->
-        %{
-          build_run_id: nil,
-          gradle_build_id: nil,
-          mix_build_id: build_id,
-          project_id: project_id,
-          timestamp: number(sample, :timestamp) || 0.0,
-          offset_ms: number(sample, :offset_ms),
-          cpu_usage_percent: sample |> number(:cpu_usage_percent) |> percent(),
-          memory_used_bytes: integer_value(sample, :memory_used_bytes) || 0,
-          memory_total_bytes: integer_value(sample, :memory_total_bytes) || 0,
-          network_bytes_in: integer_value(sample, :network_bytes_in) || 0,
-          network_bytes_out: integer_value(sample, :network_bytes_out) || 0,
-          disk_bytes_read: integer_value(sample, :disk_bytes_read) || 0,
-          disk_bytes_written: integer_value(sample, :disk_bytes_written) || 0,
-          inserted_at: now
-        }
-      end)
+    machine_metrics
+    |> Enum.filter(&valid_timestamp?/1)
+    |> Enum.map(&machine_metric_row(&1, build_id, project_id, now))
+    |> BuildMachineMetric.Buffer.insert_all()
 
-    BuildMachineMetric.Buffer.insert_all(rows)
     :ok
   end
+
+  defp valid_timestamp?(sample) do
+    timestamp = number(sample, :timestamp)
+    is_number(timestamp) and timestamp >= 0 and timestamp <= @max_timestamp
+  end
+
+  defp machine_metric_row(sample, build_id, project_id, now) do
+    %{
+      build_run_id: nil,
+      gradle_build_id: nil,
+      mix_build_id: build_id,
+      project_id: project_id,
+      timestamp: number(sample, :timestamp),
+      offset_ms: number(sample, :offset_ms),
+      cpu_usage_percent: sample |> number(:cpu_usage_percent) |> percent(),
+      memory_used_bytes: bytes(sample, :memory_used_bytes),
+      memory_total_bytes: bytes(sample, :memory_total_bytes),
+      network_bytes_in: bytes(sample, :network_bytes_in),
+      network_bytes_out: bytes(sample, :network_bytes_out),
+      disk_bytes_read: bytes(sample, :disk_bytes_read),
+      disk_bytes_written: bytes(sample, :disk_bytes_written),
+      inserted_at: now
+    }
+  end
+
+  defp bytes(sample, key), do: integer_value(sample, key) || 0
 
   defp number(sample, key) do
     case field(sample, key) do
