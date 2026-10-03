@@ -4,6 +4,7 @@ defmodule TuistWeb.MixOverviewLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.MixAnalytics
 
   alias Tuist.Gradle.Analytics, as: BuildAnalytics
   alias Tuist.Mix
@@ -45,7 +46,7 @@ defmodule TuistWeb.MixOverviewLive do
       builds_preset: builds_preset,
       builds_period: builds_period,
       builds_environment: builds_environment,
-      builds_environment_label: builds_environment_label(builds_environment)
+      builds_environment_label: environment_label(builds_environment)
     )
     |> assign_async(:build_duration_analytics, fn ->
       {:ok, %{build_duration_analytics: BuildAnalytics.build_duration_analytics(project.id, analytics_opts)}}
@@ -78,11 +79,7 @@ defmodule TuistWeb.MixOverviewLive do
       end_datetime: end_datetime
     ]
 
-    case environment do
-      "ci" -> Keyword.put(opts, :is_ci, true)
-      "local" -> Keyword.put(opts, :is_ci, false)
-      _ -> opts
-    end
+    opts ++ environment_opts(environment)
   end
 
   defp fetch_test_runs_data(project) do
@@ -160,10 +157,6 @@ defmodule TuistWeb.MixOverviewLive do
      }}
   end
 
-  @doc false
-  def seconds(nil), do: 0
-  def seconds(milliseconds), do: (milliseconds / 1000) |> Decimal.from_float() |> Decimal.round(1)
-
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
   defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_gradle", "since last year")
@@ -174,9 +167,4 @@ defmodule TuistWeb.MixOverviewLive do
   defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
   defp environment_label(_other), do: dgettext("dashboard_gradle", "Any")
-
-  defp builds_environment_label("any"), do: dgettext("dashboard_gradle", "Any")
-  defp builds_environment_label("local"), do: dgettext("dashboard_gradle", "Local")
-  defp builds_environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
-  defp builds_environment_label(_other), do: dgettext("dashboard_gradle", "Any")
 end

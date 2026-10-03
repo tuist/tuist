@@ -337,12 +337,8 @@ defmodule Tuist.Mix do
   end
 
   defp diagnostic_counts(diagnostics) do
-    Enum.reduce(diagnostics, %{errors: 0, warnings: 0}, fn diagnostic, acc ->
-      case diagnostic_severity(diagnostic) do
-        "error" -> Map.update!(acc, :errors, &(&1 + 1))
-        _ -> Map.update!(acc, :warnings, &(&1 + 1))
-      end
-    end)
+    counts = Enum.frequencies_by(diagnostics, &diagnostic_severity/1)
+    %{errors: Map.get(counts, "error", 0), warnings: Map.get(counts, "warning", 0)}
   end
 
   defp insert_machine_metrics(_build_id, _project_id, [], _now), do: :ok
@@ -378,14 +374,14 @@ defmodule Tuist.Mix do
   end
 
   defp number(sample, key) do
-    case Map.get(sample, key) || Map.get(sample, Atom.to_string(key)) do
+    case field(sample, key) do
       value when is_number(value) -> value
       _ -> nil
     end
   end
 
   defp integer_value(sample, key) do
-    case Map.get(sample, key) || Map.get(sample, Atom.to_string(key)) do
+    case field(sample, key) do
       value when is_integer(value) -> value |> max(0) |> min(@int64)
       _ -> nil
     end
@@ -493,10 +489,8 @@ defmodule Tuist.Mix do
     end
   end
 
-  defp string_field(diagnostic, key) do
-    value = Map.get(diagnostic, key) || Map.get(diagnostic, Atom.to_string(key))
-
-    case value do
+  defp string_field(map, key) do
+    case field(map, key) do
       value when is_binary(value) -> value
       _ -> ""
     end
@@ -504,10 +498,8 @@ defmodule Tuist.Mix do
 
   # Every integer read this way lands in a UInt32 column, which would wrap a
   # larger value around rather than reject it.
-  defp integer_field(diagnostic, key) do
-    value = Map.get(diagnostic, key) || Map.get(diagnostic, Atom.to_string(key))
-
-    case value do
+  defp integer_field(map, key) do
+    case field(map, key) do
       value when is_integer(value) and value >= 0 -> min(value, @uint32)
       _ -> nil
     end

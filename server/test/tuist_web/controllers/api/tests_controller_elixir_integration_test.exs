@@ -1,9 +1,9 @@
 defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
   # End-to-end: drives the tuist_ex ExUnit formatter with synthetic
-  # ExUnit.Test lifecycle events, has it POST into the real /tests
+  # ExUnit.Test lifecycle events, posts what it reports to the real /tests
   # controller (no Mimic on Tuist.Tests), and asserts that ClickHouse
   # ends up with granular test_case_run rows.
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   import Ecto.Query
   import Phoenix.ConnTest
@@ -46,15 +46,34 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
     )
   end
 
-  defp submit_via_controller(conn, account, project) do
-    fn payload, _opts ->
-      response = post(conn, "/api/projects/#{account}/#{project}/tests", payload)
+  # The plugin hands its report to the test, which posts it. The request is
+  # then made by the process that owns the database connections, so the test
+  # needs no shared state and can run next to others.
+  defp report_to(test), do: fn payload, _opts -> send(test, {:report, payload}) && :ok end
 
-      case response.status do
-        status when status in 200..299 -> :ok
-        status -> {:error, {:http, status, response.resp_body}}
-      end
-    end
+  defp environment("GIT_BRANCH"), do: "main"
+  defp environment("GIT_COMMIT"), do: "0000000000000000000000000000000000000000"
+  defp environment("GIT_REMOTE_URL"), do: "https://github.com/acme/widgets.git"
+  defp environment(_name), do: nil
+
+  defp post_report(conn, user, project) do
+    assert_receive {:report, payload}, 5_000
+    post(conn, "/api/projects/#{user.account.name}/#{project.name}/tests", payload)
+  end
+
+  test "tells the page waiting for a Mix project that the user reached it", %{conn: conn, user: user} do
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :mix)
+    Tuist.PubSub.subscribe("projects.#{project.id}")
+
+    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: report_to(self()), environment: &environment/1)
+
+    for event <- [{:suite_started, []}, {:test_finished, new_test([])}, {:suite_finished, %{run: 1_000}}],
+        do: GenServer.cast(pid, event)
+
+    assert conn |> post_report(user, project) |> json_response(:ok)
+
+    user_id = user.id
+    assert_receive {:show, %{user: %{id: ^user_id}}}
   end
 
   test "posts an ExUnit run and lands test_case_run rows in ClickHouse with per-case granularity",
@@ -63,15 +82,7 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
          user: user,
          project: project
        } do
-    submit = submit_via_controller(conn, user.account.name, project.name)
-    parent = self()
-
-    shell = fn message ->
-      send(parent, {:shell, message})
-      :ok
-    end
-
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, shell: shell)
+    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: report_to(self()), environment: &environment/1)
 
     stacktrace = [
       {GreeterTest, :"test stumbles", 1, [file: ~c"test/greeter_test.exs", line: 42]}
@@ -113,10 +124,8 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
     ]
 
     Enum.each(events, &GenServer.cast(pid, &1))
-
-    refute_receive {:shell, _}, 500
-
     :ok = GenServer.stop(pid)
+    assert %{status: 200} = post_report(conn, user, project)
 
     # Query ClickHouse for the test_case_runs written by the run. The exact
     # test_run_id is opaque here (the formatter generated it), so we look up
@@ -174,23 +183,14 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
     user: user,
     project: project
   } do
-    submit = submit_via_controller(conn, user.account.name, project.name)
-
     environment = fn
       "CI" -> "true"
       "GIT_COMMIT" -> "5f2c1e9a7b3d4c6e8f0a1b2c3d4e5f6a7b8c9d0e"
-      _ -> nil
+      name -> environment(name)
     end
 
-    parent = self()
-
     run = fn state ->
-      {:ok, pid} =
-        GenServer.start_link(ExUnitFormatter,
-          submit: submit,
-          shell: fn message -> send(parent, {:shell, message}) end,
-          environment: environment
-        )
+      {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: report_to(self()), environment: environment)
 
       Enum.each(
         [
@@ -208,10 +208,8 @@ defmodule TuistWeb.API.TestsControllerElixirIntegrationTest do
         &GenServer.cast(pid, &1)
       )
 
-      # The formatter submits after the suite finishes; give it the same
-      # window the test above does before stopping it.
-      refute_receive {:shell, _}, 500
       :ok = GenServer.stop(pid)
+      assert %{status: 200} = post_report(conn, user, project)
     end
 
     runs = fn ->

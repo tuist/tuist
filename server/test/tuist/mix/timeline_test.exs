@@ -1,5 +1,5 @@
 defmodule Tuist.Mix.TimelineTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.Mix

@@ -3,6 +3,8 @@ defmodule TuistWeb.API.TestsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
@@ -572,6 +574,9 @@ defmodule TuistWeb.API.TestsController do
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
+        if Project.mix_project?(selected_project),
+          do: Projects.notify_connected(selected_project, Authentication.current_user(conn))
+
         vcs_comment_params = %{
           git_commit_sha: Map.get(body_params, :git_commit_sha),
           git_ref: Map.get(body_params, :git_ref),

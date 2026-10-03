@@ -1,9 +1,9 @@
 defmodule TuistWeb.API.MixControllerIntegrationTest do
   # End-to-end: drives TuistEx.Analytics.CompileReporter with synthetic
-  # Mix compiler diagnostics, has it POST through the real /mix/builds
+  # Mix compiler diagnostics, posts what it reports to the real /mix/builds
   # controller (no Tuist.Mix mock), and asserts that ClickHouse ends up
   # with the build row and one diagnostic per captured issue.
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   import Ecto.Query
   import Phoenix.ConnTest
@@ -31,32 +31,41 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
       |> Authentication.put_current_user(user)
       |> put_req_header("content-type", "application/json")
 
-    on_exit(fn ->
-      case Process.whereis(CompileReporter) do
-        pid when is_pid(pid) ->
-          try do
-            GenServer.stop(pid)
-          catch
-            :exit, _ -> :ok
-          end
-
-        _ ->
-          :ok
-      end
-    end)
-
     %{conn: conn, user: user, project: project}
   end
 
-  defp submit_via_controller(conn, account, project) do
-    fn payload, _opts ->
-      response = post(conn, "/api/projects/#{account}/#{project}/mix/builds", payload)
+  # The plugin hands its report to the test, which posts it. The request is
+  # then made by the process that owns the database connections, so the test
+  # needs no shared state and can run next to others.
+  defp report_to(test), do: fn payload, _opts -> send(test, {:report, payload}) && :ok end
 
-      case response.status do
-        status when status in 200..299 -> :ok
-        status -> {:error, {:http, status, response.resp_body}}
-      end
-    end
+  defp environment("GIT_BRANCH"), do: "main"
+  defp environment("GIT_COMMIT"), do: "0000000000000000000000000000000000000000"
+  defp environment("GIT_REMOTE_URL"), do: "https://github.com/acme/widgets.git"
+  defp environment(_name), do: nil
+
+  defp reporter(opts) do
+    opts = Keyword.merge([submit: report_to(self()), sampler: nil, environment: &environment/1], opts)
+    start_supervised!({CompileReporter, opts}, id: make_ref())
+  end
+
+  defp post_report(conn, user, project) do
+    assert_receive {:report, payload}, 5_000
+    post(conn, "/api/projects/#{user.account.name}/#{project.name}/mix/builds", payload)
+  end
+
+  test "tells the page waiting for the project that the user reached it", %{conn: conn, user: user} do
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :mix)
+    Tuist.PubSub.subscribe("projects.#{project.id}")
+
+    reporter = reporter([])
+    CompileReporter.record(reporter, :elixir, {:ok, []})
+    :ok = CompileReporter.finish(reporter)
+
+    assert conn |> post_report(user, project) |> json_response(:created)
+
+    user_id = user.id
+    assert_receive {:show, %{user: %{id: ^user_id}}}
   end
 
   test "posts a compile run and lands the build + one diagnostic row in ClickHouse", %{
@@ -64,17 +73,10 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     user: user,
     project: project
   } do
-    submit = submit_via_controller(conn, user.account.name, project.name)
-    parent = self()
-
-    shell = fn message ->
-      send(parent, {:shell, message})
-      :ok
-    end
-
-    {:ok, _pid} = CompileReporter.start_link(submit: submit, shell: shell)
+    reporter = reporter([])
 
     CompileReporter.record(
+      reporter,
       :elixir,
       {:ok,
        [
@@ -97,6 +99,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
 
     :ok =
       CompileReporter.finish(
+        reporter,
         [
           %{path: "lib/macros.ex", compile_duration_ms: 300, wait_duration_ms: 0, modules: ["Macros"], waits: []},
           %{
@@ -119,7 +122,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
         ]
       )
 
-    refute_receive {:shell, _}, 500
+    assert %{status: 201} = post_report(conn, user, project)
 
     builds =
       ClickHouseRepo.all(
@@ -172,38 +175,22 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     user: user,
     project: project
   } do
-    submit = submit_via_controller(conn, user.account.name, project.name)
-    parent = self()
-
-    shell = fn message ->
-      send(parent, {:shell, message})
-      :ok
-    end
-
     environment = fn
       "TUIST_TAGS" -> "nightly"
       "TUIST_VALUES" -> "ticket=PROJ-42"
       "GITHUB_ACTIONS" -> "true"
       "GITHUB_SERVER_URL" -> "https://github.acme.example"
-      _ -> nil
+      name -> environment(name)
     end
 
-    # `sampler: nil` disables the periodic sampler so the test injects a known
-    # machine-metric sample directly.
-    {:ok, pid} =
-      CompileReporter.start_link(
-        submit: submit,
-        shell: shell,
-        sampler: nil,
-        environment: environment,
-        tag: "release"
-      )
+    # Without a sampler, so the test hands the reporter a known sample itself.
+    reporter = reporter(environment: environment, tag: "release")
 
-    send(pid, {:machine_metric, MachineMetrics.sample(fn -> 1_700_000_000.0 end)})
-    CompileReporter.record(:elixir, {:ok, []})
-    :ok = CompileReporter.finish()
+    send(reporter, {:machine_metric, MachineMetrics.sample(fn -> 1_700_000_000.0 end)})
+    CompileReporter.record(reporter, :elixir, {:ok, []})
+    :ok = CompileReporter.finish(reporter)
 
-    refute_receive {:shell, _}, 500
+    assert %{status: 201} = post_report(conn, user, project)
 
     assert [build] =
              ClickHouseRepo.all(from(b in Build, where: b.project_id == ^project.id))
@@ -222,7 +209,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   end
 
   describe "a build identifier chosen by the client" do
-    defp minimal(id, extra \\ %{}), do: Map.merge(%{id: id, duration_ms: 10, status: "success"}, extra)
+    defp minimal(id, extra), do: Map.merge(%{id: id, duration_ms: 10, status: "success"}, extra)
 
     test "can be the same as another project's without either seeing the other's data", %{
       conn: conn,

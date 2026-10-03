@@ -3,6 +3,8 @@ defmodule TuistWeb.ConnectLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Tuist.Projects.Project
+
   @impl true
   def mount(_params, _uri, socket) do
     socket =
@@ -34,63 +36,20 @@ defmodule TuistWeb.ConnectLive do
           </span>
         </div>
         <div data-part="title">
-          <span>{dgettext("dashboard_auth", "Connect your project to the dashboard")}</span><span>{dgettext(
-            "dashboard_auth",
-            "using CLI"
+          <span>{dgettext("dashboard_auth", "Connect your project to the dashboard")}</span><span>{connection_method(
+            @selected_project
           )}</span>
         </div>
         <div data-part="timeline">
-          <div data-part="step">
-            <span data-part="title">{dgettext("dashboard_auth", "Install Tuist CLI")}</span>
-            <span data-part="description">
-              {dgettext("dashboard_auth", "Run the following command to install Tuist CLI.")}
-            </span>
-            <.terminal id="install">
-              <:tab id="mise" label={dgettext("dashboard_auth", "mise")} command="mise install tuist" />
-              <:tab
-                id="homebrew"
-                label={dgettext("dashboard_auth", "homebrew")}
-                command="brew install tuist"
-              />
-            </.terminal>
-          </div>
-          <div data-part="step">
-            <span data-part="title">{dgettext("dashboard_auth", "Connect your project")}</span>
-            <span data-part="description">
-              {dgettext("dashboard_auth", "Run this command to link your project to the dashboard.")}
-            </span>
-            <.terminal id="init">
-              <:tab
-                id="mise"
-                label={dgettext("dashboard_auth", "mise")}
-                command={"mise x tuist@latest -- tuist init #{@selected_account.name}/#{@selected_project.name}"}
-              />
-              <:tab
-                id="homebrew"
-                label={dgettext("dashboard_auth", "homebrew")}
-                command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
-              />
-            </.terminal>
-          </div>
-          <div data-part="step">
-            <span data-part="title">{dgettext("dashboard_auth", "Next steps")}</span>
-            <span data-part="description">
-              {dgettext(
-                "dashboard_auth",
-                "Explore Tuist features like binary caching and selective testing to speed up your development."
-              )}
-            </span>
-            <.button
-              variant="primary"
-              label={dgettext("dashboard_auth", "Tuist documentation")}
-              href="https://tuist.dev/en/docs/"
-              target="_blank"
-            >
-              <:icon_right>
-                <.chevron_right />
-              </:icon_right>
-            </.button>
-          </div>
+          <.mix_steps
+            :if={Project.mix_project?(@selected_project)}
+            handle={"#{@selected_account.name}/#{@selected_project.name}"}
+          />
+          <.cli_steps
+            :if={!Project.mix_project?(@selected_project)}
+            selected_account={@selected_account}
+            selected_project={@selected_project}
+          />
           <.line_divider text={dgettext("dashboard_auth", "OR")} />
           <div data-part="step">
             <span data-part="title">
@@ -114,6 +73,134 @@ defmodule TuistWeb.ConnectLive do
           </div>
         </div>
       </div>
+    </div>
+    """
+  end
+
+  defp connection_method(%Project{build_system: :mix}), do: dgettext("dashboard_auth", "using Mix")
+  defp connection_method(_project), do: dgettext("dashboard_auth", "using CLI")
+
+  attr :selected_account, :map, required: true
+  attr :selected_project, :map, required: true
+
+  defp cli_steps(assigns) do
+    ~H"""
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Install Tuist CLI")}</span>
+      <span data-part="description">
+        {dgettext("dashboard_auth", "Run the following command to install Tuist CLI.")}
+      </span>
+      <.terminal id="install">
+        <:tab id="mise" label={dgettext("dashboard_auth", "mise")} command="mise install tuist" />
+        <:tab
+          id="homebrew"
+          label={dgettext("dashboard_auth", "homebrew")}
+          command="brew install tuist"
+        />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Connect your project")}</span>
+      <span data-part="description">
+        {dgettext("dashboard_auth", "Run this command to link your project to the dashboard.")}
+      </span>
+      <.terminal id="init">
+        <:tab
+          id="mise"
+          label={dgettext("dashboard_auth", "mise")}
+          command={"mise x tuist@latest -- tuist init #{@selected_account.name}/#{@selected_project.name}"}
+        />
+        <:tab
+          id="homebrew"
+          label={dgettext("dashboard_auth", "homebrew")}
+          command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
+        />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Next steps")}</span>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_auth",
+          "Explore Tuist features like binary caching and selective testing to speed up your development."
+        )}
+      </span>
+      <.button
+        variant="primary"
+        label={dgettext("dashboard_auth", "Tuist documentation")}
+        href="https://tuist.dev/en/docs/"
+        target="_blank"
+      >
+        <:icon_right>
+          <.chevron_right />
+        </:icon_right>
+      </.button>
+    </div>
+    """
+  end
+
+  attr :handle, :string, required: true
+
+  # A Mix project connects through the `tuist_ex` Hex package rather than
+  # the Tuist CLI, so its steps are the ones an Elixir project runs.
+  defp mix_steps(assigns) do
+    ~H"""
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Add the Tuist package")}</span>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_auth",
+          "Add it to the dependencies in your mix.exs, then run mix deps.get."
+        )}
+      </span>
+      <.terminal id="mix-dependency">
+        <:tab
+          id="mix-dependency-snippet"
+          label="mix.exs"
+          command={~s({:tuist_ex, "~> 0.3", runtime: false})}
+        />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Point it at this project")}</span>
+      <span data-part="description">
+        {dgettext("dashboard_auth", "Add this to the project options in the same file.")}
+      </span>
+      <.terminal id="mix-project">
+        <:tab id="mix-project-snippet" label="mix.exs" command={~s(tuist: [project: "#{@handle}"])} />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Log in and run your tests")}</span>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_auth",
+          "The test run shows up in the dashboard when it finishes."
+        )}
+      </span>
+      <.terminal id="mix-run">
+        <:tab id="mix-login" label="mix tuist.login" command="mix tuist.login" />
+        <:tab id="mix-test" label="mix tuist.test" command="mix tuist.test" />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Next steps")}</span>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_auth",
+          "Report your builds, catch flaky tests, and split your tests across machines."
+        )}
+      </span>
+      <.button
+        variant="primary"
+        label={dgettext("dashboard_auth", "Tuist documentation")}
+        href="https://tuist.dev/en/docs/guides/get-started/elixir-project"
+        target="_blank"
+      >
+        <:icon_right>
+          <.chevron_right />
+        </:icon_right>
+      </.button>
     </div>
     """
   end

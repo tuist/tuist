@@ -213,30 +213,14 @@
             }
             series={[
               %{
-                data:
-                  @build_duration_analytics.result.dates
-                  |> Enum.zip(
-                    Enum.map(
-                      @build_duration_analytics.result.values,
-                      &TuistWeb.MixOverviewLive.seconds/1
-                    )
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
+                data: duration_points(@build_duration_analytics.result),
                 name: dgettext("dashboard_projects", "Average build time"),
                 type: "line",
                 smooth: 0.1,
                 symbol: "none"
               },
               %{
-                data:
-                  @test_duration_analytics.result.dates
-                  |> Enum.zip(
-                    Enum.map(
-                      @test_duration_analytics.result.values,
-                      &TuistWeb.MixOverviewLive.seconds/1
-                    )
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
+                data: duration_points(@test_duration_analytics.result),
                 name: dgettext("dashboard_tests", "Avg. test run duration"),
                 type: "line",
                 smooth: 0.1,
@@ -254,7 +238,7 @@
             @test_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_projects", "No data yet")}
-        get_started_href="https://hexdocs.pm/tuist_ex"
+        get_started_href="https://tuist.dev/en/docs/guides/get-started/elixir-project"
       >
         <:image>
           <img
@@ -360,7 +344,7 @@
     <.empty_card_section
       :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_gradle", "Runs: no data yet")}
-      get_started_href="https://hexdocs.pm/tuist_ex"
+      get_started_href="https://tuist.dev/en/docs/guides/get-started/elixir-project"
     >
       <:image>
         <img
@@ -539,7 +523,7 @@
       <.empty_card_section
         :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_gradle", "No recent builds yet")}
-        get_started_href="https://hexdocs.pm/tuist_ex"
+        get_started_href="https://tuist.dev/en/docs/guides/get-started/elixir-project"
       >
         <:image>
           <img
@@ -641,13 +625,7 @@
             series={[
               %{
                 color: "var:noora-chart-secondary",
-                data:
-                  Enum.zip(
-                    @builds_duration_analytics.result.dates,
-                    @builds_duration_analytics.result.values
-                    |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
+                data: duration_points(@builds_duration_analytics.result),
                 name: dgettext("dashboard_gradle", "Average build time"),
                 type: "line",
                 smooth: 0.1,
@@ -664,7 +642,7 @@
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_gradle", "No builds yet")}
-        get_started_href="https://hexdocs.pm/tuist_ex"
+        get_started_href="https://tuist.dev/en/docs/guides/get-started/elixir-project"
       >
         <:image>
           <img

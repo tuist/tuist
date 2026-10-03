@@ -236,11 +236,4 @@ defmodule TuistWeb.MixBuildLive do
   end
 
   def url?(_), do: false
-
-  @doc false
-  def diagnostic_group_key(%{file: file}) when is_binary(file) and file != "", do: file
-  def diagnostic_group_key(_), do: "(unknown source)"
-
-  @doc false
-  def query_put(query, key, value), do: Query.put(query || "", key, value)
 end

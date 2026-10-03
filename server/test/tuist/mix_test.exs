@@ -1,5 +1,5 @@
 defmodule Tuist.MixTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
 

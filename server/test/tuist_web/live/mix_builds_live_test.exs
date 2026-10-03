@@ -1,5 +1,5 @@
 defmodule TuistWeb.MixBuildsLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
 
   import Phoenix.LiveViewTest

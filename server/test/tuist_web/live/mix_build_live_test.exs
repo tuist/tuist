@@ -1,5 +1,5 @@
 defmodule TuistWeb.MixBuildLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
 
   import Phoenix.LiveViewTest
@@ -153,7 +153,12 @@ defmodule TuistWeb.MixBuildLiveTest do
     table = lv |> element("#mix-breakdown-table") |> render()
     assert table =~ "Compile-time dependencies"
     assert table =~ "Compile-time dependents"
-    assert length(String.split(table, "1 file")) == 3
+
+    assert table
+           |> Floki.parse_document!()
+           |> Floki.find("td")
+           |> Enum.count(&(&1 |> Floki.text() |> String.trim() == "1 file")) == 2
+
     refute table =~ "Waited on"
     refute table =~ "Blocked"
   end

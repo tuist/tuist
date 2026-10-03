@@ -503,10 +503,67 @@ flaky_test_case_ids =
   )
 
 for test_case_id <- flaky_test_case_ids do
-  {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true}, actor_id: user_account.id)
+  {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true})
 end
 
 IO.puts("Marked #{length(flaky_test_case_ids)} test cases as flaky")
+
+# Everything above lands in one go, so whatever the dashboards date by
+# insertion time (the last flaky run, when a test was marked flaky) would all
+# read "a minute ago". Date those rows when they would have happened: a flaky
+# run when it ran, a test's first run event at its first run, and the flaky
+# label at the third flaky run of the window.
+seed_params = %{project_id: project.id, since: NaiveDateTime.add(DateTime.to_naive(now), -30, :day), seeded_at: now}
+
+Tuist.IngestRepo.query!(
+  "ALTER TABLE flaky_test_case_runs UPDATE inserted_at = ran_at WHERE project_id = {project_id:Int64} SETTINGS mutations_sync = 1",
+  seed_params
+)
+
+# The events' timestamp is their version column, which ClickHouse cannot
+# update, so the labels are written again with the earlier time and the
+# originals deleted.
+Tuist.IngestRepo.query!(
+  """
+  INSERT INTO test_case_events (id, test_case_id, project_id, event_type, actor_id, inserted_at, alert_id)
+  SELECT e.id, e.test_case_id, e.project_id, e.event_type, e.actor_id, f.marked_at, e.alert_id
+  FROM test_case_events AS e
+  INNER JOIN (
+    SELECT test_case_id, arraySort(groupArray(ran_at))[3] AS marked_at
+    FROM flaky_test_case_runs
+    WHERE project_id = {project_id:Int64} AND ran_at >= {since:DateTime64(6)}
+    GROUP BY test_case_id
+    HAVING count() >= 3
+  ) AS f ON e.test_case_id = f.test_case_id
+  WHERE e.project_id = {project_id:Int64} AND e.event_type = 'marked_flaky'
+  """,
+  seed_params
+)
+
+Tuist.IngestRepo.query!(
+  """
+  INSERT INTO test_case_events (id, test_case_id, project_id, event_type, actor_id, inserted_at, alert_id)
+  SELECT e.id, e.test_case_id, e.project_id, e.event_type, e.actor_id, r.first_ran_at, e.alert_id
+  FROM test_case_events AS e
+  INNER JOIN (
+    SELECT test_case_id, min(ran_at) AS first_ran_at
+    FROM test_case_runs
+    WHERE project_id = {project_id:Int64}
+    GROUP BY test_case_id
+  ) AS r ON e.test_case_id = r.test_case_id
+  WHERE e.project_id = {project_id:Int64} AND e.event_type = 'first_run'
+  """,
+  seed_params
+)
+
+Tuist.IngestRepo.query!(
+  """
+  ALTER TABLE test_case_events DELETE
+  WHERE project_id = {project_id:Int64} AND event_type IN ('first_run', 'marked_flaky') AND inserted_at >= {seeded_at:DateTime64(6)}
+  SETTINGS mutations_sync = 1
+  """,
+  seed_params
+)
 
 xcode_project =
   Repo.one(from(p in Project, join: a in assoc(p, :account), where: a.name == "tuist" and p.name == "tuist"))

@@ -5,6 +5,7 @@ defmodule TuistWeb.MixBuildsLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.MixAnalytics
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
@@ -76,12 +77,7 @@ defmodule TuistWeb.MixBuildsLive do
       end_datetime: end_datetime
     ]
 
-    opts =
-      case analytics_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
+    opts = opts ++ environment_opts(analytics_environment)
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
@@ -212,12 +208,7 @@ defmodule TuistWeb.MixBuildsLive do
 
     opts = [schema: MixBuild, start_datetime: start_datetime, end_datetime: end_datetime]
 
-    opts =
-      case analytics_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
+    opts = opts ++ environment_opts(analytics_environment)
 
     socket
     |> assign_async(:configuration_insights_analytics, fn ->
@@ -256,11 +247,9 @@ defmodule TuistWeb.MixBuildsLive do
          } = socket
        ) do
     filters =
-      case analytics_environment do
-        "ci" -> [%{field: :is_ci, op: :==, value: true}]
-        "local" -> [%{field: :is_ci, op: :==, value: false}]
-        _ -> []
-      end
+      Enum.map(environment_opts(analytics_environment), fn {field, value} ->
+        %{field: field, op: :==, value: value}
+      end)
 
     filters =
       filters ++

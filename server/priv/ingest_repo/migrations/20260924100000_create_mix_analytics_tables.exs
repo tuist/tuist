@@ -1,10 +1,12 @@
 defmodule Tuist.IngestRepo.Migrations.CreateMixAnalyticsTables do
   use Ecto.Migration
 
+  alias Tuist.IngestRepo.Migration
+
   def change do
     create table(:mix_builds,
              primary_key: false,
-             engine: "MergeTree",
+             engine: Migration.engine("MergeTree"),
              options:
                "PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, inserted_at, id) TTL inserted_at + INTERVAL 90 DAY"
            ) do
@@ -35,7 +37,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateMixAnalyticsTables do
 
     create table(:mix_diagnostics,
              primary_key: false,
-             engine: "MergeTree",
+             engine: Migration.engine("MergeTree"),
              options:
                "PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, build_id, inserted_at, id) TTL inserted_at + INTERVAL 90 DAY"
            ) do

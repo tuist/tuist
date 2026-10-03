@@ -4,9 +4,11 @@ defmodule TuistWeb.API.MixController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Mix
+  alias Tuist.Projects
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -305,6 +307,8 @@ defmodule TuistWeb.API.MixController do
 
     case Mix.create_build(build_attributes(conn, project, body)) do
       {:ok, build_id} ->
+        Projects.notify_connected(project, Authentication.current_user(conn))
+
         conn
         |> put_status(:created)
         |> json(%{id: build_id})
@@ -316,35 +320,25 @@ defmodule TuistWeb.API.MixController do
     end
   end
 
+  @build_fields ~w(id duration_ms started_at status elixir_version otp_version mix_env
+                   git_branch git_commit_sha git_ref git_remote_url_origin ci_provider
+                   ci_run_id ci_project_handle ci_host contract_version)a
+
   defp build_attributes(conn, project, body) do
     metadata = body[:custom_metadata] || %{}
 
-    %{
-      id: body[:id],
+    body
+    |> Map.take(@build_fields)
+    |> Map.merge(%{
       project_id: project.id,
-      account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
-      duration_ms: body[:duration_ms],
-      started_at: body[:started_at],
-      status: body[:status],
+      account_id: Authentication.authenticated_subject_account(conn).id,
       is_ci: body[:is_ci] || false,
-      elixir_version: body[:elixir_version],
-      otp_version: body[:otp_version],
-      mix_env: body[:mix_env],
-      git_branch: body[:git_branch],
-      git_commit_sha: body[:git_commit_sha],
-      git_ref: body[:git_ref],
-      git_remote_url_origin: body[:git_remote_url_origin],
-      ci_provider: body[:ci_provider],
-      ci_run_id: body[:ci_run_id],
-      ci_project_handle: body[:ci_project_handle],
-      ci_host: body[:ci_host],
-      contract_version: body[:contract_version],
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),
       diagnostics: body[:diagnostics] || [],
       files: body[:files] || [],
       steps: body[:steps] || [],
       machine_metrics: body[:machine_metrics] || []
-    }
+    })
   end
 end

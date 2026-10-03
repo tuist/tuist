@@ -1,10 +1,12 @@
 defmodule Tuist.IngestRepo.Migrations.CreateMixCompiledFiles do
   use Ecto.Migration
 
+  alias Tuist.IngestRepo.Migration
+
   def change do
     create table(:mix_compiled_files,
              primary_key: false,
-             engine: "MergeTree",
+             engine: Migration.engine("MergeTree"),
              options:
                "PARTITION BY toYYYYMM(inserted_at) ORDER BY (project_id, build_id, path) TTL inserted_at + INTERVAL 90 DAY"
            ) do

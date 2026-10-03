@@ -301,13 +301,7 @@
         series={[
           %{
             color: "var:noora-chart-secondary",
-            data:
-              Enum.zip(
-                @builds_duration_analytics.result.dates,
-                @builds_duration_analytics.result.values
-                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
-              )
-              |> Enum.map(&Tuple.to_list/1),
+            data: duration_points(@builds_duration_analytics.result),
             name: dgettext("dashboard_gradle", "Average"),
             type: "line",
             smooth: 0.1,
@@ -315,13 +309,7 @@
           },
           %{
             color: "var:noora-chart-p99",
-            data:
-              Enum.zip(
-                @builds_p99_durations.result.dates,
-                @builds_p99_durations.result.values
-                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
-              )
-              |> Enum.map(&Tuple.to_list/1),
+            data: duration_points(@builds_p99_durations.result),
             name: dgettext("dashboard_gradle", "p99"),
             type: "line",
             smooth: 0.1,
@@ -329,13 +317,7 @@
           },
           %{
             color: "var:noora-chart-p90",
-            data:
-              Enum.zip(
-                @builds_p90_durations.result.dates,
-                @builds_p90_durations.result.values
-                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
-              )
-              |> Enum.map(&Tuple.to_list/1),
+            data: duration_points(@builds_p90_durations.result),
             name: dgettext("dashboard_gradle", "p90"),
             type: "line",
             smooth: 0.1,
@@ -343,13 +325,7 @@
           },
           %{
             color: "var:noora-chart-p50",
-            data:
-              Enum.zip(
-                @builds_p50_durations.result.dates,
-                @builds_p50_durations.result.values
-                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
-              )
-              |> Enum.map(&Tuple.to_list/1),
+            data: duration_points(@builds_p50_durations.result),
             name: dgettext("dashboard_gradle", "p50"),
             type: "line",
             smooth: 0.1,
@@ -585,7 +561,7 @@
           Enum.empty?(@configuration_insights_analytics.result)
       }
       title={dgettext("dashboard_gradle", "No data yet")}
-      get_started_href="https://hexdocs.pm/tuist_ex"
+      get_started_href="https://tuist.dev/en/docs/guides/features/build-insights/elixir"
     >
       <:image>
         <img
@@ -735,7 +711,7 @@
     <.empty_card_section
       :if={Enum.empty?(@builds)}
       title={dgettext("dashboard_gradle", "No data yet")}
-      get_started_href="https://hexdocs.pm/tuist_ex"
+      get_started_href="https://tuist.dev/en/docs/guides/features/build-insights/elixir"
     >
       <:image>
         <img
