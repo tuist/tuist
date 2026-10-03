@@ -118,17 +118,23 @@
       </:actions>
     </.date_picker>
   </div>
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @cache_events,
+      @hit_rate_analytics,
+      @hit_rate_p50,
+      @hit_rate_p90,
+      @hit_rate_p99
+    ]}
     title={dgettext("dashboard_gradle", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
     <div data-part="widgets">
       <.percentile_dropdown_widget
-        loading={
-          !(@hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-              @hit_rate_p50.ok?)
-        }
+        loading={!ready?}
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@builds)} do
@@ -154,8 +160,7 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             dgettext("dashboard_gradle", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -170,8 +175,7 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             %{
               avg:
                 dgettext("dashboard_gradle", "%{hit_rate}%",
@@ -210,8 +214,7 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend
@@ -221,10 +224,10 @@
           end
         }
         trend_label={@analytics_trend_label}
-        empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
+        empty={ready? && !@hit_rate_analytics.result.has_data}
       />
       <.widget
-        loading={!@cache_events.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_gradle", "Cache downloads")}
         legend_color="secondary"
         description={
@@ -234,20 +237,20 @@
           )
         }
         value={
-          if @cache_events.ok?,
+          if ready?,
             do: ByteFormatter.format_bytes(@cache_events.result.downloads.total_size)
         }
         id="widget-cache-downloads"
-        trend_value={if @cache_events.ok?, do: @cache_events.result.downloads.trend}
+        trend_value={if ready?, do: @cache_events.result.downloads.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_downloads"
         selected={@analytics_selected_widget == "cache_downloads"}
-        empty={@cache_events.ok? && @cache_events.result.downloads.total_size == 0}
+        empty={ready? && @cache_events.result.downloads.total_size == 0}
       />
       <.widget
-        loading={!@cache_events.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_gradle", "Cache uploads")}
         legend_color="p99"
         description={
@@ -257,36 +260,41 @@
           )
         }
         value={
-          if @cache_events.ok?,
+          if ready?,
             do: ByteFormatter.format_bytes(@cache_events.result.uploads.total_size)
         }
         id="widget-cache-uploads"
-        trend_value={if @cache_events.ok?, do: @cache_events.result.uploads.trend}
+        trend_value={if ready?, do: @cache_events.result.uploads.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_uploads"
         selected={@analytics_selected_widget == "cache_uploads"}
-        empty={@cache_events.ok? && @cache_events.result.uploads.total_size == 0}
+        empty={ready? && @cache_events.result.uploads.total_size == 0}
       />
     </div>
-    <.card_section :if={
-      (@analytics_selected_widget == "cache_hit_rate" and
-         (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
-            !@hit_rate_p50.ok?)) or
-        (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?)
-    }>
+    <.card_section
+      :if={
+        (@analytics_selected_widget == "cache_hit_rate" and
+           !ready?) or
+          (@analytics_selected_widget != "cache_hit_rate" and !ready?)
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
-    <.card_section :if={
-      @analytics_selected_widget == "cache_hit_rate" and
-        @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and @hit_rate_p50.ok? and
-        (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           @cache_events.result.downloads.total_size != 0 or
-           @cache_events.result.uploads.total_size != 0)
-    }>
+    <.card_section
+      :if={
+        @analytics_selected_widget == "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.has_data or
+             @cache_events.result.downloads.total_size != 0 or
+             @cache_events.result.uploads.total_size != 0)
+      }
+      data-chart-frame="standard"
+    >
       <.chart_type_toggle
         id="cache-hit-rate"
         chart_type={@cache_hit_rate_chart_type}
@@ -300,14 +308,14 @@
         uri={@uri}
       />
       <div
-        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        :if={!@cache_hit_rate_chart.ok? && !@cache_hit_rate_chart.failed}
         data-part="analytics-chart"
       >
         <.skeleton_chart />
       </div>
       <.chart
         :if={
-          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.failed and
             @cache_hit_rate_chart.result == :line
         }
         id="gradle-cache-hit-rate-chart"
@@ -441,13 +449,16 @@
         }
       />
     </.card_section>
-    <.card_section :if={
-      @analytics_selected_widget != "cache_hit_rate" and
-        @analytics_chart_data.ok? and
-        (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           @cache_events.result.downloads.total_size != 0 or
-           @cache_events.result.uploads.total_size != 0)
-    }>
+    <.card_section
+      :if={
+        @analytics_selected_widget != "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.has_data or
+             @cache_events.result.downloads.total_size != 0 or
+             @cache_events.result.uploads.total_size != 0)
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.chart
           id="gradle-analytics-chart"
@@ -516,11 +527,12 @@
     </.card_section>
     <.empty_card_section
       :if={
-        (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
+        (ready? && !@hit_rate_analytics.result.has_data) and
           @cache_events.result.downloads.total_size == 0 and
           @cache_events.result.uploads.total_size == 0
       }
       title={dgettext("dashboard_gradle", "No data yet")}
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -537,7 +549,7 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
   <.card
     title={dgettext("dashboard_gradle", "Recent Builds")}
     icon="dashboard"

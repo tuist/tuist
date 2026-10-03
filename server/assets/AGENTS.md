@@ -73,4 +73,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - The volume chart uses the shared Noora/ECharts hook, Jobs-style line rendering and count/byte/percentage formatting. Keep its three selectable widgets equal in width and height even when only the storage widgets have trend footers.
 - `build_run.css` shares header and metadata styling between Xcode and Once run details. Keep `once_run.css` limited to Once-specific wrapping and responsive layout.
 
+- Analytics chart sections declare small, compact, standard or large frames shared by loading, ready and illustrated empty states. Scope the frame to the active chart section; keep list/timeline geometry independent. Widgets share a minimum height across loading and empty states. Skeletons reveal after 200 milliseconds and respect reduced motion; stale charts remain mounted and receive a subtle delayed refresh indication.
 - The cache globe renders measured daily hit rates from the snapshot breakdown. Keep missing rates distinct from measured zeroes; illustrative rates belong only to explicit demo mode.
+
+- Treat request timing and layout movement as separate problems. Measure card geometry across loading, ready, empty and failed states, including wrapped widget titles and chart legends. Reserve the same chart frame for each state without imposing that height on tables or timelines.

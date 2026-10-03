@@ -452,8 +452,7 @@ defmodule TuistWeb.TestCasesLive do
       fn ->
         {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options, list_opts)
         {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
-      end,
-      reset: true
+      end
     )
   end
 
