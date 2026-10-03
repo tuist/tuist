@@ -1,6 +1,7 @@
 Mimic.copy(Atlas.Accounts.ExchangeRates, type_check: true)
 Mimic.copy(Atlas.Accounts, type_check: true)
 Mimic.copy(Atlas.Finance, type_check: true)
+Mimic.copy(Atlas.Finance.Agents.InvoiceExtractorAgent, type_check: true)
 Mimic.copy(Atlas.Finance.Briefs.Adapter, type_check: true)
 Mimic.copy(Atlas.Finance.Config, type_check: true)
 Mimic.copy(Atlas.Finance.Agents.CostDigestAgent, type_check: true)

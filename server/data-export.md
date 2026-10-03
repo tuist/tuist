@@ -13,6 +13,28 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ## Exportable Data
 
+### Atlas inference decision usage
+
+Atlas's internal inference relay can proxy Jev decision calls, including pull
+request quality reviews. Its PostgreSQL `inference_providers.decision_path`
+stores the relative decision endpoint alongside the existing provider endpoint.
+The existing `inference_model_bindings` records contain the model and configured
+input/output prices. `inference_usages` records the `decision` operation,
+provider/model, response status, input/output/total token counts, calculated cost
+in United States dollars, profile/token references, and creation time. Submitted
+state, questions, source diffs, and answers are forwarded but are not persisted
+by the relay. Provider credentials are encrypted and excluded from exports.
+
+These are internal Atlas records, separate from the Tuist server's account data.
+Where a request covers these records, retrieve the applicable profiles and their
+usage by `model_binding_id` or `token_id`, excluding credential ciphertext and
+token hashes. There is no automatic age-based expiry of inference usage;
+deleting its profile or token cascades to the associated usage rows. Audit events
+retain relay metadata, including decision usage availability, under the existing
+Atlas audit policy. The review workflow
+retains its GitHub report artifacts for 14 days and its published comment under
+GitHub's repository retention settings.
+
 ### Error Diagnostics
 
 - Failed ClickHouse reads attach the query template (up to 16,384 characters), repository name, and execution, decoding, and pool-wait timings to the existing error event under `extra.database_query`. Bound parameter values and query results are not included. Reports use the configured Sentry-compatible destination, including Hive, and its existing retention policy. Where an event is associated with an account or project through its existing context, its diagnostic data can be retrieved with that event for an export.
@@ -234,6 +256,27 @@ account, can be attributed to a source at all; it is the only personal data in
 these records beyond the account handle. Sign-in attempts additionally carry an
 explicit outcome. Logs deliberately exclude credentials, tokens, and request
 bodies.
+
+### Website localization analytics
+
+Hosted production marketing, documentation and dashboard pages send pageviews to
+Glossia for the `tuist.dev` project. The browser sends the full page address and
+referrer, browser languages, timezone, screen width and a per-tab session
+identifier stored in session storage. Page addresses can include organization
+and project names or query parameters. No Tuist user identifiers, account
+identifiers or authentication tokens are explicitly attached.
+
+Glossia stores events in its `analytics_events` ClickHouse table, deriving
+country and a daily-rotated visitor hash from the request's network address and
+browser identification header. Page addresses are reduced to hostname and path
+for storage, while the referrer is retained. The raw network address and browser
+header are not stored in the event row. Retention follows Glossia's configured retention;
+the inspected event-table migration does not define an automatic expiry.
+These external records are outside the standard Tuist export archive. For a
+transparency request, retrieve matching events from the Glossia `tuist.dev`
+project using available page, time and session context; they are not an
+account-indexed browsing history. Embedded blog visualizations, development,
+staging and self-hosted installations do not send these pageviews.
 
 ### Browser performance telemetry
 

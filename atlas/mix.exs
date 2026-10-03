@@ -4,7 +4,7 @@ defmodule Atlas.MixProject do
   def project do
     [
       app: :atlas,
-      version: "0.1.0",
+      version: System.get_env("ATLAS_VERSION", "0.1.0"),
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

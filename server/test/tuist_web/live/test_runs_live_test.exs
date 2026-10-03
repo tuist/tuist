@@ -7,6 +7,7 @@ defmodule TuistWeb.TestRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runs.Analytics, as: RunsAnalytics
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -24,6 +25,56 @@ defmodule TuistWeb.TestRunsLiveTest do
       end)
 
       :ok
+    end
+
+    test "table patches reuse analytics and their date snapshot", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      loader = fn _, opts ->
+        count = if opts[:status] == "failure", do: 0, else: 2
+        %{dates: [], values: [], count: count, trend: nil}
+      end
+
+      expect(TestsAnalytics, :test_run_analytics, 2, loader)
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs"
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 2_000)
+      assert has_element?(view, "#test-runs-analytics-chart")
+
+      render_patch(view, path <> "?search=App")
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-state=ready] #test-runs-analytics-chart")
+
+      expect(TestsAnalytics, :test_run_analytics, 2, loader)
+      render_patch(view, path <> "?analytics-environment=ci")
+      render_async(view, 2_000)
+      assert has_element?(view, "#test-runs-analytics-chart")
+    end
+
+    @tag capture_log: true
+    test "matching patches retry a failed analytics load", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+      stub(TestsAnalytics, :test_run_analytics, fn _, _ ->
+        attempt = Agent.get_and_update(attempts, fn count -> {count, count + 1} end)
+        if attempt == 0, do: raise("temporary analytics failure")
+        %{dates: [], values: [], count: 2, trend: nil}
+      end)
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs"
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-state=failed] [data-error]")
+
+      render_patch(view, path <> "?search=retry")
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-state=ready] #test-runs-analytics-chart")
     end
 
     test "lists latest test runs", %{

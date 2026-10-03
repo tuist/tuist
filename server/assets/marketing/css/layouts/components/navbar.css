@@ -1256,11 +1256,18 @@
 
   /* ── Resources ── */
   /* Figma: 2-column hairline grid of 90px rows (4 x 90 = the panel's 360px).
-     Row-flow order: About/Slack, Hive/Forum, Customers/Newsletter, -/GitHub. */
+     Column flow: About/Public dashboard/Customers fill the left column's
+     first three rows, Slack/Newsletter/GitHub/Community forum the right
+     column. A spacer pinned to the left column's last row keeps
+     auto-placement from spilling the right-column links into it; its top
+     edge closes the grid under Customers. Children in DOM order: About,
+     Public dashboard, Customers, Slack, Newsletter, GitHub, Community
+     forum, spacer. */
   & > [data-part="panel"] > [data-dropdown="resources"] {
     display: grid;
     grid-template-rows: repeat(4, 90px);
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-flow: column;
 
     & > [data-part="resource"] {
       display: flex;
@@ -1287,26 +1294,22 @@
         white-space: nowrap;
       }
 
-      /* GitHub sits alone in the last row's right cell. */
-      &:nth-child(7) {
-        grid-column: 2;
-      }
-
-      /* Right column cells carry the vertical hairline. */
-      &:nth-child(even),
-      &:nth-child(7) {
+      /* Right column cells (Slack onwards) carry the vertical hairline. */
+      &:nth-child(n + 4) {
         border-left: 1px solid var(--marketing-stroke-default);
       }
-    }
 
-    /* Horizontal hairlines between rows (every cell below the first row). */
-    & > *:nth-child(n + 3) {
-      border-top: 1px solid var(--marketing-stroke-default);
+      /* Horizontal hairlines between rows: every cell below the first row
+         of its column, i.e. all but About (1st) and Slack (4th). */
+      &:not(:nth-child(1)):not(:nth-child(4)) {
+        border-top: 1px solid var(--marketing-stroke-default);
+      }
     }
 
     & > [data-part="spacer"] {
       grid-row: 4;
       grid-column: 1;
+      border-top: 1px solid var(--marketing-stroke-default);
     }
   }
 }

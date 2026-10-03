@@ -18,6 +18,10 @@ public enum REAPI {
         }
     }
 
+    /// Servers report the empty blob present whether or not it was ever uploaded, and need not serve it, so
+    /// clients synthesize it instead of reading it.
+    public static let emptyBlob = digest(Data())
+
     public static func digest(file: URL) throws -> Digest {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }

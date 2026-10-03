@@ -78,6 +78,11 @@ defmodule TuistWeb.OnceRunsLive do
     %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
 
+    date_params =
+      Map.take(params, ["analytics-date-range", "analytics-start-date", "analytics-end-date"])
+
+    analytics_period = analytics_period(socket, date_params, analytics_period)
+
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     insights_dimension = insights_dimension(params["configuration-insights-type"])
     analytics_environment = analytics_environment(params["analytics-environment"])
@@ -94,10 +99,7 @@ defmodule TuistWeb.OnceRunsLive do
     # The dedicated listing pages carry no date picker, the way Xcode's own
     # Build Runs page does not, so scoping their table to a period would put
     # older runs out of reach with no control to widen the window.
-    listing_opts =
-      if socket.assigns.once_show_analytics,
-        do: analytics_opts,
-        else: Keyword.drop(analytics_opts, [:start_datetime, :end_datetime])
+    listing_opts = listing_opts(socket, analytics_opts)
 
     {invocations, meta} =
       Analytics.list_invocations(
@@ -125,6 +127,7 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:invocations_sort_order, sort_order)
       |> assign(:analytics_preset, analytics_preset)
       |> assign(:analytics_period, analytics_period)
+      |> assign(:analytics_date_params, date_params)
       |> assign(:analytics_granularity, time_series_granularity(analytics_period))
       |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
       |> assign(:analytics_selected_widget, analytics_selected_widget)
@@ -140,37 +143,96 @@ defmodule TuistWeb.OnceRunsLive do
         commands,
         analytics_environment
       )
-      |> assign_async([:invocation_summary, :invocation_analytics], fn ->
-        {:ok,
-         %{
-           invocation_summary:
-             invocation_summary_with_trends(project.id, analytics_period, commands, analytics_environment),
-           invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
-         }}
-      end)
+      |> maybe_assign_async(
+        [:invocation_summary, :invocation_analytics],
+        socket.assigns.once_show_analytics,
+        analytics_opts,
+        fn ->
+          {:ok,
+           %{
+             invocation_summary:
+               invocation_summary_with_trends(
+                 project.id,
+                 analytics_period,
+                 commands,
+                 analytics_environment
+               ),
+             invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
+           }}
+        end
+      )
       |> assign(:search, search)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
       |> assign(:configuration_insights_dimension, insights_dimension)
-      |> assign_async(:configuration_insights_analytics, fn ->
-        {:ok,
-         %{
-           configuration_insights_analytics:
-             Analytics.build_duration_analytics_by(
-               project.id,
-               String.to_existing_atom(insights_dimension),
-               analytics_opts
-             )
-         }}
-      end)
-      |> assign_async(:recent_runs_chart, fn ->
-        {:ok, %{recent_runs_chart: recent_runs_chart(project.id, analytics_opts)}}
-      end)
+      |> maybe_assign_async(
+        :configuration_insights_analytics,
+        socket.assigns.once_show_analytics && socket.assigns.once_resource_kind != :tests,
+        {analytics_opts, insights_dimension},
+        fn ->
+          {:ok,
+           %{
+             configuration_insights_analytics:
+               Analytics.build_duration_analytics_by(
+                 project.id,
+                 String.to_existing_atom(insights_dimension),
+                 analytics_opts
+               )
+           }}
+        end
+      )
+      |> maybe_assign_async(
+        :recent_runs_chart,
+        socket.assigns.once_summary_card && has_any_invocations,
+        analytics_opts,
+        fn ->
+          {:ok, %{recent_runs_chart: recent_runs_chart(project.id, analytics_opts)}}
+        end
+      )
 
     {:noreply, socket}
   end
 
+  defp analytics_period(socket, date_params, new_period) do
+    if socket.assigns[:analytics_date_params] == date_params,
+      do: socket.assigns.analytics_period,
+      else: new_period
+  end
+
+  defp listing_opts(socket, analytics_opts) do
+    if socket.assigns.once_show_analytics,
+      do: analytics_opts,
+      else: Keyword.drop(analytics_opts, [:start_datetime, :end_datetime])
+  end
+
+  defp maybe_assign_async(socket, keys, enabled?, query_key, fun) do
+    keys = List.wrap(keys)
+    first_key = hd(keys)
+    previous_keys = socket.assigns[:analytics_load_keys] || %{}
+    result = socket.assigns[first_key]
+
+    cond do
+      not enabled? ->
+        socket = assign(socket, :analytics_load_keys, Map.delete(previous_keys, first_key))
+        Enum.reduce(keys, socket, fn key, acc -> assign(acc, key, AsyncResult.loading()) end)
+
+      previous_keys[first_key] == query_key && result && !result.failed &&
+          (result.ok? || result.loading) ->
+        socket
+
+      true ->
+        socket
+        |> assign(:analytics_load_keys, Map.put(previous_keys, first_key, query_key))
+        |> assign_async(keys, fun)
+    end
+  end
+
   def handle_info({:run_updated, _run_id}, socket) do
+    socket =
+      socket
+      |> assign(:analytics_load_keys, %{})
+      |> assign(:analytics_date_params, nil)
+
     handle_params(URI.decode_query(socket.assigns.uri.query || ""), nil, socket)
   end
 
@@ -318,8 +380,10 @@ defmodule TuistWeb.OnceRunsLive do
           </:actions>
         </.date_picker>
       </div>
-      <.card
+      <.async_card
+        :let={ready?}
         :if={@once_show_analytics}
+        results={[@invocation_analytics, @invocation_summary]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="bazel-invocation-analytics-card"
@@ -327,7 +391,7 @@ defmodule TuistWeb.OnceRunsLive do
         <div data-part="widgets">
           <.widget
             id="once-total-invocations"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={
               if @once_resource_kind == :tests,
                 do: dgettext("dashboard_tests", "Test run count"),
@@ -340,10 +404,10 @@ defmodule TuistWeb.OnceRunsLive do
                 else:
                   dgettext("dashboard_projects", "Completed once commands in the selected period.")
             }
-            value={if @invocation_summary.ok?, do: @invocation_summary.result.total}
-            trend_value={if @invocation_summary.ok?, do: @invocation_summary.result.total_trend}
+            value={if ready?, do: @invocation_summary.result.total}
+            trend_value={if ready?, do: @invocation_summary.result.total_trend}
             trend_label={@analytics_trend_label}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
             phx_click="select_widget"
             phx_value_widget="total-builds"
             selected={@analytics_selected_widget == "total-builds"}
@@ -351,7 +415,7 @@ defmodule TuistWeb.OnceRunsLive do
           <.widget
             :if={@once_resource_kind != :tests}
             id="once-success-rate"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={dgettext("dashboard_projects", "Build success rate")}
             legend_color="primary"
             description={
@@ -360,19 +424,17 @@ defmodule TuistWeb.OnceRunsLive do
                 "The share of completed commands with a zero exit code."
               )
             }
-            value={if @invocation_summary.ok?, do: success_rate(@invocation_summary.result)}
-            trend_value={
-              if @invocation_summary.ok?, do: @invocation_summary.result.success_rate_trend
-            }
+            value={if ready?, do: success_rate(@invocation_summary.result)}
+            trend_value={if ready?, do: @invocation_summary.result.success_rate_trend}
             trend_label={@analytics_trend_label}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
             phx_click="select_widget"
             phx_value_widget="build-success-rate"
             selected={@analytics_selected_widget == "build-success-rate"}
           />
           <.widget
             id="once-failed-invocations"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={
               if @once_resource_kind == :tests,
                 do: dgettext("dashboard_tests", "Failed run count"),
@@ -384,11 +446,11 @@ defmodule TuistWeb.OnceRunsLive do
                 do: dgettext("dashboard_tests", "The number of test runs that failed."),
                 else: dgettext("dashboard_projects", "Completed commands with a nonzero exit code.")
             }
-            value={if @invocation_summary.ok?, do: @invocation_summary.result.failed}
-            trend_value={if @invocation_summary.ok?, do: @invocation_summary.result.failed_trend}
+            value={if ready?, do: @invocation_summary.result.failed}
+            trend_value={if ready?, do: @invocation_summary.result.failed_trend}
             trend_label={@analytics_trend_label}
             trend_type={:inverse}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
             phx_click="select_widget"
             phx_value_widget="failed-builds"
             selected={@analytics_selected_widget == "failed-builds"}
@@ -396,18 +458,18 @@ defmodule TuistWeb.OnceRunsLive do
           <.widget
             :if={@once_resource_kind == :tests}
             id="once-line-coverage"
-            loading={false}
             title={dgettext("dashboard_tests", "Line coverage")}
             legend_color="primary"
             description={dgettext("dashboard_tests", "Test coverage isn't reported yet.")}
             value={nil}
             trend_value={0}
             trend_label={@analytics_trend_label}
-            empty={true}
+            loading={!ready?}
+            empty={ready?}
           />
           <.percentile_dropdown_widget
             id="once-invocation-duration"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={duration_title(@once_resource_kind, @selected_duration_type)}
             description={
               if @once_resource_kind == :tests,
@@ -423,13 +485,13 @@ defmodule TuistWeb.OnceRunsLive do
                   )
             }
             value={
-              if @invocation_summary.ok?,
+              if ready?,
                 do:
                   DateFormatter.format_duration_from_milliseconds(
                     duration_value(@invocation_summary.result, @selected_duration_type)
                   )
             }
-            metrics={if @invocation_summary.ok?, do: duration_metrics(@invocation_summary.result)}
+            metrics={if ready?, do: duration_metrics(@invocation_summary.result)}
             selected_type={@selected_duration_type}
             legend_color={duration_legend_color(@selected_duration_type)}
             event_name="select_duration_type"
@@ -437,23 +499,28 @@ defmodule TuistWeb.OnceRunsLive do
             phx_value_widget="build-duration"
             selected={@analytics_selected_widget == "build-duration"}
             trend_value={
-              if @invocation_summary.ok?,
+              if ready?,
                 do: duration_trend(@invocation_summary.result, @selected_duration_type)
             }
             trend_label={@analytics_trend_label}
             trend_type={:inverse}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
           />
         </div>
-        <.card_section :if={!@invocation_analytics.ok?} data-part="analytics-card-chart-section">
+        <.card_section
+          :if={!ready?}
+          data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
+        >
           <.skeleton_chart />
         </.card_section>
         <.card_section
           :if={
-            @invocation_analytics.ok? &&
+            ready? &&
               analytics_has_data?(@invocation_analytics.result)
           }
           data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
         >
           <.chart_type_toggle
             :if={@analytics_selected_widget == "build-duration"}
@@ -468,6 +535,10 @@ defmodule TuistWeb.OnceRunsLive do
             group_by_query_param="build-duration-scatter-group-by"
             uri={@uri}
           />
+          <.skeleton_chart :if={
+            @analytics_selected_widget == "build-duration" && @duration_chart_type == "scatter" &&
+              !@duration_chart.ok? && !@duration_chart.failed
+          } />
           <.scatter_chart
             :if={@analytics_selected_widget == "build-duration" and @duration_chart_type == "scatter"}
             id="once-build-duration-scatter-chart"
@@ -508,11 +579,12 @@ defmodule TuistWeb.OnceRunsLive do
         </.card_section>
         <.empty_card_section
           :if={
-            @invocation_analytics.ok? &&
+            ready? &&
               !analytics_has_data?(@invocation_analytics.result)
           }
           title={dgettext("dashboard_projects", "No once runs in this period")}
           data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
         >
           <:image>
             <img
@@ -529,13 +601,16 @@ defmodule TuistWeb.OnceRunsLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
 
-      <.card
+      <.async_card
+        :let={ready?}
         :if={@once_show_analytics && @once_resource_kind != :tests}
+        results={[@configuration_insights_analytics]}
         title={dgettext("dashboard_builds", "Configuration Insights")}
         icon="device_laptop"
         data-part="configuration-insights-card"
+        chart_frame="small"
       >
         <:actions>
           <.dropdown
@@ -554,18 +629,21 @@ defmodule TuistWeb.OnceRunsLive do
             </.dropdown_item>
           </.dropdown>
         </:actions>
-        <.card_section :if={!@configuration_insights_analytics.ok?}>
-          <div data-part="configuration-insights-chart-skeleton">
-            <.skeleton_legend />
-            <.skeleton_chart />
-          </div>
+        <.card_section
+          :if={!ready?}
+          data-chart-frame="small"
+          data-part="configuration-insights-card-chart-section"
+        >
+          <.skeleton_legend />
+          <.skeleton_chart height="84px" />
         </.card_section>
         <.card_section
           :if={
-            @configuration_insights_analytics.ok? &&
+            ready? &&
               not Enum.empty?(@configuration_insights_analytics.result)
           }
           data-part="configuration-insights-card-chart-section"
+          data-chart-frame="small"
         >
           <.legend title={dgettext("dashboard_builds", "Build duration")} style="secondary" />
           <.chart
@@ -592,10 +670,11 @@ defmodule TuistWeb.OnceRunsLive do
         </.card_section>
         <.empty_card_section
           :if={
-            @configuration_insights_analytics.ok? &&
+            ready? &&
               Enum.empty?(@configuration_insights_analytics.result)
           }
           title={dgettext("dashboard_builds", "No data yet")}
+          data-chart-frame="small"
         >
           <:image>
             <img
@@ -612,7 +691,7 @@ defmodule TuistWeb.OnceRunsLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
 
       <.card
         title={@once_table_title}
@@ -628,66 +707,84 @@ defmodule TuistWeb.OnceRunsLive do
             disabled={Enum.empty?(@invocations)}
           />
         </:actions>
-        <.card_section
-          :if={@once_summary_card && !@recent_runs_chart.ok?}
-          data-part="recent-builds-card-section"
+        <.async_section
+          :let={ready?}
+          :if={@once_summary_card && @has_any_invocations}
+          results={[@recent_runs_chart]}
         >
-          <div data-part="builds-chart">
-            <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
-            <.skeleton_chart />
-          </div>
-        </.card_section>
-        <.card_section
-          :if={
-            @once_summary_card && @recent_runs_chart.ok? &&
-              Enum.any?(@recent_runs_chart.result.points)
-          }
-          data-part="recent-builds-card-section"
-        >
-          <div data-part="builds-chart">
-            <div data-part="legends">
-              <.legend
-                title={successful_runs_legend(@once_resource_kind)}
-                value={@recent_runs_chart.result.successful}
-                style="primary"
-              />
-              <.legend
-                title={failed_runs_legend(@once_resource_kind)}
-                value={@recent_runs_chart.result.failed}
-                style="destructive"
+          <.card_section
+            :if={@once_summary_card && !ready?}
+            data-part="recent-builds-card-section"
+            data-chart-frame="standard"
+          >
+            <div data-part="builds-chart">
+              <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+              <.skeleton_chart />
+            </div>
+          </.card_section>
+          <.card_section
+            :if={
+              @once_summary_card && ready? &&
+                Enum.any?(@recent_runs_chart.result.points)
+            }
+            data-part="recent-builds-card-section"
+            data-chart-frame="standard"
+          >
+            <div data-part="builds-chart">
+              <div data-part="legends">
+                <.legend
+                  title={successful_runs_legend(@once_resource_kind)}
+                  value={@recent_runs_chart.result.successful}
+                  style="primary"
+                />
+                <.legend
+                  title={failed_runs_legend(@once_resource_kind)}
+                  value={@recent_runs_chart.result.failed}
+                  style="destructive"
+                />
+              </div>
+              <.chart
+                id="once-recent-runs-chart"
+                type="bar"
+                extra_options={
+                  %{
+                    grid: %{width: "98%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
+                    tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: "minute"},
+                    xAxis: %{
+                      axisLabel: %{show: false},
+                      data: Enum.map(@recent_runs_chart.result.points, & &1.date)
+                    },
+                    yAxis: %{
+                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                      axisLabel: %{
+                        color: "var:noora-surface-label-secondary",
+                        formatter: "fn:formatMilliseconds"
+                      }
+                    },
+                    legend: %{show: false}
+                  }
+                }
+                series={[
+                  %{data: @recent_runs_chart.result.points, name: @once_resource, type: "bar"}
+                ]}
+                y_axis_min={0}
+                grid_lines
+                bar_width={8}
+                bar_radius={2}
               />
             </div>
-            <.chart
-              id="once-recent-runs-chart"
-              type="bar"
-              extra_options={
-                %{
-                  grid: %{width: "98%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
-                  tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: "minute"},
-                  xAxis: %{
-                    axisLabel: %{show: false},
-                    data: Enum.map(@recent_runs_chart.result.points, & &1.date)
-                  },
-                  yAxis: %{
-                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                    axisLabel: %{
-                      color: "var:noora-surface-label-secondary",
-                      formatter: "fn:formatMilliseconds"
-                    }
-                  },
-                  legend: %{show: false}
-                }
-              }
-              series={[
-                %{data: @recent_runs_chart.result.points, name: @once_resource, type: "bar"}
-              ]}
-              y_axis_min={0}
-              grid_lines
-              bar_width={8}
-              bar_radius={2}
-            />
-          </div>
-        </.card_section>
+          </.card_section>
+          <.empty_card_section
+            :if={ready? && Enum.empty?(@recent_runs_chart.result.points)}
+            title={dgettext("dashboard_projects", "No once runs in this period")}
+            data-chart-frame="standard"
+          >
+            <:image>
+              <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" />
+              <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" />
+            </:image>
+          </.empty_card_section>
+        </.async_section>
         <.card_section data-part="bazel-invocations-table-section">
           <div :if={!@once_summary_card} data-part="filters">
             <%!-- Xcode's Test Runs page leads with a search box and its Build

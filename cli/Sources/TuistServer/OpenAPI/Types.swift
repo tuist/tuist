@@ -10084,18 +10084,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Hashable, Sendable {
-            /// The build system used by the project.
+            /// The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/build_system`.
-            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case xcode = "xcode"
-                case gradle = "gradle"
-                case bazel = "bazel"
-            }
-            /// The build system used by the project.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Project/build_system`.
-            public var build_system: Components.Schemas.Project.build_systemPayload?
+            public var build_system: Swift.String?
             /// The default branch of the project.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/default_branch`.
@@ -10131,7 +10123,7 @@ public enum Components {
             /// Creates a new `Project`.
             ///
             /// - Parameters:
-            ///   - build_system: The build system used by the project.
+            ///   - build_system: The build system used by the project, such as xcode, gradle, bazel, or once. New values can be added without notice, so clients must accept values they don't recognize.
             ///   - default_branch: The default branch of the project.
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
@@ -10139,7 +10131,7 @@ public enum Components {
             ///   - token: Deprecated. Always returns an empty string.
             ///   - visibility: The visibility of the project
             public init(
-                build_system: Components.Schemas.Project.build_systemPayload? = nil,
+                build_system: Swift.String? = nil,
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
@@ -89253,6 +89245,7 @@ public enum Operations {
                         case xcode = "xcode"
                         case gradle = "gradle"
                         case bazel = "bazel"
+                        case once = "once"
                     }
                     /// The build system used by the project.
                     ///

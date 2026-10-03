@@ -61,3 +61,23 @@ add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
+
+## Pull request quality
+
+`workflows/pr-quality.yml` runs `scripts/pr-quality/run.mjs` using Jev and
+updates one advisory GitHub comment per publishing identity. Manual runs update
+the authenticated user’s comment; workflow runs update the bot’s comment. Setup and limitations live in
+`PR_QUALITY.md`. Set `PR_QUALITY_INFERENCE_BASE_URL` and `PR_QUALITY_INFERENCE_MODEL` repository variables plus the `PR_QUALITY_INFERENCE_TOKEN` secret to route every evaluation through an Atlas profile. The base is `https://atlas.tuist.dev/inference` (the client adds `/v1/systemone`); the model is the profile name. Without a configured relay, resolve the Jev key with `op read` from
+`op://tuist/JEV_API_KEY/password` in its own step, mask it, and pass it through
+`$GITHUB_ENV`; never expose `OP_SERVICE_ACCOUNT_TOKEN` (or `op run`) to the
+evaluator step, since this is a `pull_request_target` job. Keep execution on trusted base code; contributor commits may
+be fetched and diffed but never checked out or executed. Low scores are advisory;
+provider and input failures must not reuse previous scores. The two focused
+security ratings run with the quality checks. A focused concern triggers a
+separate Jev request to select candidate evidence from actual changed lines. Keep the no-issue option, validate selected locations, and
+distinguish documentation and security tests from malicious behavior. Preserve the
+vendored evaluator and rubric license notices. Validate with
+`npm test --prefix .github/scripts/pr-quality` and
+`actionlint .github/workflows/pr-quality.yml` from the repository root.
+
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials.

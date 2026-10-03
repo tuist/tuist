@@ -664,7 +664,13 @@ defmodule Tuist.Application do
           value -> String.to_integer(value)
         end
 
-      [{GRPC.Server.Supervisor, endpoint: Tuist.OnceEvents.GRPCEndpoint, port: port, start_server: true}]
+      [
+        {GRPC.Server.Supervisor,
+         endpoint: Tuist.OnceEvents.GRPCEndpoint,
+         port: port,
+         start_server: true,
+         exception_log_filter: {Tuist.OnceEvents.GRPCExceptionFilter, :log?}}
+      ]
     else
       []
     end

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content={@page.description}
+    />
+    <title>{@page_title} · Atlas Docs</title>
+    <link rel="icon" type="image/svg+xml" href={~p"/images/atlas-docs-mark.svg"} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Atlas Docs" />
+    <meta property="og:title" content={@page.title <> " · Atlas Docs"} />
+    <meta property="og:description" content={@page.description} />
+    <meta
+      property="og:url"
+      content={AtlasWeb.Endpoint.url() <> if(@slug == "", do: ~p"/docs", else: ~p"/docs/#{@slug}")}
+    />
+    <meta
+      property="og:image"
+      content={AtlasWeb.Endpoint.url() <> ~p"/images/docs/#{image_filename(@slug)}"}
+    />
+    <meta property="og:image:width" content="1920" />
+    <meta property="og:image:height" content="1080" />
+    <meta
+      property="og:image:alt"
+      content={@page.title <> " · " <> @page.category <> " · Atlas Docs"}
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:image"
+      content={AtlasWeb.Endpoint.url() <> ~p"/images/docs/#{image_filename(@slug)}"}
+    />
+    <link
+      rel="alternate"
+      type="text/markdown"
+      href={AtlasWeb.Endpoint.url() <> if(@slug == "", do: ~p"/docs-markdown", else: ~p"/docs-markdown/#{@slug}")}
+    />
+    <link
+      rel="canonical"
+      href={AtlasWeb.Endpoint.url() <> if(@slug == "", do: ~p"/docs", else: ~p"/docs/#{@slug}")}
+    />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/js/docs.css"} />
+    <script defer phx-track-static src={~p"/assets/js/docs.js"}>
+    </script>
+  </head>
+  <body data-part="docs-body">
+    <a href="#docs-content" data-part="skip-link">Skip to content</a>
+    <nav id="docs-nav" data-part="docs-nav" aria-label="Main navigation">
+      <div data-part="header">
+        <a href={~p"/docs"} data-part="logo-link">
+          <img src={~p"/images/atlas-docs-mark.svg"} data-part="logo" alt="Atlas" />
+          <span data-part="logo-text">Atlas</span>
+          <span data-part="logo-divider"></span>
+          <span data-part="logo-text">Docs</span>
+        </a>
+      </div>
+      <div data-part="cta">
+        <div data-part="socials">
+          <.neutral_button
+            size="large"
+            href="https://github.com/tuist/tuist/tree/main/atlas"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Atlas on GitHub"
+          >
+            <.brand_github />
+          </.neutral_button>
+        </div>
+        <.theme_toggle id="docs-theme-toggle" label="Toggle theme" />
+        <.button label="Open Atlas" variant="primary" size="large" href={~p"/login"} />
+      </div>
+      <div data-part="mobile-actions">
+        <.neutral_button
+          size="large"
+          href="https://github.com/tuist/tuist/tree/main/atlas"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Atlas on GitHub"
+        >
+          <.brand_github />
+        </.neutral_button>
+        <.theme_toggle id="docs-mobile-theme-toggle" label="Toggle theme" />
+        <.button label="Open Atlas" variant="primary" size="large" href={~p"/login"} />
+      </div>
+    </nav>
+    <div
+      id="docs-mobile-menu-bar"
+      data-part="mobile-menu-bar"
+      role="toolbar"
+      aria-label="Page navigation"
+    >
+      <button
+        type="button"
+        data-part="mobile-menu-btn"
+        id="docs-mobile-menu-trigger"
+        aria-expanded="false"
+        aria-controls="docs-sidebar"
+      >
+        <.icon name="menu_3" /><span>Menu</span>
+      </button>
+      <button
+        :if={@page.headings != []}
+        type="button"
+        data-part="mobile-toc-btn"
+        id="docs-mobile-toc-trigger"
+        aria-expanded="false"
+        aria-controls="docs-mobile-toc"
+      >
+        <span>On this page</span> <.icon name="news" />
+      </button>
+    </div>
+    <div id="docs-mobile-sidebar-overlay" data-part="sidebar-overlay"></div>
+    {@inner_content}
+  </body>
+</html>

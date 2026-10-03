@@ -78,11 +78,23 @@
       </:actions>
     </.date_picker>
   </div>
-  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @failed_test_case_runs_analytics,
+      @test_case_runs_analytics,
+      @test_case_runs_duration_analytics,
+      @test_cases_count_analytics
+    ]}
+    title={dgettext("dashboard_tests", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
-          loading={!@test_case_runs_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_tests", "Test case runs")}
           description={
             dgettext(
@@ -91,13 +103,13 @@
             )
           }
           value={
-            if @test_case_runs_analytics.ok?,
+            if ready?,
               do: format_number(@test_case_runs_analytics.result.count)
           }
           id="widget-test-case-run-count"
           legend_color="primary"
           trend_value={
-            if @test_case_runs_analytics.ok?,
+            if ready?,
               do: @test_case_runs_analytics.result.trend,
               else: nil
           }
@@ -106,10 +118,10 @@
           phx_click="select_widget"
           phx_value_widget="test_case_run_count"
           selected={@analytics_selected_widget == "test_case_run_count"}
-          empty={@test_case_runs_analytics.ok? && @test_case_runs_analytics.result.count == 0}
+          empty={ready? && @test_case_runs_analytics.result.count == 0}
         />
         <.widget
-          loading={!@failed_test_case_runs_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_tests", "Failed test case runs")}
           description={
             dgettext(
@@ -118,13 +130,13 @@
             )
           }
           value={
-            if @failed_test_case_runs_analytics.ok?,
+            if ready?,
               do: format_number(@failed_test_case_runs_analytics.result.count)
           }
           id="widget-failed-test-case-run-count"
           legend_color="destructive"
           trend_value={
-            if @failed_test_case_runs_analytics.ok?,
+            if ready?,
               do: @failed_test_case_runs_analytics.result.trend,
               else: nil
           }
@@ -134,12 +146,12 @@
           phx_value_widget="failed_test_case_run_count"
           selected={@analytics_selected_widget == "failed_test_case_run_count"}
           empty={
-            @failed_test_case_runs_analytics.ok? &&
+            ready? &&
               @failed_test_case_runs_analytics.result.count == 0
           }
         />
         <.percentile_dropdown_widget
-          loading={!@test_case_runs_duration_analytics.ok?}
+          loading={!ready?}
           id="widget-test-case-run-duration"
           title={
             case @selected_duration_type do
@@ -164,7 +176,7 @@
             )
           }
           value={
-            if @test_case_runs_duration_analytics.ok? do
+            if ready? do
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                 case @selected_duration_type do
                   "avg" -> @test_case_runs_duration_analytics.result.total_average_duration
@@ -176,7 +188,7 @@
             end
           }
           metrics={
-            if @test_case_runs_duration_analytics.ok? do
+            if ready? do
               %{
                 avg:
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -200,7 +212,7 @@
           selected_type={@selected_duration_type}
           event_name="select_duration_type"
           trend_value={
-            if @test_case_runs_duration_analytics.ok?,
+            if ready?,
               do: @test_case_runs_duration_analytics.result.trend,
               else: nil
           }
@@ -210,13 +222,13 @@
           phx_value_widget="test_case_run_duration"
           selected={@analytics_selected_widget == "test_case_run_duration"}
           empty={
-            @test_case_runs_duration_analytics.ok? &&
+            ready? &&
               @test_case_runs_duration_analytics.result.total_average_duration == 0
           }
           empty_label={dgettext("dashboard_tests", "No data")}
         />
         <.widget
-          loading={!@test_cases_count_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_tests", "Test cases")}
           description={
             dgettext(
@@ -225,13 +237,13 @@
             )
           }
           value={
-            if @test_cases_count_analytics.ok?,
+            if ready?,
               do: format_number(@test_cases_count_analytics.result.count)
           }
           id="widget-test-cases-count"
           legend_color="tertiary"
           trend_value={
-            if @test_cases_count_analytics.ok?,
+            if ready?,
               do: @test_cases_count_analytics.result.trend,
               else: nil
           }
@@ -241,29 +253,32 @@
           phx_value_widget="test_cases_count"
           selected={@analytics_selected_widget == "test_cases_count"}
           empty={
-            @test_cases_count_analytics.ok? &&
+            ready? &&
               @test_cases_count_analytics.result.count == 0 &&
               Enum.all?(@test_cases_count_analytics.result.values, &(&1 == 0))
           }
         />
       </div>
-      <.card_section :if={!@analytics_chart_data.ok?}>
+      <.card_section :if={!ready?} data-chart-frame="standard">
         <div data-part="analytics-chart">
           <.skeleton_chart />
         </div>
       </.card_section>
-      <.card_section :if={
-        @analytics_chart_data.ok? and
-          ((@analytics_selected_widget == "test_case_run_duration" and
-              @test_case_runs_duration_analytics.result.total_average_duration != 0) or
-             (@analytics_selected_widget == "test_case_run_count" and
-                @test_case_runs_analytics.result.count != 0) or
-             (@analytics_selected_widget == "failed_test_case_run_count" and
-                @failed_test_case_runs_analytics.result.count != 0) or
-             (@analytics_selected_widget == "test_cases_count" and
-                (@test_cases_count_analytics.result.count != 0 or
-                   Enum.any?(@test_cases_count_analytics.result.values, &(&1 > 0)))))
-      }>
+      <.card_section
+        :if={
+          ready? and
+            ((@analytics_selected_widget == "test_case_run_duration" and
+                @test_case_runs_duration_analytics.result.total_average_duration != 0) or
+               (@analytics_selected_widget == "test_case_run_count" and
+                  @test_case_runs_analytics.result.count != 0) or
+               (@analytics_selected_widget == "failed_test_case_run_count" and
+                  @failed_test_case_runs_analytics.result.count != 0) or
+               (@analytics_selected_widget == "test_cases_count" and
+                  (@test_cases_count_analytics.result.count != 0 or
+                     Enum.any?(@test_cases_count_analytics.result.values, &(&1 > 0)))))
+        }
+        data-chart-frame="standard"
+      >
         <div data-part="analytics-chart">
           <.chart
             :if={@analytics_selected_widget != "test_case_run_duration"}
@@ -454,8 +469,9 @@
         </div>
       </.card_section>
       <.empty_card_section
-        :if={@test_case_runs_analytics.ok? && @test_case_runs_analytics.result.count == 0}
+        :if={ready? && @test_case_runs_analytics.result.count == 0}
         title={dgettext("dashboard_tests", "No data yet")}
+        data-chart-frame="standard"
       >
         <:image>
           <img
@@ -473,11 +489,23 @@
         </:image>
       </.empty_card_section>
     </div>
-  </.card>
-  <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
+  </.async_card>
+  <.card
+    data-async-card
+    data-state={async_state([@test_cases_page])}
+    aria-busy={if @test_cases_page.loading, do: "true", else: "false"}
+    title={dgettext("dashboard_tests", "Test Cases")}
+    icon="exchange"
+    data-part="test-cases"
+  >
     <.card_section data-part="test-cases-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
+        <.form
+          id="test-cases-search-form"
+          for={%{}}
+          phx-change="search-test-cases"
+          phx-debounce="200"
+        >
           <.text_input
             type="search"
             id="search-test-cases"
@@ -539,230 +567,235 @@
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
-      <.skeleton_box
-        :if={!@test_cases_page.ok?}
-        width="100%"
-        height="300px"
-        border_radius="var(--noora-radius-4)"
-      />
+      <.async_section :let={ready?} results={[@test_cases_page]} chart_frame="compact">
+        <.skeleton_box
+          :if={!ready?}
+          width="100%"
+          height="300px"
+          border_radius="var(--noora-radius-4)"
+        />
 
-      <div
-        :if={@test_cases_page.ok? and not Enum.empty?(@test_cases_page.result.test_cases)}
-        data-part="test-cases-table"
-      >
-        <.table
-          id="test-cases-table"
-          rows={@test_cases_page.result.test_cases}
-          row_navigate={
-            fn test_case ->
-              url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
-              )
-            end
-          }
+        <div
+          :if={ready? and not Enum.empty?(@test_cases_page.result.test_cases)}
+          data-part="test-cases-table"
         >
-          <:col
-            :let={test_case}
-            label={dgettext("dashboard_tests", "Test Case")}
-            patch={
-              @test_cases_sort_by == "name" &&
-                column_sort_patch(assigns, "name")
-            }
-            sort_order={@test_cases_sort_by == "name" && @test_cases_sort_order}
-          >
-            <div data-part="cell" data-type="text_and_description">
-              <div data-part="column">
-                <span data-part="label">
-                  {test_case.name}
-                  <.badge
-                    :if={test_case.is_flaky}
-                    label={dgettext("dashboard_tests", "Flaky")}
-                    color="attention"
-                    style="light-fill"
-                    size="large"
-                  />
-                  <.badge
-                    :if={test_case.state == "muted"}
-                    label={dgettext("dashboard_tests", "Muted")}
-                    color="destructive"
-                    style="light-fill"
-                    size="large"
-                  />
-                  <.badge
-                    :if={test_case.state == "skipped"}
-                    label={dgettext("dashboard_tests", "Skipped")}
-                    color="destructive"
-                    style="light-fill"
-                    size="large"
-                  />
-                  <.tooltip
-                    :if={bazel_target_collapse?(test_case)}
-                    id={"test-case-bazel-collapse-#{test_case.id}"}
-                    size="large"
-                    title={dgettext("dashboard_tests", "Bazel target, no JUnit report")}
-                    description={
-                      dgettext(
-                        "dashboard_tests",
-                        "The runner for this target didn't emit test.xml, so per-case detail isn't available. Open a recent run to view the raw test.log."
-                      )
-                    }
-                  >
-                    <:trigger :let={attrs}>
-                      <span {attrs}>
-                        <.badge
-                          label={dgettext("dashboard_tests", "Bazel target")}
-                          color="primary"
-                          style="light-fill"
-                          size="large"
-                        />
-                      </span>
-                    </:trigger>
-                  </.tooltip>
-                </span>
-                <span data-part="description">
-                  {case {test_case.module_name, test_case.suite_name} do
-                    {module_name, suite_name} when module_name != "" and suite_name != "" ->
-                      "#{module_name} \u2022 #{suite_name}"
-
-                    {module_name, _} when module_name != "" ->
-                      module_name
-
-                    _ ->
-                      nil
-                  end}
-                </span>
-              </div>
-            </div>
-          </:col>
-          <:col
-            :let={test_case}
-            label={duration_field_label(:duration_p50)}
-            patch={column_sort_patch(assigns, "duration_p50")}
-            sort_order={@test_cases_sort_by == "duration_p50" && @test_cases_sort_order}
-          >
-            <.text_cell
-              :if={not is_nil(test_case.duration_p50_ms)}
-              label={
-                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.duration_p50_ms
+          <.table
+            id="test-cases-table"
+            rows={@test_cases_page.result.test_cases}
+            row_navigate={
+              fn test_case ->
+                url(
+                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
                 )
+              end
+            }
+          >
+            <:col
+              :let={test_case}
+              label={dgettext("dashboard_tests", "Test Case")}
+              patch={
+                @test_cases_sort_by == "name" &&
+                  column_sort_patch(assigns, "name")
               }
-              icon="history"
-            />
-            <%!-- Only this column carries the explanation: every duration cell in
+              sort_order={@test_cases_sort_by == "name" && @test_cases_sort_order}
+            >
+              <div data-part="cell" data-type="text_and_description">
+                <div data-part="column">
+                  <span data-part="label">
+                    {test_case.name}
+                    <.badge
+                      :if={test_case.is_flaky}
+                      label={dgettext("dashboard_tests", "Flaky")}
+                      color="attention"
+                      style="light-fill"
+                      size="large"
+                    />
+                    <.badge
+                      :if={test_case.state == "muted"}
+                      label={dgettext("dashboard_tests", "Muted")}
+                      color="destructive"
+                      style="light-fill"
+                      size="large"
+                    />
+                    <.badge
+                      :if={test_case.state == "skipped"}
+                      label={dgettext("dashboard_tests", "Skipped")}
+                      color="destructive"
+                      style="light-fill"
+                      size="large"
+                    />
+                    <.tooltip
+                      :if={bazel_target_collapse?(test_case)}
+                      id={"test-case-bazel-collapse-#{test_case.id}"}
+                      size="large"
+                      title={dgettext("dashboard_tests", "Bazel target, no JUnit report")}
+                      description={
+                        dgettext(
+                          "dashboard_tests",
+                          "The runner for this target didn't emit test.xml, so per-case detail isn't available. Open a recent run to view the raw test.log."
+                        )
+                      }
+                    >
+                      <:trigger :let={attrs}>
+                        <span {attrs}>
+                          <.badge
+                            label={dgettext("dashboard_tests", "Bazel target")}
+                            color="primary"
+                            style="light-fill"
+                            size="large"
+                          />
+                        </span>
+                      </:trigger>
+                    </.tooltip>
+                  </span>
+                  <span data-part="description">
+                    {case {test_case.module_name, test_case.suite_name} do
+                      {module_name, suite_name} when module_name != "" and suite_name != "" ->
+                        "#{module_name} \u2022 #{suite_name}"
+
+                      {module_name, _} when module_name != "" ->
+                        module_name
+
+                      _ ->
+                        nil
+                    end}
+                  </span>
+                </div>
+              </div>
+            </:col>
+            <:col
+              :let={test_case}
+              label={duration_field_label(:duration_p50)}
+              patch={column_sort_patch(assigns, "duration_p50")}
+              sort_order={@test_cases_sort_by == "duration_p50" && @test_cases_sort_order}
+            >
+              <.text_cell
+                :if={not is_nil(test_case.duration_p50_ms)}
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    test_case.duration_p50_ms
+                  )
+                }
+                icon="history"
+              />
+              <%!-- Only this column carries the explanation: every duration cell in
             an under-sampled row is empty for the same reason, and repeating the
             tooltip four times would mount four hooks per row to say it. --%>
-            <.tooltip
-              :if={is_nil(test_case.duration_p50_ms)}
-              id={"test-case-duration-#{test_case.id}"}
-              size="large"
-              title={dgettext("dashboard_tests", "Not enough runs")}
-              description={
-                dgettext(
-                  "dashboard_tests",
-                  "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
-                  count: Tests.min_duration_samples(),
-                  days: Tests.active_window_days(),
-                  runs: format_number(test_case.duration_sample_count || 0)
-                )
-              }
+              <.tooltip
+                :if={is_nil(test_case.duration_p50_ms)}
+                id={"test-case-duration-#{test_case.id}"}
+                size="large"
+                title={dgettext("dashboard_tests", "Not enough runs")}
+                description={
+                  dgettext(
+                    "dashboard_tests",
+                    "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
+                    count: Tests.min_duration_samples(),
+                    days: Tests.active_window_days(),
+                    runs: format_number(test_case.duration_sample_count || 0)
+                  )
+                }
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs}>
+                    <.text_cell label={dgettext("dashboard_tests", "N/A")} icon="history" />
+                  </span>
+                </:trigger>
+              </.tooltip>
+            </:col>
+            <:col
+              :let={test_case}
+              label={duration_field_label(:duration_p90)}
+              patch={column_sort_patch(assigns, "duration_p90")}
+              sort_order={@test_cases_sort_by == "duration_p90" && @test_cases_sort_order}
             >
-              <:trigger :let={attrs}>
-                <span {attrs}>
-                  <.text_cell label={dgettext("dashboard_tests", "N/A")} icon="history" />
-                </span>
-              </:trigger>
-            </.tooltip>
-          </:col>
-          <:col
-            :let={test_case}
-            label={duration_field_label(:duration_p90)}
-            patch={column_sort_patch(assigns, "duration_p90")}
-            sort_order={@test_cases_sort_by == "duration_p90" && @test_cases_sort_order}
-          >
-            <.text_cell label={duration_cell_label(test_case.duration_p90_ms)} />
-          </:col>
-          <:col
-            :let={test_case}
-            label={duration_field_label(:duration_p99)}
-            patch={column_sort_patch(assigns, "duration_p99")}
-            sort_order={@test_cases_sort_by == "duration_p99" && @test_cases_sort_order}
-          >
-            <.text_cell label={duration_cell_label(test_case.duration_p99_ms)} />
-          </:col>
-          <:col
-            :let={test_case}
-            label={duration_field_label(:duration_avg)}
-            patch={column_sort_patch(assigns, "duration_avg")}
-            sort_order={@test_cases_sort_by == "duration_avg" && @test_cases_sort_order}
-          >
-            <.text_cell label={duration_cell_label(test_case.duration_avg_ms)} />
-          </:col>
-          <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
-            <%= case test_case.last_status do %>
-              <% "success" -> %>
-                <.status_badge_cell
-                  label={dgettext("dashboard_tests", "Passed")}
-                  status="success"
-                />
-              <% "failure" -> %>
-                <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
-              <% "skipped" -> %>
-                <.status_badge_cell
-                  label={dgettext("dashboard_tests", "Skipped")}
-                  status="warning"
-                />
-            <% end %>
-          </:col>
-          <:col
-            :let={test_case}
-            label={dgettext("dashboard_tests", "Last ran at")}
-            patch={
-              @test_cases_sort_by == "last_ran_at" &&
-                column_sort_patch(assigns, "last_ran_at")
+              <.text_cell label={duration_cell_label(test_case.duration_p90_ms)} />
+            </:col>
+            <:col
+              :let={test_case}
+              label={duration_field_label(:duration_p99)}
+              patch={column_sort_patch(assigns, "duration_p99")}
+              sort_order={@test_cases_sort_by == "duration_p99" && @test_cases_sort_order}
+            >
+              <.text_cell label={duration_cell_label(test_case.duration_p99_ms)} />
+            </:col>
+            <:col
+              :let={test_case}
+              label={duration_field_label(:duration_avg)}
+              patch={column_sort_patch(assigns, "duration_avg")}
+              sort_order={@test_cases_sort_by == "duration_avg" && @test_cases_sort_order}
+            >
+              <.text_cell label={duration_cell_label(test_case.duration_avg_ms)} />
+            </:col>
+            <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
+              <%= case test_case.last_status do %>
+                <% "success" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
+                <% "failure" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
+                <% "skipped" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Skipped")}
+                    status="warning"
+                  />
+              <% end %>
+            </:col>
+            <:col
+              :let={test_case}
+              label={dgettext("dashboard_tests", "Last ran at")}
+              patch={
+                @test_cases_sort_by == "last_ran_at" &&
+                  column_sort_patch(assigns, "last_ran_at")
+              }
+              sort_order={@test_cases_sort_by == "last_ran_at" && @test_cases_sort_order}
+            >
+              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)} />
+            </:col>
+          </.table>
+          <.pagination_group
+            :if={@test_cases_page.result.meta.total_pages > 1}
+            current_page={@test_cases_page.result.meta.current_page || 1}
+            number_of_pages={@test_cases_page.result.meta.total_pages}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "page", page)}"
+              end
             }
-            sort_order={@test_cases_sort_by == "last_ran_at" && @test_cases_sort_order}
-          >
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)} />
-          </:col>
-        </.table>
-        <.pagination_group
-          :if={@test_cases_page.result.meta.total_pages > 1}
-          current_page={@test_cases_current_page}
-          number_of_pages={@test_cases_page.result.meta.total_pages}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "page", page)}"
-            end
-          }
-        />
-      </div>
+          />
+        </div>
 
-      <div
-        :if={@test_cases_page.ok? and Enum.empty?(@test_cases_page.result.test_cases)}
-        data-part="empty-test-cases"
-      >
-        <.empty_card_section
-          title={dgettext("dashboard_tests", "No data yet")}
-          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
-          data-part="empty-test-cases-table-card-section"
+        <div
+          :if={ready? and Enum.empty?(@test_cases_page.result.test_cases)}
+          data-part="empty-test-cases"
         >
-          <:image>
-            <img
-              src={~p"/images/empty_table_light.png"}
-              data-theme="light"
-              loading="lazy"
-              decoding="async"
-            />
-            <img
-              src={~p"/images/empty_table_dark.png"}
-              data-theme="dark"
-              loading="lazy"
-              decoding="async"
-            />
-          </:image>
-        </.empty_card_section>
-      </div>
+          <.empty_card_section
+            title={dgettext("dashboard_tests", "No data yet")}
+            get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
+            data-part="empty-test-cases-table-card-section"
+          >
+            <:image>
+              <img
+                src={~p"/images/empty_table_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_table_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
+            </:image>
+          </.empty_card_section>
+        </div>
+      </.async_section>
     </.card_section>
   </.card>
 </div>

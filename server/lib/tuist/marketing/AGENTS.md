@@ -6,6 +6,7 @@ This context owns marketing content aggregation (blog posts, case studies, chang
 - Load and aggregate content entries, categories, and metadata.
 - Provide helpers for blog, case study, and changelog content rendering.
 - Provide reusable Open Graph image template components without mapping routes to templates or variables.
+- `CacheGlobe` aggregates managed public-region download requests from existing Kura usage rollups and daily hit rates from command events, Gradle build summaries and Bazel action-cache lookups. Weight the overall rate by opportunities and preserve missing rates as unavailable. `CacheGlobeRefreshWorker` (Oban unique, hosted cron) is the sole ClickHouse writer into `KeyValueStore`; `Stats` only reads that cache about every 30 seconds and publishes on the separate `cache_globe` topic. Keep customer identifiers out of this public snapshot; see [cache-globe.md](cache-globe.md) for metric semantics and visual references.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

@@ -576,4 +576,14 @@ defmodule Tuist.EnvironmentTest do
       assert Environment.kura_endpoints(%{}) == nil
     end
   end
+
+  describe "license_key/1" do
+    # `[:license]` is the key path behind the TUIST_LICENSE env var, so the unified
+    # value reaches the license dispatch through this reader. Moving or dropping this
+    # fallback would send TUIST_LICENSE to a different branch than the one that
+    # tells certificates from online keys.
+    test "reads the unified license value" do
+      assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
+    end
+  end
 end

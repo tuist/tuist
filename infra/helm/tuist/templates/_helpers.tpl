@@ -662,8 +662,36 @@ License env vars. Resolves to one mutually exclusive source:
 {{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate $useExistingKey $useExistingCertificate) -}}
 {{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
 {{- end -}}
+{{- /*
+  Render BOTH the legacy, source-specific env names
+  (`TUIST_LICENSE_KEY` / `TUIST_LICENSE_CERTIFICATE_BASE64`) AND the
+  unified `TUIST_LICENSE` from the same Secret keys, so the server reads
+  the license whichever name a caller or operator keeps using.
+
+  The server's `Tuist.License.fetch_license/0` tries the legacy readers
+  first (`license_key`, `license_certificate_base64`) and falls through
+  to the unified `license_value` only when both come back nil. That
+  makes the legacy variables the authoritative fallback in production:
+  if a future bug on the `TUIST_LICENSE` dispatch regresses, the pod
+  still boots because the legacy env is also set.
+
+  The previous attempt at a single-env unification (#13750) left the
+  pods crashing on canary without a captured log, so we are relanding
+  the operator-facing unified name while keeping the belt-and-suspenders
+  legacy names until the dispatch path is proven end-to-end.
+*/}}
 {{- if or $useEsoKey $useInlineKey $useExistingKey }}
 - name: TUIST_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      {{- if $useExistingKey }}
+      name: {{ $existingSecret | quote }}
+      key: {{ get $existingKeys "key" | quote }}
+      {{- else }}
+      name: {{ ternary $esoSecret $appSecret $useEsoKey | quote }}
+      key: server-license-key
+      {{- end }}
+- name: TUIST_LICENSE
   valueFrom:
     secretKeyRef:
       {{- if $useExistingKey }}
@@ -676,6 +704,16 @@ License env vars. Resolves to one mutually exclusive source:
 {{- end }}
 {{- if or $useEsoCertificate $useInlineCertificate $useExistingCertificate }}
 - name: TUIST_LICENSE_CERTIFICATE_BASE64
+  valueFrom:
+    secretKeyRef:
+      {{- if $useExistingCertificate }}
+      name: {{ $existingSecret | quote }}
+      key: {{ get $existingKeys "certificateBase64" | quote }}
+      {{- else }}
+      name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
+      key: server-license-certificate-base64
+      {{- end }}
+- name: TUIST_LICENSE
   valueFrom:
     secretKeyRef:
       {{- if $useExistingCertificate }}

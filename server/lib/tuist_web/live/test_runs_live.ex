@@ -145,20 +145,7 @@ defmodule TuistWeb.TestRunsLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          widget,
-          socket.assigns.selected_duration_type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
@@ -176,20 +163,7 @@ defmodule TuistWeb.TestRunsLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          "test_run_duration",
-          type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event(
@@ -246,8 +220,19 @@ defmodule TuistWeb.TestRunsLive do
     analytics_environment = params["analytics-environment"] || "any"
     selected_duration_type = params["duration-type"] || "avg"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+    query_key =
+      {project.id, analytics_environment,
+       Map.take(params, ["analytics-date-range", "analytics-start-date", "analytics-end-date"])}
+
+    %{preset: preset, period: period} =
       DatePicker.date_picker_params(params, "analytics")
+
+    period =
+      if socket.assigns[:analytics_query_key] == query_key,
+        do: socket.assigns.analytics_period,
+        else: period
+
+    {start_datetime, end_datetime} = period
 
     opts = [
       project_id: project.id,
@@ -266,46 +251,48 @@ defmodule TuistWeb.TestRunsLive do
 
     analytics_selected_widget = analytics_widget(params["analytics-selected-widget"])
 
-    socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_duration_type, selected_duration_type)
-    |> assign(:uri, uri)
-    |> assign_async(
-      [
-        :test_runs_analytics,
-        :failed_test_runs_analytics,
-        :test_runs_duration_analytics,
-        :analytics_chart_data
-      ],
-      fn ->
-        test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
+    socket =
+      socket
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:selected_duration_type, selected_duration_type)
+      |> assign(:uri, uri)
 
-        failed_test_runs_analytics =
-          Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+    result = socket.assigns[:test_runs_analytics]
 
-        test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
+    if socket.assigns[:analytics_query_key] == query_key && result && !result.failed &&
+         (result.ok? || result.loading) do
+      socket
+    else
+      socket
+      |> assign(:analytics_query_key, query_key)
+      |> assign_async(
+        [
+          :test_runs_analytics,
+          :failed_test_runs_analytics,
+          :test_runs_duration_analytics
+        ],
+        fn ->
+          test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
 
-        {:ok,
-         %{
-           test_runs_analytics: test_runs_analytics,
-           failed_test_runs_analytics: failed_test_runs_analytics,
-           test_runs_duration_analytics: test_runs_duration_analytics,
-           analytics_chart_data:
-             analytics_chart_data(
-               analytics_selected_widget,
-               selected_duration_type,
-               test_runs_analytics,
-               failed_test_runs_analytics,
-               test_runs_duration_analytics
-             )
-         }}
-      end
-    )
+          failed_test_runs_analytics =
+            Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+          test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
+
+          {:ok,
+           %{
+             test_runs_analytics: test_runs_analytics,
+             failed_test_runs_analytics: failed_test_runs_analytics,
+             test_runs_duration_analytics: test_runs_duration_analytics
+           }}
+        end
+      )
+    end
   end
 
   # A bookmarked link may name a widget the page no longer has, like `coverage`.

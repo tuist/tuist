@@ -34,6 +34,24 @@ final class ArtifactSignerTests: TuistTestCase {
         try subject.removeSignature(filePath)
         XCTAssertFalse(try subject.isValid(filePath))
     }
+
+    func test_isValid_returnsFalse_when_theCurrentPayloadChanged_after_theSignatureWasVerified() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        let filePath = temporaryDirectory.appending(component: "Test")
+        try "Test".write(to: filePath.url, atomically: true, encoding: .utf8)
+        let payload = MockArtifactSignaturePayloadProvider()
+        payload.stubbedFetchResult = .success(.init(macAddress: "account-scope"))
+        let signer = ArtifactSigner(artifactSignaturePayloadProvider: payload)
+        try signer.sign(filePath)
+        XCTAssertTrue(try signer.isValid(filePath))
+
+        // When
+        payload.stubbedFetchResult = .success(.init(macAddress: "machine-after-grant-expiry"))
+
+        // Then
+        XCTAssertFalse(try signer.isValid(filePath))
+    }
 }
 
 struct ArtifactSigningCacheTests {
