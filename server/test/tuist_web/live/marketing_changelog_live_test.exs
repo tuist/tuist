@@ -57,6 +57,20 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
       assert_patched(lv, "/ja/changelog?category=OSS")
     end
 
+    @tag :locale
+    test "entry links keep a localized page on its own locale", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, "/ja/changelog")
+
+      latest_entry = List.first(Changelog.get_entries())
+
+      hrefs =
+        html
+        |> find(~s([data-part="timeline"] [data-part="entry"] a[href*="#{latest_entry.id}"]))
+        |> Floki.attribute("href")
+
+      assert hrefs == ["/ja/changelog/#{latest_entry.id}"]
+    end
+
     test "category pills filter the timeline", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/changelog")
 

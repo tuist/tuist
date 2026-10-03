@@ -73,7 +73,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:47
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:480
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:576
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:48
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:49
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live/changelog_entry.html.heex:6
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:4
 #: lib/tuist_web/marketing/structured_markup.ex:416
@@ -566,7 +566,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:967
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:999
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:77
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:47
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
