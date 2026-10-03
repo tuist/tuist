@@ -2024,126 +2024,63 @@ No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
 
-### Xcode cache producing no remote hits
+### Kura receiving no REAPI requests
 
-```sql
-SELECT
-  toString(account_id) AS account_id,
-  round(100 * sum(cacheable_task_remote_hits_count) / sum(cacheable_tasks_count), 3) AS remote_hit_pct
-FROM build_runs
-WHERE inserted_at >= now() - INTERVAL 48 HOUR
-  AND xcode_cache_upload_enabled
-  AND cacheable_tasks_count > 0
-GROUP BY account_id
-HAVING sum(cacheable_tasks_count) >= 20000
-  AND dateDiff('hour', min(inserted_at), max(inserted_at)) >= 24
-  AND remote_hit_pct < 1
-ORDER BY sum(cacheable_tasks_count) DESC
+```promql
+sum(increase(kura_public_request_latency_seconds_count{cluster="tuist-production", transport="grpc",
+  route=~"/build.bazel.remote.execution.v2.(ActionCache/GetActionResult|ContentAddressableStorage/(FindMissingBlobs|BatchReadBlobs|BatchUpdateBlobs))"}[10m]))
 ```
 
-- Datasource: production ClickHouse (`dexgs9hv7rjswd`), table query.
-  `account_id` is the only string column and so the only label;
-  `remote_hit_pct` is the value. Do not add another string column: it would
-  become a label, and a label that changes between evaluations (a task count,
-  say) makes every evaluation a new instance whose pending timer starts over.
-- Threshold: `< 1`, repeated in the `HAVING` so only failing accounts come
-  back as instances.
-- Pending period: 24 hours; keep firing for 72 hours. Only failing accounts
-  come back, so an account that stops building over a weekend disappears
-  from the result. Without the grace period that would resolve the alert on
-  Saturday and start the 24-hour pending period over on Monday, one
-  resolved-and-refired pair per week for a cache that never recovered.
-- Severity: warning
-- Production only, since only production builds land in this ClickHouse.
-  Folder `Alerts`, group `Cache`. No contact point on the rule: the policy
-  tree sends it to `#notifications`. **No Data: Normal**, **Error: Error**.
-- Summary: `Xcode cache remote hit rate is {{ $values.A.Value | printf "%.2f" }}% for account {{ $labels.account_id }} over 48h`
-- **Not created yet.** The rule definition is `xcode-cache-alert-rules.json`
-  next to this file once it lands; create it with the provisioning API
-  (`X-Disable-Provenance: true`, `ruleGroup: Cache`), not
-  `gcx resources push`, and check in the rule preview that the summary
-  renders a per-account value before saving.
+- Threshold: `< 1`
+- Pending period: none. The ten-minute window is the grace period.
+- Severity: warning, to be promoted to critical once it has run clean for a
+  while.
+- Production only (the `cluster` matcher). Folder `Alerts`, group `Cache`.
+  No contact point on the rule; the policy tree routes it. **No Data:
+  Alerting**, because an empty result is the condition: `sum()` over no
+  series returns nothing. **Error: Error**.
+- Summary: `No REAPI requests reached the production Kura fleet in the last 10 minutes`
+- **Not created yet.** The rule definition is
+  `kura-no-reapi-requests-alert-rules.json` next to this file once it lands;
+  create it with the provisioning API (`X-Disable-Provenance: true`,
+  `ruleGroup: Cache`), not `gcx resources push`.
 
-`xcode_cache_upload_enabled` is the project's `xcodeCache.upload` setting
-as reported by `tuist xcodebuild`, and it defaults to `true`. It does not
-say that the machine has the CAS proxy installed, only that the build went
-through the wrapper that would upload if it had one. It still narrows the
-population usefully: builds reported any other way carry `false`, and
-`cacheable_tasks_count` alone is populated for every account whether or not
-it uses the Xcode cache. Two known gaps follow from that. An account that
-runs `tuist xcodebuild` without ever running `tuist setup cache` reports
-zero remote hits and fires; treat that as "the Xcode cache is not set up",
-which is worth a look but not an incident. And machines configured with
-`xcodeCache: .xcodeCache(upload: false)` are excluded even though a dead
-remote cache there is exactly what the rule is for. Closing both needs the
-proxy to report the endpoint it used in the build report.
+The four routes are the ones `tuist-cas-proxy` uses for the Xcode cache.
+Bazel and, from CLI 4.211, the module cache use the same REAPI routes, and
+Kura has no client label, so the rule watches every REAPI client at once
+rather than the Xcode lane alone. The floor is what makes it usable: an idle
+proxy polls `GetActionResult` for its snapshot refresh about once a minute,
+so even at night and on weekends the fleet sees one or two of these requests
+every five minutes. Over the 28 days to 2026-10-03 no ten-minute window was
+empty; the quietest held one request (2026-09-05 to 2026-09-10, when the
+fleet was smaller) and since 2026-09-11 none held fewer than nine. Five- and
+two-minute windows do go empty, so ten is the shortest interval the history
+supports. `kura_usage_events` in ClickHouse is not a substitute: it is
+flushed in batches of about five minutes, so it shows gaps that Prometheus
+does not.
 
-For accounts with a proxy, a working remote cache produces hits at a rate
-well above 1% of cacheable tasks: in the 48 hours to 2026-09-30, every
-account above the volume floor that was known to be healthy sat between 4%
-and 47%, and every one under 1% had a broken cache. The 20,000-task floor
-and the requirement that the builds span at least 24 hours keep a single
-cold session from firing it.
+**What it catches.** Every client stopping at once: an endpoint answer that
+sends clients elsewhere (the legacy cache nodes, an empty list, a host that
+does not resolve), or a REAPI ingress that is down across regions. It does
+not catch one account's proxies being pinned to the wrong server, which is
+what happened in September (tuist/tuist#13715); that needs the proxy to
+report its endpoint in the build report, which is a CLI change.
 
-**What it would have caught.** From 2026-09-11 the CAS proxies of at least
-three accounts were pinned to the legacy cache nodes, which do not speak
-REAPI, so every lookup missed and every publication failed and was retried
-every ten seconds. The retries poisoned the `cache-eu-central` upstream pool
-and broke uploads for accounts that had never left the legacy lane (see
-tuist/tuist#13715). Nothing alerted for 18 days: the 502 alert fired but read
-as nginx flakiness, and the build report does not say which endpoint the
-proxy used. Replayed over 2026-09-08 to 2026-09-29, this rule fires for one
-to five accounts on most days and 19 distinct accounts over the three weeks.
-It would have named the largest collateral account on 2026-09-13 and again
-from 2026-09-20 onward, and the largest pinned-proxy account on 2026-09-24,
-once its build volume crossed the floor.
+**When it fires.** Check the Kura availability alerts first: if instances
+are unready, this is the client-facing symptom of that. If they are healthy,
+the clients are going elsewhere:
 
-**When it fires.** The build report cannot say why the hits are missing, so
-start from the account and work outward:
-
-1. Open `https://tuist.dev/ops/accounts/<account_id>` and check whether the
-   account has an active Kura instance. An archived or provisioning instance
-   means the clients were handed the legacy lane or an empty list while it
-   was away.
-2. Look for the account's traffic on the legacy nodes. Old proxies
-   (CLI 4.203.0 to 4.209.0-canary.22) that resolved an endpoint while no
-   instance was serving keep it. REAPI calls there are answered 404 by nginx:
-
-   ```logql
-   sum by (ip) (count_over_time({job="cache-nginx", stream="access"} |~ "build\\.bazel\\.remote|google\\.bytestream" | regexp "^(?P<ip>\\S+) " [24h]))
-   ```
-
-   and map an IP to an account through the module-cache calls it also makes.
-   Keep the IP filter: without it the query exceeds Loki's 500-series limit.
-
-   ```logql
-   sum by (ip, account) (count_over_time({job="cache-nginx", stream="access"} |~ "^(1\\.2\\.3\\.4|5\\.6\\.7\\.8) " |= "account_handle=" | regexp "^(?P<ip>\\S+) .*account_handle=(?P<account>[^& \"]+)" [24h]))
-   ```
-
-3. If the account's Kura instance is serving and its region ingress
-   (`kura-<region>-ingress-nginx`) shows REAPI traffic from the same source,
-   the proxy is on Kura and the misses come from the instance: check
-   `Kura cache read faults` and the shed state before anything else.
-4. If the proxy is on the legacy lane, the machine has to re-resolve, and
-   do not assume it will on its own. Proxies from 4.207.0 are meant to ask
-   again every ten minutes and move once the server answers with Kura, but
-   in September a 4.207.0 CI proxy stayed pinned for over two weeks while
-   the account's instance was serving and the server answered with it; why
-   is still open. Older proxies only move when `tuist setup cache` is run
-   again or the machine restarts. Ask the account to re-run
-   `tuist setup cache` on the affected machines, and to upgrade the CLI to
-   4.210.0 or later, which removes the legacy fallback altogether.
-
-**Why 24 hours, and why warning.** The window is 48 hours and slides with
-every evaluation of the group, so a 24-hour pending period needs the
-condition to hold on every evaluation for a day. Replayed at daily resolution
-over September, requiring two consecutive days halves the number of accounts
-that fire once and never again, while an account whose cache is genuinely
-broken still fires on its second day. The replay cannot see intra-day
-dropouts: an account whose 48-hour task count dips under the floor for one
-evaluation resets the pending timer, so a low-volume account can take longer
-than a day to fire. A dead remote cache costs build time, not builds, so it
-should be looked at during the day, not paged for.
+1. `curl -sS -H "Authorization: Bearer $TUIST_TOKEN" "https://tuist.dev/api/cache/endpoints?account_handle=<handle>"`
+   for an account with an active instance should answer that instance's
+   `*.kura.tuist.dev` host (or its `*.cache.tuist.dev` stable host). A legacy
+   `cache-*.tuist.dev` host or an empty list is the fault.
+2. Look for REAPI arriving at the wrong place: on the legacy nodes
+   `{job="cache-nginx", stream="access"} |~ "build\\.bazel\\.remote"` (nginx
+   answers 404), and on the Tuist server ingress
+   `{service_name="ingress-nginx"} |~ "build\\.bazel\\.remote"`.
+3. If nothing arrives anywhere, the clients cannot resolve or reach the Kura
+   hosts: check external DNS for the `kura.tuist.dev` records and the region
+   ingress controllers.
 
 ### Kura egress budget almost entirely consumed
 
