@@ -4,6 +4,7 @@ import Foundation
 import Testing
 import TSCUtility
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 @testable import TuistGit
 @testable import TuistTesting
@@ -560,7 +561,14 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         // Never resolves, so deepening runs until a bound stops it.
         commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
-        commandRunner.succeedCommand(git + ["fetch", "--no-tags", "--deepen=50", "origin"])
+        commandRunner.succeedCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
             output: "head 1700000100\n"
@@ -574,8 +582,76 @@ struct GitControllerTests {
         )
 
         #expect(history.mergeBaseSHA == nil)
-        #expect(commandRunner.called(git + ["fetch", "--no-tags", "--deepen=50", "origin"]))
-        #expect(!commandRunner.called(git + ["fetch", "--no-tags", "--deepen=100", "origin"]))
+        #expect(commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=100",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_keeps_the_deepening_steps_within_the_window_together() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
+        commandRunner.succeedCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=70",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=120", "--since=30.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        _ = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 120, deepenBudgetSeconds: 5)
+        )
+
+        // 50 + 70 reaches the window's 120 commits; doubling to 100 would go past it.
+        #expect(commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=70",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=100",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
     }
 
     @Test(.inTemporaryDirectory) func gitHistory_stops_deepening_when_a_fetch_fails() async throws {
@@ -587,7 +663,14 @@ struct GitControllerTests {
         commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
         // The deepen fetch fails, as it does offline. Retrying it until the
         // budget expires would overflow the depth long before that.
-        commandRunner.errorCommand(git + ["fetch", "--no-tags", "--deepen=50", "origin"])
+        commandRunner.errorCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
             output: "head 1700000100\n"
@@ -598,7 +681,14 @@ struct GitControllerTests {
         )
 
         #expect(history.mergeBaseSHA == nil)
-        #expect(!commandRunner.called(git + ["fetch", "--no-tags", "--deepen=100", "origin"]))
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=100",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
     }
 
     @Test(.inTemporaryDirectory) func gitHistory_leaves_out_a_shallow_clones_boundary_commits() async throws {
@@ -620,6 +710,71 @@ struct GitControllerTests {
 
         #expect(history.commits.map(\.sha) == ["head", "mid"])
         #expect(history.commits.map(\.parents) == [["mid"], ["boundary"]])
+    }
+
+    /// A remote that stops answering leaves `git fetch` waiting forever. The stand-in's fetch
+    /// starts a child that ignores SIGTERM, as `git-remote-https` stands for here.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
+    func gitHistory_tears_down_a_fetch_that_outlasts_the_budget(baseBranchInCheckout: Bool) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let bin = path.appending(component: "bin")
+        try await FileSystem().makeDirectory(at: bin)
+        let fetchPID = path.appending(component: "fetch.pid")
+        let remotePID = path.appending(component: "remote.pid")
+        try await FileSystem().writeText(
+            """
+            #!/bin/sh
+            case "$*" in
+              *"rev-parse --show-object-format"*) echo sha1 ;;
+              *"rev-parse --is-shallow-repository"*) echo true ;;
+              *"rev-parse --verify"*) \(baseBranchInCheckout ? "echo basehead" : "exit 1") ;;
+              *" fetch "*)
+                echo $$ > "\(fetchPID.pathString)"
+                (trap '' TERM; exec sleep 600) &
+                echo $! > "\(remotePID.pathString)"
+                wait ;;
+              *" log "*) ;;
+              *) exit 1 ;;
+            esac
+            """,
+            at: bin.appending(component: "git")
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: bin.appending(component: "git").pathString
+        )
+        try #require(Environment.mocked).variables = ["PATH": "\(bin.pathString):/usr/bin:/bin"]
+        let budget = 1
+
+        let start = Date()
+        let history = try await GitController(commandRunner: CommandRunner()).gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(deepenBudgetSeconds: budget)
+        )
+
+        #expect(Date().timeIntervalSince(start) < Double(budget) + 2)
+        #expect(history.mergeBaseSHA == nil)
+        #expect(history.fallbackReason == (
+            baseBranchInCheckout
+                ? "shallow clone: the merge base with main was not found within \(budget)s"
+                : "the base branch main is not in the checkout and could not be fetched within \(budget)s"
+        ))
+        for pidFile in [fetchPID, remotePID] {
+            let contents = try await FileSystem().readTextFile(at: pidFile)
+            let pid = try #require(pid_t(contents.trimmingCharacters(in: .whitespacesAndNewlines)))
+            #expect(await processExits(pid), "\(pidFile.basename): process \(pid) outlived the fetch.")
+        }
+    }
+
+    /// `kill(pid, 0)` also succeeds for a zombie, which the orphaned child is until launchd or init reaps it.
+    private func processExits(_ pid: pid_t) async -> Bool {
+        for _ in 0 ..< 50 {
+            if kill(pid, 0) != 0, errno == ESRCH { return true }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        kill(pid, SIGKILL)
+        return false
     }
 
     @Test(.inTemporaryDirectory) func gitHistory_explains_a_missing_base_branch() async throws {

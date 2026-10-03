@@ -82,9 +82,27 @@ public protocol CommandRunning: Sendable {
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error>
+
+    /// Runs the command in a process group of its own, which cancellation terminates as a whole, so
+    /// the processes the command starts go with it. The group is not the terminal's foreground one,
+    /// so an interrupt at the terminal no longer reaches the command: use it only for commands that
+    /// cancellation, such as a deadline, has to stop.
+    func runInOwnProcessGroup(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error>
 }
 
 extension CommandRunning {
+    public func runInOwnProcessGroup(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        run(arguments: arguments, environment: environment, workingDirectory: workingDirectory)
+    }
+
     public func run(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {
         run(
             arguments: arguments,
@@ -179,6 +197,23 @@ public struct CommandRunner: CommandRunning {
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: false)
+    }
+
+    public func runInOwnProcessGroup(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: true)
+    }
+
+    private func run(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        ownProcessGroup: Bool
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -197,6 +232,11 @@ public struct CommandRunner: CommandRunning {
                         platformOptions.teardownSequence = [
                             .gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration),
                         ]
+                        #if !os(Windows)
+                            if ownProcessGroup {
+                                platformOptions.processGroupID = 0
+                            }
+                        #endif
                         let configuration = Configuration(
                             executable: executable,
                             arguments: Arguments(Array(arguments.dropFirst())),
@@ -221,22 +261,38 @@ public struct CommandRunner: CommandRunning {
                             input: .standardInput,
                             output: .fileDescriptor(standardOutputPipe.writeEnd, closeAfterSpawningProcess: true),
                             error: .fileDescriptor(standardErrorPipe.writeEnd, closeAfterSpawningProcess: true)
-                        ) { _ in
-                            try await withThrowingTaskGroup(of: Void.self) { group in
-                                group.addTask {
-                                    for try await data in standardOutput.byteStream() {
-                                        continuation.yield(.standardOutput(Array(data)))
+                        ) { execution in
+                            try await withTaskCancellationHandler {
+                                try await withThrowingTaskGroup(of: Void.self) { group in
+                                    group.addTask {
+                                        for try await data in standardOutput.byteStream() {
+                                            continuation.yield(.standardOutput(Array(data)))
+                                        }
                                     }
-                                }
-                                group.addTask {
-                                    for try await data in standardError.byteStream() {
-                                        let bytes = Array(data)
-                                        await standardErrorCollector.append(bytes)
-                                        continuation.yield(.standardError(bytes))
+                                    group.addTask {
+                                        for try await data in standardError.byteStream() {
+                                            let bytes = Array(data)
+                                            await standardErrorCollector.append(bytes)
+                                            continuation.yield(.standardError(bytes))
+                                        }
                                     }
+                                    try await group.waitForAll()
                                 }
-                                try await group.waitForAll()
+                            } onCancel: {
+                                #if !os(Windows)
+                                    if ownProcessGroup {
+                                        try? execution.send(signal: .terminate, toProcessGroup: true)
+                                    }
+                                #endif
                             }
+                            #if !os(Windows)
+                                // Subprocess's own teardown only signals the leader. This runs before
+                                // Subprocess reaps the leader, so the group's id cannot have been reused.
+                                if ownProcessGroup, Task.isCancelled {
+                                    await Task.detached { try? await Task.sleep(for: Self.gracefulShutdownDuration) }.value
+                                    try? execution.send(signal: .kill, toProcessGroup: true)
+                                }
+                            #endif
                         }
 
                         guard result.terminationStatus.isSuccess else {

@@ -126,11 +126,21 @@ extension GitController {
             return (sha?.isEmpty ?? true) ? nil : sha
         }
 
+        // Only commits and trees place the merge base, and blobs are most of what a fetch carries.
+        // `--filter=tree:0` would leave the trees out too, but Git 2.50 aborts deepening with it
+        // (`BUG: should_include_obj should only be called on existing objects`). A server without
+        // filters ignores the option with a warning and sends everything.
+        let baseRefspec = "+\(baseBranch):refs/remotes/origin/\(baseBranch)"
         var ref = await baseRef()
         if ref == nil {
-            var fetch = git + ["fetch", "--no-tags", "origin", "\(baseBranch):refs/remotes/origin/\(baseBranch)"]
+            var fetch = git + ["fetch", "--no-tags", "--filter=blob:none"]
             if shallow { fetch.append("--depth=1") }
-            _ = try? await capture(arguments: fetch)
+            fetch += ["origin", baseRefspec]
+            if await self.fetch(arguments: fetch, deadline: deadline) == .timedOut {
+                return (nil, [
+                    "the base branch \(baseBranch) is not in the checkout and could not be fetched within \(limits.deepenBudgetSeconds)s",
+                ])
+            }
             ref = await baseRef()
         }
         guard let ref else {
@@ -142,28 +152,54 @@ extension GitController {
             return (nil, ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"])
         }
 
-        // Never deeper than the history window, and never past a fetch that
-        // failed: a deepen that fails immediately, offline or against a remote
-        // that refuses it, returns before the budget is spent and would
-        // otherwise leave this doubling `depth` until it overflows.
-        //
-        // No object filter here. `--filter=tree:0` is what deepening would want,
-        // since only commits are needed to place the merge base, but Git 2.50
-        // aborts on it (`BUG: should_include_obj should only be called on
-        // existing objects`) because deepening reads the trees it just excluded.
-        // `--filter=blob:none` survives, and measured against this repository it
-        // transfers 20-35x more than an unfiltered deepen: the remote cannot
-        // reuse its packs for a filtered request, so it sends a freshly built
-        // one, and omitting blobs does not come close to paying for that.
+        // The base branch is named on every deepen: without a refspec git fetches what the
+        // checkout's config says, which for `actions/checkout` is every branch of the repository,
+        // with however much history each has (0.8-1.1 GiB per run on tuist/tuist, measured).
+        // Deepening is relative to the current boundary, so the steps add up, and together they
+        // stay within the history window. Never past a fetch that failed either: a deepen that
+        // fails immediately, offline or against a remote that refuses it, returns before the
+        // budget is spent and would otherwise be retried until the budget ran out.
         let maxDepth = max(limits.windowCommits, 50)
-        var depth = 50
-        while Date() < deadline {
-            guard (try? await capture(arguments: git + ["fetch", "--no-tags", "--deepen=\(depth)", "origin"])) != nil
-            else { break }
+        var depth = 0
+        var step = 50
+        while Date() < deadline, depth < maxDepth {
+            step = min(step, maxDepth - depth)
+            let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin", baseRefspec]
+            guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
             if let sha = await resolve(ref) { return (sha, []) }
-            if depth >= maxDepth { break }
-            depth = min(depth * 2, maxDepth)
+            depth += step
+            step *= 2
         }
         return (nil, ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"])
+    }
+
+    private enum FetchOutcome {
+        case succeeded, failed, timedOut
+    }
+
+    /// Runs the fetch until it exits or the deadline passes, whichever comes first. A fetch still
+    /// running at the deadline is torn down together with the processes it started
+    /// (`git-remote-https`, `ssh`, `index-pack`), which a stalled remote would otherwise keep alive.
+    private func fetch(arguments: [String], deadline: Date) async -> FetchOutcome {
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else { return .timedOut }
+        return await withTaskGroup(of: FetchOutcome?.self) { group in
+            group.addTask {
+                do {
+                    try await runInOwnProcessGroup(arguments: arguments).awaitCompletion()
+                } catch {
+                    return .failed
+                }
+                // A cancelled run's stream ends without an error, so it would read as a success.
+                return Task.isCancelled ? nil : .succeeded
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(remaining))
+                return Task.isCancelled ? nil : .timedOut
+            }
+            let outcome = await group.next() ?? nil
+            group.cancelAll()
+            return outcome ?? .timedOut
+        }
     }
 }

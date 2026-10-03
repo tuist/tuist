@@ -440,6 +440,10 @@ public struct GitController: GitControlling {
         try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
     }
 
+    func runInOwnProcessGroup(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        commandRunner.runInOwnProcessGroup(arguments: arguments, environment: hardenedEnvironment(), workingDirectory: nil)
+    }
+
     /// Environment overrides that keep every spawned `git` invocation
     /// non-interactive on CI runners. The subprocess inherits `tuist`'s
     /// stdin, so anything that opens a credential prompt, spawns
