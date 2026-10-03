@@ -287,7 +287,9 @@ func TestConvergeEvictsForAJobButNotForAPrefetch(t *testing.T) {
 	srv := serveImage(t, content)
 	root := t.TempDir()
 	m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: 4 * gib, perMaster: gib, root: root})
-	base := time.Now().Add(-time.Hour)
+	// Unused for longer than convergeEvictIdleAfter, so a job's download may
+	// evict them.
+	base := time.Now().Add(-convergeEvictIdleAfter - time.Hour)
 	for i, account := range []string{"1", "2", "3"} {
 		seedMasterGen(t, m, account, masterImageContent(account), 1)
 		stamp := base.Add(time.Duration(i) * time.Minute)
@@ -731,6 +733,7 @@ func TestConvergeJobDownloadKeepsItsSpaceByEvicting(t *testing.T) {
 	root := t.TempDir()
 	m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: 3*gib + 32<<20, perMaster: gib, root: root})
 	seedMasterGen(t, m, "9", masterImageContent("9"), 1)
+	ageMaster(t, m, "9", convergeEvictIdleAfter+time.Hour)
 	w := newTestConvergeWorker(m)
 	w.AlongsideJobs = true
 	w.busyBytesPerSec = 1 << 40
@@ -886,5 +889,98 @@ func TestConvergeLeavesARecentMasterInPlace(t *testing.T) {
 				t.Fatal("downloaded a master it left in place")
 			}
 		})
+	}
+}
+
+// ageMaster makes the account's master look unused for age.
+func ageMaster(t *testing.T, m *VolumeManager, account string, age time.Duration) {
+	t.Helper()
+	stamp := time.Now().Add(-age)
+	if err := os.Chtimes(m.masterImage(account, ReservedTuistCacheVolume), stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// On an M2-L, a 25 GiB master and a 22.5 GiB one do not fit beside a job's
+// headroom. Each download used to evict the other: the account whose master was
+// pushed out landed its next job cold and downloaded it all again, which in
+// turn pushed the first one out. A convergence download may now only evict a
+// master unused for convergeEvictIdleAfter.
+func TestConvergeDoesNotEvictAMasterInActiveUse(t *testing.T) {
+	carousell := masterKey{account: "4094", volume: ReservedTuistCacheVolume}
+	noop := func(error) {}
+
+	m, _ := m2L(t)
+	seedMasterGen(t, m, "3", masterImageContent("3"), 1)
+	ageMaster(t, m, "3", time.Hour)
+	if _, err := m.PrepareConvergeSpace(carousell, 22*gib+gib/2, 22*gib+gib/2, true, noop); !errors.Is(err, errNoRoomBesideActiveMasters) {
+		t.Fatalf("err = %v; a download must not evict a master used an hour ago", err)
+	}
+	if !masterExists(m, "3") {
+		t.Fatal("the master in active use was evicted")
+	}
+
+	ageMaster(t, m, "3", convergeEvictIdleAfter+time.Hour)
+	r, err := m.PrepareConvergeSpace(carousell, 22*gib+gib/2, 22*gib+gib/2, true, noop)
+	if err != nil {
+		t.Fatalf("PrepareConvergeSpace beside an idle master: %v", err)
+	}
+	r.Release()
+	if masterExists(m, "3") {
+		t.Fatal("the idle master was not evicted for the download")
+	}
+}
+
+func TestConvergeReportsActiveMastersInTheWay(t *testing.T) {
+	content := []byte("head-of-4094")
+	srv := serveImage(t, content)
+	root := t.TempDir()
+	// 60 GiB with a 30 GiB cap keeps 36 GiB free; one 25 GiB master leaves 35.
+	m := NewVolumeManager(root, 30, &fakeBackend{totalBytes: 60 * gib, perMaster: 25 * gib, root: root})
+	seedMasterGen(t, m, "3", masterImageContent("3"), 1)
+	messages := captureLogs(t)
+
+	w := newTestConvergeWorker(m)
+	if got := w.converge(context.Background(), jobRequest("4094", headFor(content, 2, srv.URL))); got != "active_masters" {
+		t.Fatalf("converge = %q, want active_masters", got)
+	}
+	if !masterExists(m, "3") {
+		t.Fatal("the master in active use was evicted")
+	}
+	for _, msg := range messages() {
+		if strings.Contains(msg, "without evicting one used in the last 12 hours") {
+			return
+		}
+	}
+	t.Fatalf("no log line explains the decline; got %v", messages())
+}
+
+// A job admitted mid-download may still evict what it needs for itself, but
+// keeping the download's bytes as well may only evict what the download could:
+// with only an active master to evict, the download gives way instead.
+func TestAdmissionDisplacesADownloadRatherThanEvictAnActiveMaster(t *testing.T) {
+	content := bytes.Repeat([]byte("a"), 48<<20)
+	url, started, release := heldImageServer(t, content)
+	root := t.TempDir()
+	m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: 3*gib + 32<<20, perMaster: gib, root: root})
+	seedMasterGen(t, m, "9", masterImageContent("9"), 1)
+	w := newTestConvergeWorker(m)
+	w.AlongsideJobs = true
+	w.busyBytesPerSec = 1 << 40
+
+	result := make(chan string, 1)
+	go func() { result <- w.converge(context.Background(), jobRequest("42", headFor(content, 4, url))) }()
+	<-started
+	awaitDownloading(t, m, "42")
+
+	startJob(t, m, "vm-1", "7")
+	startJob(t, m, "vm-2", "8")
+	release()
+
+	if got := <-result; got != "displaced" {
+		t.Fatalf("converge = %q; want the download displaced rather than the active master evicted", got)
+	}
+	if !masterExists(m, "9") {
+		t.Fatal("an active master was evicted to keep a download")
 	}
 }

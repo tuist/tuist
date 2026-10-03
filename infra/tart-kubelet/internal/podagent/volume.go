@@ -632,19 +632,24 @@ func (m *VolumeManager) admitBesideConvergenceLocked(want uint64, keep masterKey
 		return m.ensureFreeLocked(want, keep)
 	}
 	outstanding := r.remaining()
-	if r.mayEvict {
-		if free, err := m.ensureFreeLocked(want+outstanding, keep); !errors.Is(err, errNoRoom) {
-			return free, err
-		}
-	}
+	// The job first: it may evict whatever it needs, as admission always could.
 	free, err := m.ensureFreeLocked(want, keep)
-	if err != nil {
+	if err != nil || free >= want+outstanding {
 		return free, err
 	}
-	if free < want+outstanding {
-		r.cancel(errConvergeDisplaced)
-		m.converging = nil
+	// Keeping the download as well may only evict what a convergence may.
+	if r.mayEvict {
+		kept, err := m.ensureFreeForConvergenceLocked(want+outstanding, keep)
+		if err == nil {
+			return kept, nil
+		}
+		if !errors.Is(err, errNoRoom) && !errors.Is(err, errNoRoomBesideActiveMasters) {
+			return kept, err
+		}
+		free = kept
 	}
+	r.cancel(errConvergeDisplaced)
+	m.converging = nil
 	return free, nil
 }
 
@@ -1457,7 +1462,7 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 		if free < want {
 			return nil, errNoRoomToConverge
 		}
-	} else if _, err := m.ensureFreeLocked(want, key); err != nil {
+	} else if _, err := m.ensureFreeForConvergenceLocked(want, key); err != nil {
 		if errors.Is(err, errNoRoom) {
 			return nil, errNoRoomToConverge
 		}
@@ -1525,22 +1530,63 @@ func (m *VolumeManager) reservedBranches() int {
 // value is the space available after any eviction, so the caller can log why a
 // decline happened without a second statfs.
 func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, error) {
-	free, err := m.backend.freeBytes(m.Root)
+	free, _, err := m.evictUntilFreeLocked(want, keep, nil)
+	return free, err
+}
+
+// convergeEvictIdleAfter is how long a master must have gone unused before a
+// convergence download may evict it. A download for one account evicting a
+// master another account used a moment ago only trades which of the two lands
+// cold next: on an M2-L, two 21-25 GiB masters do not fit beside a job's
+// headroom, and each one's download pushed the other out, costing both a cold
+// job and a full re-download every round. Twelve hours spans the overnight gap
+// between an account's evening and morning jobs. A job's own admission still
+// evicts whatever it needs.
+const convergeEvictIdleAfter = 12 * time.Hour
+
+// errNoRoomBesideActiveMasters: a convergence download would need to evict a
+// master used within convergeEvictIdleAfter, so it is not downloaded.
+var errNoRoomBesideActiveMasters = errors.New("runner-cache root has no room for this master without evicting one in active use")
+
+// ensureFreeForConvergenceLocked is ensureFreeLocked for a convergence download:
+// it only evicts masters unused for convergeEvictIdleAfter, and reports
+// errNoRoomBesideActiveMasters when the masters it spared are what stands in
+// the way.
+func (m *VolumeManager) ensureFreeForConvergenceLocked(want uint64, keep masterKey) (uint64, error) {
+	cutoff := m.now().Add(-convergeEvictIdleAfter)
+	free, spared, err := m.evictUntilFreeLocked(want, keep, func(mm masterEntry) bool {
+		return mm.modTime.Before(cutoff)
+	})
+	if errors.Is(err, errNoRoom) && spared > 0 {
+		return free, errNoRoomBesideActiveMasters
+	}
+	return free, err
+}
+
+// evictUntilFreeLocked evicts LRU masters other than keep, and only those
+// evictable accepts (all when nil), until want bytes are free. spared counts
+// the masters evictable refused while the root was still short.
+func (m *VolumeManager) evictUntilFreeLocked(want uint64, keep masterKey, evictable func(masterEntry) bool) (free uint64, spared int, err error) {
+	free, err = m.backend.freeBytes(m.Root)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if free >= want {
-		return free, nil
+		return free, 0, nil
 	}
 	masters, err := m.mastersByLRULocked()
 	if err != nil {
-		return free, err
+		return free, 0, err
 	}
 	for _, mm := range masters {
 		if free >= want {
-			return free, nil
+			return free, spared, nil
 		}
 		if mm.key == keep {
+			continue
+		}
+		if evictable != nil && !evictable(mm) {
+			spared++
 			continue
 		}
 		if err := os.RemoveAll(mm.path); err != nil {
@@ -1548,14 +1594,14 @@ func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, e
 		}
 		f, ferr := m.backend.freeBytes(m.Root)
 		if ferr != nil {
-			return free, ferr
+			return free, spared, ferr
 		}
 		free = f
 	}
 	if free < want {
-		return free, errNoRoom
+		return free, spared, errNoRoom
 	}
-	return free, nil
+	return free, spared, nil
 }
 
 type masterEntry struct {

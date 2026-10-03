@@ -532,6 +532,10 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 			logger.Info("converge: master is larger than this host can keep beside its watermark; not downloading it")
 			_ = os.RemoveAll(dir)
 			return "too_large"
+		case errors.Is(err, errNoRoomBesideActiveMasters):
+			logger.Info("converge: no room for this master without evicting one used in the last 12 hours; not downloading it")
+			_ = os.RemoveAll(dir)
+			return "active_masters"
 		case errors.Is(err, errNoRoomToConverge):
 			logger.Info("converge: no room on the runner-cache volume for this master; not downloading it")
 			_ = os.RemoveAll(dir)
