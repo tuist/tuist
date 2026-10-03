@@ -23,6 +23,19 @@ final class PathTests: TuistUnitTestCase {
         XCTAssertEqual(path, Path.relativeToRoot("file.swift"))
     }
 
+    func test_init_when_the_path_is_prefixed_with_a_tilde() {
+        let path: Path = "~/file.swift"
+        let expectedPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("file.swift")
+            .path
+        XCTAssertEqual(path, Path.relativeToRoot(expectedPath))
+    }
+
+    func test_init_when_the_path_is_a_tilde() {
+        let path: Path = "~"
+        XCTAssertEqual(path, Path.relativeToRoot(FileManager.default.homeDirectoryForCurrentUser.path))
+    }
+
     func test_init_when_the_path_is_not_prefixed() {
         let path: Path = "file.swift"
         XCTAssertEqual(path, Path.relativeToManifest("file.swift"))
