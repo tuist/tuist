@@ -298,8 +298,7 @@ export const CacheGlobe = {
     this.setReel(row.querySelector('[data-part="value"]'), value == null ? "\u2014" : format.format(Math.round(value)));
   },
 
-  // Hit rate per cache. The snapshot does not carry a breakdown yet, so
-  // live rows stay at a dash with an empty bar; the demo ticker fills them.
+  // Hit rate per cache. Missing observations keep a dash and an empty bar.
   renderBreakdown() {
     const shares = this.data.breakdown || {};
     for (const row of this.el.querySelectorAll('#globe-breakdown [data-part="row"]')) {
