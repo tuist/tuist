@@ -9,6 +9,11 @@ public struct TestAction: Equatable, Codable, Sendable {
     /// A list of testable targets, that are targets which are defined in the project with testable information.
     public var targets: [TestableTarget]
 
+    /// A list of queries matching the targets to test. They are resolved against every target of the generated
+    /// graph, so they can match targets that live in other projects, and the matched targets are tested in addition
+    /// to the ones listed in ``TestAction/targets``.
+    public var targetQueries: [TestableTargetQuery]
+
     /// Command line arguments passed on launch and environment variables.
     public var arguments: Arguments?
 
@@ -39,6 +44,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     private init(
         testPlans: [TestPlan]?,
         targets: [TestableTarget],
+        targetQueries: [TestableTargetQuery],
         arguments: Arguments?,
         configuration: ConfigurationName,
         attachDebugger: Bool,
@@ -51,6 +57,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     ) {
         self.testPlans = testPlans
         self.targets = targets
+        self.targetQueries = targetQueries
         self.arguments = arguments
         self.configuration = configuration
         self.attachDebugger = attachDebugger
@@ -65,6 +72,9 @@ public struct TestAction: Equatable, Codable, Sendable {
     /// Returns a test action from a list of targets to be tested.
     /// - Parameters:
     ///   - targets: List of targets to be tested.
+    ///   - matching: List of queries matching the targets to be tested. Queries are resolved against every target of
+    /// the generated graph, so they can match targets that live in other projects:
+    /// `.targets(matching: ["*-UnitTests", "tag:unit-tests"])`.
     ///   - arguments: Arguments passed when running the tests.
     ///   - configuration: Configuration to be used.
     ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
@@ -76,7 +86,8 @@ public struct TestAction: Equatable, Codable, Sendable {
     ///   - diagnosticsOptions: Diagnostics options.
     /// - Returns: An initialized test action.
     public static func targets(
-        _ targets: [TestableTarget],
+        _ targets: [TestableTarget] = [],
+        matching targetQueries: [TestableTargetQuery] = [],
         arguments: Arguments? = nil,
         configuration: ConfigurationName = .debug,
         attachDebugger: Bool = true,
@@ -90,6 +101,7 @@ public struct TestAction: Equatable, Codable, Sendable {
         Self(
             testPlans: nil,
             targets: targets,
+            targetQueries: targetQueries,
             arguments: arguments,
             configuration: configuration,
             attachDebugger: attachDebugger,
@@ -120,6 +132,7 @@ public struct TestAction: Equatable, Codable, Sendable {
         Self(
             testPlans: testPlans,
             targets: [],
+            targetQueries: [],
             arguments: nil,
             configuration: configuration,
             attachDebugger: attachDebugger,

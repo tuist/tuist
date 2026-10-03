@@ -15,44 +15,17 @@ public protocol TargetReplacementDeciding {
 /// A decider that chooses to replace targets based on a cache profile.
 public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
     private let base: BaseCacheProfile
-    private let profileTargetNames: Set<String>
-    private let profileTargetTags: Set<String>
-    private let focusedTargetNames: Set<String>
-    private let focusedTargetTags: Set<String>
+    private let profileTargets: TargetQueryMatcher
+    private let focusedTargets: TargetQueryMatcher
 
     public init(profile: CacheProfile, exceptions: Set<TargetQuery>) {
         base = profile.base
-
-        var names = Set<String>()
-        var tags = Set<String>()
-        for query in profile.targetQueries {
-            switch query {
-            case let .named(name):
-                names.insert(name)
-            case let .tagged(tag):
-                tags.insert(tag)
-            }
-        }
-        profileTargetNames = names
-        profileTargetTags = tags
-
-        names.removeAll()
-        tags.removeAll()
-        for exception in exceptions.union(profile.exceptTargetQueries) {
-            switch exception {
-            case let .named(name):
-                names.insert(name)
-            case let .tagged(tag):
-                tags.insert(tag)
-            }
-        }
-        focusedTargetNames = names
-        focusedTargetTags = tags
+        profileTargets = TargetQueryMatcher(profile.targetQueries)
+        focusedTargets = TargetQueryMatcher(exceptions.union(profile.exceptTargetQueries))
     }
 
     public func shouldReplace(project: Project, target: Target) -> Bool {
-        if focusedTargetNames.contains(target.name) { return false }
-        if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
+        if focusedTargets.matches(targetName: target.name, tags: target.metadata.tags) { return false }
 
         switch project.type {
         case .external:
@@ -67,9 +40,7 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
             case .allPossible:
                 return true
             case .onlyExternal, .none:
-                if profileTargetNames.contains(target.name) { return true }
-                if !target.metadata.tags.isDisjoint(with: profileTargetTags) { return true }
-                return false
+                return profileTargets.matches(targetName: target.name, tags: target.metadata.tags)
             }
         }
     }
