@@ -16,7 +16,7 @@ defmodule AtlasWeb.DocsControllerTest do
   end
 
   test "unfinished documentation is unavailable in both formats", %{conn: conn} do
-    for slug <- ~w(self-hosting installation first-administrator development configuration integrations workspace) do
+    for slug <- ~w(installation first-administrator development configuration integrations workspace) do
       assert response(get(conn, "/docs/#{slug}"), 404)
       assert response(get(conn, "/docs-markdown/#{slug}"), 404)
     end

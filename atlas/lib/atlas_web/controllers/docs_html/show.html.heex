@@ -17,7 +17,6 @@
           :for={
             section <-
               @pages
-              |> Enum.filter(&(&1.category == @page.category))
               |> Enum.map(& &1.section)
               |> Enum.uniq()
           }
@@ -29,7 +28,7 @@
             <a
               :for={
                 page <-
-                  Enum.filter(@pages, &(&1.category == @page.category and &1.section == section))
+                  Enum.filter(@pages, &(&1.section == section))
               }
               href={if(page.slug == "", do: ~p"/docs", else: ~p"/docs/#{page.slug}")}
               data-part="nav-link"
