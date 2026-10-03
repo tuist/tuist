@@ -5,7 +5,6 @@ defmodule TuistWeb.BuildControllerTest do
   alias Tuist.Bazel
   alias Tuist.Bazel.Profile
   alias Tuist.Builds
-  alias Tuist.Mix
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
@@ -15,11 +14,11 @@ defmodule TuistWeb.BuildControllerTest do
   setup :verify_on_exit!
 
   describe "timeline/2" do
-    test "Gradle, Bazel and Mix metadata downloads authorize and scope the parent before loading", %{conn: conn} do
+    test "Gradle and Bazel metadata downloads authorize and scope the parent before loading", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stranger = AccountsFixtures.user_fixture()
 
-      for source <- [:gradle, :bazel, :mix] do
+      for source <- [:gradle, :bazel] do
         project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: source)
         other = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: source)
         {id, route} = recorded_build(project, source)
@@ -243,24 +242,6 @@ defmodule TuistWeb.BuildControllerTest do
         ]
       )
 
-    {id, "build-runs"}
-  end
-
-  defp recorded_build(project, :mix) do
-    id = UUIDv7.generate()
-
-    {:ok, ^id} =
-      Mix.create_build(%{
-        id: id,
-        project_id: project.id,
-        account_id: project.account_id,
-        duration_ms: 2000,
-        status: "success",
-        started_at: ~U[2026-09-09 10:00:00Z],
-        files: [%{path: "lib/compile.ex", start_offset_ms: 1000, compile_duration_ms: 100, modules: ["Compile"]}]
-      })
-
-    for buffer <- [Mix.Build.Buffer, Mix.CompiledFile.Buffer], do: buffer.flush()
     {id, "build-runs"}
   end
 
