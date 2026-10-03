@@ -42,6 +42,9 @@ defmodule Tuist.Repo.Migrations.CreateCoverageCommits do
       add :skipped_tests_count, :integer, null: false, default: 0
       add :carried_tests_count, :integer, null: false, default: 0
       add :gap_files_count, :integer, null: false, default: 0
+      # Why the reported figure is a lower bound: a bitmask of
+      # `Tuist.Tests.Coverage.GapReasons`, append-only.
+      add :gap_reasons, :integer, null: false, default: 0
       add :carried_from, {:array, :string}, null: false, default: []
       # Bumped on every fold, so what is cached per published version expires.
       add :version, :bigint, null: false, default: 1

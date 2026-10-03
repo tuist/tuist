@@ -389,45 +389,4 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert History.branches(project, limit: 1) == ["main", "develop"]
     end
   end
-
-  describe "pull_request_commits/3" do
-    test "lists the pull request's measured commits, newest first, with what measured them", %{
-      project: project,
-      account: account
-    } do
-      pr = %{git_branch: "feature", is_pull_request: true, pull_request_number: 7, base_branch: "main"}
-
-      run(project, account, Map.merge(pr, %{git_commit_sha: "p1", ran_at: ~N[2026-09-01 10:00:00]}), [1, 0])
-
-      run(project, account, Map.merge(pr, %{git_commit_sha: "p2", ran_at: ~N[2026-09-02 10:00:00], partial: true}), [1, 1])
-
-      run(project, account, Map.merge(pr, %{git_commit_sha: "p2", scheme: "Other", ran_at: ~N[2026-09-02 09:00:00]}), [
-        0,
-        1
-      ])
-
-      run(
-        project,
-        account,
-        %{git_branch: "fix", is_pull_request: true, pull_request_number: 8, git_commit_sha: "q"},
-        [1, 1, 1, 1]
-      )
-
-      run(project, account, %{git_commit_sha: "m"}, [1])
-
-      assert [
-               %{
-                 git_commit_sha: "p2",
-                 coverage: 100.0,
-                 schemes: ["App", "Other"],
-                 partial_schemes: ["App"],
-                 base_branch: "main"
-               },
-               %{git_commit_sha: "p1", coverage: 50.0, schemes: ["App"], partial_schemes: []}
-             ] = History.pull_request_commits(project.id, 7)
-
-      assert [%{git_commit_sha: "q"}] = History.pull_request_commits(project.id, 8)
-      assert History.pull_request_commits(project.id, 9) == []
-    end
-  end
 end

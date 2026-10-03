@@ -16,7 +16,6 @@
           <div data-part="icon">
             <.git_commit :if={@subject.kind == :commit} />
             <.git_branch :if={@subject.kind == :branch} />
-            <.git_merge :if={@subject.kind == :pull_request} />
           </div>
         </div>
         <h1 data-part="label" aria-label={subject_title(@subject)}>{@subject.name}</h1>
@@ -35,20 +34,6 @@
         </.button>
       </div>
       <div data-part="badges">
-        <span :if={@subject.kind == :pull_request and @subject.branch != ""} data-part="branches">
-          <.badge label={@subject.branch} color="neutral" style="light-fill" size="large" />
-          <.icon name="arrow_right" />
-          <.badge
-            label={
-              if @subject.base_branch == "",
-                do: @selected_project.default_branch,
-                else: @subject.base_branch
-            }
-            color="information"
-            style="light-fill"
-            size="large"
-          />
-        </span>
         <.tooltip
           :if={@subject.kind == :commit and not @summary.complete}
           id="coverage-status"
@@ -171,13 +156,6 @@
         </div>
       </.card_section>
     </.card>
-
-    <.coverage_sources_card
-      :if={@tab == "overview" and coverage_breakdown?(@summary)}
-      summary={@summary}
-      ran_tests_count={@ran_tests_count}
-      commit_href={fn sha -> commit_href(assigns, sha) end}
-    />
 
     <%!-- Targets --%>
     <.card
@@ -403,7 +381,7 @@
             data-positioning-strategy="fixed"
             label={
               Enum.find_value(
-                commit_statuses(@subject.kind),
+                commit_statuses(),
                 dgettext("dashboard_tests", "Any"),
                 fn
                   {value, label} -> if value == @commits_status, do: label
@@ -421,7 +399,7 @@
               <:right_icon :if={@commits_status == ""}><.check /></:right_icon>
             </.dropdown_item>
             <.dropdown_item
-              :for={{value, label} <- commit_statuses(@subject.kind)}
+              :for={{value, label} <- commit_statuses()}
               value={value}
               label={label}
               patch={"?#{@uri.query |> Query.put("commits-status", value) |> drop_paging()}"}

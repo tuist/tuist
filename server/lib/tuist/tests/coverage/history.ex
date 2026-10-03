@@ -664,23 +664,6 @@ defmodule Tuist.Tests.Coverage.History do
     |> Enum.find(& &1.measured)
   end
 
-  @doc """
-  The commits of one pull request that gathered coverage, newest first,
-  each with its measurement (`Tuist.Tests.Coverage.Commits.summary/2`
-  fields) and the branch and base branch its runs reported: what the pull
-  request page lists.
-  """
-  def pull_request_commits(project_id, pull_request_number, opts \\ []) do
-    project_id
-    |> Commits.all(fn query ->
-      query
-      |> where([c], c.pull_request_number == ^pull_request_number)
-      |> ran_in(opts)
-      |> order_by([c], desc: c.ran_at)
-    end)
-    |> Enum.map(&with_coverage/1)
-  end
-
   # Without a ref, a branch is the measured commits its runs labelled with
   # it, newest run first.
   defp labelled_commits(project_id, branch, opts, limit) do

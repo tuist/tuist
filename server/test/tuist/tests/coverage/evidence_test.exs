@@ -225,4 +225,15 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
     assert CoverageFixtures.run_summary(project.id, test_run.id) == nil
   end
+
+  test "reads whether a run collected evidence, the strongest of its shards'" do
+    assert Evidence.status(nil) == ""
+    assert Evidence.status(%{paths: [], scopes: []}) == ""
+    assert Evidence.status(%{"status" => "not_linked"}) == "not_linked"
+    assert Evidence.status(%{status: "unexpected"}) == ""
+
+    assert Evidence.merge_status("not_linked", "collected") == "collected"
+    assert Evidence.merge_status("", "failed") == "failed"
+    assert Evidence.merge_status("", "") == ""
+  end
 end

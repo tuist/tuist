@@ -36,7 +36,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
-  alias Tuist.Tests.TestCaseRun
 
   @doc """
   Schedules the commit's totals to be republished after a run reported
@@ -211,29 +210,27 @@ defmodule Tuist.Tests.Coverage.Commits do
     runs = runs(project.id, sha)
     reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
 
-    row =
-      cond do
-        # Every scheme was skipped whole, so no run measured the commit, but
-        # its coverage is still known: all of it carried forward. The row is
-        # written with nothing measured and the reported figure filled in, so
-        # the commit is comparable and its pipeline can signal completion. A
-        # commit whose runs carried nothing either — no candidate was ever
-        # enumerated for those schemes — has no coverage to publish and keeps
-        # none.
-        runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
-          carried_row(project, sha, previous, reported, opts)
+    cond do
+      # Every scheme was skipped whole, so no run measured the commit, but
+      # its coverage is still known: all of it carried forward. The row is
+      # written with nothing measured and the reported figure filled in, so
+      # the commit is comparable and its pipeline can signal completion. A
+      # commit whose runs carried nothing either — no candidate was ever
+      # enumerated for those schemes — has no coverage to publish and keeps
+      # none.
+      runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
+        clean = clean_runs(project.id, sha)
+        {carried_row(project, sha, previous, reported, clean, opts), clean}
 
-        runs == [] ->
-          nil
+      runs == [] ->
+        {nil, []}
 
-        true ->
-          measured_row(project, sha, runs, previous, reported, opts)
-      end
-
-    {row, runs}
+      true ->
+        {measured_row(project, sha, runs, previous, reported, opts), runs}
+    end
   end
 
-  defp carried_row(project, sha, previous, reported, opts) do
+  defp carried_row(project, sha, previous, reported, clean, opts) do
     repository_id = Reported.repository_id(project.id, sha)
 
     unmeasured =
@@ -251,6 +248,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
     project
     |> base_row(sha, previous, reported, opts)
+    |> Map.merge(if(clean == [], do: %{}, else: labels(clean)))
     |> Map.merge(%{
       repository_id: positive(repository_id),
       build_system: Reported.build_system(project.id, sha),
@@ -309,6 +307,30 @@ defmodule Tuist.Tests.Coverage.Commits do
       test_run_ids: run_ids
     })
     |> Map.merge(place(repository_id, sha, utc(newest.ran_at)))
+  end
+
+  # A commit's runs from a clean checkout, measured or not, oldest first, with
+  # what they reported about where the commit is: what labels a commit whose
+  # every scheme was skipped whole and moves its refs.
+  defp clean_runs(project_id, sha) do
+    ClickHouseRepo.all(
+      from(t in Test,
+        where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
+        group_by: t.id,
+        having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
+        order_by: [asc: min(t.ran_at)],
+        select: %{
+          test_run_id: t.id,
+          git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
+          git_branch: fragment("any(?)", t.git_branch),
+          is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
+          pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
+          base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
+          ran_at: min(t.ran_at)
+        }
+      ),
+      settings: [select_sequential_consistency: 1]
+    )
   end
 
   # What the runs reported: the newest one's branch, and the pull request of
@@ -391,6 +413,7 @@ defmodule Tuist.Tests.Coverage.Commits do
       skipped_tests_count: reported.skipped_tests_count,
       carried_tests_count: reported.carried_tests_count,
       gap_files_count: reported.gap_files_count,
+      gap_reasons: reported.gap_reasons,
       carried_from: reported.carried_from,
       git_branch: previous.git_branch,
       pull_request_number: previous.pull_request_number,
@@ -753,21 +776,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   def reported_figure(_summary), do: nil
 
   @doc """
-  How many distinct tests the given runs of a commit executed: what its
-  measured coverage was gathered by.
-  """
-  def ran_tests_count(_project_id, []), do: 0
-
-  def ran_tests_count(project_id, test_run_ids) do
-    ClickHouseRepo.one(
-      from(r in TestCaseRun,
-        where: r.project_id == ^project_id and r.test_run_id in ^test_run_ids and not is_nil(r.test_case_id),
-        select: fragment("uniqExact(?)", r.test_case_id)
-      )
-    ) || 0
-  end
-
-  @doc """
   The runs that measured the commit and count towards it: one row per run
   with its scheme, whether it was partial, and its repository. Runs from a
   dirty checkout are left out.
@@ -809,6 +817,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
           pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
           base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
+          coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -829,6 +838,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           is_pull_request: t.is_pull_request,
           pull_request_number: t.pull_request_number,
           base_branch: t.base_branch,
+          coverage_evidence_status: t.coverage_evidence_status,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines
@@ -843,8 +853,8 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   One page of the runs with coverage of a subject, newest first: a commit's
-  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`) or a
-  pull request (`{:pull_request, number}`), run between `since` and `until`.
+  (`{:commit, sha}`), or those that named a branch (`{:branch, name}`), run
+  between `since` and `until`.
   Runs from a dirty checkout are left out, as `runs/2` does.
 
   `search` keeps the schemes containing it, ignoring case; `scheme` as
@@ -939,7 +949,6 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
   defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
-  defp run_scope(query, {:pull_request, number}), do: where(query, [t], t.pull_request_number == ^number)
 
   defp run_period(query, opts) do
     query = if since = Keyword.get(opts, :since), do: where(query, [t], t.ran_at >= ^since), else: query
@@ -1366,12 +1375,19 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   @doc """
-  Whether coverage was carried into the commit: a run skipped tests, or
-  every scheme was skipped whole. Its files are then read with what the
-  skipped tests covered (`file_detail/4`), not only with what its runs did.
+  Whether coverage was carried into the commit's exact figure: a run skipped
+  tests, a scheme was skipped whole, or files no run compiled were kept from
+  an ancestor. Its files are then read with what was carried into them
+  (`file_detail/4`), not only with what its runs measured, so its lists add
+  up to its figure.
   """
-  def carried?(%{reported_kind: "reported", partial_schemes: [_ | _]}), do: true
-  def carried?(summary), do: fully_carried?(summary)
+  def carried?(%{reported_kind: "reported"} = summary) do
+    summary.partial_schemes != [] or Map.get(summary, :carried_tests_count, 0) > 0 or
+      {summary.reported_covered_lines, summary.reported_executable_lines} !=
+        {summary.covered_lines, summary.executable_lines}
+  end
+
+  def carried?(_summary), do: false
 
   defp files_sort(opts), do: Keyword.get(opts, :sort, {:coverage, :asc})
 

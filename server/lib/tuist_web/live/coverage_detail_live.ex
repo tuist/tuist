@@ -1,9 +1,9 @@
 defmodule TuistWeb.CoverageDetailLive do
   @moduledoc """
-  One subject's coverage in detail: a commit, a branch or a pull request.
-  The three read the same because a branch and a pull request are a series
-  of commits with a head, and every figure on the page describes that head:
-  what its runs measured, pooled over the schemes that measured it.
+  One subject's coverage in detail: a commit or a branch. The two read the
+  same because a branch is a series of commits with a head, and every
+  figure on the page describes that head: what its runs measured, pooled
+  over the schemes that measured it.
 
   Overview holds the totals and where the head is thinnest (a branch's also
   its coverage over the period); Commits lists the series (a commit has
@@ -232,7 +232,6 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp concerns?(%{kind: :commit, sha: sha}, %{git_commit_sha: sha}), do: true
   defp concerns?(%{kind: :branch, branch: branch}, %{git_branch: branch}), do: true
-  defp concerns?(%{kind: :pull_request}, _test_run), do: true
   defp concerns?(_subject, _test_run), do: false
 
   defp schedule_reload(%{assigns: %{reload_scheduled: true}} = socket), do: socket
@@ -253,7 +252,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
     socket
     |> assign(:params, params)
-    |> assign(:subject, %{kind: :commit, name: short_sha(sha), sha: sha, branch: nil, pull_request_number: nil})
+    |> assign(:subject, %{kind: :commit, name: short_sha(sha), sha: sha, branch: nil})
     |> assign_summary(summary)
   end
 
@@ -271,39 +270,8 @@ defmodule TuistWeb.CoverageDetailLive do
       kind: :branch,
       name: branch,
       sha: head.git_commit_sha,
-      branch: branch,
-      pull_request_number: nil
+      branch: branch
     })
-    |> assign_summary(Commits.summary(project.id, head.git_commit_sha))
-  end
-
-  defp assign_subject(%{assigns: %{live_action: :pull_request, selected_project: project}} = socket, params) do
-    number =
-      case Integer.parse(params["pull_request_number"] || "") do
-        {number, ""} -> number
-        _ -> raise NotFoundError, dgettext("dashboard_tests", "Pull request not found.")
-      end
-
-    commits = History.pull_request_commits(project.id, number)
-
-    if commits == [] do
-      raise NotFoundError,
-            dgettext("dashboard_tests", "No test run of pull request #%{number} gathered coverage.", number: number)
-    end
-
-    head = hd(commits)
-
-    socket
-    |> assign(:params, params)
-    |> assign(:subject, %{
-      kind: :pull_request,
-      name: "##{number}",
-      sha: head.git_commit_sha,
-      branch: head.git_branch,
-      base_branch: head.base_branch,
-      pull_request_number: number
-    })
-    |> assign(:commits, commits)
     |> assign_summary(Commits.summary(project.id, head.git_commit_sha))
   end
 
@@ -324,15 +292,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp tab(subject, value), do: if(value in tabs(subject), do: value, else: "overview")
 
-  defp assign_overview(%{assigns: %{selected_project: project, summary: summary}} = socket) do
-    # The tests that ran are only read for the card that breaks the
-    # coverage down.
-    ran_tests = if coverage_breakdown?(summary), do: Commits.ran_tests_count(project.id, summary.test_run_ids), else: 0
-
-    socket
-    |> assign(:ran_tests_count, ran_tests)
-    |> assign_analytics()
-  end
+  defp assign_overview(socket), do: assign_analytics(socket)
 
   # A branch leads with its coverage over the period, as the Code Coverage
   # page does for the default branch.
@@ -352,32 +312,6 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp assign_analytics(socket), do: socket
 
-  defp assign_commits(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}} = socket, query) do
-    {search, status} = commits_filter(query)
-
-    commits =
-      commits
-      |> with_complete_changes()
-      |> Enum.filter(fn commit ->
-        in_period?(socket, commit.ran_at) and String.starts_with?(commit.git_commit_sha, search) and
-          (status == "" or pull_request_commit_status(commit) == status)
-      end)
-
-    total_pages = max(1, ceil(length(commits) / @page_size))
-    page = min(Query.bounded_page(query["page"]), total_pages)
-
-    socket
-    |> assign(
-      :commit_rows,
-      commits
-      |> Enum.slice((page - 1) * @page_size, @page_size)
-      |> Enum.map(&(&1 |> Map.put(:id, &1.git_commit_sha) |> Map.put(:measured, true)))
-    )
-    |> assign(:commits_meta, %{cursor: false, current_page: page, total_pages: total_pages})
-    |> assign(:commits_ordered_by, :time)
-    |> assign_commits_filter(search, status)
-  end
-
   # A branch's commits are read a page at a time from a cursor, however long
   # its history.
   defp assign_commits(%{assigns: %{subject: %{kind: :branch}}} = socket, query) do
@@ -391,23 +325,6 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign_commits_filter(search, status)
   end
 
-  # Each complete commit's change from the complete commit before it, over
-  # all of the pull request's commits (newest first) before any filter, as
-  # a branch's page reads them (`History.commit_cursor_page/3`).
-  defp with_complete_changes(commits) do
-    commits
-    |> Enum.reverse()
-    |> Enum.map_reduce(nil, fn
-      %{complete: true, coverage: coverage} = commit, previous ->
-        {Map.put(commit, :change, previous && Float.round(coverage - previous, 1)), coverage}
-
-      commit, previous ->
-        {Map.put(commit, :change, nil), previous}
-    end)
-    |> elem(0)
-    |> Enum.reverse()
-  end
-
   # The Commits tab's search, by the start of a SHA, and its status: whether
   # the commit's pipeline signalled it finished, and on a branch, which lists
   # every commit on it, whether any run measured it.
@@ -419,22 +336,13 @@ defmodule TuistWeb.CoverageDetailLive do
   defp assign_commits_filter(socket, search, status),
     do: socket |> assign(:commits_search, search) |> assign(:commits_status, status)
 
-  @doc "The statuses the Commits tab filters a subject's commits by, with their labels."
-  def commit_statuses(:pull_request),
-    do: [
-      {"complete", dgettext("dashboard_tests", "Complete")},
-      {"in-progress", dgettext("dashboard_tests", "In Progress")}
-    ]
-
-  def commit_statuses(_kind),
+  @doc "The statuses the Commits tab filters a branch's commits by, with their labels."
+  def commit_statuses,
     do: [
       {"complete", dgettext("dashboard_tests", "Complete")},
       {"in-progress", dgettext("dashboard_tests", "In Progress")},
       {"not-measured", dgettext("dashboard_tests", "Not measured")}
     ]
-
-  defp pull_request_commit_status(%{complete: true}), do: "complete"
-  defp pull_request_commit_status(_commit), do: "in-progress"
 
   # A commit has a few thousand targets at most, all aggregated in one read,
   # so they are searched, sorted and paged here.
@@ -575,13 +483,9 @@ defmodule TuistWeb.CoverageDetailLive do
 
   defp run_scope(%{kind: :commit, sha: sha}), do: {:commit, sha}
   defp run_scope(%{kind: :branch, branch: branch}), do: {:branch, branch}
-  defp run_scope(%{kind: :pull_request, pull_request_number: number}), do: {:pull_request, number}
 
   defp run_schemes(%{assigns: %{selected_project: project, subject: %{kind: :branch, branch: branch}}} = socket),
     do: History.branch_schemes(project, branch, period_opts(socket))
-
-  defp run_schemes(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}}),
-    do: commits |> Enum.flat_map(&(&1.schemes ++ &1.partial_schemes)) |> Enum.uniq() |> Enum.sort()
 
   defp run_schemes(%{assigns: %{summary: summary}}),
     do: (summary.schemes ++ summary.partial_schemes) |> Enum.uniq() |> Enum.sort()
@@ -644,22 +548,11 @@ defmodule TuistWeb.CoverageDetailLive do
   @doc false
   def drop_paging(query), do: query |> Query.drop("page") |> Query.drop("after") |> Query.drop("before")
 
-  # A pull request's commits and runs are all read for the subject, so the
-  # period narrows its lists here.
-  defp in_period?(socket, at) do
-    [since: since, until: until] = period_opts(socket)
-    at = if is_struct(at, DateTime), do: DateTime.to_naive(at), else: at
-    NaiveDateTime.compare(at, since) != :lt and NaiveDateTime.before?(at, until)
-  end
-
   defp selected_widget(widget) when widget in @widgets, do: widget
   defp selected_widget(_widget), do: "coverage"
 
   @doc "What the page's title calls its subject."
   def subject_title(%{kind: :commit, name: name}), do: dgettext("dashboard_tests", "Commit %{name}", name: name)
-
-  def subject_title(%{kind: :pull_request, name: name}),
-    do: dgettext("dashboard_tests", "Pull request %{name}", name: name)
 
   def subject_title(%{kind: :branch, name: name}), do: dgettext("dashboard_tests", "Branch %{name}", name: name)
 

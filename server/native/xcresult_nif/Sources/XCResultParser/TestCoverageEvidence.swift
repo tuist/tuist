@@ -57,22 +57,36 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
         }
     }
 
+    /// Whether the run collected evidence, so a run without scopes still says why.
+    public enum Status: String, Codable, Sendable {
+        /// The test processes recorded evidence.
+        case collected
+        /// The run asked for evidence but no test process recorded any: no test target links
+        /// TestCoverageAttribution.
+        case notLinked = "not_linked"
+        /// What the test processes recorded could not be read.
+        case failed
+    }
+
     /// Every file some scope covered, once; scopes refer to them by index.
     public var paths: [String]
     public var scopes: [Scope]
     /// Tests the observer saw that overlapped another test of their process (Swift Testing
     /// running in parallel), so nothing could be attributed to them.
     public var unattributedTests: Int
+    /// Nil in bundles written before clients reported it.
+    public var status: Status?
 
     enum CodingKeys: String, CodingKey {
-        case paths, scopes
+        case paths, scopes, status
         case unattributedTests = "unattributed_tests"
     }
 
-    public init(paths: [String], scopes: [Scope], unattributedTests: Int = 0) {
+    public init(paths: [String], scopes: [Scope], unattributedTests: Int = 0, status: Status? = nil) {
         self.paths = paths
         self.scopes = scopes
         self.unattributedTests = unattributedTests
+        self.status = status
     }
 
     /// The evidence over repository-relative paths, without the files Git cannot vouch for
@@ -107,7 +121,7 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
             scope.lines = scope.lines == nil ? nil : scope.files.map { Scope.ranges(of: linesByFile[$0] ?? IndexSet()) }
             return scope
         }
-        return TestCoverageEvidence(paths: keptPaths, scopes: keptScopes, unattributedTests: unattributedTests)
+        return TestCoverageEvidence(paths: keptPaths, scopes: keptScopes, unattributedTests: unattributedTests, status: status)
     }
 
     /// The evidence a client wrote into the bundle, or nil when it did not.
@@ -125,9 +139,10 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
 }
 
 extension TestSummary {
-    /// The summary with the run's evidence attached; evidence with no scope left is dropped.
+    /// The summary with the run's evidence attached; evidence with no scope left is dropped,
+    /// unless it says whether the run collected any.
     public func applying(coverageEvidence evidence: TestCoverageEvidence?) -> TestSummary {
-        guard let evidence, !evidence.scopes.isEmpty else { return self }
+        guard let evidence, !evidence.scopes.isEmpty || evidence.status != nil else { return self }
         var summary = self
         summary.coverageEvidence = evidence
         return summary

@@ -49,6 +49,19 @@ struct TestCoverageEvidenceTests {
         #expect(TestCoverageEvidence.Scope.lines(ofRanges: [3, 5, 9, 9, 7]) == IndexSet([3, 4, 5, 9]))
     }
 
+    @Test func keepsWhetherTheRunCollectedEvidenceEvenWithoutScopes() {
+        let notLinked = TestCoverageEvidence(paths: [], scopes: [], status: .notLinked)
+
+        #expect(notLinked.inRepository(manifest: manifest).status == .notLinked)
+        #expect(TestSummary(testPlanName: nil, status: .passed, duration: nil, testModules: [])
+            .applying(coverageEvidence: notLinked).coverageEvidence == notLinked)
+        #expect(TestSummary(testPlanName: nil, status: .passed, duration: nil, testModules: [])
+            .applying(coverageEvidence: TestCoverageEvidence(
+                paths: [],
+                scopes: []
+            )).coverageEvidence == nil)
+    }
+
     @Test func reachesTheSummaryOnlyWithTheManifestBesideIt() throws {
         let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)

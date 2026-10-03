@@ -11,6 +11,8 @@ defmodule Tuist.Tests.CoverageCommit do
   so (`Tuist.Tests.Coverage.Commits.signal_complete/2`), `inferred` when the
   measured set matches the previous chained commit's. `unmeasured_files_count`
   is how many source files of the commit's listing no run measured.
+  `gap_reasons` is why some of the reported figure is unknown, a bitmask of
+  `Tuist.Tests.Coverage.GapReasons`.
 
   The row sits beside the commit graph: `ref_id`, `position` and
   `committed_at` copy the commit's place in it (`Tuist.GitHistory.Ref`), so a
@@ -49,6 +51,7 @@ defmodule Tuist.Tests.CoverageCommit do
     field :skipped_tests_count, :integer, default: 0
     field :carried_tests_count, :integer, default: 0
     field :gap_files_count, :integer, default: 0
+    field :gap_reasons, :integer, default: 0
     field :carried_from, {:array, :string}, default: []
     field :version, :integer, default: 1
     timestamps(type: :utc_datetime)

@@ -29,7 +29,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   and tests that ran in parallel.
 
   A skipped test that fails any of these is a **gap**: nothing is carried for
-  it and the figure is a lower bound, which `kind` says (`partial`). Files an
+  it and the figure is a lower bound, which `kind` says (`partial`), and
+  `gap_reasons` says why (`Tuist.Tests.Coverage.GapReasons`). Files an
   ancestor measured that no run at the commit compiled keep their executable
   lines when their blob is unchanged, so a run that built half the project is
   compared over the whole of it; one whose blob changed is a gap too.
@@ -49,6 +50,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
+  alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.EnumeratedTest
   alias Tuist.Tests.Test
@@ -103,10 +105,10 @@ defmodule Tuist.Tests.Coverage.Reported do
 
       case skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
         {:not_enumerated, _ancestry} ->
-          result(observed, "observed", [], [], 0, [])
+          result(observed, "observed", [], [], {0, []}, [])
 
         {[], _ancestry} ->
-          result(observed, "measured", [], [], 0, [])
+          result(observed, "measured", [], [], {0, []}, [])
 
         {skipped, ancestry} ->
           context = %{repository_id: repository_id, sha: sha, ancestry: ancestry}
@@ -158,7 +160,8 @@ defmodule Tuist.Tests.Coverage.Reported do
       project: project,
       repository_id: repository_id,
       sha: sha,
-      ancestry: ancestry,
+      # Read once: carrying and explaining the gaps both walk the ancestors' runs.
+      ancestry: if(repository_id in [nil, 0], do: [], else: ancestry || ancestor_runs(project.id, repository_id, sha)),
       run_ids: run_ids,
       hits: hits,
       observed: observed,
@@ -166,16 +169,80 @@ defmodule Tuist.Tests.Coverage.Reported do
       excluded: ExcludedPaths.compile(excluded)
     }
 
-    {carried_tests, carried_lines, sources} = carried(context, skipped)
+    {carried_tests, carried_lines, sources, reasons} = carried(context, skipped)
 
-    {files, gap_files} =
+    {files, gap_files, file_reasons} =
       observed
       |> add_carried_lines(context, run_ids, carried_lines, sources)
       |> add_unbuilt_files(context, schemes)
 
-    kind = if length(carried_tests) == length(skipped) and gap_files == 0, do: "reported", else: "partial"
+    kept = MapSet.new(carried_tests, & &1.test_case_id)
+    gaps = Enum.reject(skipped, &MapSet.member?(kept, &1.test_case_id))
+    test_reasons = test_gap_reasons(context, gaps, reasons)
+
+    kind = if gaps == [] and gap_files == 0, do: "reported", else: "partial"
     shas = sources |> Map.values() |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
-    files |> result(kind, skipped, carried_tests, gap_files, shas) |> Map.put(:carried_lines, carried_lines)
+
+    files
+    |> result(kind, skipped, carried_tests, {gap_files, test_reasons ++ file_reasons}, shas)
+    |> Map.put(:carried_lines, carried_lines)
+  end
+
+  # Why each skipped test that was not carried is a gap: the check its
+  # evidence failed, its target's when it was skipped whole, or, without
+  # evidence to check, what the ancestor runs collected.
+  defp test_gap_reasons(_context, [], _reasons), do: []
+
+  defp test_gap_reasons(context, gaps, reasons) do
+    {explained, unexplained} =
+      Enum.split_with(gaps, &(Map.has_key?(reasons, &1.test_case_id) or Map.has_key?(reasons, {:module, &1.module_name})))
+
+    Enum.map(explained, &(Map.get(reasons, &1.test_case_id) || Map.fetch!(reasons, {:module, &1.module_name}))) ++
+      missing_evidence_reasons(context, unexplained)
+  end
+
+  defp missing_evidence_reasons(_context, []), do: []
+
+  defp missing_evidence_reasons(%{repository_id: repository_id}, _tests) when repository_id in [nil, 0],
+    do: [:no_ancestor]
+
+  defp missing_evidence_reasons(context, tests) do
+    source_runs = context.ancestry
+    collected = source_runs |> Enum.filter(&(&1.coverage_evidence_status == "collected")) |> Enum.map(& &1.test_run_id)
+
+    cond do
+      source_runs == [] ->
+        [:no_ancestor]
+
+      collected == [] ->
+        [:collection_off]
+
+      true ->
+        observed = observed_targets(context.project.id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), collected)
+
+        tests
+        |> Enum.map(&if(MapSet.member?(observed, &1.module_name), do: :no_evidence, else: :not_linked))
+        |> Enum.uniq()
+    end
+  end
+
+  # The targets some of the runs recorded evidence for: a target that links
+  # TestCoverageAttribution always records its process's.
+  defp observed_targets(project_id, modules, run_ids) do
+    run_ids
+    |> Enum.chunk_every(@run_id_chunk)
+    |> Enum.flat_map(fn runs ->
+      ClickHouseRepo.all(
+        from(f in CoverageFile,
+          where:
+            f.project_id == ^project_id and f.scope_kind == "target" and f.scope_id in ^modules and
+              f.test_run_id in ^runs,
+          distinct: true,
+          select: f.scope_id
+        )
+      )
+    end)
+    |> MapSet.new()
   end
 
   # What the pages read (`merged_files/4`, `file/4`) is the reported coverage
@@ -247,7 +314,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
-  defp result(files, kind, skipped, carried_tests, gap_files, shas) do
+  defp result(files, kind, skipped, carried_tests, {gap_files, gap_reasons}, shas) do
     %{
       files: files,
       carried_lines: %{},
@@ -257,6 +324,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       skipped_tests_count: length(skipped),
       carried_tests_count: length(carried_tests),
       gap_files_count: gap_files,
+      gap_reasons: GapReasons.encode(gap_reasons),
       carried_from: shas
     }
   end
@@ -453,7 +521,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   # The skipped tests whose coverage still applies, the lines they carry per
   # path, and per path the run the lines came from.
-  defp carried(%{repository_id: repository_id}, _skipped) when repository_id in [nil, 0], do: {[], %{}, %{}}
+  defp carried(%{repository_id: repository_id}, _skipped) when repository_id in [nil, 0], do: {[], %{}, %{}, %{}}
 
   defp carried(context, skipped) do
     source_runs =
@@ -489,25 +557,27 @@ defmodule Tuist.Tests.Coverage.Reported do
     context = prefetch_blobs(context, Enum.map(candidates, fn {_test, source, rows, files} -> {source, rows, files} end))
 
     candidates
-    |> Enum.reduce({[], %{}, %{}}, fn {test, source, all_rows, source_files}, acc ->
-      if MapSet.member?(passed, {test.test_case_id, source.run_id}) and
-           applies?(context, validity, source, all_rows, source_files) do
-        keep(acc, context, [test], all_rows, source, source_files)
-      else
-        acc
-      end
+    |> Enum.reduce({[], %{}, %{}, %{}}, fn {test, source, all_rows, source_files}, acc ->
+      failure =
+        if MapSet.member?(passed, {test.test_case_id, source.run_id}),
+          do: failure(context, validity, source, all_rows, source_files),
+          else: :test_failed
+
+      if failure,
+        do: put_elem(acc, 3, Map.put(elem(acc, 3), test.test_case_id, failure)),
+        else: keep(acc, context, [test], all_rows, source, source_files)
     end)
     |> carry_targets(context, skipped, source_runs, {tracked_now, validity})
-    |> then(fn {kept, lines, sources} -> {Enum.uniq_by(kept, & &1.test_case_id), lines, sources} end)
+    |> then(fn {kept, lines, sources, reasons} -> {Enum.uniq_by(kept, & &1.test_case_id), lines, sources, reasons} end)
   end
 
-  defp keep({kept, lines, sources}, context, tests, rows, source, source_files) do
+  defp keep({kept, lines, sources, reasons}, context, tests, rows, source, source_files) do
     counted = Enum.filter(rows, &counted?(context, source_files, &1.path))
 
     {tests ++ kept,
      Enum.reduce(counted, lines, fn row, lines ->
        Map.update(lines, row.path, MapSet.new(row.line_numbers), &MapSet.union(&1, MapSet.new(row.line_numbers)))
-     end), Enum.reduce(counted, sources, fn row, sources -> Map.put_new(sources, row.path, source) end)}
+     end), Enum.reduce(counted, sources, fn row, sources -> Map.put_new(sources, row.path, source) end), reasons}
   end
 
   # A target selective testing skipped carries whole. Its evidence is
@@ -567,12 +637,14 @@ defmodule Tuist.Tests.Coverage.Reported do
     Enum.reduce(chosen, acc, fn {module, %{run_id: run_id, rows: target_rows}}, acc ->
       source = Map.put(source_runs[run_id], :run_id, run_id)
 
-      if not MapSet.member?(failed, {run_id, module}) and
-           applies?(context, validity, source, target_rows, Map.get(files, run_id, %{})) do
-        keep(acc, context, by_module[module], target_rows, source, Map.get(files, run_id, %{}))
-      else
-        acc
-      end
+      failure =
+        if MapSet.member?(failed, {run_id, module}),
+          do: :test_failed,
+          else: failure(context, validity, source, target_rows, Map.get(files, run_id, %{}))
+
+      if failure,
+        do: put_elem(acc, 3, Map.put(elem(acc, 3), {:module, module}, failure)),
+        else: keep(acc, context, by_module[module], target_rows, source, Map.get(files, run_id, %{}))
     end)
   end
 
@@ -758,13 +830,23 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # Tracked files are compared once per source commit evidence was chosen
-  # from, not per ancestor.
+  # from, not per ancestor: `:ok`, or why carrying from it is ruled out.
   defp validity_cache(context, now, source_runs, chosen) do
     chosen
     |> Map.values()
     |> Enum.map(&source_runs[&1.run_id].sha)
     |> Enum.uniq()
-    |> Map.new(fn sha -> {sha, now != :unknown and tracked(context, sha) == now} end)
+    |> Map.new(fn sha -> {sha, validity(context, now, sha)} end)
+  end
+
+  defp validity(_context, :unknown, _sha), do: :listing_missing
+
+  defp validity(context, now, sha) do
+    case tracked(context, sha) do
+      ^now -> :ok
+      :unknown -> :listing_missing
+      _changed -> :tracked_file_changed
+    end
   end
 
   defp tracked(%{project: project, repository_id: repository_id}, sha) do
@@ -775,12 +857,23 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
-  defp applies?(context, validity, source, rows, source_files) do
+  # Why the evidence cannot be carried from its source, or nil when it can.
+  defp failure(context, validity, source, rows, source_files) do
     paths = rows |> Enum.map(& &1.path) |> Enum.uniq()
 
-    validity[source.sha] and
-      Enum.all?(rows, &(&1.line_numbers != [] or not counted?(context, source_files, &1.path))) and
-      same_blobs?(context, source, paths, source_files)
+    cond do
+      validity[source.sha] != :ok ->
+        validity[source.sha]
+
+      not Enum.all?(rows, &(&1.line_numbers != [] or not counted?(context, source_files, &1.path))) ->
+        :evidence_without_lines
+
+      not same_blobs?(context, source, paths, source_files) ->
+        :executed_file_changed
+
+      true ->
+        nil
+    end
   end
 
   defp counted?(context, source_files, path) do
@@ -898,13 +991,14 @@ defmodule Tuist.Tests.Coverage.Reported do
   # or from code that ran outside any test. Changed, they are a gap; gone from
   # the listing, they are gone. With no such ancestor, what the runs did not
   # build is unknown, which is a gap too.
-  defp add_unbuilt_files(files, %{repository_id: repository_id}, _schemes) when repository_id in [nil, 0], do: {files, 0}
+  defp add_unbuilt_files(files, %{repository_id: repository_id}, _schemes) when repository_id in [nil, 0],
+    do: {files, 0, []}
 
-  defp add_unbuilt_files(files, _context, []), do: {files, 0}
+  defp add_unbuilt_files(files, _context, []), do: {files, 0, []}
 
   defp add_unbuilt_files(files, context, schemes) do
     case basis_run_ids(context, schemes) do
-      [] -> {files, 1}
+      [] -> {files, 1, [:unbuilt_file_unknown]}
       basis_run_ids -> add_unbuilt_files(files, context, context.repository_id, basis_run_ids)
     end
   end
@@ -914,27 +1008,33 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     context.project.id
     |> unbuilt_files(repository_id, context.sha, basis_run_ids, skip?)
-    |> Enum.reduce({files, 0}, fn
-      {_file, :unknown}, {files, gaps} ->
-        {files, gaps + 1}
+    |> Enum.reduce({files, 0, []}, fn
+      {_file, :unknown}, {files, gaps, reasons} ->
+        {files, gaps + 1, [:unbuilt_file_unknown | reasons]}
 
-      {file, :gone}, {files, gaps} ->
-        {Map.delete(files, file.path), gaps}
+      {file, :gone}, {files, gaps, reasons} ->
+        {Map.delete(files, file.path), gaps, reasons}
 
-      {file, :changed}, {files, gaps} ->
-        {Map.delete(files, file.path), gaps + 1}
+      {file, :changed}, {files, gaps, reasons} ->
+        {Map.delete(files, file.path), gaps + 1, [:unbuilt_file_changed | reasons]}
 
-      {file, :kept}, {files, gaps} ->
+      {file, :kept}, {files, gaps, reasons} ->
         carried = Map.get(files, file.path, %{covered_lines: 0}).covered_lines
 
-        {Map.put(files, file.path, %{
-           git_blob_id: file.git_blob_id,
-           source_run_ids: basis_run_ids,
-           targets: file.targets,
-           covered_lines: carried,
-           executable_lines: file.executable_lines
-         }), if(carried < file.covered_lines, do: gaps + 1, else: gaps)}
+        files =
+          Map.put(files, file.path, %{
+            git_blob_id: file.git_blob_id,
+            source_run_ids: basis_run_ids,
+            targets: file.targets,
+            covered_lines: carried,
+            executable_lines: file.executable_lines
+          })
+
+        if carried < file.covered_lines,
+          do: {files, gaps + 1, [:unbuilt_file_uncarried | reasons]},
+          else: {files, gaps, reasons}
     end)
+    |> then(fn {files, gaps, reasons} -> {files, gaps, Enum.uniq(reasons)} end)
   end
 
   # The files the basis runs counted that `skip?` does not rule out, each with

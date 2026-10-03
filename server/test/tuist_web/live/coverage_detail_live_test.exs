@@ -57,7 +57,6 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, ".noora-alert")
     assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "In Progress"
     refute has_element?(lv, "[data-part='files-coverage']")
-    refute has_element?(lv, "[data-part='sources-card']")
 
     Commits.signal_complete(project, "b")
 
@@ -309,8 +308,6 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       refute has_element?(lv, "[data-part='analytics']", "Default Branch Analytics: main")
       assert render(lv) =~ "?tab=commits"
 
-      refute has_element?(lv, "[data-part='sources-card']")
-
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
       assert has_element?(lv, "[data-part='commits-table'] .tuist-pagination button[disabled]", "Prev")
       assert has_element?(lv, "#coverage-commits-table thead", "Change")
@@ -385,148 +382,6 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     end
   end
 
-  describe "a pull request" do
-    setup %{organization: organization, project: project} do
-      pull_request = %{git_branch: "feature/gates", is_pull_request: true, pull_request_number: 7, base_branch: "main"}
-
-      older =
-        CoverageFixtures.run_with_coverage(
-          project,
-          organization.account,
-          [file("Sources/A.swift", [1, 0, 0, 0])],
-          Map.merge(pull_request, %{
-            git_commit_sha: "p1",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200, :second)
-          })
-        )
-
-      newer =
-        CoverageFixtures.run_with_coverage(
-          project,
-          organization.account,
-          [file("Sources/A.swift", [1, 1, 1, 0])],
-          Map.merge(pull_request, %{
-            git_commit_sha: "p2",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
-          })
-        )
-
-      %{older: older, newer: newer}
-    end
-
-    test "reads as its newest commit, from its branch into its base, with every commit and run", %{
-      conn: conn,
-      base: base,
-      older: older,
-      newer: newer
-    } do
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7")
-
-      assert has_element?(lv, "h1[aria-label='Pull request #7']", "#7")
-      assert has_element?(lv, "[data-part='kind'][data-kind='pull_request']")
-      refute has_element?(lv, "#coverage-detail [data-part='status']")
-      assert has_element?(lv, "[data-part='branches']", "feature/gates")
-      assert has_element?(lv, "[data-part='branches']", "main")
-      assert has_element?(lv, "#widget-coverage", "75.0%")
-      refute has_element?(lv, "#coverage-commit-dropdown")
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
-      table = lv |> element("#coverage-commits-table") |> render()
-      assert table =~ "p2"
-      assert table =~ "p1"
-      assert table =~ "In Progress"
-      refute table =~ "Not chained"
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs")
-      assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{older.id}']")
-      assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{newer.id}']")
-    end
-
-    test "shows each complete commit's change from the complete commit before it", %{
-      conn: conn,
-      base: base,
-      project: project
-    } do
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
-      refute lv |> element("#coverage-commits-table") |> render() =~ "+50.0%"
-
-      for sha <- ~w(p1 p2), do: Commits.signal_complete(project, sha)
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
-
-      changes =
-        lv
-        |> element("#coverage-commits-table")
-        |> render()
-        |> Floki.parse_fragment!()
-        |> Floki.find("tbody tr")
-        |> Enum.map(
-          &{&1 |> Floki.find("td:nth-child(1)") |> Floki.text() |> String.trim(),
-           &1 |> Floki.find("td:nth-child(3)") |> Floki.text() |> String.trim()}
-        )
-
-      assert changes == [{"p2", "+50.0%"}, {"p1", "—"}]
-    end
-
-    test "lists the commits and runs of the period, picked in those cards' headers", %{conn: conn, base: base} do
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
-      assert has_element?(lv, "[data-part='commits'] #coverage-commits-date-range-picker")
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs")
-      assert has_element?(lv, "[data-part='runs-card'] #coverage-runs-date-range-picker")
-
-      week_ago = DateTime.utc_now() |> DateTime.add(-7, :day) |> DateTime.to_iso8601()
-      yesterday = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_iso8601()
-
-      period =
-        URI.encode_query(%{
-          "coverage-date-range" => "custom",
-          "coverage-start-date" => week_ago,
-          "coverage-end-date" => yesterday
-        })
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&" <> period)
-      assert has_element?(lv, "[data-part='empty-commits']")
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs&" <> period)
-      assert has_element?(lv, "[data-part='empty-runs']")
-    end
-
-    test "searches its commits by SHA and filters them by status", %{conn: conn, base: base, project: project} do
-      Commits.signal_complete(project, "p1")
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
-      refute has_element?(lv, "#coverage-commits-table th", "Scheme")
-
-      lv |> form("#coverage-commits-filter-form", %{"search" => "P1"}) |> render_change()
-      assert_patch(lv, base <> "/pull-requests/7?commits-search=P1&tab=commits")
-      table = lv |> element("#coverage-commits-table") |> render()
-      assert table =~ "p1"
-      refute table =~ "p2"
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-status=in-progress")
-      table = lv |> element("#coverage-commits-table") |> render()
-      assert table =~ "p2"
-      refute table =~ "p1"
-      assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "In Progress")
-
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits&commits-search=p1&commits-status=in-progress")
-      assert has_element?(lv, "[data-part='empty-commits']", "No commit matches these filters")
-      assert has_element?(lv, "#coverage-commits-filter-form")
-    end
-
-    test "lists its files without opening them, the file page reading a branch", %{conn: conn, base: base} do
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=files")
-
-      assert has_element?(lv, "#coverage-files-table", "A.swift")
-      refute has_element?(lv, "#coverage-files-table a[href*='/files/']")
-    end
-
-    test "reads as its newest commit whatever commit the address names", %{conn: conn, base: base} do
-      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?commit=p1")
-      assert has_element?(lv, "#widget-coverage", "75.0%")
-    end
-  end
-
   test "a commit has no commits tab of its own", %{conn: conn, base: base} do
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
     refute render(lv) =~ "tab=commits"
@@ -535,9 +390,11 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "[data-part='summary-card']")
   end
 
-  test "is not found for a branch or a pull request without coverage", %{conn: conn, base: base} do
+  test "is not found for a branch without coverage", %{conn: conn, base: base} do
     assert_raise NotFoundError, fn -> live(conn, base <> "/branches/nothing") end
-    assert_raise NotFoundError, fn -> live(conn, base <> "/pull-requests/99") end
-    assert_raise NotFoundError, fn -> live(conn, base <> "/pull-requests/not-a-number") end
+  end
+
+  test "has no pull request page", %{conn: conn, base: base} do
+    assert conn |> get(base <> "/pull-requests/7") |> Map.fetch!(:status) == 404
   end
 end

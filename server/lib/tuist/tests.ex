@@ -482,6 +482,10 @@ defmodule Tuist.Tests do
 
   def create_test(attrs) do
     attrs = normalize_string_keys(attrs)
+
+    attrs =
+      Map.put(attrs, :coverage_evidence_status, Coverage.Evidence.status(Map.get(attrs, :coverage_evidence)))
+
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
     if is_nil(shard_plan_id) do
@@ -801,7 +805,13 @@ defmodule Tuist.Tests do
           # Test row is rewritten: the runs copy `scheme` and the git fields
           # off this struct, and the shard that first carries parsed metadata
           # would otherwise stamp them with the placeholder row's blanks.
-          merged_test = merge_shard_metadata(existing_test, attrs)
+          merged_test =
+            existing_test
+            |> merge_shard_metadata(attrs)
+            |> Map.put(
+              :coverage_evidence_status,
+              Coverage.Evidence.merge_status(existing_test.coverage_evidence_status, attrs.coverage_evidence_status)
+            )
 
           {test_case_ids_with_flaky_run, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do

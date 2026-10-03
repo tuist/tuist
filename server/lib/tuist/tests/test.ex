@@ -56,6 +56,7 @@ defmodule Tuist.Tests.Test do
     field :git_repository_id, Ch, type: "Int64", default: 0
     field :git_dirty, :boolean, default: false
     field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
+    field :coverage_evidence_status, Ch, type: "LowCardinality(String)", default: ""
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
@@ -116,6 +117,7 @@ defmodule Tuist.Tests.Test do
       :git_repository_id,
       :git_dirty,
       :execution_mode,
+      :coverage_evidence_status,
       :ran_at,
       :inserted_at,
       :build_run_id,

@@ -9,6 +9,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
@@ -97,6 +98,55 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     })
   end
 
+  defp reasons(%{gap_reasons: mask}), do: GapReasons.decode(mask)
+
+  # A skipped test without evidence of its own: what the base's run collected
+  # tells why.
+  defp missing_evidence_runs(project, account, status, target_scope?) do
+    target = %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1], lines: [[1, 2], [1, 3]]}
+
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Sources/Text.swift", [1, 1, 1, 0])],
+      %{
+        git_commit_sha: "base",
+        test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")]),
+        enumerated_tests: @tests,
+        coverage_evidence:
+          Map.merge(
+            %{
+              paths: ["Sources/Math.swift", "Sources/Text.swift"],
+              scopes:
+                [%{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 2]]}] ++
+                  if(target_scope?, do: [target], else: [])
+            },
+            if(status, do: %{status: status}, else: %{})
+          )
+      }
+    )
+
+    head_run(project, account, head_files())
+    Reported.compute(project, "head")
+  end
+
+  test "tells why a skipped test without evidence of its own is a gap", %{project: project, account: account} do
+    assert %{kind: "partial", carried_tests_count: 0} = reported = missing_evidence_runs(project, account, nil, false)
+    assert reasons(reported) == [:collection_off]
+  end
+
+  test "a target that recorded nothing where evidence was collected doesn't link the package", %{
+    project: project,
+    account: account
+  } do
+    assert reasons(missing_evidence_runs(project, account, "collected", false)) == [:not_linked]
+    assert [%{coverage_evidence_status: "collected"}] = Commits.runs(project.id, "base")
+  end
+
+  test "a test of a target that recorded evidence has no attribution of its own", %{project: project, account: account} do
+    assert reasons(missing_evidence_runs(project, account, "collected", true)) == [:no_evidence]
+  end
+
   defp head_files(text_opts \\ []) do
     [
       file("Sources/Math.swift", [1, 1, 0]),
@@ -119,6 +169,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              skipped_tests_count: 1,
              carried_tests_count: 1,
              gap_files_count: 0,
+             gap_reasons: 0,
              carried_from: ["base"]
            }
 
@@ -172,9 +223,9 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       }
     )
 
-    # At the head only AppScheme ran. TextScheme was skipped whole, so it
-    # never built: its run carries no coverage and lists no candidates, and
-    # nothing at the commit says `testTrim()` exists.
+    # At the head only AppScheme ran, every test it listed. TextScheme was
+    # skipped whole, so it never built: its run carries no coverage and lists
+    # no candidates, and nothing at the commit says `testTrim()` exists.
     CoverageFixtures.run_with_coverage(
       project,
       account,
@@ -182,7 +233,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       %{
         git_commit_sha: "head",
         scheme: "AppScheme",
-        partial: true,
         test_modules: modules([test_case("testAdd()", "MathTests")]),
         enumerated_tests: [Enum.at(@tests, 0)]
       }
@@ -197,6 +247,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0, carried_from: ["base"]} =
              Reported.compute(project, "head")
+
+    # No scheme ran partially, yet the figure carries testTrim()'s lines: the
+    # commit's files add up to it.
+    assert %{partial_schemes: [], reported_covered_lines: 5} = summary = Commits.recompute(project, "head")
+    assert Commits.carried?(summary)
+    {files, _count} = Commits.list_files(project.id, "head", 1, 10)
+    assert {"Sources/Text.swift", 3, 4} in Enum.map(files, &{&1.path, &1.covered_lines, &1.executable_lines})
   end
 
   # Two test targets at the base; at the head selective testing skipped
@@ -445,7 +502,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   test "carries no target a test failed in where its evidence comes from", %{project: project, account: account} do
     target_only_runs(project, account, trim_status: "failure")
 
-    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} = Reported.compute(project, "head")
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:test_failed]
   end
 
   test "a run that measured nothing refolds its commit, and only a measured one", %{
@@ -509,7 +569,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
         duration: 1,
         status: "success",
         scheme: "App",
-        git_branch: "main",
+        git_branch: "feature/skipped",
+        is_pull_request: true,
+        pull_request_number: 9,
+        base_branch: "main",
         git_remote_url_origin: CoverageFixtures.remote_url(),
         git_commit_sha: "head",
         ran_at: NaiveDateTime.utc_now(),
@@ -537,6 +600,11 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     # The commit measured nothing, so it would read as a different measured set
     # than its baseline; carrying everything forward makes it comparable again.
     assert Commits.fully_carried?(row)
+
+    # It is on its branch and its pull request, as its runs said, like a
+    # measured commit.
+    assert %{git_branch: "feature/skipped", pull_request_number: 9, base_branch: "main"} = row
+    assert %{git_commit_sha: "head"} = History.head_commit(project, "feature/skipped")
   end
 
   test "a fully carried commit is in the branch's history and trend, and lists what it carried", %{
@@ -621,21 +689,27 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
 
     assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, carried_tests_count: 0} =
-             Reported.compute(project, "head")
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:executed_file_changed]
+    assert %{gap_reasons: gap_reasons} = Commits.summary(project.id, "head")
+    assert GapReasons.decode(gap_reasons) == [:executed_file_changed]
   end
 
   test "a test that failed where its evidence comes from is a gap", %{project: project, account: account} do
     base_run(project, account, trim_status: "failure")
     head_run(project, account, head_files())
 
-    assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = Reported.compute(project, "head")
+    assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:test_failed]
   end
 
   test "evidence without lines for a file that counts is a gap", %{project: project, account: account} do
     base_run(project, account, trim_lines: [])
     head_run(project, account, head_files())
 
-    assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = Reported.compute(project, "head")
+    assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:evidence_without_lines]
   end
 
   test "the pages read what the commit's published version settled, until it is folded again", %{
@@ -695,7 +769,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
     GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
 
-    assert %{kind: "partial", carried_tests_count: 0} = Reported.compute(project, "head")
+    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:tracked_file_changed]
 
     GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
@@ -773,7 +848,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     )
 
     assert %{kind: "partial", covered_lines: 2, executable_lines: 7, skipped_tests_count: 1, gap_files_count: 1} =
-             Reported.compute(project, "head")
+             reported = Reported.compute(project, "head")
+
+    # testNew() has no evidence, and the base's run didn't say it collected any.
+    assert reasons(reported) == [:collection_off, :unbuilt_file_uncarried]
   end
 
   # base → kit → tip: the base ran App, kit only Kit, and at the tip a
@@ -831,7 +909,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   test "a selective commit no ancestor measured the schemes of is partial", %{project: project, account: account} do
     scheme_split_runs(project, account, "AppAll")
 
-    assert %{kind: "partial", carried_tests_count: 1, gap_files_count: 1} = Reported.compute(project, "tip")
+    assert %{kind: "partial", carried_tests_count: 1, gap_files_count: 1} = reported = Reported.compute(project, "tip")
+    assert reasons(reported) == [:unbuilt_file_unknown]
   end
 
   test "a selective commit joins the trend with its reported coverage, and stays out of it with a gap", %{

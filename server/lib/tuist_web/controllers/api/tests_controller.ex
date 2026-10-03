@@ -425,7 +425,7 @@ defmodule TuistWeb.API.TestsController do
            coverage_evidence: %Schema{
              type: :object,
              description:
-               "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
+               "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
              properties: %{
                paths: %Schema{type: :array, maxItems: 200_000, items: %Schema{type: :string}},
                scopes: %Schema{
@@ -463,6 +463,12 @@ defmodule TuistWeb.API.TestsController do
                unattributed_tests: %Schema{
                  type: :integer,
                  description: "Tests that overlapped another of their process, so nothing could be attributed to them."
+               },
+               status: %Schema{
+                 type: :string,
+                 enum: ["collected", "not_linked", "failed"],
+                 description:
+                   "Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it."
                }
              },
              required: [:paths, :scopes]

@@ -207,6 +207,27 @@ defmodule Tuist.Tests.Coverage.Evidence do
   defp scope_id("suite", module_name, suite_name, _name), do: suite_scope_id(module_name, suite_name)
   defp scope_id("target", module_name, _suite_name, _name), do: module_name
 
+  # Strongest first: a run collected evidence when any of its shards did.
+  @statuses ~w(collected failed not_linked)
+
+  @doc """
+  Whether the run collected evidence, from the request's `coverage_evidence`:
+  `collected`, `not_linked` (asked for, but no test process recorded any: no
+  target links TestCoverageAttribution), `failed`, or `""` when the run didn't
+  ask for any.
+  """
+  def status(nil), do: ""
+
+  def status(evidence) do
+    status = evidence |> value(:status, "") |> to_string()
+    if status in @statuses, do: status, else: ""
+  end
+
+  @doc "A sharded run's status from two of its shards': the strongest of the two."
+  def merge_status(current, incoming) do
+    Enum.find(@statuses, "", &(&1 in [current, incoming]))
+  end
+
   defp value(map, key, default) do
     case Map.get(map, key) do
       nil -> Map.get(map, Atom.to_string(key)) || default
