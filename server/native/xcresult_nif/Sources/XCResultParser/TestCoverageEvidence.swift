@@ -3,11 +3,12 @@ import Foundation
 /// Which files each test of a run executed: the evidence test selection plans over ("a test is a
 /// candidate when a file it covered changed") and what says how much of the suite has evidence.
 ///
-/// The client's coverage observer records, per test, the coverage counters that moved; the client
-/// reduces them to source files and writes the result into the result bundle as ``fileName``,
-/// with the paths as the compiler recorded them. Whoever parses the bundle ties them to the
-/// repository with the run's ``XcodeCoverageManifest`` (``inRepository(manifest:)``), so the
-/// local-mode payload and the server's processor report the same evidence.
+/// TestCoverageAttribution, linked into the test targets, records per test the coverage counters
+/// that moved; the client reduces them to source files and writes the result into the result
+/// bundle as ``fileName``, with the paths as the compiler recorded them. Whoever parses the
+/// bundle ties them to the repository with the run's ``XcodeCoverageManifest``
+/// (``inRepository(manifest:)``), so the local-mode payload and the server's processor report
+/// the same evidence.
 public struct TestCoverageEvidence: Codable, Equatable, Sendable {
     public static let fileName = "tuist_test_coverage_evidence.json"
 
@@ -71,8 +72,8 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
     /// Every file some scope covered, once; scopes refer to them by index.
     public var paths: [String]
     public var scopes: [Scope]
-    /// Tests the observer saw that overlapped another test of their process (Swift Testing
-    /// running in parallel), so nothing could be attributed to them.
+    /// Tests TestCoverageAttribution recorded as overlapping another test of their process (Swift
+    /// Testing running in parallel), so nothing could be attributed to them.
     public var unattributedTests: Int
     /// Nil in bundles written before clients reported it.
     public var status: Status?

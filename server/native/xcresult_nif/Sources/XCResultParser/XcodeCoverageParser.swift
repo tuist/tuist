@@ -11,13 +11,9 @@ public protocol XcodeCoverageParsing: Sendable {
     func coveredFilePaths(resultBundlePath: AbsolutePath) async throws -> [String]?
 
     /// Reads the bundle's coverage report and archive into one entry per source file, tied to
-    /// the repository through `manifest`. Returns nil when the bundle carries no coverage data.
-    /// Holds every entry in memory; for a large bundle prefer ``parse(resultBundlePath:manifest:into:)``.
-    func parse(resultBundlePath: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport?
-
-    /// The same, written to `output` as one JSON object per line (``XcodeCoverageFile``) while the
-    /// bundle is read, so memory stays flat in the number of files and lines. Returns nil, and
-    /// writes nothing, when the bundle carries no coverage data.
+    /// the repository through `manifest`, and writes them to `output` as one JSON object per line
+    /// (``XcodeCoverageFile``) while the bundle is read, so memory stays flat in the number of
+    /// files and lines. Returns nil, and writes nothing, when the bundle carries no coverage data.
     func parse(
         resultBundlePath: AbsolutePath,
         manifest: XcodeCoverageManifest,
@@ -41,41 +37,21 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     private let execute: XCResultToolExecuting
     private let executeToFile: XCResultToolFileExecuting
 
-    public init(fileSystem: FileSysteming = FileSystem()) {
-        self.fileSystem = fileSystem
-        execute = executeXCResultTool
-        executeToFile = executeXCResultTool(_:standardOutputTo:)
-    }
-
-    /// Runs xccov through `execute`; the reads that stream xccov's output from a file get it
-    /// from `executeToFile`, or from `execute`'s output written to that file when none is given.
+    /// Runs xccov through `execute` for its small outputs and through `executeToFile` for the
+    /// report and archive, which go straight to disk.
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        execute: @escaping XCResultToolExecuting,
-        executeToFile: XCResultToolFileExecuting? = nil
+        execute: @escaping XCResultToolExecuting = executeXCResultTool,
+        executeToFile: @escaping XCResultToolFileExecuting = executeXCResultTool(_:standardOutputTo:)
     ) {
         self.fileSystem = fileSystem
         self.execute = execute
-        self.executeToFile = executeToFile ?? { arguments, url in
-            let output = try await execute(arguments)
-            try Data(output.standardOutput.utf8).write(to: url)
-            return output
-        }
+        self.executeToFile = executeToFile
     }
 
     public func coveredFilePaths(resultBundlePath: AbsolutePath) async throws -> [String]? {
         try await xccov(["view", "--archive", "--file-list"], bundle: resultBundlePath).map { data in
             String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).map(String.init)
-        }
-    }
-
-    public func parse(resultBundlePath: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport? {
-        try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage") { temporaryDirectory -> XcodeCoverageReport? in
-            let output = temporaryDirectory.appending(component: "coverage.ndjson")
-            guard let summary = try await parse(resultBundlePath: resultBundlePath, manifest: manifest, into: output)
-            else { return nil }
-            let files = try Self.readFiles(at: output).sorted { $0.path < $1.path }
-            return XcodeCoverageReport(partial: summary.partial, files: files)
         }
     }
 

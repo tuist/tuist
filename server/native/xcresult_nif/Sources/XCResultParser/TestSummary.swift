@@ -22,8 +22,8 @@ public struct TestSummary: Encodable, Sendable {
     public var executionMode: String?
     /// The tests the run could have executed, when the client enumerated them.
     public var enumeratedTests: [TestEnumeration.Test]?
-    /// Which files each test executed, over repository-relative paths, when the client's
-    /// coverage observer recorded it.
+    /// Which files each test executed, over repository-relative paths, when the test targets
+    /// link TestCoverageAttribution and the client collected what it recorded.
     public var coverageEvidence: TestCoverageEvidence?
 
     enum CodingKeys: String, CodingKey {

@@ -107,18 +107,6 @@ struct JSONStreamScanner {
         reader = try Reader(url: url, chunkSize: chunkSize)
     }
 
-    /// Calls `body` with each member of the document's top-level object: its key and the raw
-    /// bytes of its value.
-    static func forEachMember(
-        ofObjectAt url: URL,
-        chunkSize: Int = 1 << 20,
-        _ body: (_ key: String, _ value: Data) throws -> Void
-    ) throws {
-        let scanner = try JSONStreamScanner(url: url, chunkSize: chunkSize)
-        try scanner.expect(UInt8(ascii: "{"))
-        try scanner.members { key, value in try body(key, value) }
-    }
-
     /// Calls `body` with each member of the document's top-level object and where its value
     /// sits in the file (byte offset and length), without copying the value: an index to read
     /// members back later with ``value(at:length:in:)``.
@@ -129,7 +117,7 @@ struct JSONStreamScanner {
     ) throws {
         let scanner = try JSONStreamScanner(url: url, chunkSize: chunkSize)
         try scanner.expect(UInt8(ascii: "{"))
-        try scanner.members(capturing: { _ in false }) { key, _ in
+        try scanner.members { key in
             let start = scanner.reader.offset
             try scanner.skipValue()
             try body(key, start, scanner.reader.offset - start)
@@ -156,7 +144,7 @@ struct JSONStreamScanner {
     ) throws {
         let scanner = try JSONStreamScanner(url: url, chunkSize: chunkSize)
         try scanner.expect(UInt8(ascii: "{"))
-        try scanner.members(capturing: { _ in false }) { memberKey, _ in
+        try scanner.members { memberKey in
             guard memberKey == key else {
                 try scanner.skipValue()
                 return
@@ -166,13 +154,9 @@ struct JSONStreamScanner {
         }
     }
 
-    /// Iterates `{ "key": value, ... }` after the opening brace. Members whose key `capturing`
-    /// rejects are handed to `body` without their value, positioned right at it, for the caller
-    /// to consume itself.
-    private func members(
-        capturing: (String) -> Bool = { _ in true },
-        _ body: (String, Data) throws -> Void
-    ) throws {
+    /// Iterates `{ "key": value, ... }` after the opening brace, handing `body` each key with the
+    /// scanner positioned right at its value, for `body` to consume.
+    private func members(_ body: (String) throws -> Void) throws {
         while true {
             try skipWhitespace()
             guard let byte = try reader.peek() else { throw ScanError.unexpectedEnd }
@@ -184,11 +168,7 @@ struct JSONStreamScanner {
             try skipWhitespace()
             try expect(UInt8(ascii: ":"))
             try skipWhitespace()
-            if capturing(key) {
-                try body(key, try value())
-            } else {
-                try body(key, Data())
-            }
+            try body(key)
             try skipWhitespace()
             guard let separator = try reader.next() else { throw ScanError.unexpectedEnd }
             switch separator {

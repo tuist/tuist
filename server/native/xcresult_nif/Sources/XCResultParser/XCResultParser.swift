@@ -34,7 +34,7 @@ public struct XCResultParser: Sendable {
         self.fileSystem = fileSystem
         self.execute = execute
         self.ipsCrashReportParser = ipsCrashReportParser
-        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem, execute: execute)
+        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem)
     }
 
     private func secondsToMilliseconds(_ seconds: Double) -> Int {
@@ -116,19 +116,8 @@ public struct XCResultParser: Sendable {
     }
 
     /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote
-    /// into it. Nil for a bundle without a manifest, which has no coverage to tie to a repository.
-    public func parseCoverage(path: AbsolutePath) async throws -> XcodeCoverageReport? {
-        let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
-        guard try await fileSystem.exists(manifestPath) else { return nil }
-        let manifest = try JSONDecoder().decode(
-            XcodeCoverageManifest.self,
-            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
-        )
-        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
-    }
-
-    /// The same, streamed to `output` as one JSON object per source file, for bundles too large
-    /// to hold in memory.
+    /// into it, streamed to `output` as one JSON object per source file. Nil for a bundle without
+    /// a manifest, which has no coverage to tie to a repository.
     public func parseCoverage(path: AbsolutePath, into output: AbsolutePath) async throws -> XcodeCoverageSummary? {
         let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
         guard try await fileSystem.exists(manifestPath) else { return nil }
