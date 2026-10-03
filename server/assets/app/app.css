@@ -30,7 +30,6 @@ html {
   --hits-chart-legend-remote: light-dark(var(--noora-blue-300), var(--noora-blue-700));
   --hits-chart-legend-missed: light-dark(var(--noora-orange-300), var(--noora-orange-700));
   --hits-chart-legend-local: light-dark(var(--noora-pink-300), var(--noora-pink-700));
-  --coverage-chart-uncovered: light-dark(var(--noora-orange-400), var(--noora-orange-500));
   scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
   scrollbar-width: thin;
 }

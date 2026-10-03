@@ -445,71 +445,6 @@ defmodule Tuist.Tests.Coverage do
     )
   end
 
-  @doc """
-  The merged per-line execution counts of the given paths in the run, keyed
-  by path, as `{line, count}` pairs in line order. A path with no line data
-  (its archive entry was missing) maps to an empty list.
-  """
-  def line_counts(project_id, test_run_id, paths, opts \\ [])
-
-  def line_counts(_project_id, _test_run_id, [], _opts), do: %{}
-
-  def line_counts(project_id, test_run_id, paths, opts) do
-    from(f in without_excluded(report_files(project_id, test_run_id), excluded(project_id, opts)),
-      where: f.path in ^paths and not f.is_test,
-      select: {f.path, f.line_numbers, f.execution_counts}
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.group_by(&elem(&1, 0), fn {_path, lines, counts} -> Enum.zip(lines, counts) end)
-    |> Map.new(fn {path, rows} ->
-      {path,
-       rows
-       |> List.flatten()
-       |> Enum.reduce(%{}, fn {line, count}, acc -> Map.update(acc, line, count, &(&1 + count)) end)
-       |> Enum.sort()}
-    end)
-  end
-
-  @doc """
-  One page of the run's files, least covered first, and the number of files.
-  """
-  def list_files(project_id, test_run_id, page, page_size, opts \\ []) do
-    files_query = merged_files_query(project_id, test_run_id, excluded(project_id, opts))
-
-    [files, count] =
-      Tuist.Tasks.parallel_tasks([
-        fn ->
-          ClickHouseRepo.all(
-            from(f in subquery(files_query),
-              order_by: [asc: fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines), asc: f.path],
-              limit: ^page_size,
-              offset: ^((page - 1) * page_size)
-            )
-          )
-        end,
-        fn -> ClickHouseRepo.one(from(f in subquery(files_query), select: count(f.path))) || 0 end
-      ])
-
-    {files, count}
-  end
-
-  @doc """
-  One file's merged coverage in a run: per-line execution counts, the ranges
-  of executable lines no test ran, and its functions. Nil when the run has no
-  coverage for the path.
-  """
-  def file_detail(project_id, test_run_id, path) do
-    from(f in report_files(project_id, test_run_id),
-      where: f.path == ^path and not f.is_test,
-      order_by: [desc: f.inserted_at]
-    )
-    |> ClickHouseRepo.all()
-    |> case do
-      [] -> nil
-      rows -> detail(path, rows)
-    end
-  end
-
   @retention_tables %{
     files: ["coverage_files", "git_commit_files", "test_run_changed_files", "test_run_enumerated_tests"],
     runs: ["coverage_runs"]
@@ -534,8 +469,7 @@ defmodule Tuist.Tests.Coverage do
 
   # A row per shard that compiled the file: the counts add up. When no report
   # has the file's lines (its archive entry was missing), the counts are the
-  # report's, as in `merged_files_query/2`, and which lines ran is unknown:
-  # `uncovered_ranges` is nil rather than empty.
+  # report's, as in `merged_files_query/2`, and `lines` is empty.
   @doc false
   def detail(path, rows) do
     lines =
@@ -544,11 +478,11 @@ defmodule Tuist.Tests.Coverage do
       |> Enum.reduce(%{}, fn {line, count}, acc -> Map.update(acc, line, count, &(&1 + count)) end)
       |> Enum.sort()
 
-    {covered_lines, executable_lines, uncovered_ranges} =
+    {covered_lines, executable_lines} =
       if lines == [] do
-        {rows |> Enum.map(& &1.covered_lines) |> Enum.max(), rows |> Enum.map(& &1.executable_lines) |> Enum.max(), nil}
+        {rows |> Enum.map(& &1.covered_lines) |> Enum.max(), rows |> Enum.map(& &1.executable_lines) |> Enum.max()}
       else
-        {Enum.count(lines, fn {_line, count} -> count > 0 end), length(lines), uncovered_ranges(lines)}
+        {Enum.count(lines, fn {_line, count} -> count > 0 end), length(lines)}
       end
 
     %{
@@ -558,7 +492,6 @@ defmodule Tuist.Tests.Coverage do
       covered_lines: covered_lines,
       executable_lines: executable_lines,
       lines: lines,
-      uncovered_ranges: uncovered_ranges,
       functions: rows |> merged_functions() |> cover_functions(lines)
     }
   end
@@ -587,18 +520,6 @@ defmodule Tuist.Tests.Coverage do
         do: %{function | covered_lines: covered},
         else: function
     end)
-  end
-
-  @doc """
-  Runs of executable lines no test ran, from `{line, count}` pairs in line
-  order: the non-executable lines between two uncovered ones (blank lines,
-  comments) do not split a range.
-  """
-  def uncovered_ranges(lines) do
-    lines
-    |> Enum.chunk_by(fn {_line, count} -> count == 0 end)
-    |> Enum.filter(fn [{_line, count} | _] -> count == 0 end)
-    |> Enum.map(fn chunk -> {chunk |> hd() |> elem(0), chunk |> List.last() |> elem(0)} end)
   end
 
   # A function's lines as the reports give them: its covered lines are exact

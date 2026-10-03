@@ -643,11 +643,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{"head" => _row} = Commits.by_shas(project.id, ["head"])
     assert "head" in Enum.map(Commits.all(project.id), & &1.git_commit_sha)
 
-    assert [%{git_commit_sha: "head", coverage: 71.4, chained: true}, %{git_commit_sha: "base", coverage: 71.4}] =
-             History.branch_history(project, "main").commits
+    assert [%{git_commit_sha: "head", measured: true, coverage: 71.4}, %{git_commit_sha: "base", coverage: 71.4}] =
+             History.commit_cursor_page(project, "main").commits
 
-    assert [%{git_commit_sha: "head", measured: true, coverage: 71.4} | _] =
-             History.branch_history(project, "main").commits
+    assert %{git_commit_sha: "head", coverage: 71.4} = History.head_commit(project, "main")
 
     assert {[%{path: "Sources/Math.swift", covered_lines: 2}, %{path: "Sources/Text.swift", covered_lines: 3}], 2} =
              Commits.list_files(project.id, "head", 1, 10)
@@ -799,6 +798,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:listing_missing]
   end
 
+  test "a truncated listing cannot say a tracked file is unchanged, and nothing is carried", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = [%{path: "Package.resolved", git_blob_id: "one", mode: 0o100644}]
+    GitHistory.record_listing(repository_id, "base", listing, files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing, files_count: 1, truncated: true)
+
+    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:listing_missing]
+  end
+
   test "keeps an unchanged file no run at the commit compiled, with what was carried into it", %{
     project: project,
     account: account
@@ -831,7 +847,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     # Text.swift is unchanged since the base, so the reported coverage keeps
     # it; no run ever measured Untested.swift.
     assert Commits.summary(project.id, "head").unmeasured_files_count == 1
-    assert Commits.unmeasured_files(project, "head") == ["Sources/Untested.swift"]
 
     # Changed since the base, Text.swift is a gap in the reported coverage and
     # has no coverage data at the commit.
@@ -848,7 +863,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     Commits.recompute(project, "head")
 
     assert Commits.summary(project.id, "head").unmeasured_files_count == 2
-    assert Commits.unmeasured_files(project, "head") == ["Sources/Text.swift", "Sources/Untested.swift"]
   end
 
   test "an unbuilt file whose coverage came from tests the run never listed is a gap", %{
@@ -936,7 +950,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(reported) == [:unbuilt_file_unknown]
   end
 
-  test "a selective commit joins the trend with its reported coverage, and stays out of it with a gap", %{
+  test "a selective commit joins the trend with its reported coverage, and is partial with a gap", %{
     project: project,
     account: account
   } do
@@ -944,13 +958,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     head_run(project, account, head_files())
 
-    chained = fn -> project |> History.branch_history("main") |> Map.fetch!(:commits) |> Enum.filter(& &1.chained) end
+    for sha <- ~w(base head), do: Commits.signal_complete(project, sha)
 
-    assert [%{git_commit_sha: "head", coverage: 71.4, measured_coverage: 28.6}, %{git_commit_sha: "base", coverage: 71.4}] =
-             chained.()
+    assert [%{git_commit_sha: "base", coverage: 71.4}, %{git_commit_sha: "head", coverage: 71.4}] =
+             History.trend_points(project, "main").points
 
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
-    assert [%{git_commit_sha: "base"}] = chained.()
+    assert %{reported_kind: "partial"} = Commits.summary(project.id, "head")
   end
 
   test "a carried commit lists its files and targets, and details a file, over its reported coverage", %{
@@ -980,8 +994,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              lines: [{1, 0}, {2, 0}, {3, 0}, {4, 0}],
              carried_lines: [1, 2, 3],
              covered_lines: 3,
-             executable_lines: 4,
-             uncovered_ranges: [{4, 4}]
+             executable_lines: 4
            } = Commits.file_detail(project.id, "head", "Sources/Text.swift")
 
     assert %{carried_lines: [], covered_lines: 2} = Commits.file_detail(project.id, "head", "Sources/Math.swift")

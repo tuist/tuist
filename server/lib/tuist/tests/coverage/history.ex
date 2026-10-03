@@ -1,7 +1,7 @@
 defmodule Tuist.Tests.Coverage.History do
   @moduledoc """
-  Coverage over the project's history: a branch commit by commit, every
-  branch's head, and a pull request's commits.
+  Coverage over the project's history: a branch commit by commit, and every
+  branch's head.
 
   Branch membership comes from the repository's commit graph
   (`Tuist.GitHistory`), not from the branch a run was labelled with: a
@@ -16,11 +16,9 @@ defmodule Tuist.Tests.Coverage.History do
   commits labelled with it, in time order, and says so (`ordered_by: :time`).
 
   A commit **chains** into the trend when it is complete (the client
-  signalled its pipeline finished) or, failing a signal, when it measured
-  the same schemes, each as fully, as the previous chained commit: two
-  commits measured alike compare as a whole; anything else only compares
-  per scheme. The first measured commit chains on its own. Unchained commits
-  stay in the history with their measured set and out of the chart.
+  signalled its pipeline finished): its change is from the complete commit
+  before it. Other commits stay in the history with their measured set and
+  out of the chart.
   """
 
   import Ecto.Query
@@ -57,102 +55,6 @@ defmodule Tuist.Tests.Coverage.History do
     else
       _ -> nil
     end
-  end
-
-  @doc """
-  The commits of a branch, newest first, each with its measurement when
-  there is one: `%{git_commit_sha, depth, committed_at, measured, chained,
-  coverage, ...}` (the `Tuist.Tests.Coverage.Commits.summary/2` fields when
-  measured). `ordered_by` in the result says whether the order is the
-  graph's (`:graph`: the commits the branch's ref owns, by position) or,
-  when the ref owns none, the runs' time (`:time`). A branch other than the
-  project's default one holds only the commits it added; the default
-  branch's own history is read by selecting it. A branch the default one
-  already contains (fast-forwarded, or merged and left in place) owns
-  nothing, so it holds the commits its runs were labelled with.
-
-  `since` and `until` bound the measurements considered (`NaiveDateTime`);
-  `limit` caps the commits read (the newest), 200 by default. Each commit
-  carries the `change` from the commit chained before it, settled over what
-  was read and, for a branch, the commits it forked from.
-  """
-  def branch_history(%Project{} = project, branch, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 200)
-
-    ref = branch_ref(project, branch)
-    graph = if ref, do: GitHistory.ref_commits(ref.id, limit: limit), else: []
-
-    {commits, ordered_by} =
-      case graph do
-        [] ->
-          {labelled_commits(project.id, branch, opts, limit), :time}
-
-        [{_sha, head_position, _at} | _] = rows ->
-          {Enum.map(rows ++ below_fork(ref, limit), fn {sha, position, committed_at} ->
-             %{git_commit_sha: sha, depth: head_position - position, committed_at: committed_at}
-           end), :graph}
-      end
-
-    measured =
-      project.id
-      |> Commits.by_shas(Enum.map(commits, & &1.git_commit_sha))
-      |> Map.filter(fn {_sha, row} -> ran_in_period?(row, opts) end)
-      |> Map.new(fn {sha, row} -> {sha, with_coverage(row)} end)
-
-    commits =
-      commits
-      |> Enum.map(fn commit ->
-        case Map.get(measured, commit.git_commit_sha) do
-          nil -> Map.merge(commit, %{measured: false, chained: false})
-          row -> commit |> Map.merge(Map.delete(row, :committed_at)) |> Map.put(:measured, true)
-        end
-      end)
-      |> chain()
-      |> with_changes()
-      |> Enum.take(if(graph == [], do: limit, else: length(graph)))
-
-    %{commits: commits, ordered_by: ordered_by}
-  end
-
-  # A branch's oldest commits chain and change against the commits it forked
-  # from, which belong to the parent's history and are dropped after.
-  defp below_fork(%{parent_ref_id: parent_ref_id, fork_position: fork}, limit) when not is_nil(parent_ref_id),
-    do: GitHistory.ref_commits(parent_ref_id, at_or_below: fork, limit: limit)
-
-  defp below_fork(_ref, _limit), do: []
-
-  defp ran_in_period?(row, opts) do
-    ran_at = naive(row.ran_at)
-    since = opts |> Keyword.get(:since) |> naive()
-    until = opts |> Keyword.get(:until) |> naive()
-
-    (is_nil(since) or NaiveDateTime.compare(ran_at, since) != :lt) and
-      (is_nil(until) or NaiveDateTime.compare(ran_at, until) != :gt)
-  end
-
-  # Oldest first for the chaining rule, then back to newest first.
-  defp chain(commits) do
-    commits
-    |> Enum.reverse()
-    |> Enum.map_reduce(nil, fn commit, previous ->
-      cond do
-        not commit.measured ->
-          {commit, previous}
-
-        commit.complete or is_nil(previous) or same_measured_set?(commit, previous) ->
-          {Map.put(commit, :chained, true), commit}
-
-        true ->
-          {Map.put(commit, :chained, false), previous}
-      end
-    end)
-    |> elem(0)
-    |> Enum.reverse()
-  end
-
-  defp same_measured_set?(a, b) do
-    (a.schemes == b.schemes or Commits.fully_carried?(a) or Commits.fully_carried?(b)) and
-      effective_partial_schemes(a) == effective_partial_schemes(b)
   end
 
   @max_trend_points 40
@@ -199,7 +101,7 @@ defmodule Tuist.Tests.Coverage.History do
       |> trend_rows(at, grouping)
       |> Repo.all()
       |> Enum.take(-@max_trend_points)
-      |> Enum.map(&(&1 |> with_coverage() |> Map.merge(%{measured: true, chained: true})))
+      |> Enum.map(&with_coverage/1)
 
     %{grouping: grouping, points: points}
   end
@@ -322,6 +224,7 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @lookback 30
+  @head_lookback 200
 
   @doc """
   One page of the branch's commits, newest first, read at a cursor rather
@@ -602,10 +505,6 @@ defmodule Tuist.Tests.Coverage.History do
   defp second(nil), do: nil
   defp second(at), do: at |> utc() |> DateTime.truncate(:second)
 
-  defp naive(nil), do: nil
-  defp naive(%DateTime{} = datetime), do: DateTime.to_naive(datetime)
-  defp naive(%NaiveDateTime{} = datetime), do: datetime
-
   defp ran_in(query, opts) do
     query =
       case Keyword.get(opts, :since) do
@@ -654,29 +553,28 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
-  The branch's newest measured commit, chained or not: the commit a branch
-  page describes. Nil when nothing on the branch was measured.
+  The branch's newest measured commit, complete or not: the commit a branch
+  page describes. Among the newest #{@head_lookback} commits its ref owns or,
+  when it owns none, the commits its runs were labelled with. Nil when
+  nothing on the branch was measured.
   """
-  def head_commit(%Project{} = project, branch, opts \\ []) do
-    project
-    |> branch_history(branch, Keyword.put_new(opts, :limit, 200))
-    |> Map.fetch!(:commits)
-    |> Enum.find(& &1.measured)
-  end
+  def head_commit(%Project{} = project, branch) do
+    row =
+      case branch_ref(project, branch) do
+        nil ->
+          project.id
+          |> Commits.all(fn query ->
+            query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
+          end)
+          |> List.first()
 
-  # Without a ref, a branch is the measured commits its runs labelled with
-  # it, newest run first.
-  defp labelled_commits(project_id, branch, opts, limit) do
-    project_id
-    |> Commits.all(fn query ->
-      query
-      |> where([c], c.git_branch == ^branch)
-      |> ran_in(opts)
-      |> order_by([c], desc: c.ran_at)
-      |> limit(^limit)
-    end)
-    |> Enum.with_index()
-    |> Enum.map(fn {row, depth} -> %{git_commit_sha: row.git_commit_sha, depth: depth, committed_at: row.ran_at} end)
+        ref ->
+          shas = ref.id |> GitHistory.ref_commits(limit: @head_lookback) |> Enum.map(&elem(&1, 0))
+          measured = Commits.by_shas(project.id, shas)
+          Enum.find_value(shas, &Map.get(measured, &1))
+      end
+
+    row && with_coverage(row)
   end
 
   # A commit whose runs skipped tests stands with its reported coverage and
@@ -684,27 +582,14 @@ defmodule Tuist.Tests.Coverage.History do
   # measured when every skipped test was carried forward, in which case it
   # compares as a fully measured commit does, and otherwise the part of it
   # that is confirmed, the lines known to be covered among those that could
-  # be counted (`confirmed: false`, `Commits.confirmed?/1`). `measured_*`
-  # keep what its runs observed.
+  # be counted.
   defp with_coverage(%{reported_kind: kind} = row) when kind in ~w(reported partial) do
     Map.merge(row, %{
       coverage: Coverage.percentage(row.reported_covered_lines, row.reported_executable_lines),
       covered_lines: row.reported_covered_lines,
-      executable_lines: row.reported_executable_lines,
-      confirmed: Commits.confirmed?(row),
-      measured_coverage: Coverage.percentage(row.covered_lines, row.executable_lines),
-      measured_covered_lines: row.covered_lines,
-      measured_executable_lines: row.executable_lines
+      executable_lines: row.reported_executable_lines
     })
   end
 
-  defp with_coverage(row),
-    do:
-      Map.merge(row, %{
-        coverage: Coverage.percentage(row.covered_lines, row.executable_lines),
-        confirmed: Commits.confirmed?(row)
-      })
-
-  defp effective_partial_schemes(%{reported_kind: "reported"}), do: []
-  defp effective_partial_schemes(row), do: row.partial_schemes
+  defp with_coverage(row), do: Map.put(row, :coverage, Coverage.percentage(row.covered_lines, row.executable_lines))
 end

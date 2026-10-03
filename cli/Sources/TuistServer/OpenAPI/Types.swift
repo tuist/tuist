@@ -14982,7 +14982,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/complete`.
             public var complete: Swift.Bool
-            /// `signal`, `inferred` or empty.
+            /// `signal` when the client signalled completion, or empty.
             ///
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/completeness`.
             public var completeness: Swift.String
@@ -15143,7 +15143,7 @@ public enum Components {
             public var targets: Components.Schemas.CommitCoverage.targetsPayload
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/test_run_ids`.
             public var test_run_ids: [Swift.String]
-            /// Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+            /// Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
             ///
             /// - Remark: Generated from `#/components/schemas/CommitCoverage/unmeasured_files_count`.
             public var unmeasured_files_count: Swift.Int
@@ -15151,7 +15151,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - complete: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
-            ///   - completeness: `signal`, `inferred` or empty.
+            ///   - completeness: `signal` when the client signalled completion, or empty.
             ///   - coverage: Line coverage over the measured product files, in percent.
             ///   - covered_lines:
             ///   - executable_lines:
@@ -15164,7 +15164,7 @@ public enum Components {
             ///   - schemes: The schemes that measured the commit.
             ///   - targets:
             ///   - test_run_ids:
-            ///   - unmeasured_files_count: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+            ///   - unmeasured_files_count: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
             public init(
                 complete: Swift.Bool,
                 completeness: Swift.String,
@@ -62828,7 +62828,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/complete`.
                         public var complete: Swift.Bool
-                        /// `signal`, `inferred` or empty.
+                        /// `signal` when the client signalled completion, or empty.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/completeness`.
                         public var completeness: Swift.String
@@ -62989,7 +62989,7 @@ public enum Operations {
                         public var targets: Operations.completeCommitCoverage.Output.Ok.Body.jsonPayload.targetsPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/test_run_ids`.
                         public var test_run_ids: [Swift.String]
-                        /// Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+                        /// Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/unmeasured_files_count`.
                         public var unmeasured_files_count: Swift.Int
@@ -62997,7 +62997,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - complete: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
-                        ///   - completeness: `signal`, `inferred` or empty.
+                        ///   - completeness: `signal` when the client signalled completion, or empty.
                         ///   - coverage: Line coverage over the measured product files, in percent.
                         ///   - covered_lines:
                         ///   - executable_lines:
@@ -63010,7 +63010,7 @@ public enum Operations {
                         ///   - schemes: The schemes that measured the commit.
                         ///   - targets:
                         ///   - test_run_ids:
-                        ///   - unmeasured_files_count: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+                        ///   - unmeasured_files_count: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
                         public init(
                             complete: Swift.Bool,
                             completeness: Swift.String,

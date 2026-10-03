@@ -124,7 +124,7 @@
         <div data-part="widgets">
           <.widget
             id="widget-coverage"
-            title={dgettext("dashboard_tests", "Code coverage")}
+            title={dgettext("dashboard_tests", "Code Coverage")}
             description={
               dgettext(
                 "dashboard_tests",
@@ -312,9 +312,7 @@
           <.coverage_files_table
             id="coverage-files-table"
             rows={@file_rows}
-            file_href={
-              if @subject.kind in [:branch, :commit], do: fn path -> file_href(assigns, path) end
-            }
+            file_href={&file_href(assigns, &1)}
             meta={@files_meta}
             page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
             sort_by={@files_sort_by}
@@ -451,18 +449,11 @@
             </:col>
           </.table>
           <.pagination
-            :if={@commits_meta.cursor}
             uri={@uri}
             has_previous_page={@commits_meta.has_previous_page?}
             has_next_page={@commits_meta.has_next_page?}
             start_cursor={@commits_meta.start_cursor}
             end_cursor={@commits_meta.end_cursor}
-          />
-          <.pagination_group
-            :if={not @commits_meta.cursor and @commits_meta.total_pages > 1}
-            current_page={@commits_meta.current_page}
-            number_of_pages={@commits_meta.total_pages}
-            page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
           />
         </div>
         <.coverage_empty

@@ -323,7 +323,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
       # Anywhere else is not somewhere to lead back to.
       {:ok, lv, _html} = live(conn, base <> "/commits/b?from=" <> URI.encode_www_form("https://example.com/x"))
-      assert has_element?(lv, "[data-part='back-button'][href='#{base}']", "Code coverage")
+      assert has_element?(lv, "[data-part='back-button'][href='#{base}']", "Code Coverage")
 
       {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=runs")
       assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")

@@ -60,20 +60,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   def fully_carried?(%{reported_kind: "reported", schemes: []}), do: true
   def fully_carried?(_row), do: false
 
-  @doc """
-  Whether a commit's coverage figure can be confirmed: its runs ran every
-  test they listed, or every test they skipped had its coverage carried
-  forward and no file went uncounted (`reported`). A commit whose runs
-  skipped tests nothing could be carried for, or left out changed files no
-  run compiled (`partial`), or ran selectively without listing the tests
-  they could have run, has no confirmed figure: what it is missing is
-  unknown, in either direction once files go uncounted.
-  """
-  def confirmed?(%{reported_kind: kind}) when kind in ~w(measured reported), do: true
-  def confirmed?(%{reported_kind: "partial"}), do: false
-  def confirmed?(%{partial_schemes: schemes}), do: schemes == []
-  def confirmed?(_row), do: true
-
   @doc "Whether the commit already has a published coverage row."
   def measured?(_project_id, sha) when sha in [nil, ""], do: false
 
@@ -488,105 +474,16 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   @doc """
-  The newest published commit with measured lines at or below `position` on
-  a ref's segment, other than `except` and, unless `since` is nil, published
-  since `since`, or nil: one index probe, the step a baseline takes per
-  segment of the first-parent tree.
-  """
-  def nearest_on_ref(project_id, ref_id, position, except, since) do
-    CoverageCommit
-    |> where(
-      [c],
-      c.project_id == ^project_id and c.ref_id == ^ref_id and c.position <= ^position and
-        c.git_commit_sha != ^except and c.executable_lines > 0
-    )
-    |> published_since(since)
-    |> order_by([c], desc: c.position)
-    |> limit(1)
-    |> Repo.one()
-    |> row()
-  end
-
-  defp published_since(query, nil), do: query
-  defp published_since(query, since), do: where(query, [c], c.inserted_at >= ^since)
-
-  @doc """
-  The nearest published commit with measured lines at or below `position` on
-  a ref's segment, going on below the fork on the ref it forked from, as
-  `{row, distance}` with the distance in first parents, or nil: a probe per
-  segment of the first-parent tree. `except` and `since` as in
-  `nearest_on_ref/5`.
-  """
-  def nearest_on_segments(project_id, ref_id, position, except, since),
-    do: nearest_on_segments(project_id, ref_id, position, except, since, 0)
-
-  defp nearest_on_segments(_project_id, nil, _position, _except, _since, _distance), do: nil
-
-  defp nearest_on_segments(project_id, ref_id, position, except, since, distance) do
-    case nearest_on_ref(project_id, ref_id, position, except, since) do
-      nil ->
-        case GitHistory.get_ref(ref_id) do
-          %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
-            nearest_on_segments(project_id, parent_id, fork, except, since, distance + position - fork)
-
-          _ ->
-            nil
-        end
-
-      commit ->
-        {commit, distance + position - commit.position}
-    end
-  end
-
-  @doc """
   The nearest published commit with measured lines among a commit's
-  ancestors, merged-in ones included, the commit itself left out, as
-  `{sha, distance}`, or nil.
+  ancestors, merged-in ones included, the commit itself left out, that
+  measured at least one of `schemes`, as `{sha, distance}`, or nil: what a
+  commit's runs of those schemes read the files they did not build from.
 
-  The first-parent tree bounds the walk: the nearest measured commit on the
+  The first-parent tree bounds the walk: the nearest such commit on the
   commit's first parents is `distance` away along the refs' segments, so a
   closer one merged in is within that depth and the walk goes no deeper.
-  Only when no first parent within the window was measured does the walk
-  cover the window.
-  """
-  def nearest_measured_ancestor(project_id, repository_id, sha) do
-    nearest =
-      case first_parent_distance(project_id, repository_id, sha) do
-        nil -> nil
-        distance -> nearest_within(project_id, repository_id, sha, distance)
-      end
-
-    nearest || GitHistory.nearest_ancestor(repository_id, sha, measured_shas(project_id, sha))
-  end
-
-  defp first_parent_distance(project_id, repository_id, sha) do
-    {unowned, owned} = repository_id |> GitHistory.first_parents_to_segment(sha) |> Enum.split_with(&is_nil(&1.ref_id))
-    measured = measured_among(project_id, unowned |> Enum.map(& &1.sha) |> List.delete(sha))
-
-    case Enum.find(unowned, &MapSet.member?(measured, &1.sha)) do
-      %{depth: depth} ->
-        depth
-
-      nil ->
-        with [%{depth: depth, ref_id: ref_id, position: position}] <- owned,
-             {_commit, distance} <- nearest_on_segments(project_id, ref_id, position, sha, nil) do
-          depth + distance
-        else
-          _ -> nil
-        end
-    end
-  end
-
-  defp nearest_within(project_id, repository_id, sha, max_depth) do
-    ancestors = repository_id |> GitHistory.ancestors(sha, max_depth: max_depth) |> Enum.reject(&(elem(&1, 1) == 0))
-    measured = measured_among(project_id, Enum.map(ancestors, &elem(&1, 0)))
-    Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(measured, ancestor) end)
-  end
-
-  @doc """
-  As `nearest_measured_ancestor/3`, among the commits that measured at least
-  one of `schemes`: what a commit's runs of those schemes read the files
-  they did not build from. The walk is bounded the same way.
+  Only when no first parent within the window qualifies does the walk cover
+  the window.
   """
   def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
 
@@ -660,38 +557,6 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp shas_in(measured, shas) do
     measured |> where([c], c.git_commit_sha in ^shas) |> select([c], c.git_commit_sha) |> Repo.all() |> MapSet.new()
-  end
-
-  defp measured_among(_project_id, []), do: MapSet.new()
-
-  defp measured_among(project_id, shas) do
-    from(c in CoverageCommit,
-      where: c.project_id == ^project_id and c.git_commit_sha in ^shas and c.executable_lines > 0,
-      select: c.git_commit_sha
-    )
-    |> Repo.all()
-    |> MapSet.new()
-  end
-
-  @doc "Whether the project published any commit with measured lines since `since`, other than `except`."
-  def any_measured?(project_id, except, since) do
-    Repo.exists?(
-      from(c in CoverageCommit,
-        where:
-          c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^except and
-            c.inserted_at >= ^since
-      )
-    )
-  end
-
-  @doc "The SHAs of the project's published commits with measured lines, other than `except`."
-  def measured_shas(project_id, except) do
-    Repo.all(
-      from(c in CoverageCommit,
-        where: c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^except,
-        select: c.git_commit_sha
-      )
-    )
   end
 
   @doc """
@@ -1032,32 +897,6 @@ defmodule Tuist.Tests.Coverage.Commits do
     ) || %{covered_lines: 0, executable_lines: 0, measured_files_count: 0}
   end
 
-  # The commit's listing narrowed to the languages the runs measured (a
-  # listing has everything Git tracks; only files of the kinds the coverage
-  # tool instruments can be "unmeasured"), minus the excluded paths, the files
-  # some run measured, and those the reported coverage keeps from an ancestor.
-  @doc """
-  The files the commit's listing holds that its coverage does not count, in
-  path order: no run measured them, and the reported coverage keeps none of
-  them from an ancestor (`Tuist.Tests.Coverage.Reported.unbuilt_paths/4`).
-  The gap the page names, and the count published with the commit. `limit`
-  caps the list (50 by default) and `offset` skips into it, for paging. Empty
-  for a commit without a listing, or one the project has no coverage for.
-  """
-  def unmeasured_files(%Project{} = project, sha, opts \\ []) do
-    case summary(project.id, sha) do
-      nil ->
-        []
-
-      summary ->
-        project
-        |> unmeasured_paths(summary, ExcludedPaths.pattern_for_project(project))
-        |> Enum.sort()
-        |> Enum.drop(Keyword.get(opts, :offset, 0))
-        |> Enum.take(Keyword.get(opts, :limit, 50))
-    end
-  end
-
   # Build manifests are source files no product compiles, so a listing entry
   # for one is not a gap in the project's coverage. They are named, not
   # guessed: these are Tuist's own manifests and SwiftPM's.
@@ -1079,7 +918,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp unmeasured_paths(_project, %{git_repository_id: repository_id}, _excluded) when repository_id in [nil, 0], do: []
 
   defp unmeasured_paths(project, %{git_repository_id: repository_id, git_commit_sha: sha} = commit, excluded) do
-    if GitHistory.listing_stored?(repository_id, sha) do
+    if GitHistory.listing_complete?(repository_id, sha) do
       measured = project.id |> report_paths(commit.test_run_ids) |> MapSet.new()
       measured = MapSet.union(measured, MapSet.new(Reported.unbuilt_paths(project, commit, measured, excluded)))
 
@@ -1118,30 +957,11 @@ defmodule Tuist.Tests.Coverage.Commits do
     )
   end
 
-  @doc """
-  The commit's files with the runs' reports merged, without line data, by
-  path; `paths:` narrows them to those paths.
-  """
+  @doc "The commit's files with the runs' reports merged, without line data, by path."
   def merged_files(project_id, sha, opts \\ []) do
-    case {run_ids(project_id, sha), Keyword.get(opts, :paths)} do
-      {[], _paths} ->
-        []
-
-      {_ids, []} ->
-        []
-
-      {ids, nil} ->
-        ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path))
-
-      {ids, paths} ->
-        # One HTTP form field per bound path, which ClickHouse caps.
-        paths
-        |> Enum.uniq()
-        |> Enum.chunk_every(900)
-        |> Enum.flat_map(fn chunk ->
-          ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), where: f.path in ^chunk))
-        end)
-        |> Enum.sort_by(& &1.path)
+    case run_ids(project_id, sha) do
+      [] -> []
+      ids -> ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path))
     end
   end
 
@@ -1477,8 +1297,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   @doc """
-  One file's merged coverage at the commit
-  (`Tuist.Tests.Coverage.file_detail/3` over its runs), or nil. On a commit
+  One file's merged coverage at the commit (`Tuist.Tests.Coverage.detail/2`
+  over its runs' rows), or nil. On a commit
   whose skipped tests were all carried forward, `carried_lines` lists the
   lines that count as covered through a skipped test alone (their count stays
   0: no run here executed them), and a file no run at the commit compiled is
@@ -1545,8 +1365,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     Map.merge(detail, %{
       carried_lines: only_carried,
       covered_lines: Enum.count(effective, fn {_line, count} -> count > 0 end),
-      functions: Coverage.cover_functions(detail.functions, effective),
-      uncovered_ranges: detail.uncovered_ranges && Coverage.uncovered_ranges(effective)
+      functions: Coverage.cover_functions(detail.functions, effective)
     })
   end
 end

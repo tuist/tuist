@@ -153,13 +153,9 @@ defmodule Tuist.GitHistoryTest do
       assert {"root", 3} in GitHistory.ancestors(repository, "top")
     end
 
-    test "follows first parents only along a chain, so a merged branch stays out", %{repository: repository} do
+    test "records each commit's first parent", %{repository: repository} do
       seed(repository)
 
-      assert Enum.map(GitHistory.first_parent_chain(repository, "m"), &{elem(&1, 0), elem(&1, 1)}) ==
-               [{"m", 0}, {"d", 1}, {"c", 2}, {"b", 3}, {"a", 4}]
-
-      assert [{"m", 0, %DateTime{}} | _] = GitHistory.first_parent_chain(repository, "m", max_depth: 1)
       assert CoverageFixtures.first_parent(repository, "m") == "d"
       assert CoverageFixtures.first_parent(repository, "a") == nil
       assert CoverageFixtures.first_parent(repository, "unknown") == nil
@@ -541,11 +537,13 @@ defmodule Tuist.GitHistoryTest do
         complete: false
       )
 
-      refute GitHistory.listing_stored?(repository, "c")
+      refute GitHistory.listing_complete?(repository, "c")
 
       GitHistory.record_listing(repository, "c", [%{path: "Tests/Fixtures/x.json", git_blob_id: "x1"}], truncated: true)
 
-      assert GitHistory.listing_stored?(repository, "c")
+      # Stored, so not asked for again, but a path missing from it may be in
+      # the commit.
+      refute GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c", "d"]) == ["d"]
       assert %{files_count: 3, truncated: true} = CoverageFixtures.listing(repository, "c")
 
@@ -576,11 +574,11 @@ defmodule Tuist.GitHistoryTest do
     test "count as missing once the files outlived their retention, and are stored again", %{repository: repository} do
       GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
       age_listing(repository, "c", 30)
-      assert GitHistory.listing_stored?(repository, "c")
+      assert GitHistory.listing_complete?(repository, "c")
 
       # The files are kept 90 days by default (TUIST_COVERAGE_FILE_RETENTION_DAYS).
       age_listing(repository, "c", 90)
-      refute GitHistory.listing_stored?(repository, "c")
+      refute GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
 
       GitHistory.record_listing(
@@ -590,7 +588,7 @@ defmodule Tuist.GitHistoryTest do
         files_count: 2
       )
 
-      assert GitHistory.listing_stored?(repository, "c")
+      assert GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c"]) == []
       assert %{files_count: 2} = CoverageFixtures.listing(repository, "c")
     end

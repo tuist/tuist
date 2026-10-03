@@ -8,8 +8,8 @@ defmodule Tuist.Tests.CoverageCommit do
 
   `complete` says the commit's coverage pipeline is known to have finished,
   and `completeness` how that was established: `signal` when the client said
-  so (`Tuist.Tests.Coverage.Commits.signal_complete/2`), `inferred` when the
-  measured set matches the previous chained commit's. `unmeasured_files_count`
+  so (`Tuist.Tests.Coverage.Commits.signal_complete/2`), the only way so far.
+  `unmeasured_files_count`
   is how many source files of the commit's listing no run measured.
   `gap_reasons` is why some of the reported figure is unknown, a bitmask of
   `Tuist.Tests.Coverage.GapReasons`.

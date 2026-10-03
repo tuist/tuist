@@ -17,7 +17,6 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.CoverageFile
-  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.EnumeratedTest
   alias Tuist.Tests.TestRunChangedFile
 
@@ -177,25 +176,6 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
         ]
       )
     )
-  end
-
-  @doc "The totals each run published to `coverage_runs`, by run id, for the runs that measured something."
-  def published_totals(_project_id, []), do: %{}
-
-  def published_totals(project_id, test_run_ids) do
-    from(c in CoverageRun,
-      where: c.project_id == ^project_id and c.test_run_id in ^test_run_ids,
-      group_by: c.test_run_id,
-      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
-      select: %{
-        test_run_id: c.test_run_id,
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-        partial: fragment("argMax(?, ?)", c.partial, c.version)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(&{&1.test_run_id, Map.delete(&1, :test_run_id)})
   end
 
   defp merged_files(project_id, test_run_id, opts),

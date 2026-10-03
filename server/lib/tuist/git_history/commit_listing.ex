@@ -3,8 +3,9 @@ defmodule Tuist.GitHistory.CommitListing do
   Marks that a commit's file listing (`Tuist.GitHistory.CommitFile`, in
   ClickHouse) is stored, with how many files it has and whether the client
   stopped at the limit. The listing itself expires with the coverage file
-  detail; a row older than that retention counts as missing
-  (`Tuist.GitHistory.listing_stored?/2`) and the next upload replaces it.
+  detail; a row older than that retention counts as missing and the next
+  upload replaces it. Only a listing that is neither expired nor truncated
+  is complete (`Tuist.GitHistory.listing_complete?/2`).
   """
   use Ecto.Schema
 

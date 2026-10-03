@@ -5,8 +5,7 @@ defmodule TuistWeb.CoverageDetailLive do
   figure on the page describes that head: what its runs measured, pooled
   over the schemes that measured it.
 
-  Overview holds the totals and where the head is thinnest (a branch's also
-  its coverage over the period); Commits lists the series (a commit has
+  Overview holds the totals (a branch's also its coverage over the period); Commits lists the series (a commit has
   none); Targets and Files list everything the head measured; Test Runs the
   runs behind the subject. The project's Code Coverage page
   (`TuistWeb.CoverageLive`) is the glance that sends readers here.
@@ -31,7 +30,6 @@ defmodule TuistWeb.CoverageDetailLive do
   @target_sorts ~w(coverage name files)
   @file_sorts ~w(coverage path)
   @page_size 20
-  # How many rows the overview's files hold: a highlight, not a listing.
 
   # A run's coverage joins its commit a few seconds after the run lands
   # (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads once
@@ -84,8 +82,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
   @doc """
   A file's own page: a branch's over the branch and the period shown here,
-  a commit's at that commit, each leading back here; a pull request's files
-  open nothing.
+  a commit's at that commit, each leading back here.
   """
   def file_href(%{subject: %{kind: :branch, branch: branch}} = assigns, path),
     do:
@@ -108,8 +105,6 @@ defmodule TuistWeb.CoverageDetailLive do
         here(assigns)
       )
 
-  def file_href(_assigns, _path), do: nil
-
   @doc "A commit's page, reached from this one, whose back button leads here."
   def commit_href(%{selected_account: account, selected_project: project} = assigns, sha) do
     "/#{account.name}/#{project.name}/tests/coverage/commits/#{encode_path(sha)}?" <>
@@ -121,15 +116,14 @@ defmodule TuistWeb.CoverageDetailLive do
   defp here(%{page_path: path, uri: %URI{query: query}}) when query not in [nil, ""], do: path <> "?" <> query
   defp here(%{page_path: path}), do: path
 
-  # A page opened from a branch, a pull request or a commit leads back to
-  # it; any other leads back to the Code Coverage page.
+  # A page opened from a branch or a commit leads back to it; any other leads back to the Code Coverage page.
   defp assign_back(%{assigns: %{selected_account: account, selected_project: project}} = socket, query) do
     assign(
       socket,
       :back,
       back_to(query["from"], account.name, project.name) ||
         %{
-          label: dgettext("dashboard_tests", "Code coverage"),
+          label: dgettext("dashboard_tests", "Code Coverage"),
           href: "/#{account.name}/#{project.name}/tests/coverage"
         }
     )
@@ -456,7 +450,7 @@ defmodule TuistWeb.CoverageDetailLive do
 
   # The runs behind the subject, newest first and read a page at a time from
   # a cursor, so a long period costs a page: a commit's, or those that named
-  # the branch or the pull request in the period.
+  # the branch in the period.
   defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["runs-search"] || "")
     available_filters = run_filters(run_schemes(socket))
@@ -540,8 +534,7 @@ defmodule TuistWeb.CoverageDetailLive do
     )
   end
 
-  defp cursor_meta(page),
-    do: page |> Map.take([:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]) |> Map.put(:cursor, true)
+  defp cursor_meta(page), do: Map.take(page, [:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor])
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
 

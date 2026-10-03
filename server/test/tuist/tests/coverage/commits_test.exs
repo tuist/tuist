@@ -76,7 +76,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
              "Sources/A.swift" => [{1, 1}, {2, 1}, {3, 0}]
            }
 
-    assert %{lines: [{1, 1}, {2, 1}, {3, 0}], uncovered_ranges: [{3, 3}]} =
+    assert %{lines: [{1, 1}, {2, 1}, {3, 0}]} =
              Commits.file_detail(project.id, "abc123", "Sources/A.swift")
 
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
@@ -365,14 +365,10 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       file("Tests/ATests.swift", [1], is_test: true)
     ])
 
+    # Only Untested.swift: `README.md` shares no extension with anything
+    # measured, the generated file is excluded, the test file was measured,
+    # and the manifests are source no product compiles.
     assert Commits.summary(project.id, "abc123").unmeasured_files_count == 1
-
-    # The same files the count is taken from, so the page can name them:
-    # `README.md` shares no extension with anything measured, the generated
-    # file is excluded, the test file was measured, and the manifests are
-    # source no product compiles.
-    assert Commits.unmeasured_files(project, "abc123") == ["Sources/Untested.swift"]
-    assert Commits.unmeasured_files(project, "nothing") == []
   end
 
   test "a run that does not say whether its checkout was dirty is folded as a clean one", %{
@@ -529,7 +525,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     end
   end
 
-  describe "nearest_measured_ancestor/3" do
+  describe "nearest_measured_ancestor/4" do
     # main: a → b → c → m → d, where m merges the feature branch b → f1 → f2;
     # x is a commit on top of d that no ref placed yet.
     setup %{account: account} do
@@ -552,7 +548,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       %{repository_id: repository_id}
     end
 
-    defp measure(project, repository_id, shas, schemes \\ []) do
+    defp measure(project, repository_id, shas, schemes \\ ["App"]) do
       for sha <- shas do
         {ref_id, position} = GitHistory.position(repository_id, sha) || {nil, nil}
 
@@ -577,8 +573,8 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     } do
       measure(project, repository_id, ["a"])
 
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"a", 4}
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "f2") == {"a", 3}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App"]) == {"a", 4}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "f2", ["App"]) == {"a", 3}
     end
 
     test "is a commit merged in closer than the nearest measured first parent", %{
@@ -587,13 +583,13 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     } do
       measure(project, repository_id, ["a", "f2"])
 
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f2", 2}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App"]) == {"f2", 2}
     end
 
     test "leaves the commit itself out", %{project: project, repository_id: repository_id} do
       measure(project, repository_id, ["d"])
 
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == nil
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App"]) == nil
     end
 
     test "walks the first parents of a commit no ref placed down to a segment", %{
@@ -603,7 +599,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       measure(project, repository_id, ["c"])
 
       assert GitHistory.position(repository_id, "x") == nil
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "x") == {"c", 3}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "x", ["App"]) == {"c", 3}
     end
 
     test "walks the whole ancestry when no first parent was measured", %{
@@ -612,7 +608,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     } do
       measure(project, repository_id, ["f1"])
 
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f1", 3}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App"]) == {"f1", 3}
     end
 
     test "keeps to the commits that measured one of the schemes when given them", %{
@@ -622,7 +618,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       measure(project, repository_id, ["a"], ["App"])
       measure(project, repository_id, ["f2"], ["Kit"])
 
-      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f2", 2}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App", "Kit"]) == {"f2", 2}
       assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["App", "Other"]) == {"a", 4}
       assert Commits.nearest_measured_ancestor(project.id, repository_id, "x", ["App"]) == {"a", 5}
       assert Commits.nearest_measured_ancestor(project.id, repository_id, "d", ["Kit"]) == {"f2", 2}

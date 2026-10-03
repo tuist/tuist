@@ -17,16 +17,6 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="analytics-section"] {
-    padding: 0;
-  }
-
-  /* Page state stated in passing, under a section's header. */
-  & [data-part="caption"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-small);
-  }
-
   & [data-part="analytics-content"] {
     display: flex;
     flex-direction: column;
@@ -54,14 +44,12 @@
   & [data-part="commits-table"],
   & [data-part="files-table"],
   & [data-part="targets-table"],
-  & [data-part="refs-table"],
   & [data-part="runs-table"] {
     display: flex;
     flex-direction: column;
   }
 
   & [data-part="commits-section"] [data-part="filters"],
-  & [data-part="refs-section"] [data-part="filters"],
   & [data-part="targets-section"] [data-part="filters"],
   & [data-part="files-section"] [data-part="filters"],
   & [data-part="runs-section"] [data-part="filters"] {
@@ -84,13 +72,7 @@
   }
 
   & [data-part="commits-section"],
-  & [data-part="refs-section"],
-  & [data-part="comparison-section"],
-  & [data-part="gates-section"],
   & [data-part="runs-section"],
-  & [data-part="patch-section"],
-  & [data-part="skipped-section"],
-  & [data-part="schemes-section"],
   & [data-part="targets-section"],
   & [data-part="files-section"] {
     display: flex;
@@ -122,21 +104,20 @@
     gap: var(--noora-spacing-7);
   }
 
-  & > [data-part="analytics"],
-  & [data-part="refs"] {
-    & .noora-dropdown-item:not([data-selected]) svg {
-      visibility: hidden;
-    }
-  }
-
   & .noora-pagination-group,
   & .tuist-pagination {
     margin-top: var(--noora-spacing-7);
   }
+
+  & [data-part="loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
 }
 
-/* A branch, a pull request or a commit against its baseline: a title block
-   above the tabs, as the test run detail page has. */
+/* A branch, a commit or a file: a title block above the tabs, as the test
+   run detail page has. */
 #coverage-detail,
 #coverage-file-page {
   & > [data-part="back-button"] {
@@ -158,7 +139,7 @@
     }
 
     /* The page's title only, led by an icon for what the page is (a commit,
-       a branch, a pull request or a file), as the test case page leads with its
+       a branch or a file), as the test case page leads with its
        status; the header's tooltips have titles of their own. */
     & > [data-part="title-group"] > [data-part="title"] {
       display: flex;
@@ -199,43 +180,12 @@
       align-items: center;
       gap: var(--noora-spacing-3);
       color: var(--noora-surface-label-secondary);
-
-      & [data-part="branches"] {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: var(--noora-spacing-3);
-      }
-
-      & svg {
-        width: 16px;
-        height: 16px;
-      }
-    }
-  }
-
-  & [data-part="section-title"] {
-    margin: 0;
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-  }
-
-  & [data-part="verdict"] {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--noora-spacing-4);
-
-    & > [data-part="description"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-medium);
     }
   }
 }
 
-/* A file's coverage as a bar and a percentage, and the schemes that measured
-   a commit as a row of badges: table cells with no Noora equivalent. */
+/* A file's coverage as a bar and a percentage: a table cell with no Noora
+   equivalent. */
 #coverage,
 #coverage-detail,
 #coverage-file-page {
@@ -259,56 +209,12 @@
     }
   }
 
-  /* A gate's result is a badge and, when it could not be evaluated, the
-     reason beside it. */
   & [data-part="cell"][data-type="badge"] {
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: var(--noora-spacing-3);
-
-    & > [data-part="label"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-body-medium);
-    }
-
-    & > [data-part="sublabel"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-body-small);
-    }
   }
-
-  /* A cell or status with a title explains itself on hover. In a row that
-     opens a page, the row's link overlay covers every cell, so a titled cell
-     sits above it, as wide as its content, and the rest of the cell still
-     opens the row. */
-  & [data-part="cell"][title] {
-    position: relative;
-    z-index: 1;
-    cursor: help;
-    width: fit-content;
-  }
-
-  & [data-part="status"][title] {
-    cursor: help;
-  }
-
-  & [data-part="coverage-file-link"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-body-medium);
-    text-decoration: none;
-    word-break: break-all;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-}
-
-#coverage [data-part="loading"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-6);
 }
 
 /* One file's page: its figures above a list of what it is made of. */
@@ -321,14 +227,7 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="loading"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-6);
-  }
-
   & [data-part="file-summary-section"],
-  & [data-part="file-tests-section"],
   & [data-part="file-functions-section"] {
     display: flex;
     flex-direction: column;
@@ -435,12 +334,12 @@
 .coverage-change-card {
   display: block;
   z-index: var(--noora-z-index-1);
-  color: inherit;
-  text-decoration: none;
   box-shadow: var(--noora-border-light-default);
   border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-4);
+  color: inherit;
+  text-decoration: none;
 
   & > [data-part="header"] {
     display: flex;

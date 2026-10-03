@@ -189,10 +189,13 @@ defmodule TuistWeb.API.CoverageController do
         unmeasured_files_count: %Schema{
           type: :integer,
           description:
-            "Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as \"Files without coverage data\"; 0 when the listing is not stored."
+            "Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored."
         },
         partial: %Schema{type: :boolean},
-        completeness: %Schema{type: :string, description: "`signal`, `inferred` or empty."},
+        completeness: %Schema{
+          type: :string,
+          description: "`signal` when the client signalled completion, or empty."
+        },
         reported: @reported,
         measured_at: %Schema{type: :string, format: :"date-time"},
         targets: %Schema{type: :array, items: @target}

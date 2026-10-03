@@ -11,7 +11,6 @@ defmodule TuistWeb.Coverage.Components do
   import TuistWeb.Components.EmptyCardSection
 
   alias Tuist.Tests.Coverage
-  alias Tuist.Tests.Coverage.Commits
   alias TuistWeb.Utilities.Query
 
   attr :branch, :string, required: true
@@ -326,8 +325,8 @@ defmodule TuistWeb.Coverage.Components do
 
   @doc """
   Where a coverage page's back button leads when it was opened from another
-  coverage page (the `from` parameter the links out of a branch, a pull
-  request or a commit carry): that page, named for what it is. Nil when
+  coverage page (the `from` parameter the links out of a branch or a commit
+  carry): that page, named for what it is. Nil when
   `from` is missing or points anywhere but the project's coverage pages.
   """
   def back_to(nil, _account_name, _project_name), do: nil
@@ -346,7 +345,7 @@ defmodule TuistWeb.Coverage.Components do
     do: dgettext("dashboard_tests", "Branch %{name}", name: Enum.map_join(branch, "/", &URI.decode/1))
 
   defp back_label(["commits", sha]), do: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha))
-  defp back_label(_path), do: dgettext("dashboard_tests", "Code coverage")
+  defp back_label(_path), do: dgettext("dashboard_tests", "Code Coverage")
 
   @doc false
   def short_sha(sha), do: String.slice(sha || "", 0, 7)
@@ -360,9 +359,6 @@ defmodule TuistWeb.Coverage.Components do
   """
   def displayed_coverage(%{reported: %{kind: kind, coverage: coverage}}) when kind in ~w(reported partial), do: coverage
   def displayed_coverage(%{coverage: coverage}), do: coverage
-
-  @doc "Whether the whole of a commit's figure is confirmed (`Tuist.Tests.Coverage.Commits.confirmed?/1`)."
-  def confirmed?(summary), do: Commits.confirmed?(summary)
 
   @doc "The line totals behind `displayed_coverage/1`, from a commit's published summary (nil when there is none)."
   def displayed_lines(%{reported_kind: kind, reported_covered_lines: covered, reported_executable_lines: executable})
@@ -424,11 +420,10 @@ defmodule TuistWeb.Coverage.Components do
   @doc """
   When a point of a coverage series happened, for the chart's axis: the start
   of the day, week or month it stands for when grouped, otherwise the commit's
-  own time, or when it was measured where Git's history has none. Never when
-  its totals were stored, which moves every time they are recomputed.
+  own time.
   """
   def point_time(point) do
-    case Map.get(point, :period) || Map.get(point, :committed_at) || Map.get(point, :ran_at) || point.inserted_at do
+    case Map.get(point, :period) || point.committed_at do
       %DateTime{} = at -> DateTime.to_iso8601(at)
       at -> NaiveDateTime.to_iso8601(at)
     end
@@ -473,7 +468,7 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   @doc """
-  A branch's or pull request's state. Chaining is about a trend, which a
+  A branch's state. Chaining is about a trend, which a
   single head commit has none of, so a ref is either complete or still
   waiting for its pipeline to say so.
   """
@@ -500,15 +495,13 @@ defmodule TuistWeb.Coverage.Components do
 
   @brief_ranges 2
 
-  @doc "Line ranges (`[first, last]` or `{first, last}`) as `3–5, 9`; a dash for none."
+  @doc "Line ranges (`[first, last]`) as `3–5, 9`; a dash for none."
   def line_ranges_label(ranges) when ranges in [nil, []], do: "—"
 
   def line_ranges_label(ranges) do
     Enum.map_join(ranges, ", ", fn
       [line, line] -> Integer.to_string(line)
-      {line, line} -> Integer.to_string(line)
       [first, last] -> "#{first}–#{last}"
-      {first, last} -> "#{first}–#{last}"
     end)
   end
 
@@ -578,7 +571,7 @@ defmodule TuistWeb.Coverage.Components do
         <div data-part="widgets">
           <.widget
             id="widget-coverage-file-percentage"
-            title={dgettext("dashboard_tests", "Code coverage")}
+            title={dgettext("dashboard_tests", "Code Coverage")}
             description={
               dgettext(
                 "dashboard_tests",
@@ -752,11 +745,9 @@ defmodule TuistWeb.Coverage.Components do
   attr :trends, :map, required: true
   attr :points, :list, required: true
   attr :selected_widget, :string, required: true
-  attr :title, :string, default: nil, doc: "The card's title; Analytics when none is given."
-  attr :empty_title, :string, default: nil, doc: "What the card says when no commit was measured in the period."
 
   attr :grouping, :atom,
-    default: nil,
+    required: true,
     doc: "What each point stands for (`History.trend_points/3`): a commit, or a day, week or month; the tooltip names it."
 
   attr :point_href, :any, default: nil, doc: "The page a chart point opens, from the point; nil when points open nothing."
@@ -773,7 +764,7 @@ defmodule TuistWeb.Coverage.Components do
   def coverage_analytics_card(assigns) do
     ~H"""
     <.card
-      title={@title || dgettext("dashboard_tests", "Analytics")}
+      title={dgettext("dashboard_tests", "Analytics")}
       icon="chart_arcs"
       data-part="analytics"
     >
@@ -782,7 +773,7 @@ defmodule TuistWeb.Coverage.Components do
         <div :if={@latest} data-part="widgets">
           <.widget
             id="widget-coverage"
-            title={dgettext("dashboard_tests", "Code coverage")}
+            title={dgettext("dashboard_tests", "Code Coverage")}
             description={
               dgettext(
                 "dashboard_tests",
@@ -852,10 +843,9 @@ defmodule TuistWeb.Coverage.Components do
         <.coverage_empty
           :if={is_nil(@latest)}
           title={
-            @empty_title ||
-              dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
-                branch: @branch
-              )
+            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+              branch: @branch
+            )
           }
           get_started_href="https://docs.tuist.dev/en/guides/features/tests"
           data-part="empty-analytics"
@@ -868,7 +858,7 @@ defmodule TuistWeb.Coverage.Components do
   attr :id, :string, required: true
   attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.trend_points/3`)."
 
-  attr :grouping, :atom, default: nil, doc: "What each point stands for; nil titles points by their date."
+  attr :grouping, :atom, required: true, doc: "What each point stands for."
   attr :point_href, :any, default: nil, doc: "The page a point opens when clicked, from the point."
 
   attr :metric, :string,
@@ -946,13 +936,12 @@ defmodule TuistWeb.Coverage.Components do
 
   defp date_format(:commit), do: "minute"
   defp date_format(grouping) when grouping in [:day, :week, :month], do: Atom.to_string(grouping)
-  defp date_format(nil), do: nil
 
   defp metric_value(point, "coverage"), do: point.coverage
   defp metric_value(point, "covered_lines"), do: point.covered_lines
   defp metric_value(point, "executable_lines"), do: point.executable_lines
 
-  defp metric_label("coverage"), do: dgettext("dashboard_tests", "Code coverage")
+  defp metric_label("coverage"), do: dgettext("dashboard_tests", "Code Coverage")
   defp metric_label("covered_lines"), do: dgettext("dashboard_tests", "Covered lines")
   defp metric_label("executable_lines"), do: dgettext("dashboard_tests", "Executable lines")
 

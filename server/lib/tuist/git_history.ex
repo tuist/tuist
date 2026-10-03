@@ -810,38 +810,6 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
-  The first-parent chain of a commit, itself first at depth 0, as
-  `{sha, depth, committed_at}`: what a branch's history is, in Git's own
-  order, with merged branches' commits left to the branches they came from.
-  Bounded by `:max_depth` (the default `window_commits`).
-  """
-  def first_parent_chain(repository_id, sha, opts \\ []) do
-    max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
-
-    %{rows: rows} =
-      Repo.query!(
-        """
-        WITH RECURSIVE chain (sha, depth) AS (
-          SELECT $2::varchar, 0
-          UNION ALL
-          SELECT p.parent_sha, ch.depth + 1
-          FROM chain ch
-          JOIN git_commit_parents p ON p.repository_id = $1 AND p.child_sha = ch.sha AND p.position = 0
-          JOIN git_commits c ON c.repository_id = $1 AND c.sha = p.parent_sha
-          WHERE ch.depth < $3
-        )
-        SELECT ch.sha, ch.depth, c.committed_at
-        FROM chain ch
-        LEFT JOIN git_commits c ON c.repository_id = $1 AND c.sha = ch.sha
-        ORDER BY ch.depth
-        """,
-        [repository_id, sha, max_depth]
-      )
-
-    Enum.map(rows, fn [sha, depth, committed_at] -> {sha, depth, committed_at} end)
-  end
-
-  @doc """
   Of `candidates`, the one closest to `sha` along its ancestry (the commit
   itself counts, at distance 0), as `{sha, distance}`, or nil when none is an
   ancestor within the walk bounds. The walk never descends below the lowest
@@ -919,7 +887,8 @@ defmodule Tuist.GitHistory do
 
   @doc """
   Of the given SHAs, the ones whose file listing the repository lacks,
-  counting a listing whose files expired (`listing_stored?/2`) as missing.
+  counting a listing whose files expired as missing. A truncated listing is
+  not missing: uploading it again would stop at the same limit.
   """
   def missing_listings(_repository_id, []), do: []
 
@@ -939,17 +908,18 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
-  Whether the commit's file listing is stored. Its files expire with the
-  coverage file detail (`Tuist.Environment.coverage_retention_days/1`), so a
-  listing recorded longer ago than that is not, and the next upload stores
-  it again.
+  Whether the commit's whole file listing is stored, so a path missing from
+  it is not in the commit. Not when the client stopped at the file limit
+  (`truncated`), nor once its files expired with the coverage file detail
+  (`Tuist.Environment.coverage_retention_days/1`), after which the next
+  upload stores it again.
   """
-  def listing_stored?(repository_id, sha) do
+  def listing_complete?(repository_id, sha) do
     cutoff = listing_cutoff()
 
     Repo.exists?(
       from(l in CommitListing,
-        where: l.repository_id == ^repository_id and l.sha == ^sha and l.inserted_at >= ^cutoff
+        where: l.repository_id == ^repository_id and l.sha == ^sha and l.inserted_at >= ^cutoff and not l.truncated
       )
     )
   end

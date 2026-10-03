@@ -467,11 +467,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   # The parser streams a bundle's coverage to a file (`coverage_path`) rather than
   # returning it whole; `Tuist.Tests.Coverage.rows/2` reads it lazily from there.
+  # Without the file there is no coverage.
   defp coverage_attrs(%{"coverage_path" => path} = parsed_data) when is_binary(path) do
     %{path: path, partial: parsed_data["coverage_partial"] || false}
   end
 
-  defp coverage_attrs(parsed_data), do: parsed_data["coverage"]
+  defp coverage_attrs(_parsed_data), do: nil
 
   # A runner error empties the module list without the run having passed: a target
   # whose `.xctest` cannot be loaded, or a UI-test runner that cannot launch, is

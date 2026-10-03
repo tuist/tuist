@@ -852,7 +852,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp tracked(%{project: project, repository_id: repository_id}, sha) do
     cond do
       GitHistory.settings(project).tracked_file_globs == [] -> []
-      GitHistory.listing_stored?(repository_id, sha) -> GitHistory.tracked_files(project, repository_id, sha)
+      GitHistory.listing_complete?(repository_id, sha) -> GitHistory.tracked_files(project, repository_id, sha)
       true -> :unknown
     end
   end
@@ -1046,7 +1046,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       |> ClickHouseRepo.all()
       |> Enum.reject(&skip?.(&1.path))
 
-    if GitHistory.listing_stored?(repository_id, sha) do
+    if GitHistory.listing_complete?(repository_id, sha) do
       now = blobs_now(repository_id, sha, Enum.map(missing, & &1.path))
 
       Enum.map(missing, fn file ->
@@ -1076,8 +1076,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   nearest ancestor that measured the commit's schemes. Only a commit whose
   runs skipped tests (`reported_kind` `reported` or `partial`) keeps any.
   `measured` are the paths the commit's runs reported. What
-  `Tuist.Tests.Coverage.Commits.unmeasured_files/3` leaves out, so a file the
-  figure counts is not also listed as having no coverage data.
+  `unmeasured_files_count` leaves out, so a file the figure counts is not
+  also counted as having no coverage data.
   """
   def unbuilt_paths(%Project{} = project, %{reported_kind: kind} = commit, measured, excluded)
       when kind in ["reported", "partial"] and commit.git_repository_id not in [nil, 0] do

@@ -47,10 +47,12 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
   defp shas(%{points: points}), do: Enum.map(points, & &1.git_commit_sha)
 
+  defp branch_commits(project, branch), do: History.commit_cursor_page(project, branch, page_size: 100).commits
+
   @epoch ~U[2026-01-05 00:00:00.000000Z]
 
-  describe "branch_history/3" do
-    test "list the commits measured on the branch in the order they were measured when the graph has no head", %{
+  describe "a branch's commits" do
+    test "are the commits measured on the branch in the order they were measured when the graph has no head", %{
       project: project,
       account: account
     } do
@@ -61,13 +63,16 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       run(project, account, %{git_commit_sha: "c", ran_at: ~N[2026-09-03 10:00:00], scheme: "Other"}, [1, 1, 1, 1])
       run(project, account, %{git_commit_sha: "d", ran_at: ~N[2026-09-04 10:00:00], git_branch: "feature"}, [0, 0, 0, 0])
 
-      history = History.branch_history(project, "main")
-      assert history.ordered_by == :time
+      page = History.commit_cursor_page(project, "main", page_size: 100)
+      assert page.ordered_by == :time
 
-      # b unions its two runs; c measured another set (App partially, plus
-      # Other) so it does not chain.
-      assert Enum.map(history.commits, &{&1.git_commit_sha, &1.coverage, &1.chained}) ==
-               [{"c", 100.0, false}, {"b", 75.0, true}, {"a", 25.0, true}]
+      # b unions its two runs.
+      assert Enum.map(page.commits, &{&1.git_commit_sha, &1.coverage}) ==
+               [{"c", 100.0}, {"b", 75.0}, {"a", 25.0}]
+
+      assert %{git_commit_sha: "c", coverage: 100.0} = History.head_commit(project, "main")
+      assert %{git_commit_sha: "d"} = History.head_commit(project, "feature")
+      assert History.head_commit(project, "other") == nil
     end
 
     test "walk the graph from the branch's head, unmeasured commits included", %{
@@ -94,15 +99,20 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # Measured on the pull request, on main's chain once merged.
       run(project, account, %{git_commit_sha: "f", git_branch: "feature"}, [1, 1, 1, 0])
 
-      history = History.branch_history(project, "main")
-      assert history.ordered_by == :graph
+      page = History.commit_cursor_page(project, "main", page_size: 100)
+      assert page.ordered_by == :graph
 
-      assert Enum.map(history.commits, &{&1.git_commit_sha, &1.depth, &1.measured}) ==
-               [{"m", 0, true}, {"c", 1, false}, {"b", 2, false}, {"a", 3, true}]
+      assert Enum.map(page.commits, &{&1.git_commit_sha, &1.measured}) ==
+               [{"m", true}, {"c", false}, {"b", false}, {"a", true}]
 
       # The feature branch holds what it added, not the history it was cut
       # from, which `main` above already lists.
-      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f"]
+      assert Enum.map(branch_commits(project, "feature"), & &1.git_commit_sha) == ["f"]
+
+      # The head is the newest measured commit the ref owns.
+      assert %{git_commit_sha: "m"} = History.head_commit(project, "main")
+      run(project, account, %{git_commit_sha: "c"}, [1, 1, 1, 1])
+      assert %{git_commit_sha: "m"} = History.head_commit(project, "main")
     end
 
     test "cut a branch at its merge base with the default branch", %{project: project, account: account} do
@@ -123,24 +133,20 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       for sha <- ~w(a b c), do: run(project, account, %{git_commit_sha: sha}, [1, 1, 0, 0])
       for sha <- ~w(f1 f2), do: run(project, account, %{git_commit_sha: sha, git_branch: "feature"}, [1, 1, 0, 0])
 
-      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
-
-      # The oldest commit kept still compares with the commit the branch left,
-      # which the cut walk no longer holds.
-      assert Enum.map(History.branch_history(project, "feature").commits, & &1.change) == [0.0, 0.0]
+      assert Enum.map(branch_commits(project, "feature"), & &1.git_commit_sha) == ["f2", "f1"]
 
       # The default branch is the one the others are cut against, so it keeps
       # its whole history.
-      assert Enum.map(History.branch_history(project, "main").commits, & &1.git_commit_sha) == ["c", "b", "a"]
+      assert Enum.map(branch_commits(project, "main"), & &1.git_commit_sha) == ["c", "b", "a"]
 
       # A branch the default one already contains has no divergence left in
       # the graph, so it holds the commits its runs were labelled with — none
       # here, and `b` once a run says so.
-      assert Enum.map(History.branch_history(project, "merged").commits, & &1.git_commit_sha) == []
+      assert Enum.map(branch_commits(project, "merged"), & &1.git_commit_sha) == []
 
       run(project, account, %{git_commit_sha: "b", git_branch: "merged"}, [1, 1, 1, 0])
 
-      assert Enum.map(History.branch_history(project, "merged").commits, & &1.git_commit_sha) == ["b"]
+      assert Enum.map(branch_commits(project, "merged"), & &1.git_commit_sha) == ["b"]
     end
 
     test "read a fast-forwarded branch as what ran on it", %{project: project, account: account} do
@@ -161,11 +167,11 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       run(project, account, %{git_commit_sha: "f2", git_branch: "feature"}, [1, 1, 1, 0])
 
       # The commits are `main`'s history now, and they say so.
-      assert Enum.map(History.branch_history(project, "main").commits, & &1.git_commit_sha) == ["f2", "f1", "a"]
+      assert Enum.map(branch_commits(project, "main"), & &1.git_commit_sha) == ["f2", "f1", "a"]
 
       # They were measured on the branch, so they stay with it too, without
       # dragging `main`'s history along.
-      assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
+      assert Enum.map(branch_commits(project, "feature"), & &1.git_commit_sha) == ["f2", "f1"]
     end
 
     test "page a branch's commits from a cursor, both ways", %{project: project, account: account} do
@@ -272,17 +278,6 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
                  "b",
                  "a"
                ]
-    end
-
-    test "chain a complete commit whatever it measured", %{project: project, account: account} do
-      run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0])
-      run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00], scheme: "Other"}, [1, 1])
-
-      chained = fn -> Enum.map(History.branch_history(project, "main").commits, &{&1.git_commit_sha, &1.chained}) end
-      assert chained.() == [{"b", false}, {"a", true}]
-
-      Commits.signal_complete(project, "b")
-      assert chained.() == [{"b", true}, {"a", true}]
     end
   end
 

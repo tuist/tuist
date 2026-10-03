@@ -49,7 +49,6 @@ defmodule TuistWeb.CoverageFileLive do
     socket =
       socket
       |> assign(:uri, URI.new!("?" <> URI.encode_query(query)))
-      |> assign(:current_params, query)
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
       |> assign(:branch, selected_branch(query["branch"], socket.assigns.selected_project))
@@ -241,7 +240,7 @@ defmodule TuistWeb.CoverageFileLive do
 
   defp default_back(%{assigns: %{selected_project: project, selected_account: account}}, query) do
     %{
-      label: dgettext("dashboard_tests", "Code coverage"),
+      label: dgettext("dashboard_tests", "Code Coverage"),
       href: with_shared_query("/#{account.name}/#{project.name}/tests/coverage", query)
     }
   end

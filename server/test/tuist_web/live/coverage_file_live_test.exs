@@ -57,7 +57,7 @@ defmodule TuistWeb.CoverageFileLiveTest do
     assert has_element?(lv, "#widget-coverage-executable-lines", "4")
     assert has_element?(lv, "#widget-coverage [data-part='trend']", "+25.0%")
     assert render(element(lv, "#coverage-chart")) =~ "&quot;dateFormat&quot;:&quot;minute&quot;"
-    assert has_element?(lv, "[data-part='back-button'][href='#{base}']", "Code coverage")
+    assert has_element?(lv, "[data-part='back-button'][href='#{base}']", "Code Coverage")
   end
 
   test "reads the branch the address names, and the period it picks", %{

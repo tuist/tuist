@@ -113,7 +113,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(
                commit_lv,
                "[data-part='back-button'][href='#{base}?coverage-date-range=last-7-days']",
-               "Code coverage"
+               "Code Coverage"
              )
     end
 
@@ -150,7 +150,7 @@ defmodule TuistWeb.CoverageLiveTest do
 
       assert has_element?(lv, "#widget-coverage-covered-lines [data-part='trend']", "+100.0%")
       assert has_element?(lv, "#widget-coverage-executable-lines [data-part='trend']", "+50.0%")
-      assert render(element(lv, "#coverage-chart")) =~ "Code coverage"
+      assert render(element(lv, "#coverage-chart")) =~ "Code Coverage"
 
       lv |> element("[phx-value-widget='executable_lines']") |> render_click()
 
@@ -177,7 +177,7 @@ defmodule TuistWeb.CoverageLiveTest do
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?analytics-selected-widget=bogus")
 
-      assert render(element(lv, "#coverage-chart")) =~ "Code coverage"
+      assert render(element(lv, "#coverage-chart")) =~ "Code Coverage"
     end
 
     test "reloads once after a burst of runs, whatever branch they ran on", %{
@@ -509,7 +509,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(
                file_lv,
                "[data-part='back-button'][href='#{base}?coverage-date-range=last-7-days']",
-               "Code coverage"
+               "Code Coverage"
              )
 
       # Its header names the file and its directory, not the commit.

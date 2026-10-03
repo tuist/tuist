@@ -1,10 +1,5 @@
 import * as tooltip from "@zag-js/tooltip";
-import {
-  getBooleanOption,
-  getOption,
-  normalizeProps,
-  renderPart,
-} from "./util.js";
+import { getBooleanOption, normalizeProps, renderPart } from "./util.js";
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
@@ -56,9 +51,7 @@ export default {
         // A table scrolls inside its own container, which would clip a
         // tooltip positioned within it, so there it is positioned against
         // the viewport, as the dropdown is.
-        strategy:
-          getOption(this.el, "positioningStrategy", ["absolute", "fixed"]) ||
-          (this.el.closest(".noora-table") ? "fixed" : "absolute"),
+        strategy: this.el.closest(".noora-table") ? "fixed" : "absolute",
       },
       interactive: getBooleanOption(this.el, "interactive"),
       closeOnEscape: getBooleanOption(this.el, "closeOnEscape"),

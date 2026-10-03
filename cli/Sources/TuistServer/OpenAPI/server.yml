@@ -7878,7 +7878,7 @@ components:
           x-struct:
           x-validate:
         completeness:
-          description: '`signal`, `inferred` or empty.'
+          description: '`signal` when the client signalled completion, or empty.'
           type: string
           x-struct:
           x-validate:
@@ -8040,7 +8040,7 @@ components:
           x-struct:
           x-validate:
         unmeasured_files_count:
-          description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+          description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
           type: integer
           x-struct:
           x-validate:
@@ -24934,7 +24934,7 @@ paths:
                     x-struct:
                     x-validate:
                   completeness:
-                    description: '`signal`, `inferred` or empty.'
+                    description: '`signal` when the client signalled completion, or empty.'
                     type: string
                     x-struct:
                     x-validate:
@@ -25096,7 +25096,7 @@ paths:
                     x-struct:
                     x-validate:
                   unmeasured_files_count:
-                    description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+                    description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured; 0 when the whole listing is not stored.
                     type: integer
                     x-struct:
                     x-validate:
