@@ -22,6 +22,7 @@ defmodule Tuist.DocsTest do
         "/en/guides/get-started/existing-xcode-project",
         "/en/guides/get-started/generated-xcode-project",
         "/en/guides/get-started/gradle-project",
+        "/en/guides/get-started/elixir-project",
         "/en/guides/get-started/bazel-project"
       ]
 
