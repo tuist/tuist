@@ -34,6 +34,8 @@ assumed one that was not there.
 
 ## Layout
 
+The managed Atlas chart in `helm/atlas/` explicitly sets `ATLAS_ALLOWED_EMAIL_DOMAIN=tuist.dev`. Keep the organization admission policy in deployment configuration as Atlas decoupling proceeds.
+
 ### `helm/tuist/` — main Tuist Helm chart
 Umbrella chart for the server, cache, processor, auxiliary public server-owned workloads, and optional embedded infrastructure (Postgres, ClickHouse, object storage, observability). Used by:
 - **Self-hosters** — `helm install tuist infra/helm/tuist` with their own `values.yaml`. `managedSecrets: false` (the default) keeps behavior self-hosted: DATABASE_URL / S3 / etc. come from values directly.

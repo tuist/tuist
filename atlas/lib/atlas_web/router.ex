@@ -8,6 +8,7 @@ defmodule AtlasWeb.Router do
   alias Atlas.MCP.Transport.StreamableHTTP
   alias AtlasWeb.Plugs.AdminAuth
   alias AtlasWeb.Plugs.AllowSupportChatEmbedding
+  alias AtlasWeb.Plugs.DocsMarkdownNegotiation
   alias AtlasWeb.Plugs.FetchCurrentUser
   alias AtlasWeb.Plugs.InferenceAuthentication
   alias AtlasWeb.Plugs.MCPAuth
@@ -22,6 +23,37 @@ defmodule AtlasWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug FetchCurrentUser
+  end
+
+  pipeline :docs do
+    plug DocsMarkdownNegotiation
+    plug :accepts, ["html"]
+    plug :put_root_layout, html: {AtlasWeb.DocsHTML, :root}
+    plug :put_secure_browser_headers
+    plug :mark_public_docs
+  end
+
+  pipeline :docs_markdown do
+    plug :put_secure_browser_headers
+    plug :mark_public_docs
+  end
+
+  scope "/docs-markdown", AtlasWeb do
+    pipe_through :docs_markdown
+    get "/", DocsController, :markdown
+    get "/*path", DocsController, :markdown
+  end
+
+  defp mark_public_docs(conn, _opts) do
+    conn
+    |> put_resp_header("x-tuist-public", "1")
+    |> put_resp_header("x-robots-tag", "index, follow")
+  end
+
+  scope "/docs", AtlasWeb do
+    pipe_through :docs
+    get "/", DocsController, :show
+    get "/*path", DocsController, :show
   end
 
   pipeline :require_auth do

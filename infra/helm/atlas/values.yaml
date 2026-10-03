@@ -76,6 +76,7 @@ ingress:
 
 # Phoenix runtime knobs that aren't secret.
 env:
+  ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
   POOL_SIZE: "10"
   DATABASE_SSL: "1"
   # Tags every Sentry event with the deploy environment. SENTRY_RELEASE
