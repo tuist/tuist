@@ -19,8 +19,7 @@ struct CoverageObserverOutput {
         var name: String
         /// Counter indices per image index.
         var counters: [Int: [UInt32]]
-        /// How much each of `counters` moved, in the same order; empty for an observer that
-        /// does not report it.
+        /// How much each of `counters` moved, in the same order.
         var deltas: [Int: [UInt64]] = [:]
     }
 
@@ -84,13 +83,16 @@ struct CoverageObserverOutput {
 
     // MARK: - Records
 
-    /// See `write_record()` in the observer. A truncated tail (a process killed mid-write) ends
-    /// the list at the last whole record.
+    static let recordVersion: UInt8 = 1
+
+    /// See `write_record()` in TestCoverageAttribution's observer. A truncated tail (a process
+    /// killed mid-write) or a record of a version other than ``recordVersion`` ends the list at
+    /// the last whole record.
     static func parseRecords(_ data: Data) -> [Record] {
         var reader = ByteReader(data)
         var records: [Record] = []
         while !reader.isAtEnd {
-            guard let kindByte = reader.u8(), let flags = reader.u8(), let version = reader.u8(), reader.u8() != nil,
+            guard let kindByte = reader.u8(), let flags = reader.u8(), reader.u8() == Self.recordVersion, reader.u8() != nil,
                   let module = reader.string(), let suite = reader.string(), let name = reader.string(),
                   let imageCount = reader.u32()
             else { break }
@@ -98,18 +100,14 @@ struct CoverageObserverOutput {
             var deltas: [Int: [UInt64]] = [:]
             var complete = true
             for _ in 0 ..< imageCount {
-                guard let index = reader.u32(), let count = reader.u32(), let indices = reader.u32Array(Int(count)) else {
+                guard let index = reader.u32(), let count = reader.u32(), let indices = reader.u32Array(Int(count)),
+                      let moved = reader.u64Array(Int(count))
+                else {
                     complete = false
                     break
                 }
                 counters[Int(index)] = indices
-                if version >= 1 {
-                    guard let moved = reader.u64Array(Int(count)) else {
-                        complete = false
-                        break
-                    }
-                    deltas[Int(index)] = moved
-                }
+                deltas[Int(index)] = moved
             }
             guard complete, let kind = RecordKind(rawValue: kindByte) else { break }
             records.append(Record(

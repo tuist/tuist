@@ -88,31 +88,23 @@ public struct GitHistoryLimits: Equatable, Sendable {
     public var windowCommits: Int
     /// How long deepening a shallow clone may take before giving up on the merge base.
     public var deepenBudgetSeconds: Int
-    /// Commits per upload request.
-    public var uploadBatchSize: Int
     /// Changed files listed with hunks; the rest are dropped and the run says so.
     public var maxChangedFiles: Int
     /// Hunks kept per changed file; a file with more is marked truncated.
     public var maxHunksPerFile: Int
-    /// Files of a commit's tree listed for the server; beyond it the listing is marked truncated.
-    public var commitFileLimit: Int
 
     public init(
         windowDays: Int = 365,
         windowCommits: Int = 5000,
         deepenBudgetSeconds: Int = 60,
-        uploadBatchSize: Int = 500,
         maxChangedFiles: Int = 2000,
-        maxHunksPerFile: Int = 200,
-        commitFileLimit: Int = 50000
+        maxHunksPerFile: Int = 200
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
         self.deepenBudgetSeconds = deepenBudgetSeconds
-        self.uploadBatchSize = uploadBatchSize
         self.maxChangedFiles = maxChangedFiles
         self.maxHunksPerFile = maxHunksPerFile
-        self.commitFileLimit = commitFileLimit
     }
 }
 

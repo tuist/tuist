@@ -2242,8 +2242,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        // The observer is reduced as soon as the run ends, before a stress pass runs tests over the
-        // same derived data and replaces the profile the reduction reads.
+        // What TestCoverageAttribution recorded is reduced as soon as the run ends, before a stress
+        // pass runs tests over the same derived data and replaces the profile the reduction reads.
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService.prepare(platform: evidencePlatform)
         let recordCoverageEvidence = {
             guard let evidenceSession else { return }

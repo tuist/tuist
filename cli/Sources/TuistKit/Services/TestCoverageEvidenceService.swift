@@ -117,13 +117,20 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         -> TestCoverageEvidence
     {
         do {
-            let outputs = try FileManager.default
+            // TestCoverageAttribution makes a directory per test process as it loads, and removes
+            // what it wrote there when recording fails.
+            let processes = try FileManager.default
                 .contentsOfDirectory(at: URL(fileURLWithPath: session.directory.pathString), includingPropertiesForKeys: nil)
+            guard !processes.isEmpty else {
+                Logger.current.debug("No test process recorded coverage evidence: no test target links TestCoverageAttribution")
+                return TestCoverageEvidence(paths: [], scopes: [], status: .notLinked)
+            }
+            let outputs = processes
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
                 .compactMap { try? CoverageObserverOutput(directory: $0) }
             guard !outputs.isEmpty else {
-                Logger.current.debug("No test process recorded coverage evidence: no test target links TestCoverageAttribution")
-                return TestCoverageEvidence(paths: [], scopes: [], status: .notLinked)
+                Logger.current.debug("TestCoverageAttribution is linked, but no test process recorded coverage evidence")
+                return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
             }
             guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
                 Logger.current.debug("No Coverage.profdata under the derived data; no coverage evidence")

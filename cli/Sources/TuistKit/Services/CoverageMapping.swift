@@ -502,7 +502,6 @@ extension IndexSet {
 
 extension CoverageObserverOutput {
     /// The lines a record ran, per file, for the files its images' mappings are trusted for.
-    /// Empty when the observer reported no deltas.
     func lines(of record: Record, mappings: [String: VerifiedCoverageMapping]) -> [String: IndexSet] {
         var result: [String: IndexSet] = [:]
         for (imageIndex, counters) in record.counters {

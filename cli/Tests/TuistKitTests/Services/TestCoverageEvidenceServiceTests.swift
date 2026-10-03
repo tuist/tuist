@@ -141,6 +141,26 @@ struct TestCoverageEvidenceServiceTests {
         #expect(TestCoverageEvidence.read(fromResultBundle: URL(fileURLWithPath: bundle.pathString)) == evidence)
     }
 
+    @Test(.inTemporaryDirectory) func saysWhenTheLinkedPackageStoppedRecording() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let bundle = directory.appending(component: "Run.xcresult")
+        let output = directory.appending(component: "output")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        // The process's directory, emptied of its records after a failure.
+        try FileManager.default.createDirectory(
+            atPath: output.appending(component: "4242").pathString,
+            withIntermediateDirectories: true
+        )
+
+        let evidence = await TestCoverageEvidenceService().record(
+            session: TestCoverageEvidenceSession(directory: output, environment: [:]),
+            resultBundlePath: bundle,
+            derivedDataDirectory: nil
+        )
+
+        #expect(evidence == TestCoverageEvidence(paths: [], scopes: [], status: .failed))
+    }
+
     @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {
         Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"

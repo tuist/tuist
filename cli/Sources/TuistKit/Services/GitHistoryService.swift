@@ -73,8 +73,8 @@ public struct GitHistoryService: GitHistoryServicing {
             windowDays: defaults.windowDays,
             windowCommits: defaults.windowCommits,
             deepenBudgetSeconds: defaults.deepenBudgetSeconds,
-            uploadBatchSize: defaults.uploadBatchSize,
-            commitFileLimit: defaults.commitFileLimit
+            uploadBatchSize: 500,
+            commitFileLimit: 50000
         )
     }
 
@@ -143,9 +143,7 @@ public struct GitHistoryService: GitHistoryServicing {
                 limits: GitHistoryLimits(
                     windowDays: settings.windowDays,
                     windowCommits: settings.windowCommits,
-                    deepenBudgetSeconds: settings.deepenBudgetSeconds,
-                    uploadBatchSize: settings.uploadBatchSize,
-                    commitFileLimit: settings.commitFileLimit
+                    deepenBudgetSeconds: settings.deepenBudgetSeconds
                 )
             )
         } catch {

@@ -12,9 +12,9 @@ public protocol XCResultServicing {
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
     func coveredFilePaths(path: AbsolutePath) async throws -> [String]?
-    func parseCoverage(path: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport?
-    /// The same, streamed to `output` as one JSON object per source file, for bundles too large
-    /// to hold in memory.
+    /// Reads the bundle's coverage against `manifest`, streamed to `output` as one JSON object per
+    /// source file so memory stays flat in the bundle's size. Nil when the bundle has no coverage
+    /// or it could not be read.
     func parseCoverage(
         path: AbsolutePath,
         manifest: XcodeCoverageManifest,
@@ -79,18 +79,6 @@ public struct XCResultService: XCResultServicing {
         try await coverageParser.coveredFilePaths(resultBundlePath: path)
     }
 
-    public func parseCoverage(path: AbsolutePath, manifest: XcodeCoverageManifest) async throws -> XcodeCoverageReport? {
-        do {
-            return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
-        } catch {
-            // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
-            AlertController.current.warning(
-                .alert("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
-            )
-            return nil
-        }
-    }
-
     public func parseCoverage(
         path: AbsolutePath,
         manifest: XcodeCoverageManifest,
@@ -99,6 +87,7 @@ public struct XCResultService: XCResultServicing {
         do {
             return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
         } catch {
+            // Coverage only enriches the run: a report xccov cannot read must not cost the test results.
             AlertController.current.warning(
                 .alert("Failed to read the code coverage from \(path.pathString): \(error.localizedDescription)")
             )

@@ -36,10 +36,10 @@ public struct CommitCoverage: Equatable, Sendable {
 /// signal kept because no run of the commit gathered coverage yet, to apply once one does.
 public enum CommitCoverageCompletion: Equatable, Sendable {
     case complete(CommitCoverage)
-    case pending(message: String)
+    case pending
 }
 
-enum CompleteCommitCoverageServiceError: LocalizedError {
+enum CompleteCommitCoverageServiceError: Equatable, LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -86,6 +86,10 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
                 )
             )
         )
+        return try Self.completion(from: response)
+    }
+
+    static func completion(from response: Operations.completeCommitCoverage.Output) throws -> CommitCoverageCompletion {
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
@@ -102,10 +106,8 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
                     )
                 )
             }
-        case let .accepted(accepted):
-            switch accepted.body {
-            case let .json(pending): return .pending(message: pending.message)
-            }
+        case .accepted:
+            return .pending
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error): throw CompleteCommitCoverageServiceError.notFound(error.message)

@@ -7,28 +7,63 @@ struct CoverageObserverOutputTests {
     private func u64(_ value: UInt64) -> Data { withUnsafeBytes(of: value.littleEndian) { Data($0) } }
     private func string(_ value: String) -> Data { u32(UInt32(value.utf8.count)) + Data(value.utf8) }
 
+    /// A record as TestCoverageAttribution's `write_record()` lays it out: per image its index, the
+    /// count, the counter indices and how much each moved.
     private func record(
         kind: UInt8,
         flags: UInt8,
+        version: UInt8 = 1,
         _ module: String,
         _ suite: String,
         _ name: String,
-        _ images: [(UInt32, [UInt32])]
+        _ images: [(UInt32, [(counter: UInt32, delta: UInt64)])]
     ) -> Data {
-        var data = Data([kind, flags, 0, 0]) + string(module) + string(suite) + string(name) + u32(UInt32(images.count))
+        var data = Data([kind, flags, version, 0]) + string(module) + string(suite) + string(name)
+            + u32(UInt32(images.count))
         for (index, counters) in images {
             data += u32(index) + u32(UInt32(counters.count))
-            for counter in counters {
+            for (counter, _) in counters {
                 data += u32(counter)
+            }
+            for (_, delta) in counters {
+                data += u64(delta)
             }
         }
         return data
     }
 
-    @Test func readsTheObserversRecordsAndStopsAtATruncatedOne() {
-        let whole = record(kind: 1, flags: 0, "AppTests", "MathTests", "testAdd", [(0, [3, 4]), (2, [9])])
+    @Test func readsTheRecordsWithHowMuchEachCounterMoved() {
+        let data = record(kind: 1, flags: 0, "AppTests", "MathTests", "testAdd", [(0, [(3, 1), (4, 12)]), (2, [(9, 1 << 40)])])
             + record(kind: 2, flags: 1, "AppTests", "SwiftTests", "adds()", [])
-        let truncated = record(kind: 0, flags: 0, "AppTests", "", "", [(0, [1])]).dropLast(2)
+            + record(kind: 0, flags: 0, "AppTests", "MathTests", "", [(1, [(7, 2)])])
+
+        #expect(CoverageObserverOutput.parseRecords(data) == [
+            .init(
+                kind: .xctest,
+                overlapped: false,
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd",
+                counters: [0: [3, 4], 2: [9]],
+                deltas: [0: [1, 12], 2: [1 << 40]]
+            ),
+            .init(kind: .swiftTesting, overlapped: true, module: "AppTests", suite: "SwiftTests", name: "adds()", counters: [:]),
+            .init(
+                kind: .gap,
+                overlapped: false,
+                module: "AppTests",
+                suite: "MathTests",
+                name: "",
+                counters: [1: [7]],
+                deltas: [1: [2]]
+            ),
+        ])
+    }
+
+    @Test func stopsAtATruncatedRecord() {
+        let whole = record(kind: 1, flags: 0, "AppTests", "MathTests", "testAdd", [(0, [(3, 1)])])
+        // Cut inside the last record's deltas, after its counter indices.
+        let truncated = record(kind: 0, flags: 0, "AppTests", "", "", [(0, [(1, 5), (2, 6)])]).dropLast(4)
 
         #expect(CoverageObserverOutput.parseRecords(whole + truncated) == [
             .init(
@@ -37,10 +72,20 @@ struct CoverageObserverOutputTests {
                 module: "AppTests",
                 suite: "MathTests",
                 name: "testAdd",
-                counters: [0: [3, 4], 2: [9]]
+                counters: [0: [3]],
+                deltas: [0: [1]]
             ),
-            .init(kind: .swiftTesting, overlapped: true, module: "AppTests", suite: "SwiftTests", name: "adds()", counters: [:]),
         ])
+    }
+
+    @Test func stopsAtARecordOfAnotherVersion() {
+        let whole = record(kind: 1, flags: 0, "AppTests", "MathTests", "testAdd", [(0, [(3, 1)])])
+        let unknown = record(kind: 1, flags: 0, version: 2, "AppTests", "MathTests", "testSub", [(0, [(4, 1)])])
+
+        #expect(CoverageObserverOutput.parseRecords(whole + unknown + whole).map(\.name) == ["testAdd"])
+        #expect(CoverageObserverOutput.parseRecords(
+            record(kind: 1, flags: 0, version: 0, "AppTests", "MathTests", "testAdd", [(0, [(3, 1)])])
+        ).isEmpty)
     }
 
     @Test func readsTheNamesOfAnUncompressedSection() {
