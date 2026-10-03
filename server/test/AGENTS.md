@@ -54,3 +54,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.
 
 - Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.
+
+- Verify analytics transitions locally with headless Chrome, not just the settled page: capture before and after screenshots, measure section bounds, and check that chart and table elements remain mounted during refresh. Cover empty and populated sibling pages across build systems, narrow viewports and both themes. Initial renders must tolerate partially completed required results; optional requests must not delay the whole card, and failed loads must leave filter controls usable.
