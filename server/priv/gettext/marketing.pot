@@ -73,7 +73,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:47
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:487
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:583
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:48
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:49
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live/changelog_entry.html.heex:6
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:4
 #: lib/tuist_web/marketing/structured_markup.ex:416
@@ -305,7 +305,7 @@ msgstr ""
 msgid "LinkedIn"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:109
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Load more"
 msgstr ""
@@ -482,7 +482,7 @@ msgstr ""
 msgid "Stay updated with the latest changes and improvements in Tuist."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:76
+#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
 msgstr ""
@@ -566,7 +566,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:968
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:77
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:47
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -953,7 +953,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:37
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:14
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:33
-#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:35
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr ""
@@ -1693,7 +1693,7 @@ msgid "better software, faster."
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:97
-#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:63
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Atom feed"
 msgstr ""
@@ -1714,7 +1714,7 @@ msgid "List view"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:88
-#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:52
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "RSS feed"
 msgstr ""
