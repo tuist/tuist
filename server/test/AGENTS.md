@@ -5,7 +5,7 @@ This directory contains ExUnit tests for the Tuist Server.
 ## Testing Guidelines
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
-- Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout.
+- Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout. When adopting shared analytics cards, update page tests to assert the shared failure state and successful recovery; keep separate coverage for optional-result failures that must leave required content visible.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.
