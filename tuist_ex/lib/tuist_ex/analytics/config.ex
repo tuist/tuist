@@ -46,7 +46,7 @@ defmodule TuistEx.Analytics.Config do
 
     case project_handle do
       handle when is_binary(handle) ->
-        case String.split(handle, "/", trim: true) do
+        case String.split(handle, "/") do
           [account, project] when account != "" and project != "" ->
             {:ok, %{account: account, project: project}}
 
@@ -61,12 +61,13 @@ defmodule TuistEx.Analytics.Config do
     end
   end
 
-  defp project_tuist_config do
+  @doc """
+  The `:tuist` options of the Mix project, or an empty list without any.
+  """
+  def project_tuist_config do
     case Mix.Project.config()[:tuist] do
       value when is_list(value) -> value
       _ -> []
     end
-  rescue
-    _ -> []
   end
 end

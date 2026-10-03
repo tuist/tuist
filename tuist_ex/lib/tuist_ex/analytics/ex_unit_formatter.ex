@@ -13,9 +13,9 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   # What happens when the suite finishes depends on the `:mode` option:
   #
   #   * `:submit` (default) sends the run.
-  #   * `:defer` keeps the run for the caller, which fetches it with
-  #     `take_deferred/0`. `mix tuist.test` uses it when it may retry failed
-  #     tests, so the run is sent once, with the retries in it.
+  #   * `{:defer, owner}` sends the run to the `owner` process, which collects
+  #     it with `take_deferred/0`. `mix tuist.test` uses it when it may retry
+  #     failed tests, so the run is sent once, with the retries in it.
   #   * `{:collect, path}` writes the test outcomes to a file and sends
   #     nothing. The process retrying failed tests runs in this mode and the
   #     parent reads the file.
@@ -29,18 +29,8 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   @deferred :deferred_test_run
 
   def init(opts) do
-    opts = Keyword.new(opts)
-
-    # The options the Mix task set apply to the formatter ExUnit starts for
-    # the run. A caller that brings its own `:submit` is driving a formatter
-    # of its own, typically a test of this module, possibly inside a suite
-    # that is itself reported, and gets exactly the options it passed.
-    analytics_opts =
-      if Keyword.has_key?(opts, :submit),
-        do: [],
-        else: Application.get_env(:tuist_ex, :analytics_options, [])
-
-    merged = Keyword.merge(analytics_opts, opts)
+    merged =
+      run_options(Keyword.new(opts), Application.get_env(:tuist_ex, :analytics_options, []))
 
     {:ok,
      %{
@@ -51,6 +41,19 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
        opts: merged,
        shell: Keyword.get(merged, :shell, &default_shell/1)
      }}
+  end
+
+  @doc """
+  The options a formatter runs with, given the ones it was started with and
+  the ones the Mix task configured for the run.
+
+  The task's options apply to the formatter ExUnit starts. A caller that
+  brings its own `:submit` is driving a formatter of its own, typically a
+  test of this module, possibly inside a suite that is itself reported, and
+  gets exactly the options it passed.
+  """
+  def run_options(opts, configured) do
+    if Keyword.has_key?(opts, :submit), do: opts, else: Keyword.merge(configured, opts)
   end
 
   def handle_cast({:suite_started, _opts}, state) do
@@ -73,19 +76,13 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     try do
       case Keyword.get(state.opts, :mode, :submit) do
         # An umbrella runs one suite per application, each with a formatter
-        # of its own, so both modes add to what the earlier suites left.
+        # of its own, so this adds to what the earlier suites wrote.
         {:collect, path} ->
           File.write!(path, :erlang.term_to_binary(read_collected(path) ++ tests))
 
-        :defer ->
+        {:defer, owner} ->
           payload = build_payload(tests, duration_ms, state.ran_at, state.opts)
-          deferred = Application.get_env(:tuist_ex, @deferred, [])
-
-          Application.put_env(
-            :tuist_ex,
-            @deferred,
-            deferred ++ [{payload, state.opts, state.aborted?}]
-          )
+          send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
         :submit ->
           submit(build_payload(tests, duration_ms, state.ran_at, state.opts), state.opts)
@@ -118,14 +115,17 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   end
 
   @doc """
-  Returns the runs kept by `:defer` mode, one `{payload, opts, aborted?}` per
-  suite that ran (an umbrella runs one per application), and forgets them.
-  `aborted?` says the suite stopped before running every test.
+  Returns the runs `{:defer, owner}` mode sent to the calling process, one
+  `{payload, opts, aborted?}` per suite that ran (an umbrella runs one per
+  application). `aborted?` says the suite stopped before running every test.
+  Call it once ExUnit is done, when its formatters have stopped.
   """
   def take_deferred do
-    deferred = Application.get_env(:tuist_ex, @deferred, [])
-    Application.delete_env(:tuist_ex, @deferred)
-    deferred
+    receive do
+      {@deferred, run} -> [run | take_deferred()]
+    after
+      0 -> []
+    end
   end
 
   @doc """
@@ -195,7 +195,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
         Enum.flat_map(modules, & &1.test_cases)
       )
 
-    payload = %{payload | test_modules: modules, status: aggregate_status(modules)}
+    payload = %{payload | test_modules: modules, status: status_of(modules)}
 
     if Map.has_key?(payload, :duration),
       do: Map.update!(payload, :duration, &(&1 + added)),
@@ -238,8 +238,11 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     |> Map.put(:repetitions, [first | repetitions])
   end
 
-  defp status_of(cases),
-    do: if(Enum.any?(cases, &(&1.status == "failure")), do: "failure", else: "success")
+  # The server knows two outcomes for a module, a suite or a run: anything
+  # without a failure, an all-skipped module included, is a success.
+  defp status_of(records) do
+    if Enum.any?(records, &(&1.status == "failure")), do: "failure", else: "success"
+  end
 
   # Phoenix's HTTP stack (used by the pluggable submit function) sends a few
   # informational messages back to the caller process. Swallow them so tests
@@ -337,16 +340,12 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     end
   end
 
-  defp first_location([]), do: {nil, 0}
-
-  defp first_location([{_module, _fun, _arity, meta} | rest]) do
-    case extract_location(meta) do
-      nil -> first_location(rest)
-      value -> value
-    end
+  defp first_location(stacktrace) do
+    Enum.find_value(stacktrace, {nil, 0}, fn
+      {_module, _fun, _arity, meta} -> extract_location(meta)
+      _ -> nil
+    end)
   end
-
-  defp first_location([_ | rest]), do: first_location(rest)
 
   defp extract_location(meta) when is_list(meta) do
     file = meta[:file]
@@ -386,7 +385,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       duration: duration_ms,
       ran_at: DateTime.to_iso8601(ran_at),
       is_ci: Env.ci?(environment),
-      status: aggregate_status(modules),
+      status: status_of(modules),
       elixir_version: Env.elixir_version(),
       otp_version: Env.otp_version(),
       mix_env: Env.mix_env(),
@@ -412,7 +411,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
     %{
       name: module_name,
-      status: aggregate_module_status(tests),
+      status: status_of(tests),
       duration: Enum.reduce(tests, 0, &(&1.duration_ms + &2)),
       test_suites: suites,
       test_cases: cases
@@ -426,7 +425,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     |> Enum.map(fn {describe, described_tests} ->
       %{
         name: describe,
-        status: aggregate_module_status(described_tests),
+        status: status_of(described_tests),
         duration: Enum.reduce(described_tests, 0, &(&1.duration_ms + &2))
       }
     end)
@@ -442,20 +441,6 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       failures: record.failures
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
-  end
-
-  # The server schema only allows success/failure for a module: an
-  # all-skipped module is reported as success so the run isn't rejected.
-  defp aggregate_module_status(tests) do
-    if Enum.any?(tests, &(&1.status == "failure")), do: "failure", else: "success"
-  end
-
-  defp aggregate_status(modules) do
-    cond do
-      Enum.any?(modules, &(&1.status == "failure")) -> "failure"
-      Enum.all?(modules, &(&1.status == "success")) and modules != [] -> "success"
-      true -> "success"
-    end
   end
 
   defp uuidv4 do

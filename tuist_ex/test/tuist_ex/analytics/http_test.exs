@@ -1,5 +1,5 @@
 defmodule TuistEx.Analytics.HTTPTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias TuistEx.Analytics.HTTP, as: AnalyticsHTTP

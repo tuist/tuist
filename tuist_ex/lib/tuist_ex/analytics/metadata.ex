@@ -1,6 +1,8 @@
 defmodule TuistEx.Analytics.Metadata do
   @moduledoc false
 
+  alias TuistEx.Analytics.Config
+
   # Collects the customer-supplied `custom_metadata` payload the Tuist
   # dashboards use for filtering and grouping runs.
   #
@@ -9,9 +11,17 @@ defmodule TuistEx.Analytics.Metadata do
   #   `--tag foo` / `--value key=val` runtime options
   #   `Mix.Project.config()[:tuist][:tags]` and `[:values]`
 
+  # The server refuses a report whose metadata breaks these rules, so entries
+  # that do are left out here: a mistyped tag must not cost the whole report.
+  @max_tags 50
+  @max_tag_length 50
+  @max_values 20
+  @max_key_length 50
+  @max_value_length 500
+
   def collect(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
-    project = project_tuist_config()
+    project = Config.project_tuist_config()
 
     tags = collect_tags(options, environment, project)
     values = collect_values(options, environment, project)
@@ -28,8 +38,9 @@ defmodule TuistEx.Analytics.Metadata do
 
     (from_env ++ from_options ++ from_project)
     |> Enum.map(&normalize_string/1)
-    |> Enum.reject(&(&1 == ""))
+    |> Enum.filter(&valid_tag?/1)
     |> Enum.uniq()
+    |> Enum.take(@max_tags)
   end
 
   defp collect_values(options, environment, project) do
@@ -40,8 +51,18 @@ defmodule TuistEx.Analytics.Metadata do
     from_project
     |> Map.merge(from_options)
     |> Map.merge(from_env)
-    |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
-    |> Map.new(fn {k, v} -> {normalize_string(k), normalize_string(v)} end)
+    |> Map.new(fn {key, value} -> {normalize_string(key), normalize_string(value)} end)
+    |> Enum.filter(&valid_value?/1)
+    |> Enum.sort()
+    |> Enum.take(@max_values)
+    |> Map.new()
+  end
+
+  defp valid_tag?(tag), do: String.length(tag) <= @max_tag_length and tag =~ ~r/^[a-zA-Z0-9_-]+$/
+
+  defp valid_value?({key, value}) do
+    key != "" and value != "" and String.length(key) <= @max_key_length and
+      String.length(value) <= @max_value_length
   end
 
   defp parse_tags(nil), do: []
@@ -72,13 +93,4 @@ defmodule TuistEx.Analytics.Metadata do
   defp normalize_string(value) when is_binary(value), do: value
   defp normalize_string(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string(value), do: to_string(value)
-
-  defp project_tuist_config do
-    case Mix.Project.config()[:tuist] do
-      value when is_list(value) -> value
-      _ -> []
-    end
-  rescue
-    _ -> []
-  end
 end

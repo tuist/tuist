@@ -134,20 +134,10 @@ defmodule Mix.Tasks.Tuist.Test do
           Mix.shell().info("Tuist: shard #{index} of #{reference} has no tests to run.")
           :nothing_to_run
         else
-          prebuilt =
-            case Shards.download_build(shard["download_url"], Mix.Project.build_path()) do
-              :ok ->
-                ["--no-compile", "--no-deps-check"]
-
-              {:error, :no_build} ->
-                []
-
-              {:error, reason} ->
-                Mix.raise("Could not download the build for shard #{index}: #{inspect(reason)}")
-            end
+          prebuilt = download_build_args(shard, index)
 
           Mix.shell().info(
-            "Tuist: shard #{index} of #{reference}, #{length(files)} test files" <>
+            "Tuist: shard #{index} of #{reference}, #{Shards.count(length(files), "test file")}" <>
               if(prebuilt == [], do: "", else: ", using the uploaded build")
           )
 
@@ -159,6 +149,20 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
+  # A plan without a build is fine: the shard compiles as usual.
+  defp download_build_args(shard, index) do
+    case Shards.download_build(shard["download_url"], Mix.Project.build_path()) do
+      :ok ->
+        ["--no-compile", "--no-deps-check"]
+
+      {:error, :no_build} ->
+        []
+
+      {:error, reason} ->
+        Mix.raise("Could not download the build for shard #{index}: #{inspect(reason)}")
+    end
+  end
+
   defp shard_unwrap({:ok, value}), do: value
   defp shard_unwrap({:error, reason}) when is_binary(reason), do: Mix.raise(reason)
   defp shard_unwrap({:error, reason}), do: Mix.raise("Tuist sharding failed: #{inspect(reason)}")
@@ -166,7 +170,7 @@ defmodule Mix.Tasks.Tuist.Test do
   defp run_test(args), do: Args.run_wrapped("test", Mix.Tasks.Test, args)
 
   defp run_with_retries(options, test_args, retries) do
-    configure(Keyword.put(options, :mode, :defer))
+    configure(Keyword.put(options, :mode, {:defer, self()}))
     suite = run_suite(test_args)
     # One per suite that ran: an umbrella runs one for each application.
     deferred = ExUnitFormatter.take_deferred()
@@ -305,7 +309,8 @@ defmodule Mix.Tasks.Tuist.Test do
     # checkout that has not been built yet, ExUnit is not loaded at this
     # point, and the formatter registered below would be wiped when it is.
     Application.load(:ex_unit)
-    Application.put_env(:ex_unit, :formatters, formatters(options))
+    existing = Application.get_env(:ex_unit, :formatters, [ExUnit.CLIFormatter])
+    Application.put_env(:ex_unit, :formatters, formatters(existing))
     Application.put_env(:tuist_ex, :analytics_options, options)
     :ok
   end
@@ -324,13 +329,10 @@ defmodule Mix.Tasks.Tuist.Test do
   """
   def split_args(args), do: Args.split(args, @own_switches)
 
-  defp formatters(_options) do
-    existing = Application.get_env(:ex_unit, :formatters, [ExUnit.CLIFormatter])
-
-    if @formatter in existing do
-      existing
-    else
-      existing ++ [@formatter]
-    end
+  @doc """
+  The formatters to run with: the ones already configured, and Tuist's.
+  """
+  def formatters(existing) do
+    if @formatter in existing, do: existing, else: existing ++ [@formatter]
   end
 end

@@ -1,34 +1,20 @@
 defmodule TuistEx.Analytics.CompileReporterTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias TuistEx.Analytics.CompileReporter
 
-  setup do
-    on_exit(fn ->
-      case Process.whereis(CompileReporter) do
-        pid when is_pid(pid) ->
-          # The reporter is linked to the test process, so it may already be
-          # going down by the time this runs.
-          try do
-            GenServer.stop(pid)
-          catch
-            :exit, _ -> :ok
-          end
+  # A fixed environment, so building a payload never asks git about the
+  # checkout the tests happen to run in.
+  defp environment("GIT_BRANCH"), do: "main"
+  defp environment("GIT_COMMIT"), do: "0000000000000000000000000000000000000000"
+  defp environment("GIT_REMOTE_URL"), do: "https://github.com/acme/widgets.git"
+  defp environment(_name), do: nil
 
-        _ ->
-          :ok
-      end
-    end)
-  end
-
+  # Reads no machine unless a test asks for the sampler, so nothing global is
+  # started; each reporter is the test's own.
   defp start(opts) do
-    {:ok, pid} =
-      case CompileReporter.start_link(opts) do
-        {:ok, pid} -> {:ok, pid}
-        {:error, {:already_started, pid}} -> {:ok, pid}
-      end
-
-    pid
+    opts = opts |> Keyword.put_new(:sampler, nil) |> Keyword.put_new(:environment, &environment/1)
+    start_supervised!({CompileReporter, opts}, id: make_ref())
   end
 
   test "records each compiler's diagnostics and submits a merged payload" do
@@ -39,7 +25,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       :ok
     end
 
-    start(submit: submit)
+    reporter = start(submit: submit)
 
     diagnostic = %{
       severity: :warning,
@@ -49,9 +35,9 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       position: {12, 3}
     }
 
-    CompileReporter.record(:elixir, {:ok, [diagnostic]})
-    CompileReporter.record(:app, {:ok, []})
-    :ok = CompileReporter.finish()
+    CompileReporter.record(reporter, :elixir, {:ok, [diagnostic]})
+    CompileReporter.record(reporter, :app, {:ok, []})
+    :ok = CompileReporter.finish(reporter)
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "success"
@@ -73,10 +59,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       :ok
     end
 
-    start(submit: submit)
+    reporter = start(submit: submit)
 
-    CompileReporter.record(:elixir, {:error, []})
-    :ok = CompileReporter.finish()
+    CompileReporter.record(reporter, :elixir, {:error, []})
+    :ok = CompileReporter.finish(reporter)
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "failure"
@@ -90,9 +76,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       :ok
     end
 
-    start(submit: submit)
+    reporter = start(submit: submit)
 
     CompileReporter.record(
+      reporter,
       :elixir,
       {:ok,
        [
@@ -101,14 +88,14 @@ defmodule TuistEx.Analytics.CompileReporterTest do
        ]}
     )
 
-    :ok = CompileReporter.finish()
+    :ok = CompileReporter.finish(reporter)
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "failure"
     assert Enum.any?(payload.diagnostics, &(&1.severity == "error"))
   end
 
-  test "collects samples from the real machine metrics sampler" do
+  test "collects the samples its machine sampler sends" do
     parent = self()
 
     submit = fn payload, _opts ->
@@ -116,11 +103,26 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       :ok
     end
 
-    start(submit: submit, sampler_opts: [interval_ms: 10])
-    Process.sleep(500)
-    assert Process.alive?(Process.whereis(CompileReporter))
+    sample = fn rates ->
+      Map.merge(%{timestamp: 1.0, cpu_usage_percent: 12.5, memory_total_bytes: 64}, rates)
+    end
 
-    :ok = CompileReporter.finish()
+    counters = fn -> %{network: nil, disk: nil} end
+
+    reporter =
+      start(
+        submit: submit,
+        sampler: :auto,
+        sampler_opts: [interval_ms: 10, sample: sample, counters: counters]
+      )
+
+    # Sent by the sampler, then acknowledged here: `finish/3` is handled after it.
+    :erlang.trace(reporter, true, [:receive])
+
+    assert_receive {:trace, ^reporter, :receive, {:machine_metric, %{cpu_usage_percent: 12.5}}},
+                   2000
+
+    :ok = CompileReporter.finish(reporter)
 
     assert_receive {:submitted, payload}, 2000
     assert [%{cpu_usage_percent: _, memory_total_bytes: _} | _] = payload.machine_metrics
@@ -134,13 +136,13 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       :ok
     end
 
-    start(submit: submit, sampler: nil)
+    reporter = start(submit: submit, sampler: nil)
 
     files = [
       %{path: "lib/a.ex", compile_duration_ms: 5, wait_duration_ms: 0, modules: ["A"], waits: []}
     ]
 
-    :ok = CompileReporter.finish(files)
+    :ok = CompileReporter.finish(reporter, files)
 
     assert_receive {:submitted, payload}, 2000
     assert payload.files == files
@@ -155,10 +157,10 @@ defmodule TuistEx.Analytics.CompileReporterTest do
       :ok
     end
 
-    start(submit: submit, shell: shell)
+    reporter = start(submit: submit, shell: shell)
 
-    CompileReporter.record(:elixir, {:ok, []})
-    :ok = CompileReporter.finish()
+    CompileReporter.record(reporter, :elixir, {:ok, []})
+    :ok = CompileReporter.finish(reporter)
 
     assert_receive {:shell, message}, 2000
     assert message =~ "failed to submit compile run"
@@ -167,14 +169,15 @@ defmodule TuistEx.Analytics.CompileReporterTest do
   test "reports nothing when every compiler had nothing to do" do
     parent = self()
 
-    start(
-      submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
-      sampler: nil
-    )
+    reporter =
+      start(
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        sampler: nil
+      )
 
-    CompileReporter.record(:elixir, {:noop, []})
-    CompileReporter.record(:app, {:noop, []})
-    :ok = CompileReporter.finish()
+    CompileReporter.record(reporter, :elixir, {:noop, []})
+    CompileReporter.record(reporter, :app, {:noop, []})
+    :ok = CompileReporter.finish(reporter)
 
     refute_receive {:submitted, _}, 200
   end
@@ -182,13 +185,15 @@ defmodule TuistEx.Analytics.CompileReporterTest do
   test "reports a failure in a compiler other than Elixir's" do
     parent = self()
 
-    start(
-      submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
-      sampler: nil
-    )
+    reporter =
+      start(
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        sampler: nil
+      )
 
     # The Erlang compiler fails, so the Elixir and application compilers never run.
     CompileReporter.record(
+      reporter,
       :erlang,
       {:error,
        [
@@ -201,7 +206,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
        ]}
     )
 
-    :ok = CompileReporter.finish()
+    :ok = CompileReporter.finish(reporter)
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "failure"
@@ -218,18 +223,19 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     reference = Process.monitor(first)
 
     CompileReporter.record(
+      first,
       :elixir,
       {:error, [%{severity: :error, file: "lib/a.ex", message: "boom", position: 1}]}
     )
 
-    :ok = CompileReporter.finish()
+    :ok = CompileReporter.finish(first)
     assert_receive {:submitted, %{status: "failure"}}, 2000
     assert_receive {:DOWN, ^reference, :process, ^first, _reason}, 2000
 
     second = start(submit: submit, sampler: nil)
     assert second != first
-    CompileReporter.record(:elixir, {:ok, []})
-    :ok = CompileReporter.finish()
+    CompileReporter.record(second, :elixir, {:ok, []})
+    :ok = CompileReporter.finish(second)
 
     assert_receive {:submitted, payload}, 2000
     assert payload.status == "success"
@@ -239,13 +245,13 @@ defmodule TuistEx.Analytics.CompileReporterTest do
   test "trims an oversized build to what the server accepts, keeping the slowest files" do
     parent = self()
 
-    pid =
+    reporter =
       start(
         submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
         sampler: nil
       )
 
-    for second <- 1..20_500, do: send(pid, {:machine_metric, %{timestamp: second * 1.0}})
+    for second <- 1..20_500, do: send(reporter, {:machine_metric, %{timestamp: second * 1.0}})
 
     files =
       for index <- 1..20_010 do
@@ -268,6 +274,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     }
 
     CompileReporter.record(
+      reporter,
       :elixir,
       {:ok,
        [
@@ -280,7 +287,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
        ]}
     )
 
-    :ok = CompileReporter.finish([too_long | files])
+    :ok = CompileReporter.finish(reporter, [too_long | files])
 
     assert_receive {:submitted, payload}, 5000
     assert length(payload.files) == 20_000

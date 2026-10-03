@@ -39,25 +39,6 @@ defmodule TuistEx.Analytics.HTTP do
   end
 
   defp post_analytics(payload, suffix, options) do
-    with {:ok, config} <- Config.resolve(options),
-         {:ok, token} <- Auth.token(options) do
-      url =
-        config.url <>
-          "/api/projects/" <>
-          config.project_handle.account <> "/" <> config.project_handle.project <> suffix
-
-      headers = [{"authorization", "Bearer " <> token}]
-
-      case HTTP.request(:post, url, payload, headers) do
-        {:ok, status, _body} when status in 200..299 ->
-          :ok
-
-        {:ok, status, body} ->
-          {:error, {:http, status, body}}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    end
+    with {:ok, _body} <- project_request(:post, suffix, payload, options), do: :ok
   end
 end

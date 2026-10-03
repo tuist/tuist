@@ -36,12 +36,14 @@ defmodule TuistEx.Analytics.MachineMetrics do
   the network and disk throughput since the previous sample (see `rates/3`).
   """
   def sample(now_fn \\ &os_time_seconds/0, rates \\ %{}) do
+    memory = memory_data()
+
     Map.merge(
       %{
         timestamp: now_fn.(),
         cpu_usage_percent: cpu_usage_percent(),
-        memory_used_bytes: memory_used_bytes(),
-        memory_total_bytes: memory_total_bytes(),
+        memory_used_bytes: used_memory_bytes(memory),
+        memory_total_bytes: Keyword.get(memory, :total_memory, 0),
         network_bytes_in: 0,
         network_bytes_out: 0,
         disk_bytes_read: 0,
@@ -79,12 +81,19 @@ defmodule TuistEx.Analytics.MachineMetrics do
   def init(opts) do
     Process.flag(:trap_exit, true)
 
+    # `:sample` and `:counters` replace the reading of the machine, for
+    # callers that want the sampler's schedule without the machine: nothing
+    # that belongs to the whole VM is started, and no command is run.
+    sample = Keyword.get(opts, :sample)
+
     state = %{
-      started_os_mon?: ensure_os_mon_started(),
+      started_os_mon?: is_nil(sample) and ensure_os_mon_started(),
+      sample: sample || fn rates -> sample(&os_time_seconds/0, rates) end,
+      counters: Keyword.get(opts, :counters, &IOCounters.read/0),
       sink: Keyword.fetch!(opts, :sink),
       interval_ms: Keyword.get(opts, :interval_ms, @default_interval_ms),
-      counters: %{network: nil, disk: nil},
-      counters_at: System.monotonic_time(:millisecond)
+      readings: %{network: nil, disk: nil},
+      read_at: System.monotonic_time(:millisecond)
     }
 
     {:ok, state, {:continue, :first_sample}}
@@ -95,24 +104,20 @@ defmodule TuistEx.Analytics.MachineMetrics do
   # Done after init so reading the counters never delays the build.
   @impl true
   def handle_continue(:first_sample, state) do
-    counters = IOCounters.read()
-    apply_sink(state.sink, sample())
+    readings = state.counters.()
+    apply_sink(state.sink, state.sample.(%{}))
     schedule_sample(state.interval_ms)
-    {:noreply, %{state | counters: counters, counters_at: System.monotonic_time(:millisecond)}}
+    {:noreply, %{state | readings: readings, read_at: System.monotonic_time(:millisecond)}}
   end
 
   @impl true
   def handle_info(:sample, state) do
-    counters = IOCounters.read()
+    readings = state.counters.()
     now = System.monotonic_time(:millisecond)
 
-    apply_sink(
-      state.sink,
-      sample(&os_time_seconds/0, rates(state.counters, counters, now - state.counters_at))
-    )
-
+    apply_sink(state.sink, state.sample.(rates(state.readings, readings, now - state.read_at)))
     schedule_sample(state.interval_ms)
-    {:noreply, %{state | counters: counters, counters_at: now}}
+    {:noreply, %{state | readings: readings, read_at: now}}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -148,8 +153,6 @@ defmodule TuistEx.Analytics.MachineMetrics do
     _, _ -> 0.0
   end
 
-  defp memory_used_bytes, do: used_memory_bytes(memory_data())
-
   # Free memory excludes the file cache, which the system gives back on
   # demand, so "total minus free" sits near the total on any machine that has
   # been running for a while. Available memory accounts for that; fall back
@@ -160,8 +163,6 @@ defmodule TuistEx.Analytics.MachineMetrics do
     unused = Keyword.get(data, :available_memory) || Keyword.get(data, :free_memory, 0)
     max(total - unused, 0)
   end
-
-  defp memory_total_bytes, do: Keyword.get(memory_data(), :total_memory, 0)
 
   defp memory_data do
     :memsup.get_system_memory_data()

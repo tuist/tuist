@@ -1,33 +1,35 @@
 defmodule TuistEx.Analytics.CompileProfileTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias TuistEx.Analytics.CompileProfile
 
+  # A profile of its own per test: nothing here installs the compiler tracer
+  # or touches standard error, which `CompileProfileInstallTest` covers.
   setup do
-    profile = CompileProfile.start(false)
-
-    on_exit(fn -> CompileProfile.stop(profile) end)
-
-    %{profile: profile}
+    %{profile: CompileProfile.new()}
   end
+
+  defp no_source(_module), do: nil
 
   defp env(file, module \\ nil),
     do: %{__ENV__ | file: Path.expand(file), module: module, function: nil}
 
   test "reports compile time, waits, and the file each wait was on", %{profile: profile} do
-    CompileProfile.trace({:on_module, <<>>, :none}, env("lib/macros.ex", Demo.Macros))
-    CompileProfile.trace({:on_module, <<>>, :none}, env("lib/greeter.ex", Demo.Greeter))
+    CompileProfile.record(profile, {:on_module, <<>>, :none}, env("lib/macros.ex", Demo.Macros))
+    CompileProfile.record(profile, {:on_module, <<>>, :none}, env("lib/greeter.ex", Demo.Greeter))
 
     assert CompileProfile.record_profile_output(
+             profile,
              "[profile]    306ms compiling +      0ms waiting while compiling lib/macros.ex\n"
            )
 
     assert CompileProfile.record_profile_output(
+             profile,
              "[profile]     70ms compiling +    333ms waiting for module Demo.Macros while compiling lib/greeter.ex\n" <>
                "[profile]                    |     12ms waiting for struct Ecto.Changeset while compiling lib/greeter.ex\n"
            )
 
-    assert [greeter, macros] = CompileProfile.stop(profile)
+    assert [greeter, macros] = CompileProfile.files(profile, &no_source/1)
 
     assert macros == %{
              path: "lib/macros.ex",
@@ -61,21 +63,28 @@ defmodule TuistEx.Analytics.CompileProfileTest do
   end
 
   test "places each file and each wait on the build's clock", %{profile: profile} do
-    CompileProfile.stop(profile)
-    profile = CompileProfile.start(false, 1_000)
+    profile = CompileProfile.new(1_000)
 
-    CompileProfile.trace(:start, env("lib/macros.ex"), 1_010)
-    CompileProfile.trace(:start, env("lib/greeter.ex"), 1_020)
-    CompileProfile.trace({:on_module, <<>>, :none}, env("lib/macros.ex", Demo.Macros), 1_400)
-    CompileProfile.trace(:stop, env("lib/macros.ex"), 1_405)
-    CompileProfile.trace(:stop, env("lib/greeter.ex"), 1_460)
+    CompileProfile.record(profile, :start, env("lib/macros.ex"), 1_010)
+    CompileProfile.record(profile, :start, env("lib/greeter.ex"), 1_020)
+
+    CompileProfile.record(
+      profile,
+      {:on_module, <<>>, :none},
+      env("lib/macros.ex", Demo.Macros),
+      1_400
+    )
+
+    CompileProfile.record(profile, :stop, env("lib/macros.ex"), 1_405)
+    CompileProfile.record(profile, :stop, env("lib/greeter.ex"), 1_460)
 
     CompileProfile.record_profile_output(
+      profile,
       "[profile]     70ms compiling +    333ms waiting for module Demo.Macros while compiling lib/greeter.ex\n" <>
         "[profile]                    |     12ms waiting for struct Ecto.Changeset while compiling lib/greeter.ex\n"
     )
 
-    assert [greeter, macros] = CompileProfile.stop(profile)
+    assert [greeter, macros] = CompileProfile.files(profile, &no_source/1)
 
     assert macros.start_offset_ms == 10
     assert greeter.start_offset_ms == 20
@@ -93,9 +102,9 @@ defmodule TuistEx.Analytics.CompileProfileTest do
   test "falls back to the tracer's timing for a file the compiler printed nothing for", %{
     profile: profile
   } do
-    CompileProfile.trace(:start, env("lib/a.ex"))
-    CompileProfile.trace({:on_module, <<>>, :none}, env("lib/a.ex", A))
-    CompileProfile.trace(:stop, env("lib/a.ex"))
+    CompileProfile.record(profile, :start, env("lib/a.ex"))
+    CompileProfile.record(profile, {:on_module, <<>>, :none}, env("lib/a.ex", A))
+    CompileProfile.record(profile, :stop, env("lib/a.ex"))
 
     assert [
              %{
@@ -106,46 +115,64 @@ defmodule TuistEx.Analytics.CompileProfileTest do
                compile_duration_ms: duration
              }
            ] =
-             CompileProfile.stop(profile)
+             CompileProfile.files(profile, &no_source/1)
 
     assert duration >= 0
   end
 
   test "reports the work around the files as steps on the build's clock", %{profile: profile} do
-    CompileProfile.stop(profile)
-    profile = CompileProfile.start(false, 1_000)
+    profile = CompileProfile.new(1_000)
 
-    CompileProfile.trace({:on_module, <<>>, :none}, env("lib/greeter.ex", Demo.Greeter), 1_100)
-    CompileProfile.record_profile_output("[profile] Finished cycle resolution in 0ms\n", 1_500)
+    CompileProfile.record(
+      profile,
+      {:on_module, <<>>, :none},
+      env("lib/greeter.ex", Demo.Greeter),
+      1_100
+    )
 
     CompileProfile.record_profile_output(
+      profile,
+      "[profile] Finished cycle resolution in 0ms\n",
+      1_500
+    )
+
+    CompileProfile.record_profile_output(
+      profile,
       "[profile] Finished compilation cycle of 4 modules in 500ms\n",
       1_500
     )
 
     CompileProfile.record_profile_output(
+      profile,
       "[profile] Finished writing modules to disk in 20ms\n",
       1_520
     )
 
     CompileProfile.record_profile_output(
+      profile,
       "[profile] Finished after compile callback in 65ms\n",
       1_585
     )
 
-    CompileProfile.record_profile_output("[profile] Type checked Demo.Greeter in 30ms\n", 1_620)
-    CompileProfile.record_profile_output("[profile] Type checked Demo in 0ms\n", 1_620)
+    CompileProfile.record_profile_output(
+      profile,
+      "[profile] Type checked Demo.Greeter in 30ms\n",
+      1_620
+    )
+
+    CompileProfile.record_profile_output(profile, "[profile] Type checked Demo in 0ms\n", 1_620)
 
     CompileProfile.record_profile_output(
+      profile,
       "[profile] Finished group pass check of 4 modules in 35ms\n",
       1_625
     )
 
-    CompileProfile.compiler_finished(:erlang, 1_010)
-    CompileProfile.compiler_finished(:elixir, 1_630)
-    CompileProfile.compiler_finished(:app, 1_642)
+    CompileProfile.compiler_finished(profile, :erlang, 1_010)
+    CompileProfile.compiler_finished(profile, :elixir, 1_630)
+    CompileProfile.compiler_finished(profile, :app, 1_642)
 
-    assert CompileProfile.steps() == [
+    assert CompileProfile.steps(profile) == [
              %{
                category: "write",
                title: "Writing modules to disk",
@@ -175,18 +202,15 @@ defmodule TuistEx.Analytics.CompileProfileTest do
                duration_ms: 12
              }
            ]
-
-    CompileProfile.stop(profile)
-    assert CompileProfile.steps() == []
   end
 
   test "falls back to the whole type checking pass when the compiler does not report modules", %{
     profile: profile
   } do
-    CompileProfile.stop(profile)
-    profile = CompileProfile.start(false, 1_000)
+    profile = CompileProfile.new(1_000)
 
     CompileProfile.record_profile_output(
+      profile,
       "[profile] Finished group pass check of 4 modules in 35ms\n",
       1_625
     )
@@ -199,9 +223,7 @@ defmodule TuistEx.Analytics.CompileProfileTest do
                duration_ms: 35
              }
            ] =
-             CompileProfile.steps()
-
-    CompileProfile.stop(profile)
+             CompileProfile.steps(profile)
   end
 
   test "reports the project files each file depends on, and how strongly", %{profile: profile} do
@@ -209,22 +231,22 @@ defmodule TuistEx.Analytics.CompileProfileTest do
     greeter = env("lib/greeter.ex", Demo.Greeter)
     in_function = %{greeter | function: {:hello, 1}}
 
-    CompileProfile.trace(:start, macros)
-    CompileProfile.trace(:start, greeter)
-    CompileProfile.trace({:on_module, <<>>, :none}, macros)
-    CompileProfile.trace({:on_module, <<>>, :none}, greeter)
+    CompileProfile.record(profile, :start, macros)
+    CompileProfile.record(profile, :start, greeter)
+    CompileProfile.record(profile, {:on_module, <<>>, :none}, macros)
+    CompileProfile.record(profile, {:on_module, <<>>, :none}, greeter)
 
     # A macro call needs the module at compile time, however often and
     # wherever it is also called at runtime.
-    CompileProfile.trace({:remote_function, [], Demo.Macros, :helper, 0}, in_function)
-    CompileProfile.trace({:remote_macro, [], Demo.Macros, :define, 1}, greeter)
-    CompileProfile.trace({:remote_macro, [], Demo.Macros, :define, 1}, greeter)
+    CompileProfile.record(profile, {:remote_function, [], Demo.Macros, :helper, 0}, in_function)
+    CompileProfile.record(profile, {:remote_macro, [], Demo.Macros, :define, 1}, greeter)
+    CompileProfile.record(profile, {:remote_macro, [], Demo.Macros, :define, 1}, greeter)
     # A struct is an export dependency; a call from a function body is runtime.
-    CompileProfile.trace({:struct_expansion, [], Demo.User, [:name]}, in_function)
-    CompileProfile.trace({:remote_function, [], Demo.Repo, :all, 1}, in_function)
+    CompileProfile.record(profile, {:struct_expansion, [], Demo.User, [:name]}, in_function)
+    CompileProfile.record(profile, {:remote_function, [], Demo.Repo, :all, 1}, in_function)
     # Not project files: a dependency, and the module itself.
-    CompileProfile.trace({:remote_function, [], Enum, :map, 2}, in_function)
-    CompileProfile.trace({:remote_function, [], Demo.Greeter, :other, 0}, in_function)
+    CompileProfile.record(profile, {:remote_function, [], Enum, :map, 2}, in_function)
+    CompileProfile.record(profile, {:remote_function, [], Demo.Greeter, :other, 0}, in_function)
 
     # Demo.User and Demo.Repo were compiled in an earlier run.
     project_source = fn
@@ -233,7 +255,7 @@ defmodule TuistEx.Analytics.CompileProfileTest do
       _ -> nil
     end
 
-    assert [greeter_file, macros_file] = CompileProfile.files(project_source)
+    assert [greeter_file, macros_file] = CompileProfile.files(profile, project_source)
     assert macros_file.dependencies == []
 
     assert greeter_file.dependencies == [
@@ -241,39 +263,14 @@ defmodule TuistEx.Analytics.CompileProfileTest do
              %{path: "lib/repo.ex", kind: "runtime"},
              %{path: "lib/user.ex", kind: "export"}
            ]
-
-    CompileProfile.stop(profile)
   end
 
-  test "treats non-profile output as something to pass through" do
-    refute CompileProfile.record_profile_output("warning: variable \"x\" is unused\n")
-    assert CompileProfile.record_profile_output("[profile] Finished cycle resolution in 0ms\n")
-  end
+  test "treats non-profile output as something to pass through", %{profile: profile} do
+    refute CompileProfile.record_profile_output(profile, "warning: variable \"x\" is unused\n")
 
-  test "hides profile lines but forwards everything else written to standard error", %{
-    profile: profile
-  } do
-    CompileProfile.stop(profile)
-
-    output =
-      ExUnit.CaptureIO.capture_io(:stderr, fn ->
-        inner = CompileProfile.start(false)
-
-        IO.puts(
-          :stderr,
-          "[profile]      5ms compiling +      0ms waiting while compiling lib/x.ex"
-        )
-
-        IO.puts(:stderr, "a real warning")
-        assert [%{path: "lib/x.ex", compile_duration_ms: 5}] = CompileProfile.stop(inner)
-      end)
-
-    assert output == "a real warning\n"
-  end
-
-  test "restores the compiler tracers on stop", %{profile: profile} do
-    assert CompileProfile in Code.get_compiler_option(:tracers)
-    CompileProfile.stop(profile)
-    refute CompileProfile in Code.get_compiler_option(:tracers)
+    assert CompileProfile.record_profile_output(
+             profile,
+             "[profile] Finished cycle resolution in 0ms\n"
+           )
   end
 end

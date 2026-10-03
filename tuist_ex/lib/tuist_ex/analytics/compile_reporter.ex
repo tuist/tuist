@@ -4,8 +4,8 @@ defmodule TuistEx.Analytics.CompileReporter do
   # Captures Mix compiler diagnostics for the current `mix compile` run and
   # submits a mix-builds payload when the run finishes. Diagnostics are
   # collected via the `after_compiler` hook of `Mix.Task.Compiler`; the
-  # reporter is a GenServer only so the hook has a durable inbox even when
-  # multiple compilers run.
+  # reporter is a process so the hooks and the machine sampler have somewhere
+  # to send what they see while the compilers run.
 
   use GenServer
 
@@ -15,27 +15,25 @@ defmodule TuistEx.Analytics.CompileReporter do
   alias TuistEx.Analytics.MachineMetrics
   alias TuistEx.Analytics.Metadata
 
-  @spec start_link(keyword) :: GenServer.on_start()
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
-  end
+  @doc """
+  Starts a reporter for one build. It is not registered under a name: the
+  caller holds on to it and passes it to `record/3` and `finish/3`, so any
+  number of builds, or tests, can each have their own.
+  """
+  def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts)
 
   def child_spec(opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [opts]},
-      restart: :temporary
-    }
+    %{id: __MODULE__, start: {__MODULE__, :start_link, [opts]}, restart: :temporary}
   end
 
-  @doc "Records diagnostics returned by a Mix compiler."
-  def record(compiler, {status, diagnostics}) do
-    GenServer.cast(__MODULE__, {:record, compiler, status, diagnostics})
+  @doc "Records what a Mix compiler returned."
+  def record(reporter, compiler, {status, diagnostics}) do
+    GenServer.cast(reporter, {:record, compiler, status, diagnostics})
   end
 
-  @doc "Marks the compile as finished and submits the build payload."
-  def finish(files \\ [], steps \\ []) do
-    GenServer.call(__MODULE__, {:finish, files, steps}, 60_000)
+  @doc "Marks the build as finished, submits it, and stops the reporter."
+  def finish(reporter, files \\ [], steps \\ []) do
+    GenServer.call(reporter, {:finish, files, steps}, 60_000)
   end
 
   @impl true
@@ -174,18 +172,6 @@ defmodule TuistEx.Analytics.CompileReporter do
   end
 
   def handle_info(_message, state), do: {:noreply, state}
-
-  defp normalize_diagnostic(%{__struct__: _} = diagnostic, compiler) do
-    %{
-      severity: severity(diagnostic),
-      file: string(diagnostic, :file),
-      module: module_name(diagnostic),
-      message: string(diagnostic, :message),
-      line: integer(diagnostic, [:position, :line]),
-      column: integer(diagnostic, [:position, :column]),
-      compiler: Atom.to_string(compiler)
-    }
-  end
 
   defp normalize_diagnostic(diagnostic, compiler) when is_map(diagnostic) do
     %{

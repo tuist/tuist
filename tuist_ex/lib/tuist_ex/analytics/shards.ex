@@ -396,6 +396,12 @@ defmodule TuistEx.Analytics.Shards do
     end
   end
 
+  @doc """
+  A count with its noun, for the messages the tasks print: `1 shard`, `3 shards`.
+  """
+  def count(1, noun), do: "1 #{noun}"
+  def count(number, noun), do: "#{number} #{noun}s"
+
   defp present(value) when is_binary(value) and value != "", do: value
   defp present(_value), do: nil
 end

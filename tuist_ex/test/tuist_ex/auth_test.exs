@@ -226,12 +226,17 @@ defmodule TuistEx.AuthTest do
           send(parent, :locked)
 
           receive do
-            :release -> File.write!(path, Jason.encode!(%{"accessToken" => jwt(4_000_000_000)}))
+            :release ->
+              # Replaced in one step, as the real refresh does: a plain write
+              # empties the file first, and the reader below may look at it
+              # in that instant and find no credentials.
+              File.write!(path <> ".tmp", Jason.encode!(%{"accessToken" => jwt(4_000_000_000)}))
+              File.rename!(path <> ".tmp", path)
           end
         end)
       end)
 
-    assert_receive :locked
+    assert_receive :locked, 5_000
 
     reader =
       Task.async(fn ->

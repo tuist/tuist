@@ -70,7 +70,23 @@ dashboard presentation belong in `server/`.
 - Use Mimic for mocks. Register copied modules in `test/test_helper.exs`.
 - Do not change shared environment variables in tests; use dependency injection
   or pass environment overrides to subprocesses.
+- Nothing in the analytics code is found by a global name, so its tests run
+  `async: true`: a `CompileReporter` is an unregistered process its caller
+  holds; a `CompileProfile` is a handle passed to every function, and only
+  `install/2` touches what belongs to the whole VM (the compiler's tracers,
+  standard error, and the one profile the tracer writes to); the formatter
+  hands a deferred run to its owner as a message; `MachineMetrics` takes what
+  it samples as options. Tests give payload builders a fixed environment so
+  none of them asks git about the checkout. Keep it that way: a test that
+  needs `async: false` is a sign that state leaked somewhere global, and
+  `compile_profile_install_test.exs` is the one place that is expected.
 - Validate with `mix format --check-formatted`, `mix compile --warnings-as-errors`,
   `mix test --warnings-as-errors`, `mix hex.build`, and `mix docs --warnings-as-errors`.
+- The user guides are the Elixir pages under `server/priv/docs/en/guides/`
+  (`install-hex-package.md`, `get-started/elixir-project.md`, and `elixir.md` under
+  build insights, test insights, flaky tests and test sharding). A change to
+  an option, an environment variable or what a task prints belongs there too,
+  and every command on those pages was run before it was written down: run it
+  again before you change it.
 - Releases use the `tuist-ex` conventional commit scope and `tuist-ex@` tags.
   See `.github/workflows/tuist-ex-release.yml` and the shared release component registry.

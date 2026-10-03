@@ -93,12 +93,12 @@ defmodule Mix.Tasks.Tuist.Test.Build do
     shards = plan["shards"] || []
 
     Mix.shell().info(
-      "Tuist: planned #{length(shards)} shards for #{map_size(units)} test files (#{reference})"
+      "Tuist: planned #{Shards.count(length(shards), "shard")} for #{Shards.count(map_size(units), "test file")} (#{reference})"
     )
 
     for shard <- shards do
       Mix.shell().info(
-        "  Shard #{shard["index"]}: #{length(shard["test_targets"])} test files, about #{seconds(shard["estimated_duration_ms"])}"
+        "  Shard #{shard["index"]}: #{Shards.count(length(shard["test_targets"]), "test file")}, about #{seconds(shard["estimated_duration_ms"])}"
       )
     end
 

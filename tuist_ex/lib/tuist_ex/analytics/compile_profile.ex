@@ -32,133 +32,166 @@ defmodule TuistEx.Analytics.CompileProfile do
   #     module's struct or imports it) and `runtime` (it only calls it from
   #     inside functions, so compilation order does not matter).
 
-  @table :tuist_ex_compile_profile
-  @references :tuist_ex_compile_references
+  # The profile the compiler's tracer writes to. The tracer is a module the
+  # compiler calls with no context of ours, so the one profile being collected
+  # has to be found from anywhere; everything else takes the profile it works
+  # on as an argument.
+  @active {__MODULE__, :active}
   @compiling ~r/^\[profile\]\s+(\d+)ms compiling \+\s+(.+)$/
   @wait ~r/(\d+)ms waiting (?:for (\w+) (.+) )?while compiling (.+?)\s*$/
   @type_checked ~r/^\[profile\] Type checked (.+) in (\d+)ms\s*$/
   @finished ~r/^\[profile\] Finished (.+?)(?: of \d+ modules)? in (\d+)ms\s*$/
 
   @doc """
-  Installs the tracer and the standard error proxy. `show_profile?` keeps the
-  compiler's profile lines visible when the user asked for them. `origin` is
-  the monotonic time, in milliseconds, that every offset is measured from.
+  Starts an empty profile. `origin` is the monotonic time, in milliseconds,
+  that every offset is measured from. The profile lives as long as the
+  process that created it.
   """
-  def start(show_profile? \\ false, origin \\ now()) do
-    if :ets.whereis(@table) != :undefined, do: :ets.delete(@table)
-    :ets.new(@table, [:named_table, :public, :duplicate_bag, write_concurrency: true])
-    :ets.insert(@table, {:origin, origin})
+  def new(origin \\ now()) do
+    entries =
+      :ets.new(:tuist_ex_compile_profile, [:public, :duplicate_bag, write_concurrency: true])
+
+    :ets.insert(entries, {:origin, origin})
 
     # References arrive by the million, mostly repeated, so they go to a set
     # that keeps one entry per file, module and kind.
-    if :ets.whereis(@references) != :undefined, do: :ets.delete(@references)
-    :ets.new(@references, [:named_table, :public, :set, write_concurrency: true])
+    references = :ets.new(:tuist_ex_compile_references, [:public, :set, write_concurrency: true])
+
+    %{entries: entries, references: references}
+  end
+
+  @doc """
+  Points the compiler at `profile`: installs the tracer and puts a proxy in
+  front of standard error. `show_profile?` keeps the compiler's profile lines
+  visible when the user asked for them. Returns what `uninstall/1` needs to
+  put everything back.
+  """
+  def install(profile, show_profile? \\ false) do
+    :persistent_term.put(@active, profile)
 
     previous_tracers = Code.get_compiler_option(:tracers)
     Code.put_compiler_option(:tracers, Enum.uniq([__MODULE__ | previous_tracers]))
 
-    %{previous_tracers: previous_tracers, proxy: install_proxy(show_profile?)}
+    %{previous_tracers: previous_tracers, proxy: install_proxy(profile, show_profile?)}
   end
 
   @doc """
-  Restores the compiler and standard error, and returns the collected files.
+  Restores the compiler and standard error.
   """
-  def stop(%{previous_tracers: previous_tracers, proxy: proxy}) do
+  def uninstall(%{previous_tracers: previous_tracers, proxy: proxy}) do
     Code.put_compiler_option(:tracers, previous_tracers)
     remove_proxy(proxy)
+    :persistent_term.erase(@active)
+    :ok
+  end
 
-    # The table belongs to the process that called start/1; if that process
-    # is gone there is nothing left to report.
-    if :ets.whereis(@table) == :undefined do
-      []
-    else
-      files = files()
-      :ets.delete(@table)
-      if :ets.whereis(@references) != :undefined, do: :ets.delete(@references)
-      files
+  @doc """
+  The compiler's tracer callback. It runs inside the compiler's processes.
+  """
+  def trace(event, env) do
+    case :persistent_term.get(@active, nil) do
+      nil -> :ok
+      profile -> record(profile, event, env)
     end
   end
 
-  # Tracer callbacks. They run inside the compiler's processes: keep them
-  # cheap and never let them raise.
+  @doc """
+  Records a tracer event in `profile`. Cheap, and never raises: it runs for
+  every reference in every file being compiled.
+  """
+  def record(profile, event, env, at \\ now())
+  def record(profile, :start, env, at), do: put(profile, {:start, file(env)}, at)
+  def record(profile, :stop, env, at), do: put(profile, {:stop, file(env)}, at)
 
-  def trace(event, env, at \\ now())
-  def trace(:start, env, at), do: put({:start, file(env)}, at)
-  def trace(:stop, env, at), do: put({:stop, file(env)}, at)
-  def trace({:on_module, _bytecode, _}, env, at), do: put({:module, file(env)}, {env.module, at})
+  def record(profile, {:on_module, _bytecode, _}, env, at),
+    do: put(profile, {:module, file(env)}, {env.module, at})
 
-  def trace({macro, _meta, module, _name, _arity}, env, _at)
-      when macro in [:remote_macro, :imported_macro], do: reference(env, module, :compile)
+  def record(profile, {macro, _meta, module, _name, _arity}, env, _at)
+      when macro in [:remote_macro, :imported_macro],
+      do: reference(profile, env, module, :compile)
 
-  def trace({function, _meta, module, _name, _arity}, env, _at)
+  def record(profile, {function, _meta, module, _name, _arity}, env, _at)
       when function in [:remote_function, :imported_function],
-      do: reference(env, module, context(env))
+      do: reference(profile, env, module, context(env))
 
-  def trace({:alias_reference, _meta, module}, env, _at), do: reference(env, module, context(env))
+  def record(profile, {:alias_reference, _meta, module}, env, _at),
+    do: reference(profile, env, module, context(env))
 
-  def trace({:struct_expansion, _meta, module, _keys}, env, _at),
-    do: reference(env, module, :export)
+  def record(profile, {:struct_expansion, _meta, module, _keys}, env, _at),
+    do: reference(profile, env, module, :export)
 
-  def trace({:import, _meta, module, _opts}, env, _at), do: reference(env, module, :export)
-  def trace(_event, _env, _at), do: :ok
+  def record(profile, {:import, _meta, module, _opts}, env, _at),
+    do: reference(profile, env, module, :export)
+
+  def record(_profile, _event, _env, _at), do: :ok
 
   # Code in a module body runs while the file compiles; code in a function
   # only runs later.
   defp context(%{function: nil}), do: :compile
   defp context(_env), do: :runtime
 
-  defp reference(%{module: module}, module, _kind), do: :ok
+  defp reference(_profile, %{module: module}, module, _kind), do: :ok
 
-  defp reference(env, module, kind) do
-    if :ets.whereis(@references) != :undefined,
-      do: :ets.insert(@references, {{env.file, module, kind}})
-
+  defp reference(profile, env, module, kind) do
+    :ets.insert(profile.references, {{env.file, module, kind}})
     :ok
   rescue
-    _ -> :ok
+    # The profile's owner is gone; there is nobody left to report to.
+    ArgumentError -> :ok
   end
 
   @doc """
   Records that a Mix compiler (`:erlang`, `:elixir`, `:app`, ...) finished.
   """
-  def compiler_finished(name, at \\ now()), do: put(:compiler, {name, at})
+  def compiler_finished(profile, name, at \\ now()), do: put(profile, :compiler, {name, at})
 
-  @doc false
-  def record_profile_output(text, at \\ now()) do
+  @doc """
+  Records what the compiler's `--profile time` output says in `text`.
+  Returns whether `text` was profile output and nothing else.
+  """
+  def record_profile_output(profile, text, at \\ now()) do
     lines = String.split(text, "\n", trim: true)
-    Enum.each(lines, &record_profile_line(&1, at))
+    Enum.each(lines, &record_profile_line(profile, &1, at))
     lines != [] and Enum.all?(lines, &String.starts_with?(&1, "[profile]"))
   end
 
-  defp record_profile_line(line, at) do
+  defp record_profile_line(profile, line, at) do
     case Regex.run(@type_checked, line) do
-      [_, module, duration] -> put(:type_check, {module, at, String.to_integer(duration)})
-      _ -> :ok
+      [_, module, duration] ->
+        put(profile, :type_check, {module, at, String.to_integer(duration)})
+
+      _ ->
+        :ok
     end
 
     case Regex.run(@finished, line) do
-      [_, phase, duration] -> put(:phase, {phase, at, String.to_integer(duration)})
+      [_, phase, duration] -> put(profile, :phase, {phase, at, String.to_integer(duration)})
       _ -> :ok
     end
 
     with [_, compiling, rest] <- Regex.run(@compiling, line),
          [_, _, _, _, path] <- Regex.run(@wait, rest) do
-      put({:compiling, path}, String.to_integer(compiling))
+      put(profile, {:compiling, path}, String.to_integer(compiling))
     end
 
     case Regex.run(@wait, line) do
       [_, duration, kind, on, path] when kind != "" ->
-        put({:wait, path}, {kind, on, String.to_integer(duration)})
+        put(profile, {:wait, path}, {kind, on, String.to_integer(duration)})
 
       _ ->
         :ok
     end
   end
 
-  @doc false
-  def files(project_source \\ project_source()) do
-    entries = :ets.tab2list(@table)
-    dependencies = dependencies(entries, project_source)
+  @doc """
+  The files `profile` saw compiled, each with when it started, how long it
+  compiled and waited, the modules it defines and the project files it
+  depends on. `project_source` resolves a module that was not compiled in
+  this run to its source file.
+  """
+  def files(profile, project_source \\ project_source()) do
+    entries = :ets.tab2list(profile.entries)
+    dependencies = dependencies(entries, :ets.tab2list(profile.references), project_source)
 
     origin =
       Enum.find_value(entries, fn entry -> match?({:origin, _}, entry) && elem(entry, 1) end)
@@ -235,11 +268,9 @@ defmodule TuistEx.Analytics.CompileProfile do
 
   Steps that took no measurable time are dropped.
   """
-  def steps do
-    if :ets.whereis(@table) == :undefined, do: [], else: steps(:ets.tab2list(@table))
-  end
+  def steps(profile) do
+    entries = :ets.tab2list(profile.entries)
 
-  defp steps(entries) do
     origin =
       Enum.find_value(entries, fn entry -> match?({:origin, _}, entry) && elem(entry, 1) end)
 
@@ -265,14 +296,15 @@ defmodule TuistEx.Analytics.CompileProfile do
         step(category, title, nil, origin, at - duration, duration)
       end
 
-    compilers =
+    finished =
       for({:compiler, {name, at}} <- entries, do: {name, at})
       |> Enum.sort_by(&elem(&1, 1))
       |> Enum.chunk_every(2, 1, :discard)
-      |> Enum.reject(fn [_previous, {name, _at}] -> name == :elixir end)
-      |> Enum.map(fn [{_previous, started_at}, {name, at}] ->
+
+    compilers =
+      for [{_previous, started_at}, {name, at}] <- finished, name != :elixir do
         step("compiler", "mix compile.#{name}", nil, origin, started_at, at - started_at)
-      end)
+      end
 
     (type_checks ++ phases ++ compilers)
     |> Enum.filter(&(&1.duration_ms > 0 and is_integer(&1.start_offset_ms)))
@@ -305,10 +337,7 @@ defmodule TuistEx.Analytics.CompileProfile do
   # file => [%{path, kind}]: the project files it references, with the
   # strongest kind when it references a file in more than one way. Modules
   # outside the project (dependencies, the standard library) are left out.
-  defp dependencies(entries, project_source) do
-    references =
-      if :ets.whereis(@references) == :undefined, do: [], else: :ets.tab2list(@references)
-
+  defp dependencies(entries, references, project_source) do
     defined = Map.new(for {{:module, file}, {module, _at}} <- entries, do: {module, file})
 
     sources =
@@ -378,22 +407,23 @@ defmodule TuistEx.Analytics.CompileProfile do
 
   defp file(env), do: Path.relative_to_cwd(env.file)
 
-  defp put(key, value) do
-    if :ets.whereis(@table) != :undefined, do: :ets.insert(@table, {key, value})
+  defp put(profile, key, value) do
+    :ets.insert(profile.entries, {key, value})
     :ok
   rescue
-    _ -> :ok
+    # The profile's owner is gone; there is nobody left to report to.
+    ArgumentError -> :ok
   end
 
   # Standard error proxy
 
-  defp install_proxy(show_profile?) do
+  defp install_proxy(profile, show_profile?) do
     case Process.whereis(:standard_error) do
       nil ->
         nil
 
       device ->
-        proxy = spawn(fn -> proxy_loop(device, show_profile?) end)
+        proxy = spawn(fn -> proxy_loop(profile, device, show_profile?) end)
         Process.unregister(:standard_error)
         Process.register(proxy, :standard_error)
         %{pid: proxy, device: device}
@@ -412,32 +442,32 @@ defmodule TuistEx.Analytics.CompileProfile do
     :ok
   end
 
-  defp proxy_loop(device, show_profile?) do
+  defp proxy_loop(profile, device, show_profile?) do
     receive do
       :stop ->
         :ok
 
       {:io_request, from, reply_as, request} = message ->
-        if profile_line?(request) and not show_profile? do
+        if profile_line?(profile, request) and not show_profile? do
           send(from, {:io_reply, reply_as, :ok})
         else
           send(device, message)
         end
 
-        proxy_loop(device, show_profile?)
+        proxy_loop(profile, device, show_profile?)
 
       message ->
         send(device, message)
-        proxy_loop(device, show_profile?)
+        proxy_loop(profile, device, show_profile?)
     end
   end
 
-  defp profile_line?({:put_chars, _encoding, chars}), do: profile_text?(chars)
-  defp profile_line?({:put_chars, chars}), do: profile_text?(chars)
-  defp profile_line?(_request), do: false
+  defp profile_line?(profile, {:put_chars, _encoding, chars}), do: profile_text?(profile, chars)
+  defp profile_line?(profile, {:put_chars, chars}), do: profile_text?(profile, chars)
+  defp profile_line?(_profile, _request), do: false
 
-  defp profile_text?(chars) do
-    chars |> IO.chardata_to_string() |> record_profile_output()
+  defp profile_text?(profile, chars) do
+    record_profile_output(profile, IO.chardata_to_string(chars))
   rescue
     _ -> false
   end

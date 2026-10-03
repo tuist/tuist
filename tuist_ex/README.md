@@ -1,9 +1,15 @@
 # Tuist for Elixir
 
-This package provides `mix tuist.login` for authentication and `mix tuist.test`
-for ExUnit analytics, both writing to the same Tuist server the command line
-tool and Gradle plugin use. Compile analytics land in a separate follow-up
-package release.
+This package connects an Elixir project to Tuist: it reports your test runs
+and builds to the dashboard, flags flaky tests, and splits a test suite across
+machines. It adds `mix tuist.login`, `mix tuist.test`, `mix tuist.compile` and
+`mix tuist.test.build`, and writes to the same Tuist server the command line
+tool and the Gradle plugin use.
+
+The guides live in the Tuist documentation: start with
+[Elixir project](https://tuist.dev/en/docs/guides/get-started/elixir-project), and
+see [Install the Hex package](https://tuist.dev/en/docs/guides/install-hex-package)
+for every option.
 
 ## Configure the server and project
 

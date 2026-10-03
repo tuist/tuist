@@ -1,7 +1,14 @@
 defmodule TuistEx.Analytics.ExUnitFormatterTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias TuistEx.Analytics.ExUnitFormatter
+
+  # A fixed environment, so building a payload never asks git about the
+  # checkout the tests happen to run in.
+  defp environment("GIT_BRANCH"), do: "main"
+  defp environment("GIT_COMMIT"), do: "0000000000000000000000000000000000000000"
+  defp environment("GIT_REMOTE_URL"), do: "https://github.com/acme/widgets.git"
+  defp environment(_name), do: nil
 
   defp new_test(overrides) do
     struct(
@@ -185,7 +192,13 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
             {:suite_finished, %{run: 1_000}}
           ]
         ] do
-      {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: :defer)
+      {:ok, pid} =
+        GenServer.start_link(ExUnitFormatter,
+          environment: &environment/1,
+          submit: submit,
+          mode: {:defer, self()}
+        )
+
       send_lifecycle(pid, events)
       :ok = GenServer.stop(pid)
     end
@@ -206,7 +219,13 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
       {:suite_finished, %{run: 1_000}}
     ]
 
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: :defer)
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: submit,
+        mode: {:defer, self()}
+      )
+
     send_lifecycle(pid, events)
     :ok = GenServer.stop(pid)
 
@@ -217,7 +236,14 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert_received {:submitted, %{}}
 
     path = Path.join(System.tmp_dir!(), "tuist-ex-collect-#{System.unique_integer([:positive])}")
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: {:collect, path})
+
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: submit,
+        mode: {:collect, path}
+      )
+
     send_lifecycle(pid, events)
     :ok = GenServer.stop(pid)
 
@@ -225,7 +251,13 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert [%{name: "example", status: "success"}] = ExUnitFormatter.read_collected(path)
 
     # An umbrella runs a suite per application: each adds to the same file.
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, mode: {:collect, path})
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: submit,
+        mode: {:collect, path}
+      )
+
     send_lifecycle(pid, events)
     :ok = GenServer.stop(pid)
     assert length(ExUnitFormatter.read_collected(path)) == 2
@@ -234,26 +266,25 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
   end
 
   test "a formatter given its own submit function ignores the options of the surrounding run" do
-    previous = Application.get_env(:tuist_ex, :analytics_options)
-    Application.put_env(:tuist_ex, :analytics_options, mode: :defer, project: "acme/widgets")
+    configured = [mode: {:defer, self()}, project: "acme/widgets"]
+    submit = fn _payload, _opts -> :ok end
 
-    on_exit(fn ->
-      if previous,
-        do: Application.put_env(:tuist_ex, :analytics_options, previous),
-        else: Application.delete_env(:tuist_ex, :analytics_options)
-    end)
+    assert ExUnitFormatter.run_options([submit: submit], configured) == [submit: submit]
 
-    {:ok, %{opts: injected}} = ExUnitFormatter.init(submit: fn _payload, _opts -> :ok end)
-    refute Keyword.has_key?(injected, :mode)
-
-    # The one ExUnit starts for the run gets them.
-    {:ok, %{opts: run}} = ExUnitFormatter.init(seed: 1)
-    assert run[:mode] == :defer
-    assert run[:project] == "acme/widgets"
+    # The one ExUnit starts for the run gets them, and its own options win.
+    run = ExUnitFormatter.run_options([seed: 1, project: "other/app"], configured)
+    assert run[:mode] == {:defer, self()}
+    assert run[:project] == "other/app"
+    assert run[:seed] == 1
   end
 
   test "records a passing test as success" do
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: fn _payload, _opts -> :ok end)
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: fn _payload, _opts -> :ok end
+      )
+
     GenServer.cast(pid, {:test_finished, new_test([])})
     assert [record] = capture_state(pid).tests
     assert record.status == "success"
@@ -303,7 +334,8 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
       :ok
     end
 
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit)
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter, environment: &environment/1, submit: submit)
 
     events = [
       {:suite_started, [max_cases: 8]},
@@ -354,7 +386,8 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
       :ok
     end
 
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit)
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter, environment: &environment/1, submit: submit)
 
     events = [
       {:suite_started, []},
@@ -396,7 +429,12 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
       :ok
     end
 
-    {:ok, pid} = GenServer.start_link(ExUnitFormatter, submit: submit, shell: shell)
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: submit,
+        shell: shell
+      )
 
     GenServer.cast(pid, {:suite_started, []})
     GenServer.cast(pid, {:test_finished, new_test([])})

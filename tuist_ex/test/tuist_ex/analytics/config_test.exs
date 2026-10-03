@@ -15,7 +15,23 @@ defmodule TuistEx.Analytics.ConfigTest do
     assert resolved.project_handle == %{account: "acme", project: "widgets"}
   end
 
-  test "accepts explicit options that override the environment" do
+  test "the environment takes precedence over explicit options" do
+    environment = fn
+      "TUIST_URL" -> "https://env.example"
+      "TUIST_PROJECT" -> "env/project"
+      _ -> nil
+    end
+
+    assert {:ok,
+            %{url: "https://env.example", project_handle: %{account: "env", project: "project"}}} =
+             Config.resolve(
+               environment: environment,
+               url: "https://option.example",
+               project: "option/project"
+             )
+  end
+
+  test "uses explicit options when the environment sets nothing" do
     environment = fn _ -> nil end
 
     assert {:ok, resolved} =
@@ -40,14 +56,16 @@ defmodule TuistEx.Analytics.ConfigTest do
   end
 
   test "returns an error when the project handle is malformed" do
-    environment = fn
-      "TUIST_URL" -> "https://tuist.example"
-      "TUIST_PROJECT" -> "acmenoslash"
-      _ -> nil
-    end
+    for handle <- ["acmenoslash", "/acme/widgets", "acme//widgets", "acme/widgets/", "acme/"] do
+      environment = fn
+        "TUIST_URL" -> "https://tuist.example"
+        "TUIST_PROJECT" -> handle
+        _ -> nil
+      end
 
-    assert {:error, message} = Config.resolve(environment: environment)
-    assert message =~ "Invalid Tuist project handle"
+      assert {:error, message} = Config.resolve(environment: environment)
+      assert message =~ "Invalid Tuist project handle"
+    end
   end
 
   test "rejects a URL without a scheme" do

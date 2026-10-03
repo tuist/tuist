@@ -216,6 +216,12 @@ defmodule TuistEx.Analytics.ShardsTest do
     end
   end
 
+  test "counts read naturally in the messages the tasks print" do
+    assert Shards.count(1, "test file") == "1 test file"
+    assert Shards.count(0, "shard") == "0 shards"
+    assert Shards.count(3, "shard") == "3 shards"
+  end
+
   test "a plan without a build tells the shard to compile for itself" do
     assert Shards.download_build(nil, "/nowhere") == {:error, :no_build}
   end
