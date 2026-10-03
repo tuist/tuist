@@ -10,7 +10,9 @@ defmodule AtlasWeb.DocsHTML do
 
   @pages (for {slug, title, category, section, description} <- [
                 {"", "Overview", "Overview", "Atlas",
-                 "Built at Tuist to maximize value per employee: shared organizational context for people, agents, and bots."}
+                 "Built at Tuist to maximize value per employee: shared organizational context for people, agents, and bots."},
+                {"self-hosting", "Self-hosting", "Guides", "Self-hosting",
+                 "Deploy Atlas with Docker Compose or Helm on your own infrastructure."}
               ] do
             path = Path.expand("../../../priv/docs/#{if(slug == "", do: "overview", else: slug)}.md", __DIR__)
             @external_resource path

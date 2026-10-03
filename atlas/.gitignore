@@ -61,3 +61,6 @@ npm-debug.log
 
 # Isolated Chrome profiles and partial documentation images.
 /priv/static/images/docs/.atlas-docs-images-*/
+
+# Self-hosted deployment secrets
+/.env

@@ -16,7 +16,7 @@ defmodule AtlasWeb.DocsControllerTest do
   end
 
   test "unfinished documentation is unavailable in both formats", %{conn: conn} do
-    for slug <- ~w(self-hosting installation first-administrator development configuration integrations workspace) do
+    for slug <- ~w(installation first-administrator development configuration integrations workspace) do
       assert response(get(conn, "/docs/#{slug}"), 404)
       assert response(get(conn, "/docs-markdown/#{slug}"), 404)
     end
@@ -71,10 +71,12 @@ defmodule AtlasWeb.DocsControllerTest do
     assert response(get(conn, "/docs-markdown/missing"), 404)
   end
 
-  test "overview keeps page-copy controls without premature deployment navigation", %{conn: conn} do
+  test "overview links to published guides and keeps page-copy controls", %{conn: conn} do
     document = conn |> get("/docs") |> html_response(200) |> LazyHTML.from_document()
     assert Enum.empty?(LazyHTML.query(document, "#docs-nav-tabs, [data-part=hero-cards]"))
-    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a")) == 1
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a")) == 2
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a[href='/docs']")) == 1
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a[href='/docs/self-hosting']")) == 1
     assert Enum.count(LazyHTML.query(document, "[data-part=admonition][data-status=information]")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-copy-dropdown")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-mobile-copy-dropdown")) == 1
