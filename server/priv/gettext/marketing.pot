@@ -2659,12 +2659,12 @@ msgstr ""
 msgid "Activity delayed · showing last update"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:128
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "All caches"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:131
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Bazel"
 msgstr ""
@@ -2674,7 +2674,7 @@ msgstr ""
 msgid "Cache download requests today"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:147
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
 msgstr ""
@@ -2684,12 +2684,12 @@ msgstr ""
 msgid "Cache globe"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:123
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:239
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Cache serving regions"
 msgstr ""
@@ -2709,7 +2709,7 @@ msgstr ""
 msgid "Full screen"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:130
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Gradle"
 msgstr ""
@@ -2734,12 +2734,12 @@ msgstr ""
 msgid "Reconnecting · showing last update"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:242
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:243
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -2779,7 +2779,7 @@ msgstr ""
 msgid "Watch the cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:129
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Xcode"
 msgstr ""
