@@ -13,4 +13,12 @@ defmodule Tuist.OnceEvents.GRPCEndpoint do
   intercept(TuistWeb.RateLimit.OnceEvents)
 
   run(Tuist.OnceEvents.RunEventService)
+
+  @unauthenticated GRPC.Status.unauthenticated()
+
+  # The adapter logs every raised `GRPC.RPCError` at error level, which reaches
+  # Sentry. A rejected credential or project is the client's problem and the
+  # client already receives the status, so only server faults are logged.
+  def log_exception?(%GRPC.Server.Adapters.ReportException{reason: %GRPC.RPCError{status: @unauthenticated}}), do: false
+  def log_exception?(_exception), do: true
 end

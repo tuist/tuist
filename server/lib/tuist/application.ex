@@ -25,6 +25,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.OnceEvents.GRPCEndpoint
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -662,7 +663,10 @@ defmodule Tuist.Application do
           value -> String.to_integer(value)
         end
 
-      [{GRPC.Server.Supervisor, endpoint: Tuist.OnceEvents.GRPCEndpoint, port: port, start_server: true}]
+      [
+        {GRPC.Server.Supervisor,
+         endpoint: GRPCEndpoint, port: port, start_server: true, exception_log_filter: {GRPCEndpoint, :log_exception?}}
+      ]
     else
       []
     end
