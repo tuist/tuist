@@ -64,7 +64,7 @@ The **Warnings** and **Errors** tabs list the diagnostics of the build.
 
 ## Custom metadata {#custom-metadata}
 
-Attach tags and key-value data to Mix builds to compare runs from different teams, hardware, or workflows. Tags are available as dashboard filters, and values appear on each build's detail page.
+Attach tags and key-value data to Mix builds to tell apart runs from different teams, hardware, or workflows. Both appear on each build's detail page.
 
 Set metadata with environment variables:
 
