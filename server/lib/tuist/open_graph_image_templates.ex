@@ -12,11 +12,15 @@ defmodule Tuist.OpenGraphImageTemplates do
   alias Tuist.Marketing.Customers.CoverArtwork
   alias Tuist.Marketing.OgImages, as: MarketingImages
   alias Tuist.Marketing.OpenGraph
+  alias Tuist.Marketing.Overdrive
+  alias Tuist.Marketing.Overdrive.OgImage, as: OverdriveImage
   alias Tuist.OpenGraphImageRenderer
   alias Tuist.OpenGraphImages
 
   @max_title_length 500
   @max_description_length 1_000
+  @max_stat_length 16
+  @overdrive_stats [{"builds", "Builds"}, {"cache_hit_rate", "Cache hit rate"}, {"test_runs", "Test runs"}]
 
   def spec(%{"template" => "marketing", "title" => title} = params) do
     if allowed_keys?(params, ["template", "title"], []) and valid_text?(title, @max_title_length) do
@@ -98,6 +102,34 @@ defmodule Tuist.OpenGraphImageTemplates do
     end
   end
 
+  def spec(%{"template" => "marketing_overdrive", "handle" => handle} = params) do
+    stat_keys = Enum.map(@overdrive_stats, &elem(&1, 0))
+
+    entry = Overdrive.get_entry(handle)
+
+    if allowed_keys?(params, ["template", "handle"], stat_keys) and not is_nil(entry) and
+         Enum.all?(stat_keys, &valid_optional_text?(Map.get(params, &1), @max_stat_length)) do
+      fonts_dir = Path.join(Application.app_dir(:tuist, "priv"), "static/fonts")
+
+      stats =
+        for {key, label} <- @overdrive_stats, value = Map.get(params, key), do: {label, value}
+
+      build_spec(params, overdrive_asset_hash(), fn ->
+        html =
+          OverdriveImage.render_html(
+            name: entry.name,
+            upstream_handle: entry.upstream_handle,
+            stats: stats,
+            fonts_dir: fonts_dir
+          )
+
+        OpenGraphImageRenderer.render(html, handle)
+      end)
+    else
+      :error
+    end
+  end
+
   def spec(_params), do: :error
 
   defp build_spec(params, asset_hash, render) do
@@ -142,6 +174,16 @@ defmodule Tuist.OpenGraphImageTemplates do
       {:module, MarketingImages},
       {:module, OpenGraphImageRenderer},
       {:module, BlogCoverArtwork}
+    ])
+  end
+
+  defp overdrive_asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OpenGraphImages.cached_key(:marketing_overdrive_open_graph_template_assets, [
+      {:module, OverdriveImage},
+      {:module, OpenGraphImageRenderer},
+      {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end
 

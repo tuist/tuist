@@ -93,4 +93,26 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
 
     assert {:ok, <<0xFF, 0xD8, _rest::binary>>} = spec.render.()
   end
+
+  test "builds Overdrive specs for curated forks and re-keys them when a number changes" do
+    params = %{"template" => "marketing_overdrive", "handle" => "tuist/mise", "builds" => "1.2K"}
+
+    assert {:ok, spec} = OpenGraphImageTemplates.spec(params)
+
+    assert {:ok, other_spec} =
+             OpenGraphImageTemplates.spec(%{params | "builds" => "1.3K"})
+
+    refute spec.key == other_spec.key
+  end
+
+  test "rejects Overdrive specs for projects that aren't curated" do
+    assert OpenGraphImageTemplates.spec(%{"template" => "marketing_overdrive", "handle" => "tuist/tuist"}) ==
+             :error
+
+    assert OpenGraphImageTemplates.spec(%{
+             "template" => "marketing_overdrive",
+             "handle" => "tuist/mise",
+             "title" => "Anything"
+           }) == :error
+  end
 end
