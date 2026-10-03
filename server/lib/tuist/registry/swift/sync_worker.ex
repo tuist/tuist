@@ -200,9 +200,12 @@ defmodule Tuist.Registry.Swift.SyncWorker do
                      String.downcase(repository_full_handle))
                ) do
             nil ->
-              Logger.warning("Registry force resync skipped: package is not in the catalog: #{repository_full_handle}")
-
-              {:discard, :package_not_found}
+              resync_unlisted_package_version(
+                repository_full_handle,
+                normalized_version,
+                resync_flags,
+                token
+              )
 
             package ->
               force_resync_package_version(package, normalized_version, resync_flags, token)
@@ -221,6 +224,55 @@ defmodule Tuist.Registry.Swift.SyncWorker do
       Logger.warning("Registry force resync skipped: invalid version #{version} for #{repository_full_handle}")
 
       {:discard, :invalid_version}
+    end
+  end
+
+  # A repository that upstream renamed, transferred, or delisted stops appearing
+  # in the Swift Package Index list under the handle we mirror it as, so the
+  # lookup above cannot find it. Discarding there makes exactly the packages most
+  # likely to need repair the ones that cannot be repaired: the registry keeps
+  # serving them under the original identity while no resync can reach them.
+  #
+  # The gate is that we already serve the package — a catalog document must exist
+  # for the identity derived from the requested handle. That keeps this from
+  # becoming a way to mirror something never mirrored before, and it is why the
+  # requested handle rather than the current upstream name is what matters here.
+  #
+  # The stored `repository_full_handle` is used for the fetch even though it is
+  # the pre-rename name. GitHub redirects it, and adopting the new name instead
+  # would publish under a scope no client resolves, leaving the identity clients
+  # actually pin untouched.
+  defp resync_unlisted_package_version(repository_full_handle, version, resync_flags, token) do
+    case String.split(repository_full_handle, "/", parts: 2) do
+      [scope, name] ->
+        {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
+        resync_mirrored_package_version(scope, name, repository_full_handle, version, resync_flags, token)
+
+      _ ->
+        Logger.warning("Registry force resync skipped: malformed handle #{repository_full_handle}")
+
+        {:discard, :package_not_found}
+    end
+  end
+
+  defp resync_mirrored_package_version(scope, name, repository_full_handle, version, resync_flags, token) do
+    case Metadata.get_package(scope, name) do
+      {:ok, metadata} ->
+        full_handle = Map.get(metadata, "repository_full_handle") || repository_full_handle
+
+        Logger.info(
+          "Registry force resync for a package absent from the index, using the mirrored handle: #{full_handle}"
+        )
+
+        do_force_resync_package_version(scope, name, full_handle, version, resync_flags, token)
+
+      {:error, :not_found} ->
+        Logger.warning("Registry force resync skipped: package is not in the catalog: #{repository_full_handle}")
+
+        {:discard, :package_not_found}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
