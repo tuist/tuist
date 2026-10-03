@@ -196,7 +196,15 @@ final class DumpServiceTests: TuistTestCase {
             {
               "fullHandle": "tuist/tuist",
               "inspectOptions": {
+                "implicitDependencies": {
+                  "ignoreDependencies": {
+
+                  }
+                },
                 "redundantDependencies": {
+                  "ignoreDependencies": {
+
+                  },
                   "ignoreTagsMatching": [
 
                   ]

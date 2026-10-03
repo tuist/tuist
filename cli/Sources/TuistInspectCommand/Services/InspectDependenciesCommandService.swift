@@ -45,14 +45,20 @@
             var checksRun: [String] = []
 
             if inspectionTypes.contains(.implicit) {
-                implicitIssues = try await collectImplicitIssues(graphTraverser: graphTraverser)
+                implicitIssues = filter(
+                    try await collectImplicitIssues(graphTraverser: graphTraverser),
+                    ignoring: config.inspectOptions.implicitDependencies.ignoreDependencies
+                )
                 checksRun.append("implicit")
             }
 
             if inspectionTypes.contains(.redundant) {
-                redundantIssues = try await collectRedundantIssues(
-                    graphTraverser: graphTraverser,
-                    ignoreTagsMatching: config.inspectOptions.redundantDependencies.ignoreTagsMatching
+                redundantIssues = filter(
+                    try await collectRedundantIssues(
+                        graphTraverser: graphTraverser,
+                        ignoreTagsMatching: config.inspectOptions.redundantDependencies.ignoreTagsMatching
+                    ),
+                    ignoring: config.inspectOptions.redundantDependencies.ignoreDependencies
                 )
                 checksRun.append("redundant")
             }
@@ -106,6 +112,16 @@
                 inspectType: .redundant,
                 ignoreTagsMatching: ignoreTagsMatching
             )
+        }
+
+        private func filter(
+            _ issues: [InspectImportsIssue],
+            ignoring ignoredDependencies: [String: Set<String>]
+        ) -> [InspectImportsIssue] {
+            issues.compactMap { issue in
+                let dependencies = issue.dependencies.subtracting(ignoredDependencies[issue.target, default: []])
+                return dependencies.isEmpty ? nil : InspectImportsIssue(target: issue.target, dependencies: dependencies)
+            }
         }
 
         private func results(
