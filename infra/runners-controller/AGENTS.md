@@ -506,6 +506,52 @@ independent workqueues:
   itself. Series are dropped (`metrics.Clear`) when a pool is deleted or
   opts out of autoscaling.
 
+  **Free seats, and why it is a second gauge.**
+  `tuist_runners_fleet_shape_seats_free{fleet_selector,operating_system,shape}`
+  is how many MORE Pods of each shape the fleet could place right now:
+  per healthy node, allocatable minus what that node's Pods already
+  reserve, divided by the shape's placement footprint, then the per-node
+  quotients summed. Never a fleet-wide total divided at the end. On
+  2026-09-07 the four-node Linux fleet held ~38 GiB free against a
+  `16vcpu-32gb` Pod's contiguous 34.5 GiB, which a fleet-wide budget
+  reads as one placeable Pod; the largest single-node hole was 20 GiB
+  and the truth was zero, and a customer's job waited an hour for the
+  second host that could seat it.
+
+  Distinct from `shapePlacementCaps` on purpose. That one deliberately
+  ignores occupancy, because the allocator sizes a steady-state target
+  the running Pods are themselves part of; this one has to subtract it,
+  because an alert needs the room left over. On a full fleet the cap
+  still reads 24 seats for `4vcpu-16gb` while free seats reads 0, and
+  both readings are correct. `nodeFreeSeatsForShape` is therefore a
+  sibling of `nodeSeatsForShape` rather than a change to it.
+
+  A Pod's claim is `podRequestsOf`: regular containers plus native
+  sidecars, floored by the peak an init container reaches, plus
+  `spec.overhead`. Reading the overhead is what keeps the two sides of
+  the division agreeing, since `placementShapeOf` folds the same
+  RuntimeClass `podFixed` into the shape. Pods in a terminal phase are
+  skipped; Pods merely `Terminating` are not, because a kata sandbox
+  whose shim never tore the microVM down still holds its node.
+
+  Counted from the runners namespace, which is the controller's whole
+  cache. Everything else on those hosts is a DaemonSet, measured at
+  0.36 GiB and 0.16 CPU per node on the production fleet, so the
+  omission biases the gauge towards reporting seats rather than away and
+  cannot invent the zero the alert fires on. It could not be built from
+  kube-state-metrics regardless: the `tuist-runners` namespace is absent
+  from KSM in production, so a KSM per-node query reports every host
+  nearly empty while runner Pods are on it.
+
+  Shapes are labelled by the advertised `<vcpus>vcpu-<gb>gb` rung rather
+  than the placement footprint, so the label matches the pool name Helm
+  renders and an alert can name the shape that stopped fitting.
+  `metrics.SetFleetShapeSeatsFree` replaces a fleet's whole shape set
+  each tick, deleting rungs that have left the catalog rather than
+  leaving them frozen on a stale seat count. The alert built on it is
+  "Linux fleet cannot seat a shape" in
+  `infra/helm/k8s-monitoring/alerts.md`.
+
   `RunnerPoolReconciler` also publishes
   `tuist_runners_pool_phase_replicas{pool,phase}` for alive Pods by
   Kubernetes phase (`Pending`, `Running`, `Unknown`). This preserves the

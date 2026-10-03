@@ -24,8 +24,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
@@ -1141,4 +1143,359 @@ func linuxNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int6
 			},
 		},
 	}
+}
+
+// The 2026-09-07 squeeze, which is the reason this gauge exists. The
+// fleet-wide byte budget is not the answer: 4 nodes holding 9.5 GiB
+// free each is 38 GiB, more than one `16vcpu-32gb` Pod's contiguous
+// 34.5 GiB, and no node can take it.
+func TestAutoscaler_FreeSeatsAreNotAFleetWideTotal(t *testing.T) {
+	const fleet = "runners-linux"
+	ceiling := placementShape("16vcpu-32gb", 16250, 32*1024+2560)
+
+	objects := []client.Object{}
+	for i := 0; i < 4; i++ {
+		node := fmt.Sprintf("rise-l-%d", i)
+		objects = append(objects, linuxNodeWithResources(node, fleet, 31, 117*1024))
+		// 107.6 GiB reserved of 117 leaves 9.4 GiB per node.
+		objects = append(objects, runnerPodOnNode(fmt.Sprintf("pod-%d", i), node, 8000, 107.6*1024))
+	}
+
+	seats := freeSeatsForTest(t, objects, fleet, map[string]podShape{ceiling.key(): ceiling})
+	if got := seats["16vcpu-32gb"]; got != 0 {
+		t.Fatalf("free seats = %d, want 0 (38 GiB free fleet-wide, largest hole 9.4 GiB)", got)
+	}
+}
+
+// The same fleet the moment one node drains: the total free memory
+// barely moves, but a seat appears. This is the transition the alert
+// resolves on, and the fleet-wide total cannot see it.
+func TestAutoscaler_FreeSeatsAppearWhenOneNodeClears(t *testing.T) {
+	const fleet = "runners-linux"
+	ceiling := placementShape("16vcpu-32gb", 16250, 32*1024+2560)
+
+	objects := []client.Object{}
+	for i := 0; i < 4; i++ {
+		node := fmt.Sprintf("rise-l-%d", i)
+		objects = append(objects, linuxNodeWithResources(node, fleet, 31, 117*1024))
+		if i == 0 {
+			continue
+		}
+		objects = append(objects, runnerPodOnNode(fmt.Sprintf("pod-%d", i), node, 8000, 107.6*1024))
+	}
+
+	seats := freeSeatsForTest(t, objects, fleet, map[string]podShape{ceiling.key(): ceiling})
+	if got := seats["16vcpu-32gb"]; got != 1 {
+		t.Fatalf("free seats = %d, want 1 (the cleared node, CPU-bound at 31/16.25)", got)
+	}
+}
+
+// Occupancy is what separates this from shapePlacementCaps. On an empty
+// fleet the two agree; the seat cap then stays put while free seats
+// drains, because the allocator sizes a steady state the running Pods
+// are part of and an alert needs the room left over.
+func TestAutoscaler_FreeSeatsDrainWhileSeatCapHolds(t *testing.T) {
+	const fleet = "runners-linux"
+	big := placementShape("4vcpu-16gb", 4250, 16*1024+2560)
+	shapes := map[string]podShape{big.key(): big}
+
+	var empty []client.Object
+	for i := 0; i < 4; i++ {
+		empty = append(empty, linuxNodeWithResources(fmt.Sprintf("rise-l-%d", i), fleet, 31, 117*1024))
+	}
+	if got := freeSeatsForTest(t, empty, fleet, shapes)["4vcpu-16gb"]; got != 24 {
+		t.Fatalf("free seats on an empty fleet = %d, want 24 (the seat cap)", got)
+	}
+
+	occupied := append([]client.Object{}, empty...)
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 6; j++ {
+			occupied = append(occupied, withKataOverhead(runnerPodOnNode(
+				fmt.Sprintf("pod-%d-%d", i, j), fmt.Sprintf("rise-l-%d", i), 4000, 16*1024)))
+		}
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(occupied...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+	pool := linuxFreeSeatsPool(fleet)
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, shapes)
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if got := caps[big.key()]; got != 24 {
+		t.Fatalf("seat cap with the fleet full = %d, want 24 (occupancy is not subtracted there)", got)
+	}
+
+	seats, err := r.fleetShapeSeatsFree(context.Background(), pool, shapes)
+	if err != nil {
+		t.Fatalf("fleetShapeSeatsFree: %v", err)
+	}
+	if got := seats["4vcpu-16gb"]; got != 0 {
+		t.Fatalf("free seats with the fleet full = %d, want 0", got)
+	}
+}
+
+// The RuntimeClass podFixed has to be charged on both sides of the
+// division. A Pod's share comes from spec.overhead, which the
+// RuntimeClass admission controller stamps on; ignoring it would credit
+// 2.5 GiB per running Pod back to the node and manufacture a seat.
+func TestAutoscaler_FreeSeatsChargeRuntimeClassOverhead(t *testing.T) {
+	const fleet = "runners-linux"
+	shape := placementShape("8vcpu-32gb", 8250, 32*1024+2560)
+
+	// Three Pods on a 168 GiB node. Charged at 34.5 GiB each they hold
+	// 103.5 GiB and leave room for exactly one more; charged at the bare
+	// 32 GiB they would hold 96 and leave room for two, so this asserts
+	// the overhead rather than merely tolerating it.
+	objects := []client.Object{linuxNodeWithResources("rise-l-0", fleet, 64, 168*1024)}
+	for i := 0; i < 3; i++ {
+		objects = append(objects, withKataOverhead(runnerPodOnNode(fmt.Sprintf("pod-%d", i), "rise-l-0", 8000, 32*1024)))
+	}
+
+	seats := freeSeatsForTest(t, objects, fleet, map[string]podShape{shape.key(): shape})
+	if got := seats["8vcpu-32gb"]; got != 1 {
+		t.Fatalf("free seats = %d, want 1 (168 - 3*34.5 = 64.5 GiB, one more 34.5 GiB Pod)", got)
+	}
+}
+
+// A Terminating kata Pod still holds its node's memory, the failure
+// that held two of four Linux nodes at 94% on 2026-09-03, so it counts.
+// A Pod that has actually finished does not.
+func TestAutoscaler_FreeSeatsCountTerminatingButNotFinishedPods(t *testing.T) {
+	const fleet = "runners-linux"
+	shape := placementShape("16vcpu-32gb", 16250, 32*1024+2560)
+	shapes := map[string]podShape{shape.key(): shape}
+
+	node := linuxNodeWithResources("rise-l-0", fleet, 31, 117*1024)
+	terminating := withKataOverhead(runnerPodOnNode("terminating", "rise-l-0", 16000, 32*1024))
+	terminating.DeletionTimestamp = ptr.To(metav1.Now())
+	terminating.Finalizers = []string{"tuist.dev/test-hold"}
+
+	if got := freeSeatsForTest(t, []client.Object{node, terminating}, fleet, shapes)["16vcpu-32gb"]; got != 0 {
+		t.Fatalf("free seats with a Terminating Pod = %d, want 0 (its microVM still holds the node)", got)
+	}
+
+	finished := withKataOverhead(runnerPodOnNode("finished", "rise-l-0", 16000, 32*1024))
+	finished.Status.Phase = corev1.PodSucceeded
+	if got := freeSeatsForTest(t, []client.Object{node, finished}, fleet, shapes)["16vcpu-32gb"]; got != 1 {
+		t.Fatalf("free seats with a Succeeded Pod = %d, want 1 (kubelet released its sandbox)", got)
+	}
+}
+
+// Unschedulable and pressured nodes contribute zero, the same exclusion
+// shapePlacementCaps applies. A cordon is how an operator takes a bad
+// host out, and a gauge that kept counting its empty memory would say
+// the fleet had room the scheduler will not use.
+func TestAutoscaler_FreeSeatsSkipUnhealthyNodes(t *testing.T) {
+	const fleet = "runners-linux"
+	shape := placementShape("16vcpu-32gb", 16250, 32*1024+2560)
+
+	cordoned := linuxNodeWithResources("rise-l-0", fleet, 31, 117*1024)
+	cordoned.Spec.Unschedulable = true
+	pressured := linuxNodeWithResources("rise-l-1", fleet, 31, 117*1024)
+	pressured.Status.Conditions = append(pressured.Status.Conditions,
+		corev1.NodeCondition{Type: corev1.NodeMemoryPressure, Status: corev1.ConditionTrue})
+	healthy := linuxNodeWithResources("rise-l-2", fleet, 31, 117*1024)
+
+	objects := []client.Object{cordoned, pressured, healthy}
+	if got := freeSeatsForTest(t, objects, fleet, map[string]podShape{shape.key(): shape})["16vcpu-32gb"]; got != 1 {
+		t.Fatalf("free seats = %d, want 1 (only the healthy node counts)", got)
+	}
+}
+
+// A Pod the scheduler has not bound yet holds no node's capacity, and
+// counting it against one would double-charge the fleet the moment it
+// lands.
+func TestAutoscaler_FreeSeatsIgnoreUnscheduledPods(t *testing.T) {
+	const fleet = "runners-linux"
+	shape := placementShape("16vcpu-32gb", 16250, 32*1024+2560)
+
+	pending := runnerPodOnNode("pending", "", 16000, 32*1024)
+	pending.Status.Phase = corev1.PodPending
+	objects := []client.Object{linuxNodeWithResources("rise-l-0", fleet, 31, 117*1024), pending}
+
+	if got := freeSeatsForTest(t, objects, fleet, map[string]podShape{shape.key(): shape})["16vcpu-32gb"]; got != 1 {
+		t.Fatalf("free seats = %d, want 1 (an unbound Pod reserves nothing)", got)
+	}
+}
+
+// Init containers are unset on runner Pods today, so this only has to
+// stay true: a native sidecar's request adds to the Pod's claim, and a
+// plain init container's is the floor it reaches while running, not an
+// addition on top of the runner container.
+func TestPodRequestsOfCountsSidecarsAndInitPeak(t *testing.T) {
+	pod := withKataOverhead(runnerPodOnNode("pod", "node", 4000, 8*1024))
+	pod.Spec.InitContainers = []corev1.Container{
+		{
+			Name:          "dind",
+			RestartPolicy: ptr.To(corev1.ContainerRestartPolicyAlways),
+			Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+			}},
+		},
+		{
+			Name: "prepare",
+			Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(8000, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(512*1024*1024, resource.BinarySI),
+			}},
+		},
+	}
+
+	got := podRequestsOf(pod)
+	// CPU: the init peak (500 sidecar + 8000) beats runner+sidecar
+	// (4000 + 500), then the 250m overhead goes on top.
+	if got.cpuMilli != 8750 {
+		t.Fatalf("cpuMilli = %d, want 8750 (init peak 8500 + 250m overhead)", got.cpuMilli)
+	}
+	// Memory: runner 8 GiB + sidecar 1 GiB beats the 1.5 GiB init peak,
+	// then kata's 2560Mi.
+	if want := int64((8*1024 + 1024 + 2560) * 1024 * 1024); got.memoryBytes != want {
+		t.Fatalf("memoryBytes = %d, want %d", got.memoryBytes, want)
+	}
+}
+
+// The rung name is what the alert reads, and it has to match the pool
+// name Helm renders (`...-runner-pool-linux-<rung>`) or the join in the
+// rule finds nothing.
+func TestPodShapeOfNamesTheAdvertisedRung(t *testing.T) {
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{PodCPUMilli: 16000, PodMemoryMB: 32 * 1024}}
+	if got := podShapeOf(pool).name; got != "16vcpu-32gb" {
+		t.Fatalf("name = %q, want %q", got, "16vcpu-32gb")
+	}
+
+	macos := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{PodCPUMilli: 12000, PodMemoryMB: 28672}}
+	if got := podShapeOf(macos).name; got != "12vcpu-28gb" {
+		t.Fatalf("name = %q, want %q", got, "12vcpu-28gb")
+	}
+}
+
+func freeSeatsForTest(t *testing.T, objects []client.Object, fleet string, shapes map[string]podShape) map[string]int {
+	t.Helper()
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	seats, err := r.fleetShapeSeatsFree(context.Background(), linuxFreeSeatsPool(fleet), shapes)
+	if err != nil {
+		t.Fatalf("fleetShapeSeatsFree: %v", err)
+	}
+	return seats
+}
+
+func linuxFreeSeatsPool(fleet string) *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "linux", Namespace: "tuist-runners"},
+		Spec:       tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: fleet},
+	}
+}
+
+// placementShape is a shape as gatherFleetDemands hands it over: the
+// footprint with RuntimeClass overhead already folded in, carrying the
+// advertised rung it was derived from.
+func placementShape(name string, cpuMilli, memoryMB int32) podShape {
+	return podShape{cpuMilli: cpuMilli, memoryMB: memoryMB, name: name}
+}
+
+func runnerPodOnNode(name, node string, cpuMilli int32, memoryMB float64) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "tuist-runners"},
+		Spec: corev1.PodSpec{
+			NodeName: node,
+			Containers: []corev1.Container{{
+				Name: "runner",
+				Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuMilli), resource.DecimalSI),
+					corev1.ResourceMemory: *resource.NewQuantity(int64(memoryMB*1024*1024), resource.BinarySI),
+				}},
+			}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+}
+
+// withKataOverhead stamps the podFixed the RuntimeClass admission
+// controller adds in a real cluster, which is where a live Pod's share
+// of the sandbox cost comes from.
+func withKataOverhead(pod *corev1.Pod) *corev1.Pod {
+	pod.Spec.Overhead = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewMilliQuantity(250, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(2560*1024*1024, resource.BinarySI),
+	}
+	return pod
+}
+
+// The wiring: a reconcile has to leave the gauge on the registry with
+// the labels the Grafana rule matches on. `fleet_selector` +
+// `operating_system` line it up with tuist_runners_fleet_ready_nodes,
+// and `shape` is the rung the alert names.
+func TestAutoscaler_ReconcilePublishesFreeSeats(t *testing.T) {
+	pool := linuxFleetPool("linux-16vcpu-32gb", 1, 32*1024, 0, 30)
+	pool.Spec.PodCPUMilli = 16000
+
+	r, server := setupReconciler(t, pool, scaling.Signals{Queued: 1})
+	defer server.Close()
+	t.Cleanup(func() { metrics.SetFleetShapeSeatsFree(pool.Spec.FleetSelector, "linux", nil) })
+
+	for i := 0; i < 4; i++ {
+		node := fmt.Sprintf("rise-l-%d", i)
+		if err := r.Create(context.Background(),
+			linuxNodeWithResources(node, pool.Spec.FleetSelector, 31, 117*1024)); err != nil {
+			t.Fatalf("create node: %v", err)
+		}
+		if err := r.Create(context.Background(),
+			runnerPodOnNode(fmt.Sprintf("pod-%d", i), node, 16000, 32*1024)); err != nil {
+			t.Fatalf("create pod: %v", err)
+		}
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got, ok := gaugeValue(t, "tuist_runners_fleet_shape_seats_free", map[string]string{
+		"fleet_selector":   pool.Spec.FleetSelector,
+		"operating_system": "linux",
+		"shape":            "16vcpu-32gb",
+	})
+	if !ok {
+		t.Fatal("tuist_runners_fleet_shape_seats_free not published for 16vcpu-32gb")
+	}
+	// One 16 vCPU Pod per node leaves 15 of 31 vCPUs, short of another
+	// 16.25, so the fleet is full for this shape however much of its
+	// 117 GiB is untouched.
+	if got != 0 {
+		t.Fatalf("seats free = %v, want 0", got)
+	}
+}
+
+func gaugeValue(t *testing.T, name string, labels map[string]string) (float64, bool) {
+	t.Helper()
+
+	families, err := ctrlmetrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			match := true
+			for _, pair := range metric.GetLabel() {
+				if want, ok := labels[pair.GetName()]; ok && want != pair.GetValue() {
+					match = false
+					break
+				}
+			}
+			if match && len(metric.GetLabel()) == len(labels) {
+				return metric.GetGauge().GetValue(), true
+			}
+		}
+	}
+	return 0, false
 }
