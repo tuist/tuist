@@ -11,6 +11,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias Tuist.Marketing.Content
   alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Overdrive
   alias Tuist.Marketing.Pages
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
@@ -681,6 +682,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/blog",
     "/changelog",
     "/customers",
+    "/overdrive",
     "/cache",
     "/tests",
     "/compute",
@@ -705,6 +707,14 @@ defmodule TuistWeb.Marketing.MarketingController do
         case_study.slug
         |> Localization.localized_href(locale)
         |> sitemap_entry(case_study.date)
+      end
+
+    overdrive_entries =
+      for locale <- Localization.all_locales(),
+          project <- Overdrive.list_projects() do
+        "/overdrive/#{project.handle}"
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(nil)
       end
 
     newsletter_issue_entries =
@@ -738,7 +748,8 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     entries =
       localized_entries ++
-        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
+        case_study_entries ++
+        overdrive_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
     |> assign(:entries, Enum.uniq_by(entries, & &1.loc))
