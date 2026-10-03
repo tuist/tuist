@@ -49,7 +49,7 @@ msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:123
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:127
-#: lib/tuist_web/live/gradle_tasks_live.ex:429
+#: lib/tuist_web/live/gradle_tasks_live.ex:431
 #, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr ""
@@ -85,7 +85,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
 #: lib/tuist_web/components/runs/ran_by_badge.ex:90
-#: lib/tuist_web/live/once_runs_live.ex:793
+#: lib/tuist_web/live/once_runs_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -111,7 +111,7 @@ msgstr ""
 msgid "Emails"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:187
+#: lib/tuist_web/controllers/error_html.ex:188
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
 #: lib/tuist_web/live/ops_database_live.html.heex:323
 #, elixir-autogen, elixir-format
@@ -134,7 +134,7 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:209
+#: lib/tuist_web/controllers/error_html.ex:210
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
 msgstr ""
@@ -193,17 +193,17 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
-#: lib/tuist_web/live/bazel_cache_live.ex:815
-#: lib/tuist_web/live/once_cache_live.ex:886
-#: lib/tuist_web/live/xcode_cache_live.html.heex:242
-#: lib/tuist_web/live/xcode_cache_live.html.heex:259
-#: lib/tuist_web/live/xcode_cache_live.html.heex:276
-#: lib/tuist_web/live/xcode_cache_live.html.heex:331
-#: lib/tuist_web/live/xcode_cache_live.html.heex:351
-#: lib/tuist_web/live/xcode_cache_live.html.heex:371
-#: lib/tuist_web/live/xcode_cache_live.html.heex:426
-#: lib/tuist_web/live/xcode_cache_live.html.heex:446
-#: lib/tuist_web/live/xcode_cache_live.html.heex:466
+#: lib/tuist_web/live/bazel_cache_live.ex:821
+#: lib/tuist_web/live/once_cache_live.ex:892
+#: lib/tuist_web/live/xcode_cache_live.html.heex:247
+#: lib/tuist_web/live/xcode_cache_live.html.heex:264
+#: lib/tuist_web/live/xcode_cache_live.html.heex:281
+#: lib/tuist_web/live/xcode_cache_live.html.heex:336
+#: lib/tuist_web/live/xcode_cache_live.html.heex:356
+#: lib/tuist_web/live/xcode_cache_live.html.heex:376
+#: lib/tuist_web/live/xcode_cache_live.html.heex:431
+#: lib/tuist_web/live/xcode_cache_live.html.heex:451
+#: lib/tuist_web/live/xcode_cache_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr ""

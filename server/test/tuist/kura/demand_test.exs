@@ -274,7 +274,7 @@ defmodule Tuist.Kura.DemandTest do
                :ets.lookup(Kicks, account_id)
 
       assert streak_started_ms >= now
-      assert next_allowed_ms - now <= to_timeout(second: 5)
+      assert next_allowed_ms - streak_started_ms == to_timeout(second: 5)
     end
   end
 end

@@ -15,7 +15,7 @@ defmodule Atlas.Support.Notifier do
   @events ~w(inbound_received chat_received reply_delivered note_added status_changed assigned)
 
   def notify(%Thread{} = thread, event, opts \\ []) when event in @events do
-    with {:ok, channel_id} <- channel_id(opts) do
+    with {:ok, channel_id} <- channel_id(thread, event, opts) do
       notification_id = Keyword.fetch!(opts, :notification_id)
 
       case API.find_message_by_metadata(@app_key, channel_id, @event_type, notification_id) do
@@ -44,7 +44,7 @@ defmodule Atlas.Support.Notifier do
     [
       %{
         "type" => "header",
-        "text" => %{"type" => "plain_text", "text" => event_title(event), "emoji" => true}
+        "text" => %{"type" => "plain_text", "text" => header_text(thread, event), "emoji" => true}
       },
       %{
         "type" => "context",
@@ -64,10 +64,12 @@ defmodule Atlas.Support.Notifier do
             field("Customer", customer_label(thread)),
             field("Subject", thread_subject(thread)),
             field("Status", status_label(Keyword.get(opts, :status) || thread.status)),
+            classification_field(thread),
             account_field(thread)
           ]
           |> Enum.reject(&is_nil/1)
       },
+      classifier_reason_block(thread, event),
       event_detail_block(thread, event, opts),
       %{
         "type" => "actions",
@@ -106,18 +108,49 @@ defmodule Atlas.Support.Notifier do
     end
   end
 
-  defp channel_id(opts) do
-    channel_id =
-      Keyword.get(opts, :channel_id) ||
-        :atlas
-        |> Application.get_env(:support, [])
-        |> Keyword.get(:slack_channel_id)
+  defp channel_id(%Thread{} = thread, event, opts) do
+    override = Keyword.get(opts, :channel_id)
 
-    case channel_id do
+    cond do
+      is_binary(override) and override != "" ->
+        {:ok, override}
+
+      silenced?(thread, event) ->
+        filtered_channel_id() || default_channel_id()
+
+      true ->
+        default_channel_id()
+    end
+  end
+
+  defp default_channel_id do
+    case config(:slack_channel_id) do
       channel_id when is_binary(channel_id) and channel_id != "" -> {:ok, channel_id}
       _channel_id -> {:error, :missing_support_slack_channel_id}
     end
   end
+
+  defp filtered_channel_id do
+    case config(:slack_filtered_channel_id) do
+      channel_id when is_binary(channel_id) and channel_id != "" -> {:ok, channel_id}
+      _channel_id -> nil
+    end
+  end
+
+  defp config(key) do
+    :atlas
+    |> Application.get_env(:support, [])
+    |> Keyword.get(key)
+  end
+
+  # A silenced email still ends up somewhere — either in the
+  # dedicated `#support-filtered` channel when it is configured,
+  # or back in `#support` so nothing goes entirely dark before
+  # `#support-filtered` exists. Only `inbound_received` and
+  # `chat_received` are eligible for silencing; team-side events
+  # always go to the main channel.
+  defp silenced?(%Thread{action_needed: false}, event) when event in ["inbound_received", "chat_received"], do: true
+  defp silenced?(_thread, _event), do: false
 
   defp event_title("inbound_received"), do: "New support email"
   defp event_title("chat_received"), do: "New support chat"
@@ -125,6 +158,70 @@ defmodule Atlas.Support.Notifier do
   defp event_title("note_added"), do: "Private support note added"
   defp event_title("status_changed"), do: "Support conversation updated"
   defp event_title("assigned"), do: "Support conversation assigned"
+
+  defp header_text(%Thread{} = thread, event) when event in ["inbound_received", "chat_received"] do
+    base = event_title(event)
+
+    case urgency_badge(thread) do
+      nil -> base
+      badge -> "#{badge} #{base}"
+    end
+  end
+
+  defp header_text(_thread, event), do: event_title(event)
+
+  # Silenced threads (action_needed=false) always show the file
+  # badge, regardless of urgency — a low-urgency filed vendor
+  # notice should not be dressed up as urgent.
+  defp urgency_badge(%Thread{action_needed: false}), do: "🗂"
+  defp urgency_badge(%Thread{urgency: "high"}), do: "🚨"
+  defp urgency_badge(%Thread{urgency: "low"}), do: "🕰"
+  defp urgency_badge(_thread), do: nil
+
+  defp classification_field(%Thread{classification: classification, urgency: urgency}) when is_binary(classification) do
+    label =
+      case urgency do
+        nil -> classification_label(classification)
+        "" -> classification_label(classification)
+        _urgency -> "#{classification_label(classification)} · #{urgency_label(urgency)}"
+      end
+
+    field("Category", label)
+  end
+
+  defp classification_field(_thread), do: nil
+
+  defp classifier_reason_block(%Thread{classifier_reason: reason}, event)
+       when event in ["inbound_received", "chat_received"] and is_binary(reason) and reason != "" do
+    # The reason is LLM-generated from an untrusted email body, so
+    # render it as plain_text — mrkdwn would let a crafted body
+    # inject bold/link formatting into the Slack card.
+    %{
+      "type" => "context",
+      "elements" => [
+        %{"type" => "plain_text", "text" => "Classifier: #{reason}", "emoji" => false}
+      ]
+    }
+  end
+
+  defp classifier_reason_block(_thread, _event), do: nil
+
+  defp classification_label("support"), do: "Support"
+  defp classification_label("invoice"), do: "Invoice"
+  defp classification_label("vendor_notice"), do: "Vendor notice"
+  defp classification_label("shipping"), do: "Shipping"
+  defp classification_label("publish"), do: "Publish"
+  defp classification_label("registration"), do: "Registration"
+  defp classification_label("ar"), do: "Accounts receivable"
+  defp classification_label("spam"), do: "Spam"
+  defp classification_label("other"), do: "Other"
+  defp classification_label(other), do: to_string(other)
+
+  defp urgency_label("high"), do: "high"
+  defp urgency_label("normal"), do: "normal"
+  defp urgency_label("low"), do: "low"
+  defp urgency_label("none"), do: "no action"
+  defp urgency_label(other), do: to_string(other)
 
   defp event_detail_block(_thread, "note_added", opts) do
     actor = Keyword.get(opts, :actor)

@@ -46,6 +46,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   ]
 
   @hosted_only_crons [
+    {"* * * * *", Tuist.Marketing.Workers.CacheGlobeRefreshWorker},
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
     {"@hourly", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},

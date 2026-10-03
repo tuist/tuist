@@ -1,3 +1,4 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -5,15 +6,21 @@ metadata:
   labels:
     {{- include "atlas.labels" . | nindent 4 }}
   annotations:
+    {{- if .Values.ingress.clusterIssuer }}
     cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
+    {{- end }}
     # external-dns picks the host out of `spec.tls.hosts` + `rules.host`.
     nginx.ingress.kubernetes.io/proxy-body-size: 25m
 spec:
+  {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tlsSecretName }}
   tls:
     - hosts:
         - {{ .Values.host }}
-      secretName: {{ include "atlas.fullname" . }}-tls
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
   rules:
     - host: {{ .Values.host }}
       http:
@@ -25,6 +32,7 @@ spec:
                 name: {{ include "atlas.fullname" . }}
                 port:
                   name: http
+{{- if .Values.ingress.operatorGrant }}
 ---
 # ops.tuist.dev hands the operator grant back on the query string, and
 # ingress-nginx's default access log records the full request line — a log
@@ -42,7 +50,9 @@ metadata:
     nginx.ingress.kubernetes.io/enable-access-log: "false"
     nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
+  {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
   # No `tls:` block and no cert-manager annotation here on purpose. TLS is a
   # server-level property and the Ingress above already binds it to this host;
   # repeating them would point a second candidate owner at the one Certificate
@@ -59,3 +69,6 @@ spec:
                 name: {{ include "atlas.fullname" . }}
                 port:
                   name: http
+
+{{- end }}
+{{- end }}

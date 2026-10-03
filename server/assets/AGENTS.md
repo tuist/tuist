@@ -30,6 +30,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Crosshair styling and synchronized hover time cursors activate only on plot canvases, not metric headings, rulers, controls or surrounding card space.
 - Timeline logs preserve source lines and scroll horizontally; their full height participates in the inspector's vertical scrolling.
 - Timeline selection persists when scrolling or zooming moves the step outside the visible range, keeping its metadata and log open.
+- `marketing/js/hooks/cache-globe.js` is the `/globe` page controller: it fills the counters and region rows from the LiveView snapshot and feeds the shared `DitherGlobe` canvas its markers (`data-markers`, then `dither-globe:markers` / `dither-globe:motion` events) — it draws nothing itself. Keep motion pausable and honor reduced-motion preferences. Regional lights describe serving activity, not customer destinations. Its styling is scoped to `#marketing-globe`. Hit-rate rows cover All caches, Xcode, Gradle, and Bazel; demo rates are illustrative, while live rates stay unavailable until the snapshot supplies them.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
   Faro Web SDK from the `globalThis.analytics` config that
   `TuistWeb.LayoutComponents.head_analytics_scripts` renders, and every bundle
@@ -65,8 +66,14 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
 
 - Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.
+- Runner step rails shrink with the viewport and hide below 900px. When rails are visible, duration slots retain equal widths even without timestamps; minimum-width ticks stay within the track. Only the recorded offset and width are supplied inline as custom properties.
 
 - Runner volume pages follow Jobs card/widget spacing and Job detail headers and metadata. Keep inventory search and tables in Noora card sections, with Volume details above the Overview and Jobs tabs.
 
 - The volume chart uses the shared Noora/ECharts hook, Jobs-style line rendering and count/byte/percentage formatting. Keep its three selectable widgets equal in width and height even when only the storage widgets have trend footers.
 - `build_run.css` shares header and metadata styling between Xcode and Once run details. Keep `once_run.css` limited to Once-specific wrapping and responsive layout.
+
+- Analytics chart sections declare small, compact, standard or large frames shared by loading, ready and illustrated empty states. Scope the frame to the active chart section; keep list/timeline geometry independent. Widgets share a minimum height across loading and empty states. Skeletons reveal after 200 milliseconds and respect reduced motion; stale charts remain mounted and receive a subtle delayed refresh indication.
+- The cache globe renders measured daily hit rates from the snapshot breakdown. Keep missing rates distinct from measured zeroes; illustrative rates belong only to explicit demo mode.
+
+- Treat request timing and layout movement as separate problems. Measure card geometry across loading, ready, empty and failed states, including wrapped widget titles and chart legends. Reserve the same chart frame for each state without imposing that height on tables or timelines.

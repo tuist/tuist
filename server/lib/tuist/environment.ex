@@ -1709,6 +1709,25 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Returns how many calls one client address may make to the Once events endpoint per minute.
+
+  A run makes a handful of calls (opening the stream, the argv hash key, run
+  acknowledgements on reconnect), not one per event, so this is generous for a
+  CI fleet behind one address while still bounding what an address can spend on
+  credential checks.
+
+  This can be overridden via:
+  - Environment variable: TUIST_ONCE_EVENTS_RATE_LIMIT_BUCKET_SIZE
+  - Secrets configuration: once_events_rate_limit.bucket_size
+  """
+  def once_events_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:once_events_rate_limit, :bucket_size], secrets, default_value: 600) do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 

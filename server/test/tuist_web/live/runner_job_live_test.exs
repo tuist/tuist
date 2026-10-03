@@ -586,17 +586,43 @@ defmodule TuistWeb.RunnerJobLiveTest do
           conclusion: "failure",
           started_at: ~U[2026-05-28 10:00:05.000000Z],
           completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:35.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 4,
+          name: "Upload artifacts",
+          status: "completed",
+          conclusion: "skipped",
+          started_at: nil,
+          completed_at: nil
         }
       ])
 
     flush_outbox!()
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
 
     assert html =~ "Steps"
     assert html =~ "Set up job"
     assert html =~ "Run tests"
-    # 30-second duration badge for the failing step (no fractional seconds)
+    assert has_element?(lv, ~s|#runner-step-1 [data-part="step-timeline-bar"][data-kind="success"]|)
+    assert has_element?(lv, ~s|#runner-step-2 [data-part="step-timeline-bar"][data-kind="failure"]|)
+    assert has_element?(lv, ~s|#runner-step-3 [data-part="step-timeline-bar"]|)
+    assert has_element?(lv, ~s|#runner-step-4 [data-part="step-duration"]|)
+    refute has_element?(lv, ~s|#runner-step-4 [data-part="step-timeline-bar"]|)
+
+    # 30-second duration for the failing step (no fractional seconds)
     assert html =~ "30s"
     refute html =~ "30.0s"
   end
@@ -1937,6 +1963,57 @@ defmodule TuistWeb.RunnerJobLiveTest do
     test "returns nil when there are no steps with timestamps" do
       assert TuistWeb.RunnerJobLive.step_window([]) == nil
       assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
+    end
+  end
+
+  describe "step timeline geometry" do
+    test "positions sequential steps on the same time axis" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:15Z]},
+        %{started_at: ~U[2026-05-28 10:00:15Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      window = TuistWeb.RunnerJobLive.step_window(steps)
+      [first, last] = steps
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(first, window) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(first, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(last, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(last, window) == "75.0%"
+    end
+
+    test "keeps zero-length steps drawable, including a zero-length job" do
+      step = %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      for window <- [%{min: timestamp, max: timestamp + 60_000}, %{min: timestamp, max: timestamp}] do
+        assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == "0.0%"
+        assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == "0.0%"
+      end
+    end
+
+    test "omits geometry when timestamps or a valid window are missing" do
+      step = %{started_at: nil, completed_at: nil}
+      window = %{min: 0, max: 60_000}
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(%{step | started_at: ~U[2026-05-28 10:00:00Z]}, window) ==
+               nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: 1, max: 0}) == nil
+    end
+
+    test "clamps out-of-window starts and negative durations" do
+      step = %{started_at: ~U[2026-05-28 10:00:10Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp + 1, max: timestamp + 2}) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp - 2, max: timestamp - 1}) == "100.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: timestamp, max: timestamp + 1}) == "0.0%"
     end
   end
 

@@ -10,9 +10,10 @@ ARG OTP_VERSION=29.0.3
 # hexpm/elixir uses date-pinned tags. bookworm-20260623-slim is the
 # combination that has a published image for the pinned Elixir/OTP.
 # The runner base needs to be a real debian tag that also exists on
-# Docker Hub for the same architecture; bookworm-slim covers that.
+# Docker Hub for the same architecture. The Condukt native dependency needs
+# GNU C Library 2.38 or newer, so the runner uses Debian Trixie.
 ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
-ARG DEBIAN_RUNNER_VERSION=bookworm-slim
+ARG DEBIAN_RUNNER_VERSION=trixie-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
@@ -77,6 +78,10 @@ COPY atlas/priv priv
 COPY atlas/lib lib
 COPY atlas/assets assets
 
+# Version the release independently of the image tag.
+ARG ATLAS_VERSION=0.1.0
+ENV ATLAS_VERSION=${ATLAS_VERSION}
+
 # Compile the project (generates colocated hooks needed by esbuild)
 RUN mix compile
 
@@ -95,7 +100,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-  apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
+  apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Chromium binary path used by browse_chrome to start headless instances for

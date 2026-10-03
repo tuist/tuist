@@ -14,6 +14,7 @@
 .tuist-widget {
   position: relative;
   gap: var(--noora-spacing-5);
+  min-height: 154px;
 
   & [data-part="background"] {
     position: absolute;
@@ -50,6 +51,8 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
+    align-items: center;
+    min-height: 32px;
     & > [data-part="title"] button {
       box-shadow: unset;
       background: unset;
@@ -207,7 +210,10 @@
 
 .tuist-loading-skeleton {
   display: inline-block;
-  animation: tuist-widget-loading-pulse 1.5s ease-in-out infinite;
+  visibility: hidden;
+  animation:
+    tuist-widget-loading-reveal 0s linear 200ms forwards,
+    tuist-widget-loading-pulse 1.5s ease-in-out 200ms infinite;
   border-radius: var(--noora-radius-2);
   background-color: var(--noora-surface-background-secondary);
   min-width: 80px;
@@ -280,5 +286,17 @@
 
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes tuist-widget-loading-reveal {
+  to {
+    visibility: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tuist-loading-skeleton {
+    animation: tuist-widget-loading-reveal 0s linear 200ms forwards;
   }
 }

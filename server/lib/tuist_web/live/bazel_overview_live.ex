@@ -102,7 +102,15 @@ defmodule TuistWeb.BazelOverviewLive do
   def render(assigns) do
     ~H"""
     <div class="bazel-overview">
-      <.card
+      <.async_card
+        :let={ready?}
+        results={[
+          @build_analytics,
+          @cache_hit_rate_analytics,
+          @has_any_cache_observations,
+          @reapi_cache_summary,
+          @test_analytics
+        ]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="analytics-card"
@@ -157,7 +165,7 @@ defmodule TuistWeb.BazelOverviewLive do
           <div data-part="widgets">
             <.widget
               id="bazel-action-cache-hit-rate"
-              loading={!@reapi_cache_summary.ok?}
+              loading={!ready?}
               title={dgettext("dashboard_projects", "Cache hit rate")}
               description={
                 dgettext(
@@ -166,18 +174,16 @@ defmodule TuistWeb.BazelOverviewLive do
                 )
               }
               value={
-                if @reapi_cache_summary.ok? and @reapi_cache_summary.result.hit_rate,
+                if ready? and @reapi_cache_summary.result.hit_rate,
                   do: "#{@reapi_cache_summary.result.hit_rate}%"
               }
-              trend_value={
-                if @reapi_cache_summary.ok?, do: @reapi_cache_summary.result.hit_rate_trend
-              }
+              trend_value={if ready?, do: @reapi_cache_summary.result.hit_rate_trend}
               trend_label={@analytics_trend_label}
-              empty={@reapi_cache_summary.ok? && is_nil(@reapi_cache_summary.result.hit_rate)}
+              empty={ready? && is_nil(@reapi_cache_summary.result.hit_rate)}
             />
             <.widget
               id="bazel-average-build-time"
-              loading={!@build_analytics.ok?}
+              loading={!ready?}
               title={dgettext("dashboard_projects", "Average build time")}
               description={
                 dgettext(
@@ -186,20 +192,20 @@ defmodule TuistWeb.BazelOverviewLive do
                 )
               }
               value={
-                if @build_analytics.ok?,
+                if ready?,
                   do:
                     DateFormatter.format_duration_from_milliseconds(
                       @build_analytics.result.total_average_duration
                     )
               }
-              trend_value={if @build_analytics.ok?, do: @build_analytics.result.trend}
+              trend_value={if ready?, do: @build_analytics.result.trend}
               trend_label={@analytics_trend_label}
               trend_type={:inverse}
-              empty={@build_analytics.ok? && @build_analytics.result.total_average_duration == 0}
+              empty={ready? && @build_analytics.result.total_average_duration == 0}
             />
             <.widget
               id="bazel-average-test-run-duration"
-              loading={!@test_analytics.ok?}
+              loading={!ready?}
               title={dgettext("dashboard_tests", "Avg. test run duration")}
               description={
                 dgettext(
@@ -208,19 +214,23 @@ defmodule TuistWeb.BazelOverviewLive do
                 )
               }
               value={
-                if @test_analytics.ok?,
+                if ready?,
                   do:
                     DateFormatter.format_duration_from_milliseconds(
                       @test_analytics.result.total_average_duration
                     )
               }
-              trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend}
+              trend_value={if ready?, do: @test_analytics.result.trend}
               trend_label={@analytics_trend_label}
               trend_type={:inverse}
-              empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
+              empty={ready? && @test_analytics.result.total_average_duration == 0}
             />
           </div>
-          <.card_section :if={!@cache_hit_rate_analytics.ok?} data-part="cache-hit-rate-chart-section">
+          <.card_section
+            :if={!ready?}
+            data-part="cache-hit-rate-chart-section"
+            data-chart-frame="standard"
+          >
             <div data-part="cache-hit-rate-chart">
               <.skeleton_legend />
               <.skeleton_chart />
@@ -228,10 +238,11 @@ defmodule TuistWeb.BazelOverviewLive do
           </.card_section>
           <.card_section
             :if={
-              @cache_hit_rate_analytics.ok? &&
+              ready? &&
                 Enum.any?(@cache_hit_rate_analytics.result.lookup_values, &(&1 > 0))
             }
             data-part="cache-hit-rate-chart-section"
+            data-chart-frame="standard"
           >
             <div data-part="cache-hit-rate-chart">
               <.legend
@@ -273,11 +284,12 @@ defmodule TuistWeb.BazelOverviewLive do
           </.card_section>
           <.empty_card_section
             :if={
-              @cache_hit_rate_analytics.ok? &&
+              ready? &&
                 Enum.all?(@cache_hit_rate_analytics.result.lookup_values, &(&1 == 0))
             }
             title={cache_observations_empty_state_title(@has_any_cache_observations.result)}
             get_started_href={cache_get_started_href(@has_any_cache_observations.result)}
+            data-chart-frame="standard"
           >
             <:image>
               <img
@@ -295,9 +307,11 @@ defmodule TuistWeb.BazelOverviewLive do
             </:image>
           </.empty_card_section>
         </div>
-      </.card>
+      </.async_card>
 
-      <.card
+      <.async_card
+        :let={ready?}
+        results={[@builds_duration_analytics, @has_any_builds, @recent_builds]}
         title={dgettext("dashboard_projects", "Builds")}
         icon="subtask"
         data-part="builds-card"
@@ -349,13 +363,13 @@ defmodule TuistWeb.BazelOverviewLive do
           </.date_picker>
         </:actions>
         <div data-part="builds-card-sections">
-          <.card_section :if={!@recent_builds.ok?}>
+          <.card_section :if={!ready?} data-chart-frame="large">
             <div data-part="build-runs-chart">
               <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
               <.skeleton_chart />
             </div>
           </.card_section>
-          <.card_section :if={@recent_builds.ok? && Enum.any?(@recent_builds.result)}>
+          <.card_section :if={ready? && Enum.any?(@recent_builds.result)} data-chart-frame="large">
             <div data-part="build-runs-chart">
               <div data-part="legends">
                 <.legend
@@ -384,9 +398,10 @@ defmodule TuistWeb.BazelOverviewLive do
             </div>
           </.card_section>
           <.empty_card_section
-            :if={@recent_builds.ok? && Enum.empty?(@recent_builds.result)}
+            :if={ready? && Enum.empty?(@recent_builds.result)}
             title={builds_empty_state_title(@has_any_builds.result)}
             get_started_href={builds_get_started_href(@has_any_builds.result)}
+            data-chart-frame="large"
           >
             <:image>
               <img
@@ -404,8 +419,9 @@ defmodule TuistWeb.BazelOverviewLive do
             </:image>
           </.empty_card_section>
           <.card_section
-            :if={!@builds_duration_analytics.ok?}
+            :if={!ready?}
             data-part="average-build-time-card-section"
+            data-chart-frame="large"
           >
             <div data-part="average-build-time-chart">
               <div data-part="legends"><.skeleton_legend /></div>
@@ -414,10 +430,11 @@ defmodule TuistWeb.BazelOverviewLive do
           </.card_section>
           <.card_section
             :if={
-              @builds_duration_analytics.ok? &&
+              ready? &&
                 @builds_duration_analytics.result.total_average_duration != 0
             }
             data-part="average-build-time-card-section"
+            data-chart-frame="large"
           >
             <div data-part="average-build-time-chart">
               <.button
@@ -475,9 +492,15 @@ defmodule TuistWeb.BazelOverviewLive do
             </div>
           </.card_section>
         </div>
-      </.card>
+      </.async_card>
 
-      <.card title={dgettext("dashboard_projects", "Tests")} icon="subtask" data-part="tests-card">
+      <.async_card
+        :let={ready?}
+        results={[@failed_test_runs_count, @passed_test_runs_count, @recent_test_runs]}
+        title={dgettext("dashboard_projects", "Tests")}
+        icon="subtask"
+        data-part="tests-card"
+      >
         <:actions>
           <.button
             variant="secondary"
@@ -487,13 +510,13 @@ defmodule TuistWeb.BazelOverviewLive do
             disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
           />
         </:actions>
-        <.card_section :if={!@recent_test_runs.ok?}>
+        <.card_section :if={!ready?} data-chart-frame="standard">
           <div data-part="test-runs-chart">
             <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
             <.skeleton_chart />
           </div>
         </.card_section>
-        <.card_section :if={@recent_test_runs.ok? && Enum.any?(@recent_test_runs.result)}>
+        <.card_section :if={ready? && Enum.any?(@recent_test_runs.result)} data-chart-frame="standard">
           <div data-part="test-runs-chart">
             <div data-part="legends">
               <.legend
@@ -522,9 +545,10 @@ defmodule TuistWeb.BazelOverviewLive do
           </div>
         </.card_section>
         <.empty_card_section
-          :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
+          :if={ready? && Enum.empty?(@recent_test_runs.result)}
           title={dgettext("dashboard_projects", "Runs: no data yet")}
           get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
+          data-chart-frame="standard"
         >
           <:image>
             <img
@@ -541,7 +565,7 @@ defmodule TuistWeb.BazelOverviewLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
     </div>
     """
   end

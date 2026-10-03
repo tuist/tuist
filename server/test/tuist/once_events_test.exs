@@ -6,9 +6,11 @@ defmodule Tuist.OnceEventsTest do
 
   alias Once.Events.V1.AckDisposition
   alias Once.Events.V1.ActionCompleted
+  alias Once.Events.V1.ArgvHashKey
   alias Once.Events.V1.BatchAck
   alias Once.Events.V1.CacheDownload
   alias Once.Events.V1.ContentRef
+  alias Once.Events.V1.GetArgvHashKeyRequest
   alias Once.Events.V1.RunCompleted
   alias Once.Events.V1.RunEvent
   alias Once.Events.V1.RunEventBatch
@@ -16,12 +18,16 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.TargetCompleted
   alias Once.Events.V1.TestCaseCompleted
   alias Once.Events.V1.TestSuiteStarted
+  alias Tuist.Accounts.Organization
+  alias Tuist.Authentication
+  alias Tuist.Authorization
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.RunEventService
   alias Tuist.OnceEvents.TestCaseRun
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -243,6 +249,292 @@ defmodule Tuist.OnceEventsTest do
     assert attempts == [1, 2]
   end
 
+  describe "authentication with a signed-in user" do
+    setup %{project: project} do
+      member = AccountsFixtures.user_fixture(preload: [:account])
+
+      Tuist.Accounts.add_user_to_organization(
+        member,
+        Tuist.Repo.get!(Organization, project.account.organization_id)
+      )
+
+      %{member: member, handle: "#{project.account.name}/#{project.name}"}
+    end
+
+    test "a member of the project's account can publish events when it names the project", %{
+      project: project,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      RunEventService.publish_run_events([empty_batch(run)], user_stream(member, %{"once-project-id" => handle}))
+
+      assert_received {:ack, %BatchAck{} = ack}
+      assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+      assert ack.dashboard_url =~ "/#{project.account.name}/#{project.name}/once/runs/"
+    end
+
+    test "publishing without naming a project is rejected", %{member: member, run: run} do
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.publish_run_events([empty_batch(run)], user_stream(member, %{}))
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "a user outside the project's account cannot publish events", %{handle: handle, run: run} do
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.publish_run_events([empty_batch(run)], user_stream(outsider, %{"once-project-id" => handle}))
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "naming a project that does not exist is rejected", %{member: member, run: run} do
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.publish_run_events(
+            [empty_batch(run)],
+            user_stream(member, %{"once-project-id" => "nobody/nothing"})
+          )
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+
+    test "the argv hash key is issued for the project named in the request", %{member: member, handle: handle} do
+      key =
+        RunEventService.get_argv_hash_key(
+          %GetArgvHashKeyRequest{project_id: handle},
+          user_stream(member, %{})
+        )
+
+      assert byte_size(key.key_bytes) == 32
+    end
+
+    test "the argv hash key is refused to a user outside the project's account", %{handle: handle} do
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+
+      error =
+        assert_raise GRPC.RPCError, fn ->
+          RunEventService.get_argv_hash_key(
+            %GetArgvHashKeyRequest{project_id: handle},
+            user_stream(outsider, %{})
+          )
+        end
+
+      assert error.status == GRPC.Status.unauthenticated()
+    end
+  end
+
+  describe "authentication with the other credentials the CLI uses" do
+    setup %{project: project} do
+      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(member, organization)
+      viewer = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      %{
+        member: member,
+        viewer: viewer,
+        outsider: AccountsFixtures.user_fixture(preload: [:account]),
+        handle: "#{project.account.name}/#{project.name}"
+      }
+    end
+
+    test "the login session `once auth login` stores is accepted for a member", %{
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      publish(login_session(member), %{"once-project-id" => handle}, run)
+
+      assert_received {:ack, %BatchAck{disposition: disposition}}
+      assert disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+    end
+
+    test "the login session is refused to an outsider, a viewer and a session without the runs scope", %{
+      member: member,
+      viewer: viewer,
+      outsider: outsider,
+      handle: handle,
+      run: run
+    } do
+      headers = %{"once-project-id" => handle}
+
+      assert unauthenticated?(fn -> publish(login_session(outsider), headers, run) end)
+      assert unauthenticated?(fn -> publish(login_session(viewer), headers, run) end)
+
+      assert unauthenticated?(fn ->
+               publish(login_session(member, %{"scopes" => ["project:cache:read"]}), headers, run)
+             end)
+    end
+
+    test "a login session limited to other projects is refused", %{
+      member: member,
+      handle: handle,
+      run: run,
+      project: project
+    } do
+      session = login_session(member, %{"all_projects" => false, "project_ids" => [project.id + 1_000_000]})
+
+      assert unauthenticated?(fn -> publish(session, %{"once-project-id" => handle}, run) end)
+    end
+
+    test "an account token is accepted only for the projects it covers", %{project: project, handle: handle, run: run} do
+      other_project = ProjectsFixtures.project_fixture(account_id: project.account.id)
+
+      covering = account_token(project.account, ["ci"], all_projects: false, project_ids: [project.id])
+      elsewhere = account_token(project.account, ["ci"], all_projects: false, project_ids: [other_project.id])
+      without_scope = account_token(project.account, ["project:cache:read"], all_projects: true)
+      headers = %{"once-project-id" => handle}
+
+      publish(covering, headers, run)
+      assert_received {:ack, %BatchAck{}}
+
+      assert unauthenticated?(fn -> publish(elsewhere, headers, run) end)
+      assert unauthenticated?(fn -> publish(without_scope, headers, run) end)
+    end
+
+    test "an account token of another account is refused", %{handle: handle, run: run} do
+      other = ProjectsFixtures.project_fixture()
+      token = account_token(other.account, ["ci"], all_projects: true)
+
+      assert unauthenticated?(fn -> publish(token, %{"once-project-id" => handle}, run) end)
+    end
+
+    test "a project token accepts its own handle whatever the casing", %{project: project, run: run} do
+      handle = String.upcase("#{project.account.name}/#{project.name}")
+
+      RunEventService.publish_run_events(
+        [empty_batch(run)],
+        project_token_stream(project, %{"once-project-id" => handle})
+      )
+
+      assert_received {:ack, %BatchAck{}}
+    end
+
+    test "a project token refuses the handle of another project", %{project: project, run: run} do
+      other = ProjectsFixtures.project_fixture()
+      handle = "#{other.account.name}/#{other.name}"
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 [empty_batch(run)],
+                 project_token_stream(project, %{"once-project-id" => handle})
+               )
+             end)
+    end
+
+    test "a project id the database cannot store is refused instead of crashing the call", %{member: member} do
+      for invalid <- ["a\0/b", "a/b/c", "/", "only-one-part", String.duplicate("a", 5_000)] do
+        assert unauthenticated?(fn ->
+                 RunEventService.get_argv_hash_key(
+                   %GetArgvHashKeyRequest{project_id: invalid},
+                   user_stream(member, %{})
+                 )
+               end),
+               "#{inspect(invalid)} should be refused"
+      end
+    end
+  end
+
+  describe "a stream that outlives its credential" do
+    setup %{project: project} do
+      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(member, organization)
+
+      %{
+        organization: organization,
+        member: member,
+        handle: "#{project.account.name}/#{project.name}"
+      }
+    end
+
+    test "a member removed from the account is refused on the next batch once the check is due", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      flag = clock_that_jumps_when_flagged(minutes: 6)
+
+      removing = fn ->
+        :ok = Tuist.Accounts.remove_user_from_organization(member, organization)
+        :atomics.put(flag, 1, 1)
+      end
+
+      batches = removing_between_batches(run, removing)
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 batches,
+                 stream_with(login_session(member), %{"once-project-id" => handle})
+               )
+             end)
+
+      assert_received {:ack, %BatchAck{batch_id: "before"}}
+      refute_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+
+    test "within the check interval the open stream keeps going", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      removing = fn -> :ok = Tuist.Accounts.remove_user_from_organization(member, organization) end
+      batches = removing_between_batches(run, removing)
+
+      RunEventService.publish_run_events(batches, stream_with(login_session(member), %{"once-project-id" => handle}))
+
+      assert_received {:ack, %BatchAck{batch_id: "before"}}
+      assert_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+  end
+
+  describe "the cost of authenticating" do
+    setup %{project: project} do
+      organization = Tuist.Repo.get!(Organization, project.account.organization_id)
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      Tuist.Accounts.add_user_to_organization(member, organization)
+      %{member: member, handle: "#{project.account.name}/#{project.name}"}
+    end
+
+    test "the same credential is resolved once and then served from the cache", %{
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      session = login_session(member)
+
+      expect(Authentication, :authenticated_subject, 1, fn token ->
+        Mimic.call_original(Authentication, :authenticated_subject, [token])
+      end)
+
+      for _ <- 1..3, do: publish(session, %{"once-project-id" => handle}, run)
+
+      for _ <- 1..3, do: assert_received({:ack, %BatchAck{}})
+    end
+
+    test "an unknown project still runs the permission check, so it costs the same as a forbidden one", %{
+      member: member,
+      run: run
+    } do
+      expect(Authorization, :authorize, 1, fn action, subject, object ->
+        Mimic.call_original(Authorization, :authorize, [action, subject, object])
+      end)
+
+      assert unauthenticated?(fn -> publish(login_session(member), %{"once-project-id" => "nobody/nothing"}, run) end)
+    end
+  end
+
   defmodule HeadersAdapter do
     @moduledoc false
     def get_headers(headers), do: headers
@@ -356,8 +648,8 @@ defmodule Tuist.OnceEventsTest do
 
   test "authenticates the configured project slug and rejects another project", %{project: project} do
     stream = %GRPC.Server.Stream{adapter: HeadersAdapter, payload: %{"authorization" => "Bearer " <> project.token}}
-    request = %Once.Events.V1.GetArgvHashKeyRequest{project_id: "#{project.account.name}/#{project.name}"}
-    assert %Once.Events.V1.ArgvHashKey{key_bytes: key} = RunEventService.get_argv_hash_key(request, stream)
+    request = %GetArgvHashKeyRequest{project_id: "#{project.account.name}/#{project.name}"}
+    assert %ArgvHashKey{key_bytes: key} = RunEventService.get_argv_hash_key(request, stream)
     assert byte_size(key) == 32
 
     assert_raise GRPC.RPCError, ~r/project token does not match/, fn ->
@@ -584,6 +876,111 @@ defmodule Tuist.OnceEventsTest do
       end
 
     Projector.project(%RunEvent{epoch_ms: 1_789_405_000_000, payload: {kind, payload}}, run.project_id, run.run_id)
+  end
+
+  defp empty_batch(run) do
+    %RunEventBatch{run_id: run.run_id, batch_id: "batch-user", seq_from: 1, events: []}
+  end
+
+  # A request stream that runs `between` after the first batch has been handed
+  # over, which is when a real stream would notice a revocation.
+  defp removing_between_batches(run, between) do
+    Stream.concat([
+      [%RunEventBatch{run_id: run.run_id, batch_id: "before", seq_from: 1, events: []}],
+      Stream.map([:between], fn :between ->
+        between.()
+        %RunEventBatch{run_id: run.run_id, batch_id: "after", seq_from: 1, events: []}
+      end)
+    ])
+  end
+
+  # The clock only moves once the returned flag is set, so the stream sees the
+  # jump between two batches rather than at its start.
+  defp clock_that_jumps_when_flagged(minutes: minutes) do
+    flag = :atomics.new(1, [])
+
+    stub(System, :monotonic_time, fn unit ->
+      now = Mimic.call_original(System, :monotonic_time, [unit])
+      if unit == :millisecond and :atomics.get(flag, 1) == 1, do: now + to_timeout(minute: minutes), else: now
+    end)
+
+    flag
+  end
+
+  defp publish(token, headers, run) do
+    RunEventService.publish_run_events([empty_batch(run)], stream_with(token, headers))
+  end
+
+  defp unauthenticated?(fun) do
+    fun.()
+    false
+  rescue
+    error in GRPC.RPCError -> error.status == GRPC.Status.unauthenticated()
+  end
+
+  # The credential `once auth login` stores: an account JWT issued for a user.
+  defp login_session(user, overrides \\ %{}) do
+    claims =
+      Map.merge(
+        %{
+          "type" => "account",
+          "scopes" => ["project:runs:write", "project:cache:read"],
+          "all_projects" => true,
+          "user_id" => user.id
+        },
+        overrides
+      )
+
+    {:ok, token, _claims} =
+      Tuist.Guardian.encode_and_sign(user.account, claims, token_type: "access_token", ttl: {1, :hour})
+
+    token
+  end
+
+  defp account_token(account, scopes, opts) do
+    {:ok, {_account_token, token}} =
+      Tuist.Accounts.create_account_token(%{
+        account: account,
+        scopes: scopes,
+        name: "events-#{System.unique_integer([:positive])}",
+        all_projects: Keyword.get(opts, :all_projects, true),
+        project_ids: Keyword.get(opts, :project_ids, [])
+      })
+
+    token
+  end
+
+  defp project_token_stream(project, headers), do: stream_with(project.token, headers)
+
+  defp stream_with(token, headers) do
+    test_process = self()
+
+    %GRPC.Server.Stream{
+      adapter: HeadersAdapter,
+      payload: Map.put(headers, "authorization", "Bearer " <> token),
+      __interface__: %{
+        send_reply: fn stream, reply, _opts ->
+          send(test_process, {:ack, reply})
+          stream
+        end
+      }
+    }
+  end
+
+  defp user_stream(user, extra_headers) do
+    {:ok, token, _claims} = Authentication.encode_and_sign(user, %{}, token_type: :access, ttl: {1, :hour})
+    test_process = self()
+
+    %GRPC.Server.Stream{
+      adapter: HeadersAdapter,
+      payload: Map.put(extra_headers, "authorization", "Bearer " <> token),
+      __interface__: %{
+        send_reply: fn stream, reply, _opts ->
+          send(test_process, {:ack, reply})
+          stream
+        end
+      }
+    }
   end
 
   defp reply_stream(project) do

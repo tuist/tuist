@@ -414,6 +414,12 @@ defmodule Atlas.Inference do
   end
 
   @doc false
+  def completion_from_stream(%{status: status} = response, chunks)
+      when is_list(chunks) and (status < 200 or status >= 300) do
+    body = chunks |> Enum.reverse() |> IO.iodata_to_binary()
+    {:ok, %{response | body: body}}
+  end
+
   def completion_from_stream(response, chunks) when is_list(chunks) do
     {events, _parser} =
       chunks
@@ -442,6 +448,17 @@ defmodule Atlas.Inference do
 
   def relay_embedding_request(%ModelBinding{} = binding, body, opts \\ []) when is_map(body) do
     relay_request_to(binding, "embeddings", body, false, opts)
+  end
+
+  def relay_decision_request(%ModelBinding{} = binding, body, opts \\ []) when is_map(body) do
+    with {:ok, upstream} <- upstream_for(binding, opts),
+         path when is_binary(path) and path != "" <- upstream.decision_path do
+      relay_request_to(binding, path, body, false, Keyword.put(opts, :retry, false))
+    else
+      nil -> {:error, :decision_not_configured}
+      "" -> {:error, :decision_not_configured}
+      error -> error
+    end
   end
 
   defp initial_streamed_completion do
@@ -575,7 +592,7 @@ defmodule Atlas.Inference do
              ModelIdentifier.upstream_model(binding.upstream_model, binding.upstream_provider)
            ),
          receive_timeout: upstream.timeout,
-         retry: &transport_retry?/2,
+         retry: Keyword.get(opts, :retry, &transport_retry?/2),
          max_retries: @transport_retry_max,
          retry_delay: &transport_retry_delay/1
        ]}
@@ -639,6 +656,26 @@ defmodule Atlas.Inference do
       usage -> usage
     end
     |> normalize_usage()
+  end
+
+  def decision_usage_reported?(%{body: body}) when is_map(body) do
+    usage = Map.get(body, "usage", Map.get(body, :usage, body))
+
+    is_map(usage) and
+      reported_token_count?(usage, ["input_tokens", :input_tokens, "prompt_tokens", :prompt_tokens]) and
+      reported_token_count?(usage, ["output_tokens", :output_tokens, "completion_tokens", :completion_tokens])
+  end
+
+  def decision_usage_reported?(_response), do: false
+
+  defp reported_token_count?(usage, keys) do
+    Enum.any?(keys, fn key ->
+      case Map.get(usage, key) do
+        value when is_integer(value) and value >= 0 -> true
+        value when is_binary(value) -> not is_nil(parse_non_negative_integer(value))
+        _value -> false
+      end
+    end)
   end
 
   def usage_from_stream_chunk(data) when is_binary(data) do
@@ -1050,6 +1087,7 @@ defmodule Atlas.Inference do
        %{
          id: provider_id,
          base_url: String.trim_trailing(base_url, "/"),
+         decision_path: provider_value(provider, :decision_path),
          api_key: provider_value(provider, :api_key),
          timeout: provider_timeout(provider)
        }}
@@ -1072,6 +1110,7 @@ defmodule Atlas.Inference do
     %{
       id: provider.key,
       base_url: provider.base_url,
+      decision_path: provider.decision_path,
       api_key: Provider.api_key(provider),
       timeout: provider.timeout
     }
@@ -1140,6 +1179,7 @@ defmodule Atlas.Inference do
     %{
       id: id,
       base_url: present_value(base_url),
+      decision_path: provider_value(provider, :decision_path),
       configured?: true,
       credential_configured?: present?(provider_value(provider, :api_key)),
       endpoint_configured?: present?(base_url),
@@ -1153,6 +1193,7 @@ defmodule Atlas.Inference do
     %{
       id: provider.key,
       base_url: provider.base_url,
+      decision_path: provider.decision_path,
       configured?: true,
       credential_configured?: Provider.credential_configured?(provider),
       endpoint_configured?: present?(provider.base_url),
@@ -1166,6 +1207,7 @@ defmodule Atlas.Inference do
     %{
       id: id,
       base_url: nil,
+      decision_path: nil,
       configured?: false,
       credential_configured?: false,
       endpoint_configured?: false,
@@ -1374,6 +1416,8 @@ defmodule Atlas.Inference do
 
   defp usage_operation(opts) do
     case Keyword.get(opts, :operation, :chat_completion) do
+      :decision -> "decision"
+      "decision" -> "decision"
       :embedding -> "embedding"
       "embedding" -> "embedding"
       _operation -> "chat_completion"
@@ -1491,6 +1535,7 @@ defmodule Atlas.Inference do
       target_label: provider.key,
       metadata: %{
         "base_url" => provider.base_url,
+        "decision_path" => provider.decision_path,
         "credential_configured" => Provider.credential_configured?(provider),
         "path" => "/admin/inference/providers",
         "timeout" => provider.timeout

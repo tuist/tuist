@@ -3,6 +3,8 @@
 This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
+- Standalone documentation and error documents use `LayoutComponents.head_analytics_scripts`, like the shared page layouts.
+- Stripe customer updates acknowledge customers without a matching account, as subscription updates do. Keep failures updating an existing account visible so Stripe can retry delivery.
 - Cache endpoint discovery resolves retained account handles through `Kura.Identity` and still authorizes the caller against the owning account before using its current name. Mesh responses carry current handles, retained aliases and activated endpoint redirect targets; do not treat a historical handle as authorization.
 - Deployment-credential mesh registration and peer discovery require the permanent Kura tenant. After credential verification, a retained/current handle that differs from that tenant yields 409 `tenant_mismatch` with `expected_tenant_id`, never a successful registration under another storage namespace. Invalid credentials and unknown tenants remain generic 401 responses. Keep the self-host guide and regression coverage aligned with this distinction.
 - `BuildController.timeline/2` returns full build step metadata without logs, scoped to the authorized project/build. Bandit negotiates HTTP compression; the response uses `private, no-store`.
