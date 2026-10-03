@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 import TuistEnvironment
@@ -119,6 +121,24 @@ struct TestCoverageEvidenceServiceTests {
 
         Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
         #expect(await TestCoverageEvidenceService().prepare(platform: .macOS) == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func saysWhenNoTestProcessRecordedEvidence() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let bundle = directory.appending(component: "Run.xcresult")
+        let output = directory.appending(component: "output")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: output.pathString, withIntermediateDirectories: true)
+
+        let evidence = await TestCoverageEvidenceService().record(
+            session: TestCoverageEvidenceSession(directory: output, environment: [:]),
+            resultBundlePath: bundle,
+            derivedDataDirectory: nil
+        )
+
+        // No target links TestCoverageAttribution: the bundle still says the run asked.
+        #expect(evidence == TestCoverageEvidence(paths: [], scopes: [], status: .notLinked))
+        #expect(TestCoverageEvidence.read(fromResultBundle: URL(fileURLWithPath: bundle.pathString)) == evidence)
     }
 
     @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {

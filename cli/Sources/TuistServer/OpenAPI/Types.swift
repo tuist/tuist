@@ -3554,7 +3554,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
             public var only_test_identifiers: [Swift.String]?
-            /// Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public struct coverage_evidencePayload: Codable, Hashable, Sendable {
@@ -3631,6 +3631,18 @@ public enum Components {
                 public typealias scopesPayload = [Components.Schemas.TestParams.coverage_evidencePayload.scopesPayloadPayload]
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/scopes`.
                 public var scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload
+                /// Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case collected = "collected"
+                    case not_linked = "not_linked"
+                    case failed = "failed"
+                }
+                /// Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/status`.
+                public var status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload?
                 /// Tests that overlapped another of their process, so nothing could be attributed to them.
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/unattributed_tests`.
@@ -3640,23 +3652,27 @@ public enum Components {
                 /// - Parameters:
                 ///   - paths:
                 ///   - scopes:
+                ///   - status: Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
                 ///   - unattributed_tests: Tests that overlapped another of their process, so nothing could be attributed to them.
                 public init(
                     paths: [Swift.String],
                     scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload,
+                    status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload? = nil,
                     unattributed_tests: Swift.Int? = nil
                 ) {
                     self.paths = paths
                     self.scopes = scopes
+                    self.status = status
                     self.unattributed_tests = unattributed_tests
                 }
                 public enum CodingKeys: String, CodingKey {
                     case paths
                     case scopes
+                    case status
                     case unattributed_tests
                 }
             }
-            /// Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public var coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload?
@@ -4477,7 +4493,7 @@ public enum Components {
             ///   - status: The status of the test run.
             ///   - shard_index: The zero-based shard index for this test result.
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
-            ///   - coverage_evidence: Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
             ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
             ///   - build_run_id: The UUID of an associated build run.
@@ -27133,7 +27149,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
                     public var only_test_identifiers: [Swift.String]?
-                    /// Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public struct coverage_evidencePayload: Codable, Hashable, Sendable {
@@ -27210,6 +27226,18 @@ public enum Operations {
                         public typealias scopesPayload = [Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/scopes`.
                         public var scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload
+                        /// Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case collected = "collected"
+                            case not_linked = "not_linked"
+                            case failed = "failed"
+                        }
+                        /// Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/status`.
+                        public var status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload?
                         /// Tests that overlapped another of their process, so nothing could be attributed to them.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/unattributed_tests`.
@@ -27219,23 +27247,27 @@ public enum Operations {
                         /// - Parameters:
                         ///   - paths:
                         ///   - scopes:
+                        ///   - status: Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
                         ///   - unattributed_tests: Tests that overlapped another of their process, so nothing could be attributed to them.
                         public init(
                             paths: [Swift.String],
                             scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload,
+                            status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload? = nil,
                             unattributed_tests: Swift.Int? = nil
                         ) {
                             self.paths = paths
                             self.scopes = scopes
+                            self.status = status
                             self.unattributed_tests = unattributed_tests
                         }
                         public enum CodingKeys: String, CodingKey {
                             case paths
                             case scopes
+                            case status
                             case unattributed_tests
                         }
                     }
-                    /// Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public var coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload?
@@ -28056,7 +28088,7 @@ public enum Operations {
                     ///   - status: The status of the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
-                    ///   - coverage_evidence: Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
                     ///   - history_source: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
                     ///   - build_run_id: The UUID of an associated build run.

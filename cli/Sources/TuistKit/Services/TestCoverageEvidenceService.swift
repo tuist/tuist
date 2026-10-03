@@ -100,16 +100,34 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         derivedDataDirectory: AbsolutePath?
     ) async -> TestCoverageEvidence? {
         defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
+        guard let resultBundlePath, (try? await fileSystem.exists(resultBundlePath)) == true else { return nil }
+        let evidence = await collect(session: session, derivedDataDirectory: derivedDataDirectory)
         do {
-            guard let resultBundlePath, try await fileSystem.exists(resultBundlePath) else { return nil }
+            try evidence.write(toResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
+        } catch {
+            Logger.current.debug("The run's coverage evidence could not be written: \(error.localizedDescription)")
+            return nil
+        }
+        return evidence
+    }
+
+    /// What the test processes recorded, reduced to files and lines; without scopes, its status
+    /// says why there is none.
+    private func collect(session: TestCoverageEvidenceSession, derivedDataDirectory: AbsolutePath?) async
+        -> TestCoverageEvidence
+    {
+        do {
             let outputs = try FileManager.default
                 .contentsOfDirectory(at: URL(fileURLWithPath: session.directory.pathString), includingPropertiesForKeys: nil)
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
                 .compactMap { try? CoverageObserverOutput(directory: $0) }
-            guard !outputs.isEmpty else { return nil }
+            guard !outputs.isEmpty else {
+                Logger.current.debug("No test process recorded coverage evidence: no test target links TestCoverageAttribution")
+                return TestCoverageEvidence(paths: [], scopes: [], status: .notLinked)
+            }
             guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
                 Logger.current.debug("No Coverage.profdata under the derived data; no coverage evidence")
-                return nil
+                return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
             }
 
             var filesByFunction: [String: [String: Set<String>]] = [:]
@@ -122,13 +140,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
                 }
             }
-            let evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings)
-            guard !evidence.scopes.isEmpty else { return nil }
-            try evidence.write(toResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
+            var evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings)
+            evidence.status = evidence.scopes.isEmpty ? .failed : .collected
             return evidence
         } catch {
             Logger.current.debug("The run's coverage evidence could not be recorded: \(error.localizedDescription)")
-            return nil
+            return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
         }
     }
 

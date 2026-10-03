@@ -144,7 +144,7 @@ components:
           x-struct:
           x-validate:
         coverage_evidence:
-          description: "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
+          description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
           properties:
             paths:
               items:
@@ -216,6 +216,15 @@ components:
                 x-validate:
               maxItems: 500000
               type: array
+              x-struct:
+              x-validate:
+            status:
+              description: "Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it."
+              enum:
+                - collected
+                - not_linked
+                - failed
+              type: string
               x-struct:
               x-validate:
             unattributed_tests:
@@ -13061,7 +13070,7 @@ paths:
                   x-struct:
                   x-validate:
                 coverage_evidence:
-                  description: "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
+                  description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
                   properties:
                     paths:
                       items:
@@ -13133,6 +13142,15 @@ paths:
                         x-validate:
                       maxItems: 500000
                       type: array
+                      x-struct:
+                      x-validate:
+                    status:
+                      description: "Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it."
+                      enum:
+                        - collected
+                        - not_linked
+                        - failed
+                      type: string
                       x-struct:
                       x-validate:
                     unattributed_tests:

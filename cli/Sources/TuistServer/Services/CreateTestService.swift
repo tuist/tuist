@@ -610,6 +610,7 @@ private func stressFailures(
                             suite: $0.suite
                         )
                     },
+                    status: evidence.status.flatMap { .init(rawValue: $0.rawValue) },
                     unattributed_tests: evidence.unattributedTests
                 )
             }
