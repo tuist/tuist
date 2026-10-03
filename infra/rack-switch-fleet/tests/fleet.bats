@@ -528,7 +528,9 @@ STUB
     [[ "$output" == *"| ber1-tor-b | 26 | ber1-edge-b | sfp28-1 | dac | data | installed |"* ]]
     [[ "$output" == *"| ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | installed |"* ]]
     [[ "$output" == *"| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | installed |"* ]]
-    [[ "$output" == *"| ber1-ats-2 |  | ber1-edge-b | psu | power | power | planned |"* ]]
+    [[ "$output" == *"| ber1-pdu-b |  | ber1-edge-b | psu | power | power | installed |"* ]]
+    [[ "$output" == *"| ber1-ats-2 |  | ber1-pdu-b | inlet | power | power | installed |"* ]]
+    [[ "$output" == *"| ber1-pdu-b |  | ber1-tor-b | psu | power | power | installed |"* ]]
     [[ "$output" == *"| ber1-tor-a | 32 | ber1-tor-b |  | dac | isl | installed |"* ]]
     [ "$(diff <(printf '%s\n' "$output") "$FLEET_ROOT/cables/ber1.md")" = "" ]
     # a cable not in yet on an installed node is planned on its own
@@ -539,11 +541,54 @@ STUB
     [[ "$output" == *"| ber1-mgmt | 2 | ber1-edge-b | i226-lm | copper | management | installed |"* ]]
 }
 
-@test "the two edges hang off different transfer switches" {
-    run jq -r '[.nodes[] | select(.role == "edge") | .ats] | map(select(. != null)) | "\(length) \(unique | length)"' "$SITE_FILE"
+@test "every node and switch resolves to one transfer switch, and the pairs to different ones" {
+    run fleet_check_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    run jq -r '
+        ([.nodes[] | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+        [.nodes[], .devices[] | select(.role == "edge" or .role == "tor") |
+          {role, ats: (.ats // $pdus[.pdu])}] | group_by(.role) | map(map(.ats) | unique | length) | join(" ")' "$SITE_FILE"
     [ "$output" = "2 2" ]
-    run jq -r '[.nodes[] | select(.role == "edge") | .ats as $a | $a] - [.nodes[] | select(.role == "power" and .hardware == "eats16n") | .name] | length' "$SITE_FILE"
-    [ "$output" = "0" ]
+}
+
+@test "a pair on one transfer switch is rejected, whichever PDU it goes through" {
+    local site="$BATS_TEST_TMPDIR/pair.json"
+    jq '(.devices[] | select(.name == "ber1-tor-b")) |= (del(.pdu) + {ats: "ber1-ats-1"})' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-tor-b and ber1-tor-a both resolve to ber1-ats-1"* ]]
+    jq '(.nodes[] | select(.name == "ber1-store-b")) |= (del(.pdu) + {ats: "ber1-ats-1"})' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-store-a and ber1-store-b both resolve to ber1-ats-1"* ]]
+}
+
+@test "a cord goes into one power device, and a PDU hangs off a transfer switch" {
+    local site="$BATS_TEST_TMPDIR/cord.json"
+    jq '(.nodes[] | select(.name == "ber1-edge-b")).ats = "ber1-ats-3"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-edge-b: names both ats and pdu"* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.ats)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-pdu-b: a PDU is fed by a transfer switch"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-2")).pdu = "ber1-pdu-a"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-ats-2: a transfer switch takes the facility feeds"* ]]
+    jq '(.nodes[] | select(.name == "ber1-kvm-a")).ats = "ber1-pdu-b"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-kvm-a: ats ber1-pdu-b is not a transfer switch"* ]]
+}
+
+@test "two power appliances cannot share a management address" {
+    local site="$BATS_TEST_TMPDIR/address.json"
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")).mgmt_address = "192.168.0.16"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-pdu-a and ber1-pdu-b share management address 192.168.0.16"* ]]
 }
 
 @test "the things on the management switch that are not machines are modelled" {
@@ -661,13 +706,13 @@ mini_site() {
 
 # --- the power appliances ----------------------------------------------------
 
-@test "the power gear is Eaton, three transfer switches and two PDUs, all planned" {
+@test "the power gear is Eaton, three transfer switches and two PDUs, of which the prep bay runs two and one" {
     run jq -r '[.nodes[] | select(.hardware == "eats16n")] | length' "$SITE_FILE"
     [ "$output" = "3" ]
     run jq -r '[.nodes[] | select(.hardware == "evmafc20a")] | length' "$SITE_FILE"
     [ "$output" = "2" ]
-    run jq -r '[.nodes[] | select(.role == "power") | select(.status != "planned")] | length' "$SITE_FILE"
-    [ "$output" = "0" ]
+    run jq -r '[.nodes[] | select(.role == "power" and .status == "installed") | .name] | join(" ")' "$SITE_FILE"
+    [ "$output" = "ber1-ats-1 ber1-ats-2 ber1-pdu-b" ]
 }
 
 @test "the PDU records the protocol a power driver should target" {
@@ -2340,6 +2385,7 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" != *'ip saddr 192.168.50.0/24 masquerade'* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
+    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
   }'* ]]
 }
@@ -2588,22 +2634,246 @@ STUB
     [[ "$output" != *"dhcp-range"* ]]
 }
 
+# Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:
+# FAKE_EDGE_ADDRESS is what the switch port holds. Prints what was advertised.
+routes_advertised() {
+    local script="$1" bin="$BATS_TEST_TMPDIR/routes-bin"
+    mkdir -p "$bin"
+    cat > "$bin/ip" <<'STUB'
+#!/bin/sh
+[ "$*" = "-4 -o addr show dev enp87s0" ] || exit 1
+[ -n "$FAKE_EDGE_ADDRESS" ] && echo "3: enp87s0    inet $FAKE_EDGE_ADDRESS scope global noprefixroute enp87s0"
+exit 0
+STUB
+    cat > "$bin/tailscale" <<'STUB'
+#!/bin/sh
+for arg; do case "$arg" in --advertise-routes=*) echo "${arg#--advertise-routes=}";; esac; done
+STUB
+    chmod +x "$bin/ip" "$bin/tailscale"
+    PATH="$bin:$PATH" sh "$script"
+}
+
 @test "the edges advertise each machine's address to the tailnet, and nothing else" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_routes "$SITE_FILE"
+    script="$BATS_TEST_TMPDIR/routes.sh"
+    # a site whose power devices are still planned advertises only the machines
+    jq '(.nodes[] | select(.role == "power")) |= (.status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nopower.json"
+    fleet_edge_routes "$BATS_TEST_TMPDIR/nopower.json" > "$script"
+    run grep -c 'ip ' "$script"
+    [ "$output" = "0" ]
+    FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'\nexec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes=10.10.0.101/32' ]]
+    [ "$output" = "10.10.0.101/32" ]
     # a mini still planned has no route until it is racked
     jq '.nodes += [{name: "ber1-runner-b02", role: "runner", hardware: "mac-mini", status: "planned", rack_host: "ber1-proto-01",
-          links: [{switch: "ber1-tor-b", port: 2, media: "copper", nic: "en0", purpose: "data"}]}]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
-    run fleet_edge_routes "$BATS_TEST_TMPDIR/planned.json"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"--advertise-routes=10.10.0.101/32" ]]
+          links: [{switch: "ber1-tor-b", port: 2, media: "copper", nic: "en0", purpose: "data"}]}]' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/planned.json"
+    fleet_edge_routes "$BATS_TEST_TMPDIR/planned.json" > "$script"
+    run routes_advertised "$script"
+    [ "$output" = "10.10.0.101/32" ]
     # a site without the segment withdraws whatever an edge advertised
-    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
-    run fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json"
+    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/nomachines.json"
+    fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json" > "$script"
+    run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--advertise-routes=" ]]
+    [ "$output" = "" ]
+}
+
+@test "only the edge holding the switch port's address advertises the power devices behind it" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [ "$output" = $'192.168.0.14\n192.168.0.15\n192.168.0.16' ]
+    script="$BATS_TEST_TMPDIR/routes.sh"
+    fleet_edge_routes "$SITE_FILE" > "$script"
+    # the master: the machines, and a /32 per installed power device on ber1-mgmt
+    FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10.10.0.101/32,192.168.0.14/32,192.168.0.15/32,192.168.0.16/32" ]
+    # the standby has no route to them, so it advertises the machines alone
+    run routes_advertised "$script"
+    [ "$status" -eq 0 ]
+    [ "$output" = "10.10.0.101/32" ]
+    # an address that merely starts like the edge's is not it
+    FAKE_EDGE_ADDRESS=192.168.0.100/24 run routes_advertised "$script"
+    [ "$output" = "10.10.0.101/32" ]
+    # a planned PDU, and one whose management link is not behind the edge, are not advertised
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")
+        | (.nodes[] | select(.name == "ber1-ats-1") | .links[0].switch) = "ber1-tor-a"' "$SITE_FILE" > "$BATS_TEST_TMPDIR/power.json"
+    run fleet_edge_power "$BATS_TEST_TMPDIR/power.json"
+    [ "$output" = $'192.168.0.15\n192.168.0.16' ]
+}
+
+@test "the tailnet reaches a power device through the master's switch port, translated to the edge address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_keepalived "$SITE_FILE" ber1-edge-b
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"192.168.0.16/32 dev enp87s0 src 192.168.0.10"* ]]
+    [[ "$output" == *"192.168.0.14/32 dev enp87s0 src 192.168.0.10"* ]]
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    # the PDU's gateway is not an edge, so a reply to a tailnet address would
+    # never come back: it is translated to the edge address, on-link for it
+    [[ "$output" == *'iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade'* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.15,192.168.0.16 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
+    # without power devices there is no rule naming an empty set, which nft refuses
+    jq '(.nodes[] | select(.role == "power")) |= del(.mgmt_address)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nopower.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/nopower.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'iifname "tailscale0" oifname "enp87s0"'* ]]
+    [[ "$output" != *"{  }"* ]]
+}
+
+@test "a power device's address outside the management prefix is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mgmt_address = "10.0.0.16; reboot")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/badpower.json"
+    run fleet_edge_routes "$BATS_TEST_TMPDIR/badpower.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"power device address 10.0.0.16; reboot is not in the management prefix 192.168.0.0/24"* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:D7:00:CA")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/badmac.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/badmac.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-pdu-b's mac '00:20:85:D7:00:CA' is not a MAC in lower case"* ]]
+}
+
+# --- RackPDU objects ---------------------------------------------------------
+
+@test "a PDU with a recorded MAC takes its address from the edge's DHCP, and one without gets no reservation" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ber1-pdu-b"* ]]
+    [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150"* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:d7:00:ca")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/mac.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\ndhcp-host=00:20:85:d7:00:ca,192.168.0.16,ber1-pdu-b,infinite\n'* ]]
+    # the switch behind the edge keeps its reservation, and an unknown MAC
+    # still gets the provisioning pool
+    [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
+    [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150"* ]]
+    # a planned PDU is not reserved until it is installed
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:d7:00:ca" | .status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/planned.json"
+    [[ "$output" != *"00:20:85:d7:00:ca"* ]]
+}
+
+@test "each PDU with a management address is a RackPDU, adopted by the controller once installed" {
+    run fleet_pdus "$SITE_FILE"
+    [ "$output" = "ber1-pdu-b" ]
+    run fleet_render_pdu "$SITE_FILE" ber1-pdu-b
+    [ "$status" -eq 0 ]
+    [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-b" ]
+    [ "$(yq 'select(.kind == "RackPDU") | .spec | [.site, .model, .address, .chain, .managedBy] | join(" ")' <<<"$output")" = "ber1 evmafc20a 192.168.0.16 ber1-ats-2 controller" ]
+    # no MAC recorded: the object says nothing about one
+    [ "$(yq 'select(.kind == "RackPDU") | .spec | has("mac")' <<<"$output")" = "false" ]
+    # quoted, or YAML 1.1 reads it as a boolean and the CRD refuses it
+    [[ "$output" == *'outletStateOnStartup: "on"'* ]]
+    # the administrator login the controller generates reaches 1Password
+    [ "$(yq 'select(.kind == "PushSecret") | .spec.selector.secret.name' <<<"$output")" = "ber1-pdu-b-credentials" ]
+    [ "$(yq 'select(.kind == "PushSecret") | [.spec.data[].match.secretKey] | join(" ")' <<<"$output" | sed '/^$/d')" = "admin-username admin-password" ]
+
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= (.mac = "00:20:85:d7:00:ca")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_render_pdu "$BATS_TEST_TMPDIR/mac.json" ber1-pdu-b
+    [ "$(yq 'select(.kind == "RackPDU") | .spec.mac' <<<"$output")" = "00:20:85:d7:00:ca" ]
+
+    # a PDU not installed yet is standalone, with nothing pushed for it
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_pdus "$BATS_TEST_TMPDIR/planned.json"
+    [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
+    run fleet_render_pdu "$BATS_TEST_TMPDIR/planned.json" ber1-pdu-a
+    [ "$(yq 'select(.kind == "RackPDU") | .spec.managedBy' <<<"$output")" = "standalone" ]
+    [[ "$output" != *"PushSecret"* ]]
+}
+
+@test "render --check notices a RackPDU object that no longer matches the site" {
+    cp "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml" "$BATS_TEST_TMPDIR/pdu.yaml"
+    sed -i.bak 's/managedBy: controller/managedBy: standalone/' "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render --check
+    cp "$BATS_TEST_TMPDIR/pdu.yaml" "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml"
+    rm -f "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml.bak"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: k8s/ber1/ber1-pdu-b.yaml"* ]]
+}
+
+# --- RackATS objects ---------------------------------------------------------
+
+@test "each transfer switch prefers the feed its chain is named for" {
+    run jq -r '[.nodes[] | select(.hardware == "eats16n") | "\(.name)=\(.preferred_source)"] | join(" ")' "$SITE_FILE"
+    [ "$output" = "ber1-ats-1=1 ber1-ats-2=2 ber1-ats-3=1" ]
+    run fleet_check_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "a transfer switch without a preferred source of 1 or 2 is rejected, and nothing else carries one" {
+    local site="$BATS_TEST_TMPDIR/preferred.json"
+    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= del(.preferred_source)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-ats-2: preferred_source is missing"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-2")).preferred_source = 3' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-ats-2: preferred_source is 3"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-2")).preferred_source = "2"' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")).preferred_source = 1' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-pdu-b: only a transfer switch has a preferred_source"* ]]
+}
+
+@test "the transfer switch records the protocol its controller targets" {
+    run jq -r '."eats16n".management_protocols[0]' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "rest" ]
+}
+
+@test "each transfer switch with a management address is a RackATS, adopted by the controller once installed" {
+    run fleet_atses "$SITE_FILE"
+    [ "$output" = $'ber1-ats-1\nber1-ats-2' ]
+    run fleet_render_ats "$SITE_FILE" ber1-ats-2
+    [ "$status" -eq 0 ]
+    [ "$(yq 'select(.kind == "RackATS") | .metadata.name' <<<"$output")" = "ber1-ats-2" ]
+    [ "$(yq 'select(.kind == "RackATS") | .spec | [.site, .model, .address, .managedBy, .preferredSource] | join(" ")' <<<"$output")" = "ber1 eats16n 192.168.0.15 controller 2" ]
+    # no MAC recorded, and nothing of a PDU's
+    [ "$(yq 'select(.kind == "RackATS") | .spec | (has("mac") or has("chain") or has("outletStateOnStartup"))' <<<"$output")" = "false" ]
+    [ "$(yq 'select(.kind == "PushSecret") | .spec.selector.secret.name' <<<"$output")" = "ber1-ats-2-credentials" ]
+    [ "$(yq 'select(.kind == "PushSecret") | [.spec.data[].match.remoteRef.remoteKey] | unique | join(" ")' <<<"$output" | sed '/^$/d')" = "ber1-ats-2 admin" ]
+    run fleet_render_ats "$SITE_FILE" ber1-ats-1
+    [ "$(yq 'select(.kind == "RackATS") | .spec.preferredSource' <<<"$output")" = "1" ]
+
+    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.mac = "00:20:85:aa:bb:cc")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_render_ats "$BATS_TEST_TMPDIR/mac.json" ber1-ats-2
+    [ "$(yq 'select(.kind == "RackATS") | .spec.mac' <<<"$output")" = "00:20:85:aa:bb:cc" ]
+
+    # a transfer switch not installed yet is standalone, with nothing pushed for it
+    jq '(.nodes[] | select(.name == "ber1-ats-3")) |= (.mgmt_address = "192.168.0.19")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    run fleet_atses "$BATS_TEST_TMPDIR/planned.json"
+    [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
+    run fleet_render_ats "$BATS_TEST_TMPDIR/planned.json" ber1-ats-3
+    [ "$(yq 'select(.kind == "RackATS") | .spec | [.managedBy, .preferredSource] | join(" ")' <<<"$output")" = "standalone 1" ]
+    [[ "$output" != *"PushSecret"* ]]
+}
+
+@test "a transfer switch with a recorded MAC takes its address from the edge's DHCP, and one without gets no reservation" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ber1-ats-"* ]]
+    jq '(.nodes[] | select(.name == "ber1-ats-1")) |= (.mac = "00:20:85:aa:bb:01")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/mac.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/mac.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'\ndhcp-host=00:20:85:aa:bb:01,192.168.0.14,ber1-ats-1,infinite\n'* ]]
+}
+
+@test "render --check notices a RackATS object that no longer matches the site" {
+    cp "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml" "$BATS_TEST_TMPDIR/ats.yaml"
+    sed -i.bak 's/preferredSource: 2/preferredSource: 1/' "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render --check
+    cp "$BATS_TEST_TMPDIR/ats.yaml" "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml"
+    rm -f "$FLEET_ROOT/k8s/ber1/ber1-ats-2.yaml.bak"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: k8s/ber1/ber1-ats-2.yaml"* ]]
 }
 
 @test "the machines segment's addresses, members and machines are checked at render" {

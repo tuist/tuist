@@ -392,8 +392,9 @@ ToR B. That is redundancy that looks like an untidiness, so a later edit moving
 them onto one switch would remove it without appearing to remove anything; the
 tests fail if the two storage nodes ever share a ToR. Mac minis follow the same
 rule for the same reason: one NIC each, split A/B the way the power feeds are.
-The two edges are split the same way on power: each names its transfer switch in
-`ats`, and the tests fail if they ever share one.
+The pairs are split the same way on power: the two edges, the two storage nodes
+and the two ToRs each resolve to different transfer switches, and the tests fail
+if a pair ever shares one (see the power section below).
 
 A node carries a `status`. `ber1-store-b` is `planned`: it is the one x86 node
 not yet bought, arriving November, and in the prep bay it is the empty slot in
@@ -411,11 +412,35 @@ row in review.
 waiting for a port and the ones belonging to a planned node.
 
 The power gear is Eaton throughout: three EATS16N transfer switches and two
-EVMAFC20A PDUs, one order not yet placed, so every power node is `planned`. The
-earlier APC choice was superseded when a single vendor across ATS and PDU turned
-out to be the stronger argument. Both are managed, so both keep a link to
-`ber1-mgmt`; the PDU also speaks a REST API, which is what a power driver should
-target, and that is recorded on the hardware rather than left to memory.
+EVMAFC20A PDUs. The earlier APC choice was superseded when a single vendor across
+ATS and PDU turned out to be the stronger argument. Both are managed, so both
+keep a link to `ber1-mgmt` (ports 41-45) and a static `mgmt_address`. Both
+speak Eaton's REST API, which is what their controllers target, and that is
+recorded on the hardware (`management_protocols`) rather than left to memory;
+for the transfer switch it rests on the card being a Network-M2, which is not
+yet confirmed on the units (see "RackATS" in the CAPI provider).
+
+Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. `ber1-ats-1` is
+the critical layer and powers its loads from its own outlets: `ber1-mgmt`,
+`ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs, the one-of-a-kind
+things everything else is recovered through. The other two each feed one PDU,
+and that ATS-plus-PDU pair is a chain: `ber1-ats-2` -> `ber1-pdu-b` (chain B)
+and `ber1-ats-3` -> `ber1-pdu-a` (chain A). A node or switch names the device its
+cord goes into, `ats` or `pdu` and never both, and a PDU names its ATS, so every
+load resolves to exactly one transfer switch, the unit of failure.
+`fleet_check_power` enforces that shape and that the edges, the storage pair
+and the ToRs each resolve to two different ATSes. The cable schedule shows each
+hop as its own row.
+
+The prep bay runs `ber1-ats-1`, `ber1-ats-2` and `ber1-pdu-b`, which is the
+critical layer plus one chain: enough to fail a chain and watch the rest of the
+rack report it. `ber1-ats-3` and `ber1-pdu-a` are `planned` until the colo.
+
+Keep more loads off the critical ATS over time rather than adding to it: gear
+bought with two power supplies goes one cord to each chain's PDU and needs no
+ATS at all, which leaves the critical layer with only what can never be
+dual-corded (JetKVMs, the shepherd, the jig, and `ber1-mgmt` while it has one
+supply).
 
 ### Outlets are not modelled here, because they already are somewhere else
 
@@ -433,12 +458,69 @@ one. That matters more than a gap would: an acknowledged gap eventually gets
 filled, and filling this one would leave two places to look and two chances to
 disagree.
 
-Two things follow. `internal/power` ships only a `shelly` driver, a prototype
-stand-in, so the rack's Eaton PDUs have none yet and a wedged mini in the colo
-has no remote recovery at all until they do. And whoever extends the chart side
-should carry the A/B property across: a mini's outlet and its ToR should not
-both land on the same side, or the split that the storage pair and the power
-feeds already keep is quietly undone for compute.
+Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
+provider (see "RackPDU objects" below), and a RackHost names its outlet as
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-proto-01` is on outlet 1 of
+`ber1-pdu-b`. And whoever extends the chart side
+should carry the A/B property across: a mini's outlet and its ToR must land on
+the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
+its switch lose power together. Crossed, any one ATS failure takes the whole
+fleet: half the minis lose power and the other half lose their ToR. This file
+records which chain a node is on (`ats`/`pdu`), but not the outlet, which stays
+the RackHost's.
+
+### RackPDU objects
+
+Each PDU (`evmafc20a`) with a `mgmt_address` is rendered as a `RackPDU` object
+into `k8s/<site>/<pdu>.yaml` by `fleet_render_pdu`, beside the RackSwitch
+objects, and the workflow applies both to `kubernetes.namespace`: its site,
+model, `mac`, address, `chain` (its `ats`), `managedBy: controller` once the
+node is `installed` (`standalone`, never contacted, before), and
+`outletStateOnStartup: "on"`. There is no revision: the spec is small, and the
+controller converges on `metadata.generation`. What the controller does with
+it (adopting the card on its factory login, generating and owning its
+credentials, pinning its certificate on first use, reporting drift) is
+"RackPDU" in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
+A controller-managed PDU also gets a PushSecret, `<pdu>-admin`, which copies
+the administrator login the controller generated (`admin-username`,
+`admin-password` of `<pdu>-credentials`) into the `onepassword` store's vault
+as the item `<pdu> admin`, for a person who needs the web UI.
+
+A power node may carry `mac`, its management card's MAC in lower case, like a
+switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
+factory card, which asks for DHCP, lands on its address with the edge as its
+router and nobody at it; an unknown MAC still gets the provisioning range. A
+node without one (today `ber1-pdu-b`, until someone reads it off the unit) is
+rendered all the same, gets no reservation, and its RackPDU reports
+`AddressReserved=False`.
+
+### RackATS objects
+
+Each transfer switch (`eats16n`) with a `mgmt_address` is rendered the same way
+as a `RackATS` into `k8s/<site>/<ats>.yaml` by `fleet_render_ats` (both go
+through `fleet_render_power`): its site, model, `mac`, address, `managedBy`
+(controller once `installed`) and `preferredSource`, with the same `<ats>-admin`
+PushSecret for one the controller adopts. Today that is `ber1-ats-1` and
+`ber1-ats-2`; `ber1-ats-3` has no address until the colo. Neither has a `mac`
+recorded yet, so neither has a DHCP reservation, and both RackATSes report
+`AddressReserved=False`; the reservation rule is the PDUs', since both are
+installed power nodes behind the edge.
+
+Every transfer switch carries `preferred_source`, 1 or 2: the source the
+switch powers the load from whenever it is good. Source 1 is feed A and
+source 2 feed B, so a transfer switch prefers the feed its chain is named for:
+`ber1-ats-1` (the critical layer) and `ber1-ats-3` (chain A) prefer 1,
+`ber1-ats-2` (chain B) prefers 2, which keeps the two chains on different feeds
+while both are good. `fleet_check_power` refuses a transfer switch without one
+and any other node with one.
+
+What the controller does with the object (adopting the card, keeping the
+preferred source, and reading every minute which source powers the load and
+whether the other could take it, into status, metrics and events) is "RackATS"
+in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+That observation replaces an SNMP exporter: nothing polls these switches over
+SNMP.
 
 ### The seam between two inventories, and how it is joined
 
@@ -728,8 +810,9 @@ files no longer match it:
   VRRP instance, unicast to the other edge over `management.edge.vrrp`, and
   whichever is master holds every floating address. Today those are the edge
   address on the switch port (`management.edge.address`, the switches'
-  gateway) without its prefix route, the provisioning address, and a host route
-  to each switch marked `behind_edge`, and the machines' gateway, as a /32 (see
+  gateway) without its prefix route, the provisioning address, a host route
+  to each switch marked `behind_edge` and to each installed power device whose
+  management link is on one, and the machines' gateway, as a /32 (see
   "The machines segment" below). The Cogent /31 (`management.edge.wan`) is
   empty until the data center has it; set, it floats the same way, so the
   standby holds no WAN address until it takes over. The first member is
@@ -756,7 +839,8 @@ files no longer match it:
 - `dnsmasq.conf`, DHCP on the switch port, the same on both edges: dnsmasq
   answers only for the ranges whose address the node holds, so only the master
   serves, and the reservations are identical wherever it moves. Each known
-  switch behind the edge gets its site address and the edge address as router,
+  switch behind the edge, and each installed power device behind it with a
+  `mac`, gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
@@ -765,7 +849,9 @@ files no longer match it:
   port 67.
 - `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
-  /32 per machine on the machines segment, the same on both edges.
+  /32 per machine on the machines segment, the same on both edges, and on the
+  edge holding the edge address, a /32 per power device behind the edge (see
+  "Power devices on the tailnet" below).
 - With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
   range also gets iPXE's Secure Boot shim (`snponly-shim.efi`, which loads
   `snponly.efi`, with the name kept in the packet's file field), and iPXE its
@@ -843,6 +929,38 @@ Alloy receiver at its tailnet name. Each line carries the time the receiver got
 it, so lines the collector catches up on after an outage are stamped late;
 dnsmasq's own time is at the start of each line. On the node itself:
 `sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
+
+### Power devices on the tailnet
+
+The operator switches the minis' outlets through the PDUs' REST API, from a
+cluster Pod, through the egress ProxyGroup, so each installed power node with
+a `mgmt_address` whose management link is on a switch behind the edge (today
+`ber1-ats-1`, `ber1-ats-2` and `ber1-pdu-b`, on `ber1-mgmt`) is a /32 on the
+tailnet too. Three things make that path work, all rendered from the site:
+
+- **Only the master advertises them.** `ber1-mgmt` is reached only through the
+  edges' switch ports, and only the master holds the edge address there and
+  the host routes to the devices behind it; the standby's route to the
+  management prefix leads to the house network. `tailnet-routes.sh` adds the
+  power /32s only when the node holds the edge address on the switch port, so
+  after a failover they follow the master on the script's next run, within
+  five minutes.
+- **The master translates what it forwards to them.** A power device
+  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s is the
+  house router), so its reply to a tailnet address would leave on the wrong
+  network. `mgmt-path.sh` masquerades
+  connections from `tailscale0` to them on the switch port, so they arrive
+  from the edge address, which is on-link for the device. Tailscale's own
+  subnet-route SNAT (`--snat-subnet-routes`, on by default on Linux, and the
+  edges join with the default) would do the same; the rule keeps the path
+  independent of how the node joined. Their replies into the tailnet are MSS
+  clamped like the switches'.
+- **The tailnet approves and grants only what the operator uses.**
+  `infra/tailscale/acls.json` auto-approves the installed power devices'
+  /32s, `192.168.0.14` (`ber1-ats-1`), `192.168.0.15` (`ber1-ats-2`) and
+  `192.168.0.16` (`ber1-pdu-b`), for `tag:tuist-rack-edge`, and grants the
+  staging cluster `tcp:443` to each, which the RackPDU and RackATS
+  controllers dial.
 
 ### Auto Install on the edge node
 

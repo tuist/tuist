@@ -46,6 +46,8 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` | One Mac mini we own as a node: the RackHost it is (`host`), sizing and fleet. Its RackHost keeps it and the Machine that owns it. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Its controller keeps the host's Machine. Nothing running on the host reads it. |
+| `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. See "RackPDU" below. |
+| `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -55,7 +57,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rlm`, `rlmt`, `rlh`.
+`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rpdu`, `rats`, `rlm`, `rlmt`, `rlh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -332,8 +334,8 @@ mode behind it:
 - **Reboot is a PDU outlet.** Apple silicon powers on when mains is applied and
   every fleet host runs `pmset autorestart 1`, so cutting and restoring an
   outlet is a cold boot with nobody at a console. `internal/power` holds the
-  drivers, and the only one shipped today is `shelly`, which is scoped to home
-  and office prototypes: a colo rack's switched PDUs get their own driver.
+  drivers: `eaton` for the rack's Eaton Rack PDU G4s, and `shelly`, which is
+  scoped to home and office prototypes (see "RackPDU" below).
   `power.Cycle` drives off/settle/on itself rather than using a
   device's native cycle verb, because the settle interval is the one parameter
   that matters and no two devices agree on it. It verifies the outlet actually
@@ -447,6 +449,340 @@ inside the machines segment's prefix. They are rendered from the rack's
 inventory, so racking a mini changes them, and hand approval would be a step per
 mini per edge; scoped to the segment, the tag can put nothing else into the
 tailnet's routing table.
+
+### RackPDU
+
+The rack is zero touch: shipping a PDU is racking and cabling it. Everything
+after that is the RackPDU controller's (`controllers/macos/rackpdu_controller.go`),
+and nobody makes an account, a 1Password item or a certificate pin by hand.
+
+**Where the object comes from.** `infra/rack-switch-fleet` renders one `RackPDU`
+per Eaton Rack PDU G4 (`evmafc20a`) node with a management address into
+`k8s/<site>/<pdu>.yaml`, which the rack-switch-fleet workflow applies to the
+site's namespace. An installed PDU is `managedBy: controller`; a planned one is
+`standalone`, which the controller never contacts. The edge reserves the
+card's address against `spec.mac`, so a factory card, which asks for DHCP,
+lands on `spec.address`. A PDU whose MAC nobody has read off the unit yet has
+no reservation: the controller still adopts a card already at the address and
+reports `AddressReserved=False`, reason `NoMAC`.
+
+**What a reconcile does**, one at a time, on the leader:
+
+1. **The egress Service** `rackpdu-<name>` in the egress namespace, annotated
+   `tailscale.com/tailnet-ip` with the address, on :443, when
+   `--tailscale-egress-proxy-group` and `--tailscale-egress-namespace` are set.
+   A Service in another namespace cannot be owned, so the RackPDU carries the
+   finalizer `tuist.dev/rackpdu`: deleting it logs the controller's session out
+   of the card and deletes the Service. Every path to the card dials it.
+2. **The credentials Secret** `<name>-credentials`, labelled
+   `tuist.dev/rack-pdu=<name>`: `admin-username` (`admin`), `admin-password`,
+   `username` (`tuist-controller`), `password`, `initial-password`, all
+   generated to the card's default password policy, and `tlsFingerprint`. Keys
+   it lacks are generated; keys it has are never replaced. It is written before
+   any password reaches the card. It is deliberately not owned by the RackPDU,
+   and nothing deletes it: it holds the only copy of the passwords set on the
+   card, so deleting or recreating the RackPDU must not collect it, or the card
+   refuses every login until someone factory-resets it. A RackPDU made again
+   under the same name picks it up and logs in with it. Retiring a PDU for good
+   is deleting the Secret by hand after its RackPDU.
+3. **The certificate, trust on first use.** The card's leaf certificate is read
+   without trusting anything. At first contact its SHA-256 is recorded in the
+   Secret and `status.tlsFingerprint`, and every later connection is pinned to
+   it. A card presenting another certificate (a replacement, a factory reset,
+   or something else at the address) sets `CertificateChanged=True`, one
+   warning event, and no writes, until `tuist.dev/accept-certificate=<the new
+   SHA-256>` names it; the controller pins it and clears the annotation, and
+   clears an annotation naming any other certificate with a warning.
+4. **Adoption**, when the card is not adopted or the spec's generation moved,
+   as the administrator: log in with the Secret's password, and when the card
+   refuses it, with the factory `admin`/`admin`, setting the Secret's password
+   in the same request (the card's forced first-login change), with an event
+   naming which. Then, reading first and writing only what differs: accept the
+   licence agreement for `admin`; make the controller's account in the
+   `operators` profile (the least predefined profile holding
+   `role-power-manager`) with `initial-password`, which the card makes it
+   change at its first login, so the driver logs in once with it and sets
+   `password`; accept its licence agreement; set every outlet's
+   `stateOnStartup` to `spec.outletStateOnStartup` (default `on`, so a Mac
+   comes back after a power loss) and read it back; read the card's model,
+   serial, firmware and outlet count into status; log the administrator out.
+   A controller account that does not take the Secret's password is deleted
+   and made again. Every step is idempotent, so a pass stopped anywhere is
+   finished by the next.
+5. **Between generations it only reads**, every 10 minutes, as the
+   controller's account through the driver's session: the outlets' startup
+   state and that the account can still log in. Drift is reported
+   (`drift: drifted`, `Converged=False` reason `Drifted`, one warning event)
+   and not written over; a new generation converges it. An account that cannot
+   log in, or a card that does not answer, is not drift, since nothing was
+   read: it is `Ready=False`, reason `ControllerLoginFailed` or `Unreachable`,
+   with `Converged` Unknown and drift `unknown`. A card that answers
+   `AccountBlocked` is `Ready=False`, reason `AccountBlocked`.
+
+A refused login, the controller's account's or the administrator's managed
+and factory pair, is not retried every minute: a card may block an account
+after repeated failures. The wait doubles from a minute up to an hour and
+starts over on a success, a new generation or a change to the RackPDU's
+annotations (any annotation will do to retry at once). It is held in memory
+(`controllers/macos/rackcard_backoff.go`), so a new leader starts over.
+
+One generation is one adoption pass. The reconciler wakes for a new generation
+or an annotation, not for its own status writes, and before adopting it reads
+the RackPDU past the manager's cache, whose copy can lag the status the last
+pass wrote. A RackPDU switched to `managedBy: standalone` is `Ready=False`,
+reason `Standalone`, and the controller logs its session out of the card (so a
+person can log in with the account, and the card's one session for it is free)
+and stops contacting it. A logout that cannot reach the card is a
+`LogoutFailed` event; the card then ends the session at its idle timeout.
+
+**Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
+`AddressReserved`. `Adopted=False` reasons: `Unreachable`, `AdminLoginRefused`
+(neither the Secret's nor the factory password works: someone changed it, or
+the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
+allows one session per account and another holds the administrator's; it
+lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
+for any other reason, carried verbatim), `AccountBlocked`, `UnsupportedCard`
+(the card's `powerDistributions/1` is not `specifications.type: pdu`, see
+"A card of the wrong kind" below), `ConvergeFailed`.
+
+**A card of the wrong kind.** Nothing on an Eaton card answers without a
+login: in Eaton's collections only `oauth2/token` is unauthenticated, and its
+refusal carries no product. A factory card forces the administrator's new
+password in that same first login, so an object pointed at a card of the other
+kind (a RackPDU at a transfer switch's address, or the reverse) has already
+set its own administrator password on the card when `powerDistributions/1`
+tells it the card is not its kind. It then stops there, writes nothing else,
+and reports `Adopted=False UnsupportedCard` naming the Secret that now holds
+the password. Every credentials Secret carries the label
+`tuist.dev/rack-card-address=<address>`, and one whose password was set at a
+card's forced first-login change records when and on which certificate
+(`tuist.dev/rack-card-admin-set`, `tuist.dev/rack-card-admin-set-certificate`).
+The administrator login tries, after the object's own password and before the
+factory one, the password of at most one other Secret: of those with the same
+address label whose recorded certificate is the one the card presents now, the
+most recent. Unmarked Secrets and marks for another certificate (a replaced
+card, leftovers of deleted objects) are never tried, so a card that blocks an
+account after a few failures is not walked through them; these attempts count
+against the login backoff like any other. The password that works is recorded,
+with its mark, in the object's own Secret, and the `LoggedIn` event names where
+it came from. So the object of the right kind adopts the card without anyone
+at it, and the wrong one stays `UnsupportedCard` until its site definition is
+fixed.
+
+`UnsupportedCard` is for a card the object has not adopted. An adopted card
+that answers unlike its API (a page or a missing login, as a card restarting
+or upgrading can) keeps `Adopted=True` and is `Ready=False`, reason
+`UnexpectedResponse`, until it answers as it did.
+
+**Metrics**, labelled `pdu` and `site`: `capt_rackpdu_adopted`,
+`capt_rackpdu_ready`, `capt_rackpdu_drifted` and
+`capt_rackpdu_certificate_changed`, each 1 or 0. The alerts worth having:
+
+- `capt_rackpdu_ready == 0` for 15 minutes: every host on the PDU has lost its
+  remote reboot. The RackPDU's `Ready` reason says why.
+- `capt_rackpdu_certificate_changed == 1`: something else answers at the
+  card's address, or the card was replaced or reset; nothing is written to it
+  until someone accepts the certificate.
+- `capt_rackpdu_drifted == 1` for an hour: someone changed an outlet's
+  startup state on the card.
+- `capt_rackpdu_adopted == 0` for an hour on a `controller` PDU: adoption is
+  stuck; read `Adopted`'s reason.
+
+**The administrator login for people** reaches 1Password through the
+PushSecret `<name>-admin` rendered beside the RackPDU, as the item
+`<name> admin` in the `onepassword` store's vault. Without it, it is the
+Secret's `admin-username`/`admin-password`, read with a JIT kubectl elevation.
+
+**RackHost outlets.** `RackHost.spec.power` is `{pdu: <RackPDU>, outlet: "<n>"}`
+on the rack: the outlet's 1-based number on the PDU, the driver `eaton`, the
+dial target the PDU's egress Service, and the credentials and pin its Secret's.
+The CRD refuses `pdu` beside `driver`, `host` or `credentialsSecretRef`, and an
+outlet that is not a positive number, and an empty `pdu` or `host`. Power
+actions are refused, and `PowerReachable=False` with reason `PDUNotReady`,
+while the RackPDU is not Ready, is standalone, or is being deleted (checked
+first: the cache can still show it Ready after its controller logged out of
+the card, and a new session would hold the account until the card's idle
+timeout). A RackPDU's change wakes the
+hosts plugged into it at once rather than at their poll. `driver: shelly` with
+`host` and `credentialsSecretRef` stays for a desk plug; it is dialled
+directly.
+
+**The eaton driver** (`internal/power/eaton.go`) speaks the G4 REST API
+(`/rest/mbdetnrs/2.0`). The card allows one session per account, so the driver
+keeps one bearer token per card, serialises every call to it, and logs in again
+only when the card rejects the token; the RackPDU controller's drift reads go
+through the same session as the power paths. The manager logs out on shutdown so
+the next leader is not refused; a crashed operator's session holds the account
+until the card's hour of inactivity ends it. When the credentials or the pin
+change, the old session is logged out first, through a client pinned to the new
+certificate when the old one cannot connect, and a logout that still fails is
+reported rather than dropped. `Set` reads the outlet first, does
+nothing when it is already in the requested state, refuses an outlet whose
+`specifications.switchable` is false, and returns once the outlet reads the new
+state. Account changes use the reauthentication token the card requires,
+base64(access_token:password). `internal/power/eatontest` is a fake card.
+
+**Unverified on a real G4**, since the controller has not met one: that the
+factory login answers `newPassword` without anything else first; whether the
+licence agreement gates the API before it is accepted; that `operators` may
+switch outlets and read their settings (the collection lists its roles, not
+what each allows); the exact refusal bodies; whether an account the
+administrator creates starts with an expired password (the collection's
+example says it does, so both cases are handled); how long an outlet takes to
+read its new state; and whether a changed `stateOnStartup` survives the whole
+settings object being written back.
+
+### RackATS
+
+The rack's three Eaton EATS16N transfer switches ("ATS 16 Netpack") are as zero
+touch as its PDUs. A transfer switch has nothing to switch, so its controller
+(`controllers/macos/rackats_controller.go`) does three things: adopts the card,
+keeps the switch's preferred source, and observes the switch. The observation
+is the point: which source powers the load, and whether the other one could
+take it, as Kubernetes status, Prometheus metrics and events. That replaces an
+SNMP exporter; nothing polls the switches over SNMP.
+
+**Where the object comes from.** `infra/rack-switch-fleet` renders one
+`RackATS` per `eats16n` node with a management address into
+`k8s/<site>/<ats>.yaml`: its model, `mac` when recorded, address,
+`managedBy: controller` once `installed` (`standalone`, never contacted,
+before), and `preferredSource` from the node's `preferred_source`. Source 1 is
+feed A and source 2 feed B, so `ber1-ats-1` and `ber1-ats-3` prefer 1 and
+`ber1-ats-2` prefers 2. A standalone RackATS is `Ready=False`, reason
+`Standalone`, and has no metrics.
+
+**The lifecycle it shares with RackPDU** is `controllers/macos/rackcard.go`:
+the egress Service (`rackats-<name>`), the finalizer `tuist.dev/rackats`,
+held on every controller-managed RackATS so deleting it logs the
+controller's session out of the card and deletes the Service (an object an
+earlier build held with `tuist.dev/rackats-egress` is moved to it, and let go
+on delete either way), the unowned `<name>-credentials` Secret (labelled
+`tuist.dev/rack-ats=<name>`, the same keys, written before first contact and
+outliving the object), trust on first use with `tuist.dev/accept-certificate`,
+the managed-then-factory administrator login, the login backoff (a refused or
+blocked login waits a minute, doubling to an hour, reset by a success, a new
+generation or an annotation; `AccountBlocked` is its own `Ready` and `Adopted`
+reason), the logout when it goes `standalone`, `AddressReserved=False`/`NoMAC`
+without a MAC, and the PushSecret `<name>-admin` to 1Password. One difference
+in the backoff: an adopted switch whose administrator login is refused for a
+new generation keeps being observed as the controller's account, and only the
+administrator's logins wait. What differs otherwise:
+
+1. **It identifies the switch before writing anything else.** Right after the
+   administrator's login (which, on a factory card, is itself the forced
+   password change) it reads `powerDistributions/1`; a card that is not a
+   transfer switch the driver knows is left there (below, and "A card of the
+   wrong kind" under RackPDU for the password the login already set).
+2. **The controller's account is in `viewers`**: it only reads.
+3. **The preferred source** is set as the administrator when it differs from
+   `spec.preferredSource`, and read back. Between generations it is only
+   read: someone changing it at the web UI is `drift: drifted`,
+   `Converged=False` reason `Drifted` and one warning event, and it is not
+   written over until the spec's next generation. Its own status writes do
+   not start a pass (a generation, an annotation or a deletion does), so one
+   generation is one administrator login.
+4. **Every minute**, as the controller's account through the eaton driver's
+   session: `status.activeSource` (1, 2, or 0 for neither), `status.inputs`
+   (each source's `state`, one of `good`, `derated`, `outOfRange`,
+   `missing`, `unknown`, with `voltage`, `frequency` and the card's raw
+   `detail`), `status.preferredSource`, the device's and the card's
+   identity, and `status.lastObserved`. Every change of the active source
+   between two reads sets `status.lastTransfer`, with 0 for neither source,
+   and counts in `capt_rackats_observed_transfers_total{from,to}`. The event
+   tells them apart: `Transferred` between the sources (Warning when it moved
+   off the preferred source, Normal when it moved back), `LoadNotPowered` when
+   neither source powers the load, `LoadRestored` when one does again.
+
+**`Redundant`** is True when the source not powering the load is `good`, so
+losing the active one would move the load rather than drop it. False reasons:
+`AlternateSourceNotGood`, `LoadNotPowered`. Unknown whenever the switch could
+not be read (unreachable, changed certificate, unsupported card, failed login),
+so nothing reads a stale observation as current. `RedundancyLost` and
+`RedundancyRestored` events mark its transitions.
+
+**Conditions**: `Adopted`, `Converged`, `Ready`, `Redundant`,
+`CertificateChanged`, `AddressReserved`. `Adopted=False` reasons are the
+RackPDU's plus `UnsupportedCard`. `Converged=False` reason
+`PreferredSourceUnrecognised` is a card whose settings carry no preferred
+source the driver recognises; the message lists the keys it does carry. A
+failed read is `Ready=False` with its own reason (`Unreachable`,
+`ControllerLoginFailed`, `AccountBlocked`, `ObservationFailed`),
+`Converged=Unknown` and `drift: unknown`, never drift. A standalone RackATS is
+not observed either: `Redundant=Unknown`, reason `Standalone`.
+
+**Metrics**, on the operator's `/metrics`, labelled `ats` and `site`:
+`capt_rackats_active_source`, `capt_rackats_preferred_source`,
+`capt_rackats_redundant`, `capt_rackats_input_good{source}`,
+`capt_rackats_input_state{source,state}`,
+`capt_rackats_input_voltage_volts{source}`,
+`capt_rackats_last_observed_timestamp_seconds`, and the counter
+`capt_rackats_observed_transfers_total{from,to}`. These exist only while the
+last read succeeded; `capt_rackats_observed` is 1 or 0 for whether it did.
+The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
+`capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
+counter counts what the controller saw between reads a minute apart: a
+transfer and its return within one minute is not counted, and the counter
+restarts with the operator. There are no alert rules yet; the ones to add:
+
+| Alert | Expression |
+|---|---|
+| A transfer switch lost redundancy | `capt_rackats_redundant == 0` for 5m |
+| A load is on its alternate source | `capt_rackats_active_source != capt_rackats_preferred_source and capt_rackats_active_source > 0` for 10m |
+| A load is not powered | `capt_rackats_active_source == 0` for 1m |
+| A source is not good | `capt_rackats_input_good == 0` for 5m |
+| A transfer happened | `increase(capt_rackats_observed_transfers_total{from!="0",to!="0"}[15m]) > 0` |
+| A load lost or regained power | `increase(capt_rackats_observed_transfers_total{to="0"}[15m]) > 0`, and `{from="0"}` |
+| A transfer switch is not observed | `capt_rackats_observed == 0` for 10m, or `time() - capt_rackats_last_observed_timestamp_seconds > 600` |
+| A transfer switch is not Ready | `capt_rackats_ready == 0` for 15m |
+
+**Which card, and the unsupported case.** The controller speaks to the card
+through `atsCard` (`rackats_card.go`): `Fingerprint`, `Adopt`, `Observe`. The
+one implementation, `eaton-mbdetnrs`, is a Network-M2 (or M3) card over
+`/rest/mbdetnrs/2.0`, the API the PDU driver speaks, and reuses its session,
+pinning and account code (`internal/power/eaton_ats.go`). The evidence it rests
+on:
+
+- The EATS16N's 2015 manual describes its built-in card as the Network-MS
+  class (web and SNMP, no REST API). The Network-MS reached end of life in
+  2019; Eaton's Network-M2 sales bulletin for firmware 2.0 says it became
+  compatible with the Eaton ATS, and its release notes (2.0.5, 3.0.5, 3.1.12)
+  list the EATS16 as supported. The Network-M2 user guide (3.0.5) has a
+  "Settings - ATS" page with the preferred source (source 1 by default), ATS
+  alarm codes (F05/F0A "Source N used to power the load", F19 "On preferred
+  source") and the ATS MIB. The factory card takes DHCP, logs in as
+  `admin`/`admin` and requires a new password at first login; SNMP is off,
+  v1 communities inactive, v3 users without passwords.
+- Eaton's Postman collections document `powerDistributions/1` with
+  `specifications.type` `ups` or `ats`, and inputs with `status.supply`,
+  `supplied`, `inRange`, `health` and the voltage flags, all for a UPS.
+
+So what is **unconfirmed**, until the controller meets `ber1-ats-1`: which card
+the units in the rack carry (a Network-MS answers the login with a 404 page and
+is reported `UnsupportedCard` saying so); that a Network-M2 in an EATS16N serves
+`/rest/mbdetnrs/2.0` and not only `1.0` (the published M2 collection is 1.0,
+with `accountsService` paths the driver does not speak: also
+`UnsupportedCard`); that the switch is `powerDistributions/1` with type `ats`
+and inputs 1 and 2; that `status.supply` marks the input powering the load;
+that `health: warning` on an input in range means derated; the settings key of
+the preferred source, which no collection shows (the driver recognises
+`preferredInput`, `preferredSource` and `preferredInputSource`, as a number, a
+string ending in the number, or an `@id` reference, and writes the whole
+settings object back in the form it read); and that `viewers` may read all of
+it. Anything the driver does not recognise is reported with what the card
+answered, in `Adopted=False UnsupportedCard` or `Converged=False
+PreferredSourceUnrecognised`, never silently. `internal/power/eatontest`'s
+`NewATS` fakes the card as assumed above.
+
+**A second implementation**, if the rack's cards turn out not to serve the REST
+resources: SNMPv3 against `EATON-ATS2-MIB` (enterprise 534.10.2), whose objects
+are documented exactly: `ats2InputStatusUsed` (powering the load),
+`ats2InputStatusGood` and `ats2InputStatusVoltage` (normal, derated, out of
+range, missing), `ats2InputVoltage` (0.1 V), and `ats2ConfigPreferred`,
+read-write. It would be a second `atsCard` with `Fingerprint` returning "",
+and it needs SNMP enabled and a v3 user given a password, which on a factory
+Network-M2 is the REST API's or the web UI's to do: either the REST
+implementation enables it during adoption, or that step is a person at the
+web UI, a zero-touch gap.
 
 ### Before the machines segment is advertised as one prefix
 
@@ -1124,6 +1460,13 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
 │   │   ├── rack_os_update.go        # tuist.dev/os-update and os-reinstall: macOS updates
 │   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
+│   │   ├── rackhost_power.go        # a host's outlet through its RackPDU
+│   │   ├── rackcard.go              # what RackPDU and RackATS share: Secret, pin, egress Service, Eaton admin login, logout, release
+│   │   ├── rackcard_backoff.go      # refused logins back off, one minute doubling to an hour
+│   │   ├── rackpdu_controller.go    # RackPDU: adoption, outlets' startup state, drift
+│   │   ├── rackats_controller.go    # RackATS: adoption, preferred source, observation, drift
+│   │   ├── rackats_card.go          # the atsCard seam and its Eaton (Network-M2/M3 REST) implementation
+│   │   ├── rackats_metrics.go       # capt_rackats_* series
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
@@ -1142,7 +1485,7 @@ infra/cluster-api-provider-tuist/
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
-│   ├── power/        # PDU / smart-plug drivers (the rack's remote reboot)
+│   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
 │   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements

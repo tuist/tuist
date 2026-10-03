@@ -56,7 +56,12 @@
   },
   "eats16n": {
     "product": "Eaton EATS16N rack ATS",
-    "note": "1U, 2x C20 in, 8x C13 plus 1x C19 out, 16A/3.84kW, 8 ms transfer. Networking is built in (Netpack), so both inputs can be monitored over SNMP.",
+    "note": "1U, 2x C20 in, 8x C13 plus 1x C19 out, 16A/3.84kW, 8 ms transfer. Networking is built in (Netpack). Its card is taken to be a Network-M2, which serves the REST API the PDUs speak (/rest/mbdetnrs), and that is what the RackATS controller targets; the same card serves the EATON-ATS2-MIB over SNMP once SNMP is enabled, which it is not from the factory. Source 1 is feed A, source 2 feed B.",
+    "management_protocols": [
+      "rest",
+      "snmp",
+      "https"
+    ],
     "interfaces": {
       "netpack": {
         "media": "copper",

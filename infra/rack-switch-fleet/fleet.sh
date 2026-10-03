@@ -89,6 +89,7 @@ cmd_render() {
     fi
   done
   rm -f "$rendered" "$object"
+  render_power "$check" || stale=1
   render_edge "$check" || stale=1
   render_cables "$check" || stale=1
   if (( stale )); then
@@ -97,6 +98,30 @@ cmd_render() {
   fi
   (( check )) && echo "rendered configs are up to date with the site definition"
   return 0
+}
+
+# The site's RackPDU and RackATS objects, from the same site definition.
+render_power() {
+  local check="$1" device kind target rendered status=0
+  rendered="$(mktemp)"
+  for device in $(fleet_pdus "$(site_file)" | sed 's/$/:pdu/'; fleet_atses "$(site_file)" | sed 's/$/:ats/'); do
+    kind="${device##*:}"
+    device="${device%:*}"
+    target="$(k8s_path "$device")"
+    "fleet_render_$kind" "$(site_file)" "$device" > "$rendered"
+    if (( check )); then
+      if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+        echo "stale: ${target#"$FLEET_ROOT"/}" >&2
+        status=1
+      fi
+    else
+      mkdir -p "$(dirname "$target")"
+      cp "$rendered" "$target"
+      echo "rendered ${target#"$FLEET_ROOT"/}"
+    fi
+  done
+  rm -f "$rendered"
+  return "$status"
 }
 
 # The site's cable schedule, from the same site definition.

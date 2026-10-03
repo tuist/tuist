@@ -1,0 +1,43 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackPDU
+metadata:
+  name: ber1-pdu-b
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: power
+spec:
+  site: ber1
+  model: evmafc20a
+  address: 192.168.0.16
+  chain: ber1-ats-2
+  managedBy: controller
+  outletStateOnStartup: "on"
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: ber1-pdu-b-admin
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: power
+spec:
+  refreshInterval: 1h
+  updatePolicy: Replace
+  deletionPolicy: None
+  secretStoreRefs:
+    - name: onepassword
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: ber1-pdu-b-credentials
+  data:
+    - match:
+        secretKey: admin-username
+        remoteRef:
+          remoteKey: ber1-pdu-b admin
+          property: username
+    - match:
+        secretKey: admin-password
+        remoteRef:
+          remoteKey: ber1-pdu-b admin
+          property: password

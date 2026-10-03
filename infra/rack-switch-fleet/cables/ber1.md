@@ -6,21 +6,30 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 
 | From | Port | To | NIC | Media | Purpose | Status |
 |---|---|---|---|---|---|---|
-| ber1-ats-1 |  | ber1-edge-a | psu | power | power | planned |
-| ber1-ats-2 |  | ber1-edge-b | psu | power | power | planned |
+| ber1-ats-1 |  | ber1-edge-a | psu | power | power | installed |
+| ber1-ats-1 |  | ber1-kvm-a | psu | power | power | installed |
+| ber1-ats-1 |  | ber1-kvm-b | psu | power | power | installed |
+| ber1-ats-1 |  | ber1-mgmt | psu | power | power | installed |
+| ber1-ats-1 |  | ber1-store-a | psu | power | power | planned |
+| ber1-ats-1 |  | ber1-tor-a | psu | power | power | installed |
+| ber1-ats-2 |  | ber1-pdu-b | inlet | power | power | installed |
+| ber1-ats-3 |  | ber1-pdu-a | inlet | power | power | planned |
 | ber1-mgmt | 1 | ber1-edge-a | i226-lm | copper | management | installed |
 | ber1-mgmt | 2 | ber1-edge-b | i226-lm | copper | management | installed |
+| ber1-mgmt | 41 | ber1-ats-1 | netpack | copper | management | installed |
+| ber1-mgmt | 42 | ber1-ats-2 | netpack | copper | management | installed |
+| ber1-mgmt | 43 | ber1-ats-3 | netpack | copper | management | planned |
+| ber1-mgmt | 44 | ber1-pdu-a | netpack | copper | management | planned |
+| ber1-mgmt | 45 | ber1-pdu-b | netpack | copper | management | installed |
 | ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | installed |
 | ber1-mgmt | 48 | ber1-edge-a | i226-v | copper | edge | installed |
-| ber1-mgmt |  | ber1-ats-1 | netpack | copper | management | planned |
-| ber1-mgmt |  | ber1-ats-2 | netpack | copper | management | planned |
-| ber1-mgmt |  | ber1-ats-3 | netpack | copper | management | planned |
 | ber1-mgmt |  | ber1-kvm-a | mgmt | copper | management | installed |
 | ber1-mgmt |  | ber1-kvm-b | mgmt | copper | management | installed |
-| ber1-mgmt |  | ber1-pdu-a | netpack | copper | management | planned |
-| ber1-mgmt |  | ber1-pdu-b | netpack | copper | management | planned |
 | ber1-mgmt |  | ber1-store-a | i226-lm | copper | management | planned |
 | ber1-mgmt |  | ber1-store-b | i226-lm | copper | management | planned |
+| ber1-pdu-b |  | ber1-edge-b | psu | power | power | installed |
+| ber1-pdu-b |  | ber1-store-b | psu | power | power | planned |
+| ber1-pdu-b |  | ber1-tor-b | psu | power | power | installed |
 | ber1-tor-a | 24 | router |  | copper | wan | installed |
 | ber1-tor-a | 25 | ber1-edge-a | sfp28-2 | dac | data | installed |
 | ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | installed |
