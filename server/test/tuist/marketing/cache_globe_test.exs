@@ -1,9 +1,17 @@
 defmodule Tuist.Marketing.CacheGlobeTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
+  import ExUnit.CaptureLog
+
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Gradle.Build
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
   alias Tuist.Marketing.CacheGlobe
+  alias Tuist.ReapiCache.CacheEvent
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.GradleFixtures
 
   test "counts delivered requests, deduplicates retries, and exposes only public regional totals" do
     event = %{
@@ -54,5 +62,153 @@ defmodule Tuist.Marketing.CacheGlobeTest do
     assert snapshot.downloads == 0
     assert snapshot.observed_at == nil
     assert Enum.all?(snapshot.regions, &(&1.recent_downloads == 0))
+    assert snapshot.breakdown == %{"all" => nil, "module" => nil, "gradle" => nil, "bazel" => nil}
+  end
+
+  test "hit rates use today's lookups and weight the overall rate by opportunities" do
+    now = ~U[2030-01-10 12:00:00Z]
+    reported_at = ~N[2030-01-10 11:00:00]
+
+    CommandEventsFixtures.command_event_fixture(
+      created_at: now,
+      ran_at: reported_at,
+      cacheable_targets: Enum.map(1..10, &"Target#{&1}"),
+      local_cache_target_hits: ["Target1"],
+      remote_cache_target_hits: ["Target2", "Target3"]
+    )
+
+    for {name, timestamp} <- [
+          {"cache", reported_at},
+          {"generate", ~N[2030-01-09 23:59:00]},
+          {"generate", ~N[2030-01-10 12:00:00]}
+        ] do
+      CommandEventsFixtures.command_event_fixture(
+        name: name,
+        created_at: now,
+        ran_at: timestamp,
+        cacheable_targets: ["Excluded"],
+        remote_cache_target_hits: ["Excluded"]
+      )
+    end
+
+    for timestamp <- [reported_at, ~N[2030-01-09 23:59:00], ~N[2030-01-10 12:00:00]] do
+      IngestRepo.insert_all(Build, [
+        %{
+          id: UUIDv7.generate(),
+          project_id: 200,
+          account_id: 100,
+          cacheable_tasks_count: 2,
+          tasks_local_hit_count: 0,
+          tasks_remote_hit_count: 0,
+          tasks_cache_hit_count: 1,
+          inserted_at: timestamp
+        }
+      ])
+    end
+
+    # Successful delivery events do not contain the misses needed for a hit rate.
+    GradleFixtures.cache_event_fixture(action: "download", inserted_at: reported_at)
+
+    for {client, operation, outcome, timestamp} <- [
+          {"bazel", "action_cache", "hit", reported_at},
+          {"bazel", "action_cache", "miss", reported_at},
+          {"bazel", "action_cache", "miss", reported_at},
+          {"bazel", "action_cache", "miss", reported_at},
+          {"bazel", "action_cache", "write", reported_at},
+          {"bazel", "cas", "hit", reported_at},
+          {"xcode", "action_cache", "hit", reported_at},
+          {"bazel", "action_cache", "hit", ~N[2030-01-09 23:59:00]},
+          {"bazel", "action_cache", "hit", ~N[2030-01-10 12:00:00]}
+        ] do
+      IngestRepo.insert_all(CacheEvent, [
+        %{
+          id: UUIDv7.generate(),
+          client_kind: client,
+          operation: operation,
+          outcome: outcome,
+          project_id: 200,
+          inserted_at: timestamp
+        }
+      ])
+    end
+
+    assert CacheGlobe.snapshot(now).breakdown == %{
+             "module" => 30.0,
+             "gradle" => 50.0,
+             "bazel" => 25.0,
+             "all" => 31.25
+           }
+  end
+
+  test "recorded misses produce zero while unreported caches remain unavailable" do
+    IngestRepo.insert_all(Build, [
+      %{
+        id: UUIDv7.generate(),
+        project_id: 200,
+        account_id: 100,
+        cacheable_tasks_count: 1,
+        tasks_local_hit_count: 0,
+        tasks_remote_hit_count: 0,
+        tasks_cache_hit_count: 0,
+        inserted_at: ~N[2031-01-10 11:00:00]
+      }
+    ])
+
+    assert CacheGlobe.snapshot(~U[2031-01-10 12:00:00Z]).breakdown == %{
+             "module" => nil,
+             "gradle" => 0.0,
+             "bazel" => nil,
+             "all" => 0.0
+           }
+  end
+
+  test "hit-rate query failures preserve delivery totals and enforce a row-read limit" do
+    expect(ClickHouseRepo, :query!, fn _query, _params, _opts ->
+      %{rows: [["eu-west", 5, 2048, 5, ~N[2032-01-10 11:59:00]]]}
+    end)
+
+    expect(ClickHouseRepo, :query, 3, fn _query, _params, opts ->
+      assert opts[:settings][:max_rows_to_read] == 5_000_000
+      assert opts[:settings][:read_overflow_mode] == "throw"
+      {:error, %Ch.Error{message: "Row read limit exceeded"}}
+    end)
+
+    assert capture_log(fn ->
+             snapshot = CacheGlobe.snapshot(~U[2032-01-10 12:00:00Z])
+             assert snapshot.downloads == 5
+             assert snapshot.bytes == 2048
+             assert snapshot.status == :available
+             assert snapshot.breakdown == CacheGlobe.empty().breakdown
+           end) =~ "hit rate unavailable"
+  end
+
+  test "a failed source leaves other rates available and the overall rate unknown" do
+    stub(ClickHouseRepo, :query, fn query, _params, _opts ->
+      if query =~ "reapi_cache_events" do
+        {:error, %Ch.Error{message: "Row read limit exceeded"}}
+      else
+        then(%{rows: [[1, 2]]}, &{:ok, &1})
+      end
+    end)
+
+    assert capture_log(fn ->
+             assert CacheGlobe.snapshot(~U[2033-01-10 12:00:00Z]).breakdown == %{
+                      "module" => 50.0,
+                      "gradle" => 50.0,
+                      "bazel" => nil,
+                      "all" => nil
+                    }
+           end) =~ "Cache globe bazel hit rate unavailable"
+  end
+
+  test "inconsistent hit counts cannot inflate individual or overall rates" do
+    stub(ClickHouseRepo, :query, fn query, _params, _opts ->
+      counts = if query =~ "gradle_builds", do: [5, 2], else: [0, 2]
+      {:ok, %{rows: [counts]}}
+    end)
+
+    breakdown = CacheGlobe.snapshot(~U[2034-01-10 12:00:00Z]).breakdown
+    assert breakdown["gradle"] == 100.0
+    assert_in_delta breakdown["all"], 100 / 3, 0.001
   end
 end

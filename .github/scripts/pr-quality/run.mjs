@@ -11,7 +11,7 @@ export function formatComment(report, pr, runUrl) {
   return `${marker}\n${details}${runUrl ? `\n\n[Workflow logs and report](${runUrl})` : ''}`;
 }
 
-export async function runReview({ pr, git, api, evaluate = review, apiKey, threshold = 7, post = false, commentAuthor = 'github-actions[bot]', runUrl, save = () => {} }) {
+export async function runReview({ pr, git, api, evaluate = review, apiKey, baseURL, model, threshold = 7, post = false, commentAuthor = 'github-actions[bot]', runUrl, save = () => {} }) {
   if (!Number.isSafeInteger(pr.number) || pr.number < 1 || !/^[a-f0-9]{40}$/.test(pr.base?.sha) || !/^[a-f0-9]{40}$/.test(pr.head?.sha)) {
     throw new Error('Expected a pull request with valid commit identifiers.');
   }
@@ -21,7 +21,7 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, thres
   try { repositoryContext = git('show', `${pr.base.sha}:AGENTS.md`); } catch { /* Guidance is optional. */ }
   let report;
   try {
-    report = await evaluate({ diff, task: `${pr.title ?? ''}\n\n${pr.body ?? ''}`, repositoryContext, threshold, apiKey });
+    report = await evaluate({ diff, task: `${pr.title ?? ''}\n\n${pr.body ?? ''}`, repositoryContext, threshold, apiKey, baseURL, model });
     report.head = pr.head.sha;
     report.base = pr.base.sha;
     report.repository = pr.base.repo?.full_name;
@@ -66,6 +66,7 @@ async function main() {
   if (!process.env.JEV_API_KEY?.trim()) throw new Error('Configure JEV_API_KEY before running the review.');
   const result = await runReview({
     pr, api, commentAuthor: event ? 'github-actions[bot]' : exec('gh', ['api', 'user', '--jq', '.login']).trim(), git: (...args) => exec('git', args), apiKey: process.env.JEV_API_KEY,
+    baseURL: process.env.JEV_BASE_URL, model: process.env.JEV_MODEL,
     threshold: parseThreshold(process.env.JEV_MIN_SCORE ?? '7'), post,
     runUrl: process.env.GITHUB_RUN_ID ? `https://github.com/${repository}/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined,
     save: ({ report, body }) => {

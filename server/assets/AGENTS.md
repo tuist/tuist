@@ -74,3 +74,4 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - `build_run.css` shares header and metadata styling between Xcode and Once run details. Keep `once_run.css` limited to Once-specific wrapping and responsive layout.
 
 - Analytics chart sections declare small, compact, standard or large frames shared by loading, ready and illustrated empty states. Scope the frame to the active chart section; keep list/timeline geometry independent. Widgets share a minimum height across loading and empty states. Skeletons reveal after 200 milliseconds and respect reduced motion; stale charts remain mounted and receive a subtle delayed refresh indication.
+- The cache globe renders measured daily hit rates from the snapshot breakdown. Keep missing rates distinct from measured zeroes; illustrative rates belong only to explicit demo mode.

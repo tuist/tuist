@@ -13,6 +13,28 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ## Exportable Data
 
+### Atlas inference decision usage
+
+Atlas's internal inference relay can proxy Jev decision calls, including pull
+request quality reviews. Its PostgreSQL `inference_providers.decision_path`
+stores the relative decision endpoint alongside the existing provider endpoint.
+The existing `inference_model_bindings` records contain the model and configured
+input/output prices. `inference_usages` records the `decision` operation,
+provider/model, response status, input/output/total token counts, calculated cost
+in United States dollars, profile/token references, and creation time. Submitted
+state, questions, source diffs, and answers are forwarded but are not persisted
+by the relay. Provider credentials are encrypted and excluded from exports.
+
+These are internal Atlas records, separate from the Tuist server's account data.
+Where a request covers these records, retrieve the applicable profiles and their
+usage by `model_binding_id` or `token_id`, excluding credential ciphertext and
+token hashes. There is no automatic age-based expiry of inference usage;
+deleting its profile or token cascades to the associated usage rows. Audit events
+retain relay metadata, including decision usage availability, under the existing
+Atlas audit policy. The review workflow
+retains its GitHub report artifacts for 14 days and its published comment under
+GitHub's repository retention settings.
+
 ### Error Diagnostics
 
 - Failed ClickHouse reads attach the query template (up to 16,384 characters), repository name, and execution, decoding, and pool-wait timings to the existing error event under `extra.database_query`. Bound parameter values and query results are not included. Reports use the configured Sentry-compatible destination, including Hive, and its existing retention policy. Where an event is associated with an account or project through its existing context, its diagnostic data can be retrieved with that event for an export.
