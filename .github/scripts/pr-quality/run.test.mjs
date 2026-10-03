@@ -99,3 +99,15 @@ test('manual runs update the authenticated author’s existing comment', async (
   };
   await runReview(options);
 });
+
+
+test('passes the configured relay profile to the evaluator', async () => {
+  const { calls, options } = fixture({
+    apiKey: 'profile-token', baseURL: 'https://atlas.example/inference', model: 'quality-profile', post: false,
+  });
+  await runReview(options);
+  const request = calls.find((call) => call.repositoryContext);
+  assert.equal(request.apiKey, 'profile-token');
+  assert.equal(request.baseURL, 'https://atlas.example/inference');
+  assert.equal(request.model, 'quality-profile');
+});

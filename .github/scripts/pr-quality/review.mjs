@@ -106,8 +106,8 @@ export function validateDiff(diff) {
   }
 }
 
-export async function review({ diff: completeDiff, task, repositoryContext, threshold, apiKey, fetch }) {
-  if (!apiKey?.trim()) throw new Error('JEV_API_KEY is missing. Load it from 1Password before running the review.');
+export async function review({ diff: completeDiff, task, repositoryContext, threshold, apiKey, baseURL = 'https://api.typesafe.ai', model = 'jev-latest', fetch }) {
+  if (!apiKey?.trim()) throw new Error('JEV_API_KEY is missing. Set a TypeSafe credential or an Atlas profile token before running the review.');
   const { diff, binaryFiles } = separateBinaryChanges(completeDiff);
   validateDiff(diff);
   const binaryContext = binaryFiles.length
@@ -116,10 +116,10 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
   if (Buffer.byteLength(task + repositoryContext) > 64_000) throw new Error('PR description and repository context exceed 64,000 bytes.');
   const client = new TypeSafeClient({
     apiKey,
-    baseURL: 'https://api.typesafe.ai',
-    defaultModel: 'jev-latest',
+    baseURL,
+    defaultModel: model,
     timeout: 60_000,
-    retry: { maxRetries: 2, maxRetryAfterMs: 5_000 },
+    retry: { maxRetries: 0 },
     logLevel: 'off',
     ...(fetch ? { fetch } : {}),
   });
@@ -156,7 +156,7 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
       rating.hint = null;
     }
   }
-  return { threshold, model: 'jev-latest', unassessedBinaryFiles: binaryFiles, findings, ...result };
+  return { threshold, model, unassessedBinaryFiles: binaryFiles, findings, ...result };
 }
 
 function escapeMarkdown(value) {

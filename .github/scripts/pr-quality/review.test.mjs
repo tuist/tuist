@@ -184,3 +184,33 @@ test('focused concerns trigger validated source selection with full context', as
   assert.equal(report.findings[0].line, 1);
   assert.equal(report.findings[0].source, 'new');
 });
+
+
+test('routes every evaluation through an Atlas profile using its token and model alias', async () => {
+  let calls = 0;
+  const report = await review({
+    diff, task: 'Change behavior', repositoryContext: '', threshold: 7,
+    apiKey: 'atlas-profile-token', baseURL: 'https://atlas.example/inference', model: 'pr-quality',
+    fetch: async (url, options) => {
+      calls++;
+      assert.equal(String(url), 'https://atlas.example/inference/v1/systemone');
+      assert.equal(new Headers(options.headers).get('authorization'), 'Bearer atlas-profile-token');
+      const request = JSON.parse(options.body);
+      assert.equal(request.model, 'pr-quality');
+      return Response.json(response(5, request.questions));
+    },
+  });
+  assert.equal(calls, 3);
+  assert.equal(report.model, 'pr-quality');
+});
+
+
+test('does not repeat a decision call after an ambiguous transport failure', async () => {
+  let calls = 0;
+  await assert.rejects(review({
+    diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'atlas-token',
+    baseURL: 'https://atlas.tuist.dev/inference', model: 'quality',
+    fetch: async () => { calls++; throw new TypeError('connection reset after upload'); },
+  }), /Jev request failed/);
+  assert.equal(calls, 1);
+});

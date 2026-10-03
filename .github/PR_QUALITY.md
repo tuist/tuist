@@ -20,12 +20,41 @@ low scores are advisory and do not fail it. Do not configure this workflow as a
 required merge check while assessing the usefulness of its scores.
 
 The script sends the title, description, complete three-dot text diff with 20
-lines of context, and root `AGENTS.md` from the base commit to TypeSafe. It does
+lines of context, and root `AGENTS.md` from the base commit to TypeSafe, through
+Atlas when configured. It does
 not execute contributor code. The workflow uses `pull_request_target`, checks
 out trusted base code, installs only trusted dependencies with installation
 scripts disabled, and fetches contributor commits solely to read the diff.
 This also allows fork reviews. See the
 [GitHub event documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target).
+
+## Route through Atlas
+
+Create a provider in Atlas with endpoint `https://api.typesafe.ai/v1`, decision
+path `systemone`, a timeout of 45,000 milliseconds, and its TypeSafe credential. Create a profile targeting
+`jev-latest` and configure its input and output prices. TypeSafe's published
+Jev rate is $0.042 per million input tokens with free output; check the
+[current provider pricing](https://docs.typesafe.ai/models) when configuring it.
+Create a dedicated profile token for the review workflow.
+
+Set repository variables `PR_QUALITY_INFERENCE_BASE_URL` to
+`https://atlas.tuist.dev/inference` and `PR_QUALITY_INFERENCE_MODEL` to that
+profile's name, and the repository secret `PR_QUALITY_INFERENCE_TOKEN` to its
+token. The client adds `/v1/systemone` to the base. Atlas keeps the TypeSafe
+credential and records token counts and configured costs for every quality
+and evidence request. The evaluator only receives its restricted profile token.
+If the relay is configured but its token or profile name is missing, the workflow fails rather
+than sending source text directly to TypeSafe.
+
+For local runs, set `JEV_BASE_URL`, `JEV_MODEL`, and `JEV_API_KEY` to the relay
+base, profile name, and profile token. Omitting these overrides preserves direct
+TypeSafe calls. The evaluator consumes Jev's native question and answer format;
+other decision providers need a compatible contract or a separate adapter. Automatic retries
+are disabled on both sides of the relay so an ambiguous timeout cannot duplicate
+a paid decision call. The evaluator allows 60 seconds per call; keep the provider
+timeout below that budget. Costs reflect provider-reported usage. Missing or invalid
+usage on a successful decision response produces a warning and an audit flag
+(`usage_reported: false`), so zero recorded tokens do not imply a free request.
 
 ## Run locally
 
@@ -62,8 +91,9 @@ confidence, and a predefined weakness hint. The general quality hints are not fi
 to individual lines. The focused malicious-behavior and prompt-injection checks
 also select candidate evidence from changed lines, with commit-specific source
 links, source excerpts, and confidence. A reviewer should investigate them rather than treat a
-score as evidence of a defect. Scores use the mutable `jev-latest` model and
-are not guaranteed to remain comparable across model updates.
+score as evidence of a defect. Direct calls default to the mutable `jev-latest`
+model; relay calls use the model configured on the Atlas profile. Scores are not
+guaranteed to remain comparable across model updates.
 
 The evaluator rejects text diffs over 1,000,000 bytes and combined descriptions
 and guidance over 64,000 bytes rather than silently sampling. Binary changes
