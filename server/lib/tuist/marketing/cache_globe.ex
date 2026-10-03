@@ -7,6 +7,10 @@ defmodule Tuist.Marketing.CacheGlobe do
 
   alias Tuist.ClickHouseRepo
 
+  require Logger
+
+  @empty_breakdown %{"all" => nil, "module" => nil, "gradle" => nil, "bazel" => nil}
+
   # The public managed serving regions (Tuist.Kura.Regions, as enabled in
   # production), each placed at its datacenter's city.
   @regions [
@@ -24,6 +28,7 @@ defmodule Tuist.Marketing.CacheGlobe do
       downloads: nil,
       bytes: nil,
       recent_downloads: nil,
+      breakdown: @empty_breakdown,
       origins: [],
       updated_at: nil,
       observed_at: nil,
@@ -74,6 +79,7 @@ defmodule Tuist.Marketing.CacheGlobe do
       downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 1))),
       bytes: Enum.sum(Enum.map(rows, &Enum.at(&1, 2))),
       recent_downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 3))),
+      breakdown: breakdown(midnight, now),
       # Where requests come from (each a location, its serving region and its
       # recent count). Empty until the usage rollups record a request's
       # country; the page draws nothing invented in its place.
@@ -84,4 +90,73 @@ defmodule Tuist.Marketing.CacheGlobe do
       regions: regions
     }
   end
+
+  defp breakdown(midnight, now) do
+    sources = [
+      {"module",
+       """
+       SELECT sum(local_cache_hits_count + remote_cache_hits_count), sum(cacheable_targets_count)
+       FROM command_events
+       WHERE ran_at >= {midnight:DateTime} AND ran_at < {now:DateTime} AND name = 'generate'
+       """},
+      {"gradle",
+       """
+       SELECT sum(tasks_local_hit_count + tasks_remote_hit_count + tasks_cache_hit_count),
+              sum(cacheable_tasks_count)
+       FROM gradle_builds
+       WHERE inserted_at >= {midnight:DateTime} AND inserted_at < {now:DateTime}
+       """},
+      {"bazel",
+       """
+       SELECT countIf(outcome = 'hit'), count()
+       FROM reapi_cache_events
+       WHERE inserted_at >= {midnight:DateTime} AND inserted_at < {now:DateTime}
+         AND client_kind = 'bazel' AND operation = 'action_cache' AND outcome IN ('hit', 'miss')
+       """}
+    ]
+
+    counts =
+      Enum.map(sources, fn {kind, query} ->
+        result =
+          ClickHouseRepo.query(
+            query,
+            %{"midnight" => DateTime.to_naive(midnight), "now" => DateTime.to_naive(now)},
+            timeout: 15_000,
+            settings: [
+              max_execution_time: 10,
+              max_threads: 2,
+              max_memory_usage: 268_435_456,
+              max_rows_to_read: 5_000_000,
+              read_overflow_mode: "throw"
+            ]
+          )
+
+        case result do
+          {:ok, %{rows: [[hits, total]]}} ->
+            {kind, {min(hits, total), total}}
+
+          {:error, error} ->
+            Logger.warning("Cache globe #{kind} hit rate unavailable: #{inspect(error)}")
+            {kind, nil}
+        end
+      end)
+
+    rates =
+      Map.new(counts, fn
+        {kind, nil} -> {kind, nil}
+        {kind, {hits, total}} -> {kind, hit_rate(hits, total)}
+      end)
+
+    overall =
+      if Enum.all?(counts, fn {_kind, count} -> count != nil end) do
+        hits = Enum.sum(Enum.map(counts, fn {_kind, {hits, _total}} -> hits end))
+        total = Enum.sum(Enum.map(counts, fn {_kind, {_hits, total}} -> total end))
+        hit_rate(hits, total)
+      end
+
+    Map.put(rates, "all", overall)
+  end
+
+  defp hit_rate(_hits, 0), do: nil
+  defp hit_rate(hits, total), do: hits / total * 100
 end

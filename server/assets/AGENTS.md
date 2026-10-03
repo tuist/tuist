@@ -72,3 +72,5 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - The volume chart uses the shared Noora/ECharts hook, Jobs-style line rendering and count/byte/percentage formatting. Keep its three selectable widgets equal in width and height even when only the storage widgets have trend footers.
 - `build_run.css` shares header and metadata styling between Xcode and Once run details. Keep `once_run.css` limited to Once-specific wrapping and responsive layout.
+
+- The cache globe renders measured daily hit rates from the snapshot breakdown. Keep missing rates distinct from measured zeroes; illustrative rates belong only to explicit demo mode.

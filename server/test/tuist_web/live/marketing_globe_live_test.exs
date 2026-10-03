@@ -23,9 +23,10 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     refute html =~ "support/chat.js"
     assert html =~ "fonts.googleapis.com/css2?family=Geist+Pixel"
 
-    send(view.pid, {:cache_globe_updated, %{CacheGlobe.empty() | downloads: 321}})
+    send(view.pid, {:cache_globe_updated, %{CacheGlobe.empty() | downloads: 321, breakdown: %{"all" => 75.0}}})
 
     assert render(view) =~ "&quot;downloads&quot;:321"
+    assert render(view) =~ "&quot;breakdown&quot;:{&quot;all&quot;:75.0}"
   end
 
   test "live and demo requests are counted by the Cloudflare public-page limits", %{conn: conn} do

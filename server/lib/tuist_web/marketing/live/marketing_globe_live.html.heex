@@ -116,9 +116,8 @@
         </div>
 
         <%!-- Cache hit rate, overall and for Xcode, Gradle and Bazel.
-      The rows exist for the layout; live values
-      arrive once the snapshot carries them, and the demo ticker fills them
-      with illustrative rates meanwhile. --%>
+      The snapshot carries measured daily rates; caches without observations
+      keep a dash. Demo mode uses illustrative rates. --%>
         <div data-part="breakdown" id="globe-breakdown" phx-update="ignore">
           <h2 data-part="eyebrow">{dgettext("marketing", "Cache hit rate")}</h2>
           <div data-part="rows">
