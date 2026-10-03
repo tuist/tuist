@@ -55,3 +55,8 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable, Sendabl
         }
     }
 }
+
+/// for xcconfig: .extensions.widget + "/Configs/debug.xcconfig")
+public func + (lhs: Path, rhs: Path) -> Path {
+    .path("\(lhs.pathString)\(rhs.pathString)")
+}

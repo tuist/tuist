@@ -25,3 +25,13 @@ public struct ResourceFileElements: Codable, Equatable, Sendable, ExpressibleByS
         self.init(resources: elements)
     }
 }
+
+/// for resources: [.extensions.widget + "/Resources/**"]
+public func + (lhs: Path, rhs: String) -> ResourceFileElement {
+    .init(stringLiteral: "\(lhs.pathString)\(rhs)")
+}
+
+/// for resources: .extensions.widget + "/Resources/**"
+public func + (lhs: Path, rhs: String) -> ResourceFileElements {
+    .init(stringLiteral: "\(lhs.pathString)\(rhs)")
+}
