@@ -212,7 +212,10 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             }
         }
 
-        let unattributed = overlapped.filter { files[$0] == nil }.count
+        let unattributed = overlapped
+            .filter { files[$0] == nil }
+            .map { TestCoverageEvidence.OverlappedTest(module: $0.module, suite: $0.suite, name: $0.name) }
+            .sorted { ($0.module, $0.suite, $0.name) < ($1.module, $1.suite, $1.name) }
         let paths = Set(files.values.flatMap { $0 }).sorted()
         let indexByPath = Dictionary(uniqueKeysWithValues: paths.enumerated().map { ($1, $0) })
         let scopes = files
@@ -229,7 +232,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 )
             }
             .sorted { ($0.module, $0.suite, $0.name, $0.kind.rawValue) < ($1.module, $1.suite, $1.name, $1.kind.rawValue) }
-        return TestCoverageEvidence(paths: paths, scopes: scopes, unattributedTests: unattributed)
+        return TestCoverageEvidence(paths: paths, scopes: scopes, overlappedTests: unattributed)
     }
 
     /// The name the result bundle gives an XCTest test, from its selector: `testAdd` and the

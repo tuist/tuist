@@ -109,28 +109,41 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   # A skipped test without evidence of its own: what the base's run collected
   # tells why.
-  defp missing_evidence_runs(project, account, status, target_scope?) do
+  defp missing_evidence_runs(project, account, status, target_scope?, opts \\ []) do
     target = %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1], lines: [[1, 2], [1, 3]]}
 
     CoverageFixtures.run_with_coverage(
       project,
       account,
       [file("Sources/Math.swift", [1, 1, 0]), file("Sources/Text.swift", [1, 1, 1, 0])],
-      %{
-        git_commit_sha: "base",
-        test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")]),
-        enumerated_tests: @tests,
-        coverage_evidence:
-          Map.merge(
-            %{
-              paths: ["Sources/Math.swift", "Sources/Text.swift"],
-              scopes:
-                [%{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 2]]}] ++
-                  if(target_scope?, do: [target], else: [])
-            },
-            if(status, do: %{status: status}, else: %{})
-          )
-      }
+      Map.merge(
+        %{
+          git_commit_sha: "base",
+          test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")]),
+          enumerated_tests: @tests,
+          coverage_evidence:
+            Map.merge(
+              %{
+                paths: ["Sources/Math.swift", "Sources/Text.swift"],
+                scopes:
+                  [
+                    %{
+                      kind: "test",
+                      module: "AppTests",
+                      suite: "MathTests",
+                      name: "testAdd()",
+                      files: [0],
+                      lines: [[1, 2]]
+                    }
+                  ] ++
+                    if(target_scope?, do: [target], else: []),
+                overlapped_tests: Keyword.get(opts, :overlapped_tests, [])
+              },
+              if(status, do: %{status: status}, else: %{})
+            )
+        },
+        Map.new(Keyword.take(opts, [:ran_at]))
+      )
     )
 
     head_run(project, account, head_files())
@@ -152,6 +165,22 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   test "a test of a target that recorded evidence has no attribution of its own", %{project: project, account: account} do
     assert reasons(missing_evidence_runs(project, account, "collected", true)) == [:no_evidence]
+  end
+
+  test "a test recorded only as overlapping another has no attribution because of the overlap", %{
+    project: project,
+    account: account
+  } do
+    overlapped = [%{module: "AppTests", suite: "TextTests", name: "testTrim()"}]
+
+    assert reasons(missing_evidence_runs(project, account, "collected", true, overlapped_tests: overlapped)) ==
+             [:overlapped]
+  end
+
+  test "evidence collected past the file retention has expired", %{project: project, account: account} do
+    ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -100 * 86_400, :second)
+
+    assert reasons(missing_evidence_runs(project, account, "collected", true, ran_at: ran_at)) == [:evidence_expired]
   end
 
   defp head_files(text_opts \\ []) do

@@ -51,6 +51,7 @@ defmodule Tuist.Tests.TestCaseRun do
     field :is_new, :boolean, default: false
     field :is_quarantined, :boolean, default: false
     field :has_coverage_evidence, :boolean, default: false
+    field :coverage_evidence_overlapped, :boolean, default: false
     field :duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
@@ -89,6 +90,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :is_new,
       :is_quarantined,
       :has_coverage_evidence,
+      :coverage_evidence_overlapped,
       :duration,
       :inserted_at,
       :module_name,

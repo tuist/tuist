@@ -8660,6 +8660,7 @@ defmodule Tuist.TestsTest do
             is_new: false,
             is_quarantined: false,
             has_coverage_evidence: false,
+            coverage_evidence_overlapped: false,
             duration: 100,
             inserted_at: NaiveDateTime.utc_now(),
             module_name: "FlakyTestModule",

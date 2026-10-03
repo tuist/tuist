@@ -10,11 +10,12 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   append new reasons at the end.
 
   - `no_evidence`: the test has no per-test evidence in any ancestor run that
-    collected evidence for its target (no `.coverageAttribution` trait, a
-    test that overlapped another, or one that didn't run there).
+    collected evidence for its target (no `.coverageAttribution` trait, or
+    the test didn't run there).
   - `collection_off`: no ancestor run collected evidence at all.
   - `not_linked`: ancestor runs collected evidence, but none for the test's
-    target: the target doesn't link TestCoverageAttribution.
+    target: the target doesn't link TestCoverageAttribution. A target whose
+    evidence only expired reads as this too when other evidence is live.
   - `test_failed`: the test failed in the run its evidence comes from.
   - `evidence_without_lines`: the evidence names files but not the lines.
   - `executed_file_changed`: a file the test executed changed since.
@@ -29,6 +30,12 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     listing, or no ancestor measured the schemes).
   - `unbuilt_file_uncarried`: a file no run at the commit compiled is
     unchanged, but tests whose coverage wasn't carried covered some of it.
+  - `evidence_expired`: ancestor runs collected evidence, but all of it is
+    past the coverage file retention
+    (`Tuist.Environment.coverage_retention_days/1`).
+  - `overlapped`: an ancestor run recorded the test only as overlapping
+    another test of its process (Swift Testing running in parallel), so
+    nothing could be attributed to it.
   """
   import Bitwise
 
@@ -44,7 +51,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :no_ancestor,
     :unbuilt_file_changed,
     :unbuilt_file_unknown,
-    :unbuilt_file_uncarried
+    :unbuilt_file_uncarried,
+    :evidence_expired,
+    :overlapped
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)

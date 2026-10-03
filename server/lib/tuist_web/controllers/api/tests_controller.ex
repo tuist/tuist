@@ -460,9 +460,20 @@ defmodule TuistWeb.API.TestsController do
                    required: [:kind, :module, :files]
                  }
                },
-               unattributed_tests: %Schema{
-                 type: :integer,
-                 description: "Tests that overlapped another of their process, so nothing could be attributed to them."
+               overlapped_tests: %Schema{
+                 type: :array,
+                 maxItems: 500_000,
+                 description:
+                   "The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     module: %Schema{type: :string, description: "The test target."},
+                     suite: %Schema{type: :string, description: "Empty for a test outside any suite."},
+                     name: %Schema{type: :string, description: "The test's name."}
+                   },
+                   required: [:module, :name]
+                 }
                },
                status: %Schema{
                  type: :string,

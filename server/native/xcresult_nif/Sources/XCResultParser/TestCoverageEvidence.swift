@@ -58,6 +58,21 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
         }
     }
 
+    /// A test TestCoverageAttribution recorded only as overlapping another test of its process
+    /// (Swift Testing running in parallel), so nothing could be attributed to it.
+    public struct OverlappedTest: Codable, Equatable, Hashable, Sendable {
+        public var module: String
+        /// Empty for a test outside any suite.
+        public var suite: String
+        public var name: String
+
+        public init(module: String, suite: String, name: String) {
+            self.module = module
+            self.suite = suite
+            self.name = name
+        }
+    }
+
     /// Whether the run collected evidence, so a run without scopes still says why.
     public enum Status: String, Codable, Sendable {
         /// The test processes recorded evidence.
@@ -72,22 +87,30 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
     /// Every file some scope covered, once; scopes refer to them by index.
     public var paths: [String]
     public var scopes: [Scope]
-    /// Tests TestCoverageAttribution recorded as overlapping another test of their process (Swift
-    /// Testing running in parallel), so nothing could be attributed to them.
-    public var unattributedTests: Int
+    /// The tests that have no scope because they overlapped another, sorted.
+    public var overlappedTests: [OverlappedTest]
     /// Nil in bundles written before clients reported it.
     public var status: Status?
 
     enum CodingKeys: String, CodingKey {
         case paths, scopes, status
-        case unattributedTests = "unattributed_tests"
+        case overlappedTests = "overlapped_tests"
     }
 
-    public init(paths: [String], scopes: [Scope], unattributedTests: Int = 0, status: Status? = nil) {
+    public init(paths: [String], scopes: [Scope], overlappedTests: [OverlappedTest] = [], status: Status? = nil) {
         self.paths = paths
         self.scopes = scopes
-        self.unattributedTests = unattributedTests
+        self.overlappedTests = overlappedTests
         self.status = status
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        paths = try container.decode([String].self, forKey: .paths)
+        scopes = try container.decode([Scope].self, forKey: .scopes)
+        // Bundles written before clients reported it.
+        overlappedTests = try container.decodeIfPresent([OverlappedTest].self, forKey: .overlappedTests) ?? []
+        status = try container.decodeIfPresent(Status.self, forKey: .status)
     }
 
     /// The evidence over repository-relative paths, without the files Git cannot vouch for
@@ -122,7 +145,7 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
             scope.lines = scope.lines == nil ? nil : scope.files.map { Scope.ranges(of: linesByFile[$0] ?? IndexSet()) }
             return scope
         }
-        return TestCoverageEvidence(paths: keptPaths, scopes: keptScopes, unattributedTests: unattributedTests, status: status)
+        return TestCoverageEvidence(paths: keptPaths, scopes: keptScopes, overlappedTests: overlappedTests, status: status)
     }
 
     /// The evidence a client wrote into the bundle, or nil when it did not.

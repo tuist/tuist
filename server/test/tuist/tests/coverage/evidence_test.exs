@@ -161,7 +161,28 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     assert Evidence.tests_with_evidence(project.id, nil) == MapSet.new()
   end
 
-  test "flags the test case runs of the tests the report holds evidence of their own for", %{project: project} do
+  test "names the tests a report recorded only as overlapping another", %{project: project} do
+    evidence = %{
+      "paths" => [],
+      "scopes" => [],
+      "overlapped_tests" => [
+        %{"module" => "AppTests", "suite" => "SwiftTests", "name" => "overlaps()"},
+        %{"module" => "AppTests", "name" => "outsideASuite()"},
+        %{"module" => "", "suite" => "SwiftTests", "name" => "noModule()"},
+        "not a test"
+      ]
+    }
+
+    assert Evidence.overlapped_tests(project.id, evidence) ==
+             MapSet.new([{"overlaps()", "AppTests", "SwiftTests"}, {"outsideASuite()", "AppTests", ""}])
+
+    assert Evidence.overlapped_tests(project.id, %{paths: [], scopes: []}) == MapSet.new()
+    assert Evidence.overlapped_tests(project.id, nil) == MapSet.new()
+  end
+
+  test "flags the test case runs of the tests the report holds evidence of, or recorded as overlapping", %{
+    project: project
+  } do
     modules = [
       %{
         name: "AppTests",
@@ -169,14 +190,16 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
         duration: 10,
         test_cases: [
           %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 5},
-          %{name: "testNone()", test_suite_name: "MathTests", status: "success", duration: 5}
+          %{name: "testNone()", test_suite_name: "MathTests", status: "success", duration: 5},
+          %{name: "testOverlap()", test_suite_name: "MathTests", status: "success", duration: 5}
         ]
       }
     ]
 
     evidence = %{
       paths: ["Sources/Math.swift"],
-      scopes: [%{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[3, 5]]}]
+      scopes: [%{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[3, 5]]}],
+      overlapped_tests: [%{module: "AppTests", suite: "MathTests", name: "testOverlap()"}]
     }
 
     {:ok, measured} =
@@ -187,11 +210,11 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
         from(r in Tuist.Tests.TestCaseRun,
           where: r.test_run_id == ^measured.id,
           order_by: r.name,
-          select: {r.name, r.has_coverage_evidence}
+          select: {r.name, r.has_coverage_evidence, r.coverage_evidence_overlapped}
         )
       )
 
-    assert flags == [{"testAdd()", true}, {"testNone()", false}]
+    assert flags == [{"testAdd()", true, false}, {"testNone()", false, false}, {"testOverlap()", false, true}]
   end
 
   test "a report's rows share one timestamp, later than the shard's earlier report", %{test_run: test_run} do

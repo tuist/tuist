@@ -599,6 +599,9 @@ private func stressFailures(
         fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
             coverageEvidence.map { evidence in
                 .init(
+                    overlapped_tests: evidence.overlappedTests.map {
+                        .init(module: $0.module, name: $0.name, suite: $0.suite)
+                    },
                     paths: evidence.paths,
                     scopes: evidence.scopes.map {
                         .init(
@@ -610,8 +613,7 @@ private func stressFailures(
                             suite: $0.suite
                         )
                     },
-                    status: evidence.status.flatMap { .init(rawValue: $0.rawValue) },
-                    unattributed_tests: evidence.unattributedTests
+                    status: evidence.status.flatMap { .init(rawValue: $0.rawValue) }
                 )
             }
         }

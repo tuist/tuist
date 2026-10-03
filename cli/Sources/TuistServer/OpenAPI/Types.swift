@@ -3558,6 +3558,49 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public struct coverage_evidencePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_testsPayload`.
+                public struct overlapped_testsPayloadPayload: Codable, Hashable, Sendable {
+                    /// The test target.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_testsPayload/module`.
+                    public var module: Swift.String
+                    /// The test's name.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_testsPayload/name`.
+                    public var name: Swift.String
+                    /// Empty for a test outside any suite.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_testsPayload/suite`.
+                    public var suite: Swift.String?
+                    /// Creates a new `overlapped_testsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - module: The test target.
+                    ///   - name: The test's name.
+                    ///   - suite: Empty for a test outside any suite.
+                    public init(
+                        module: Swift.String,
+                        name: Swift.String,
+                        suite: Swift.String? = nil
+                    ) {
+                        self.module = module
+                        self.name = name
+                        self.suite = suite
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case module
+                        case name
+                        case suite
+                    }
+                }
+                /// The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_tests`.
+                public typealias overlapped_testsPayload = [Components.Schemas.TestParams.coverage_evidencePayload.overlapped_testsPayloadPayload]
+                /// The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/overlapped_tests`.
+                public var overlapped_tests: Components.Schemas.TestParams.coverage_evidencePayload.overlapped_testsPayload?
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/paths`.
                 public var paths: [Swift.String]
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/scopesPayload`.
@@ -3643,33 +3686,29 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/status`.
                 public var status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload?
-                /// Tests that overlapped another of their process, so nothing could be attributed to them.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence/unattributed_tests`.
-                public var unattributed_tests: Swift.Int?
                 /// Creates a new `coverage_evidencePayload`.
                 ///
                 /// - Parameters:
+                ///   - overlapped_tests: The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
                 ///   - paths:
                 ///   - scopes:
                 ///   - status: Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
-                ///   - unattributed_tests: Tests that overlapped another of their process, so nothing could be attributed to them.
                 public init(
+                    overlapped_tests: Components.Schemas.TestParams.coverage_evidencePayload.overlapped_testsPayload? = nil,
                     paths: [Swift.String],
                     scopes: Components.Schemas.TestParams.coverage_evidencePayload.scopesPayload,
-                    status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload? = nil,
-                    unattributed_tests: Swift.Int? = nil
+                    status: Components.Schemas.TestParams.coverage_evidencePayload.statusPayload? = nil
                 ) {
+                    self.overlapped_tests = overlapped_tests
                     self.paths = paths
                     self.scopes = scopes
                     self.status = status
-                    self.unattributed_tests = unattributed_tests
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case overlapped_tests
                     case paths
                     case scopes
                     case status
-                    case unattributed_tests
                 }
             }
             /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
@@ -27145,6 +27184,49 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public struct coverage_evidencePayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_testsPayload`.
+                        public struct overlapped_testsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The test target.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_testsPayload/module`.
+                            public var module: Swift.String
+                            /// The test's name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_testsPayload/name`.
+                            public var name: Swift.String
+                            /// Empty for a test outside any suite.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_testsPayload/suite`.
+                            public var suite: Swift.String?
+                            /// Creates a new `overlapped_testsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - module: The test target.
+                            ///   - name: The test's name.
+                            ///   - suite: Empty for a test outside any suite.
+                            public init(
+                                module: Swift.String,
+                                name: Swift.String,
+                                suite: Swift.String? = nil
+                            ) {
+                                self.module = module
+                                self.name = name
+                                self.suite = suite
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case module
+                                case name
+                                case suite
+                            }
+                        }
+                        /// The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_tests`.
+                        public typealias overlapped_testsPayload = [Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.overlapped_testsPayloadPayload]
+                        /// The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/overlapped_tests`.
+                        public var overlapped_tests: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.overlapped_testsPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/paths`.
                         public var paths: [Swift.String]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/scopesPayload`.
@@ -27230,33 +27312,29 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/status`.
                         public var status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload?
-                        /// Tests that overlapped another of their process, so nothing could be attributed to them.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence/unattributed_tests`.
-                        public var unattributed_tests: Swift.Int?
                         /// Creates a new `coverage_evidencePayload`.
                         ///
                         /// - Parameters:
+                        ///   - overlapped_tests: The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
                         ///   - paths:
                         ///   - scopes:
                         ///   - status: Whether the run collected evidence: `collected`; `not_linked` when it asked for evidence but no test process recorded any (no test target links TestCoverageAttribution); `failed` when what they recorded could not be read. Left out by clients that don't report it.
-                        ///   - unattributed_tests: Tests that overlapped another of their process, so nothing could be attributed to them.
                         public init(
+                            overlapped_tests: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.overlapped_testsPayload? = nil,
                             paths: [Swift.String],
                             scopes: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.scopesPayload,
-                            status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload? = nil,
-                            unattributed_tests: Swift.Int? = nil
+                            status: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload.statusPayload? = nil
                         ) {
+                            self.overlapped_tests = overlapped_tests
                             self.paths = paths
                             self.scopes = scopes
                             self.status = status
-                            self.unattributed_tests = unattributed_tests
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case overlapped_tests
                             case paths
                             case scopes
                             case status
-                            case unattributed_tests
                         }
                     }
                     /// Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.

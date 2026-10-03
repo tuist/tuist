@@ -146,6 +146,35 @@ components:
         coverage_evidence:
           description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
           properties:
+            overlapped_tests:
+              description: The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
+              items:
+                properties:
+                  module:
+                    description: The test target.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: The test's name.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  suite:
+                    description: Empty for a test outside any suite.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - module
+                  - name
+                type: object
+                x-struct:
+                x-validate:
+              maxItems: 500000
+              type: array
+              x-struct:
+              x-validate:
             paths:
               items:
                 type: string
@@ -225,11 +254,6 @@ components:
                 - not_linked
                 - failed
               type: string
-              x-struct:
-              x-validate:
-            unattributed_tests:
-              description: Tests that overlapped another of their process, so nothing could be attributed to them.
-              type: integer
               x-struct:
               x-validate:
           required:
@@ -13068,6 +13092,35 @@ paths:
                 coverage_evidence:
                   description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
                   properties:
+                    overlapped_tests:
+                      description: The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
+                      items:
+                        properties:
+                          module:
+                            description: The test target.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: The test's name.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          suite:
+                            description: Empty for a test outside any suite.
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - module
+                          - name
+                        type: object
+                        x-struct:
+                        x-validate:
+                      maxItems: 500000
+                      type: array
+                      x-struct:
+                      x-validate:
                     paths:
                       items:
                         type: string
@@ -13147,11 +13200,6 @@ paths:
                         - not_linked
                         - failed
                       type: string
-                      x-struct:
-                      x-validate:
-                    unattributed_tests:
-                      description: Tests that overlapped another of their process, so nothing could be attributed to them.
-                      type: integer
                       x-struct:
                       x-validate:
                   required:

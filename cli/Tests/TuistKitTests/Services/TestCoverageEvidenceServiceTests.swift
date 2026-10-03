@@ -68,7 +68,7 @@ struct TestCoverageEvidenceServiceTests {
                 .init(kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [1]),
                 .init(kind: .test, module: "AppTests", suite: "SwiftTests", name: "signs(value:)", files: [1, 2]),
             ],
-            unattributedTests: 1
+            overlappedTests: [.init(module: "AppTests", suite: "SwiftTests", name: "overlaps()")]
         ))
     }
 

@@ -103,6 +103,37 @@ defmodule Tuist.Tests.Coverage.Evidence do
     end
   end
 
+  @doc """
+  The tests a report marks on their test case runs, as `{name, module_name,
+  suite_name}`: `evidence`, those it holds evidence of their own for
+  (`tests_with_evidence/2`), and `overlapped`, those it recorded only as
+  overlapping another test of their process (`overlapped_tests/2`).
+  """
+  def test_marks(project_id, evidence),
+    do: %{evidence: tests_with_evidence(project_id, evidence), overlapped: overlapped_tests(project_id, evidence)}
+
+  @doc """
+  The tests the report recorded only as overlapping another test of their
+  process (Swift Testing running in parallel), so nothing could be attributed
+  to them, as `{name, module_name, suite_name}`. Empty when coverage is off
+  for the project.
+  """
+  def overlapped_tests(_project_id, nil), do: MapSet.new()
+
+  def overlapped_tests(project_id, evidence) do
+    tests = value(evidence, :overlapped_tests, []) || []
+
+    if is_list(tests) and tests != [] and Coverage.enabled_for_project?(project_id) do
+      tests
+      |> Enum.filter(&is_map/1)
+      |> Enum.map(&{value(&1, :name, ""), value(&1, :module, ""), value(&1, :suite, "") || ""})
+      |> Enum.reject(fn {name, module_name, _suite} -> name in [nil, ""] or module_name in [nil, ""] end)
+      |> MapSet.new()
+    else
+      MapSet.new()
+    end
+  end
+
   # A test scope's `{name, module_name, suite_name}`, as a test case run is
   # keyed, when `record/3` stores rows for it: at least one of its files
   # points at a reported path.

@@ -16,7 +16,7 @@ struct TestCoverageEvidenceTests {
             .init(kind: .test, module: "AppTests", suite: "MathTests", name: "testNothingOfOurs()", files: [2, 3]),
             .init(kind: .target, module: "AppTests", suite: "", name: "", files: [0, 3, 4]),
         ],
-        unattributedTests: 2
+        overlappedTests: [.init(module: "AppTests", suite: "SwiftTests", name: "overlaps()")]
     )
     private let manifest = XcodeCoverageManifest(rootDirectories: ["/tmp/app", "/private/tmp/app/"], partial: false, files: [])
 
@@ -27,7 +27,7 @@ struct TestCoverageEvidenceTests {
                 .init(kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0, 1]),
                 .init(kind: .target, module: "AppTests", suite: "", name: "", files: [0, 1]),
             ],
-            unattributedTests: 2
+            overlappedTests: [.init(module: "AppTests", suite: "SwiftTests", name: "overlaps()")]
         ))
     }
 
@@ -76,5 +76,12 @@ struct TestCoverageEvidenceTests {
 
         let summary = TestSummary(testPlanName: nil, status: .passed, duration: nil, testModules: [])
         #expect(summary.applying(coverageEvidence: TestCoverageEvidence(paths: [], scopes: [])).coverageEvidence == nil)
+    }
+
+    @Test func readsABundleWrittenBeforeOverlappedTestsWereReported() throws {
+        let json = #"{"paths": ["Sources/Math.swift"], "scopes": [], "status": "collected"}"#
+        let evidence = try JSONDecoder().decode(TestCoverageEvidence.self, from: Data(json.utf8))
+
+        #expect(evidence == TestCoverageEvidence(paths: ["Sources/Math.swift"], scopes: [], status: .collected))
     }
 }

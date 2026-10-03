@@ -43,6 +43,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
@@ -208,7 +209,9 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp missing_evidence_reasons(context, tests) do
     source_runs = context.ancestry
-    collected = source_runs |> Enum.filter(&(&1.coverage_evidence_status == "collected")) |> Enum.map(& &1.test_run_id)
+    collected = Enum.filter(source_runs, &(&1.coverage_evidence_status == "collected"))
+    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -Environment.coverage_retention_days().files * 86_400, :second)
+    live = collected |> Enum.filter(&(NaiveDateTime.compare(&1.ran_at, cutoff) != :lt)) |> Enum.map(& &1.test_run_id)
 
     cond do
       source_runs == [] ->
@@ -217,13 +220,45 @@ defmodule Tuist.Tests.Coverage.Reported do
       collected == [] ->
         [:collection_off]
 
+      live == [] ->
+        [:evidence_expired]
+
       true ->
-        observed = observed_targets(context.project.id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), collected)
+        project_id = context.project.id
+        observed = observed_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
+        overlapped = overlapped_tests(project_id, Enum.map(tests, & &1.test_case_id), live)
 
         tests
-        |> Enum.map(&if(MapSet.member?(observed, &1.module_name), do: :no_evidence, else: :not_linked))
+        |> Enum.map(fn test ->
+          cond do
+            not MapSet.member?(observed, test.module_name) -> :not_linked
+            MapSet.member?(overlapped, test.test_case_id) -> :overlapped
+            true -> :no_evidence
+          end
+        end)
         |> Enum.uniq()
     end
+  end
+
+  # The tests some of the runs recorded only as overlapping another, so nothing
+  # could be attributed to them.
+  defp overlapped_tests(project_id, test_case_ids, run_ids) do
+    test_case_ids = test_case_ids |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
+        ids <- Enum.chunk_every(test_case_ids, @run_id_chunk),
+        id <-
+          ClickHouseRepo.all(
+            from(r in TestCaseRun,
+              where:
+                r.project_id == ^project_id and r.test_case_id in ^ids and r.test_run_id in ^runs and
+                  r.coverage_evidence_overlapped,
+              distinct: true,
+              select: r.test_case_id
+            )
+          ),
+        into: MapSet.new(),
+        do: id
   end
 
   # The targets some of the runs recorded evidence for: a target that links
