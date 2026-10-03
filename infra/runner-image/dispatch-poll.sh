@@ -180,9 +180,10 @@ keep_desktop_interactive
 # consent prompt nobody can answer and the send fails as `AppleEvent
 # timed out (-1712)`.
 #
-# The decision is read from the session user's TCC database, which tccd
-# only creates once `runner` has logged in, so it cannot be seeded at
-# image build. The system database is not consulted for it.
+# The decision is read from the session user's TCC database, and the
+# system database is not consulted for it. tccd creates a fresh user
+# database when the VM boots, discarding one written at image build, so
+# this runs at boot.
 #
 # TCC charges the event to the responsible process, not to `osascript`:
 # `Runner.Listener` for GitHub jobs, and this script's `/bin/bash` for
@@ -445,10 +446,10 @@ use_local_cold_cache() {
 # attach_cache_image mounts the host-materialized cache image and points the CLI
 # at the MOUNTPOINT — the share itself only ever holds the image file.
 #
-# `-owners off` maps everything inside the image to the attaching user, so the
-# host/guest uid split (this guest is `runner` uid 502; the host's console user
-# is 501) never reaches the cache: the guest is the OWNER of every file. That
-# retires the host-side tree-walking chmod (from #11884) entirely.
+# `-owners off` maps everything inside the image to the attaching user, so
+# whatever uid wrote a file, on the host or in an older image, never reaches the
+# cache: the guest is the OWNER of every file. That retires the host-side
+# tree-walking chmod (from #11884) entirely.
 #
 # Ownership is not the whole story, though: `-owners off` does NOT touch mode
 # bits, so a cached artifact carried in at mode 0444 stays unwritable even by its
