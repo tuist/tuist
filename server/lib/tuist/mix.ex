@@ -12,6 +12,7 @@ defmodule Tuist.Mix do
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
+  alias Tuist.KeyValueStore
   alias Tuist.Mix.Build
   alias Tuist.Mix.CompiledFile
   alias Tuist.Mix.Diagnostic
@@ -267,13 +268,23 @@ defmodule Tuist.Mix do
              Map.get(attrs, :custom_tags, []),
              Map.get(attrs, :custom_values, %{})
            ) do
+      # Rows go through buffers that flush later, so for a while a replay of
+      # this report would not find it in ClickHouse, and two copies arriving
+      # together would both miss it. Claiming the build for longer than a
+      # flush takes makes the copies wait for, and reuse, the first answer.
       # Scoped to the project: another project may have chosen the same id,
       # which is fine, since every row of a build carries its project.
-      case get_build(attrs.id, project_id: attrs.project_id) do
-        {:error, :not_found} -> insert_build(attrs)
-        # The client retried a report it had already delivered.
-        {:ok, _build} -> {:ok, attrs.id}
-      end
+      KeyValueStore.get_or_update(
+        [:mix_build_report, attrs.project_id, attrs.id],
+        [ttl: to_timeout(minute: 10)],
+        fn ->
+          case get_build(attrs.id, project_id: attrs.project_id) do
+            {:error, :not_found} -> insert_build(attrs)
+            # The client retried a report it had already delivered.
+            {:ok, _build} -> {:ok, attrs.id}
+          end
+        end
+      )
     end
   end
 
