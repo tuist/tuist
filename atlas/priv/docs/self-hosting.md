@@ -1,37 +1,50 @@
-Atlas runs on your infrastructure with PostgreSQL, your own application keys, and Google sign-in. Choose Docker Compose for a single host or Helm for Kubernetes. Both use the same published Atlas image.
+You can run Atlas on a single host with Docker Compose or in an existing Kubernetes cluster with Helm. If you're starting from scratch, Compose gives you the shortest path: it includes the database and reverse proxy. The Helm chart fits an environment where you already manage those services.
+
+This guide takes you from an empty installation to your first administrator account, then covers the backups and upgrades you'll need to keep it running. Both deployment options use the same Atlas image, so you can choose based on the infrastructure you're comfortable operating.
 
 > [!NOTE]
-> Atlas is still being decoupled from Tuist's operations. The deployment defaults below do not require Tuist's cluster, secret manager, or internal server access. Some application workflows still have organization-specific defaults; review integrations and delivery destinations before enabling them.
+> We're still adapting Atlas for use outside Tuist. You can deploy it without access to our infrastructure, but some application workflows still carry defaults from our operations. Review an integration's configuration and delivery destinations before enabling it for your organization.
 
-## Requirements
+## Before you begin
 
-Provide a hostname, PostgreSQL 18, and encrypted browser connections through a reverse proxy. Reserve memory for the database and operating system in addition to Atlas: the deployment examples allow up to 4 gibibytes for the application and migrations, with two Erlang schedulers by default. Google sign-in requires a Google application, with an authorized redirect address of `https://atlas.example.org/auth/google/callback` and credentials for your organization. Set `ATLAS_ALLOWED_EMAIL_DOMAIN` to your organization's email domain; it limits admission but does not grant administrator access.
+For a production installation, choose a hostname such as `atlas.example.org`. People will use this address to sign in, so it needs encrypted browser connections. Compose sets up Caddy for that purpose; with Kubernetes, you'll use your cluster's ingress controller and certificate.
 
-Production file workflows require compatible object storage. Document search needs a vector service and an embedding provider. Engineering error analytics needs ClickHouse. These dependencies are optional in the base deployment; configure them before using those features. Never load the development demo seeds into an installation containing real data.
+Atlas stores its data in PostgreSQL 18. Compose includes it, while the Helm chart connects to a database you provide. When sizing the host or cluster, leave room for the database and operating system as well as Atlas. The examples allow the application and migration containers up to 4 gibibytes of memory each, with two Erlang schedulers by default.
 
-## Release artifacts
+Sign-in uses Google. Before inviting anyone, create a Google application for your organization and register `https://atlas.example.org/auth/google/callback` as an authorized redirect address, replacing the hostname with yours. Keep its client identifier and secret handy for the installation steps below. You'll also set `ATLAS_ALLOWED_EMAIL_DOMAIN` to decide who can sign in. Someone with an allowed address can create an account, but you'll grant the first administrator access separately.
 
-Select a version from the [Atlas releases](https://github.com/tuist/tuist/releases?q=atlas%40). Each release publishes:
+You can try the public documentation without Google credentials. For a local Compose evaluation, keep the default `localhost` hostname; Caddy will use a locally issued certificate that your browser may ask you to trust.
 
-- `ghcr.io/tuist/atlas:VERSION`, the application image.
-- `oci://ghcr.io/tuist/charts/atlas` at the same version, the Helm chart.
-- A chart archive and `atlas-compose-VERSION.tar.gz` attached to the release. The Compose bundle pins the matching image version.
+## Choose a release
 
-The chart's application version supplies the default image tag. Pin a release for production rather than following `latest`. The registry uses the [Open Container Initiative distribution format](https://helm.sh/docs/topics/registries/).
+Start with an [Atlas release](https://github.com/tuist/tuist/releases?q=atlas%40) and keep its version for the rest of this guide. Wherever a command says `VERSION`, substitute that release number. Pinning a version lets you decide when to upgrade rather than taking new changes through `latest`.
 
-## Docker Compose
+Each release contains the image `ghcr.io/tuist/atlas:VERSION`, a matching Helm chart, and a downloadable Compose bundle. For Compose, download `atlas-compose-VERSION.tar.gz` and unpack it. Its configuration already points to the matching image.
 
-Install [Docker Compose](https://docs.docker.com/compose/install/), download the Compose bundle from your chosen release, and unpack it. From its `atlas-compose` directory:
+For Helm, you can install `oci://ghcr.io/tuist/charts/atlas` from the registry or download `atlas-VERSION.tgz` from the same release. The chart's application version selects the image tag by default. The registry path uses the [Open Container Initiative distribution format](https://helm.sh/docs/topics/registries/).
+
+## Run with Docker Compose
+
+Once you've [installed Docker Compose](https://docs.docker.com/compose/install/) and unpacked the release bundle, open its `atlas-compose` directory. Copy the example configuration so you have a place to save your own settings:
 
 ```sh
 cp .env.example .env
-openssl rand -hex 32
-openssl rand -hex 64
-openssl rand -hex 64
-openssl rand -base64 32
 ```
 
-Use the outputs for `POSTGRES_PASSWORD`, `SECRET_KEY_BASE`, `GUARDIAN_SECRET_KEY`, and `ENCRYPTION_KEY`, respectively. Keep the database password hexadecimal so it can safely appear in the database connection address. Set `ATLAS_HOST`, `ATLAS_ALLOWED_EMAIL_DOMAIN`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in `.env`. Keep `.env` private.
+Atlas needs a database password, two signing keys, and an encryption key. Generate a fresh value for each with the commands below, and paste the results into the corresponding entries in `.env`:
+
+```sh
+openssl rand -hex 32     # POSTGRES_PASSWORD
+openssl rand -hex 64     # SECRET_KEY_BASE
+openssl rand -hex 64     # GUARDIAN_SECRET_KEY
+openssl rand -base64 32  # ENCRYPTION_KEY
+```
+
+Keep the database password hexadecimal, as generated here, so it can safely appear in the database connection address. Treat `.env` as a secret: it holds the credentials for your installation.
+
+In the same file, set `ATLAS_HOST` to your hostname and `ATLAS_ALLOWED_EMAIL_DOMAIN` to your organization's email domain. Add your Google application's credentials as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. For a public hostname, point its address records at this host and allow inbound connections on ports 80 and 443 so Caddy can obtain a certificate and serve Atlas.
+
+You're now ready to check the configuration and start the services:
 
 ```sh
 docker compose config --quiet
@@ -39,13 +52,15 @@ docker compose up -d
 docker compose ps -a
 ```
 
-Compose waits for PostgreSQL to become healthy and for migrations to complete before starting Atlas. Caddy terminates encrypted connections and forwards requests to Atlas. For a public hostname, point its address records at the host and allow inbound ports 80 and 443. The `localhost` default is for evaluation and uses a locally issued certificate; your browser may require you to trust it. Public documentation can be evaluated without Google credentials, but signing in requires them.
+On the first start, Compose waits for PostgreSQL to become healthy, runs the database migrations, and then starts Atlas. The migration service exits when it finishes; that's expected. Caddy receives browser traffic and forwards it to Atlas. Once the application is running, open your hostname and continue to [create the first administrator](#create-the-first-administrator).
 
-Database data and proxy certificates persist in named volumes. `docker compose down` preserves these volumes; adding `--volumes` deletes them. Optional provider variables can be added to `.env`, which is read by both Atlas and its migration service. Upstream tools start disabled through `MCP_PROXY_SERVERS=[]`.
+The database and Caddy's certificates live in named volumes, so stopping the stack with `docker compose down` preserves them. Adding `--volumes` deletes them; use that option only when you intend to discard the installation's data.
 
-## Kubernetes with Helm
+## Run on Kubernetes
 
-The base chart needs an existing PostgreSQL database and a Kubernetes Secret. It does not install a database operator or a secret manager. Create the keys locally as above and put them in a private `atlas.env` file:
+The Helm chart starts Atlas against an existing PostgreSQL database. Its default configuration uses an ordinary Kubernetes Secret for application credentials, so you can install it without adding a database operator or secret manager to your cluster.
+
+Generate the signing and encryption keys with the commands in the Compose section, then save them alongside your database connection and Google credentials in a private `atlas.env` file:
 
 ```sh
 DATABASE_URL=ecto://atlas:HEX_PASSWORD@postgres.example.org:5432/atlas
@@ -56,18 +71,7 @@ GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
 ```
 
-Create a namespace and Secret, then install the matching chart version:
-
-```sh
-kubectl create namespace atlas
-kubectl --namespace atlas create secret generic atlas-app --from-env-file=atlas.env
-helm upgrade --install atlas oci://ghcr.io/tuist/charts/atlas \
-  --version VERSION --namespace atlas --values values.yaml --wait --timeout 10m
-```
-
-The chart archive attached to the same release is also installable directly. If you use that download, replace `oci://ghcr.io/tuist/charts/atlas` with the local `atlas-VERSION.tgz` path.
-
-Use your own hostname and admission domain in `values.yaml`:
+Next, create a `values.yaml` file to tell the chart where people will reach Atlas. This example assumes you have an ingress controller named `nginx` and a certificate Secret named `atlas-tls`; replace those values with your cluster's configuration:
 
 ```yaml
 host: atlas.example.org
@@ -81,19 +85,32 @@ ingress:
   tlsSecretName: atlas-tls
 ```
 
-Provision the named certificate Secret and an ingress controller separately. If you use cert-manager, set `ingress.clusterIssuer` to an existing issuer instead of provisioning the certificate yourself. Database encryption is disabled by default for local networks; enable it for a remote database. Atlas currently encrypts database connections without verifying the server certificate, so restrict database network access as well.
+Provision the certificate Secret before installing. If you use cert-manager to issue certificates, you can set `ingress.clusterIssuer` to an existing issuer instead. The chart doesn't install an ingress controller for you.
 
-Migrations run in an initialization container before each Atlas replica starts. For optional services, inspect `helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION`. Enabling the bundled PostgreSQL service requires [CloudNativePG](https://cloudnative-pg.io/documentation/); enabling the chart's managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/). The base installation needs neither. Vector storage and bundled backup secret synchronization currently use that operator too; external services can instead be configured through the application Secret and environment values.
+The example enables encryption for the database connection. It is disabled in the chart's defaults for local networks, so enable it when connecting to a remote database. Atlas currently does not verify the database server's certificate; keep database access restricted to trusted networks as well.
 
-## First administrator
+With both files ready, create the namespace and application Secret, then install your chosen release:
 
-Sign in once with the intended administrator's Google account. Then run the operator-only bootstrap command. For Compose:
+```sh
+kubectl create namespace atlas
+kubectl --namespace atlas create secret generic atlas-app --from-env-file=atlas.env
+helm upgrade --install atlas oci://ghcr.io/tuist/charts/atlas \
+  --version VERSION --namespace atlas --values values.yaml --wait --timeout 10m
+```
+
+If you downloaded the chart archive, use its local `atlas-VERSION.tgz` path in place of the registry address. Each Atlas replica runs migrations in an initialization container before starting the application. When the installation completes, open your hostname and sign in to set up the first administrator.
+
+## Create the first administrator
+
+First, sign in with the Google account you want to use as the administrator. This creates the user that the bootstrap command will promote. Then, from the host or cluster where you installed Atlas, run the command for your deployment, replacing `person@example.org` with that user's address.
+
+For Compose:
 
 ```sh
 docker compose exec -e ATLAS_BOOTSTRAP_ADMIN_EMAIL=person@example.org atlas /app/bin/bootstrap-admin
 ```
 
-For Helm, find the running Atlas pod and run:
+For Kubernetes, find the running Atlas pod and use its name in the second command:
 
 ```sh
 kubectl --namespace atlas get pods
@@ -101,13 +118,27 @@ kubectl --namespace atlas exec POD_NAME -- env \
   ATLAS_BOOTSTRAP_ADMIN_EMAIL=person@example.org /app/bin/bootstrap-admin
 ```
 
-Bootstrap grants access to an existing user and refuses to run after initialization. It never creates a user or demo data. Removing an administrator does not reopen bootstrap.
+Bootstrap is a one-time setup step available to the operator of the installation. It grants access to the existing user without creating accounts or loading demo data, and refuses to run once Atlas has been initialized. Removing an administrator later does not reopen it.
 
-## Upgrades and backups
+## Add services as you need them
 
-Back up PostgreSQL, object storage, and the encryption key before upgrading. Losing `ENCRYPTION_KEY` prevents decryption of saved integration credentials. Store signing keys and Google credentials securely with the deployment configuration. Test restoring backups into an isolated installation.
+You don't need to configure every integration to get Atlas running. Start with the workspace, then add the services required by the features you want to use. File workflows need compatible object storage; document search also needs a vector service and an embedding provider. Engineering error analytics uses ClickHouse.
 
-For Compose, stop Atlas, change `ATLAS_VERSION` in `.env`, pull the images, and rerun the migration service before starting the application:
+With Compose, put optional provider settings in `.env`, which is read by both the application and migration service. Upstream tools start disabled through `MCP_PROXY_SERVERS=[]`, giving you a chance to configure your own connections before using them. Keep the development demo seeds out of an installation containing real data.
+
+With Helm, inspect the available settings for the version you're running:
+
+```sh
+helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION
+```
+
+You can configure external services through the application Secret and environment values. If you'd prefer the chart to manage PostgreSQL, its bundled database configuration requires [CloudNativePG](https://cloudnative-pg.io/documentation/). Managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/), as do the chart's bundled vector storage and backup secret synchronization. These are choices you can make later; they're not prerequisites for the base installation.
+
+## Backups and upgrades
+
+Before putting real data into Atlas, decide how you'll back up PostgreSQL and any object storage you enable, and test restoring them into an isolated installation. Save the deployment configuration and credentials securely too. In particular, keep `ENCRYPTION_KEY` with your backups: without it, Atlas cannot decrypt saved integration credentials, even if you restore the database.
+
+Before an upgrade, take a fresh backup and read the release's migration notes. For Compose, stop the application, change `ATLAS_VERSION` in `.env` to the new release, then pull the images and run migrations before starting it again:
 
 ```sh
 docker compose stop atlas
@@ -116,10 +147,10 @@ docker compose run --rm migrate
 docker compose up -d --force-recreate migrate atlas
 ```
 
-For Helm, repeat `helm upgrade --install` with the new release version. Review migration compatibility before rolling back an image: a Helm rollback does not undo database migrations.
+For Helm, repeat the installation command with the new `--version`. Keep in mind that returning to an older image does not reverse database migrations. Check their compatibility before using a Helm rollback.
 
-## Operational checks
+## Keep the installation healthy
 
-`/ready` returns success when the web server answers and bypasses the production encrypted-connection redirect so private container probes can reach it directly. Migrations must succeed before Atlas starts in both deployments. Monitor database connectivity separately: this endpoint does not query the database. Do not expose port 4000 directly to the internet; use the proxy or ingress.
+Use `/ready` to check that the web server is answering. Private container probes can reach it directly because it bypasses the production redirect to an encrypted connection. That check doesn't query PostgreSQL, so monitor database connectivity and capacity separately, along with background job failures.
 
-Monitor background job failures and database capacity. Configure your own edge rate limits for public documentation and application endpoints. The response classification header used by Tuist does not itself provide rate limiting on your infrastructure.
+Keep browser traffic behind Caddy or your ingress controller rather than exposing Atlas's port 4000 to the internet. Configure rate limits at that edge for the application and public documentation. Atlas emits a response classification header that Tuist uses for its own rate limits, but the header alone does not apply limits to your installation.
