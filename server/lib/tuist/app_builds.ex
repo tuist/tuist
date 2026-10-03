@@ -9,10 +9,18 @@ defmodule Tuist.AppBuilds do
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
+  # Postgrex replays a statement on a fresh connection when the socket drops
+  # mid-flight (`:disconnect_and_retry`), re-sending the client-generated
+  # UUIDv7 primary key of an attempt that may already have committed. Previews
+  # and app builds both generate their primary key in Elixir, so a conflict on
+  # `id` is only ever that replay. Business unique indexes are not arbitrated
+  # here and still surface as changeset errors.
+  @replay_safe_insert [on_conflict: :nothing, conflict_target: :id]
+
   def create_preview(attrs) do
     %Preview{}
     |> Preview.create_changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(@replay_safe_insert)
   end
 
   @doc """
@@ -149,7 +157,7 @@ defmodule Tuist.AppBuilds do
   def create_app_build(attrs) do
     %AppBuild{}
     |> AppBuild.create_changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(@replay_safe_insert)
   end
 
   def update_preview_with_app_build(preview_id, app_build) do
