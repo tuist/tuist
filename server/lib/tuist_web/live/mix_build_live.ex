@@ -56,16 +56,21 @@ defmodule TuistWeb.MixBuildLive do
     page = positive_integer(params["breakdown-page"])
     tab = if params["breakdown-tab"] == "module", do: "module", else: "file"
 
-    %{rows: rows, total: total} =
-      Mix.compiled_files_page(socket.assigns.run,
-        by: if(tab == "module", do: :module, else: :file),
-        search: search,
-        sort_by: sort_by,
-        page: page,
-        page_size: @breakdown_page_size
-      )
-
     socket = BuildTimelineLoader.select_tab(socket, Map.get(params, "tab", "overview"), socket.assigns.run)
+
+    # Only Overview shows the breakdown, and on a large build it is the
+    # page's most expensive query.
+    %{rows: rows, total: total} =
+      if socket.assigns.selected_tab == "overview",
+        do:
+          Mix.compiled_files_page(socket.assigns.run,
+            by: if(tab == "module", do: :module, else: :file),
+            search: search,
+            sort_by: sort_by,
+            page: page,
+            page_size: @breakdown_page_size
+          ),
+        else: %{rows: [], total: 0}
 
     {:noreply,
      socket

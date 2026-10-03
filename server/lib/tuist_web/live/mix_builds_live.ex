@@ -43,25 +43,11 @@ defmodule TuistWeb.MixBuildsLive do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
 
-    socket =
-      socket
-      |> assign(:analytics_selected_widget, widget)
-      |> assign(:uri, uri)
-      |> push_event("replace-url", %{url: "?" <> query})
-
-    if socket.assigns.total_builds_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          widget,
-          socket.assigns.total_builds_analytics.result,
-          socket.assigns.failed_builds_analytics.result,
-          socket.assigns.build_success_rate_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -116,17 +102,25 @@ defmodule TuistWeb.MixBuildsLive do
            total_builds_analytics: total_builds_analytics,
            failed_builds_analytics: failed_builds_analytics,
            build_success_rate_analytics: build_success_rate_analytics,
+           # Every widget's chart, so switching widgets while this loads
+           # cannot leave one widget selected with another's chart.
            analytics_chart_data:
-             analytics_chart_data(
-               analytics_selected_widget,
-               total_builds_analytics,
-               failed_builds_analytics,
-               build_success_rate_analytics
+             Map.new(
+               ["total-builds", "failed-builds", "build-success-rate"],
+               &{&1,
+                analytics_chart_data(
+                  &1,
+                  total_builds_analytics,
+                  failed_builds_analytics,
+                  build_success_rate_analytics
+                )}
              )
          }}
       end
     )
   end
+
+  defp chart(charts, widget), do: Map.get(charts, widget, charts["build-success-rate"])
 
   defp analytics_chart_data(
          "total-builds",

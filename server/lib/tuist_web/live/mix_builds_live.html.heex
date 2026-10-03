@@ -357,8 +357,10 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @analytics_chart_data.result.dates |> List.first(),
-                  @analytics_chart_data.result.dates |> List.last()
+                  chart(@analytics_chart_data.result, @analytics_selected_widget).dates
+                  |> List.first(),
+                  chart(@analytics_chart_data.result, @analytics_selected_widget).dates
+                  |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -371,7 +373,8 @@
               },
               axisLabel: %{
                 color: "var:noora-surface-label-secondary",
-                formatter: @analytics_chart_data.result.value_formatter
+                formatter:
+                  chart(@analytics_chart_data.result, @analytics_selected_widget).value_formatter
               }
             },
             legend: %{
@@ -379,9 +382,16 @@
             },
             tooltip:
               if @analytics_preset == "last-24-hours" do
-                %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
+                %{
+                  valueFormat:
+                    chart(@analytics_chart_data.result, @analytics_selected_widget).value_formatter,
+                  dateFormat: "hour"
+                }
               else
-                %{valueFormat: @analytics_chart_data.result.value_formatter}
+                %{
+                  valueFormat:
+                    chart(@analytics_chart_data.result, @analytics_selected_widget).value_formatter
+                }
               end
           }
         }
@@ -395,17 +405,17 @@
               ),
             data:
               Enum.zip(
-                @analytics_chart_data.result.dates,
+                chart(@analytics_chart_data.result, @analytics_selected_widget).dates,
                 if @analytics_selected_widget == "build-success-rate" do
-                  @analytics_chart_data.result.values
+                  chart(@analytics_chart_data.result, @analytics_selected_widget).values
                   |> Enum.map(&Decimal.from_float/1)
                   |> Enum.map(&Decimal.round(&1, 1))
                 else
-                  @analytics_chart_data.result.values
+                  chart(@analytics_chart_data.result, @analytics_selected_widget).values
                 end
               )
               |> Enum.map(&Tuple.to_list/1),
-            name: @analytics_chart_data.result.name,
+            name: chart(@analytics_chart_data.result, @analytics_selected_widget).name,
             type: "line",
             smooth: 0.1,
             symbol: "none"

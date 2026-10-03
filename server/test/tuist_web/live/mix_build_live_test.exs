@@ -1,6 +1,7 @@
 defmodule TuistWeb.MixBuildLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
+  use Mimic
 
   import Phoenix.LiveViewTest
 
@@ -194,6 +195,14 @@ defmodule TuistWeb.MixBuildLiveTest do
     # Client-supplied text is escaped, never rendered as markup.
     assert html =~ "unused alias &lt;b&gt;"
     refute has_element?(lv, ".issue-card[data-type=error]")
+  end
+
+  test "leaves the breakdown alone on the tabs that do not show it", %{conn: conn, path: path} do
+    reject(&Mix.compiled_files_page/2)
+
+    {:ok, _lv, html} = live(conn, path <> "?tab=warnings")
+
+    assert html =~ "Warnings"
   end
 
   test "has Warnings and Errors tabs like the Xcode build page", %{conn: conn, path: path} do
