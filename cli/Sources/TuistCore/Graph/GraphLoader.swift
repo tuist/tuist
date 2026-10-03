@@ -175,7 +175,7 @@ public struct GraphLoader: GraphLoading {
             )
 
         case let .sdk(name, status, _):
-            return try platforms.sorted().first.map { platform in
+            return try platforms.min().map { platform in
                 try loadSDK(
                     name: name,
                     platform: platform,
@@ -197,7 +197,7 @@ public struct GraphLoader: GraphLoading {
             }
 
         case .xctest:
-            return try platforms.sorted().first.map { platform in
+            return try platforms.min().map { platform in
                 try loadXCTestSDK(platform: platform)
             }
         }
