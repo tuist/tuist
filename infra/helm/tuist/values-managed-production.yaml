@@ -761,14 +761,12 @@ processor:
   #
   # Keeping the replicas off each other is the topology constraint's job
   # (matchLabelKeys in templates/processor-deployment.yaml), not the
-  # scheduler's: there is no request value that both blocks stacking and
-  # leaves room for the maxSurge=1 pod during a rollout, because the pool
-  # has only two schedulable nodes. Requests are therefore capped by the
-  # rollout, not by the steady state - at ~7-10 GiB of platform requests per
-  # node, anything above ~11.7Gi leaves the surge pod Pending and, with
-  # maxUnavailable=0, stalls the deploy indefinitely.
+  # scheduler's. The rollout no longer constrains the request either: the
+  # strategy below replaces one pod at a time instead of surging, so no node
+  # has to fit two processor requests plus its platform requests while an
+  # old replica is still running.
   #
-  # Within that ceiling the request is raised 8Gi -> 10Gi, which also matches
+  # The request was raised 8Gi -> 10Gi, which also matches
   # the measured median daily peak, because oom_score_adj for a burstable pod
   # scales with memoryRequest/capacity: 10Gi moves the processor from ~739 to
   # ~673 while the small platform pods stay near 1000, so if the node does
@@ -801,6 +799,31 @@ processor:
     limits:
       cpu: "12000m"
       memory: "16Gi"
+
+  # Replace one pod at a time instead of surging. The chart default
+  # (maxSurge=1, maxUnavailable=0) needs one node to hold two processor
+  # requests while an old replica is still running: with matchLabelKeys the
+  # second new replica must go to the node the first new one avoided, and
+  # the old replica there stays until the new one is Ready. On 2026-10-03
+  # that node carried ~11.3 GiB of platform requests out of 30.5 GiB
+  # allocatable, so 2 x 10Gi did not fit, the new replica sat Pending on
+  # "Insufficient memory", the Deployment exceeded its progress deadline, and
+  # the release rolled back. Platform requests on this untainted pool keep
+  # growing and other Deployments surge onto it in the same release, so any
+  # request that leaves room for a surge pod is a value that breaks later.
+  #
+  # maxSurge=0/maxUnavailable=1 still keeps one processor consuming the queue
+  # during a deploy. A replacement can only start on a node once the old pod
+  # there has released its request, which can take the whole 1260s grace
+  # period of an in-flight parse, so progressDeadlineSeconds must cover that
+  # plus startup. Two sequential replacements stay well inside the deploy's
+  # 60m Helm timeout.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  progressDeadlineSeconds: 1800
 
   # Pin processor pods to the dedicated cpx51 pool provisioned by
   # md-processor in cluster-production.yaml. The label is set on

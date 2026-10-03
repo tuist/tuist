@@ -12,6 +12,9 @@ metadata:
     app.kubernetes.io/component: processor
 spec:
   replicas: {{ .Values.processor.replicaCount }}
+  {{- with .Values.processor.progressDeadlineSeconds }}
+  progressDeadlineSeconds: {{ . }}
+  {{- end }}
   strategy:
     {{- toYaml .Values.processor.strategy | nindent 4 }}
   selector:

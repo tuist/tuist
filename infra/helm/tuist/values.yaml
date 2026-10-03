@@ -1012,6 +1012,10 @@ processor:
       # strict separation.
       maxSurge: 1
       maxUnavailable: 0
+  # Seconds without rollout progress before the Deployment is marked failed.
+  # Unset keeps the Kubernetes default (600). Raise it when the strategy waits
+  # for an old pod to drain, since that can take terminationGracePeriodSeconds.
+  progressDeadlineSeconds: null
   topologySpread:
     # Spread one replica per Kubernetes node. Default whenUnsatisfiable is
     # ScheduleAnyway so a 1-node cluster (preview / small self-host) still
