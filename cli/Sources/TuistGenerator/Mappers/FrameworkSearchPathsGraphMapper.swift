@@ -208,9 +208,12 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             .uniqued()
             .sorted()
         // The response file must contain absolute paths since clang doesn't expand build
-        // setting variables. Convert $(SRCROOT)/... to absolute paths.
+        // setting variables. Convert $(SRCROOT)/... to absolute paths. Each path is quoted so a
+        // path containing whitespace (e.g. a directory named "Domain layer") stays a single
+        // argument instead of being word-split into non-existent search paths.
         let responseFileContents = precompiledXcodeValues
-            .map { "-F" + $0.replacingOccurrences(of: "$(SRCROOT)", with: input.sourceRootPath.pathString) }
+            .map { $0.replacingOccurrences(of: "$(SRCROOT)", with: input.sourceRootPath.pathString) }
+            .map { "-F\(Self.responseFileQuoted($0))" }
             .joined(separator: "\n")
             + "\n"
 
@@ -246,6 +249,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             frameworkLinkPaths: swiftSearchPaths.linkPaths,
             symbolicLinks: swiftSearchPaths.symbolicLinks
         )
+    }
+
+    /// Quotes a response file argument. Clang and the linker tokenize response files with GNU
+    /// command-line rules: unquoted whitespace separates arguments and a backslash escapes the
+    /// character that follows it, inside quotes too, so both are escaped before quoting.
+    private static func responseFileQuoted(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 
     private func xcodeValues(of paths: Set<LinkGeneratorPath>, sourceRootPath: AbsolutePath) -> [String] {
