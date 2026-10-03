@@ -25,6 +25,21 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+check_schedulers() {
+  docker run --rm --cpus "$1" --env EXPECTED_SCHEDULERS="$2" --env ERL_FLAGS="${3:-}" \
+    --entrypoint /bin/sh "ghcr.io/tuist/atlas:$image_version" -c '
+      set -- /app/releases/*/start_clean.boot
+      /app/erts-*/bin/erl -boot "${1%.boot}" -boot_var RELEASE_LIB /app/lib -noshell -eval '\''
+        Expected = list_to_integer(os:getenv("EXPECTED_SCHEDULERS")),
+        Actual = erlang:system_info(schedulers_online),
+        io:format("Expected ~p active schedulers, got ~p~n", [Expected, Actual]),
+        case Actual of Expected -> halt(0); _ -> halt(1) end.
+      '\''
+    '
+}
+check_schedulers 1 1
+check_schedulers 2 2
+check_schedulers 1 3 '+S 3:3'
 cp "$root/atlas/compose.yaml" "$work/compose.yaml"
 mkdir "$work/deploy"
 cp "$root/atlas/deploy/Caddyfile" "$work/deploy/Caddyfile"

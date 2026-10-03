@@ -28,7 +28,6 @@ service:
   port: 80
   targetPort: 4000
 env:
-  ERL_FLAGS: "+S 2:2"
   ATLAS_ALLOWED_EMAIL_DOMAIN: example.org
   POOL_SIZE: '10'
   DATABASE_SSL: 'false'

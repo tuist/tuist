@@ -9,7 +9,7 @@ This guide takes you from an empty installation to your first administrator acco
 
 For a production installation, choose a hostname such as `atlas.example.org`. People will use this address to sign in, so it needs encrypted browser connections. [Compose](https://docs.docker.com/compose/) sets up [Caddy](https://caddyserver.com/docs/) for that purpose; with [Kubernetes](https://kubernetes.io/docs/concepts/overview/), you'll use your cluster's ingress controller and certificate.
 
-Atlas stores its data in [PostgreSQL 18](https://www.postgresql.org/docs/18/index.html). Compose includes it, while the [Helm](https://helm.sh/docs/) chart connects to a database you provide. When sizing the host or cluster, leave room for the database and operating system as well as Atlas. The examples allow the application and migration containers up to 4 gibibytes of memory each, with two [Erlang schedulers](https://www.erlang.org/doc/apps/erts/erl_cmd.html) by default.
+Atlas stores its data in [PostgreSQL 18](https://www.postgresql.org/docs/18/index.html). Compose includes it, while the [Helm](https://helm.sh/docs/) chart connects to a database you provide. When sizing the host or cluster, leave room for the database and operating system as well as Atlas. The examples allow the application and migration containers up to 4 gibibytes of memory each. [Erlang](https://www.erlang.org/doc/apps/erts/erl_cmd.html) chooses the active scheduler count from the available processors and container processor quotas automatically.
 
 Sign-in uses Google. Before inviting anyone, create a [Google application](https://developers.google.com/identity/openid-connect/openid-connect) for your organization and register `https://atlas.example.org/auth/google/callback` as an authorized redirect address, replacing the hostname with yours. Keep its client identifier and secret handy for the installation steps below. You'll also set `ATLAS_ALLOWED_EMAIL_DOMAIN` to decide who can sign in. Someone with an allowed address can create an account, but you'll grant the first administrator access separately.
 
@@ -150,6 +150,8 @@ docker compose up -d --force-recreate migrate atlas
 For [Helm](https://helm.sh/docs/), repeat the installation command with the new `--version`. Keep in mind that returning to an older image does not reverse database migrations. Check their compatibility before using a Helm rollback.
 
 ## Keep the installation healthy
+
+If you need to override Erlang's automatic scheduler sizing, set `ERL_FLAGS` in Compose's `.env` or `env.ERL_FLAGS` in Helm values. For example, `+S 2:2` selects two schedulers. Leave the setting unset to use the resources available to the container.
 
 Use `/ready` to check that the web server is answering. Private container probes can reach it directly because it bypasses the production redirect to an encrypted connection. That check doesn't query [PostgreSQL](https://www.postgresql.org/docs/18/index.html), so monitor database connectivity and capacity separately, along with background job failures.
 

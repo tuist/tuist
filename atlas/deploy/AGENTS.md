@@ -5,3 +5,4 @@
 - `validate.sh` exercises the built release through Compose and a disposable kind cluster, including migrations, readiness, and public documentation. It uses temporary configuration, an isolated Kubernetes configuration, and a cleanup trap. Never point it at a managed cluster.
 - Set `ATLAS_SCREENSHOT_DIR` and optionally `ATLAS_CHROME_PATH` to capture desktop, mobile, and dark-theme documentation screenshots during Compose validation. Keep browser profiles temporary.
 - Keep the public instructions in `../priv/docs/self-hosting.md` aligned with the files actually included in the release bundle.
+- Leave scheduler sizing to Erlang's processor and container quota detection unless the operator supplies `ERL_FLAGS`. Compose accepts the override in `.env`; Helm accepts it through `env.ERL_FLAGS`.

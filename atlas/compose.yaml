@@ -12,7 +12,7 @@ x-atlas: &atlas
     DATABASE_SSL: "false"
     PHX_HOST: ${ATLAS_HOST:-localhost}
     PORT: "4000"
-    ERL_FLAGS: ${ERL_FLAGS:-+S 2:2}
+    ERL_FLAGS: ${ERL_FLAGS:-}
     MCP_PROXY_SERVERS: ${MCP_PROXY_SERVERS:-[]}
   mem_limit: 4g
   init: true
