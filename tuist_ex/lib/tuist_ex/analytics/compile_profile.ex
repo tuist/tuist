@@ -76,6 +76,15 @@ defmodule TuistEx.Analytics.CompileProfile do
   end
 
   @doc """
+  Frees a profile's tables once it has been read.
+  """
+  def delete(%{entries: entries, references: references}) do
+    :ets.delete(entries)
+    :ets.delete(references)
+    :ok
+  end
+
+  @doc """
   Restores the compiler and standard error.
   """
   def uninstall(%{previous_tracers: previous_tracers, proxy: proxy}) do

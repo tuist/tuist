@@ -78,6 +78,41 @@ defmodule TuistEx.Analytics.ShardsTest do
            }
   end
 
+  test "plans a file under its top-level module, and under its path when another file shares it",
+       %{directory: directory} do
+    test_path = Path.join(directory, "test")
+    File.mkdir_p!(test_path)
+
+    # Nested modules with the same name must not stand for both files.
+    File.write!(Path.join(test_path, "y_test.exs"), """
+    defmodule YTest do
+      defmodule Helper do
+      end
+    end
+    """)
+
+    File.write!(Path.join(test_path, "z_test.exs"), """
+    defmodule ZTest do
+      defmodule Helper do
+      end
+    end
+    """)
+
+    # Two files defining the same module: neither may be left out.
+    File.write!(Path.join(test_path, "a_test.exs"), "defmodule SameTest do\nend\n")
+    File.write!(Path.join(test_path, "b_test.exs"), "defmodule SameTest do\nend\n")
+
+    a = Path.join(test_path, "a_test.exs")
+    b = Path.join(test_path, "b_test.exs")
+
+    assert Shards.test_units([test_path]) == %{
+             "YTest" => Path.join(test_path, "y_test.exs"),
+             "ZTest" => Path.join(test_path, "z_test.exs"),
+             a => a,
+             b => b
+           }
+  end
+
   test "refuses to plan around a test file that does not parse", %{directory: directory} do
     File.mkdir_p!(Path.join(directory, "test"))
     File.write!(Path.join(directory, "test/broken_test.exs"), "defmodule Demo.BrokenTest do")

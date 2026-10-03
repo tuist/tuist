@@ -14,6 +14,14 @@ defmodule TuistEx.Analytics.CompileProfileTest do
   defp env(file, module \\ nil),
     do: %{__ENV__ | file: Path.expand(file), module: module, function: nil}
 
+  test "frees its tables once deleted" do
+    profile = CompileProfile.new()
+    :ok = CompileProfile.delete(profile)
+
+    assert :ets.info(profile.entries) == :undefined
+    assert :ets.info(profile.references) == :undefined
+  end
+
   test "reports compile time, waits, and the file each wait was on", %{profile: profile} do
     CompileProfile.record(profile, {:on_module, <<>>, :none}, env("lib/macros.ex", Demo.Macros))
     CompileProfile.record(profile, {:on_module, <<>>, :none}, env("lib/greeter.ex", Demo.Greeter))
@@ -62,7 +70,7 @@ defmodule TuistEx.Analytics.CompileProfileTest do
            ]
   end
 
-  test "places each file and each wait on the build's clock", %{profile: profile} do
+  test "places each file and each wait on the build's clock" do
     profile = CompileProfile.new(1_000)
 
     CompileProfile.record(profile, :start, env("lib/macros.ex"), 1_010)
@@ -120,7 +128,7 @@ defmodule TuistEx.Analytics.CompileProfileTest do
     assert duration >= 0
   end
 
-  test "reports the work around the files as steps on the build's clock", %{profile: profile} do
+  test "reports the work around the files as steps on the build's clock" do
     profile = CompileProfile.new(1_000)
 
     CompileProfile.record(
@@ -204,9 +212,7 @@ defmodule TuistEx.Analytics.CompileProfileTest do
            ]
   end
 
-  test "falls back to the whole type checking pass when the compiler does not report modules", %{
-    profile: profile
-  } do
+  test "falls back to the whole type checking pass when the compiler does not report modules" do
     profile = CompileProfile.new(1_000)
 
     CompileProfile.record_profile_output(

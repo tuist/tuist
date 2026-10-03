@@ -27,6 +27,7 @@ defmodule Mix.Tasks.Tuist.Compile do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.CompileProfile
   alias TuistEx.Analytics.CompileReporter
+  alias TuistEx.Analytics.Isolated
 
   def run(args) do
     {options, compile_args} = split_args(args)
@@ -38,7 +39,7 @@ defmodule Mix.Tasks.Tuist.Compile do
       Keyword.take(Application.get_env(:tuist_ex, :analytics_options, []), [:url, :project])
 
     options = Keyword.merge(inherited, options)
-    {:ok, reporter} = CompileReporter.start_link(options)
+    {:ok, reporter} = CompileReporter.start(options)
 
     # The per-file compiling/waiting split only exists in the compiler's
     # profile output, so turn it on. The lines stay hidden unless the user
@@ -63,12 +64,21 @@ defmodule Mix.Tasks.Tuist.Compile do
       Args.run_wrapped("compile", Mix.Tasks.Compile, compile_args)
     after
       CompileProfile.uninstall(installation)
+      {files, steps} = profile_results(profile)
+      CompileProfile.delete(profile)
+      CompileReporter.finish(reporter, files, steps)
+    end
+  end
 
-      CompileReporter.finish(
-        reporter,
-        CompileProfile.files(profile),
-        CompileProfile.steps(profile)
-      )
+  # Reading the profile is analytics work like any other: if it fails, the
+  # build is still reported, only without its per-file detail.
+  defp profile_results(profile) do
+    case Isolated.run(
+           fn -> {CompileProfile.files(profile), CompileProfile.steps(profile)} end,
+           30_000
+         ) do
+      {files, steps} when is_list(files) and is_list(steps) -> {files, steps}
+      _ -> {[], []}
     end
   end
 

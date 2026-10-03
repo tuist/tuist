@@ -12,8 +12,13 @@ defmodule TuistEx.Analytics.CompileReporter do
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.MachineMetrics
   alias TuistEx.Analytics.Metadata
+
+  # Long enough for the stored login to be refreshed under its lock and the
+  # report sent.
+  @submit_timeout 60_000
 
   @doc """
   Starts a reporter for one build. It is not registered under a name: the
@@ -21,6 +26,13 @@ defmodule TuistEx.Analytics.CompileReporter do
   number of builds, or tests, can each have their own.
   """
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts)
+
+  @doc """
+  Starts a reporter that is not linked to the caller, so nothing that goes
+  wrong while reporting can take the build down with it. It stops when the
+  caller does.
+  """
+  def start(opts \\ []), do: GenServer.start(__MODULE__, Keyword.put(opts, :owner, self()))
 
   def child_spec(opts) do
     %{id: __MODULE__, start: {__MODULE__, :start_link, [opts]}, restart: :temporary}
@@ -33,12 +45,25 @@ defmodule TuistEx.Analytics.CompileReporter do
 
   @doc "Marks the build as finished, submits it, and stops the reporter."
   def finish(reporter, files \\ [], steps \\ []) do
-    GenServer.call(reporter, {:finish, files, steps}, 60_000)
+    request = :gen_server.send_request(reporter, {:finish, files, steps})
+
+    # Waits a little longer than the submission may take. A reporter that
+    # stopped, or never answers, costs the report, never the build.
+    case :gen_server.receive_response(request, @submit_timeout + 5_000) do
+      {:reply, :ok} ->
+        :ok
+
+      _ ->
+        Process.unlink(reporter)
+        Process.exit(reporter, :kill)
+        :ok
+    end
   end
 
   @impl true
   def init(opts) do
     parent = self()
+    if owner = Keyword.get(opts, :owner), do: Process.monitor(owner)
     sampler_opts = Keyword.get(opts, :sampler_opts, [])
 
     sampler_pid =
@@ -101,9 +126,15 @@ defmodule TuistEx.Analytics.CompileReporter do
     if nothing_compiled?(state.statuses, files) do
       :ok
     else
-      payload = build_payload(%{state | files: files, steps: steps}, duration_ms)
+      state = %{state | files: files, steps: steps}
 
-      case state.submit.(payload, state.opts) do
+      submission =
+        Isolated.run(
+          fn -> state.submit.(build_payload(state, duration_ms), state.opts) end,
+          @submit_timeout
+        )
+
+      case submission do
         :ok ->
           :ok
 
@@ -127,6 +158,11 @@ defmodule TuistEx.Analytics.CompileReporter do
   @max_nested 5_000
   @max_name 1_024
   @max_message 10_000
+
+  # The server refuses a body over 50 MB. The limits above bound each field,
+  # not their sum, so a build that hits several of them is also trimmed as a
+  # whole.
+  @max_payload_bytes 40_000_000
 
   defp fit_files(files) do
     files = Enum.filter(files, &(String.length(&1.path) <= @max_name))
@@ -169,6 +205,12 @@ defmodule TuistEx.Analytics.CompileReporter do
   @impl true
   def handle_info({:machine_metric, sample}, state) do
     {:noreply, %{state | machine_metrics: [sample | state.machine_metrics]}}
+  end
+
+  # The build that started this reporter is gone without finishing it.
+  def handle_info({:DOWN, _ref, :process, _owner, _reason}, state) do
+    if state.sampler_pid, do: MachineMetrics.stop(state.sampler_pid)
+    {:stop, :normal, %{state | sampler_pid: nil}}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -267,6 +309,27 @@ defmodule TuistEx.Analytics.CompileReporter do
       steps: fit_steps(state.steps)
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
+    |> fit_payload(Keyword.get(state.opts, :max_payload_bytes, @max_payload_bytes))
+  end
+
+  @trimmable [:files, :steps, :machine_metrics, :diagnostics]
+
+  # Halves the longest list until the report fits, keeping the slowest files.
+  defp fit_payload(payload, max_bytes) do
+    largest = Enum.max_by(@trimmable, &length(Map.get(payload, &1, [])))
+    entries = Map.get(payload, largest, [])
+
+    if entries == [] or byte_size(Jason.encode!(payload)) <= max_bytes do
+      payload
+    else
+      entries =
+        if largest == :files, do: Enum.sort_by(entries, &(-&1.compile_duration_ms)), else: entries
+
+      fit_payload(
+        Map.put(payload, largest, Enum.take(entries, div(length(entries), 2))),
+        max_bytes
+      )
+    end
   end
 
   defp uuidv4 do

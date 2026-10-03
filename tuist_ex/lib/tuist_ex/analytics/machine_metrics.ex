@@ -122,15 +122,14 @@ defmodule TuistEx.Analytics.MachineMetrics do
 
   def handle_info(_message, state), do: {:noreply, state}
 
-  # Shut the monitor's port programs down with the sampler; left running,
-  # they print "Erlang has closed" when the VM exits. Only when this sampler
-  # is the one that started the monitor.
+  # Stop the monitor with the sampler; left running, its port programs print
+  # "Erlang has closed" when the VM exits. The whole application, so the next
+  # sampler starts it again with every child. Only when this sampler is the
+  # one that started it.
   @impl true
   def terminate(_reason, %{started_os_mon?: true}) do
-    for child <- [:cpu_sup, :memsup], do: :supervisor.terminate_child(:os_mon_sup, child)
+    Application.stop(:os_mon)
     :ok
-  catch
-    _, _ -> :ok
   end
 
   def terminate(_reason, _state), do: :ok

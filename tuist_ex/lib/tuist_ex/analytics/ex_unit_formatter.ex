@@ -24,6 +24,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Metadata
 
   @deferred :deferred_test_run
@@ -106,7 +107,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     submit = Keyword.get(opts, :submit, &HTTP.submit_test_run/2)
     shell = Keyword.get(opts, :shell, &default_shell/1)
 
-    case submit.(payload, opts) do
+    case Isolated.run(fn -> submit.(payload, opts) end, 60_000) do
       :ok -> :ok
       {:error, reason} -> shell.("tuist analytics: failed to submit test run: #{inspect(reason)}")
     end

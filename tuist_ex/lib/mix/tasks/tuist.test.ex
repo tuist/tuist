@@ -52,6 +52,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.Shards
+  alias TuistEx.Analytics.TempDir
 
   @formatter ExUnitFormatter
   @preferred_cli_env :test
@@ -207,7 +208,7 @@ defmodule Mix.Tasks.Tuist.Test do
     # The retries run in new processes that start the application again. This
     # one is done with it, and leaving it running would keep hold of whatever
     # it owns exclusively, such as a port a web server listens on.
-    if app = Mix.Project.config()[:app], do: Application.stop(app)
+    for app <- Enum.reverse(project_apps()), do: Application.stop(app)
 
     Enum.reduce_while(1..retries, {:failed, []}, fn attempt, {_suite, attempts} ->
       Mix.shell().info("\nRetrying the failed tests (attempt #{attempt} of #{retries})\n")
@@ -223,6 +224,13 @@ defmodule Mix.Tasks.Tuist.Test do
     end)
   end
 
+  # An umbrella root is no application itself: its children are.
+  defp project_apps do
+    if Mix.Project.umbrella?(),
+      do: Map.keys(Mix.Project.apps_paths()),
+      else: List.wrap(Mix.Project.config()[:app])
+  end
+
   # `--failed` picks what to rerun, so the options that pick tests by other
   # means, and that Mix refuses next to it, are left out.
   @not_for_retries ["--raise", "--failed", "--stale"]
@@ -231,8 +239,10 @@ defmodule Mix.Tasks.Tuist.Test do
   # helper, the application and every module start clean, which rerunning in
   # this process cannot guarantee.
   defp retry_once(test_args) do
-    path = Path.join(System.tmp_dir!(), "tuist-ex-retry-#{System.unique_integer([:positive])}")
+    TempDir.with_dir("tuist-ex-retry", &retry_once(test_args, Path.join(&1, "results")))
+  end
 
+  defp retry_once(test_args, path) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
         color = if IO.ANSI.enabled?(), do: ["--color"], else: []
@@ -247,9 +257,7 @@ defmodule Mix.Tasks.Tuist.Test do
             stderr_to_stdout: true
           )
 
-        records = ExUnitFormatter.read_collected(path)
-        File.rm(path)
-        {:ok, status, records}
+        {:ok, status, ExUnitFormatter.read_collected(path)}
 
       _ ->
         :error

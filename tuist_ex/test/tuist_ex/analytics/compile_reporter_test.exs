@@ -166,6 +166,66 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     assert message =~ "failed to submit compile run"
   end
 
+  @tag :capture_log
+  test "a submission that raises costs the report, not the build" do
+    parent = self()
+
+    reporter =
+      start(
+        submit: fn _payload, _opts -> raise "credentials could not be saved" end,
+        shell: fn message -> send(parent, {:shell, message}) && :ok end
+      )
+
+    CompileReporter.record(reporter, :elixir, {:ok, []})
+    assert :ok = CompileReporter.finish(reporter)
+    assert_receive {:shell, message}, 2000
+    assert message =~ "credentials could not be saved"
+  end
+
+  test "a reporter that is not linked stops with the build that started it" do
+    parent = self()
+
+    owner =
+      spawn(fn ->
+        {:ok, reporter} = CompileReporter.start(sampler: nil, environment: &environment/1)
+        send(parent, {:reporter, reporter})
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive {:reporter, reporter}, 2000
+    reference = Process.monitor(reporter)
+    Process.exit(owner, :kill)
+    assert_receive {:DOWN, ^reference, :process, ^reporter, :normal}, 2000
+  end
+
+  test "trims a report whose fields fit but whose whole does not" do
+    parent = self()
+
+    reporter =
+      start(
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        max_payload_bytes: 20_000
+      )
+
+    files =
+      for index <- 1..400 do
+        %{
+          path: "lib/f#{index}.ex",
+          compile_duration_ms: index,
+          modules: [],
+          waits: [],
+          dependencies: []
+        }
+      end
+
+    :ok = CompileReporter.finish(reporter, files)
+
+    assert_receive {:submitted, payload}, 2000
+    assert byte_size(Jason.encode!(payload)) <= 20_000
+    assert payload.files != []
+    assert hd(payload.files).path == "lib/f400.ex"
+  end
+
   test "reports nothing when every compiler had nothing to do" do
     parent = self()
 
