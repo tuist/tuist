@@ -6,7 +6,6 @@ defmodule Tuist.Tests.CoverageTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
-  alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
@@ -319,7 +318,6 @@ defmodule Tuist.Tests.CoverageTest do
     defp generated, do: file("Sources/Client/Client.generated.swift", "client1", ["Calculator"], [{1, 0}, {2, 0}, {3, 0}])
 
     test "are stored but left out of the totals, targets, files and line counts", %{project: project, account: account} do
-      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["**/*.generated.swift"]})
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), generated()])})
 
       assert %{covered_lines: 2, executable_lines: 5} = CoverageFixtures.run_summary(project.id, test.id)
@@ -333,53 +331,11 @@ defmodule Tuist.Tests.CoverageTest do
       assert %{executable_lines: 3} = Coverage.file_detail(project.id, test.id, "Sources/Client/Client.generated.swift")
     end
 
-    test "are the project's own, nothing being excluded by default", %{project: project, account: account} do
-      {:ok, default} = create_test(project, account, %{xcode_coverage: coverage([add(), generated()])})
-      assert %{covered_lines: 2, executable_lines: 8} = CoverageFixtures.run_summary(project.id, default.id)
-
-      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/Formatter/**"]})
+    test "count everything outside the default globs", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add(), generated(), formatter()])})
 
-      assert %{covered_lines: 2, executable_lines: 8} = CoverageFixtures.run_summary(project.id, test.id)
-      assert %{covered_lines: 2, executable_lines: 8} = published_totals(project, test)
+      assert %{covered_lines: 4, executable_lines: 7} = CoverageFixtures.run_summary(project.id, test.id)
       assert %{covered_lines: 4, executable_lines: 10} = CoverageFixtures.run_summary(project.id, test.id, excluded: nil)
-    end
-
-    test "republish the retained runs' totals when they change", %{project: project, account: account} do
-      {:ok, first} = create_test(project, account, %{xcode_coverage: coverage([add(), generated()])})
-      {:ok, second} = create_test(project, account, %{xcode_coverage: coverage([formatter(), generated()])})
-      {:ok, only_generated} = create_test(project, account, %{xcode_coverage: coverage([generated()])})
-      assert %{executable_lines: 3} = published_totals(project, only_generated)
-
-      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/Calculator/**"]})
-
-      first_batch = Coverage.recompute_totals(project.id, batch_size: 2)
-      assert is_binary(first_batch)
-      assert Coverage.recompute_totals(project.id, batch_size: 2, after: first_batch) == nil
-
-      assert published_totals(project, first) == %{covered_lines: 0, executable_lines: 3, partial: false}
-      assert published_totals(project, second) == %{covered_lines: 2, executable_lines: 5, partial: false}
-      assert published_totals(project, only_generated) == %{covered_lines: 0, executable_lines: 3, partial: false}
-
-      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/**"]})
-      assert Coverage.recompute_totals(project.id, batch_size: 10) == nil
-
-      # A run with nothing left to count leaves the trend.
-      assert CoverageFixtures.published_totals(project.id, [first.id, second.id, only_generated.id]) == %{}
-      assert %{partial: false, executable_lines: 0} = published_totals(project, first)
-    end
-
-    test "leave a report published after a recompute in charge", %{project: project, account: account} do
-      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
-      sharded = %{shard_plan_id: shard_plan.id, shard_index: 0, xcode_coverage: coverage([add(), generated()])}
-      {:ok, test} = create_test(project, account, sharded)
-
-      {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["**/*.generated.swift"]})
-      assert Coverage.recompute_totals(project.id, batch_size: 10) == nil
-      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 5, partial: true}
-
-      {:ok, _test} = create_test(project, account, %{sharded | shard_index: 1, xcode_coverage: coverage([untested()])})
-      assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 7, partial: false}
     end
   end
 

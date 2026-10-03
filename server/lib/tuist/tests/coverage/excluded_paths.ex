@@ -1,26 +1,29 @@
 defmodule Tuist.Tests.Coverage.ExcludedPaths do
   @moduledoc """
-  The paths a project leaves out of every coverage figure: generated code, above
-  all, whose lines no test is expected to cover and which would otherwise
-  dominate a pull request that regenerates it. Only the project decides what is
-  generated in its repository, so nothing is excluded unless it sets globs.
+  The paths left out of every coverage figure: generated code, whose lines no
+  test is expected to cover and which would otherwise dominate a pull request
+  that regenerates it. The same defaults apply to every project for now:
+
+  - `**/Derived/**`: what Tuist generates into a project's `Derived` directory
+    (resource and bundle accessors);
+  - `**/*.generated.swift`: SwiftGen's and Sourcery's conventional output;
+  - `**/*.pb.swift`, `**/*.grpc.swift`: Swift Protobuf and gRPC stubs.
+
+  Dependency checkouts never reach a figure (the parser leaves them out), and
+  neither does test code (`is_test`).
 
   Globs match the whole repository-relative path, with Git's pathspec glob
   rules: `*` and `?` stay within a directory, `**/` matches any number of
   directories, and `/**` everything inside a directory.
 
-  Excluded files are still stored with their line data. They are left out of
-  a run's totals, targets, files, patch coverage and gaps when those are read,
-  so changing the globs applies to every run whose per-file coverage is still
-  retained (`Tuist.Tests.Coverage.recompute_totals/2` republishes their totals).
+  Excluded files are still stored with their line data, and left out of a
+  run's totals, targets, files, patch coverage and gaps when those are read.
   """
 
-  alias Tuist.Projects
-  alias Tuist.Projects.Project
+  @globs ["**/Derived/**", "**/*.generated.swift", "**/*.pb.swift", "**/*.grpc.swift"]
 
-  @doc "The project's globs; none for a project that set none."
-  def globs(%Project{coverage_excluded_path_globs: globs}) when is_list(globs), do: globs
-  def globs(_project), do: []
+  @doc "The globs every project's coverage leaves out."
+  def globs, do: @globs
 
   @doc """
   One anchored regular expression matching any of the globs, valid for both
@@ -33,12 +36,8 @@ defmodule Tuist.Tests.Coverage.ExcludedPaths do
     "^(?:" <> Enum.map_join(globs, "|", &glob_regex/1) <> ")$"
   end
 
-  @doc "The pattern for the project with the given id, as `pattern/1`."
-  def pattern_for_project(%Project{} = project), do: project |> globs() |> pattern()
-
-  def pattern_for_project(project_id) do
-    project_id |> Projects.get_project_by_id() |> globs() |> pattern()
-  end
+  @doc "The pattern for a project (or its id), as `pattern/1`: the same for every project for now."
+  def pattern_for_project(_project), do: pattern(@globs)
 
   @doc "Whether a path is excluded by a pattern from `pattern/1`."
   def excluded?(nil, _path), do: false

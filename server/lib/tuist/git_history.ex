@@ -57,7 +57,23 @@ defmodule Tuist.GitHistory do
     window_commits: 5_000,
     deepen_budget_seconds: 60,
     upload_batch_size: 500,
-    tracked_file_globs: [],
+    # The inputs that change what tests do without changing a source they
+    # compile: dependency pins and manifests, project generation and build
+    # settings, test plans, and the Xcode version.
+    tracked_file_globs: [
+      "**/Package.resolved",
+      "**/Package.swift",
+      "**/Project.swift",
+      "**/Workspace.swift",
+      "**/Tuist.swift",
+      "**/Tuist/**",
+      "**/*.xcconfig",
+      "**/*.xctestplan",
+      "**/project.pbxproj",
+      "**/Podfile.lock",
+      "**/Cartfile.resolved",
+      ".xcode-version"
+    ],
     commit_file_limit: 50_000
   }
 
@@ -74,9 +90,9 @@ defmodule Tuist.GitHistory do
     clone;
   - `upload_batch_size`: commits per upload request;
   - `tracked_file_globs`: the files, beyond the sources a test compiles, whose
-    identity a commit's evidence depends on (dependency manifests, generator
-    configuration, fixtures, snapshots), read off the commit's file listing;
-    only the project sets them, since they differ per repository;
+    identity a commit's evidence depends on, read off the commit's file
+    listing: any change to one refuses carrying evidence forward at that
+    commit. The same defaults for every project for now;
   - `commit_file_limit`: how many files of a commit's tree a client lists
     before marking the listing truncated.
   """
@@ -86,8 +102,7 @@ defmodule Tuist.GitHistory do
     overrides =
       %{
         window_days: project.git_history_window_days,
-        window_commits: project.git_history_window_commits,
-        tracked_file_globs: project.tracked_file_globs
+        window_commits: project.git_history_window_commits
       }
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
       |> Map.new()
@@ -1038,7 +1053,7 @@ defmodule Tuist.GitHistory do
 
   @doc """
   The tracked files of a commit for a project: the paths in the commit's
-  listing that the project's `tracked_file_globs` match, with their blobs.
+  listing that the tracked globs (`settings/1`) match, with their blobs.
   Empty when the project tracks nothing or the listing is not stored.
   """
   def tracked_files(%Project{} = project, repository_id, sha) do

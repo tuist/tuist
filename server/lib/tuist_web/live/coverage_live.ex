@@ -11,9 +11,9 @@ defmodule TuistWeb.CoverageLive do
   branch is picked among those whose runs never named a pull request
   (`History.branches/2`), the default branch unless `branch` names another.
   Every figure is a commit's, pooled over the schemes that measured it.
-
-  Its settings live under the project's settings
-  (`TuistWeb.ProjectCoverageSettingsLive`).
+  Coverage has no project settings: the excluded paths and tracked files are
+  the same defaults for every project (`Tuist.Tests.Coverage.ExcludedPaths`,
+  `Tuist.GitHistory.settings/1`).
   """
   use TuistWeb, :live_view
   use Noora

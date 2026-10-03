@@ -5,7 +5,6 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   import Ecto.Query
 
   alias Tuist.GitHistory
-  alias Tuist.Projects
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Reported
@@ -354,14 +353,12 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     GitHistory.record_listing(repository, "abc123", [
       %{path: "Sources/A.swift", git_blob_id: "a"},
       %{path: "Sources/Untested.swift", git_blob_id: "u"},
-      %{path: "Sources/Generated/API.swift", git_blob_id: "g"},
+      %{path: "Sources/API/Client.generated.swift", git_blob_id: "g"},
       %{path: "Tests/ATests.swift", git_blob_id: "t"},
       %{path: "Project.swift", git_blob_id: "p"},
       %{path: "Tuist/ProjectDescriptionHelpers/Helper.swift", git_blob_id: "h"},
       %{path: "README.md", git_blob_id: "r"}
     ])
-
-    {:ok, project} = Projects.update_project(project, %{coverage_excluded_path_globs: ["Sources/Generated/**"]})
 
     CoverageFixtures.run_with_coverage(project, account, [
       file("Sources/A.swift", [1]),

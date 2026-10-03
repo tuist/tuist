@@ -6,9 +6,7 @@ defmodule Tuist.Tests.CoverageRun do
   (the configuration the figures belong to). Every shard report inserts the totals it computed over the
   shards reported so far. Reports can land in any order, so `version` ranks a
   computation by how many shards it included, then by the newest report it
-  saw: the most complete one wins. When the project's excluded paths change,
-  `Tuist.Tests.Coverage.recompute_totals/2` republishes a run's totals one
-  version above the latest, with its original `inserted_at`.
+  saw: the most complete one wins.
   """
   use Ecto.Schema
 

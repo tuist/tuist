@@ -57,9 +57,6 @@ defmodule Tuist.Projects.Project do
     # Git history overrides; nil means the server default (see `Tuist.GitHistory.settings/1`).
     field :git_history_window_days, :integer
     field :git_history_window_commits, :integer
-    field :tracked_file_globs, {:array, :string}
-    # Coverage leaves these paths out of every figure (see `Tuist.Tests.Coverage.ExcludedPaths`).
-    field :coverage_excluded_path_globs, {:array, :string}
 
     belongs_to :account, Account
 
@@ -119,9 +116,7 @@ defmodule Tuist.Projects.Project do
       :build_system,
       :bundle_size_approval_policy,
       :git_history_window_days,
-      :git_history_window_commits,
-      :tracked_file_globs,
-      :coverage_excluded_path_globs
+      :git_history_window_commits
     ])
     |> validate_number(:git_history_window_days, greater_than: 0)
     |> validate_number(:git_history_window_commits, greater_than: 0)

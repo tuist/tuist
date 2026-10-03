@@ -139,7 +139,6 @@ defmodule Tuist do
       Tests.Coverage.History,
       Tests.Coverage.Report,
       Tests.Coverage.Workers.CommitWorker,
-      Tests.Coverage.Workers.RecomputeTotalsWorker,
       Tests.CoverageCommit,
       Tests.TestRunStressCandidate,
       Shards,

@@ -38,11 +38,9 @@ defmodule Tuist.Tests.Coverage do
   and the tool and version that measured them, and the repository's Git
   object format, so figures are only ever compared like with like.
 
-  Paths the project excludes (generated code, see
-  `Tuist.Tests.Coverage.ExcludedPaths`) are stored like any other but left out
-  of every figure: the published totals, and the files, targets and totals read
-  from the reports. `recompute_totals/2` republishes the totals of the runs
-  whose reports are still retained when the exclusions change.
+  Excluded paths (generated code, see `Tuist.Tests.Coverage.ExcludedPaths`)
+  are stored like any other but left out of every figure: the published
+  totals, and the files, targets and totals read from the reports.
   """
 
   import Ecto.Query
@@ -435,125 +433,6 @@ defmodule Tuist.Tests.Coverage do
   end
 
   defp run_totals_base(project_id, shas), do: where(run_totals_base(project_id, nil), [c], c.git_commit_sha in ^shas)
-
-  @doc """
-  Republishes the totals of the project's runs from their retained reports,
-  with the paths excluded now (see `Tuist.Tests.Coverage.ExcludedPaths`), for
-  up to `batch_size` runs after the run id `after` (nil to start). Returns the
-  id to continue after, or nil once every run was visited.
-
-  A run whose reports are past their retention keeps the totals it has. A
-  republished row keeps the run's publication time, so its retention does not
-  move, and ranks right above the totals it replaces: a report published later
-  still outranks it (see `Tuist.Tests.CoverageRun`).
-  """
-  def recompute_totals(project_id, opts) do
-    batch_size = Keyword.fetch!(opts, :batch_size)
-    excluded = excluded(project_id, opts)
-
-    runs =
-      from(c in CoverageRun,
-        where: c.project_id == ^project_id,
-        group_by: c.test_run_id,
-        order_by: c.test_run_id,
-        limit: ^batch_size,
-        select: %{
-          test_run_id: c.test_run_id,
-          build_system: fragment("argMax(?, ?)", c.build_system, c.version),
-          coverage_tool: fragment("argMax(?, ?)", c.coverage_tool, c.version),
-          coverage_tool_version: fragment("argMax(?, ?)", c.coverage_tool_version, c.version),
-          git_object_format: fragment("argMax(?, ?)", c.git_object_format, c.version),
-          scheme: fragment("argMax(?, ?)", c.scheme, c.version),
-          git_commit_sha: fragment("argMax(?, ?)", c.git_commit_sha, c.version),
-          covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
-          executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-          partial: fragment("argMax(?, ?)", c.partial, c.version),
-          inserted_at: fragment("argMax(?, ?)", c.inserted_at, c.version),
-          version: max(c.version)
-        }
-      )
-      |> then(fn query ->
-        case Keyword.get(opts, :after) do
-          nil -> query
-          after_id -> where(query, [c], c.test_run_id > type(^after_id, Ecto.UUID))
-        end
-      end)
-      |> ClickHouseRepo.all()
-
-    totals = retained_totals(project_id, Enum.map(runs, & &1.test_run_id), excluded)
-
-    rows =
-      for run <- runs,
-          {covered, executable} = Map.get(totals, run.test_run_id, {run.covered_lines, run.executable_lines}),
-          {covered, executable} != {run.covered_lines, run.executable_lines} do
-        run
-        |> Map.merge(%{project_id: project_id, covered_lines: covered, executable_lines: executable})
-        |> Map.put(:version, run.version + 1)
-      end
-
-    if rows != [], do: IngestRepo.insert_all(CoverageRun, rows)
-    rows |> Enum.map(& &1.git_commit_sha) |> Enum.uniq() |> Enum.each(&Commits.enqueue_recompute(project_id, &1))
-
-    if length(runs) == batch_size, do: runs |> List.last() |> Map.fetch!(:test_run_id)
-  end
-
-  # The merged totals of each run that still has reports, as
-  # `merged_files_query/3` computes them for one run.
-  defp retained_totals(_project_id, [], _excluded), do: %{}
-
-  defp retained_totals(project_id, test_run_ids, excluded) do
-    latest_reports =
-      from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
-        group_by: [f.test_run_id, f.shard_index],
-        select: %{test_run_id: f.test_run_id, shard_index: f.shard_index, inserted_at: max(f.inserted_at)}
-      )
-
-    merged =
-      from(f in CoverageFile,
-        join: r in subquery(latest_reports),
-        on: r.test_run_id == f.test_run_id and r.shard_index == f.shard_index and r.inserted_at == f.inserted_at,
-        where: f.project_id == ^project_id and f.test_run_id in ^test_run_ids and f.scope_kind == "run",
-        group_by: [f.test_run_id, f.path],
-        select: %{
-          test_run_id: f.test_run_id,
-          path: f.path,
-          counted: fragment("not max(?)", f.is_test),
-          executable_lines:
-            fragment(
-              "toUInt64(if(max(length(?)) = 0, max(?), length(groupUniqArrayArray(?))))",
-              f.line_numbers,
-              f.executable_lines,
-              f.line_numbers
-            ),
-          covered_lines:
-            fragment(
-              "toUInt64(if(max(length(?)) = 0, max(?), length(groupUniqArrayArray(arrayFilter((l, c) -> c > 0, ?, ?)))))",
-              f.line_numbers,
-              f.covered_lines,
-              f.line_numbers,
-              f.execution_counts
-            )
-        }
-      )
-
-    # Every run with reports keeps a row, even when all its files are excluded.
-    merged =
-      if excluded,
-        do: select_merge(merged, [f], %{excluded: fragment("match(?, ?)", f.path, ^excluded)}),
-        else: select_merge(merged, [f], %{excluded: false})
-
-    from(m in subquery(merged),
-      group_by: m.test_run_id,
-      select: {
-        m.test_run_id,
-        fragment("toUInt64(sumIf(?, ? and not ?))", m.covered_lines, m.counted, m.excluded),
-        fragment("toUInt64(sumIf(?, ? and not ?))", m.executable_lines, m.counted, m.excluded)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(fn {test_run_id, covered, executable} -> {test_run_id, {covered, executable}} end)
-  end
 
   @doc """
   Every product file of the run with its shards' reports merged: path, blob,

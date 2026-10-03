@@ -5,7 +5,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
-  alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -33,8 +32,16 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       CoverageFixtures.commit("head", ["base"], 1)
     ])
 
+    # The carry rules are exercised without tracked files, whose default globs
+    # need both commits' listings; the tests about tracked files use them.
+    stub(GitHistory, :settings, fn project ->
+      GitHistory |> call_original(:settings, [project]) |> Map.put(:tracked_file_globs, [])
+    end)
+
     %{account: account, project: project}
   end
+
+  defp track_default_files, do: stub(GitHistory, :settings, &call_original(GitHistory, :settings, [&1]))
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)
 
@@ -454,7 +461,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     project: project,
     account: account
   } do
-    {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved"]})
+    track_default_files()
     target_only_runs(project, account)
 
     # An older measured commit the evidence never comes from.
@@ -716,7 +723,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     project: project,
     account: account
   } do
-    {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved"]})
+    track_default_files()
     base_run(project, account)
     head_run(project, account, head_files())
 
@@ -760,7 +767,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   end
 
   test "a changed tracked file carries nothing", %{project: project, account: account} do
-    {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved"]})
+    track_default_files()
     base_run(project, account)
     head_run(project, account, head_files())
 
@@ -774,6 +781,22 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
+  end
+
+  test "without the head's listing, whether a tracked file changed is unknown and nothing is carried", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = [%{path: "Package.resolved", git_blob_id: "one", mode: 0o100644}]
+    GitHistory.record_listing(repository_id, "base", listing, files_count: 1)
+
+    assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == [:listing_missing]
   end
 
   test "keeps an unchanged file no run at the commit compiled, with what was carried into it", %{

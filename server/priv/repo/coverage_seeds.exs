@@ -48,6 +48,7 @@ alias Tuist.Projects
 alias Tuist.Repo
 alias Tuist.Tests
 alias Tuist.Tests.Coverage.Commits
+alias Tuist.Tests.Coverage.ExcludedPaths
 
 defmodule CoverageSeed do
   @moduledoc false
@@ -80,18 +81,19 @@ defmodule CoverageSeed do
 
   @generic ~w|init() configure() update(_:) describe() validate() reset() apply(_:) resolve(_:)|
 
-  # A tracked file is one whose change could change any test's result; they
-  # stay the same, so reused coverage is never invalidated by them.
+  # A tracked file is one whose change could change any test's result
+  # (`Package.resolved` matches the default globs); they stay the same, so
+  # reused coverage is never invalidated by them.
   def tracked_files, do: [{"Package.resolved", "resolved-0"}, {"Tests/Fixtures/project.json", "fixture-0"}]
 
   def unmeasured_paths,
     do: [
       "Sources/App/Legacy/UIKitBridge.swift",
       "Sources/Networking/Deprecated/LegacyClient.swift",
-      "Sources/Generated/Strings.swift"
+      "Sources/Generated/Strings.generated.swift"
     ]
 
-  def generated, do: {"Sources/Generated/Assets.swift", "App"}
+  def generated, do: {"Sources/Generated/Assets.generated.swift", "App"}
 
   def h(term, n), do: rem(:erlang.phash2(term), n)
 
@@ -298,7 +300,7 @@ defmodule CoverageSeed do
         {base <> "View.swift", "body", :main},
         {base <> "ViewModel.swift", "load()", :main},
         {base <> "ViewModel.swift", "refresh()", :error},
-        {"Sources/Generated/Assets.swift", "init()", :main}
+        {"Sources/Generated/Assets.generated.swift", "init()", :main}
       ])
     end)
   end
@@ -612,12 +614,6 @@ IngestRepo.query!(
 )
 
 repository_id = GitHistory.repository_id(account.id, repository_url)
-
-{:ok, project} =
-  Projects.update_project(project, %{
-    tracked_file_globs: ["Package.resolved", "Tests/Fixtures/**"],
-    coverage_excluded_path_globs: ["Sources/Generated/**"]
-  })
 
 sha = fn label -> :sha |> :crypto.hash("tuist-coverage-seed/" <> label) |> Base.encode16(case: :lower) end
 at = fn days_ago, hour -> Date.utc_today() |> Date.add(-days_ago) |> DateTime.new!(Time.new!(hour, 0, 0)) end
@@ -1022,7 +1018,8 @@ published =
 # ---------------------------------------------------------------------------
 # Checks: the application's figures against the model's own union of runs.
 
-excluded? = &String.starts_with?(&1, "Sources/Generated/")
+excluded_pattern = ExcludedPaths.compile(ExcludedPaths.pattern(ExcludedPaths.globs()))
+excluded? = &ExcludedPaths.excluded?(excluded_pattern, &1)
 
 expected = fn entry ->
   commit_runs = Enum.filter(runs, &(&1.entry.commit.label == entry.commit.label))
@@ -1080,4 +1077,3 @@ IO.puts(
     "#{length(CoverageSeed.product_files())} product files; checks passed"
 )
 
-IO.puts("  - coverage pull requests: /#{account.name}/tuist/tests/coverage/pull-requests/4321 (reused), 4330 (unknown)")

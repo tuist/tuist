@@ -554,13 +554,9 @@ defmodule Tuist.GitHistoryTest do
 
       assert GitHistory.blobs_at(repository, "c", ["Sources/A.swift", "Missing.swift"]) == %{"Sources/A.swift" => "a1"}
 
-      assert GitHistory.tracked_files(project, repository, "c") == []
-
-      {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved", "Tests/Fixtures/**"]})
-
+      # The default globs track dependency pins, not fixtures.
       assert GitHistory.tracked_files(project, repository, "c") == [
-               %{path: "Package.resolved", git_blob_id: "resolved1"},
-               %{path: "Tests/Fixtures/x.json", git_blob_id: "x1"}
+               %{path: "Package.resolved", git_blob_id: "resolved1"}
              ]
 
       # Repeating the upload changes nothing.
@@ -606,18 +602,13 @@ defmodule Tuist.GitHistoryTest do
                window_days: 365,
                window_commits: 5_000,
                upload_batch_size: 500,
-               tracked_file_globs: [],
+               tracked_file_globs: ["**/Package.resolved" | _],
                commit_file_limit: 50_000
              } = GitHistory.settings(project)
 
-      {:ok, project} =
-        Projects.update_project(project, %{
-          git_history_window_days: 30,
-          tracked_file_globs: ["Package.resolved"]
-        })
+      {:ok, project} = Projects.update_project(project, %{git_history_window_days: 30})
 
-      assert %{window_days: 30, window_commits: 5_000, tracked_file_globs: ["Package.resolved"]} =
-               GitHistory.settings(project)
+      assert %{window_days: 30, window_commits: 5_000} = GitHistory.settings(project)
     end
 
     test "drops commits older than the window and their parent edges", %{repository: repository} do

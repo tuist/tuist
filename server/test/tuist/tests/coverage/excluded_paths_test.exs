@@ -39,12 +39,24 @@ defmodule Tuist.Tests.Coverage.ExcludedPathsTest do
     end
   end
 
-  describe "globs/1" do
-    test "are the project's own, and none when it set none" do
-      assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: ["A/**"]}) == ["A/**"]
-      assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: []}) == []
-      assert ExcludedPaths.globs(%Project{coverage_excluded_path_globs: nil}) == []
-      assert ExcludedPaths.pattern_for_project(%Project{coverage_excluded_path_globs: nil}) == nil
+  describe "globs/0" do
+    test "leave out generated code at any depth, and nothing else" do
+      pattern = ExcludedPaths.pattern_for_project(%Project{})
+
+      for path <- [
+            "Derived/Sources/TuistBundle+App.swift",
+            "App/Derived/Sources/TuistAssets+App.swift",
+            "Strings.generated.swift",
+            "Sources/L10n/Strings.generated.swift",
+            "Sources/API/Model.pb.swift",
+            "Sources/API/Service.grpc.swift"
+          ] do
+        assert ExcludedPaths.excluded?(pattern, path), path
+      end
+
+      for path <- ["Sources/App.swift", "Sources/Derived.swift", "Sources/generated.swift"] do
+        refute ExcludedPaths.excluded?(pattern, path), path
+      end
     end
   end
 end

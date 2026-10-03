@@ -406,18 +406,6 @@ defmodule Tuist.Environment do
       2_000_000_000
   end
 
-  @doc """
-  How many runs a coverage totals recompute handles per job, from
-  `TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE`; 500 by default.
-  """
-  def coverage_recompute_batch_size(environment \\ System.get_env()) when is_map(environment) do
-    parse_artifact_retention_days(
-      Map.get(environment, "TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE"),
-      "TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE"
-    ) ||
-      500
-  end
-
   @git_history_environment_variables %{
     window_days: "TUIST_GIT_HISTORY_WINDOW_DAYS",
     window_commits: "TUIST_GIT_HISTORY_WINDOW_COMMITS",
