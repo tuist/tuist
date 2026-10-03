@@ -24,7 +24,8 @@ func makeRef(kindPrefix, name, uid string) string {
 // String constants callers pass as kindPrefix. Keep short — refs are
 // capped at 32 chars total by Cloudflare and the hash suffix eats 20.
 const (
-	rateLimitRefPrefix = "cfrl_"
+	rateLimitRefPrefix  = "cfrl_"
+	customRuleRefPrefix = "cfcustom_"
 )
 
 // sanityRef panics if the produced ref would violate Cloudflare's

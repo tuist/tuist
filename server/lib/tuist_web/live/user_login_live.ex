@@ -8,6 +8,8 @@ defmodule TuistWeb.UserLoginLive do
   alias Phoenix.Flash
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias TuistWeb.GoogleOneTap
+  alias TuistWeb.Turnstile
 
   def mount(_params, _session, socket) do
     email = Flash.get(socket.assigns.flash, :email)
@@ -25,6 +27,8 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
       |> assign(:email_auth_enabled?, Environment.email_auth_enabled?())
       |> assign(:test_user_login_enabled?, Environment.test_user_login_enabled?())
+      |> assign(:turnstile_required?, Turnstile.required?())
+      |> assign(:turnstile_site_key, Turnstile.site_key())
 
     {
       :ok,
@@ -36,14 +40,10 @@ defmodule TuistWeb.UserLoginLive do
   def render(assigns) do
     ~H"""
     <div id="login">
+      <GoogleOneTap.prompt current_user={assigns[:current_user]} live />
       <div data-part="frame">
         <div data-part="content">
-          <img
-            src={~p"/images/tuist_logo_32x32@2x.png"}
-            alt={dgettext("dashboard_auth", "Tuist Logo")}
-            data-part="logo"
-            decoding="async"
-          />
+          <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
@@ -176,6 +176,16 @@ defmodule TuistWeb.UserLoginLive do
                 label={dgettext("dashboard_auth", "Forgot password?")}
               />
             </div>
+            <div
+              :if={@turnstile_required? and is_binary(@turnstile_site_key)}
+              id="email-login-turnstile"
+              phx-hook="Turnstile"
+              phx-update="ignore"
+              data-action="email_login"
+              data-sitekey={@turnstile_site_key}
+            >
+              <input data-turnstile-response name="cf-turnstile-response" type="hidden" />
+            </div>
             <.button
               variant="primary"
               size="large"
@@ -221,6 +231,10 @@ defmodule TuistWeb.UserLoginLive do
       <.terms_and_privacy />
     </div>
     """
+  end
+
+  def handle_event("turnstile_state_changed", _payload, socket) do
+    {:noreply, socket}
   end
 
   defp oauth_configured?(assigns) do

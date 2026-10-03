@@ -10,10 +10,15 @@ defmodule TuistWeb.Webhooks.BillingController do
   @impl true
   def handle_event(%Stripe.Event{type: "customer.updated"} = event) do
     customer = event.data.object
-    {:ok, account} = Accounts.get_account_from_customer_id(customer.id)
-    {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
 
-    :ok
+    case Accounts.get_account_from_customer_id(customer.id) do
+      {:ok, account} ->
+        {:ok, _} = Accounts.update_account(account, %{billing_email: customer.email})
+        :ok
+
+      {:error, :not_found} ->
+        :ok
+    end
   end
 
   @impl true
@@ -51,18 +56,30 @@ defmodule TuistWeb.Webhooks.BillingController do
     :ok
   end
 
-  # Enqueued for every paid invoice rather than only for ones that look
-  # prepaid here. The webhook payload carries at most the first handful
-  # of an invoice's lines, so a prepaid line sitting further down a
-  # busy month's bill would be read as "not prepaid" and the credit
-  # lost. The worker pages the lines endpoint and decides on the full
-  # picture; an ordinary invoice costs it one cheap no-op.
-  #
-  # Let a failed insert raise: the invoice is paid and any credit on it
-  # is owed, so a 500 here buys another delivery from Stripe rather
-  # than dropping the grant on the floor.
   @impl true
-  def handle_event(%Stripe.Event{type: "invoice.paid"} = event) do
+  def handle_event(%Stripe.Event{type: "invoice.payment_failed"} = event) do
+    Billing.on_invoice_payment_failed(event.data.object)
+  end
+
+  # Enqueued for every finalized and every paid invoice rather than only
+  # for ones that look prepaid here. The webhook payload carries at most
+  # the first handful of an invoice's lines, so a prepaid line sitting
+  # further down a busy month's bill would be read as "not prepaid" and
+  # the credit lost. The worker pages the lines endpoint and decides on
+  # the full picture; an ordinary invoice costs it one cheap no-op.
+  #
+  # Finalization grants a renewal's standing prepaid minutes. Stripe
+  # finalizes a subscription invoice about an hour after the period
+  # opens however late it is paid, and a grant is effective only from
+  # when it is created. Payment is the backstop when finalization was
+  # never delivered. The worker skips lines already granted, so both
+  # events grant an invoice once.
+  #
+  # Let a failed insert raise: any credit on the invoice is owed, so a
+  # 500 here buys another delivery from Stripe rather than dropping the
+  # grant on the floor.
+  @impl true
+  def handle_event(%Stripe.Event{type: type} = event) when type in ["invoice.finalized", "invoice.paid"] do
     {:ok, _job} =
       %{invoice_id: event.data.object.id}
       |> CreateRunnerPrepaidGrantWorker.new()

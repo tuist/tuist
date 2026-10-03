@@ -2,7 +2,10 @@ package dev.tuist.gradle
 
 import dev.tuist.gradle.services.RefreshAuthTokenService
 import java.io.File
+import java.io.InterruptedIOException
 import java.net.URI
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 open class TokenProvider(
     private val serverURL: URI,
@@ -30,14 +33,24 @@ open class TokenProvider(
         tokenCacheFactory(serverURL)
     }
 
-    open fun getToken(forceRefresh: Boolean = false): String {
+    /**
+     * @param deadlineNanos a [System.nanoTime] by which to have a token, covering the wait for a
+     * refresh another caller started, the lock that serializes refreshes across processes, and the
+     * refresh request. Past it, fails with an [InterruptedIOException]. `null` waits for as long
+     * as it takes.
+     */
+    open fun getToken(forceRefresh: Boolean = false, deadlineNanos: Long? = null): String {
         val envToken = envProvider("TUIST_TOKEN")
         if (!envToken.isNullOrBlank()) return envToken
 
-        return tokenCache.getValue(forceRefresh) { resolveToken() }
+        return try {
+            tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+        } catch (e: TimeoutException) {
+            throw InterruptedIOException("Timed out acquiring a Tuist token").apply { initCause(e) }
+        }
     }
 
-    private fun resolveToken(): Pair<String, Long?> {
+    private fun resolveToken(deadlineNanos: Long?): Pair<String, Long?> {
         val credentials = credentialStore.read(serverURL)
             ?: throw NotAuthenticatedException(serverURL)
 
@@ -51,14 +64,22 @@ open class TokenProvider(
             throw NotAuthenticatedException(serverURL)
         }
 
+        val timeoutMs = deadlineNanos?.let {
+            val remainingMs = TimeUnit.NANOSECONDS.toMillis(it - System.nanoTime())
+            if (remainingMs <= 0) throw InterruptedIOException("Timed out before refreshing the Tuist token")
+            remainingMs
+        }
+
         try {
-            val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
+            val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken, timeoutMs)
             credentialStore.write(
                 serverURL,
                 Credentials(newTokens.accessToken, newTokens.refreshToken)
             )
             return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
         } catch (e: java.net.ConnectException) {
+            throw e
+        } catch (e: InterruptedIOException) {
             throw e
         } catch (_: Exception) {
             throw NotAuthenticatedException(serverURL)

@@ -1,0 +1,69 @@
+.platform-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+  vertical-align: middle;
+
+  & [data-part="logo"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  & [data-part="logo"] img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  & [data-part="badge"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border-radius: var(--noora-radius-small);
+    background: var(--noora-surface-tertiary);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) 10px/1 monospace;
+    letter-spacing: -0.02em;
+    padding: 2px;
+    min-width: 18px;
+    height: 18px;
+    box-shadow: inset 0 0 0 1px var(--noora-surface-border);
+  }
+
+  & [data-part="label"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  &[data-size="small"] {
+    & [data-part="logo"] {
+      width: 16px;
+      height: 16px;
+    }
+
+    & [data-part="badge"] {
+      min-width: 16px;
+      height: 16px;
+      font-size: 9px;
+      padding: 1px 3px;
+    }
+  }
+
+  &[data-size="medium"] {
+    & [data-part="logo"] {
+      width: 20px;
+      height: 20px;
+    }
+
+    & [data-part="badge"] {
+      min-width: 20px;
+      height: 20px;
+      font-size: 11px;
+      padding: 2px 4px;
+    }
+  }
+}

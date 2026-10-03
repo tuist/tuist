@@ -97,25 +97,41 @@ kubectl get clusters -n org-tuist
 
 The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 
+> **The mgmt kubeconfig is emergency-only** (spec/72 Decision 6). The workload
+> `Cluster` CRs reconcile from git via **Flux** (`infra/flux/mgmt/`), so
+> routine changes are a reviewed PR — no `kubectl apply`. Use this kubeconfig
+> directly only for: the one-time Flux/ESO bootstrap, recovering a wedged Flux,
+> and the manifests still outside Flux (ClusterClass/bare-metal templates,
+> preview, mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
+> always fine.
+
 ## 2. Author the Cluster CR
 
-Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. Existing per-env files:
+Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. The Flux-reconciled clusters live one-per-subdir under `clusters/workloads/`:
 
-- [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
-- [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
-- [`clusters/cluster-production.yaml`](clusters/cluster-production.yaml)
-- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
+- [`clusters/workloads/staging/cluster.yaml`](clusters/workloads/staging/cluster.yaml)
+- [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
+- [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
+- tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
+- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml) — preview stays outside Flux (`mgmt-cluster-apply.yml`).
 
-For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
+For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
-## 3. Apply the Cluster CR
+## 3. Reconcile the Cluster CR
 
-The `mgmt-cluster-apply.yml` workflow auto-applies anything under `infra/k8s/clusters/**` on push to `main`. For an out-of-band apply (e.g. before a PR is merged):
+Merging the PR is the apply: **Flux** reconciles the `workloads/` Cluster CRs from `main` on its interval, and the `flux-diff` PR job posts the server-side dry-run for review beforehand. Watch it land:
 
 ```bash
-kubectl apply -f infra/k8s/clusters/cluster-<env>.yaml
+# Read-only; the Pomerium/mgmt read path is always allowed.
+flux -n flux-system get kustomization cluster-<cluster>
 kubectl -n org-tuist get cluster <name> -w
-# Ready=True once control plane is up. ~3–5 min cold start.
+# Available=True once control plane is up. ~3–5 min cold start.
+```
+
+Only under break-glass (a wedged Flux, or a cluster still outside Flux like preview) apply directly:
+
+```bash
+kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-preview.yaml
 ```
 
 ## 4. Bootstrap the workload cluster
@@ -299,7 +315,7 @@ The controller install task requires `KURA_CONTROLLER_IMAGE_TAG` and refuses to 
 
 Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura` namespace ([`templates/kura-instance.yaml`](../helm/tuist/templates/kura-instance.yaml)), so Helm owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it. Managed environments leave `kuraRuntime.instance.enabled` off, because there the server's reconciler authors the CR from the `kura_servers` intent rows.
 
-Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether it is torn down by `helm uninstall`, by the janitor's namespace delete, or by a half-finished run of either. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
+Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether the janitor's namespace delete finishes or is interrupted. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by the `preview-janitor` CronJob.
 
 Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
@@ -334,7 +350,7 @@ encoded = IO.binread(:stdio, :eof) |> String.trim()
 
 with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
      {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
-       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
   IO.puts("valid through #{expiration_date}")
 else
   :error -> raise "air-gapped license is not valid Base64"
@@ -377,7 +393,7 @@ encoded = IO.binread(:stdio, :eof)
 
 with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
      {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
-       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
   IO.puts("stored license valid through #{expiration_date}")
 else
   :error -> raise "stored air-gapped license is not valid Base64"
@@ -409,7 +425,7 @@ gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
 gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 ```
 
-The hourly `preview-sweep.yml` workflow gets the first cleanup chance and is the path that runs `helm uninstall`. The platform chart's `preview-janitor` CronJob follows at minute 20 and deletes expired preview `KuraInstance` resources and namespaces if the external sweep did not finish the cleanup.
+The platform chart's `preview-janitor` CronJob runs hourly inside the preview cluster, deleting expired preview `KuraInstance` resources and namespaces.
 
 ## 9. Dedicated pentest cluster
 

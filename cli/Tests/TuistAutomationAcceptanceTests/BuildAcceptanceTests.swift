@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Path
@@ -8,6 +7,7 @@ import TuistBuildCommand
 import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
+import TuistProcess
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
@@ -82,8 +82,16 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
     ) func app_with_buildable_folders() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        for directory in ["Sources", "Resources"] {
+            try await fileSystem.touch(fixtureDirectory.appending(components: "App", directory, ".gitkeep"))
+            try await fileSystem.touch(fixtureDirectory.appending(components: "App", directory, ".DS_Store"))
+        }
 
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        let generatedDirectory = fixtureDirectory.appending(components: "App", "Sources", "Generated")
+        try await fileSystem.makeDirectory(at: generatedDirectory)
+        try await fileSystem.touch(generatedDirectory.appending(component: ".gitkeep"))
         try await TuistTest.run(
             BuildCommand.self,
             [
@@ -94,6 +102,17 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
                 temporaryDirectory.pathString,
             ]
         )
+        let resourcesDirectory = temporaryDirectory.appending(
+            components: "Build",
+            "Products",
+            "Debug",
+            "App.app",
+            "Contents",
+            "Resources"
+        )
+        #expect(try await fileSystem.exists(resourcesDirectory.appending(component: "tvos_only.json")))
+        #expect(try await !fileSystem.exists(resourcesDirectory.appending(component: ".gitkeep")))
+        #expect(try await !fileSystem.exists(resourcesDirectory.appending(component: ".DS_Store")))
     }
 }
 
@@ -794,7 +813,7 @@ struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
 
 struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
     @Test(
-        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests", accountHandle: "tuist"),
         .inTemporaryDirectory
     ) func xcodebuild_shard_with_local_test_products() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

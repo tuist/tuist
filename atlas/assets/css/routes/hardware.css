@@ -1,0 +1,229 @@
+#hardware,
+#hardware-show {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    margin: 0;
+    max-width: 60rem;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="header-actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="summary"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    margin-top: var(--noora-spacing-2);
+  }
+
+  & [data-part="breadcrumbs"] {
+    margin-left: calc(-1 * var(--noora-spacing-2));
+  }
+
+  & [data-part="assets-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="filters"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="search"] {
+    width: min(100%, 25rem);
+    flex-shrink: 0;
+  }
+
+  & [data-part="details"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    @media (max-width: 1100px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 700px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  & [data-part="detail"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="detail"] dt {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="detail"] dd {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+  }
+
+}
+
+[data-part="new-asset-modal-content"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+}
+
+[data-part="new-asset-form-grid"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--noora-spacing-4);
+  align-items: start;
+
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-part="labeled-select"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+}
+
+[data-part="attach-financing-document-modal-content"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+}
+
+[data-part="financing-document-picker"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+}
+
+[data-part="financing-document-options"] {
+  display: flex;
+  max-height: 15rem;
+  flex-direction: column;
+  overflow-y: auto;
+  border: 1px solid var(--noora-surface-border-primary);
+  border-radius: var(--noora-radius-4);
+}
+
+[data-part="financing-document-option"] {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--noora-spacing-3);
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
+  border: 0;
+  border-bottom: 1px solid var(--noora-surface-border-primary);
+  background: var(--noora-surface-background-primary);
+  color: var(--noora-surface-label-primary);
+  text-align: left;
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover,
+  &[data-selected="true"] {
+    background: var(--noora-surface-background-secondary);
+  }
+}
+
+[data-part="document-option-text"] {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--noora-spacing-1);
+}
+
+[data-part="document-option-title"] {
+  overflow: hidden;
+  font: var(--noora-font-body-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-part="document-option-filename"],
+[data-part="document-options-empty"] {
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-body-small);
+}
+
+[data-part="document-options-empty"] {
+  margin: 0;
+  padding: var(--noora-spacing-4);
+}
+
+[data-part="document-option-indicator"] {
+  display: flex;
+  flex-shrink: 0;
+}
+
+[data-part="attach-financing-document-form-fields"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+}
+
+[data-part="edit-asset-modal-content"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+}
+
+[data-part="edit-asset-form-grid"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--noora-spacing-4);
+  align-items: start;
+
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+  }
+}

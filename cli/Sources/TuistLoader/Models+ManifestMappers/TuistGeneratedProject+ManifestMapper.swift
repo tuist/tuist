@@ -43,7 +43,9 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             defaultSwiftVersion: manifest.defaultSwiftVersion,
             manifestEnvironment: manifest.manifestEnvironment,
             onOutdatedDependencies: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction
-                .from(manifest: manifest.onOutdatedDependencies)
+                .from(manifest: manifest.onOutdatedDependencies),
+            projectFormat: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat
+                .from(manifest: manifest.projectFormat)
         )
     }
 }
@@ -102,6 +104,15 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDep
         case .warn: return .warn
         case .install: return .install
         case .fail: return .fail
+        }
+    }
+}
+
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.ProjectFormat) -> Self {
+        switch manifest {
+        case .pbxproj: return .pbxproj
+        case .xcproj: return .xcproj
         }
     }
 }

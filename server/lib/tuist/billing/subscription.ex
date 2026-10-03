@@ -16,6 +16,12 @@ defmodule Tuist.Billing.Subscription do
     field :trial_end, :utc_datetime
     field :cancel_at_period_end, :boolean, default: false
 
+    # Mirrored from Stripe by the subscription webhooks so that anything
+    # attributing usage to the period the next invoice covers can read it
+    # without a request per render.
+    field :current_period_start, :utc_datetime
+    field :current_period_end, :utc_datetime
+
     belongs_to :account, Account
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType
@@ -32,6 +38,8 @@ defmodule Tuist.Billing.Subscription do
       :default_payment_method,
       :trial_end,
       :cancel_at_period_end,
+      :current_period_start,
+      :current_period_end,
       :inserted_at
     ])
     |> validate_required([:plan, :subscription_id, :account_id, :status])
@@ -45,7 +53,15 @@ defmodule Tuist.Billing.Subscription do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:plan, :status, :default_payment_method, :trial_end, :cancel_at_period_end])
+    |> cast(attrs, [
+      :plan,
+      :status,
+      :default_payment_method,
+      :trial_end,
+      :cancel_at_period_end,
+      :current_period_start,
+      :current_period_end
+    ])
     |> validate_plan()
   end
 end

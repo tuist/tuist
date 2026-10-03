@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -585,17 +586,43 @@ defmodule TuistWeb.RunnerJobLiveTest do
           conclusion: "failure",
           started_at: ~U[2026-05-28 10:00:05.000000Z],
           completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:35.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 4,
+          name: "Upload artifacts",
+          status: "completed",
+          conclusion: "skipped",
+          started_at: nil,
+          completed_at: nil
         }
       ])
 
     flush_outbox!()
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
 
     assert html =~ "Steps"
     assert html =~ "Set up job"
     assert html =~ "Run tests"
-    # 30-second duration badge for the failing step (no fractional seconds)
+    assert has_element?(lv, ~s|#runner-step-1 [data-part="step-timeline-bar"][data-kind="success"]|)
+    assert has_element?(lv, ~s|#runner-step-2 [data-part="step-timeline-bar"][data-kind="failure"]|)
+    assert has_element?(lv, ~s|#runner-step-3 [data-part="step-timeline-bar"]|)
+    assert has_element?(lv, ~s|#runner-step-4 [data-part="step-duration"]|)
+    refute has_element?(lv, ~s|#runner-step-4 [data-part="step-timeline-bar"]|)
+
+    # 30-second duration for the failing step (no fractional seconds)
     assert html =~ "30s"
     refute html =~ "30.0s"
   end
@@ -679,6 +706,140 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
     assert html =~ "Steps will appear here once the job finishes."
+  end
+
+  test "hides insights when no project matches the job repository", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_502,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "unmatched/repository",
+        workflow_run_id: 315_020,
+        job_name: "test"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315020/jobs/31502")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "No matching project was found"
+  end
+
+  test "GitLab jobs link to their instance and do not show GitHub steps", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.example.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 900
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "gitlab",
+        fleet_name: "linux-amd64",
+        repository: "acme/mobile",
+        workflow_run_id: 900,
+        workflow_name: "pipeline",
+        job_name: "test",
+        head_branch: "main"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
+    assert has_element?(lv, ~s(a[href="https://gitlab.example.com/acme/mobile/-/jobs/42"]), "GitLab")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "https://github.com/acme/mobile"
+    refute html =~ "steps-card"
+    refute html =~ "job-secret"
+  end
+
+  describe "Buildkite jobs" do
+    defp buildkite_job!(account, workflow_run_id, job_name) do
+      {:ok, mapping} =
+        %Buildkite.Job{}
+        |> Buildkite.Job.changeset(%{
+          job_uuid: Ecto.UUID.generate(),
+          account_id: account.id,
+          organization_slug: "acme",
+          pipeline_slug: "ios-app",
+          build_number: workflow_run_id,
+          queue_key: "tuist-macos"
+        })
+        |> Repo.insert(returning: true)
+
+      # `repository` holds the pipeline slug on this lane, exactly as
+      # `Buildkite.lifecycle_attrs/4` fills it.
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: mapping.workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "ios-app",
+          workflow_run_id: workflow_run_id,
+          workflow_name: "ios-app",
+          run_attempt: 1,
+          job_name: job_name,
+          head_branch: "main",
+          head_sha: ""
+        })
+
+      flush_outbox!()
+      mapping
+    end
+
+    test "links to the Buildkite build instead of a non-existent GitHub repository", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4821, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4821/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "https://buildkite.com/acme/ios-app/builds/4821"
+      # The GitHub deep link would be built from the pipeline slug and 404.
+      refute html =~ "https://github.com/ios-app"
+    end
+
+    test "omits the steps card, which this lane never populates", %{conn: conn, account: account} do
+      mapping = buildkite_job!(account, 4822, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4822/jobs/#{mapping.workflow_job_id}")
+
+      refute html =~ "Steps will appear here once the job finishes."
+    end
+
+    test "still offers insights, which resolve through the pipeline handle", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4823, "test")
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/ios-app",
+          ci_run_id: "4823"
+        )
+
+      flush_outbox!()
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4823/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "Insights"
+      assert html =~ build_run.id
+    end
   end
 
   test "renders captured logs on mount", %{conn: conn, account: account} do
@@ -1802,6 +1963,57 @@ defmodule TuistWeb.RunnerJobLiveTest do
     test "returns nil when there are no steps with timestamps" do
       assert TuistWeb.RunnerJobLive.step_window([]) == nil
       assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
+    end
+  end
+
+  describe "step timeline geometry" do
+    test "positions sequential steps on the same time axis" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:15Z]},
+        %{started_at: ~U[2026-05-28 10:00:15Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      window = TuistWeb.RunnerJobLive.step_window(steps)
+      [first, last] = steps
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(first, window) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(first, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(last, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(last, window) == "75.0%"
+    end
+
+    test "keeps zero-length steps drawable, including a zero-length job" do
+      step = %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      for window <- [%{min: timestamp, max: timestamp + 60_000}, %{min: timestamp, max: timestamp}] do
+        assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == "0.0%"
+        assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == "0.0%"
+      end
+    end
+
+    test "omits geometry when timestamps or a valid window are missing" do
+      step = %{started_at: nil, completed_at: nil}
+      window = %{min: 0, max: 60_000}
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(%{step | started_at: ~U[2026-05-28 10:00:00Z]}, window) ==
+               nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: 1, max: 0}) == nil
+    end
+
+    test "clamps out-of-window starts and negative durations" do
+      step = %{started_at: ~U[2026-05-28 10:00:10Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp + 1, max: timestamp + 2}) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp - 2, max: timestamp - 1}) == "100.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: timestamp, max: timestamp + 1}) == "0.0%"
     end
   end
 

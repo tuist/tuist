@@ -319,6 +319,55 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// A warm that finds some targets already cached has to swap those in while it builds the rest, and it
+    /// resolves them from the hashes it computed before the build rather than hashing the graph a second
+    /// time. Warming `CoreStaticLibrary` on its own and then warming everything puts one target on the
+    /// cached side of that split and six on the built side, so a hash that did not survive the handover
+    /// would show up as an empty replacement list and a rebuilt `CoreStaticLibrary`.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func warming_reuses_an_already_cached_target_while_building_the_rest() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["CoreStaticLibrary", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        TuistTest.expectLogs(
+            "Using cache binaries for the following targets: CoreStaticLibrary",
+            at: .info,
+            <=
+        )
+
+        for target in [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureStaticLibrary",
+            "FeatureFramework",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ] {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should be stored as an xcframework")
+        }
+    }
+
     /// Regression test for static Objective-C xcframeworks whose public headers live in a
     /// `Headers/<Module>/` subdirectory and re-import each other with the `<Module/...>` prefix,
     /// consumed through the binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks
@@ -701,6 +750,128 @@ struct TuistCacheEEAcceptanceTests {
         TuistTest.doesntExpectLogs("All cacheable targets are already cached")
     }
 
+    /// The project is bound to a server that refuses connections, so every upload fails at connect while
+    /// the build and the local cache work as usual.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func cache_warm_fails_when_uploads_fail_and_keeps_the_local_cache() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let unreachableServer = "http://127.0.0.1:1"
+        mockedEnvironment.variables["TUIST_TOKEN"] = "acceptance-test-token"
+        mockedEnvironment.variables["TUIST_CACHE_ENDPOINT"] = unreachableServer
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(fullHandle: "tuist/acceptance", url: "\(unreachableServer)")
+            """,
+            at: fixtureDirectory.appending(component: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
+        let targets = [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureFramework",
+            "FeatureStaticLibrary",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ]
+        let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+            try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        }
+
+        guard case let .uploadsFailed(failures, storedCount) = error else {
+            Issue.record("Expected the warm to fail its uploads, got \(String(describing: error))")
+            return
+        }
+        #expect(failures.map(\.item.name).sorted() == targets)
+        #expect(storedCount == 0)
+        for target in targets {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should still be stored in the local cache")
+        }
+        TuistTest.doesntExpectLogs("All cacheable targets have been cached successfully")
+    }
+
+    /// ServicesMockSupport stays a cache hit while Services and Feature are misses, so the warm keeps it as
+    /// source and Feature, from another project, builds it as a dependency. Built that way, its Swift dependency
+    /// scan receives the module map of the package's clang target only when the warm scheme lists it.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Services", "Feature"]) == 4)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature, Services")
+        TuistTest.expectLogs("2 targets stored: Feature, Services")
+    }
+
+    /// ServicesMockSupport uses the Analytics package product and Feature imports ServicesMockSupport. The second warm
+    /// serves Services and ServicesMockSupport from the cache and builds only Feature, whose Swift dependency scan
+    /// follows the `import Analytics` of the cached ServicesMockSupport module. It resolves only when Feature depends
+    /// on the package product and the workspace keeps the package that the emptied ServicesMockSupport project declares.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_a_miss_importing_a_package_product_through_a_cache_hit() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Feature"]) == 2)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature")
+        TuistTest.expectLogs("1 target stored: Feature")
+    }
+
+    /// NativeRendererKit links the static NativeRenderer.xcframework, which ships its own flat
+    /// module map, under `.when(platforms: [.iOS])`. The cold warm builds NativeRendererKit from
+    /// source. The second warm evicts Tokens, Canvas and Feature, so Palette is kept as source
+    /// behind the cached dynamic Renderer while Canvas processes NativeRenderer.xcframework
+    /// through the cached NativeRendererKit. Both warms fail with `redefinition of module
+    /// 'NativeRendererFFI'` if the conditioned link does not count as publishing the module map.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_xcframework_linked_under_platform_condition")
+    ) func cache_warm_with_static_xcframework_linked_under_platform_condition() async throws {
+        // The temporary directory lives under the `/var` -> `/private/var` symlink. Without a canonical path, the
+        // generated projects and the SwiftPM-resolved local package reference the xcframework through different
+        // paths, and Xcode rejects the two `ProcessXCFramework` tasks as unexpected duplicates.
+        let fixtureDirectory = try AbsolutePath(
+            validating: URL(fileURLWithPath: try #require(TuistTest.fixtureDirectory).pathString)
+                .resolvingSymlinksInPath().path
+        )
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Canvas", "Feature", "Tokens"]) == 6)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Canvas, Feature, Tokens")
+        TuistTest.expectLogs("3 targets stored: Canvas, Feature, Tokens")
+    }
+
     /// Foundation's #bundle macro expands to Bundle.module only when
     /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
     /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422
@@ -749,5 +920,34 @@ struct TuistCacheEEAcceptanceTests {
             by: "App",
             xcodeprojPath: xcodeprojPath
         )
+    }
+
+    /// Removes the targets' binaries from the local cache so the next warm treats them as misses, and returns the
+    /// number of cache actions removed.
+    private func evictFromLocalCache(_ targets: Set<String>) async throws -> Int {
+        let environment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob-*"]).collect()
+        var evictedActions = 0
+        for blob in blobs {
+            guard let inputs = try? JSONSerialization.jsonObject(with: await fileSystem.readFile(at: blob)) as? [String: String],
+                  let name = inputs["name"], targets.contains(name),
+                  let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
+            else { continue }
+            let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
+            try await fileSystem.remove(environment.cacheDirectory.appending(components: [
+                "Binaries",
+                "action-\(action.digest.hash)",
+            ]))
+            evictedActions += 1
+        }
+        for target in targets {
+            let artifacts = try await fileSystem
+                .glob(directory: environment.cacheDirectory, include: ["**/\(target).xcframework"]).collect()
+            for artifact in artifacts {
+                try await fileSystem.remove(artifact.parentDirectory)
+            }
+        }
+        return evictedActions
     }
 }

@@ -19,9 +19,17 @@ controller does the two things caph deliberately doesn't:
    only writes them to `spec.status.hardwareDetails` (a deliberate
    safety — `spec` is operator intent). The controller watches
    for hosts where `hardwareDetails` is populated but
-   `rootDeviceHints` is empty, and patches the first two WWNs
-   into `spec.rootDeviceHints.raid.wwn` (RAID 1 layout matching
-   Hetzner's default for AX-class hardware).
+   `rootDeviceHints` is empty, and patches the WWNs of one disk
+   group into `spec.rootDeviceHints.raid.wwn`: the same-size group
+   holding the most capacity. installimage hands the set to mdadm,
+   which sizes every member to the smallest, so an array spanning
+   a box's two 1.92 TB disks and its two 7.68 TB ones installs as
+   3.84 TB usable out of 19.2 TB of flash, and the layout is fixed
+   at install. Capacity rather than disk count decides, and a
+   group too small to mirror is skipped. The RAID level is not
+   chosen here at all; it comes from the `statefulRaidLevel`
+   ClusterClass variable, which has to agree with the selection: 1
+   for a two-disk selection, 10 for a four-disk one.
 
 Net: the operator's bring-up workflow becomes "order in Robot
 panel with `tuist-bm-staging-N` naming → bump replicas." No
@@ -217,6 +225,30 @@ Coverage:
 
 Tests use controller-runtime's `fake.Client` and an in-memory
 `robot.FakeClient` — no live Robot API or k8s cluster required.
+
+## Releasing
+
+`.github/workflows/hetzner-robot-controller-release.yml` cuts the
+tag and publishes the image on push to `main`, and the mgmt cluster
+runs whatever tag `infra/k8s/mgmt/hetzner-robot-controller.yaml`
+pins. Renovate raises the pin once a release exists.
+
+What makes a commit releasable is the **paths it touches**, not its
+scope. `include_paths` in `mise/tasks/release/components.json`
+restricts the range to this directory, and `cliff.toml` then accepts
+any conventional commit in it apart from `chore` and `ci`. A change
+landing under `feat(server)` or `fix(infra)` releases exactly as one
+under `fix(hetzner-robot-controller)` does.
+
+`cliff.toml` used to match on the scope instead, and that is how the
+WWN four-disk fix shipped nowhere. It merged under `feat(server)` in
+[#12814](https://github.com/tuist/tuist/pull/12814), `release:check`
+found nothing releasable, the release job was skipped by
+`if: needs.check.outputs.should-release == 'true'`, and the mgmt
+cluster kept running `0.1.0` with a filler that installs a four-disk
+box across two of its disks. Nothing reported it: CI was green and
+`main` carried the fix, so the drift was visible only by comparing
+the pin against the code.
 
 ## Future work
 

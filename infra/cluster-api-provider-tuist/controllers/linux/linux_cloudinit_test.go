@@ -84,7 +84,7 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 		!strings.Contains(script, `[host."https://mirror.gcr.io"]`) {
 		t.Fatalf("expected the bootstrap script to configure the docker.io mirror, got:\n%s", script)
 	}
-	// The SSH form (Dedibox/OVH/Elastic Metal — the boxes with a separate /data)
+	// The SSH form (OVH/Elastic Metal — the boxes with a separate /data)
 	// must carry the local-path-provisioner bind-mount so cache PVCs land on /data.
 	if !strings.Contains(script, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner") {
 		t.Fatalf("expected the SSH form to bind-mount the local-path provisioner root onto /data, got:\n%s", script)
@@ -104,7 +104,7 @@ func TestRenderLinux_SelfSignedServingCertAndClientCA(t *testing.T) {
 	ca := "-----BEGIN CERTIFICATE-----\nMIIBdummyCAbytes\n-----END CERTIFICATE-----\n"
 
 	withCA := renderLinuxBootstrapScript(linuxCloudInitOptions{
-		NodeName:       "tuist-tuist-dedibox-fleet-abc",
+		NodeName:       "tuist-tuist-ovh-fleet-abc",
 		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
 		ClusterCAPEM:   []byte(ca),
 		K8sMinor:       "v1.34",
@@ -226,7 +226,7 @@ func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 
 func TestRenderLinuxBootstrapScript_NoPasswdSudo(t *testing.T) {
 	opts := linuxCloudInitOptions{
-		NodeName:       "tuist-tuist-dedibox-fleet-abc",
+		NodeName:       "tuist-tuist-ovh-fleet-abc",
 		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
 		K8sMinor:       "v1.34",
 		BootstrapUser:  "tuist",
@@ -466,6 +466,8 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
 		"katacontainers.io/kata-runtime=true",
 		"tuist.dev/kata-runtime=true",
+		kataSharedMemoryScript,
+		kataSharedMemoryUnit,
 		// Set on the handler itself: the earlier rewrite only touches what the
 		// generated default emitted, and this block is appended after it.
 		"SystemdCgroup = true",
@@ -496,9 +498,14 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		t.Errorf("expected the kata block before the containerd restart (kata=%d restart=%d)", kataIdx, restartIdx)
 	}
 
+	shmIdx := strings.Index(withKata, "systemctl restart tuist-kata-shared-memory.service")
+	if shmIdx < 0 || shmIdx > restartIdx {
+		t.Fatal("shared memory must be sized before containerd restarts")
+	}
+
 	// Cache fleets: nothing kata anywhere, including the node labels.
 	withoutKata := renderLinuxBootstrapScript(opts)
-	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime"} {
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory"} {
 		if strings.Contains(withoutKata, unwanted) {
 			t.Errorf("cache-fleet render must not contain %q", unwanted)
 		}

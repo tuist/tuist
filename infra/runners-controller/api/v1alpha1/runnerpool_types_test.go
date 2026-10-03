@@ -2,6 +2,8 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"os"
+	"sigs.k8s.io/yaml"
 	"strings"
 	"testing"
 
@@ -152,5 +154,27 @@ func TestProvisioningExplicitZeroStartTimeoutReachesTheWire(t *testing.T) {
 	}
 	if got := string(payload); !strings.Contains(got, `"startTimeoutSeconds":0`) {
 		t.Fatalf("explicit zero start timeout dropped from serialized provisioning: %s", got)
+	}
+}
+
+// Check the actual admission schema as well as the Go shape: misnested fields
+// cause Kubernetes to prune cache configuration before the controller sees it.
+func TestCacheVolumeFieldsSurviveCRDAdmission(t *testing.T) {
+	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.UnmarshalStrict(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	versions := doc["spec"].(map[string]any)["versions"].([]any)
+	schema := versions[0].(map[string]any)["schema"].(map[string]any)["openAPIV3Schema"].(map[string]any)
+	properties := schema["properties"].(map[string]any)["spec"].(map[string]any)["properties"].(map[string]any)
+	for _, name := range []string{"cacheVolumeRoot", "cacheVolumeURL", "image", "fleetSelector"} {
+		field, ok := properties[name].(map[string]any)
+		if !ok || field["type"] != "string" {
+			t.Fatalf("missing string spec property %s", name)
+		}
 	}
 }

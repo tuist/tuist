@@ -2,6 +2,8 @@ import Darwin
 import FileSystem
 import FileSystemTesting
 import Foundation
+import GRPCCore
+import GRPCNIOTransportHTTP2
 import Path
 import Testing
 
@@ -12,7 +14,32 @@ struct CacheSocketServiceTests {
     private let subject = CacheSocketService()
 
     @Test(.inTemporaryDirectory)
-    func waitUntilListening_returnsTrueForAListeningSocket() async throws {
+    func waitUntilListening_doesNotCrashGRPCServer() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let shortDirectoryPath = try AbsolutePath(validating: "/tmp/\(UUID().uuidString)")
+        try await fileSystem.createSymbolicLink(from: shortDirectoryPath, to: temporaryDirectory)
+        let socketPath = shortDirectoryPath.appending(component: "cache.sock")
+        defer { unlink(shortDirectoryPath.pathString) }
+        let server = GRPCServer(
+            transport: .http2NIOPosix(
+                address: .unixDomainSocket(path: socketPath.pathString),
+                transportSecurity: .plaintext
+            ),
+            services: []
+        )
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+
+            for _ in 0 ..< 10 {
+                #expect(await subject.waitUntilListening(at: socketPath, timeout: .seconds(5)))
+            }
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func waitUntilListening_returnsFalseWhenServerDoesNotAccept() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let shortDirectoryPath = try AbsolutePath(validating: "/tmp/\(UUID().uuidString)")
         try await fileSystem.createSymbolicLink(from: shortDirectoryPath, to: temporaryDirectory)
@@ -47,7 +74,7 @@ struct CacheSocketServiceTests {
         try #require(Darwin.listen(descriptor, 1) == 0)
 
         #expect(
-            await subject.waitUntilListening(
+            await !subject.waitUntilListening(
                 at: socketPath,
                 timeout: .milliseconds(100)
             )

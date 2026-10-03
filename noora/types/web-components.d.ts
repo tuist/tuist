@@ -1060,14 +1060,18 @@ export class NooraModal extends HTMLElement {
 export function registerNooraModal(): void;
 
 /**
- * Provides a low-emphasis compact control.
+ * Provides a low-emphasis compact control, either icon-only or with a text label.
  *
  * @element noora-neutral-button
- * @slot - The complete control content.
+ * @slot - The complete control content when no label is set.
+ * @slot icon-left - An icon before the label. Only rendered when a label is set.
+ * @slot icon-right - An icon after the label. Only rendered when a label is set.
  * @csspart control - The native link or button.
 
  */
 export class NooraNeutralButton extends HTMLElement {
+  /** Sets the visible label. When set, the default slot is replaced by the label and the icon-left/icon-right slots. */
+  label: string;
   /** Controls the dimensions. */
   size: "small" | "medium" | "large";
   /** Renders a native link to this location. */

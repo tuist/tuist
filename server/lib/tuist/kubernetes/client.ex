@@ -28,8 +28,15 @@ defmodule Tuist.Kubernetes.Client do
 
   # ----- Generic verbs (used by Kura) -----
 
+  @doc """
+  GETs `path`. `opts` are the client-config options (`:mode`, `:kubeconfig`,
+  …) and may carry `:timeout`, which bounds the read the way every other
+  read here is bounded — Req's defaults (15 s receive timeout, transient-GET
+  retries) otherwise let one hung apiserver hold the caller for the better
+  part of a minute, which is longer than some callers' own deadlines.
+  """
   def get(path, opts \\ []) when is_binary(path) do
-    request(:get, path, opts: opts)
+    request(:get, path, opts: opts, timeout: opts[:timeout])
   end
 
   def replace(path, body, opts \\ []) when is_binary(path) and is_map(body) do
@@ -118,6 +125,24 @@ defmodule Tuist.Kubernetes.Client do
   """
   def create_token_review(token, opts \\ []) when is_binary(token) do
     create_audience_token_review(token, @dispatch_audience, opts)
+  end
+
+  # Audience of the token a macOS runner host mints for its own per-machine
+  # ServiceAccount to list the cache masters it should prefetch. Distinct from
+  # the dispatch audience, which every guest holds a token for: the list carries
+  # download URLs for every account on the host's fleet. Must match
+  # `RunnerHostAudience` in tart-kubelet.
+  @runner_host_audience "tuist-runner-host"
+
+  def runner_host_audience, do: @runner_host_audience
+
+  @doc """
+  TokenReview for a runner host's own ServiceAccount token, which must claim
+  the `tuist-runner-host` audience. Returns the same shape as
+  `create_token_review/2`.
+  """
+  def create_runner_host_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @runner_host_audience, opts)
   end
 
   defp create_audience_token_review(token, audience, opts) do
@@ -308,8 +333,8 @@ defmodule Tuist.Kubernetes.Client do
   overcommits. The server SA is granted `nodes: [get, list]` by the
   runners-fleet-reader ClusterRole.
   """
-  def list_nodes(label_selector) when is_binary(label_selector) do
-    request(:get, "/api/v1/nodes", query: %{labelSelector: label_selector})
+  def list_nodes(label_selector, opts \\ []) when is_binary(label_selector) do
+    request(:get, "/api/v1/nodes", query: %{labelSelector: label_selector}, timeout: opts[:timeout])
   end
 
   @doc """

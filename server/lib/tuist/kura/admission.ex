@@ -47,6 +47,18 @@ defmodule Tuist.Kura.Admission do
     end
   end
 
+  @doc """
+  Gibibytes the region can still admit: `:unbounded` when admission is not
+  enforced, `nil` when the region cannot be read, which `admit?/2` refuses.
+  """
+  def headroom_gib(%Regions{} = region) do
+    if Environment.kura_capacity_admission_required?() do
+      measured_headroom_gib(region)
+    else
+      :unbounded
+    end
+  end
+
   def admit_replacements?(%Regions{} = region, replacements) when is_list(replacements) do
     if Environment.kura_capacity_admission_required?() do
       admit_replacements_with_capacity(region, replacements)
@@ -62,18 +74,26 @@ defmodule Tuist.Kura.Admission do
     end
   end
 
-  defp admit_with_capacity(%Regions{id: region_id} = region, candidate) do
-    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
-         desired when is_integer(desired) <- desired_reservation_gib(region),
+  defp admit_with_capacity(%Regions{} = region, candidate) do
+    with headroom when is_integer(headroom) <- measured_headroom_gib(region),
          candidate_reservation when is_integer(candidate_reservation) <- Capacity.resident_gib(region, candidate) do
-      if max(observed, desired) + candidate_reservation <= target do
-        :ok
-      else
-        {:error, :capacity_exhausted}
+      cond do
+        candidate_reservation > headroom -> {:error, :capacity_exhausted}
+        unplaceable?(region, [candidate]) -> {:error, :capacity_unplaceable}
+        true -> :ok
       end
     else
       _ -> {:error, :capacity_unknown}
+    end
+  end
+
+  defp measured_headroom_gib(%Regions{id: region_id} = region) do
+    with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
+         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
+         desired when is_integer(desired) <- desired_reservation_gib(region) do
+      target - max(observed, desired)
+    else
+      _ -> nil
     end
   end
 
@@ -82,14 +102,27 @@ defmodule Tuist.Kura.Admission do
          observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
          desired when is_integer(desired) <- desired_reservation_gib(region),
          adjustment when is_integer(adjustment) <- replacement_adjustment_gib(region, replacements) do
-      if max(observed, desired + adjustment) <= target do
-        :ok
-      else
-        {:error, :capacity_exhausted}
+      cond do
+        max(observed, desired + adjustment) > target -> {:error, :capacity_exhausted}
+        unplaceable?(region, Enum.map(replacements, &elem(&1, 1))) -> {:error, :capacity_unplaceable}
+        true -> :ok
       end
     else
       _ -> {:error, :capacity_unknown}
     end
+  end
+
+  # The region totals above are a sum against a sum, and the scheduler places
+  # each replica whole on one node, so passing them is not the same as fitting.
+  # Separate from `:capacity_exhausted` because the two need opposite responses:
+  # an exhausted region needs another machine, an unplaceable instance needs
+  # the room it has to be on the right box.
+  #
+  # Only a reading that says no refuses. One that is merely missing admits,
+  # because a false refusal here stops every claim growth in the region and
+  # shows up nowhere the account would notice.
+  defp unplaceable?(region, candidates) do
+    Enum.any?(candidates, &(Capacity.placeable?(region, &1) == false))
   end
 
   defp replacement_adjustment_gib(region, replacements) do

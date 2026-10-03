@@ -7,12 +7,14 @@ defmodule Tuist.Runners.PrepaidTest do
   alias Tuist.Billing
   alias Tuist.Billing.CreditGrants
   alias Tuist.Billing.Invoices
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Prepaid
 
   @macos_price "price_runner_macos"
   @linux_price "price_runner_linux"
+  @prepaid_price "price_runner_prepaid_minutes"
 
   setup do
     stub(Environment, :stripe_prices, fn ->
@@ -81,12 +83,54 @@ defmodule Tuist.Runners.PrepaidTest do
     stub(Invoices, :list_lines, fn _invoice_id -> {:ok, lines} end)
   end
 
-  describe "grant_for_paid_invoice/1" do
+  defp stub_prices_with_prepaid do
+    stub(Environment, :stripe_prices, fn ->
+      %{
+        "runners" => %{
+          "runner_macos_compute_unit_milliseconds" => @macos_price,
+          "runner_linux_compute_unit_milliseconds" => @linux_price
+        },
+        "runner_prepaid_minutes" => @prepaid_price
+      }
+    end)
+  end
+
+  # The line a renewal invoice carries for the standing prepaid item. It is
+  # a subscription line, so it carries the subscription's metadata rather
+  # than any prepaid marker, and is recognised by its price instead.
+  defp renewal_line(overrides \\ %{}) do
+    Map.merge(
+      %{
+        id: "il_#{System.unique_integer([:positive])}",
+        amount: 36_000,
+        metadata: %{},
+        price: %{id: @prepaid_price},
+        period: %{
+          start: DateTime.to_unix(~U[2026-09-21 01:29:59Z]),
+          end: DateTime.to_unix(~U[2026-10-21 01:29:59Z])
+        }
+      },
+      overrides
+    )
+  end
+
+  defp subscription_item(id, price_id, quantity, interval \\ "month") do
+    %{id: id, quantity: quantity, price: %{id: price_id, recurring: %{interval: interval, interval_count: 1}}}
+  end
+
+  defp stub_standing_subscription(items) do
+    stub(Billing, :get_current_active_subscription, fn _account -> %Subscription{subscription_id: "sub_standing"} end)
+    stub(Stripe.Subscription, :retrieve, fn "sub_standing" -> {:ok, %{id: "sub_standing", items: %{data: items}}} end)
+  end
+
+  defp standing_account(attrs \\ %{}), do: struct(%Account{id: 7, customer_id: "cus_standing"}, attrs)
+
+  describe "grant_for_invoice/1" do
     test "does nothing for an invoice with no prepaid line" do
       stub_lines([line(%{metadata: %{}}), line(%{metadata: nil})])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, :not_prepaid} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, :not_prepaid} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "funds the grant from the marked line, not the whole bill" do
@@ -113,7 +157,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_paid_invoice(invoice)
+      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_invoice(invoice)
     end
 
     test "gives each prepaid line its own grant on its own terms" do
@@ -145,7 +189,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_#{attrs.metadata["tuist_prepaid_invoice_line_id"]}"}}
       end)
 
-      assert {:ok, grants} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, grants} = Prepaid.grant_for_invoice(invoice())
       assert length(grants) == 2
     end
 
@@ -157,7 +201,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "rejects a funding ratio outside the sane band instead of guessing" do
@@ -174,7 +218,7 @@ defmodule Tuist.Runners.PrepaidTest do
         ])
 
         assert {:error, {:invalid_metadata, :funding_ratio_bp, _value}} =
-                 Prepaid.grant_for_paid_invoice(invoice()),
+                 Prepaid.grant_for_invoice(invoice()),
                "expected #{inspect(value)} to be rejected"
       end
     end
@@ -194,7 +238,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "does not grant again for an item already granted when it was billed" do
@@ -210,13 +254,16 @@ defmodule Tuist.Runners.PrepaidTest do
       stub_lines([line(%{id: "il_9", invoice_item: "ii_1"})])
       reject(&CreditGrants.create/1)
 
-      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, []} = Prepaid.grant_for_invoice(invoice())
     end
 
-    test "expires the grant at the end of the billing period it was bought in" do
-      # Minutes belong to a month and do not roll over, so the grant ends
-      # with the period the invoice paid for rather than living on for a
-      # year and quietly accumulating across months.
+    test "expires the grant just after the billing period it was bought in ends" do
+      # Minutes belong to a month and do not roll over. Stripe applies a
+      # grant only to an invoice whose period ends before the grant
+      # expires, and the invoice that closes a period ends exactly when the
+      # period does, so a grant expiring at that instant never paid for the
+      # usage it was bought for. A few days past covers the invoice being
+      # finalized, and is still long before the next period's invoice.
       now = ~U[2026-08-18 12:00:00Z]
       period_end = ~U[2026-09-01 00:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
@@ -225,11 +272,11 @@ defmodule Tuist.Runners.PrepaidTest do
       stub_lines([line()])
 
       expect(CreditGrants, :create, fn attrs ->
-        assert attrs.expires_at == period_end
+        assert attrs.expires_at == DateTime.add(period_end, 4, :day)
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "stays monthly on a yearly enterprise term" do
@@ -248,7 +295,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "falls back to a month out when the account has no billing period" do
@@ -267,7 +314,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "ignores a legacy per-deal expiry carried in line metadata" do
@@ -288,18 +335,18 @@ defmodule Tuist.Runners.PrepaidTest do
       ])
 
       expect(CreditGrants, :create, fn attrs ->
-        assert attrs.expires_at == period_end
+        assert attrs.expires_at == DateTime.add(period_end, 4, :day)
         {:ok, %{id: "credgr_1"}}
       end)
 
-      assert {:ok, [_grant]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "rejects an unknown platform" do
       stub_lines([line(%{metadata: %{"tuist_prepaid_runners" => "windows"}})])
       reject(&CreditGrants.create/1)
 
-      assert {:error, {:unknown_platform, "windows"}} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, {:unknown_platform, "windows"}} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "does not grant twice for the same line" do
@@ -312,7 +359,7 @@ defmodule Tuist.Runners.PrepaidTest do
 
       reject(&CreditGrants.create/1)
 
-      assert {:ok, []} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, []} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "grants only the lines a partial failure left behind" do
@@ -329,7 +376,7 @@ defmodule Tuist.Runners.PrepaidTest do
         {:ok, %{id: "credgr_2"}}
       end)
 
-      assert {:ok, [%{id: "credgr_2"}]} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:ok, [%{id: "credgr_2"}]} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "keeps the grant owed when no runner price exists yet" do
@@ -337,21 +384,222 @@ defmodule Tuist.Runners.PrepaidTest do
       stub_lines([line()])
       reject(&CreditGrants.create/1)
 
-      assert {:error, :no_runner_prices_configured} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, :no_runner_prices_configured} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "refuses to fund a grant from a line that charged nothing" do
       stub_lines([line(%{amount: 0})])
       reject(&CreditGrants.create/1)
 
-      assert {:error, {:invalid_line_amount, 0}} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, {:invalid_line_amount, 0}} = Prepaid.grant_for_invoice(invoice())
     end
 
     test "propagates a failure to read the invoice's lines" do
       stub(Invoices, :list_lines, fn _invoice_id -> {:error, :timeout} end)
       reject(&CreditGrants.create/1)
 
-      assert {:error, :timeout} = Prepaid.grant_for_paid_invoice(invoice())
+      assert {:error, :timeout} = Prepaid.grant_for_invoice(invoice())
+    end
+  end
+
+  describe "grant_for_invoice/1 on a renewal carrying standing minutes" do
+    setup do
+      stub_prices_with_prepaid()
+      stub(Tuist.Time, :utc_now, fn -> ~U[2026-09-21 02:30:00Z] end)
+      :ok
+    end
+
+    test "grants the minutes the renewal billed, dated from the line's own period" do
+      # The account's recorded period may still be the one that just closed
+      # when the renewal is paid, so the grant is dated from the period the
+      # line itself was billed for. The setup's account period ends on
+      # September 1, which this must not use.
+      invoice = invoice()
+      renewal = renewal_line()
+      usage = %{id: "il_usage", amount: 12_000, metadata: %{}, price: %{id: @macos_price}}
+
+      stub_lines([usage, renewal])
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 45_000
+        assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
+        assert attrs.expires_at == ~U[2026-10-25 01:29:59Z]
+        assert attrs.idempotency_key == "runner-prepaid-#{invoice.id}-#{renewal.id}"
+        assert attrs.metadata["tuist_prepaid_invoice_line_id"] == renewal.id
+        assert attrs.metadata["tuist_prepaid_paid_cents"] == "36000"
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, [%{id: "credgr_1"}]} = Prepaid.grant_for_invoice(invoice)
+    end
+
+    test "refuses a renewal whose period has already ended" do
+      # A grant is effective from when it is created. Created after its line's
+      # period, it misses the invoice closing that period and expires before
+      # the next one, so it would never pay for anything.
+      stub(Tuist.Time, :utc_now, fn -> ~U[2026-10-23 09:00:00Z] end)
+      renewal = renewal_line()
+
+      stub_lines([renewal])
+      reject(&CreditGrants.create/1)
+
+      assert {:error, {:standing_period_ended, line_id}} = Prepaid.grant_for_invoice(invoice())
+      assert line_id == renewal.id
+    end
+
+    test "does not treat a line on another price as prepaid" do
+      stub_lines([%{id: "il_usage", amount: 12_000, metadata: %{}, price: %{id: @macos_price}}])
+      reject(&CreditGrants.create/1)
+
+      assert {:ok, :not_prepaid} = Prepaid.grant_for_invoice(invoice())
+    end
+
+    test "does not grant a renewal a second time when the invoice is redelivered" do
+      renewal = renewal_line()
+
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [%{metadata: %{"tuist_prepaid_invoice_line_id" => renewal.id}}]}
+      end)
+
+      stub_lines([renewal])
+      reject(&CreditGrants.create/1)
+
+      assert {:ok, []} = Prepaid.grant_for_invoice(invoice())
+    end
+  end
+
+  describe "standing_minutes/1" do
+    setup do
+      stub_prices_with_prepaid()
+      :ok
+    end
+
+    test "reads the minutes off the prepaid subscription item" do
+      stub_standing_subscription([
+        subscription_item("si_plan", "price_pro_flat", 1),
+        subscription_item("si_prepaid", @prepaid_price, 6_000)
+      ])
+
+      assert {:ok, 6_000} = Prepaid.standing_minutes(standing_account())
+    end
+
+    test "reads zero when the subscription carries no prepaid item" do
+      stub_standing_subscription([subscription_item("si_plan", "price_pro_flat", 1)])
+
+      assert {:ok, 0} = Prepaid.standing_minutes(standing_account())
+    end
+
+    test "is unavailable without an active subscription" do
+      stub(Billing, :get_current_active_subscription, fn _account -> nil end)
+      reject(&Stripe.Subscription.retrieve/1)
+
+      assert {:error, :no_subscription} = Prepaid.standing_minutes(standing_account())
+    end
+
+    test "is unavailable on a subscription that does not renew monthly" do
+      # An item that renews monthly cannot sit on an annual subscription in
+      # classic billing mode.
+      stub_standing_subscription([subscription_item("si_plan", "price_enterprise_flat", 1, "year")])
+
+      assert {:error, :not_monthly} = Prepaid.standing_minutes(standing_account())
+    end
+
+    test "is unavailable until the prepaid price is configured" do
+      stub(Environment, :stripe_prices, fn -> %{"runners" => %{}} end)
+      reject(&Stripe.Subscription.retrieve/1)
+
+      assert {:error, :no_prepaid_price_configured} = Prepaid.standing_minutes(standing_account())
+    end
+  end
+
+  describe "set_standing_minutes/2" do
+    setup do
+      stub_prices_with_prepaid()
+      :ok
+    end
+
+    test "adds the prepaid item without prorating the cycle already running" do
+      # No proration is what leaves the running cycle alone: the item is
+      # billed for the first time on the next renewal, together with the
+      # minutes it buys.
+      stub_standing_subscription([subscription_item("si_plan", "price_pro_flat", 1)])
+
+      expect(Stripe.Subscription, :update, fn "sub_standing", params ->
+        assert params.items == [%{price: @prepaid_price, quantity: 6_000}]
+        assert params.proration_behavior == "none"
+        {:ok, %{id: "sub_standing"}}
+      end)
+
+      assert {:ok, 6_000} = Prepaid.set_standing_minutes(standing_account(), 6_000)
+    end
+
+    test "changes the quantity of the prepaid item the subscription already carries" do
+      stub_standing_subscription([
+        subscription_item("si_plan", "price_pro_flat", 1),
+        subscription_item("si_prepaid", @prepaid_price, 4_000)
+      ])
+
+      expect(Stripe.Subscription, :update, fn "sub_standing", params ->
+        assert params.items == [%{id: "si_prepaid", quantity: 6_000}]
+        assert params.proration_behavior == "none"
+        {:ok, %{id: "sub_standing"}}
+      end)
+
+      assert {:ok, 6_000} = Prepaid.set_standing_minutes(standing_account(), 6_000)
+    end
+
+    test "leaves the subscription alone when it already carries that many minutes" do
+      stub_standing_subscription([subscription_item("si_prepaid", @prepaid_price, 6_000)])
+      reject(&Stripe.Subscription.update/2)
+
+      assert {:ok, 6_000} = Prepaid.set_standing_minutes(standing_account(), 6_000)
+    end
+
+    test "removes the prepaid item when set to zero" do
+      stub_standing_subscription([
+        subscription_item("si_plan", "price_pro_flat", 1),
+        subscription_item("si_prepaid", @prepaid_price, 6_000)
+      ])
+
+      expect(Stripe.Subscription, :update, fn "sub_standing", params ->
+        assert params.items == [%{id: "si_prepaid", deleted: true}]
+        assert params.proration_behavior == "none"
+        {:ok, %{id: "sub_standing"}}
+      end)
+
+      assert {:ok, 0} = Prepaid.set_standing_minutes(standing_account(), 0)
+    end
+
+    test "has nothing to remove when zero is set on a subscription without the item" do
+      stub_standing_subscription([subscription_item("si_plan", "price_pro_flat", 1)])
+      reject(&Stripe.Subscription.update/2)
+
+      assert {:ok, 0} = Prepaid.set_standing_minutes(standing_account(), 0)
+    end
+
+    test "refuses a subscription that does not renew monthly" do
+      stub_standing_subscription([subscription_item("si_plan", "price_enterprise_flat", 1, "year")])
+      reject(&Stripe.Subscription.update/2)
+
+      assert {:error, :not_monthly} = Prepaid.set_standing_minutes(standing_account(), 6_000)
+    end
+
+    test "refuses an account on a runner trial" do
+      # A trial carries no runner items, so its usage is never invoiced and
+      # the credit the item buys would have nothing to pay for.
+      stub_standing_subscription([subscription_item("si_plan", "price_pro_flat", 1)])
+      reject(&Stripe.Subscription.update/2)
+
+      account = standing_account(%{runner_trial_started_at: ~U[2026-09-01 00:00:00Z]})
+
+      assert {:error, :on_runner_trial} = Prepaid.set_standing_minutes(account, 6_000)
+    end
+
+    test "refuses until the prepaid price is configured" do
+      stub(Environment, :stripe_prices, fn -> %{"runners" => %{}} end)
+      reject(&Stripe.Subscription.update/2)
+
+      assert {:error, :no_prepaid_price_configured} = Prepaid.set_standing_minutes(standing_account(), 6_000)
     end
   end
 
@@ -428,7 +676,7 @@ defmodule Tuist.Runners.PrepaidTest do
         assert attrs.amount_cents == 75_000
         assert attrs.category == "paid"
         assert Enum.sort(attrs.price_ids) == Enum.sort([@macos_price, @linux_price])
-        assert attrs.expires_at == ~U[2026-09-01 00:00:00Z]
+        assert attrs.expires_at == ~U[2026-09-05 00:00:00Z]
         # Keyed on the invoice item, because there is no invoice yet.
         assert attrs.idempotency_key == "runner-prepaid-item-ii_1"
         assert attrs.metadata["tuist_prepaid_invoice_line_id"] == "ii_1"

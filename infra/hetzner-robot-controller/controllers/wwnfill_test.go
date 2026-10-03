@@ -138,7 +138,7 @@ func TestWWNFill_SkipsHardwareDetailsAbsent(t *testing.T) {
 	}
 }
 
-func TestWWNFill_DeduplicatesAndTakesFirstTwo(t *testing.T) {
+func TestWWNFill_DeduplicatesAndKeepsEveryDisk(t *testing.T) {
 	obj := makeHostWithHardwareDetails("bm-1", true,
 		[]string{"eui.001", "eui.001" /* dup */, "eui.002", "eui.003"}, nil)
 
@@ -151,11 +151,48 @@ func TestWWNFill_DeduplicatesAndTakesFirstTwo(t *testing.T) {
 	if !ok {
 		t.Fatal("expected raid.wwn to be set")
 	}
-	if got, want := len(wwns), 2; got != want {
-		t.Fatalf("wwn count: got %d want %d", got, want)
+	want := []string{"eui.001", "eui.002", "eui.003"}
+	if len(wwns) != len(want) {
+		t.Fatalf("wwn count: got %d want %d (%v)", len(wwns), len(want), wwns)
 	}
-	if wwns[0] != "eui.001" || wwns[1] != "eui.002" {
-		t.Errorf("expected first two unique WWNs in scan order; got %v", wwns)
+	for i := range want {
+		if wwns[i] != want[i] {
+			t.Errorf("expected every unique WWN in scan order; got %v", wwns)
+			break
+		}
+	}
+}
+
+// The case this exists for. A four-disk box truncated to two would install
+// across half its disks and leave the rest out of the array, and the layout is
+// fixed at install, so the only way back is a reinstall.
+func TestWWNFill_FourDiskHostKeepsAllFour(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001", "eui.002", "eui.003", "eui.004"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 4; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}
+
+// Unchanged for the shape every Hetzner bare-metal host we run today has.
+func TestWWNFill_TwoDiskHostIsUnaffected(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true, []string{"eui.001", "eui.002"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 2; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
 	}
 }
 
@@ -172,5 +209,137 @@ func TestExtractWWNs_SkipsEntriesWithoutWWN(t *testing.T) {
 	}
 	if got[0] != "eui.001" || got[1] != "eui.002" {
 		t.Errorf("unexpected wwns: %v", got)
+	}
+}
+
+// disk is a storage row as caph reports it: a WWN and the size the
+// array member would contribute.
+type disk struct {
+	wwn  string
+	size int64
+}
+
+func makeHostWithDisks(name string, disks []disk) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(hetznerBareMetalHostGVK)
+	obj.SetName(name)
+	obj.SetNamespace("org-tuist")
+	obj.SetLabels(map[string]string{ManagedByLabel: ManagedByValue})
+	storage := make([]interface{}, 0, len(disks))
+	for _, d := range disks {
+		entry := map[string]interface{}{"model": "SAMSUNG"}
+		if d.wwn != "" {
+			entry["wwn"] = d.wwn
+		}
+		if d.size != 0 {
+			entry["sizeBytes"] = d.size
+		}
+		storage = append(storage, entry)
+	}
+	_ = unstructured.SetNestedSlice(obj.Object, storage, "spec", "status", "hardwareDetails", "storage")
+	return obj
+}
+
+const (
+	tb192 = int64(1920383410176)
+	tb384 = int64(3840755982336)
+	tb768 = int64(7681501126656)
+)
+
+// The AX102-4 production box: a pair of small disks beside the pair it was
+// bought for. An array over all four sizes every member to the smallest, so
+// 15.36 TB of flash would install as 3.84, and the layout is fixed at install.
+func TestWWNFill_MixedSizesKeepsOnlyTheLargestPair(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.small1", tb192},
+		{"eui.small2", tb192},
+		{"eui.big1", tb768},
+		{"eui.big2", tb768},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	want := []string{"eui.big1", "eui.big2"}
+	if len(wwns) != len(want) || wwns[0] != want[0] || wwns[1] != want[1] {
+		t.Fatalf("got %v want %v", wwns, want)
+	}
+}
+
+// Capacity decides, not disk count: four small disks hold less than two big
+// ones, and the array is worth more than the spindle count.
+func TestWWNFill_PrefersTheGroupHoldingMoreCapacity(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.s1", tb192}, {"eui.s2", tb192}, {"eui.s3", tb192}, {"eui.s4", tb192},
+		{"eui.b1", tb768}, {"eui.b2", tb768},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	want := []string{"eui.b1", "eui.b2"}
+	if len(wwns) != len(want) || wwns[0] != want[0] || wwns[1] != want[1] {
+		t.Fatalf("got %v want %v", wwns, want)
+	}
+}
+
+// A lone big disk cannot be mirrored, so the pair wins even though the single
+// disk is larger.
+func TestWWNFill_IgnoresAGroupThatCannotBeMirrored(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.big", tb768},
+		{"eui.pair1", tb192},
+		{"eui.pair2", tb192},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	want := []string{"eui.pair1", "eui.pair2"}
+	if len(wwns) != len(want) || wwns[0] != want[0] || wwns[1] != want[1] {
+		t.Fatalf("got %v want %v", wwns, want)
+	}
+}
+
+// Four identical disks stay one array, which is what a RAID 10 cluster
+// expects of its four-disk boxes.
+func TestWWNFill_FourIdenticalDisksStayOneArray(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.1", tb384}, {"eui.2", tb384}, {"eui.3", tb384}, {"eui.4", tb384},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 4; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}
+
+// caph has always populated sizeBytes, but a host that reports none should
+// keep the old behaviour rather than install across one disk.
+func TestWWNFill_WithoutSizesKeepsEveryDisk(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{{"eui.1", 0}, {"eui.2", 0}, {"eui.3", 0}})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 3; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
 	}
 }

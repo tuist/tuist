@@ -26,7 +26,6 @@ defaults:
     working-directory: kura
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
@@ -34,18 +33,17 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "bazel"
           working_directory: kura
 
       - name: Check formatting
-        run: mise run --skip-tools format -- --check
+        run: ../.github/scripts/retry-bazel-command.sh mise run --skip-tools format -- --check
 
   # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
   # and authenticate; forks get `contents: read` alone and never see the OIDC token.
@@ -58,14 +56,19 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-bazel-compile-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -84,7 +87,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Compile without warnings
-        run: mise run compile --skip-tools -- --define=kura_deny_warnings=true
+        run: ../.github/scripts/retry-bazel-command.sh mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   bazel-compile-fork:
     name: Bazel Compile Fork
@@ -98,32 +101,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-bazel-compile-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel"
           working_directory: kura
-
-      - name: Cache Bazel repository downloads and build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/bazel-repo
-            ${{ runner.temp }}/bazel-disk
-          key: bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
-          restore-keys: |
-            bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
-            bazel-compile-fork-
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - name: Compile without warnings
-        run: |
-          {
-            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
-            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
-          } >> "$HOME/.bazelrc"
-          mise run compile --skip-tools -- --define=kura_deny_warnings=true
+        run: ../.github/scripts/retry-bazel-command.sh mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
   # cache; forks run with `contents: read` and the local cache.
@@ -135,14 +126,19 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-bazel-clippy-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -158,7 +154,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run clippy
-        run: mise run --skip-tools clippy
+        run: ../.github/scripts/retry-bazel-command.sh mise run --skip-tools clippy
 
   bazel-clippy-fork:
     name: Bazel Clippy Fork
@@ -172,32 +168,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-bazel-clippy-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel"
           working_directory: kura
-
-      - name: Cache Bazel repository downloads and build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/bazel-repo
-            ${{ runner.temp }}/bazel-disk
-          key: bazel-clippy-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
-          restore-keys: |
-            bazel-clippy-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
-            bazel-clippy-fork-
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - name: Run clippy
-        run: |
-          {
-            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
-            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
-          } >> "$HOME/.bazelrc"
-          mise run --skip-tools clippy
+        run: ../.github/scripts/retry-bazel-command.sh mise run --skip-tools clippy
 
   # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
   # cache; forks run with `contents: read` and the local cache.
@@ -209,14 +193,19 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-bazel-test-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -233,7 +222,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run tests
-        run: mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
+        run: ../.github/scripts/retry-bazel-command.sh mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   bazel-test-fork:
     name: Bazel Test Fork
@@ -247,44 +236,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-bazel-test-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel"
           working_directory: kura
-
-      - name: Cache Bazel repository downloads and build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/bazel-repo
-            ${{ runner.temp }}/bazel-disk
-          key: bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
-          restore-keys: |
-            bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
-            bazel-test-fork-
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - name: Run tests
-        run: |
-          {
-            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
-            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
-          } >> "$HOME/.bazelrc"
-          mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
+        run: ../.github/scripts/retry-bazel-command.sh mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   audit:
     name: Audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: rust
           working_directory: kura
 
@@ -312,6 +288,7 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     env:
@@ -319,9 +296,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-e2e-images-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -339,7 +320,7 @@ jobs:
 
       - name: Build the Kura binary with Bazel
         run: |
-          mise run --skip-tools compile
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
@@ -369,33 +350,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-kura-e2e-images-v1
+          path: ~/.cache/tuist/bazel
+
+      - uses: ./.github/actions/mise
+        with:
           install_args: "rust bazel"
           working_directory: kura
-
-      - name: Cache Bazel repository downloads and build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/bazel-repo
-            ${{ runner.temp }}/bazel-disk
-          key: e2e-images-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
-          restore-keys: |
-            e2e-images-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
-            e2e-images-fork-
 
       # zstd (for the image archive below) is on ubuntu-latest but not the tuist-linux runner.
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen) and zstd
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config zstd
       - name: Build the Kura binary with Bazel
         run: |
-          {
-            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
-            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
-          } >> "$HOME/.bazelrc"
-          mise run --skip-tools compile
+          ../.github/scripts/retry-bazel-command.sh mise run --skip-tools compile
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
@@ -431,7 +401,9 @@ jobs:
           - shard_name: cluster
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
-            specs: "spec/e2e/clients_spec.sh"
+            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh"
+          - shard_name: bytestream-admission
+            specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: authorization-mtls
@@ -472,7 +444,6 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "rust shellspec bazel aqua:facebook/buck2"
           working-directory: kura
 

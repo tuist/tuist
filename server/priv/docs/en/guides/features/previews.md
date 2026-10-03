@@ -2,16 +2,10 @@
 {
   "title": "Previews",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn how to generate and share Tuist Previews (app previews) with anyone."
+  "description": "Share iOS and Android app builds instantly with Tuist Previews. Give teammates and stakeholders a link, no TestFlight or Play Console setup required."
 }
 ---
 # Previews {#previews}
-
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-
 
 Tuist Previews let you generate and share app previews so teammates can test builds without rebuilding locally.
 
@@ -25,7 +19,6 @@ To make this process more streamlined, Tuist provides a way to generate and shar
 > **Device Builds Need To Be Signed**
 >
 > When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
-
 
 ::: code-group
 ```bash [Tuist Project (Debug)]
@@ -80,7 +73,6 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 >
 > Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
 
-
 ## Tracks {#tracks}
 
 Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.
@@ -102,7 +94,6 @@ This is useful for:
 >
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
 
-
 ## Tuist macOS app {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
@@ -115,12 +106,6 @@ This is useful for:
 To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://tuist.dev/download) the macOS app. You can also install the app by running `brew install --cask tuist/tuist/tuist`.
 
 When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
-
-> [!WARNING]
-> **Requirements**
->
-> You need to have Xcode locally installed and be on macOS 14 or later.
-
 
 ## Tuist iOS app {#tuist-ios-app}
 
@@ -142,12 +127,10 @@ Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running
 >
 > To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">remote project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
 
-
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But *what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?*
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <.localized_link href="/cli/share">`tuist share MyApp`</.localized_link> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
-
 
 ## In-app update notifications {#in-app-update-notifications}
 
@@ -216,7 +199,6 @@ task.cancel()
 
 > [!NOTE]
 > Update checking is automatically disabled on simulators and App Store builds.
-
 
 ## README badge {#readme-badge}
 

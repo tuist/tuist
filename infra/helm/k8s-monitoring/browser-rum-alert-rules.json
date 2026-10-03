@@ -1,0 +1,506 @@
+[
+  {
+    "uid": "web-rum-lcp-p75",
+    "orgID": 1,
+    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "ruleGroup": "Browser RUM quality",
+    "title": "Web - Browser LCP p75 above target by surface",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "quantile_over_time(0.75, {service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_quality=\"eligible\" | unwrap lcp | __error__=\"\" [6h]) by (app_environment, context_rum_surface) / 1000",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "B",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "sum by (app_environment, context_rum_surface) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_quality=\"eligible\" [6h]))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "D",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "D",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "count by (app_environment, context_rum_surface) (sum by (app_environment, context_rum_surface, session_id) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_quality=\"eligible\" [6h])))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$A > 2.5 && $B > 100 && $D >= 50",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "30m",
+    "isPaused": true,
+    "labels": {
+      "severity": "warning",
+      "app_environment": "prod"
+    },
+    "annotations": {
+      "summary": "{{ $labels.context_rum_surface }} LCP p75 is {{ printf \"%.2f\" $values.A.Value }}s",
+      "description": "Six-hour operational measurement, not a CrUX assessment. Eligible means complete metadata and a non-negative numeric LCP, not verified human. Includes unknown automation. B is LCP samples; D is distinct browser-reported sessions. The sample/session floors are provisional and must be calibrated per surface before enabling. Inspect raw percentiles, quality, navigation timing and Cloudflare correlation before changing filtering.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/browser-rum.md"
+    }
+  },
+  {
+    "uid": "web-rum-schema-coverage",
+    "orgID": 1,
+    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "ruleGroup": "Browser RUM quality",
+    "title": "Web - Browser RUM gateway coverage low",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "((sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema!=\"1\" [6h]))) or (0 * (sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" [6h]))))) / (sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" [6h])))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "B",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" [6h]))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$A > 0.05 && $B > 100",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "30m",
+    "isPaused": true,
+    "labels": {
+      "severity": "warning",
+      "app_environment": "prod"
+    },
+    "annotations": {
+      "summary": "More than 5% of LCP samples lack gateway context",
+      "description": "Six-hour fraction of all prod LCP samples missing schema 1. Includes legacy/bypass ingestion, not just enriched samples. Expected during rollout or rollback; keep paused until the cutover window clears.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/browser-rum.md"
+    }
+  },
+  {
+    "uid": "web-rum-ineligible",
+    "orgID": 1,
+    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "ruleGroup": "Browser RUM quality",
+    "title": "Web - Browser RUM metadata incomplete by surface",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "((sum by (app_environment, context_rum_surface) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_quality!=\"eligible\" [6h]))) or (0 * (sum by (app_environment, context_rum_surface) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [6h]))))) / (sum by (app_environment, context_rum_surface) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [6h])))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "B",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "sum by (app_environment, context_rum_surface) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [6h]))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$A > 0.05 && $B > 100",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "30m",
+    "isPaused": true,
+    "labels": {
+      "severity": "warning",
+      "app_environment": "prod"
+    },
+    "annotations": {
+      "summary": "{{ $labels.context_rum_surface }} has more than 5% ineligible LCP samples",
+      "description": "Compare counts by context_rum_quality. Measurements remain in the raw stream. A passing eligible-only percentile must not hide missing session/navigation IDs, unknown routes or invalid values. Threshold is provisional.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/browser-rum.md"
+    }
+  },
+  {
+    "uid": "web-rum-ray-coverage",
+    "orgID": 1,
+    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "ruleGroup": "Browser RUM quality",
+    "title": "Web - Browser RUM Cloudflare correlation coverage low",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "((sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_ray_id=\"\" [6h]))) or (0 * (sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [6h]))))) / (sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [6h])))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "B",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [6h]))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$A > 0.10 && $B > 100",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "30m",
+    "isPaused": true,
+    "labels": {
+      "severity": "warning",
+      "app_environment": "prod"
+    },
+    "annotations": {
+      "summary": "More than 10% of enriched LCP samples lack a trusted collector Ray ID",
+      "description": "Check the Cloudflare/ingress trust chain. The Ray ID identifies the collector POST, not the document navigation. An absent Ray ID is unknown evidence, not automation. Threshold is provisional; applies only to prod behind Cloudflare.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/browser-rum.md"
+    }
+  },
+  {
+    "uid": "web-rum-session-diversity",
+    "orgID": 1,
+    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "ruleGroup": "Browser RUM quality",
+    "title": "Web - Browser RUM sample concentration by surface",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "count by (app_environment, context_rum_surface) (sum by (app_environment, context_rum_surface, session_id) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_quality=\"eligible\" [6h])))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "B",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "sum by (app_environment, context_rum_surface) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" | context_rum_quality=\"eligible\" [6h]))",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$B > 100 && $A < 50",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "30m",
+    "isPaused": true,
+    "labels": {
+      "severity": "warning",
+      "app_environment": "prod"
+    },
+    "annotations": {
+      "summary": "{{ $labels.context_rum_surface }} LCP samples come from fewer than 50 sessions",
+      "description": "The p75 performance rule is gated on at least 50 reported sessions. Investigate a concentrated cohort instead of interpreting the gated percentile as healthy. Session IDs are browser-reported, not a Sybil-resistant human count. No navigation deduplication is applied. Floor is provisional.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/browser-rum.md"
+    }
+  },
+  {
+    "uid": "web-rum-ingestion",
+    "orgID": 1,
+    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "ruleGroup": "Browser RUM quality",
+    "title": "Web - Browser RUM enriched LCP missing",
+    "condition": "C",
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "to": 0,
+          "from": 21600
+        },
+        "datasourceUid": "REPLACE_WITH_LOKI_DATASOURCE_UID",
+        "model": {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "REPLACE_WITH_LOKI_DATASOURCE_UID"
+          },
+          "expr": "(sum by (app_environment) (count_over_time({service_name=\"tuist-web\"} | logfmt | kind=\"measurement\" | type=\"web-vitals\" | app_environment=\"prod\" | lcp!=\"\" | __error__=\"\" | context_rum_schema=\"1\" [2h]))) or vector(0)",
+          "queryType": "instant",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$A < 1",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      }
+    ],
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "for": "15m",
+    "isPaused": true,
+    "labels": {
+      "severity": "warning",
+      "app_environment": "prod"
+    },
+    "annotations": {
+      "summary": "No enriched production LCP samples for two hours",
+      "description": "Checks pipeline liveness independently of percentile eligibility. Keep the existing raw-ingestion missing-data alert too. Only enable after gateway rollout. Healthy low-volume surfaces may be absent from the per-surface rules.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/browser-rum.md"
+    }
+  }
+]

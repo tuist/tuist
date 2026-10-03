@@ -7,11 +7,16 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Core domain models and shared abstractions live in `cli/Sources/TuistCore`.
 - Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
 - Tuist Server client: `cli/Sources/TuistServer`
+- Rosalind app bundle analysis: `cli/Sources/Rosalind/AGENTS.md`
+- Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
+- Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
 - Cache client: `cli/Sources/TuistCache`
 - Bazel Remote Execution API (REAPI) client: `cli/Sources/TuistREAPI` (see `cli/Sources/TuistREAPI/AGENTS.md`)
 - Dependencies tooling: `cli/Sources/TuistDependencies`
 - Manifest loading: `cli/Sources/TuistLoader`
 - Embedded graph packages: `cli/Sources/XcodeGraph`
+
+- Runner shells and volume management: `cli/Sources/TuistRunnerCommand/AGENTS.md`
 
 ## Legacy Modules (avoid adding new code)
 - `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
@@ -67,6 +72,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Manifest loading: `cli/Sources/TuistLoader/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
 - Cache integration: `cli/Sources/TuistCache/AGENTS.md`
+- Private binary cache storage and compatibility lookup: `cli/TuistCacheEE/AGENTS.md`
 - Project description models: `cli/Sources/ProjectDescription/AGENTS.md`
 - Project automation: `cli/Sources/ProjectAutomation/AGENTS.md`
 - Tuist automation: `cli/Sources/TuistAutomation/AGENTS.md`
@@ -86,6 +92,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Root directory resolution: `cli/Sources/TuistRootDirectoryLocator/AGENTS.md`
 - Scaffold generation: `cli/Sources/TuistScaffold/AGENTS.md`
 - Simulator integration: `cli/Sources/TuistSimulator/AGENTS.md`
+- Checkout paths and snapshots: `cli/Sources/TuistTestSupport/AGENTS.md`
 - Test helpers: `cli/Sources/TuistTesting/AGENTS.md`
 - XCActivityLog parsing: `cli/Sources/TuistXCActivityLog/AGENTS.md`
 - XCResult handling: `cli/Sources/TuistXCResultService/AGENTS.md`
@@ -95,3 +102,9 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Embedded graph package: `cli/Sources/XcodeGraph/AGENTS.md`
 
 Note: `cli/TuistCacheEE` is a git submodule; keep any intent nodes for that package within the submodule itself.
+
+- Bazel setup enables JSON trace profiles without event merging, includes target and primary output identifiers, and selects the remote BEP artifact uploader. Keep explicit user profiling preferences when refreshing managed configuration. Do not use `experimental_stream_log_file_uploads`: the standard Bazel remote artifact uploader does not implement that streaming path.
+
+- Bazel setup records the local active logical processor count as `TUIST_CPU_COUNT` build metadata in the machine-specific `.bazelrc.tuist`. Endpoint refresh preserves this value; rerun setup when moving environments or changing CPU allocations. Build environments that override JVM processor availability must supply the matching count through build metadata. Never substitute Bazel job concurrency for CPU capacity.
+
+- Bazelrc credential-helper upgrades add CPU-capacity metadata when missing in both existing insights and cache-only configurations, preserving explicit metadata and option preferences.

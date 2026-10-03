@@ -86,6 +86,12 @@ const (
 	reservationCooldownAnnotation = "tuist.dev/reservation-cooldown-until"
 	reservationCooldown           = 15 * time.Minute
 
+	// seatGrace is how long a Pod is safe from another pool's drain after
+	// it binds. A reservation releases as soon as its Pod lands, so
+	// without this the seat it produced is retirable before dispatch has
+	// reached the Pod and labelled it owned.
+	seatGrace = 2 * time.Minute
+
 	// maxFleetReservations is how many hosts may be held at once. The
 	// count is taken over the pool's OWN fleet nodes, so each fleet gets
 	// its own budget and a macOS reservation never blocks a Linux one.
@@ -151,7 +157,7 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 				"cooldown", reservationCooldown)
 			return r.releaseReservation(ctx, held, now.Add(reservationCooldown))
 		default:
-			return r.retireIdlePodsOnReservedNode(ctx, held, pool)
+			return r.retireIdlePodsOnReservedNode(ctx, held, pool, now)
 		}
 	}
 
@@ -507,8 +513,10 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 // a cold start and nothing else.
 //
 // This pool's own Pods are left alone — an idle one here is the seat the
-// reservation was taken to produce. Pods running customer jobs are never
-// touched; the reservation waits them out, or times out.
+// reservation was taken to produce. So is any Pod that bound within
+// `seatGrace`, which is that same seat one reservation earlier. Pods
+// running customer jobs are never touched; the reservation waits them
+// out, or times out.
 //
 // Idleness is read through `isIdle`, matching the node-drain path: the
 // owner label alone is best-effort and can be missing on a Pod that is
@@ -517,6 +525,7 @@ func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
 	ctx context.Context,
 	node *corev1.Node,
 	pool *tuistv1.RunnerPool,
+	now time.Time,
 ) error {
 	logger := log.FromContext(ctx)
 
@@ -534,6 +543,9 @@ func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
 			continue
 		}
 		if !isIdle(pod) {
+			continue
+		}
+		if seatedAt, ok := linuxProvisioningStartedAt(pod); ok && now.Sub(seatedAt) < seatGrace {
 			continue
 		}
 		if err := r.reapRunner(ctx, pod); err != nil {

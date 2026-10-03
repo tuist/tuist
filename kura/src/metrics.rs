@@ -61,12 +61,16 @@ pub struct MetricsInner {
     // being written an artifact can be shed under size pressure. The claim
     // sizing signal, mirrored to the control plane through the usage batch.
     segment_shed_age_seconds: Histogram,
+    disk_pressure_reclaimed_bytes: Counter,
     capacity_eviction_reports_dropped: Counter,
     // Action-cache entries removed by the eviction cascade (an evicted blob
     // taking its referencing entries with it). A healthy nonzero rate is the
     // cascade doing its job; compare against the serve-side presence-gate hit
     // rate, which should trend to zero once the cascade carries the load.
     action_cache_cascade_removed: Counter,
+    reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
+    reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
+    reapi_inline_fallbacks: Counter,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -108,9 +112,28 @@ pub struct MetricsInner {
     manifest_cache_evictions: Family<ManifestCacheEvictionLabels, Counter>,
     manifest_index_rebuilds: Family<ManifestIndexResultLabels, Counter>,
     manifest_index_rebuild_duration: Histogram,
-    outbox_messages: Gauge,
-    outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
+    sync_forward_index_entries: Gauge,
+    sync_forward_index_dropped: Counter,
+    sync_forward_cursor_lag_entries: Family<SyncPeerLabels, Gauge>,
+    sync_forward_cursor_lag_seconds: Family<SyncPeerLabels, Gauge>,
+    sync_forward_fell_behind: Family<SyncReasonLabels, Counter>,
+    sync_forward_drain_timeout: Counter,
+    sync_pull_links: Family<SyncLinkLabels, Gauge>,
+    region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_sync_lag_seconds: Family<SyncRegionLabels, Gauge>,
+    region_listing_bound_lag_seconds: Gauge,
+    region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
+    region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
+    region_sync_last_cycle_duration_seconds: Family<SyncRegionLabels, Gauge>,
+    peer_clock_skew_seconds: Family<SyncPeerLabels, Gauge>,
+    gateway_role: Family<GatewayRoleLabels, Gauge>,
+    gateway_role_changes: Counter,
     multipart_uploads: Gauge,
+    multipart_upload_capacity: Gauge,
+    multipart_upload_waiters: Gauge,
+    multipart_upload_admissions: Family<MultipartAdmissionLabels, Counter>,
+    multipart_upload_admission_duration: Histogram,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
     backfill_horizon_age_ms: Gauge,
@@ -122,16 +145,13 @@ pub struct MetricsInner {
     backfill_pass_listed_tuples: Family<BackfillPassPeerLabels, Gauge>,
     backfill_pass_resolved_tuples: Family<BackfillPassPeerLabels, Gauge>,
     backfill_pass_events: Family<BackfillPassEventLabels, Counter>,
-    backfill_backfilling_peers: Gauge,
-    backfill_budget_exhausted_peers: Gauge,
-    backfill_initial_cycle_mode: Gauge,
     backfill_ring_fullness_percent: Gauge,
-    backfill_watermark_age_ms: Family<BackfillPassPeerLabels, Gauge>,
     analytics_events: Family<AnalyticsLabels, Counter>,
     analytics_batches: Family<AnalyticsLabels, Counter>,
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
     analytics_queue_depth: Gauge,
     analytics_queue_capacity: Gauge,
+    analytics_outbox_depth_entries: Gauge,
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
@@ -178,6 +198,8 @@ pub struct MetricsInner {
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
     memory_transient_capacity_bytes: Gauge,
+    memory_elastic_transient_capacity_bytes: Gauge,
+    memory_elastic_transient_reserved_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -204,6 +226,11 @@ pub struct MetricsInner {
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
+    startup_recovery_phase: Gauge,
+    startup_recovery_last_progress_timestamp_seconds: Gauge,
+    startup_recovery_completed_pages: Gauge,
+    startup_recovery_committed_batches: Gauge,
+
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
@@ -221,7 +248,6 @@ impl std::ops::Deref for Metrics {
 
 #[derive(Default)]
 struct RolloutSnapshot {
-    outbox_messages: AtomicU64,
     fd_timeout_count: AtomicU64,
     peer_connection_failure_count: AtomicU64,
 }
@@ -280,6 +306,7 @@ struct HotReadMetrics {
 struct HotWriteMetrics {
     reapi_ok_writes: Counter,
     reapi_ok_write_bytes: Counter,
+    reapi_damped_writes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
 }
@@ -506,7 +533,6 @@ impl InflightMetrics {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RolloutMetricsSnapshot {
-    pub outbox_messages: u64,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
 }
@@ -527,7 +553,6 @@ pub mod shed_kind {
     pub const UPLOAD_MEMORY: &str = "upload_memory";
     pub const TMP_STAGING: &str = "tmp_staging";
     pub const MEMORY_PRESSURE_WRITE: &str = "memory_pressure_write";
-    pub const OUTBOX: &str = "outbox";
     // The remote-execution surface sheds against the same transient budget the
     // HTTP kinds above do, so it belongs in the counter that names which limit
     // refused a request. It carries no HTTP status of its own -- gRPC answers
@@ -536,6 +561,10 @@ pub mod shed_kind {
     // query operators are told to reach for first.
     pub const REAPI_WRITE_DECODE: &str = "reapi_write_decode";
     pub const REAPI_MATERIALIZATION: &str = "reapi_materialization";
+    // One request asking for more response bytes than a single response may
+    // carry at normal memory pressure. It sheds on an idle pool, so it stays
+    // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
+    pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
 
     pub const ALL: [&str; 9] = [
         RESPONSE_STREAM,
@@ -544,9 +573,9 @@ pub mod shed_kind {
         UPLOAD_MEMORY,
         TMP_STAGING,
         MEMORY_PRESSURE_WRITE,
-        OUTBOX,
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
+        REAPI_REQUEST_BUDGET,
     ];
 }
 
@@ -572,6 +601,9 @@ impl Metrics {
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
         let action_cache_cascade_removed = Counter::default();
+        let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
+        let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
+        let reapi_inline_fallbacks = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_size_bytes =
@@ -598,6 +630,7 @@ impl Metrics {
         // One hour up to 30 days: below the first bucket the ring is churning
         // artifacts it just stored; the top buckets distinguish rings holding
         // days of history, which is what per-plan retention floors care about.
+        let disk_pressure_reclaimed_bytes = Counter::default();
         let segment_shed_age_seconds = Histogram::new([
             3_600.0,
             21_600.0,
@@ -660,9 +693,29 @@ impl Metrics {
         let manifest_cache_evictions = Family::<ManifestCacheEvictionLabels, Counter>::default();
         let manifest_index_rebuilds = Family::<ManifestIndexResultLabels, Counter>::default();
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
-        let outbox_messages = Gauge::default();
-        let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
+        let sync_forward_index_entries = Gauge::default();
+        let sync_forward_index_dropped = Counter::default();
+        let sync_forward_cursor_lag_entries = Family::<SyncPeerLabels, Gauge>::default();
+        let sync_forward_cursor_lag_seconds = Family::<SyncPeerLabels, Gauge>::default();
+        let sync_forward_fell_behind = Family::<SyncReasonLabels, Counter>::default();
+        let sync_forward_drain_timeout = Counter::default();
+        let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
+        let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_sync_lag_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_listing_bound_lag_seconds = Gauge::default();
+        let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
+        let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
+        let region_sync_last_cycle_duration_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let peer_clock_skew_seconds = Family::<SyncPeerLabels, Gauge>::default();
+        let gateway_role = Family::<GatewayRoleLabels, Gauge>::default();
+        let gateway_role_changes = Counter::default();
         let multipart_uploads = Gauge::default();
+        let multipart_upload_capacity = Gauge::default();
+        let multipart_upload_waiters = Gauge::default();
+        let multipart_upload_admissions = Family::<MultipartAdmissionLabels, Counter>::default();
+        let multipart_upload_admission_duration =
+            Histogram::new(exponential_buckets(0.001, 2.0, 14));
         let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
         let backfill_horizon_age_ms = Gauge::default();
@@ -674,11 +727,7 @@ impl Metrics {
         let backfill_pass_listed_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
         let backfill_pass_resolved_tuples = Family::<BackfillPassPeerLabels, Gauge>::default();
         let backfill_pass_events = Family::<BackfillPassEventLabels, Counter>::default();
-        let backfill_backfilling_peers = Gauge::default();
-        let backfill_budget_exhausted_peers = Gauge::default();
-        let backfill_initial_cycle_mode = Gauge::default();
         let backfill_ring_fullness_percent = Gauge::default();
-        let backfill_watermark_age_ms = Family::<BackfillPassPeerLabels, Gauge>::default();
         let analytics_events = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batches = Family::<AnalyticsLabels, Counter>::default();
         let analytics_batch_duration =
@@ -687,6 +736,7 @@ impl Metrics {
             });
         let analytics_queue_depth = Gauge::default();
         let analytics_queue_capacity = Gauge::default();
+        let analytics_outbox_depth_entries = Gauge::default();
         let analytics_circuit_state = Family::<AnalyticsRouteLabels, Gauge>::default();
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
@@ -744,6 +794,8 @@ impl Metrics {
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
         let memory_transient_capacity_bytes = Gauge::default();
+        let memory_elastic_transient_capacity_bytes = Gauge::default();
+        let memory_elastic_transient_reserved_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -829,6 +881,10 @@ impl Metrics {
         let hot_write = Arc::new(HotWriteMetrics {
             reapi_ok_writes: artifact_writes.get_or_create_owned(&reapi_ok_labels),
             reapi_ok_write_bytes: artifact_write_bytes.get_or_create_owned(&reapi_ok_labels),
+            reapi_damped_writes: artifact_writes.get_or_create_owned(&ArtifactOpLabels {
+                producer: "reapi".to_owned(),
+                result: "damped".to_owned(),
+            }),
             reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
                 &ArtifactRouteLabels {
                     producer: "reapi".to_owned(),
@@ -871,6 +927,11 @@ impl Metrics {
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
+        let startup_recovery_phase = Gauge::default();
+        let startup_recovery_last_progress_timestamp_seconds = Gauge::default();
+        let startup_recovery_completed_pages = Gauge::default();
+        let startup_recovery_committed_batches = Gauge::default();
+
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
@@ -935,6 +996,21 @@ impl Metrics {
             action_cache_cascade_removed.clone(),
         );
         registry.register(
+            "kura_reapi_chunking_events_total",
+            "Content-defined chunking events by operation and bounded outcome",
+            reapi_chunking_events.clone(),
+        );
+        registry.register(
+            "kura_reapi_inline_fallbacks_total",
+            "Optional output files left un-inlined because response materialization admission was refused",
+            reapi_inline_fallbacks.clone(),
+        );
+        registry.register(
+            "kura_reapi_chunking_bytes_total",
+            "Content-defined chunking bytes by logical or recipe representation",
+            reapi_chunking_bytes.clone(),
+        );
+        registry.register(
             "kura_artifact_read_bytes_total",
             "Artifact read throughput by producer and result",
             artifact_read_bytes.clone(),
@@ -993,6 +1069,11 @@ impl Metrics {
             "kura_segment_evicted_artifacts_total",
             "Artifacts removed when old segments are evicted",
             segment_evicted_artifacts.clone(),
+        );
+        registry.register(
+            "kura_disk_pressure_reclaimed_bytes_total",
+            "Segment bytes unlinked by quota pressure reclamation",
+            disk_pressure_reclaimed_bytes.clone(),
         );
         registry.register(
             "kura_segment_shed_age_seconds",
@@ -1180,19 +1261,114 @@ impl Metrics {
             manifest_index_rebuild_duration.clone(),
         );
         registry.register(
-            "kura_outbox_messages",
-            "Replication outbox messages waiting to be processed",
-            outbox_messages.clone(),
+            "kura_sync_forward_index_entries",
+            "Arrival-feed rows retained between the trim floor and the head",
+            sync_forward_index_entries.clone(),
         );
         registry.register(
-            "kura_outbox_lane_messages",
-            "Replication outbox messages waiting to be processed, split by drain lane",
-            outbox_lane_messages.clone(),
+            "kura_sync_forward_index_dropped_total",
+            "Arrival-feed rows dropped at the cap before a sibling read them",
+            sync_forward_index_dropped.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_cursor_lag_entries",
+            "Feed rows between this node's cursor and the sibling's head",
+            sync_forward_cursor_lag_entries.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_cursor_lag_seconds",
+            "Age of the newest feed row this node applied from the sibling",
+            sync_forward_cursor_lag_seconds.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_fell_behind_total",
+            "Forward reads answered 410 by the sibling, by reason",
+            sync_forward_fell_behind.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_drain_timeout_total",
+            "Shutdowns that exited before the sibling's cursor reached the head",
+            sync_forward_drain_timeout.clone(),
+        );
+        registry.register(
+            "kura_sync_pull_links",
+            "Pull links this node keeps open, by link kind",
+            sync_pull_links.clone(),
+        );
+        registry.register(
+            "kura_region_sync_last_success_age_seconds",
+            "Seconds since the last successful forward read from a remote region",
+            region_sync_last_success_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_watermark_age_seconds",
+            "Age of the region watermark, by origin region",
+            region_watermark_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_sync_lag_seconds",
+            "Seconds between the newest version the remote gateway lists for its region and the newest version applied from it, by origin region",
+            region_sync_lag_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_listing_bound_lag_seconds",
+            "Seconds between now and the newest version_ms this node serves to an ascending region read, saturating at 86400 when the listing is bounded whole",
+            region_listing_bound_lag_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_sync_entries_listed_total",
+            "Entries listed by forward region reads, by origin region",
+            region_sync_entries_listed.clone(),
+        );
+        registry.register(
+            "kura_region_sync_bytes_fetched_total",
+            "Bytes fetched by region sync, by origin region",
+            region_sync_bytes_fetched.clone(),
+        );
+        registry.register(
+            "kura_region_sync_last_cycle_duration_seconds",
+            "Duration of the last completed backward pass over a remote region",
+            region_sync_last_cycle_duration_seconds.clone(),
+        );
+        registry.register(
+            "kura_peer_clock_skew_seconds",
+            "Peer clock minus local clock, from listing responses",
+            peer_clock_skew_seconds.clone(),
+        );
+        registry.register(
+            "kura_gateway_role",
+            "Whether this node holds its region's gateway role",
+            gateway_role.clone(),
+        );
+        registry.register(
+            "kura_gateway_role_changes_total",
+            "Gateway role transitions on this node",
+            gateway_role_changes.clone(),
         );
         registry.register(
             "kura_multipart_uploads",
-            "Multipart uploads currently tracked in RocksDB",
+            "Multipart upload slots currently occupied",
             multipart_uploads.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_capacity",
+            "Current multipart upload admission limit",
+            multipart_upload_capacity.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_waiters",
+            "Multipart starts queued for a session slot",
+            multipart_upload_waiters.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_admissions_total",
+            "Multipart session admission outcomes",
+            multipart_upload_admissions.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_admission_duration_seconds",
+            "Time spent admitting multipart sessions",
+            multipart_upload_admission_duration.clone(),
         );
         registry.register(
             "kura_tmp_dir_bytes",
@@ -1250,29 +1426,9 @@ impl Metrics {
             backfill_pass_events.clone(),
         );
         registry.register(
-            "kura_backfill_backfilling_peers",
-            "Initial-cycle peers with backfill passes outstanding",
-            backfill_backfilling_peers.clone(),
-        );
-        registry.register(
-            "kura_backfill_budget_exhausted_peers",
-            "Initial-cycle peers whose backfill failure budget is exhausted",
-            backfill_budget_exhausted_peers.clone(),
-        );
-        registry.register(
-            "kura_backfill_initial_cycle_mode",
-            "Initial backfill cycle mode (0=pending, 1=complete, 2=degraded)",
-            backfill_initial_cycle_mode.clone(),
-        );
-        registry.register(
             "kura_backfill_ring_fullness_percent",
             "Segment count as a percentage of the segment ring's desired total",
             backfill_ring_fullness_percent.clone(),
-        );
-        registry.register(
-            "kura_backfill_watermark_age_ms",
-            "Milliseconds between the current wall clock and the peer's persisted backfill watermark",
-            backfill_watermark_age_ms.clone(),
         );
         registry.register(
             "kura_analytics_events_total",
@@ -1298,6 +1454,11 @@ impl Metrics {
             "kura_analytics_queue_capacity",
             "Configured capacity of the in-memory analytics queue",
             analytics_queue_capacity.clone(),
+        );
+        registry.register(
+            "kura_analytics_outbox_depth_entries",
+            "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it.",
+            analytics_outbox_depth_entries.clone(),
         );
         registry.register(
             "kura_analytics_circuit_state",
@@ -1525,6 +1686,16 @@ impl Metrics {
             memory_transient_capacity_bytes.clone(),
         );
         registry.register(
+            "kura_memory_elastic_transient_capacity_bytes",
+            "Ceiling headroom above the floor-derived transient budget, lent to remote-execution write decoding while memory pressure is normal. Zero when no floor is published, because the budget is already the whole headroom",
+            memory_elastic_transient_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_memory_elastic_transient_reserved_bytes",
+            "Borrowed ceiling headroom currently held. Non-zero means writes are outgrowing the pod's floor and are being served from headroom rather than shed; sustained residency is the signal to raise the account's memory profile",
+            memory_elastic_transient_reserved_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1655,6 +1826,26 @@ impl Metrics {
             writer_lock_owned.clone(),
         );
         registry.register(
+            "kura_startup_recovery_phase",
+            "Startup recovery phase",
+            startup_recovery_phase.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_last_progress_timestamp_seconds",
+            "Unix timestamp of the last completed recovery work or phase transition",
+            startup_recovery_last_progress_timestamp_seconds.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_completed_pages",
+            "Completed startup recovery scan pages",
+            startup_recovery_completed_pages.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_committed_batches",
+            "Committed startup recovery deletion batches",
+            startup_recovery_committed_batches.clone(),
+        );
+        registry.register(
             "kura_writer_lock_acquire_failures_total",
             "Number of writer-lock acquisition failures detected during startup or tests",
             writer_lock_acquire_failures.clone(),
@@ -1712,6 +1903,9 @@ impl Metrics {
                 artifact_writes,
                 segment_fsyncs,
                 action_cache_cascade_removed,
+                reapi_chunking_events,
+                reapi_chunking_bytes,
+                reapi_inline_fallbacks,
                 artifact_read_bytes,
                 artifact_write_bytes,
                 artifact_write_size_bytes,
@@ -1725,6 +1919,7 @@ impl Metrics {
                 segment_refresh_duration,
                 segment_evicted_artifacts,
                 segment_shed_age_seconds,
+                disk_pressure_reclaimed_bytes,
                 capacity_eviction_reports_dropped,
                 replication_requests,
                 replication_request_duration,
@@ -1763,9 +1958,28 @@ impl Metrics {
                 manifest_cache_evictions,
                 manifest_index_rebuilds,
                 manifest_index_rebuild_duration,
-                outbox_messages,
-                outbox_lane_messages,
+                sync_forward_index_entries,
+                sync_forward_index_dropped,
+                sync_forward_cursor_lag_entries,
+                sync_forward_cursor_lag_seconds,
+                sync_forward_fell_behind,
+                sync_forward_drain_timeout,
+                sync_pull_links,
+                region_sync_last_success_age_seconds,
+                region_watermark_age_seconds,
+                region_sync_lag_seconds,
+                region_listing_bound_lag_seconds,
+                region_sync_entries_listed,
+                region_sync_bytes_fetched,
+                region_sync_last_cycle_duration_seconds,
+                peer_clock_skew_seconds,
+                gateway_role,
+                gateway_role_changes,
                 multipart_uploads,
+                multipart_upload_capacity,
+                multipart_upload_waiters,
+                multipart_upload_admissions,
+                multipart_upload_admission_duration,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
                 backfill_horizon_age_ms,
@@ -1777,16 +1991,13 @@ impl Metrics {
                 backfill_pass_listed_tuples,
                 backfill_pass_resolved_tuples,
                 backfill_pass_events,
-                backfill_backfilling_peers,
-                backfill_budget_exhausted_peers,
-                backfill_initial_cycle_mode,
                 backfill_ring_fullness_percent,
-                backfill_watermark_age_ms,
                 analytics_events,
                 analytics_batches,
                 analytics_batch_duration,
                 analytics_queue_depth,
                 analytics_queue_capacity,
+                analytics_outbox_depth_entries,
                 analytics_circuit_state,
                 analytics_circuit_transitions,
                 segment_generation_counts,
@@ -1833,6 +2044,8 @@ impl Metrics {
                 memory_protection_low_bytes,
                 memory_transient_reserved_bytes,
                 memory_transient_capacity_bytes,
+                memory_elastic_transient_capacity_bytes,
+                memory_elastic_transient_reserved_bytes,
                 foreground_memory_waiters,
                 response_stream_pool_capacity_bytes,
                 response_stream_foreground_pool_capacity_bytes,
@@ -1859,6 +2072,11 @@ impl Metrics {
                 initial_discovery_completed,
                 writer_lock_owned,
                 writer_lock_acquire_failures,
+                startup_recovery_phase,
+                startup_recovery_last_progress_timestamp_seconds,
+                startup_recovery_completed_pages,
+                startup_recovery_committed_batches,
+
                 mmap_partial_page_exemptions,
                 promotion_queue_depth,
                 promotion_failures,
@@ -2000,13 +2218,26 @@ impl Metrics {
     }
 
     pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
-        if producer == ArtifactProducer::Reapi && result == "ok" {
-            self.hot_write.reapi_ok_writes.inc();
-            if bytes > 0 {
-                self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
-                self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+        if producer == ArtifactProducer::Reapi {
+            match result {
+                "ok" => {
+                    self.hot_write.reapi_ok_writes.inc();
+                    if bytes > 0 {
+                        self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
+                        self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+                    }
+                    return;
+                }
+                // A damped action-cache refresh shares the hot path of the
+                // write it declines to perform, so it gets the same pre-created
+                // counter rather than the label-allocating Family lookup. It
+                // stores nothing, so it carries no bytes and observes no size.
+                "damped" => {
+                    self.hot_write.reapi_damped_writes.inc();
+                    return;
+                }
+                _ => {}
             }
-            return;
         }
         let labels = ArtifactOpLabels {
             producer: producer.as_str().to_owned(),
@@ -2159,6 +2390,10 @@ impl Metrics {
             .inc_by(artifacts);
     }
 
+    pub fn record_disk_pressure_reclamation(&self, bytes: u64) {
+        self.disk_pressure_reclaimed_bytes.inc_by(bytes);
+    }
+
     pub fn record_segment_shed_age(&self, seconds: f64) {
         self.segment_shed_age_seconds.observe(seconds);
     }
@@ -2172,6 +2407,27 @@ impl Metrics {
             return;
         }
         self.action_cache_cascade_removed.inc_by(removed_entries);
+    }
+
+    pub fn record_reapi_chunking_event(&self, operation: &str, outcome: &str) {
+        self.reapi_chunking_events
+            .get_or_create(&ReapiChunkingEventLabels {
+                operation: operation.to_owned(),
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_reapi_inline_fallback(&self) {
+        self.reapi_inline_fallbacks.inc();
+    }
+
+    pub fn record_reapi_chunking_bytes(&self, kind: &str, bytes: u64) {
+        self.reapi_chunking_bytes
+            .get_or_create(&ReapiChunkingBytesLabels {
+                kind: kind.to_owned(),
+            })
+            .inc_by(bytes);
     }
 
     pub fn record_replication(
@@ -2199,7 +2455,7 @@ impl Metrics {
         }
     }
 
-    fn note_peer_connection_failure(&self) {
+    pub fn note_peer_connection_failure(&self) {
         self.peer_connection_failures.inc();
         self.rollout_snapshot
             .peer_connection_failure_count
@@ -2427,26 +2683,143 @@ impl Metrics {
             .observe(duration.as_secs_f64());
     }
 
-    pub fn update_outbox_messages(&self, count: usize, bulk: usize) {
-        self.outbox_messages.set(count as i64);
-        // The bulk lane drains one delivery at a time and the metadata lane is
-        // batched, so which lane a backlog sits in is what decides whether the
-        // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`. The total
-        // alone cannot separate them.
-        let bulk = bulk.min(count);
-        self.outbox_lane_messages
-            .get_or_create(&OutboxLaneLabels {
-                lane: "bulk".to_owned(),
+    // ---- Pull-based replication (design §6.2) ----
+
+    pub fn update_sync_feed_depth(&self, rows: u64) {
+        self.sync_forward_index_entries.set(rows as i64);
+    }
+
+    pub fn record_sync_feed_dropped(&self, rows: u64) {
+        self.sync_forward_index_dropped.inc_by(rows);
+    }
+
+    pub fn set_sync_forward_cursor_lag(&self, peer: &str, entries: u64, seconds: u64) {
+        let labels = SyncPeerLabels {
+            peer: peer.to_owned(),
+        };
+        self.sync_forward_cursor_lag_entries
+            .get_or_create(&labels)
+            .set(entries as i64);
+        self.sync_forward_cursor_lag_seconds
+            .get_or_create(&labels)
+            .set(seconds as i64);
+    }
+
+    pub fn clear_sync_forward_cursor_lag(&self, peer: &str) {
+        let labels = SyncPeerLabels {
+            peer: peer.to_owned(),
+        };
+        self.sync_forward_cursor_lag_entries.remove(&labels);
+        self.sync_forward_cursor_lag_seconds.remove(&labels);
+    }
+
+    pub fn record_sync_forward_fell_behind(&self, reason: &str) {
+        self.sync_forward_fell_behind
+            .get_or_create(&SyncReasonLabels {
+                reason: reason.to_owned(),
             })
-            .set(bulk as i64);
-        self.outbox_lane_messages
-            .get_or_create(&OutboxLaneLabels {
-                lane: "metadata".to_owned(),
+            .inc();
+    }
+
+    pub fn record_sync_forward_drain_timeout(&self) {
+        self.sync_forward_drain_timeout.inc();
+    }
+
+    pub fn update_sync_pull_links(&self, link: &str, count: usize) {
+        self.sync_pull_links
+            .get_or_create(&SyncLinkLabels {
+                link: link.to_owned(),
             })
-            .set(count.saturating_sub(bulk) as i64);
-        self.rollout_snapshot
-            .outbox_messages
-            .store(count as u64, Ordering::Relaxed);
+            .set(count as i64);
+    }
+
+    pub fn set_region_sync_last_success_age(&self, region: &str, seconds: u64) {
+        self.region_sync_last_success_age_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
+    pub fn set_region_watermark_age(&self, region: &str, seconds: u64) {
+        self.region_watermark_age_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
+    pub fn set_region_sync_lag(&self, region: &str, seconds: u64) {
+        self.region_sync_lag_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
+    pub fn set_region_listing_bound_lag(&self, seconds: u64) {
+        self.region_listing_bound_lag_seconds.set(seconds as i64);
+    }
+
+    pub fn clear_region_sync_gauges(&self, region: &str) {
+        let labels = SyncRegionLabels {
+            region: region.to_owned(),
+        };
+        self.region_sync_last_success_age_seconds.remove(&labels);
+        self.region_watermark_age_seconds.remove(&labels);
+        self.region_sync_lag_seconds.remove(&labels);
+        self.region_sync_last_cycle_duration_seconds.remove(&labels);
+    }
+
+    pub fn record_region_sync_listed(&self, region: &str, entries: u64) {
+        self.region_sync_entries_listed
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .inc_by(entries);
+    }
+
+    pub fn record_region_sync_bytes(&self, region: &str, bytes: u64) {
+        self.region_sync_bytes_fetched
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .inc_by(bytes);
+    }
+
+    pub fn set_region_sync_last_cycle_duration(&self, region: &str, duration: Duration) {
+        self.region_sync_last_cycle_duration_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(duration.as_secs() as i64);
+    }
+
+    pub fn set_peer_clock_skew(&self, peer: &str, skew_seconds: i64) {
+        self.peer_clock_skew_seconds
+            .get_or_create(&SyncPeerLabels {
+                peer: peer.to_owned(),
+            })
+            .set(skew_seconds);
+    }
+
+    /// One series per node: `state="gateway"` is 1 while this node holds the
+    /// role and `state="standby"` while it does not.
+    pub fn update_gateway_role(&self, gateway: bool) {
+        self.gateway_role
+            .get_or_create(&GatewayRoleLabels {
+                state: "gateway".to_owned(),
+            })
+            .set(i64::from(gateway));
+        self.gateway_role
+            .get_or_create(&GatewayRoleLabels {
+                state: "standby".to_owned(),
+            })
+            .set(i64::from(!gateway));
+    }
+
+    pub fn record_gateway_role_change(&self) {
+        self.gateway_role_changes.inc();
     }
 
     pub fn update_segment_fsyncs(&self, total: u64) {
@@ -2459,8 +2832,27 @@ impl Metrics {
         }
     }
 
-    pub fn update_multipart_uploads(&self, count: usize) {
+    pub fn add_multipart_upload_waiter(&self) {
+        self.multipart_upload_waiters.inc();
+    }
+
+    pub fn remove_multipart_upload_waiter(&self) {
+        self.multipart_upload_waiters.dec();
+    }
+
+    pub fn record_multipart_upload_admission(&self, outcome: &str, duration: Duration) {
+        self.multipart_upload_admissions
+            .get_or_create(&MultipartAdmissionLabels {
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+        self.multipart_upload_admission_duration
+            .observe(duration.as_secs_f64());
+    }
+
+    pub fn update_multipart_uploads(&self, count: usize, capacity: usize) {
         self.multipart_uploads.set(count as i64);
+        self.multipart_upload_capacity.set(capacity as i64);
     }
 
     pub fn update_tmp_dir_bytes(&self, bytes: u64) {
@@ -2545,33 +2937,9 @@ impl Metrics {
         }
     }
 
-    pub fn update_backfill_cycle_peers(&self, backfilling: usize, budget_exhausted: usize) {
-        self.backfill_backfilling_peers.set(backfilling as i64);
-        self.backfill_budget_exhausted_peers
-            .set(budget_exhausted as i64);
-    }
-
-    pub fn set_backfill_initial_cycle_mode(&self, mode: i64) {
-        self.backfill_initial_cycle_mode.set(mode);
-    }
-
     pub fn set_backfill_ring_fullness_percent(&self, percent: u64) {
         self.backfill_ring_fullness_percent
             .set(i64::try_from(percent).unwrap_or(i64::MAX));
-    }
-
-    pub fn set_backfill_watermark_age_ms(&self, peer: &str, age_ms: u64) {
-        self.backfill_watermark_age_ms
-            .get_or_create(&BackfillPassPeerLabels {
-                peer: peer.to_owned(),
-            })
-            .set(i64::try_from(age_ms).unwrap_or(i64::MAX));
-    }
-
-    // Zeroed rather than removed when the peer leaves the membership view, the
-    // clear_backfill_pass_progress convention.
-    pub fn clear_backfill_watermark_age(&self, peer: &str) {
-        self.set_backfill_watermark_age_ms(peer, 0);
     }
 
     pub fn record_analytics_event(&self, pipeline: &str, result: &str, count: u64) {
@@ -2604,6 +2972,14 @@ impl Metrics {
     pub fn update_analytics_queue(&self, capacity: usize, depth: usize) {
         self.analytics_queue_capacity.set(capacity as i64);
         self.analytics_queue_depth.set(depth as i64);
+    }
+
+    /// Publish the current number of entries sitting in the analytics
+    /// outbox column family. Called once at startup for now; the follow-up
+    /// outbox forwarder task refreshes it on every drain tick.
+    pub fn update_analytics_outbox_depth(&self, entries: usize) {
+        self.analytics_outbox_depth_entries
+            .set(i64::try_from(entries).unwrap_or(i64::MAX));
     }
 
     pub fn update_analytics_circuit_state(&self, pipeline: &str, state: i64) {
@@ -2762,9 +3138,20 @@ impl Metrics {
             .set(reserved_bytes as i64);
     }
 
-    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+    pub fn update_transient_memory_capacity(
+        &self,
+        capacity_bytes: u64,
+        elastic_capacity_bytes: u64,
+    ) {
         self.memory_transient_capacity_bytes
             .set(capacity_bytes as i64);
+        self.memory_elastic_transient_capacity_bytes
+            .set(elastic_capacity_bytes as i64);
+    }
+
+    pub fn update_elastic_transient_reserved(&self, reserved_bytes: u64) {
+        self.memory_elastic_transient_reserved_bytes
+            .set(reserved_bytes as i64);
     }
 
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {
@@ -3031,10 +3418,6 @@ impl Metrics {
 
     pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
         RolloutMetricsSnapshot {
-            outbox_messages: self
-                .rollout_snapshot
-                .outbox_messages
-                .load(Ordering::Relaxed),
             fd_timeout_count: self
                 .rollout_snapshot
                 .fd_timeout_count
@@ -3043,6 +3426,23 @@ impl Metrics {
                 .rollout_snapshot
                 .peer_connection_failure_count
                 .load(Ordering::Relaxed),
+        }
+    }
+
+    pub fn record_startup_phase(&self, phase: i64) {
+        self.startup_recovery_phase.set(phase);
+    }
+
+    pub fn record_startup_progress_timestamp(&self, timestamp: i64) {
+        self.startup_recovery_last_progress_timestamp_seconds
+            .set(timestamp);
+    }
+
+    pub fn record_startup_work(&self, committed: bool) {
+        if committed {
+            self.startup_recovery_committed_batches.inc();
+        } else {
+            self.startup_recovery_completed_pages.inc();
         }
     }
 
@@ -3067,11 +3467,6 @@ fn records_public_http_metrics(route: &str) -> bool {
         route,
         "/up" | "/ready" | "/status/rollout" | "/metrics" | "/_unmatched"
     ) && !route.starts_with("/_internal/")
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct OutboxLaneLabels {
-    lane: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -3117,6 +3512,31 @@ struct BackfillPassPeerLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncPeerLabels {
+    peer: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncRegionLabels {
+    region: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncReasonLabels {
+    reason: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncLinkLabels {
+    link: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct GatewayRoleLabels {
+    state: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpExceptionLabels {
     route: Cow<'static, str>,
     kind: String,
@@ -3126,6 +3546,17 @@ struct HttpExceptionLabels {
 struct PublicRequestLatencyLabels {
     transport: String,
     route: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ReapiChunkingEventLabels {
+    operation: String,
+    outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ReapiChunkingBytesLabels {
+    kind: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -3335,6 +3766,11 @@ struct ResponseStreamProtocolLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct MultipartAdmissionLabels {
+    outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ResponseStreamAdmissionLabels {
     protocol: String,
     outcome: String,
@@ -3376,6 +3812,38 @@ mod tests {
         assert_eq!(
             std::mem::size_of::<Metrics>(),
             std::mem::size_of::<Arc<MetricsInner>>()
+        );
+    }
+
+    // A damped REAPI action-cache refresh shares the write path's cardinality
+    // and its request rate, so it gets a pre-created counter like the applied
+    // write rather than the label-allocating Family lookup, and it never
+    // reaches write_bytes or the size histogram.
+    #[test]
+    fn damped_reapi_writes_use_a_registered_counter_without_bytes() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_writes_total")
+                && line.contains("producer=\"reapi\"")
+                && line.contains("result=\"damped\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(
+            !rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_bytes_total") && line.contains("damped")
+            }),
+            "a damped refresh stored nothing, so it books no throughput"
+        );
+        assert!(
+            rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_size_bytes_count")
+                    && line.contains("producer=\"reapi\"")
+                    && line.ends_with(" 0")
+            }),
+            "a damped refresh must not land in the stored-size distribution"
         );
     }
 
@@ -4118,6 +4586,8 @@ mod tests {
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_segment_shed_age(7_200.0);
         metrics.record_capacity_eviction_report_dropped();
+        metrics.record_reapi_chunking_event("splice", "ok");
+        metrics.record_reapi_chunking_bytes("logical", 2048);
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -4152,14 +4622,14 @@ mod tests {
         metrics.record_manifest_cache_admission("admitted");
         metrics.record_manifest_cache_evictions("capacity", 1);
         metrics.record_manifest_index_rebuild("ok", Duration::from_millis(3));
-        metrics.update_outbox_messages(4, 3);
-        metrics.update_multipart_uploads(2);
+        metrics.update_multipart_uploads(2, 256);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
+        metrics.update_analytics_outbox_depth(0);
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
@@ -4195,7 +4665,7 @@ mod tests {
         metrics.add_response_stream_waiter("bytestream");
         metrics.record_response_stream_admission("http", "immediate", Duration::from_millis(1));
         metrics.record_memory_pressure_transition("normal", "constrained");
-        metrics.update_background_work_paused("outbox", true);
+        metrics.update_background_work_paused("segment_refresh", true);
         metrics.record_memory_action("manifest_cache_trim");
         metrics.record_memory_action_bytes("manifest_cache_trim", 512);
         metrics.update_snapshot_cache(1_024, 2_048, 1, 2, 3, 256);
@@ -4245,6 +4715,9 @@ mod tests {
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
         assert!(rendered.contains("kura_segment_shed_age_seconds"));
         assert!(rendered.contains("kura_capacity_eviction_reports_dropped_total"));
+        assert!(rendered.contains("kura_reapi_chunking_events_total"));
+        assert!(rendered.contains("operation=\"splice\""));
+        assert!(rendered.contains("kura_reapi_chunking_bytes_total"));
         assert!(rendered.contains("kura_replication_requests_total"));
         assert!(rendered.contains("kura_replication_apply_results_total"));
         assert!(rendered.contains("source=\"replication\""));
@@ -4273,10 +4746,8 @@ mod tests {
         assert!(rendered.contains("kura_manifest_cache_admissions_total"));
         assert!(rendered.contains("kura_manifest_cache_evictions_total"));
         assert!(rendered.contains("kura_manifest_index_rebuilds_total"));
-        assert!(rendered.contains("kura_outbox_messages"));
-        assert!(rendered.contains("kura_outbox_lane_messages{lane=\"bulk\"} 3"));
-        assert!(rendered.contains("kura_outbox_lane_messages{lane=\"metadata\"} 1"));
         assert!(rendered.contains("kura_multipart_uploads"));
+        assert!(rendered.contains("kura_multipart_upload_capacity 256"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
         assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
@@ -4290,6 +4761,7 @@ mod tests {
         assert!(rendered.contains("kura_analytics_queue_capacity"));
         assert!(rendered.contains("kura_analytics_circuit_state"));
         assert!(rendered.contains("kura_analytics_circuit_transitions_total"));
+        assert!(rendered.contains("kura_analytics_outbox_depth_entries 0"));
         assert!(rendered.contains("kura_segment_generation_count"));
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));

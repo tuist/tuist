@@ -1,6 +1,12 @@
 # When available, load the tuist-specific configuration
 try-import %workspace%/.bazelrc.tuist
 
+# Report branch and revision to the build event stream so invocations are
+# attributable to a revision in Tuist. The script emits volatile status keys,
+# so a new commit never invalidates a cached action, and it degrades to
+# omitting keys rather than failing when git is unavailable.
+build --workspace_status_command=./bazel/workspace_status.sh
+
 # Build opt globally: the runtime and e2e images are assembled from this binary, so it must match
 # the optimized binary that ships, and one compilation mode keeps every job on a single warm cache
 # keyspace. Side effect: `bazel test` then runs with debug_assertions off (like `cargo test --release`).
@@ -25,6 +31,13 @@ build --@rules_rust//rust/settings:use_hermetic_macos_sdkroot=false
 
 # Apply the os-specific config blocks below based on the host OS.
 build --enable_platform_specific_config
+
+# Persist only content-addressed downloads and action outputs, never the output base or credentials.
+build:linux --repository_cache=~/.cache/tuist/bazel/repository
+build:linux --disk_cache=~/.cache/tuist/bazel/disk
+build:linux --experimental_disk_cache_gc_max_size=12G
+build:linux --experimental_disk_cache_gc_max_age=7d
+build:linux --experimental_disk_cache_gc_idle_delay=0s
 
 # Applies to every macOS-host build (local dev plus both release binaries — arm64 native and the
 # x86_64 cross below). Bazel's darwin cc toolchain defaults --macos_minimum_os to 10.11,

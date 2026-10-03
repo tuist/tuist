@@ -1,29 +1,37 @@
 package dev.tuist.gradle
 
+import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.File
 import java.lang.management.ManagementFactory
 
 class MachineMetricsCollector(
-    private val sampleIntervalMs: Long = 1000
+    private val sampleIntervalMs: Long = 1000,
+    private val inputTrackingState: InputTrackingState? = null,
+    private val currentTimeMillis: () -> Long = System::currentTimeMillis
 ) {
+    private class Reading(
+        val timestamp: Double,
+        val networkBytesIn: Long,
+        val networkBytesOut: Long,
+        val diskBytesRead: Long,
+        val diskBytesWritten: Long
+    )
+
     private val samples = mutableListOf<MachineMetricSample>()
     @Volatile private var running = false
     private var thread: Thread? = null
     private val osMXBean = ManagementFactory.getOperatingSystemMXBean()
 
-    private var previousNetworkBytesIn = 0L
-    private var previousNetworkBytesOut = 0L
-    private var previousDiskBytesRead = 0L
-    private var previousDiskBytesWritten = 0L
+    private var previousReading: Reading? = null
+    private var readingBeforePrevious: Reading? = null
 
+    @Synchronized
     fun start() {
+        if (running) return
         running = true
-        val initialNetwork = readNetworkBytes()
-        previousNetworkBytesIn = initialNetwork.first
-        previousNetworkBytesOut = initialNetwork.second
-        val initialDisk = readDiskBytes()
-        previousDiskBytesRead = initialDisk.first
-        previousDiskBytesWritten = initialDisk.second
+        previousReading = null
+        readingBeforePrevious = null
+        collectSample()
 
         thread = Thread({
             while (running) {
@@ -40,44 +48,58 @@ class MachineMetricsCollector(
         thread?.start()
     }
 
+    @Synchronized
     fun stop(): List<MachineMetricSample> {
+        if (!running) return synchronized(samples) { samples.toList() }
         running = false
         thread?.interrupt()
         thread?.join(2000)
+        if (thread?.isAlive != true) collectSample(isFinal = true)
         return synchronized(samples) { samples.toList() }
     }
 
-    private fun collectSample() {
-        val timestamp = System.currentTimeMillis() / 1000.0
+    private fun collectSample(isFinal: Boolean = false) {
+        val timestamp = currentTimeMillis() / 1000.0
+        // A final reading shortly after a periodic one replaces it and measures rates from the
+        // reading before, so monitoring reaches the stop time without a tiny rate interval.
+        val replacesPrevious = isFinal && readingBeforePrevious != null &&
+            previousReading?.let { (timestamp - it.timestamp) * 1000 < 200 } == true
+        val baseline = if (replacesPrevious) readingBeforePrevious else previousReading
+        val elapsedSeconds = baseline?.let { timestamp - it.timestamp } ?: 0.0
 
         val cpuUsage = getCpuUsage()
         val memory = getMemoryInfo()
-        val network = readNetworkBytes()
-        val disk = readDiskBytes()
+        val network = withoutInputTracking { readNetworkBytes() }
+        val disk = withoutInputTracking { readDiskBytes() }
 
-        val networkIn = maxOf(0L, network.first - previousNetworkBytesIn)
-        val networkOut = maxOf(0L, network.second - previousNetworkBytesOut)
-        val diskRead = maxOf(0L, disk.first - previousDiskBytesRead)
-        val diskWritten = maxOf(0L, disk.second - previousDiskBytesWritten)
-
-        previousNetworkBytesIn = network.first
-        previousNetworkBytesOut = network.second
-        previousDiskBytesRead = disk.first
-        previousDiskBytesWritten = disk.second
+        fun rate(current: Long, previous: Long?): Long =
+            if (previous != null && elapsedSeconds > 0) (maxOf(0L, current - previous) / elapsedSeconds).toLong() else 0L
 
         val sample = MachineMetricSample(
             timestamp = timestamp,
             cpuUsagePercent = cpuUsage,
             memoryUsedBytes = memory.first,
             memoryTotalBytes = memory.second,
-            networkBytesIn = networkIn,
-            networkBytesOut = networkOut,
-            diskBytesRead = diskRead,
-            diskBytesWritten = diskWritten
+            networkBytesIn = rate(network.first, baseline?.networkBytesIn),
+            networkBytesOut = rate(network.second, baseline?.networkBytesOut),
+            diskBytesRead = rate(disk.first, baseline?.diskBytesRead),
+            diskBytesWritten = rate(disk.second, baseline?.diskBytesWritten)
         )
+        readingBeforePrevious = baseline
+        previousReading = Reading(timestamp, network.first, network.second, disk.first, disk.second)
 
         synchronized(samples) {
+            if (replacesPrevious) samples.removeAt(samples.lastIndex)
             samples.add(sample)
+        }
+    }
+
+    private fun <T> withoutInputTracking(action: () -> T): T {
+        inputTrackingState?.disableForCurrentThread()
+        return try {
+            action()
+        } finally {
+            inputTrackingState?.restoreForCurrentThread()
         }
     }
 

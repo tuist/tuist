@@ -38,6 +38,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     public init(
         contentHasher: ContentHashing = ContentHasher()
     ) {
+        let contentHasher = CachedContentHasher(contentHasher: contentHasher)
         self.init(
             graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
             contentHasher: contentHasher,
@@ -88,7 +89,15 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         }
 
         let version = versionFetcher.version()
-        let hashes = try await graphContentHasher.contentHashes(
+        // Xcode releases can ship the same compiler with different SDKs, and binaries built against one
+        // SDK don't import under another, so the Xcode build is hashed next to the compiler version.
+        let additionalStrings = [
+            resolvedConfiguration,
+            try await SwiftVersionProvider.current.swiftlangVersion(),
+            try await XcodeController.current.selectedBuildVersion(),
+            version.rawValue,
+        ]
+        var hashes = try await graphContentHasher.contentHashes(
             for: hashingGraph,
             include: {
                 isGraphTargetHashable(
@@ -97,12 +106,18 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
                 )
             },
             destination: destination,
-            additionalStrings: [
-                resolvedConfiguration,
-                try await SwiftVersionProvider.current.swiftlangVersion(),
-                version.rawValue,
-            ]
+            additionalStrings: additionalStrings
         )
+
+        if !Environment.current.isLegacyModuleCacheEnabled {
+            let fingerprints = try await BinaryCacheFingerprintHasher(contentHasher: contentHasher).fingerprints(
+                graph: hashingGraph, targets: Set(hashes.keys),
+                additionalStrings: additionalStrings, targetHashes: hashes
+            )
+            for (target, values) in fingerprints {
+                hashes[target]?.binaryCacheFingerprints = values
+            }
+        }
 
         return Dictionary(uniqueKeysWithValues: hashes.map { target, hash in
             guard let project = graph.projects[target.path],

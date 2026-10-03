@@ -1,9 +1,9 @@
 defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
   @moduledoc ~S"""
   Marks responses whose URL is reachable without sign-in by setting the
-  `x-tuist-public: 1` response header. A page is public when the project or
-  account it lives under has `visibility: :public`, or when a preview is
-  itself public.
+  `x-tuist-public: 1` response header. A page is public when it belongs to
+  the marketing site, when the project or account it lives under has
+  `visibility: :public`, or when a preview is itself public.
 
   Cloudflare's Advanced Rate Limiting rule keys its counter on this header
   (counting expression `http.response.headers["x-tuist-public"][0] eq "1"`),
@@ -31,12 +31,14 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
 
   @header "x-tuist-public"
 
+  def mark_public_marketing_page(conn, _opts), do: put_public_header(conn)
+
   def mark_public_project_page(
         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
         _opts
       ) do
     case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
-      %{visibility: :public} -> put_public_header(conn)
+      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
       _ -> conn
     end
   end
@@ -45,7 +47,7 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
 
   def mark_public_account_page(%{path_params: %{"account_handle" => account_handle}} = conn, _opts) do
     case Accounts.get_account_by_handle(account_handle) do
-      %{visibility: :public} -> put_public_header(conn)
+      %{visibility: :public} -> conn |> put_public_header() |> enable_robot_indexing()
       _ -> conn
     end
   end
@@ -69,4 +71,12 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlug do
   def mark_public_preview_page(conn, _opts), do: conn
 
   defp put_public_header(conn), do: put_resp_header(conn, @header, "1")
+
+  defp enable_robot_indexing(conn) do
+    if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
+      put_resp_header(conn, "x-robots-tag", "index, follow")
+    else
+      conn
+    end
+  end
 end

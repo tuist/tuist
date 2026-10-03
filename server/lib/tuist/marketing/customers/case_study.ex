@@ -36,7 +36,9 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
     basename = Path.basename(filename, ".md")
     slug = "/customers/#{basename}"
     story_url = attrs["story_url"] || slug
-    og_image_path = attrs["og_image_path"] || default_og_image_path(basename)
+    # Only front matter names a social image; without one the web layer
+    # derives a generated card (TuistWeb.Marketing.MarketingCustomerCovers).
+    og_image_path = attrs["og_image_path"]
     excerpt = attrs["excerpt"]
 
     struct!(__MODULE__,
@@ -85,16 +87,6 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
 
   def local_page?(%__MODULE__{} = case_study), do: not external?(case_study)
 
-  defp default_og_image_path(basename) do
-    case_study_og_image_path = "/marketing/images/og/customers/#{basename}.jpg"
-
-    if static_asset_exists?(case_study_og_image_path) do
-      case_study_og_image_path
-    else
-      "/marketing/images/og/customers.jpg"
-    end
-  end
-
   defp normalize_translations(translations) do
     Map.new(translations, fn {locale, translation} ->
       normalized_translation =
@@ -120,6 +112,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
     end
   end
 
+  defp maybe_localized_og_image_path(nil, _locale), do: nil
   defp maybe_localized_og_image_path(og_image_path, "en"), do: og_image_path
 
   defp maybe_localized_og_image_path(og_image_path, locale) do

@@ -25,6 +25,7 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.RemoteURL
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
@@ -69,7 +70,7 @@ defmodule Tuist.VCS do
         "https://app.bitrise.io/build/#{run_id}"
 
       {"circleci", project_handle} when project_handle != "" ->
-        "https://app.circleci.com/pipelines/github/#{project_handle}/#{run_id}"
+        "https://app.circleci.com/jobs/github/#{project_handle}/#{run_id}"
 
       {"buildkite", project_handle} when project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{run_id}"
@@ -354,22 +355,36 @@ defmodule Tuist.VCS do
     schedule_in = flush_interval_seconds + 1
 
     args
+    |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
 
   @doc """
+  Returns the pull request number of a `refs/pull/<number>/<suffix>` git ref,
+  such as `refs/pull/23958/merge`, or `nil` for any other ref.
+  """
+  def pull_request_number_from_git_ref("refs/pull/" <> rest) do
+    case Integer.parse(rest) do
+      {number, ""} when number > 0 -> number
+      {number, "/" <> _suffix} when number > 0 -> number
+      _ -> nil
+    end
+  end
+
+  def pull_request_number_from_git_ref(_git_ref), do: nil
+
+  @doc """
   Creates a comment on a VCS issue/pull request.
   """
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
-    with true <- String.starts_with?(git_ref, "refs/pull/"),
+    with issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
            get_github_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
       client = get_client_for_provider(:github)
-      issue_id = get_issue_id_from_git_ref(git_ref)
 
       client.create_comment(%{
         repository_full_handle: repository_full_handle,
@@ -378,7 +393,7 @@ defmodule Tuist.VCS do
         installation: installation
       })
     else
-      false -> {:error, :not_pull_request}
+      nil -> {:error, :not_pull_request}
       {:error, :not_found} -> {:error, :repository_not_connected}
     end
   end
@@ -432,14 +447,13 @@ defmodule Tuist.VCS do
     with true <- git_commit_sha != "",
          true <- not is_nil(git_ref) and git_ref != "",
          true <- not is_nil(repository_full_handle),
-         true <- String.starts_with?(git_ref, "refs/pull/"),
+         issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
            get_github_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
       client = get_client_for_provider(:github)
-      issue_id = get_issue_id_from_git_ref(git_ref)
 
       vcs_comment_body =
         get_vcs_comment_body(%{
@@ -658,7 +672,7 @@ defmodule Tuist.VCS do
       #{Enum.map(bundles, fn bundle ->
         {install_size_deviation, download_size_deviation} = project_bundle_size_deviations(project, bundle)
         """
-        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
+        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | #{commit_link(bundle.git_commit_sha, git_remote_url_origin)} | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
         """
       end)}
       """
@@ -704,10 +718,10 @@ defmodule Tuist.VCS do
   defp format_bundle_download_size(nil), do: dgettext("dashboard_account", "Unknown")
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
-  defp get_issue_id_from_git_ref(git_ref) do
-    [issue_id, _merge] = git_ref |> String.split("/") |> Enum.take(-2)
-    issue_id
-  end
+  defp commit_link(nil, _git_remote_url_origin), do: ""
+
+  defp commit_link(git_commit_sha, git_remote_url_origin),
+    do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
 
   defp get_git_ref_pattern(git_ref) do
     case String.split(git_ref, "/") do
@@ -747,12 +761,11 @@ defmodule Tuist.VCS do
       | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
       | - | - |#{if contains_ipas, do: " - |", else: ""}
       #{Enum.map(previews, fn preview ->
-        git_commit_sha = preview.git_commit_sha
         preview_url = preview_url.(%{project: project, preview: preview})
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
@@ -841,29 +854,38 @@ defmodule Tuist.VCS do
          test_run_url: test_run_url,
          project: project
        }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+    metrics_map = project.id |> TestsAnalytics.test_runs_metrics(test_runs) |> Map.new(&{&1.test_run_id, &1})
+    runs = Enum.map(test_runs, &{&1, Map.fetch!(metrics_map, &1.id)})
+    any_run? = fn field -> Enum.any?(runs, fn {_test_run, metrics} -> Map.fetch!(metrics, field) end) end
 
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
+    columns =
+      Enum.filter(
+        [
+          {"Scheme", true,
+           fn {test_run, _metrics} ->
+             scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+             "[#{scheme}](#{test_run_url.(%{project: project, test_run: test_run})})"
+           end},
+          {"Status", true, fn {test_run, _metrics} -> get_test_run_status_text(test_run) end},
+          {"Module cache hit rate", any_run?.(:module_cache_hit_rate),
+           fn {_test_run, metrics} -> metrics.module_cache_hit_rate || "-" end},
+          {"Xcode cache hit rate", any_run?.(:xcode_cache_hit_rate),
+           fn {_test_run, metrics} -> metrics.xcode_cache_hit_rate || "-" end},
+          {"Ran test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
+          {"Commit", true, fn {test_run, _metrics} -> commit_link(test_run.git_commit_sha, git_remote_url_origin) end}
+        ],
+        fn {_header, shown?, _cell} -> shown? end
+      )
 
-        git_commit_sha = test_run.git_commit_sha
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-
-        cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-        skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
-        ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
-
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
-      end)
-
-    "| Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
-      rows
+    "| #{Enum.map_join(columns, " | ", fn {header, _, _} -> header end)} |\n" <>
+      "|#{Enum.map_join(columns, "|", fn _ -> ":-:" end)}|\n" <>
+      Enum.map_join(runs, "", fn run -> "| #{Enum.map_join(columns, " | ", fn {_, _, cell} -> cell.(run) end)} |\n" end)
   end
+
+  defp test_modules_text(%{has_selective_testing_data: true} = metrics),
+    do: "#{metrics.ran_test_modules}/#{metrics.ran_test_modules + metrics.skipped_test_modules}"
+
+  defp test_modules_text(metrics), do: metrics.ran_test_modules
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
@@ -880,12 +902,11 @@ defmodule Tuist.VCS do
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
 
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
         total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
 
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Project | Status | Tests | Commit |\n" <>
@@ -907,12 +928,11 @@ defmodule Tuist.VCS do
     rows =
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         target_patterns = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
         total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
 
-        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Target patterns | Status | Tests | Commit |\n" <>
@@ -935,9 +955,10 @@ defmodule Tuist.VCS do
   defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
     # Batched lookup: one round-trip against `test_case_runs_by_test_run` for
     # every test run on the PR instead of N. This is the dominant query in the
-    # post-CI burst when several schemes report at once.
+    # post-CI burst when several schemes report at once. The comment only lists
+    # test cases, so the runs' failures and repetitions are not loaded.
     flaky_runs_by_test_run_id =
-      test_runs |> Enum.map(& &1.id) |> Tests.get_flaky_runs_for_test_runs()
+      test_runs |> Enum.map(& &1.id) |> Tests.get_flaky_runs_for_test_runs(details: false)
 
     flaky_tests_by_run =
       test_runs
@@ -1276,7 +1297,7 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration)
 
-        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Scheme | Status | Duration | Commit |\n" <>
@@ -1297,7 +1318,7 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
-        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Project | Status | Duration | Commit |\n" <>

@@ -23,6 +23,11 @@ defmodule Tuist.Runners.WorkflowJob do
   @primary_key {:workflow_job_id, :integer, []}
 
   schema "runner_workflow_jobs" do
+    # Which CI the job came from: `github` for a `workflow_job` webhook,
+    # `buildkite` for a job reserved off the Stacks API. Everything past
+    # the claim treats the two alike, so this exists for the paths that
+    # cannot: the mint, the fork check, and the dashboard's link out.
+    field :provider, :string, default: "github"
     field :fleet_name, :string
     field :status, :string
     field :conclusion, :string

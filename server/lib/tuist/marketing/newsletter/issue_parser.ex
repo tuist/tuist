@@ -3,6 +3,11 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
   This module is responsible for parsing changelog entries from markdown files.
   """
 
+  # Links inside the issue fragments carry their colour inline (Gmail drops
+  # <style> blocks): the primary label colour of the marketing palette,
+  # underlined, so they read the same in the inbox and on the web page.
+  @link_style "color: #191a1b; text-decoration: underline;"
+
   @plain_html_template Solid.parse!(~s"""
                        <h1>{{ full_title }}</h1>
                        <h2>Welcome to issue {{ number }}</h2>
@@ -102,46 +107,43 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
     end)
   end
 
-  defp md_to_html(md, opts \\ []) do
-    a_color = Keyword.get(opts, :a_color, "#622ed4")
-
+  defp md_to_html(md) do
     # Gmail doesn't support styling through <style></style>, so when converting markdown to HTML, we have to apply the right
     # styling at the element level by using "style" attributes.
     md
     |> MDEx.to_html!(parse: [smart: false], render: [unsafe: true])
     |> Floki.parse_fragment!()
-    |> style_email_nodes(a_color)
+    |> style_email_nodes()
     |> Floki.raw_html()
   end
 
-  defp style_email_nodes(nodes, a_color) do
-    Enum.map(nodes, &style_email_node(&1, a_color, false))
+  defp style_email_nodes(nodes) do
+    Enum.map(nodes, &style_email_node(&1, false))
   end
 
-  defp style_email_node({"pre", attrs, children}, a_color, _inside_pre) do
-    {"pre", attrs, Enum.map(children, &style_email_node(&1, a_color, true))}
+  defp style_email_node({"pre", attrs, children}, _inside_pre) do
+    {"pre", attrs, Enum.map(children, &style_email_node(&1, true))}
   end
 
-  defp style_email_node({"a", attrs, children}, a_color, inside_pre) do
-    {"a", put_attribute(attrs, "style", "color: #{a_color};"),
-     Enum.map(children, &style_email_node(&1, a_color, inside_pre))}
+  defp style_email_node({"a", attrs, children}, inside_pre) do
+    {"a", put_attribute(attrs, "style", @link_style), Enum.map(children, &style_email_node(&1, inside_pre))}
   end
 
-  defp style_email_node({"blockquote", attrs, children}, a_color, inside_pre) do
+  defp style_email_node({"blockquote", attrs, children}, inside_pre) do
     {"blockquote", put_attribute(attrs, "style", "font-style: italic;"),
-     Enum.map(children, &style_email_node(&1, a_color, inside_pre))}
+     Enum.map(children, &style_email_node(&1, inside_pre))}
   end
 
-  defp style_email_node({"code", attrs, children}, a_color, false) do
-    {"code", put_attribute(attrs, "class", "inline"), Enum.map(children, &style_email_node(&1, a_color, false))}
+  defp style_email_node({"code", attrs, children}, false) do
+    {"code", put_attribute(attrs, "class", "inline"), Enum.map(children, &style_email_node(&1, false))}
   end
 
-  defp style_email_node({tag, attrs, children}, a_color, inside_pre) do
-    {tag, attrs, Enum.map(children, &style_email_node(&1, a_color, inside_pre))}
+  defp style_email_node({tag, attrs, children}, inside_pre) do
+    {tag, attrs, Enum.map(children, &style_email_node(&1, inside_pre))}
   end
 
-  defp style_email_node(text, _a_color, false) when is_binary(text), do: String.replace(text, "\n", " ")
-  defp style_email_node(node, _a_color, _inside_pre), do: node
+  defp style_email_node(text, false) when is_binary(text), do: String.replace(text, "\n", " ")
+  defp style_email_node(node, _inside_pre), do: node
 
   defp put_attribute(attrs, name, value) do
     case List.keytake(attrs, name, 0) do
@@ -154,9 +156,7 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
   end
 
   defp map_hero(hero) do
-    Map.replace_lazy(hero, "subtitle", fn subtitle_md ->
-      md_to_html(subtitle_md, a_color: "#622ed4")
-    end)
+    Map.replace_lazy(hero, "subtitle", &md_to_html/1)
   end
 
   # The .heex format is designed for the Phoenix.LiveView.Engine to track changes

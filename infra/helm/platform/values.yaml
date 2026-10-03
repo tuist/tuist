@@ -103,14 +103,70 @@ ingress-nginx:
           prometheus.io/port: "10254"
           prometheus.io/path: /metrics
 
-kura-eu-central-ingress-nginx:
+# Ingress controller for gRPC backends that run in this cluster, such as the
+# Once events listener on the Tuist server.
+#
+# The main controller above turns upstream connection reuse off, and
+# ingress-nginx then adds `Connection: close` to every upstream request. HTTP/2
+# forbids that header, and a strict server such as Cowboy, which serves the Once
+# events listener, answers it by resetting the stream with PROTOCOL_ERROR, which
+# nginx reports as "upstream rejected request with error 1". A proxy hop in
+# between does not help, because nginx and other HTTP/2 servers reject the
+# header too. With upstream keepalive left on, ingress-nginx sends no
+# `Connection` header, which is how the regional Kura gateways serve gRPC.
+#
+# This controller exists so the main one can keep its setting for the HTTP
+# backends that need it. Do not copy `upstream-keepalive-connections: "0"` here.
+grpc-ingress-nginx:
   enabled: false
   controller:
     replicaCount: 2
-    electionID: kura-eu-central-ingress-nginx-leader
-    ingressClass: kura-eu-central
+    electionID: grpc-ingress-nginx-leader
+    ingressClass: nginx-grpc
     ingressClassResource:
-      name: kura-eu-central
+      name: nginx-grpc
+      controllerValue: k8s.io/grpc-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      # Provider-specific LB annotations are set via overlays, as for the main
+      # controller (see values-hetzner.yaml).
+      annotations: {}
+    # Admission stays on the main controller only, as for the Kura gateways: the
+    # validator is cluster-wide, and a second one would run the same checks.
+    admissionWebhooks:
+      enabled: false
+    config:
+      use-proxy-protocol: "true"
+      # Explicit so the intent is visible. Anything above zero stops the
+      # `Connection` header, and 320 is the controller default.
+      upstream-keepalive-connections: "320"
+      # Below the idle timeout of the backends, as for the Kura gateways, so a
+      # reused connection is not closed under a request.
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+          prometheus.io/path: /metrics
+
+kura-eu-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-west-ingress-nginx-leader
+    ingressClass: kura-eu-west
+    ingressClassResource:
+      name: kura-eu-west
+      # The region was renamed from eu-central. This value is the controller's
+      # identity on an IngressClass, and Kubernetes makes that field immutable,
+      # so it keeps the string the kura-eu-central class was created with:
+      # changing it would make the upgrade patch an existing class and fail.
+      # It is an opaque identifier that nothing displays.
       controllerValue: k8s.io/kura-eu-central-ingress-nginx
     publishService:
       enabled: true
@@ -126,7 +182,7 @@ kura-eu-central-ingress-nginx:
     # the same validator for the Kura Ingress annotations.
     admissionWebhooks: &kuraGatewayAdmissionWebhooks
       enabled: false
-    # Anchored so all three regional Kura gateways share ONE nginx config
+    # Anchored so every regional Kura gateway shares ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
     # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
@@ -187,7 +243,7 @@ kura-ca-east-ingress-nginx:
       annotations: {}
     admissionWebhooks: *kuraGatewayAdmissionWebhooks
     # Shares the one anchored regional Kura nginx config (defined in the
-    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # eu-west block above); see TestGatewayNginxConfigMatchesChart on why
     # these cannot drift from the dedicated-gateway ConfigMap.
     config: *kuraGatewayNginxConfig
     metrics:
@@ -255,6 +311,83 @@ kura-ap-southeast-ingress-nginx:
     metrics:
       enabled: true
 
+# Declared while the region is gated off everywhere, for the same reason
+# kura-ap-southeast is: a region whose ingress class no controller declares has
+# its Ingresses go unclaimed the moment it is switched on.
+kura-sa-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-sa-west-ingress-nginx-leader
+    ingressClass: kura-sa-west
+    ingressClassResource:
+      name: kura-sa-west
+      controllerValue: k8s.io/kura-sa-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-eu-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-east-ingress-nginx-leader
+    ingressClass: kura-eu-east
+    ingressClassResource:
+      name: kura-eu-east
+      controllerValue: k8s.io/kura-eu-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-central-ingress-nginx-leader
+    ingressClass: kura-us-central
+    ingressClassResource:
+      name: kura-us-central
+      controllerValue: k8s.io/kura-us-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Lets the regional Kura gateways above reach Kura pods on the other boxes of a
+# multi-box region. Enable it wherever a `kura-*-ingress-nginx` gateway runs
+# host-network; see templates/kura-gateway-network-policy.yaml for why the
+# per-instance NetworkPolicy cannot express this on its own.
+kuraGatewayNetworkPolicy:
+  enabled: false
+  # Namespace kura-controller creates KuraInstance workloads in
+  # (`kuraController.namespace` in the tuist chart).
+  namespace: kura
+  port: 4000
+  # kura-controller's `gatewayGRPCPort`, the gRPC-only port the gRPC Ingress
+  # routes to once an instance's pods serve it.
+  grpcPort: 4001
+
 external-dns:
   enabled: true
   provider: cloudflare
@@ -269,6 +402,18 @@ external-dns:
   # write records under tuist.dev. The bootstrap task overrides this with
   # "<cluster-name>-platform".
   txtOwnerId: tuist-platform
+  # Sync about 5s after a source changes (external-dns fixes that delay; a
+  # lower --min-event-sync-interval does not shorten it) instead of only on the
+  # 1m interval. A new Kura instance's DNSEndpoint is the last step before its
+  # endpoint can be handed out, and waiting for the next interval was most of
+  # the time a cold instance took to serve.
+  triggerLoopOnEvent: true
+  extraArgs:
+    # Every sync lists the whole zone. At the default 100 records a page that is
+    # a dozen Cloudflare API calls per sync, which syncing on events multiplies;
+    # at 5,000 it is one.
+    - --cloudflare-dns-records-per-page=5000
+    - --exclude-domains=cache.tuist.dev
   # Limit which records external-dns will touch; be explicit for prod safety.
   domainFilters:
     - tuist.dev
@@ -472,9 +617,7 @@ ciliumEgressGateway:
 # permissions. The tuist-preview overlay enables it.
 previewJanitor:
   enabled: false
-  # Runs after preview-sweep.yml's on-the-hour schedule and 15 minute timeout,
-  # so the external workflow gets first chance to run helm uninstall.
-  schedule: "20 * * * *"
+  schedule: "0 * * * *"
   suspend: false
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -506,3 +649,56 @@ clusterIssuer:
   enabled: true
   name: letsencrypt-cloudflare
   server: https://acme-v02.api.letsencrypt.org/directory
+
+# Same regional gateway as managed Kura, reached directly over the runner PN.
+# The per-account ingress restricts both HTTP and gRPC to clientCIDRs. Never
+# trust forwarded client IPs here: there is no trusted proxy in front of nginx.
+kura-runners-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    electionID: kura-runners-ingress-nginx-leader
+    ingressClass: kura-runners
+    ingressClassResource:
+      name: kura-runners
+      controllerValue: k8s.io/kura-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true
+
+# Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
+cacheDNS:
+  enabled: false
+  hostedZoneId: ""
+  ownerId: ""
+  image: registry.k8s.io/external-dns/external-dns:v0.15.1
+  secretName: cache-dns-writer
+  solverSecretName: cache-dns-solver
+  externalSecret:
+    enabled: false
+    storeName: onepassword
+    writerItem: ""
+    solverItem: ""

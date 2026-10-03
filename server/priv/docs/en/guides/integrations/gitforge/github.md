@@ -36,7 +36,6 @@ No additional Tuist server configuration is needed; the manifest flow generates 
 >
 > On the hosted Tuist server (`https://tuist.dev`), the GitHub Enterprise Server integration is available exclusively to organizations on the **Enterprise** plan. Self-hosted Tuist deployments can use it on any plan.
 
-
 ## Pull/merge request comments {#pull-merge-request-comments}
 
 The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
@@ -47,7 +46,6 @@ The GitHub app posts a Tuist run report, which includes a summary of the PR, inc
 > **Requirements**
 >
 > The comment is only posted when your CI runs are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
-
 
 > [!NOTE]
 > **Github_ref**

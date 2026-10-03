@@ -14,6 +14,12 @@ connector:
   tags:
     - "tag:tuist-k8s-production"
 
+tailnetIngress:
+  enabled: true
+  proxyGroup:
+    tags:
+      - "tag:tuist-k8s-production"
+
 macminiEgress:
   enabled: true
   proxyGroup:

@@ -73,8 +73,26 @@ resolve_host_port() {
 resolve_http_node() {
   local prefix="$1" service="$2" container_port="${3:-4000}" port
   port="$(resolve_host_port "$service" "$container_port")"
+  if [ -z "$port" ]; then
+    report_stopped_service "$service"
+  fi
   printf -v "${prefix}_PORT" '%s' "$port"
   printf -v "${prefix}_URL" 'http://localhost:%s' "$port"
+}
+
+# Print why SERVICE's container is not running to stderr, which shellspec
+# attaches to the failing example.
+report_stopped_service() {
+  local service="$1" container
+  container="$(dc ps -aq "$service" | head -n1)"
+  if [ -z "$container" ]; then
+    printf '%s has no container\n' "$service" >&2
+    return 0
+  fi
+  docker inspect --format \
+    "${service}: status={{.State.Status}} exit_code={{.State.ExitCode}} oom_killed={{.State.OOMKilled}} error={{.State.Error}}" \
+    "$container" >&2
+  dc logs --no-color --tail 40 "$service" >&2
 }
 
 compose_teardown() {
@@ -187,6 +205,18 @@ wait_for_http() {
 
   printf 'Timed out waiting for %s\n' "$url" >&2
   return 1
+}
+
+# `/up` alone only proves the process is alive: the bootstrap listener answers it
+# with 200 throughout store recovery while every cache route is short-circuited
+# with a plain-text 503 that never reaches the serving router or its metrics
+# middleware, so traffic driven at that point is neither served nor counted.
+# Gate on `/ready` before seeding or measuring a node. Joining nodes observed
+# mid-backfill are deliberately excluded: their readiness latches on ring
+# fullness, so those waits stay on `/up`.
+wait_for_node_ready() {
+  wait_for_http "$1/up" 60 1 || return 1
+  wait_for_status "$1/ready" 200 90 1 >/dev/null || return 1
 }
 
 wait_for_status() {
@@ -443,6 +473,43 @@ bazel_build() {
       --remote_cache="grpc://127.0.0.1:${grpc_port}" \
       --remote_instance_name="${instance_name}" \
       --remote_upload_local_results=true \
+      --remote_download_outputs=all \
+      --show_result=0 \
+      --noshow_loading_progress \
+      --noshow_progress
+  )
+}
+
+create_chunked_bazel_workspace() {
+  local dir="$1"
+  local marker="$2"
+
+  mkdir -p "$dir"
+  printf '%s\n' 'module(name = "kura_bazel_chunking_demo")' >"$dir/MODULE.bazel"
+  printf '%s\n' \
+    'genrule(' \
+    '    name = "large_output",' \
+    '    outs = ["large-output.bin"],' \
+    "    cmd = \"printf '${marker}' > \$@ && dd if=/dev/zero bs=1048576 count=8 >> \$@ 2>/dev/null\"," \
+    ')' >"$dir/BUILD.bazel"
+}
+
+bazel_build_chunked() {
+  local dir="$1"
+  local grpc_port="$2"
+  local instance_name="$3"
+  local upload_local_results="${4:-true}"
+  local bazel_path
+  bazel_path="$(mise exec -- which bazel)"
+
+  (
+    cd "$dir"
+    "$bazel_path" \
+      build //:large_output \
+      --remote_cache="grpc://127.0.0.1:${grpc_port}" \
+      --remote_instance_name="${instance_name}" \
+      --experimental_remote_cache_chunking \
+      --remote_upload_local_results="${upload_local_results}" \
       --remote_download_outputs=all \
       --show_result=0 \
       --noshow_loading_progress \

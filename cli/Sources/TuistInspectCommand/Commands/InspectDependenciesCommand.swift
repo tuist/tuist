@@ -3,6 +3,12 @@
     import TuistEnvKey
     import TuistSupport
 
+    enum DependencyInspectionOutputFormat: String, CaseIterable, ExpressibleByArgument {
+        case text
+        case summary
+        case json
+    }
+
     struct InspectDependenciesCommand: AsyncParsableCommand {
         static var configuration: CommandConfiguration {
             CommandConfiguration(
@@ -26,6 +32,18 @@
         )
         var only: [DependencyInspectionType] = []
 
+        @Option(
+            name: .long,
+            help: "The output format. Available options: \(DependencyInspectionOutputFormat.allCases.map(\.rawValue).joined(separator: ", "))."
+        )
+        var output: DependencyInspectionOutputFormat = .text
+
+        @Flag(
+            name: .long,
+            help: "Output the result as JSON. Alias for '--output json'."
+        )
+        var json: Bool = false
+
         @OptionGroup
         var loggingOptions: LoggingOptions
 
@@ -37,7 +55,11 @@
             }
 
             try await InspectDependenciesCommandService()
-                .run(path: path, inspectionTypes: inspectionTypes)
+                .run(
+                    path: path,
+                    inspectionTypes: inspectionTypes,
+                    output: json ? .json : output
+                )
         }
     }
 #endif

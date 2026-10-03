@@ -10,12 +10,16 @@ defmodule TuistWeb.Router do
   import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
+  alias TuistWeb.GoogleOneTap
+  alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
+  alias TuistWeb.Plugs.PublicPageChallengePlug
+  alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
@@ -42,19 +46,22 @@ defmodule TuistWeb.Router do
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
 
-    # Deliberately reads the env-var toggle directly rather than the
-    # flag-aware `TuistWeb.Turnstile.required?/0`. This plug feeds the
+    # Deliberately reads the env-var toggles directly rather than the
+    # flag-aware wrappers. This plug feeds the
     # `:content_security_policy` pipeline, which the app, marketing, docs,
     # image and ueberauth pipelines all use, so a per-request
-    # `FunWithFlags.enabled?(:turnstile_kill_switch)` would fire on every
-    # page load site-wide for a widget only two LiveViews ever render — and
+    # `FunWithFlags.enabled?(...)` would fire on every page load
+    # site-wide for a widget only a handful of routes ever render — and
     # the underlying store `raise`s on a cold cache during a Postgres blip,
     # which would 500 pages that previously had no DB dependency here.
-    # Flipping the kill switch still turns off the widget and the verify
-    # path everywhere immediately; the only thing left behind is a CSP
-    # source pointing at a host nothing loads from.
+    # Flipping either kill switch still turns off the widget and the
+    # verify path everywhere immediately; the only thing left behind is
+    # a CSP source pointing at a host nothing loads from.
     turnstile_source =
-      if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
+      if Tuist.Environment.turnstile_required?() or
+           Tuist.Environment.public_page_challenge_required?(),
+         do: " https://challenges.cloudflare.com",
+         else: ""
 
     [
       frame_ancestors: "'self'",
@@ -67,11 +74,46 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
-      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
+      connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
+  end
+
+  # Preview pages can be embedded in iframes on other sites (a pull request
+  # description, a wiki, a design tool). Framing is governed by the content
+  # security policy's frame-ancestors, which :browser_app sets to 'self'; this
+  # pipeline re-issues the policy with it open, so it has to run after
+  # :browser_app. Session cookies are SameSite=Lax, so an embedded page renders
+  # signed out: only previews the visitor could open anyway show, and nothing
+  # in the frame acts with the visitor's session.
+  pipeline :embeddable do
+    plug :allow_embedding
+  end
+
+  def allow_embedding(conn, _opts) do
+    put_content_security_policy(conn, Keyword.put(csp_opts(conn), :frame_ancestors, "*"))
+  end
+
+  def google_one_tap_content_security_policy(conn, _opts) do
+    if GoogleOneTap.enabled?(conn.assigns[:current_user]) do
+      sources = [
+        script_src_elem: "https://accounts.google.com/gsi/client",
+        style_src_elem: "https://accounts.google.com/gsi/style",
+        frame_src: "https://accounts.google.com/gsi/",
+        connect_src: "https://accounts.google.com/gsi/"
+      ]
+
+      policy =
+        Enum.reduce(sources, csp_opts(conn), fn {directive, source}, opts ->
+          Keyword.update!(opts, directive, &(&1 <> " " <> source))
+        end)
+
+      put_content_security_policy(conn, policy)
+    else
+      conn
+    end
   end
 
   pipeline :browser_app do
@@ -95,6 +137,20 @@ defmodule TuistWeb.Router do
     plug SentryContextPlug
     plug ObservabilityContextPlug
     plug :content_security_policy
+  end
+
+  pipeline :google_one_tap do
+    plug :google_one_tap_content_security_policy
+  end
+
+  # Marketing pages are stored by shared caches without Set-Cookie, so the
+  # CSRF token embedded in the HTML belongs to whichever session produced the
+  # cached copy and never validates for the visitors it is served to. Requests
+  # posted from those pages prove same-origin through browser-set headers
+  # instead. Pipe it ahead of a pipeline that plugs :protect_from_forgery, and
+  # only through scopes that hold nothing but the routes meant to be exempt.
+  pipeline :same_origin_csrf_exemption do
+    plug SameOriginCSRFExemptionPlug
   end
 
   pipeline :browser_app_image do
@@ -158,11 +214,21 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
-  pipeline :browser_marketing do
+  pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
+  end
+
+  # The newsletter signup form submits with `Accept: application/json`.
+  pipeline :browser_marketing_form do
+    plug :put_request_kind, "marketing"
+    plug :accepts, ["html", "json"]
+  end
+
+  pipeline :browser_marketing do
     plug :enable_robot_indexing
+    plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
@@ -176,9 +242,11 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
     plug :assign_current_path
     plug :content_security_policy
+    plug :google_one_tap_content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
+    plug TuistWeb.Marketing.Preferences
   end
 
   pipeline :browser_docs do
@@ -233,9 +301,9 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
-    # authentication because the grant is honoured only for the operator it
-    # was minted for.
-    plug :accept_operator_grant_header
+    # authentication because the elevation belongs to the operator behind the
+    # token.
+    plug :accept_atlas_identity_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -248,6 +316,10 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
     plug SentryContextPlug
     plug ObservabilityContextPlug
+  end
+
+  pipeline :ops_api do
+    plug TuistWeb.Authorization, [:current_user, :read, :ops]
   end
 
   pipeline :scim_api do
@@ -293,6 +365,9 @@ defmodule TuistWeb.Router do
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
     redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
     redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
+    # The flaky-tests and test-insights pages folded into the tests page.
+    redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
+    redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
@@ -305,9 +380,17 @@ defmodule TuistWeb.Router do
     get "/sitemap.xml", MarketingController, :sitemap, metadata: @marketing_route_metadata
   end
 
+  scope "/", TuistWeb.Marketing do
+    pipe_through [:non_authenticated_api]
+
+    # Steps for the build timeline embedded in the Bazel announcement post.
+    get "/blog/bazel/timeline.json", BazelShowcaseController, :timeline, metadata: %{type: :marketing, robots_txt: false}
+  end
+
   scope "/" do
     pipe_through [
       :open_api,
+      :browser_marketing_page,
       :browser_marketing,
       :assign_current_path
     ]
@@ -343,23 +426,8 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
-        live Path.join(locale_path_prefix, "/build-insights"),
-             TuistWeb.Marketing.MarketingBuildInsightsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/selective-testing"),
-             TuistWeb.Marketing.MarketingSelectiveTestingLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/flaky-tests"),
-             TuistWeb.Marketing.MarketingFlakyTestsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/test-insights"),
-             TuistWeb.Marketing.MarketingTestInsightsLive,
+        live Path.join(locale_path_prefix, "/globe"),
+             TuistWeb.Marketing.MarketingGlobeLive,
              metadata: @marketing_route_metadata,
              private: private
 
@@ -381,6 +449,18 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/pricing"),
           MarketingController,
           :pricing,
+          metadata: @marketing_route_metadata,
+          private: private
+
+      get Path.join(locale_path_prefix, "/compute"),
+          MarketingController,
+          :compute,
+          metadata: @marketing_route_metadata,
+          private: private
+
+      get Path.join(locale_path_prefix, "/tests"),
+          MarketingController,
+          :tests,
           metadata: @marketing_route_metadata,
           private: private
 
@@ -408,7 +488,11 @@ defmodule TuistWeb.Router do
         metadata: @marketing_route_metadata,
         private: private
 
-      get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
+      get Path.join(locale_path_prefix, "/brand"), MarketingController, :brand,
+        metadata: @marketing_route_metadata,
+        private: private
+
+      get Path.join(locale_path_prefix, "/download"), MarketingController, :download,
         metadata: @marketing_route_metadata,
         private: private
 
@@ -418,29 +502,55 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
-      post Path.join(locale_path_prefix, "/newsletter"),
-           MarketingController,
-           :newsletter_signup,
-           metadata: %{type: :marketing},
-           private: private
-
       get Path.join(locale_path_prefix, "/newsletter/verify"),
           MarketingController,
           :newsletter_verify,
           metadata: @marketing_route_metadata,
           private: private
 
-      post Path.join(locale_path_prefix, "/newsletter/verify"),
-           MarketingController,
-           :newsletter_confirm,
-           metadata: @marketing_route_metadata,
-           private: private
-
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
           metadata: @marketing_route_metadata,
           private: private
+    end
+  end
+
+  # The newsletter forms are submitted from cached marketing pages whose
+  # embedded CSRF token belongs to another session.
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing_form,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter"),
+           MarketingController,
+           :newsletter_signup,
+           metadata: %{type: :marketing},
+           private: %{locale: locale}
+    end
+  end
+
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing_page,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      post Path.join(Localization.locale_path_prefix(locale), "/newsletter/verify"),
+           MarketingController,
+           :newsletter_confirm,
+           metadata: @marketing_route_metadata,
+           private: %{locale: locale}
     end
   end
 
@@ -476,6 +586,12 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api]
 
     get "/api/kura/rollout-status", KuraRolloutStatusController, :show
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :authenticated_api, :ops_api]
+
+    get "/api/ops/kura/pods/:pod/metrics", OpsKuraMetricsController, :show
   end
 
   scope "/", TuistWeb do
@@ -528,6 +644,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -588,6 +705,12 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
         get "/profiles", RunnersController, :index_profiles
+        get "/volumes", RunnerVolumesController, :list
+        get "/volumes/analytics", RunnerVolumesController, :analytics
+        get "/volumes/:volume_id", RunnerVolumesController, :show
+        get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
+        get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
       scope "/webhooks" do
@@ -602,6 +725,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -686,6 +810,7 @@ defmodule TuistWeb.Router do
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
+          post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
 
@@ -731,6 +856,8 @@ defmodule TuistWeb.Router do
         scope "/xcode" do
           scope "/builds" do
             get "/", BuildsController, :index
+            get "/:build_id/steps", BuildStepsController, :index
+            get "/:build_id/steps/:step_id", BuildStepsController, :show
             get "/:build_id/targets", BuildTargetsController, :index
             get "/:build_id/files", BuildFilesController, :index
             get "/:build_id/issues", BuildIssuesController, :index
@@ -745,11 +872,15 @@ defmodule TuistWeb.Router do
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
+          get "/builds/:build_id/steps", GradleBuildStepsController, :index
+          get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/invocations/:invocation_id/steps", BazelBuildStepsController, :index
+          get "/invocations/:invocation_id/steps/:step_id", BazelBuildStepsController, :show
           get "/invocations/:invocation_id/logs", BazelController, :list_invocation_logs
           get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
@@ -847,13 +978,24 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
+    post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
+    post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
+    get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    post "/runners/jobs/logs", RunnerJobReportsController, :logs
+    post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/cache/download", RunnerJobCacheController, :download
+    post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
+    post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
+    post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
+    post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -969,13 +1111,15 @@ defmodule TuistWeb.Router do
       pipe_through [:browser_app]
 
       forward "/sent_emails", Bamboo.SentEmailViewerPlug
+      # Every Open Graph image on one page while the cards are redesigned.
+      get "/og-gallery", TuistWeb.OpsOpenGraphGalleryController, :index
     end
   end
 
   ## Authentication routes
 
   scope "/", TuistWeb do
-    pipe_through [:browser_app, :redirect_if_user_is_authenticated]
+    pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
@@ -995,6 +1139,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
+      session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Locale, :assign_locale}
@@ -1016,8 +1161,16 @@ defmodule TuistWeb.Router do
     end
   end
 
+  # The One Tap start request is fetched from cached marketing pages and
+  # returns a fresh token for the credential form, which stays CSRF-protected.
+  scope "/auth", TuistWeb do
+    pipe_through [:same_origin_csrf_exemption, :browser_app]
+    post "/google/one-tap/start", AuthController, :google_one_tap_start
+  end
+
   scope "/auth", TuistWeb do
     pipe_through [:browser_app]
+    post "/google/one-tap", AuthController, :google_one_tap
     get "/complete-signup", AuthController, :complete_signup
     get "/cancel-pending-signup", AuthController, :cancel_pending_signup
   end
@@ -1050,9 +1203,24 @@ defmodule TuistWeb.Router do
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
+    get "/sso/link", SSOLinkController, :show
+    post "/sso/link", SSOLinkController, :create
+    delete "/sso/link", SSOLinkController, :delete
+
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
+  end
+
+  # Anonymous Turnstile challenge shown before public-project and
+  # public-account dashboard pages when the feature flag is armed.
+  # Kept OUTSIDE the `:project` / `:public_account` scopes so the
+  # visitor can actually reach the challenge without solving it first.
+  scope "/turnstile-challenge", TuistWeb do
+    pipe_through [:browser_app]
+
+    get "/", PublicPageChallengeController, :show
+    post "/verify", PublicPageChallengeController, :verify
   end
 
   # Dashboard
@@ -1107,28 +1275,46 @@ defmodule TuistWeb.Router do
     get "/qr-code.png", PreviewController, :download_qr_code_png
   end
 
+  # `/download` is the install-flow redirect a mobile device opens
+  # to fetch the signed S3 URL of the archive. It cannot render a
+  # Turnstile widget, so it stays outside the challenge gate. Other
+  # native-download endpoints (`app.ipa`, `app.apk`, `manifest.plist`,
+  # `qr-code.{svg,png}`, `icon.png`) already live in sibling scopes
+  # above that never carry the challenge plug.
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
       :browser_app,
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
-      :analytics
+      :analytics,
+      :embeddable
     ]
 
     get "/download", PreviewController, :download_preview
+  end
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :require_authenticated_user_for_previews,
+      :mark_public_preview_page,
+      PublicPageChallengePlug,
+      :analytics,
+      :embeddable
+    ]
 
     live_session :preview_detail,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
+        PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
       live "/", PreviewLive
     end
   end
-
-  get "/download", TuistWeb.DownloadController, :download
 
   # Dashboards a public account exposes to signed-out visitors. Each
   # LiveView here re-checks `:account_dashboard_read`, which is what
@@ -1143,6 +1329,7 @@ defmodule TuistWeb.Router do
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_accounts,
       :mark_public_account_page,
+      PublicPageChallengePlug,
       :require_sso_authentication,
       :analytics
     ]
@@ -1153,7 +1340,9 @@ defmodule TuistWeb.Router do
 
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
+      session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
+        PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
@@ -1183,6 +1372,7 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+    get "/billing/pay", BillingController, :pay
 
     get "/runners/interactive/vnc",
         RunnerInteractiveVNCController,
@@ -1201,6 +1391,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/runners/profiles", RunnerProfilesLive
+      live "/runners/volumes", RunnerVolumesLive
+      live "/runners/volumes/:id", RunnerVolumesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1224,6 +1416,7 @@ defmodule TuistWeb.Router do
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
       :mark_public_project_page,
+      PublicPageChallengePlug,
       :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
@@ -1232,6 +1425,7 @@ defmodule TuistWeb.Router do
     live_session :project,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
+        PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
@@ -1249,22 +1443,43 @@ defmodule TuistWeb.Router do
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
+      live "/module-cache/modules", ModulesLive
+      live "/module-cache/modules/:module", ModuleCacheModuleLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
+      live "/builds/tasks", GradleTasksLive, :tasks
+      live "/builds/tasks/:name", GradleTasksLive, :task
+      live "/bazel-cache", BazelCacheLive
+      get "/once", RedirectPlug, to: "/once/builds"
+      get "/once/runs", RedirectPlug, to: "/once/build-runs"
+      live "/once/runs/:once_run_id", OnceRunLive, :overview
+      live "/once/runs/:once_run_id/cache", OnceRunLive, :cache
+      live "/once/builds", OnceRunsLive, :builds
+      live "/once/build-runs", OnceRunsLive, :build_runs
+      live "/once/tests", OnceTestsLive
+      live "/once/test-runs", OnceRunsLive, :tests
+      live "/once/test-runs/:once_run_id", OnceTestRunLive
+      live "/once/test-runs/:once_run_id/test-cases/:case_id", OnceTestCaseRunLive
+      live "/once-cache", OnceCacheLive
       live "/connect", ConnectLive
-      live "/invocations", BazelInvocationsLive
+      get "/invocations", RedirectPlug, to: "/builds"
+      live "/invocations/:invocation_id", BazelBuildInvocationLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive
       live "/bundles/:bundle_id", BundleLive
       live "/builds", BuildsLive
       live "/builds/build-runs", BuildRunsLive
+      live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
+      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
       get "/runs/:run_id/download_session", RunsController, :download_session
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
+      get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
+      get "/builds/invocations/:invocation_id/timeline.json", BuildController, :timeline
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
@@ -1297,8 +1512,6 @@ defmodule TuistWeb.Router do
 
   defp enable_robot_indexing(conn, params) do
     if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      # Once we iterate on the open-graph tags of the dashboard pages for public projects
-      # we should iterate on this to enable indexing for public projects
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)

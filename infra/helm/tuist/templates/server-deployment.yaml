@@ -61,7 +61,7 @@ spec:
       {{- end }}
       containers:
         - name: server
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           {{- with .Values.server.seedAccountCredentials.secretName }}
           volumeMounts:
@@ -77,6 +77,10 @@ spec:
               containerPort: 8080
             - name: metrics
               containerPort: 9091
+            {{- if .Values.server.eventsGrpc.enabled }}
+            - name: grpc
+              containerPort: {{ .Values.server.service.grpcTargetPort | default 4001 }}
+            {{- end }}
             {{- if .Values.server.cluster.enabled }}
             - name: epmd
               containerPort: 4369
@@ -114,13 +118,8 @@ spec:
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
             {{- end }}
-            - name: TUIST_CLICKHOUSE_URL
-              value: {{ include "tuist.clickhouseUrl" . | quote }}
-            - name: TUIST_SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-secret-key-base
+            {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
+            {{- include "tuist.secretKeyBaseEnv" . | nindent 12 }}
             {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
@@ -132,9 +131,33 @@ spec:
             - name: TUIST_TURNSTILE_ENABLED
               value: "1"
             {{- end }}
+            {{- if .Values.server.publicPageChallenge.enabled }}
+            - name: TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED
+              value: "1"
+            {{- end }}
             {{- if .Values.server.kuraCapacityAdmission.enabled }}
             - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
               value: "1"
+            {{- end }}
+            {{- if .Values.server.eventsGrpc.enabled }}
+            - name: TUIST_ONCE_EVENTS_GRPC
+              value: "on"
+            - name: TUIST_ONCE_EVENTS_GRPC_PORT
+              value: {{ .Values.server.service.grpcTargetPort | default 4001 | quote }}
+            {{- $events := include "tuist.serverEventsConfig" . | fromYaml }}
+            {{- $scheme := include "tuist.serverEventsScheme" . }}
+            {{- if and $events.enabled $events.host }}
+            # Discovery doc source of truth for the gRPC hostname. The server's
+            # string-prefix fallback (`events.<request-host>`) only lines up on
+            # apex deployments; managed envs run on sub-prefix hosts
+            # (`staging.tuist.dev`) where the ingress is at
+            # `events-staging.tuist.dev` (dash, not dot), so the controller
+            # must be told the real ingress hostname rather than deriving one.
+            # The scheme follows the ingress's TLS state so a non-TLS
+            # self-hosted install advertises `grpc://`, not `grpcs://`.
+            - name: TUIST_ONCE_EVENTS_ENDPOINTS
+              value: "{{ $scheme }}://{{ $events.host }}"
+            {{- end }}
             {{- end }}
             {{- if .Values.server.config.cacheTokenKey.signing }}
             - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED
@@ -180,6 +203,10 @@ spec:
             {{- with .Values.server.faro.collectorUrl }}
             - name: TUIST_FARO_COLLECTOR_URL
               value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.server.faro.receiverHost }}
+            - name: TUIST_FARO_RECEIVER_URL
+              value: {{ printf "http://%s:%v/collect" .Values.server.faro.receiverHost .Values.server.faro.receiverPort | quote }}
             {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
@@ -238,6 +265,12 @@ spec:
             # dispatch time to discover the fleet name; runner
             # availability is gated by the `:runners` feature flag and
             # has no chart-level setting.
+            - name: TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE
+              value: {{ .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            - name: TUIST_RUNNER_CACHE_VOLUMES_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") | quote }}
+            - name: TUIST_RUNNER_LINUX_CACHE_VOLUMES
+              value: {{ .Values.runnersFleetLinux.cacheVolumes.enabled | quote }}
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             # Identity gate for `POST /api/internal/runners/pods/stopped`:
@@ -248,6 +281,11 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            # The macOS host operator creates each host's `tart-kubelet-<machine>`
+            # ServiceAccount here (`--secrets-namespace`). A host authenticates as
+            # it to list the cache masters it should prefetch.
+            - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
@@ -415,8 +453,12 @@ spec:
                   name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
                   key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
             {{- end }}
+            # Absolute (trailing dot), like KURA_ANALYTICS_SERVER_URL: with
+            # `ndots: 5` a Kura pod outside the control plane's region would
+            # otherwise pay a WAN round trip to CoreDNS for every search
+            # domain before the lookup that answers.
             - name: TUIST_KURA_TUIST_BASE_URL
-              value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
+              value: {{ printf "http://%s.%s.svc.cluster.local.:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL
@@ -434,6 +476,7 @@ spec:
             {{- end }}
             {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseManagedEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

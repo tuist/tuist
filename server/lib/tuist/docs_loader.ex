@@ -24,7 +24,7 @@ defmodule Tuist.Docs.Loader do
   # Icons (rendered from Noora components at compile time)
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
   @copy_check_icon %{__changed__: nil}
-                   |> Noora.Icon.copy_check()
+                   |> Noora.Icon.check()
                    |> Safe.to_iodata()
                    |> IO.iodata_to_binary()
 
@@ -34,9 +34,13 @@ defmodule Tuist.Docs.Loader do
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
-  @code_group_regex ~r/^:::[ \t]*code-group[ \t]*\n(.*?)^:::[ \t]*$/ms
+  @code_group_regex ~r/^(?<indent>[ \t]*):::[ \t]*code-group[ \t]*\n(?<content>.*?)^\k<indent>:::[ \t]*$/ms
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
-  @bold_title_regex ~r/\A\s*<p><strong>([^<]+)<\/strong><\/p>\s*/s
+  # Tempered inner group so the title capture stops at the first `</strong>`
+  # even under the `s` flag. Without tempering, `.*?` can back off past a
+  # `</strong>` at end of paragraph one and match a `</strong>` in a later
+  # paragraph, swallowing intermediate markup into the title.
+  @bold_title_regex ~r/\A\s*<p><strong>((?:(?!<\/strong>).)*?)<\/strong><\/p>\s*/s
   @code_content_regex ~r/(<code[^>]*>)(.*?)(<\/code>)/s
 
   @github_alert_type_to_status %{
@@ -160,6 +164,7 @@ defmodule Tuist.Docs.Loader do
     contents = File.read!(source_path)
 
     {attrs, markdown} = parse_frontmatter(contents)
+    markdown = expand_snippets(markdown, source_path)
     markdown = expand_compile_time_macros(markdown)
     {html, template, code_blocks} = render_markdown(markdown, source_path, locale, true)
 
@@ -221,6 +226,56 @@ defmodule Tuist.Docs.Loader do
       [@source_examples_root, @priv_examples_root, Application.app_dir(:tuist, "priv/examples/xcode")],
       &File.dir?/1
     )
+  end
+
+  # Snippet directive: expands `<!-- @snippet: <path> -->` into the referenced
+  # markdown file's body (frontmatter stripped). Paths starting with `.` are
+  # relative to the including file; anything else is resolved from the locale
+  # root. Convention: snippet filenames start with `_` so they never surface as
+  # standalone pages (see `snippet_source?/1`). Expansion is recursive with a
+  # cycle guard; a bad path or a cycle raises at compile time so it can't ship
+  # broken.
+  @snippet_directive_regex ~r/<!--\s*@snippet:\s*([^\s]+)\s*-->/
+
+  defp expand_snippets(markdown, source_path, visited \\ MapSet.new()) do
+    Regex.replace(@snippet_directive_regex, markdown, fn _match, snippet_ref ->
+      snippet_path = resolve_snippet_path(snippet_ref, source_path)
+
+      if MapSet.member?(visited, snippet_path) do
+        raise "Snippet cycle detected: #{snippet_path} (from #{source_path})"
+      end
+
+      if !File.exists?(snippet_path) do
+        raise "Snippet not found: #{snippet_ref} (referenced from #{source_path}, resolved to #{snippet_path})"
+      end
+
+      {_attrs, body} = snippet_path |> File.read!() |> parse_frontmatter()
+
+      expand_snippets(body, snippet_path, MapSet.put(visited, snippet_path))
+    end)
+  end
+
+  defp resolve_snippet_path(snippet_ref, source_path) do
+    ref = ensure_md_extension(snippet_ref)
+
+    resolved =
+      cond do
+        String.starts_with?(ref, "./") or String.starts_with?(ref, "../") ->
+          source_path |> Path.dirname() |> Path.join(ref)
+
+        String.starts_with?(ref, "/") ->
+          locale = source_path |> Path.relative_to(docs_root()) |> String.split("/") |> List.first()
+          docs_root() |> Path.join(locale) |> Path.join(String.trim_leading(ref, "/"))
+
+        true ->
+          source_path |> Path.dirname() |> Path.join(ref)
+      end
+
+    Path.expand(resolved)
+  end
+
+  defp ensure_md_extension(ref) do
+    if String.ends_with?(ref, ".md"), do: ref, else: ref <> ".md"
   end
 
   # Compile-time macros documentation pages can reference with
@@ -412,6 +467,17 @@ defmodule Tuist.Docs.Loader do
 
   @alert_opening_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*/s
 
+  # Alert titles are rendered inside a text attribute and can't carry inline
+  # HTML. When the extracted `**bold**` title contains markup (e.g. `<code>`),
+  # collapse it to plain text so the shorter, code-formatted phrase still lands
+  # as the title rather than falling back to the default "Tip"/"Warning" label.
+  defp strip_html_tags(text) do
+    text
+    |> String.replace(~r/<[^>]+>/, "")
+    |> String.replace("&nbsp;", " ")
+    |> String.trim()
+  end
+
   defp convert_github_alerts(html) do
     case Regex.run(@alert_opening_regex, html, return: :index) do
       nil ->
@@ -432,7 +498,7 @@ defmodule Tuist.Docs.Loader do
 
         {title, content} =
           case Regex.run(@bold_title_regex, content) do
-            [match, bold] -> {bold, String.replace_prefix(content, match, "")}
+            [match, bold] -> {strip_html_tags(bold), String.replace_prefix(content, match, "")}
             _ -> {default_title, content}
           end
 
@@ -487,8 +553,37 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp convert_code_groups(markdown) do
-    Regex.replace(@code_group_regex, markdown, fn _, content ->
-      convert_code_group(content)
+    Regex.replace(@code_group_regex, markdown, fn _, indent, content ->
+      # A code-group can be nested inside a list item, where each line carries a
+      # common leading indent. Strip that indent before parsing so the inner
+      # ```lang [Label]``` blocks match, then reapply the indent to the emitted
+      # HTML so the surrounding markdown treats it as list-item content.
+      dedented = strip_indent(content, indent)
+      html = convert_code_group(dedented)
+      if indent == "", do: html, else: reapply_indent(html, indent)
+    end)
+  end
+
+  defp strip_indent(content, ""), do: content
+
+  defp strip_indent(content, indent) do
+    content
+    |> String.split("\n")
+    |> Enum.map_join("\n", fn line ->
+      if String.starts_with?(line, indent) do
+        String.replace_prefix(line, indent, "")
+      else
+        line
+      end
+    end)
+  end
+
+  defp reapply_indent(html, indent) do
+    html
+    |> String.split("\n")
+    |> Enum.map_join("\n", fn
+      "" -> ""
+      line -> indent <> line
     end)
   end
 
@@ -531,7 +626,7 @@ defmodule Tuist.Docs.Loader do
 
       copy_button =
         EEx.eval_string(
-          ~s(<button data-part="copy" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
+          ~s(<button data-part="copy" class="noora-neutral-button" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
           copy_icon: @copy_icon,
           copy_check_icon: @copy_check_icon
         )
@@ -635,7 +730,17 @@ defmodule Tuist.Docs.Loader do
     relative_path = Path.relative_to(source_path, docs_root())
 
     String.contains?(relative_path, "[") or
-      String.starts_with?(relative_path, "en/references/project-description/")
+      String.starts_with?(relative_path, "en/references/project-description/") or
+      snippet_source?(relative_path)
+  end
+
+  # Snippet files are shared markdown fragments included from full pages via
+  # `<!-- @snippet: ./name -->`. They are not standalone pages, so we skip them
+  # when building the slug map. Convention: filename starts with `_`.
+  defp snippet_source?(relative_path) do
+    relative_path
+    |> Path.basename()
+    |> String.starts_with?("_")
   end
 
   defp source_to_slug(relative_path) do

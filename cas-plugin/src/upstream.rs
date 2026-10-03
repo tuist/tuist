@@ -79,3 +79,24 @@ upstream_table! {
         llcas_loaded_object_export_data_to_filepath: fn(llcas_cas_t, llcas_loaded_object_t, *const c_char, *mut *mut c_char) -> bool,
     }
 }
+
+impl Upstream {
+    /// The caller must keep the upstream CAS handle and digest memory valid.
+    pub(crate) unsafe fn print_digest(&self, cas: llcas_cas_t, digest: llcas_digest_t) -> Option<String> {
+        let mut printed = std::ptr::null_mut();
+        let mut error = std::ptr::null_mut();
+        let failed = (self.llcas_digest_print)(cas, digest, &mut printed, &mut error);
+        let text = if !failed && !printed.is_null() {
+            Some(std::ffi::CStr::from_ptr(printed).to_string_lossy().into_owned())
+        } else {
+            None
+        };
+        if !printed.is_null() {
+            (self.llcas_string_dispose)(printed);
+        }
+        if !error.is_null() {
+            (self.llcas_string_dispose)(error);
+        }
+        text
+    }
+}

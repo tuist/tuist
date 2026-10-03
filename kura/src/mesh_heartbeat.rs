@@ -34,7 +34,9 @@ use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{info, warn};
 
-use crate::{request_observability::FailureLogThrottle, state::SharedState};
+use crate::{
+    request_observability::FailureLogThrottle, state::SharedState, sync::roles::PublishedRole,
+};
 
 const HEARTBEAT_PATH: &str = "/_internal/kura/mesh/heartbeat";
 const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
@@ -42,8 +44,6 @@ const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
 const KURA_MESH_PEERS_SYNC: &str = "KURA_MESH_PEERS_SYNC";
 
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(1_000);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Recovery re-enrollments mint fresh certificates; the backoff keeps a
 // persistent `mesh_member: false` (control-plane bug, clock skew) from
 // becoming a per-minute signing loop while staying well inside the server's
@@ -118,6 +118,12 @@ struct MeshHeartbeat<'a> {
 
 #[derive(Deserialize)]
 struct MeshHeartbeatResponse {
+    #[serde(default)]
+    account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     // Deliberately NOT defaulted: `false` is the destructive value (it
     // triggers a recovery re-enrollment, which mints fresh certificates), so
     // a response that merely lacks the field — shape drift, an intermediary
@@ -128,14 +134,25 @@ struct MeshHeartbeatResponse {
     peers: Vec<String>,
     #[serde(default)]
     heartbeat_interval_seconds: Option<u64>,
+    /// Roles beside the peer list (design §2.2); an older server sends none.
+    #[serde(default)]
+    peer_roles: Vec<PublishedRole>,
 }
 
 #[derive(Deserialize)]
 struct MeshPeersResponse {
     #[serde(default)]
+    account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default)]
     peers: Vec<String>,
     #[serde(default)]
     refresh_interval_seconds: Option<u64>,
+    #[serde(default)]
+    peer_roles: Vec<PublishedRole>,
 }
 
 pub fn spawn(state: SharedState, config: MeshHeartbeatConfig) {
@@ -173,7 +190,13 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                         "mesh heartbeat recovered"
                     );
                 }
-                apply_peers(&state, payload.peers);
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
+                apply_peers(&state, payload.peers).await;
+                apply_roles(&state, payload.peer_roles);
                 if !payload.mesh_member {
                     maybe_recover_membership(&state, &mut recovery).await;
                 } else {
@@ -220,7 +243,13 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                         "mesh peer synchronization recovered"
                     );
                 }
-                apply_peers(&state, payload.peers);
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
+                apply_peers(&state, payload.peers).await;
+                apply_roles(&state, payload.peer_roles);
                 // First successful fetch lifts the boot serving gate.
                 state.runtime.mark_peer_view_ready();
                 state.maybe_mark_serving().await;
@@ -322,7 +351,6 @@ async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBa
     match crate::enrollment::renew().await {
         Ok(outcome) => match crate::app::apply_renewed_enrollment(state, &outcome).await {
             Ok(()) => {
-                state.backfill.rearm_after_mesh_rejoin();
                 // The backoff is deliberately NOT reset here: recovery is
                 // only proven by a later heartbeat answering
                 // `mesh_member: true` (which resets it in the run loop). A
@@ -367,7 +395,7 @@ impl RecoveryBackoff {
     }
 }
 
-fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
+async fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
     // The server's row order is incidental; compare and store sorted so an
     // unchanged membership never registers as an update.
     peers.sort();
@@ -382,6 +410,16 @@ fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
     }
 }
 
+/// Adopts the control plane's roles.
+fn apply_roles(state: &SharedState, mut roles: Vec<PublishedRole>) {
+    roles.sort_by(|a, b| a.url.cmp(&b.url));
+    let current = state.published_roles.load();
+    if **current != roles {
+        info!("mesh peer roles updated: {} role(s)", roles.len());
+        state.published_roles.store(std::sync::Arc::new(roles));
+    }
+}
+
 fn basic_auth(client_id: &str, client_secret: &str) -> String {
     format!(
         "Basic {}",
@@ -390,9 +428,7 @@ fn basic_auth(client_id: &str, client_secret: &str) -> String {
 }
 
 fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(REQUEST_TIMEOUT)
+    crate::control_plane_http::client_builder()
         .build()
         .expect("mesh heartbeat HTTP client should build")
 }
@@ -403,21 +439,67 @@ mod tests {
     use crate::test_support::test_context;
 
     #[tokio::test]
+    async fn managed_sync_learns_auth_handle_without_changing_the_storage_tenant() {
+        use axum::{Json, Router, extract::Query, routing::get};
+        use std::collections::HashMap;
+
+        let ctx = test_context(|config| config.tenant_id = "original".into()).await;
+        ctx.state.runtime.require_peer_view();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    PEERS_PATH,
+                    get(|Query(query): Query<HashMap<String, String>>| async move {
+                        assert_eq!(query.get("tenant_id").unwrap(), "original");
+                        Json(serde_json::json!({"account_handle": "renamed", "peers": []}))
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let sync = tokio::spawn(run_peers_sync(
+            ctx.state.clone(),
+            MeshPeersSyncConfig {
+                peers_url: format!("http://{address}{PEERS_PATH}"),
+                client_id: "test-client".into(),
+                client_secret: "test-secret".into(),
+                tenant_id: "original".into(),
+                interval: Duration::from_secs(60),
+            },
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.runtime.peer_view_pending() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(ctx.state.account_identity.load().handle.as_str(), "renamed");
+        assert_eq!(ctx.state.config.tenant_id, "original");
+        sync.abort();
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn apply_peers_swaps_dynamic_peers_only_on_change() {
         let ctx = test_context(|_| {}).await;
         let peers = vec!["https://peer-1.test:7443".to_string()];
 
-        apply_peers(&ctx.state, peers.clone());
+        apply_peers(&ctx.state, peers.clone()).await;
         assert_eq!(**ctx.state.dynamic_peers.load(), peers);
 
         let same = ctx.state.dynamic_peers.load_full();
-        apply_peers(&ctx.state, peers.clone());
+        apply_peers(&ctx.state, peers.clone()).await;
         assert!(std::sync::Arc::ptr_eq(
             &same,
             &ctx.state.dynamic_peers.load_full()
         ));
 
-        apply_peers(&ctx.state, Vec::new());
+        apply_peers(&ctx.state, Vec::new()).await;
         assert!(ctx.state.dynamic_peers.load().is_empty());
     }
 
@@ -428,13 +510,15 @@ mod tests {
         apply_peers(
             &ctx.state,
             vec!["https://b.test:7443".into(), "https://a.test:7443".into()],
-        );
+        )
+        .await;
         let stored = ctx.state.dynamic_peers.load_full();
 
         apply_peers(
             &ctx.state,
             vec!["https://a.test:7443".into(), "https://b.test:7443".into()],
-        );
+        )
+        .await;
         assert!(std::sync::Arc::ptr_eq(
             &stored,
             &ctx.state.dynamic_peers.load_full()
@@ -476,7 +560,6 @@ mod tests {
         assert!(!ctx.state.runtime.is_serving());
 
         ctx.state.runtime.mark_peer_view_ready();
-        crate::test_support::settle_empty_backfill_cycle(&ctx.state);
         ctx.state.maybe_mark_serving().await;
         assert!(ctx.state.runtime.is_serving());
     }

@@ -191,25 +191,30 @@ inheriting their defaults:
 - `preauthorized=true`, because the default is `false` and a device
   parked awaiting manual approval fails the join exactly like an
   expired credential, with the same invisible outcome.
-- `ephemeral=true`, which is narrower than it looks. `TAILSCALE_HOSTNAME`
-  is the Pod name, so every roll registers a new device, but Tailscale
-  converts any device online for four hours into a standard tagged one
-  and Pods normally outlive that between image releases. It reaps only
-  short-lived ones; the rest accumulate, and those stale peers stay
-  pinned in every VM's `/etc/hosts`, which `tailscale-up.sh` rewrites
-  from `tailscale status` on each boot.
+- `ephemeral=true`, so a dead VM's registration goes with it. Tailscale
+  deletes an ephemeral device 30 to 60 minutes after it was last seen,
+  however long it had been online. (Tailscale's docs say an ephemeral
+  device present for four hours "will count as a standard tagged
+  device"; that is billing, not removal.) `TAILSCALE_HOSTNAME` is the
+  Pod name, so every roll registers a new device, and the old one drops
+  out of the netmap within the hour. Ephemeral is already the default
+  for a key minted from an OAuth client; the script spells it out so the
+  property does not rest on that default.
 
-  Renaming the device would not help: a device is identified by its node
-  key, not its hostname, and a VM booted from an image has no persisted
-  tailscaled state, so every boot mints a new key and therefore a new
-  device whatever it is called. The tailnet carries pairs of devices
-  sharing a hostname *and* a tag, which is what that looks like from the
-  outside. Deleting the dead ones is the only available fix, and the
-  `tailscale-device-reaper` CronJob in the main chart is it — see
-  `infra/helm/tuist/templates/tailscale-device-reaper.yaml`. Devices on
-  this path match its short `disposable` grace window precisely because
-  their identity is regenerated on every boot; the Mac mini hosts, which
-  join once and keep their identity, sit behind the long one.
+  Renaming the device would not change this: a device is identified by
+  its node key, not its hostname, and a VM booted from an image has no
+  persisted tailscaled state, so every boot mints a new key and
+  therefore a new device whatever it is called. A VM recreated under the
+  same Pod shows up as a second device with the same hostname and tag
+  until the first one ages out.
+
+  The `tailscale-device-reaper` CronJob in the main chart
+  (`infra/helm/tuist/templates/tailscale-device-reaper.yaml`) gives
+  devices on this path a short `disposable` grace window. With ephemeral
+  joins it has nothing to collect; it is the backstop for a join that
+  is not ephemeral, which is what a legacy pre-auth key produces (see
+  below). The Mac mini hosts, which join once and keep their identity,
+  sit behind its long window.
 
 Keys minted through an OAuth client are always tagged and carry no
 default tag, so `TAILSCALE_TAGS` must name one (the chart sources it
@@ -218,7 +223,10 @@ start when the credential is an OAuth secret and the tag is missing,
 rather than letting `tailscale up` fail 60s later with a message that
 reads like a network fault. A legacy pre-auth key is detected by prefix
 and passed through untouched, so the image boots against either
-credential while envs migrate.
+credential while envs migrate. Such a key joins with whatever
+ephemerality it was created with, and the one the fleet used before the
+OAuth client was not ephemeral: every production device it registered
+stayed on the tailnet after its Pod was gone.
 
 One diagnostic gap this does not close: `tailscale-up.sh` still reports
 a server-side credential rejection and an unreachable control plane

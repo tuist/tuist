@@ -353,6 +353,9 @@ impl Codebase {
         if truncation_reason.is_none() && stats.walk_errors > 0 {
             truncation_reason = Some("walk_errors".to_string());
         }
+        if truncation_reason.is_none() && stats.file_errors > 0 {
+            truncation_reason = Some("file_errors".to_string());
+        }
         if truncation_reason.is_none() && output.line_truncated {
             truncation_reason = Some("line_byte_limit".to_string());
         }
@@ -1484,6 +1487,42 @@ mod tests {
         assert!(run_bounded(state, |_| Ok(())).await.is_ok());
     }
 
+    #[test]
+    fn reports_files_that_could_not_be_read_as_truncated() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("unreadable.rs");
+        fs::write(&path, "needle\n").unwrap();
+        let _hold = make_unreadable(&path);
+        if fs::read(&path).is_ok() {
+            // The environment ignores the restriction, for example because the
+            // test runs as root, so the unreadable file cannot be exercised.
+            return;
+        }
+        let codebase = Codebase::new(
+            directory.path().to_path_buf(),
+            REVISION.to_string(),
+            "https://github.com/tuist/tuist".to_string(),
+            Limits::default(),
+        )
+        .unwrap();
+
+        let response = codebase
+            .search(SearchRequest {
+                pattern: "needle".to_string(),
+                path: String::new(),
+                file_glob: None,
+                use_regular_expression: false,
+                case_sensitive: true,
+                context_lines: Some(0),
+                max_results: Some(50),
+            })
+            .unwrap();
+
+        assert!(response.stats.file_errors > 0);
+        assert!(response.truncated);
+        assert_eq!(response.truncation_reason.as_deref(), Some("file_errors"));
+    }
+
     #[cfg(unix)]
     #[test]
     fn rejects_symbolic_links_that_escape_the_repository() {
@@ -1501,5 +1540,23 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(error, CodebaseError::OutsideRepository));
+    }
+
+    #[cfg(unix)]
+    fn make_unreadable(path: &Path) -> Option<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(path, fs::Permissions::from_mode(0o000)).ok()
+    }
+
+    #[cfg(windows)]
+    fn make_unreadable(path: &Path) -> Option<File> {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(path)
+            .ok()
     }
 }

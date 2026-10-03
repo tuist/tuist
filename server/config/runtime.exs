@@ -32,6 +32,8 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
@@ -297,8 +299,14 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    # The client gives up on a query after this long. ClickHouse's own limit
+    # below is shorter so a slow read fails with TIMEOUT_EXCEEDED (159), which
+    # the server records in query_log and the app can tell from a dropped
+    # connection.
+    timeout: to_timeout(second: 20),
     settings: [
       readonly: 1,
+      max_execution_time: 15,
       max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
       # Per-query memory ceiling so one heavy read fails on its own with a
       # `(for query)` error (retryable) rather than driving the process to its
@@ -360,6 +368,50 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       show_econnreset: true,
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
+
+  if bare_metal_url = Tuist.Environment.clickhouse_bare_metal_url(secrets) do
+    # The in-cluster ClickHouse (spec #73), configured here next to the URL so
+    # the credential never reaches application code.
+    #
+    # The read side first, carrying the read path's own settings rather than
+    # the ingest path's: whether this server accepts them is part of what the
+    # migration has to establish before reads move onto it.
+    config :tuist, Tuist.ShadowClickHouseRepo,
+      url: bare_metal_url,
+      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        readonly: 1,
+        max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
+        max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+        max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
+        join_algorithm: "direct,parallel_hash,hash"
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+
+    # And the write side, as a mirror destination while Cloud is still the
+    # system of record. A small pool on purpose: it carries the same write
+    # volume as `Tuist.IngestRepo` but nothing waits on it, and it must not be
+    # able to starve the pool that serves customer requests.
+    config :tuist, Tuist.ShadowIngestRepo,
+      url: bare_metal_url,
+      pool_size: Tuist.Environment.clickhouse_shadow_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+  end
 
   config :tuist, Tuist.Repo, database_options
 
@@ -500,7 +552,7 @@ if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
-    environment_name: env,
+    environment_name: Tuist.Environment.deploy_env_name(),
     release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
@@ -509,12 +561,6 @@ if Tuist.Environment.error_tracking_enabled?() do
   if pod_name do
     config :sentry, server_name: pod_name
   end
-
-  # Opt this Pod's SentryHTTPClient into runtime rerouting to Hive. The
-  # callback returns `nil` until the `hive_error_tracking_enabled` flag
-  # is flipped in `/ops/flags`, so wiring it here is safe on every env
-  # even before a Hive DSN is provisioned.
-  config :tuist_common, TuistCommon.SentryHTTPClient, reroute: {Tuist.Sentry, :hive_reroute_target, []}
 end
 
 if Tuist.Environment.env() not in [:test] do
@@ -653,7 +699,20 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # to one job per subscribed endpoint.
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
-base_queues = [default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
+# GitLab coordinator requests may long-poll; isolate them from general background work.
+# Kura instances coming up for a client that asked for its cache: bringing one
+# up and polling its endpoint twice a second, kept off :default so a busy queue
+# cannot delay either.
+base_queues = [
+  runner_gitlab: 10,
+  default: 10,
+  alert_evaluations: 1,
+  vcs_comments: 20,
+  webhooks: 20,
+  storage_retention: 1,
+  kura_provisioning: 10
+]
+
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
@@ -952,3 +1011,11 @@ else
   config :opentelemetry,
     traces_exporter: :none
 end
+
+config :tuist,
+       :runner_cache_volumes_namespace,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE", System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners"))
+
+config :tuist,
+       :runner_cache_volumes_sa_name,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_SA_NAME", "tuist-runner-cache-volumes")

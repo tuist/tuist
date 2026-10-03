@@ -19,32 +19,11 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "docs overview" do
-    test "renders intent-specific starting paths", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/en/docs")
+    test "renders the Install Tuist and Get started calls to action", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
 
-      assert has_element?(
-               lv,
-               ~s(a#docs-optimization-path[href="/en/docs/guides/get-started/optimization"]),
-               "Optimize"
-             )
-
-      assert has_element?(
-               lv,
-               ~s(a#docs-observability-path[href="/en/docs/guides/get-started/observability"]),
-               "Observe"
-             )
-
-      assert has_element?(
-               lv,
-               ~s(a#docs-runners-path[href="/en/docs/guides/get-started/tuist-runners"]),
-               "Run"
-             )
-
-      assert has_element?(
-               lv,
-               ~s(a#docs-ask-path[href="/en/docs/guides/get-started/ask"]),
-               "Ask"
-             )
+      assert html =~ ~s(href="/en/docs/guides/install-tuist")
+      assert html =~ ~s(href="/en/docs/guides/get-started")
     end
 
     test "routes the generic cache card to the cache overview", %{conn: conn} do
@@ -57,11 +36,10 @@ defmodule TuistWeb.DocsLiveTest do
              )
     end
 
-    test "positions Tuist as build infrastructure for Xcode and Gradle", %{conn: conn} do
+    test "positions Tuist as build infrastructure for Xcode, Gradle, and Bazel", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(lv, "h1", "One platform for faster build toolchains")
-      assert has_element?(lv, "#what-do-you-want-to-do", "What do you want to do?")
       assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
     end
 
@@ -103,6 +81,37 @@ defmodule TuistWeb.DocsLiveTest do
       [_, mobile_actions | _] = String.split(html, ~s(data-part="mobile-actions"))
       assert mobile_actions =~ ~s(href="/docs/login?return_to=%2Fen%2Fdocs")
       refute mobile_actions =~ ~s(id="docs-mobile-account-dropdown")
+    end
+  end
+
+  describe "redirected docs URLs reached without an HTTP request" do
+    test "navigates to the new page on a live patch to a moved page", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/bundle-insights?tab=size"}}} =
+               render_patch(lv, "/en/docs/guides/features/bundle-size?tab=size")
+    end
+
+    test "navigates to the new page when a connected mount lands on a moved page", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/bundle-insights"}}} =
+               live_redirect(lv, to: "/en/docs/guides/features/bundle-size")
+    end
+
+    test "redirects externally when the moved page lives on another site", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:redirect, %{to: "https://projectdescription.tuist.dev/documentation/projectdescription"}}} =
+               render_patch(lv, "/en/docs/references/project-description")
+    end
+
+    test "still raises not found for pages without a redirect", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+      Process.flag(:trap_exit, true)
+
+      assert {{%TuistWeb.Errors.NotFoundError{}, _stacktrace}, _call} =
+               catch_exit(render_patch(lv, "/en/docs/guides/does-not-exist"))
     end
   end
 

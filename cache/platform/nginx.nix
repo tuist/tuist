@@ -88,6 +88,15 @@
         default "";
       }
 
+      # NixOS's proxyWebsockets sends `Connection: close` on every
+      # non-upgrade request. Bandit then closes the socket without echoing
+      # the header, so nginx returns it to the keepalive pool and the next
+      # request with an unbuffered body fails on it with a 502.
+      map $http_upgrade $cache_connection_upgrade {
+        default upgrade;
+        "" "";
+      }
+
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
         # Idle upstream connections held open per worker. Sized to
@@ -148,6 +157,19 @@
           return = "404";
         };
 
+        # This node speaks no gRPC, but `tuist-cas-proxy` from CLIs 4.203.0 to
+        # 4.209.0-canary.22 is handed its hostname while an account has no
+        # Kura instance serving, and sends it REAPI calls. Answered here
+        # rather than by Phoenix, which only ever said 404 (tonic reads that
+        # as UNIMPLEMENTED, a miss).
+        locations."/build.bazel.remote." = {
+          return = "404";
+        };
+
+        locations."/google.bytestream.ByteStream/" = {
+          return = "404";
+        };
+
         locations."/api/cache/" = {
           extraConfig = ''
             default_type application/json;
@@ -185,8 +207,11 @@
 
         locations."/" = {
           proxyPass = "http://cache_upstream";
-          proxyWebsockets = true;
           extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $cache_connection_upgrade;
+
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;

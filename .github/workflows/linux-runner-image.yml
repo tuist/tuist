@@ -43,7 +43,28 @@ env:
   IMAGE_NAME: tuist/tuist-linux-runner
 
 jobs:
+  cache-mounts:
+    name: Cache volume bind mounts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/linux-runner-image/go.mod
+      - name: Test cache client and mount broker
+        working-directory: infra/linux-runner-image
+        env:
+          GOWORK: "off"
+        run: |
+          go test -race ./cmd/tuist-cache-volume
+          CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/cache-volume.test" ./cmd/tuist-cache-volume
+          docker run --rm --privileged \
+            -e TUIST_TEST_BIND_MOUNTS=1 \
+            -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+            ubuntu:22.04 /cache-volume.test -test.v
   build:
+    needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
@@ -55,6 +76,13 @@ jobs:
           bash -n infra/linux-runner-image/run-job.sh
           bash -n infra/linux-runner-image/vitals.sh
           bash -n infra/linux-runner-image/metrics-sampler.sh
+          bash -n infra/linux-runner-image/gradle-cache-smoke.sh
+
+      - name: Test GitLab assignment staging
+        run: bash infra/linux-runner-image/gitlab-dispatch_test.sh
+
+      - name: Test job-start hook
+        run: bash infra/linux-runner-image/run-job_test.sh
 
       # Runs on the image's own base rather than the CI runner, because
       # the assertions are about how Ubuntu's awk (mawk) formats byte
@@ -66,6 +94,16 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}/infra/linux-runner-image:/w" \
             -w /w ubuntu:22.04 bash ./metrics-sampler_test.sh
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/linux-runner-image/gitlab-runner/go.mod
+
+      - name: Test GitLab job executor
+        working-directory: infra/linux-runner-image/gitlab-runner
+        env:
+          GOWORK: "off"
+        run: go test -race ./...
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

@@ -1,6 +1,7 @@
 defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
   use ExUnit.Case, async: true
   use TuistWeb, :verified_routes
+  use Mimic
 
   import Phoenix.ConnTest
   import Plug.Conn
@@ -8,6 +9,13 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
   alias Tuist.Docs
 
   @endpoint TuistWeb.Endpoint
+
+  setup do
+    # The home page checks its redesign flag; this case runs without a DB
+    # sandbox, so keep the lookup away from FunWithFlags' Ecto store.
+    stub(FunWithFlags, :enabled?, fn _flag -> false end)
+    :ok
+  end
 
   test "marketing pages negotiate markdown for agent requests" do
     conn =

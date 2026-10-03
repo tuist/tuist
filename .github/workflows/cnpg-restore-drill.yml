@@ -38,6 +38,7 @@ permissions:
 jobs:
   restore-drill:
     name: Restore drill (${{ inputs.environment || 'staging' }})
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment || 'staging' }}
@@ -53,7 +54,7 @@ jobs:
       RECOVERY: pg-restore-drill-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked kubectl"
           cache: "false"

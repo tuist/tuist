@@ -1,0 +1,92 @@
+#financings,
+#financing-show {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    margin: 0;
+    max-width: 60rem;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="summary"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    margin-top: var(--noora-spacing-2);
+  }
+
+  & [data-part="breadcrumbs"] {
+    margin-left: calc(-1 * var(--noora-spacing-2));
+  }
+
+  & [data-part="details"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    @media (max-width: 1100px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 700px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  & [data-part="detail"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="detail"] dt {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="detail"] dd {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+  }
+}
+
+[data-part="new-financing-modal-content"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+}
+
+[data-part="new-financing-form-grid"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--noora-spacing-4);
+  align-items: start;
+
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+  }
+}

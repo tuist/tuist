@@ -5,6 +5,8 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
+  alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -27,31 +29,28 @@ defmodule TuistWeb.BillingLive do
         subscription.plan
       end
 
-    current_month_remote_cache_hits_count = selected_account.current_month_remote_cache_hits_count
+    # Every figure on the card is measured over one window, so the usage
+    # it shows and the date it says that usage is charged on cannot
+    # disagree with each other.
+    billing_period = Billing.current_billing_period(selected_account)
+
+    remote_cache_hits_count = remote_cache_hits_count(selected_account, subscription, billing_period)
 
     prepaid_runner_credit = Prepaid.balance(selected_account)
-    runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit)
+    runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit, billing_period)
+
+    usage_pricing = usage_pricing(selected_account, billing_period)
 
     # Runner time is billed alongside remote cache hits, so the headline
     # figure has to carry both or it understates the bill for anyone
     # using runners.
     estimated_next_payment =
-      %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}
-      |> Billing.get_estimated_next_payment_money()
+      usage_pricing
+      |> usage_payment(remote_cache_hits_count)
       |> Money.add(runner_usage.billed)
       |> format_money()
 
-    next_charge_date =
-      if is_nil(subscription) do
-        dgettext("dashboard_account", "charged /per month")
-      else
-        dgettext("dashboard_account", "charged on %{next_charge_date}",
-          next_charge_date:
-            subscription.subscription_id
-            |> Billing.get_subscription_current_period_end()
-            |> Timex.format!("{Mfull} {D}")
-        )
-      end
+    next_charge_date = next_charge_date(billing_period)
 
     payment_method =
       with {:subscription, subscription} when not is_nil(subscription) <-
@@ -79,12 +78,25 @@ defmodule TuistWeb.BillingLive do
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
-      |> assign(:current_month_remote_cache_hits_count, current_month_remote_cache_hits_count)
+      |> assign(:remote_cache_hits_count, remote_cache_hits_count)
+      |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
+      |> assign(:payment_issue, payment_issue(selected_account, subscription))
 
     {:ok, socket}
   end
+
+  # A past due subscription keeps its plan while Stripe retries the payment, and
+  # an unpaid one has already lost it. Either way the customer settles the open
+  # invoice rather than upgrading, which would open a second subscription.
+  defp payment_issue(_account, %{status: "past_due"}), do: :past_due
+
+  defp payment_issue(account, nil) do
+    if Billing.payment_failed?(account), do: :payment_failed
+  end
+
+  defp payment_issue(_account, _subscription), do: nil
 
   @impl true
   def handle_params(_params, uri, socket) do
@@ -136,15 +148,84 @@ defmodule TuistWeb.BillingLive do
   # invoiced for, and disagree with the same figure on the usage page.
   # The calendar month is only the fallback for an account with no
   # subscription, which has no cycle to read.
-  defp runner_usage_period(account, now) do
-    case Billing.current_billing_period(account) do
-      {%DateTime{} = period_start, %DateTime{} = period_end} ->
-        {period_start, period_end}
+  defp usage_period({%DateTime{} = period_start, %DateTime{} = period_end}, _now), do: {period_start, period_end}
 
-      _ ->
-        {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
+  defp usage_period(_billing_period, now), do: {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
+
+  # The denormalized counter on the account is the calendar month, which
+  # is both the window an Air free tier really resets on and the one the
+  # cache gate is enforced against, so Air reads it as it always has.
+  # A Pro subscription is invoiced on its own cycle instead, and usage
+  # from before that cycle opened was settled on an invoice already sent:
+  # counting it here prices a charge that is not coming, and contradicts
+  # the charge date printed beside it.
+  #
+  # Read the same way the meter reads it, so the figure shown and the
+  # figure reported to Stripe are one number rather than two that agree
+  # by coincidence.
+  defp remote_cache_hits_count(%{customer_id: customer_id}, %{plan: :pro}, {period_start, period_end})
+       when is_binary(customer_id) do
+    CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
+  end
+
+  defp remote_cache_hits_count(account, _subscription, _billing_period),
+    do: account.current_month_remote_cache_hits_count || 0
+
+  defp usage_pricing(account, billing_period) do
+    if FeatureFlags.usage_based_pricing_enabled?(account) do
+      UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
     end
   end
+
+  defp usage_payment(nil, remote_cache_hits_count), do: Billing.get_estimated_next_payment_money(remote_cache_hits_count)
+
+  defp usage_payment(%{cache: cache, tests: tests}, _remote_cache_hits_count) do
+    Money.add(cache.billed || Money.new(0, :USD), tests.billed || Money.new(0, :USD))
+  end
+
+  def usage_allowance_exceeded?(%{cache: cache, tests: tests}) do
+    cache.egress.billable > 0 or cache.requests.billable > 0 or tests.billable > 0
+  end
+
+  @doc """
+  One row per usage-based meter the period has gone past the allowance of.
+  """
+  def usage_pricing_rows(%{cache: cache, tests: tests}) do
+    Enum.filter(
+      [
+        %{
+          id: "cache-egress",
+          label: dgettext("dashboard_account", "Cache egress"),
+          quantity: Tuist.Utilities.ByteFormatter.format_bytes(cache.egress.billable),
+          price: TuistWeb.UsageLive.egress_rate_label(),
+          total: cache.egress.charge
+        },
+        %{
+          id: "cache-requests",
+          label: dgettext("dashboard_account", "Cache requests"),
+          quantity: format_number(cache.requests.billable),
+          price: TuistWeb.UsageLive.request_rate_label(),
+          total: cache.requests.charge
+        },
+        %{
+          id: "passing-test-cases",
+          label: dgettext("dashboard_account", "Passing test cases"),
+          quantity: format_number(tests.billable),
+          price: TuistWeb.UsageLive.passing_test_case_rate_label(),
+          total: tests.charge
+        }
+      ],
+      &Money.positive?(&1.total)
+    )
+  end
+
+  defp next_charge_date({_period_start, %DateTime{} = period_end}) do
+    dgettext("dashboard_account", "charged on %{next_charge_date}",
+      next_charge_date: Timex.format!(period_end, "{Mfull} {D}")
+    )
+  end
+
+  defp next_charge_date(_billing_period), do: dgettext("dashboard_account", "charged /per month")
 
   # Runner usage is reported gross for every account, so what it accrues
   # and what it is billed are two different numbers whenever a trial or
@@ -152,9 +233,9 @@ defmodule TuistWeb.BillingLive do
   # billed figure would present a trial as an unexplained absence of
   # charges; showing only the accrued one would read as a bill that is
   # not coming.
-  defp runner_usage(account, subscription, prepaid) do
+  defp runner_usage(account, subscription, prepaid, billing_period) do
     now = DateTime.utc_now()
-    {period_start, _period_end} = runner_usage_period(account, now)
+    {period_start, _period_end} = usage_period(billing_period, now)
 
     total_ms =
       RunnerBilling.compute_milliseconds(account.id, period_start, now)
@@ -220,11 +301,11 @@ defmodule TuistWeb.BillingLive do
   Says what the runner bar's ceiling is made of, so a limit larger than
   the plan's allowance is not left unexplained.
   """
-  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your runner usage")
+  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your usage")
 
   def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
     do:
-      dgettext("dashboard_account", "of your runner usage (%{free} free plus %{prepaid} prepaid)",
+      dgettext("dashboard_account", "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)",
         free: format_number(free),
         prepaid: format_number(prepaid)
       )

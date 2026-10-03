@@ -10,6 +10,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.API.Schemas.ProjectBuildSystem
   alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -121,7 +122,10 @@ defmodule TuistWeb.API.ProjectsController do
             [build_system: String.to_existing_atom(build_system)]
           end
 
-        case Projects.create_project(%{name: project_handle, account: account}, opts) do
+        case Projects.create_project(
+               %{name: project_handle, account: account},
+               Keyword.put(opts, :origin, RemoteIp.origin(conn))
+             ) do
           {:ok, project} ->
             conn
             |> put_status(:ok)
@@ -347,9 +351,19 @@ defmodule TuistWeb.API.ProjectsController do
       full_name: full_name,
       token: "",
       default_branch: project.default_branch,
-      visibility: project.visibility,
-      build_system: project.build_system
+      visibility: project.visibility
     }
+
+    # Clients shipped before the Project response schema stopped enumerating
+    # build systems (iOS/macOS app, CLI, Android app) fail to decode the whole
+    # response on any other value, and treat a missing one as xcode. Remove
+    # once those clients have aged out.
+    response =
+      if project.build_system in [:xcode, :gradle, :bazel] do
+        Map.put(response, :build_system, project.build_system)
+      else
+        response
+      end
 
     if Keyword.get(opts, :include_repository_url, false) do
       Map.put(response, :repository_url, Projects.get_repository_url(project))

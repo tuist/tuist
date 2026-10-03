@@ -2,7 +2,7 @@
 {
   "title": "Projects",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn about Tuist Generated Projects and Xcode project generation with Tuist's DSL."
+  "description": "Describe Xcode projects in Swift and generate them consistently with Tuist. Eliminate merge conflicts, model dependencies as a graph, and unlock the module cache."
 }
 ---
 # Generated projects {#generated-projects}

@@ -44,7 +44,7 @@
         title={dgettext("dashboard_runners", "Total jobs")}
         legend_color="primary"
         description={dgettext("dashboard_runners", "Workflow jobs enqueued in the last 30 days.")}
-        value={if @jobs_count.ok?, do: Integer.to_string(@jobs_count.result.count)}
+        value={if @jobs_count.ok?, do: format_number(@jobs_count.result.count)}
         loading={!@jobs_count.ok?}
         selected={@analytics_selected_widget == "total_jobs"}
         phx_click="select_widget"
@@ -63,7 +63,7 @@
             "Jobs that completed with conclusion=failure in the last 30 days."
           )
         }
-        value={if @failed_jobs_count.ok?, do: Integer.to_string(@failed_jobs_count.result.count)}
+        value={if @failed_jobs_count.ok?, do: format_number(@failed_jobs_count.result.count)}
         loading={!@failed_jobs_count.ok?}
         selected={@analytics_selected_widget == "failed_jobs"}
         phx_click="select_widget"

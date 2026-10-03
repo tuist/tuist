@@ -5,11 +5,19 @@ import { initializeFaro, getWebInstrumentations } from "@grafana/faro-web-sdk";
 // LiveView navigation because a `phx:navigate` does not reload the document.
 //
 // Sessions are not persisted across visits and no user identity is attached:
-// the alerting this feeds only needs the latency distribution.
+// the gateway adds authentication state, never a user identifier.
 export function initAnalytics() {
   const config = globalThis.analytics;
 
   if (!config?.enabled || !config.collector_url) {
+    return null;
+  }
+
+  // Automated browsers report `navigator.webdriver`. Their web vitals measure
+  // the crawler's own request queue rather than the site, so they are not
+  // collected. Other automation can still report vitals; this is not proof
+  // that the remaining measurements came from humans.
+  if (navigator.webdriver) {
     return null;
   }
 

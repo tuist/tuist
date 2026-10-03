@@ -234,13 +234,67 @@ struct ModuleCacheRemoteStorageTests {
 
         // Then
         // The undecompressable artifact is a per-item cache miss (the fetch does
-        // not fail), surfaced as a single "could not be decompressed" warning
-        // rather than the misleading "server unavailable" alert.
+        // not fail), surfaced as a single "damaged" warning rather than the
+        // misleading "server unavailable" alert.
         #expect(got.isEmpty == true)
         #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
-            ["These cached artifacts could not be decompressed and were rebuilt from source: target"]
+            [
+                "These cached artifacts were damaged (they failed their integrity check or could not be decompressed) and were rebuilt from source: target",
+            ]
         )
         // The payload won't change on retry, so it must be downloaded only once.
+        verify(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_the_download_fails_its_integrity_check_is_treated_as_a_cache_miss() async throws {
+        // Given
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willThrow(
+                DownloadModuleCacheServiceError.checksumMismatch(
+                    expected: String(repeating: "0", count: 64),
+                    actual: String(repeating: "1", count: 64)
+                )
+            )
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        // A body that fails its uploader's digest is the same per-item miss as one
+        // that cannot be decompressed, not a server outage.
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            [
+                "These cached artifacts were damaged (they failed their integrity check or could not be decompressed) and were rebuilt from source: target",
+            ]
+        )
+        // The download service already fetched it a second time before giving up,
+        // and damage at rest does not repair on another attempt.
         verify(downloadModuleCacheService)
             .downloadModuleCacheArtifact(
                 accountHandle: .any,
@@ -867,5 +921,68 @@ struct ModuleCacheRemoteStorageTests {
             .map { $0.plain() } ==
             ["Your subscription limits have been reached. Unable to retrieve the following cached artifacts: target"]
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func store_when_an_upload_fails_uploads_the_rest_and_throws_the_failure() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let failingPath = temporaryDirectory.appending(component: "Failing.framework")
+        let uploadedPath = temporaryDirectory.appending(component: "Uploaded.framework")
+        try await fileSystem.makeDirectory(at: failingPath)
+        try await fileSystem.makeDirectory(at: uploadedPath)
+        given(multipartUploadService)
+            .uploadArtifact(
+                artifactPath: .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .value("failing-hash"),
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willThrow(StartModuleCacheMultipartUploadServiceError.forbidden("The token can't write to this project"))
+        given(multipartUploadService)
+            .uploadArtifact(
+                artifactPath: .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .value("uploaded-hash"),
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn()
+
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [
+                    CacheStorableItem(name: "Failing", hash: "failing-hash"): [failingPath],
+                    CacheStorableItem(name: "Uploaded", hash: "uploaded-hash"): [uploadedPath],
+                ],
+                cacheCategory: .binaries
+            )
+        }
+
+        #expect(error?.failures == [
+            CacheUploadFailure(item: CacheStorableItem(name: "Failing", hash: "failing-hash"), reason: "authentication failed"),
+        ])
+
+        verify(multipartUploadService)
+            .uploadArtifact(
+                artifactPath: .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .value("uploaded-hash"),
+                name: .value("Uploaded.zip"),
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
     }
 }

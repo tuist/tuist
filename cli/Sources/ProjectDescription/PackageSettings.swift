@@ -54,7 +54,9 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Whether test targets from local path packages declared as external dependencies are included in generated projects.
     ///
     /// Packages loaded directly as local projects always include their test targets. Remote package test targets are never
-    /// included. An included test target must depend only on targets from the same package. The default value is `false`.
+    /// included. Products used by local package tests must be available through the dependencies declared in
+    /// `Tuist/Package.swift`. Their transitive dependencies are preserved for the tests’ effective platforms when their
+    /// destinations can be inferred from production consumers. The default value is `false`.
     public var includeLocalPackageTestTargets: Bool
 
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.

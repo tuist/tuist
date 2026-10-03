@@ -95,6 +95,31 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
   end
 
   describe "get_gradle_build" do
+    test "returns the remote cache transfer totals for the build", %{conn: conn, user: user, project: project} do
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          tasks: [
+            %{task_path: ":app:compileKotlin", outcome: "remote_hit", cacheable: true, cache_artifact_size: 9000},
+            %{
+              task_path: ":app:processResources",
+              outcome: "executed",
+              cacheable: true,
+              cache_artifact_size: 1000,
+              remote_cache_stored: true
+            }
+          ]
+        )
+
+      result = GetGradleBuild.call(conn, %{"build_run_id" => build_id})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert result["cache_download_bytes"] == 9000
+      assert result["cache_upload_bytes"] == 1000
+    end
+
     test "returns build details", %{conn: conn, user: user, project: project} do
       build_id =
         GradleFixtures.build_fixture(

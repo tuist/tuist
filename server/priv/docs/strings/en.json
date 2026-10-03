@@ -246,17 +246,8 @@
             "choose-your-path": {
               "text": "Get started"
             },
-            "optimization": {
-              "text": "Optimize"
-            },
-            "observability": {
-              "text": "Observe"
-            },
-            "ask": {
-              "text": "Ask"
-            },
             "existing-xcode-project": {
-              "text": "Existing Xcode project"
+              "text": "Xcode project"
             },
             "generated-xcode-project": {
               "text": "Generated Xcode project"
@@ -264,8 +255,8 @@
             "gradle-project": {
               "text": "Gradle project"
             },
-            "tuist-runners": {
-              "text": "Run"
+            "bazel-project": {
+              "text": "Bazel project"
             }
           }
         },
@@ -407,11 +398,11 @@
                 }
               }
             },
-            "registry": {
-              "text": "Registry",
+            "package-registries": {
+              "text": "Package Registries",
               "items": {
-                "registry": {
-                  "text": "Registry"
+                "swift": {
+                  "text": "Swift"
                 },
                 "xcode-project": {
                   "text": "Xcode project"
@@ -431,24 +422,60 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing"
-            },
-            "test-sharding": {
-              "text": "Test sharding"
-            },
-            "insights": {
-              "text": "Build insights"
-            },
-            "test-insights": {
-              "text": "Test insights",
+              "text": "Selection",
               "items": {
-                "flaky-tests": {
-                  "text": "Flaky tests"
+                "generated-xcode-project": {
+                  "text": "Generated Xcode project"
                 }
               }
             },
-            "bundle-size": {
-              "text": "Bundle insights"
+            "test-sharding": {
+              "text": "Sharding",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Generated Xcode project"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Generated Xcode project"
+                }
+              }
+            },
+            "test-insights": {
+              "text": "Insights",
+              "items": {
+                "flaky-tests": {
+                  "text": "Flakiness",
+                  "items": {
+                    "generated-xcode-project": {
+                      "text": "Generated Xcode project"
+                    }
+                  }
+                }
+              }
+            },
+            "bundle-insights": {
+              "text": "Insights",
+              "items": {
+                "apple": {
+                  "text": "Apple"
+                },
+                "android": {
+                  "text": "Android"
+                }
+              }
+            },
+            "runners": {
+              "text": "Runners",
+              "items": {
+                "ci-providers": {
+                  "text": "CI providers"
+                }
+              }
             }
           }
         },

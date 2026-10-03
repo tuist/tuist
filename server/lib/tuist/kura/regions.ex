@@ -6,10 +6,14 @@ defmodule Tuist.Kura.Regions do
 
   A region carries:
 
-    * `id` — stable opaque identifier (`"eu-central"`, `"us-east"`,
+    * `id` — stable opaque identifier (`"eu-west"`, `"us-east"`,
       `"us-west"`, `"local-controller"`).
-      Stored on `kura_servers.region`. Never renamed once published
-      because URLs and `account_cache_endpoints` reference it.
+      Stored on `kura_servers.region`. Renaming one is a migration rather
+      than an edit, because URLs and every region-keyed row reference it:
+      `eu-west` was `eu-central` until 2026-09-09, and the rename rewrote
+      every row, moved every public hostname with the cluster id, and left
+      `provisioner_node_ref` alone so the instances kept their names and
+      their volumes.
     * `display_name` — the customer-facing region label.
     * `provisioner` — the `Tuist.Kura.Provisioner` implementation that
       actually provisions, rolls, and destroys Kura servers here. The
@@ -50,7 +54,7 @@ defmodule Tuist.Kura.Regions do
   # `*.kura.tuist.dev` Cloudflare zone. `{env_suffix}` is filled at runtime
   # (see `managed_region_host_suffix/0`): empty in production and
   # `-staging`/`-canary` elsewhere, so non-production deployments mint
-  # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
+  # distinct hostnames (e.g. `acme-eu-west-1-staging.kura.tuist.dev`).
   @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
   # gRPC (Bazel REAPI) co-hosts on the single public host: the regional Kura
   # ingress routes the gRPC service path prefixes to the gRPC backend and
@@ -117,12 +121,25 @@ defmodule Tuist.Kura.Regions do
   # (1900-2025 MiB against the current 2Gi), the busiest pro instance reaches
   # ~1220 MiB, and air instances sit at ~150 MiB.
   @enterprise_memory_floor_mib 1024
-  @enterprise_memory_ceiling_mib 4096
+  # Pro and Enterprise share the paid ceiling, so a busy Pro account absorbs
+  # the same burst an Enterprise one does. The floor is not raised with it:
+  # Kura sizes its fixed transient pool, the one materialized reads reserve
+  # from, from the floor, so Pro keeps the floor that pool was sized on.
   @pro_memory_floor_mib 512
-  @pro_memory_ceiling_mib 3072
+  @paid_memory_ceiling_mib 4096
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
+  # CPU ceilings become the pod's limits.cpu. There is no floor here: the
+  # controller observes requests.cpu per instance, so the plan grants only the
+  # burst bound. Each sits several times over its plan's measured 14-day peak
+  # (631m enterprise, 53m pro, 1-2m air, all 15-second averages) because a CFS
+  # quota is not work-conserving: one set near real use stalls a burst on an
+  # otherwise idle box. Pro shares the enterprise ceiling so the paid plans
+  # burst alike. As a share of the smallest managed box, 11 cores: 36% paid,
+  # 9% Air.
+  @paid_cpu_ceiling_milli 4000
+  @standard_cpu_ceiling_milli 1000
   # Filesystem quota one replica of a cache instance reserves, per plan. The
   # claim covers the whole data volume, not just the cache: Kura's artifact ring
   # shares it with the upload staging directory and the RocksDB index, and the
@@ -138,11 +155,10 @@ defmodule Tuist.Kura.Regions do
   # `ephemeral-storage`, so an oversized quota does not waste disk, it refuses
   # to place instances that would have fitted.
   #
-  # Air and Pro therefore start in the same place, and `Tuist.Kura.ClaimSizing`
-  # gives them the same ceiling too: what a paid plan buys is not a bigger
-  # cache on day one, it is the demand-driven lifecycle and the regional
-  # placement around it. An account that needs more disk gets it by proving so,
-  # whichever plan it is on. Enterprise starts a step higher only because it is
+  # Air and Pro therefore start in the same place: what a paid plan buys is not
+  # a bigger cache on day one, it is room to grow. An account that needs more
+  # disk gets it by proving so, and `Tuist.Kura.ClaimSizing` lets a paid account
+  # that proves it grow four times past where Air stops. Enterprise starts a step higher only because it is
   # the plan whose accounts predictably arrive with a working set already.
   #
   # They are also powers of two so that growth lands squarely. Sizing clamps a
@@ -170,7 +186,6 @@ defmodule Tuist.Kura.Regions do
   # provisioner); held flat, 8 GiB of reserve would leave an 8Gi claim no ring
   # at all.
   @enterprise_storage_claim "16Gi"
-  @pro_storage_claim "8Gi"
   @air_storage_claim "8Gi"
 
   # Which countries `accounts.region == :europe` accepts a datacenter in. The
@@ -186,13 +201,14 @@ defmodule Tuist.Kura.Regions do
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
     # storage, a hostNetwork regional gateway bound to the box's public IP (OVH
     # has no Hetzner LB), and two bounded-size replicas — the same bare-metal
-    # shape as eu-central (Dedibox) and ca-east (OVH BHS). The region
+    # shape as eu-west (Dedibox) and ca-east (OVH BHS). The region
     # ids, cluster_ids, ingress classes, and public hostnames are unchanged from
     # the former Hetzner backing, so the cutover is invisible to customers. Only
     # production serves these regions (TUIST_KURA_AVAILABLE_REGIONS), so the
     # switch is prod-only.
     %{
       id: "us-east",
+      aws_region: "us-east-1",
       display_name: "US East",
       cluster_id: "us-east-1",
       ingress_class_name: "kura-us-east",
@@ -212,6 +228,7 @@ defmodule Tuist.Kura.Regions do
     },
     %{
       id: "us-west",
+      aws_region: "us-west-2",
       display_name: "US West",
       cluster_id: "us-west-1",
       ingress_class_name: "kura-us-west",
@@ -229,22 +246,28 @@ defmodule Tuist.Kura.Regions do
       country: "US",
       subdivision: "US-OR"
     },
-    # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
-    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
-    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # Production EU West runs on OVH in Gravelines, retaining the historical
+    # `kura-dedibox` pool selector and local-NVMe storage. Its hostNetwork
+    # regional gateway publishes the OVH nodes' public IPs,
     # and two bounded-size replicas so a rolling deploy fails the cache Service
     # over to the warm standby instead of dropping traffic while the primary pod
     # restarts. Both replicas of an account stay co-located on its box (controller
     # pod affinity); the standby covers gapless deploys, not box loss (a dead box's
-    # cache regenerates / backfills from cross-region peers). The region
-    # id, cluster_id,
-    # ingress class, and public hostnames are unchanged from the former Hetzner
-    # ccx13 backing, so the cutover is invisible to the customer.
+    # cache regenerates / backfills from cross-region peers).
+    #
+    # Named `eu-central` until 2026-09-09, after the Hetzner Falkenstein pool it
+    # started on; the Dedibox cutover moved it to Paris and kept the name. The
+    # rename rewrote the id on every row and changed the cluster id, so every
+    # account's public hostname moved with it. `provisioner_node_ref` was left
+    # alone: it is an opaque handle on the KuraInstance and its volumes, so each
+    # instance kept its name and its data, and takes the new name when placement
+    # next moves it.
     %{
-      id: "eu-central",
-      display_name: "EU Central",
-      cluster_id: "eu-central-1",
-      ingress_class_name: "kura-eu-central",
+      id: "eu-west",
+      aws_region: "eu-west-3",
+      display_name: "EU West",
+      cluster_id: "eu-west-1",
+      ingress_class_name: "kura-eu-west",
       node_pool: "kura-dedibox",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
@@ -254,21 +277,20 @@ defmodule Tuist.Kura.Regions do
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
-      # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both
-      # sit in the Paris region, so the region's location is the same
-      # everywhere despite the id reading `eu-central`.
+      # OVHcloud Gravelines, Hauts-de-France.
       country: "FR",
-      subdivision: "FR-IDF"
+      subdivision: "FR-HDF"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
     # hostNetwork regional gateway bound to the box's public IP (OVH has no
-    # Hetzner LB) — the same bare-metal shape as eu-central on Dedibox. The
+    # Hetzner LB) — the same bare-metal shape as eu-west on OVH. The
     # provider (OVH) is an implementation detail behind the geographic id. Gated
     # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
     # is validated; production serves us-east/us-west on their own OVH fleets).
     %{
       id: "ca-east",
+      aws_region: "ca-central-1",
       display_name: "Canada East",
       cluster_id: "ca-east-1",
       ingress_class_name: "kura-ca-east",
@@ -292,21 +314,23 @@ defmodule Tuist.Kura.Regions do
     # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
     # the legacy lane keeps the region name it already knows.
     #
-    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
-    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
-    # us-east, and `all` defaults to us-east, so no storage-region preference
-    # resolves to Asia Pacific. Do not go looking for the rule that places
-    # accounts here; there is none. Air in particular can never land here,
-    # because Air resolves from the storage-region preference alone.
+    # No storage-region preference names this region: `accounts.region` is
+    # `all | europe | usa`, and none of the three derives to Asia Pacific. What
+    # places accounts here is where their traffic comes from — `Tuist.Kura.Origins`
+    # counts the origin, `Tuist.Kura.OriginMap` maps APAC to this region first,
+    # and an account whose residency constrains nothing resolves here without an
+    # operator. Air reaches it on the same rule as every other plan: what bounds
+    # a region is the disk `Tuist.Kura.Admission` can actually find there, not
+    # the tier of the account asking.
     #
-    # Two things do reach it, exactly as they reach us-west: an operator pinning
-    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
-    # which carries plan checks, audit and versioning; and a customer picking the
-    # region in account settings, which goes through `selectable/0` and never
-    # consults AccountPolicies. The second is deliberate — this is a public
-    # region — so "assignment-only" describes derivation, not access.
+    # Two further routes reach it, exactly as they reach us-west: an operator
+    # pinning an account's resolved region with
+    # `AccountPolicies.assign_service_region/4`, which carries plan checks, audit
+    # and versioning; and a customer picking the region in account settings, which
+    # goes through `selectable/0` and never consults AccountPolicies.
     %{
       id: "ap-southeast",
+      aws_region: "ap-southeast-1",
       display_name: "Asia Pacific Southeast",
       cluster_id: "ap-southeast-1",
       ingress_class_name: "kura-ap-southeast",
@@ -337,14 +361,118 @@ defmodule Tuist.Kura.Regions do
       # locates the node as precisely as the pair can. Stating a district would
       # be the guess this field exists to avoid (see `node_location/1`).
       country: "SG"
+    },
+    # South America West (Santiago / Vultr) on Vultr bare metal: the
+    # `kura-sa-west` node pool, local-NVMe storage, and a hostNetwork regional
+    # gateway bound to the box's public IP, the same bare-metal shape as the OVH
+    # regions. The id matches the legacy cache fleet's `cache-sa-west.tuist.dev`
+    # endpoint, so an account moved off the legacy lane keeps the region name it
+    # already knows.
+    #
+    # Vultr rather than OVH or Scaleway because neither sells in South America:
+    # OVH's own datacenter availability API lists bhs, ca-east-tor-a,
+    # eu-west-par-*, fra, gra, hil, lon, rbx, sbg, sgp, syd, waw and ynm, and
+    # Scaleway and Hetzner have no presence there either.
+    #
+    # Nothing DERIVES here, exactly as with us-west and ap-southeast:
+    # `accounts.region` is `all | europe | usa`, none of which resolves to South
+    # America. An account reaches it through an explicit
+    # `AccountPolicies.assign_service_region/4`, through a customer picking it in
+    # account settings via `selectable/0`, or through a placement proposal.
+    %{
+      id: "sa-west",
+      aws_region: "sa-east-1",
+      display_name: "South America West",
+      cluster_id: "sa-west-1",
+      ingress_class_name: "kura-sa-west",
+      node_pool: "kura-sa-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Egress governance on the shared box. Unlike the OVH and Dedibox regions,
+      # which buy unmetered public bandwidth, this plan meters a 10 TB/month
+      # quota; the box's NIC links at 25 Gbit/s, so the quota rather than the
+      # link is what binds. 500 Mbps is the same conservative burst ceiling
+      # ap-southeast and ca-east carry, and it is provisional until the region
+      # serves enough traffic to measure. South America moved ~150 GiB a month on
+      # the legacy lane, so the quota has roughly 68x headroom at today's volume.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Vultr Santiago, Chile. Región Metropolitana de Santiago, where the
+      # datacenter sits.
+      country: "CL",
+      subdivision: "CL-RM"
+    },
+    # EU East (Warsaw / OVHcloud WAW) on OVH bare metal: the `kura-eu-east` node
+    # pool (an `ovhFleets` entry), local-NVMe storage, and a hostNetwork regional
+    # gateway bound to the box's public IP, the same bare-metal shape as us-east
+    # and us-west.
+    #
+    # Serves the east of the OriginMap's europe split: the Baltics, the Nordics,
+    # and everything east of Germany. eu-west is in Paris, so those origins
+    # read across the continent today, Vilnius being 400km from Warsaw and 1600
+    # from Paris.
+    #
+    # OVH rather than Vultr, unlike sa-west: OVH sells in Warsaw, so the region
+    # reuses the OVHDedicatedMachine kind, its prep tooling and its unmetered
+    # bandwidth instead of adding a metered provider where an unmetered one is
+    # available.
+    %{
+      id: "eu-east",
+      aws_region: "eu-central-1",
+      display_name: "EU East",
+      cluster_id: "eu-east-1",
+      ingress_class_name: "kura-eu-east",
+      node_pool: "kura-eu-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC), the
+      # same shape us-east and us-west carry on the same range.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500,
+      # OVHcloud WAW, Warsaw, Masovian Voivodeship.
+      country: "PL",
+      subdivision: "PL-MZ"
+    },
+    # US Central (Chicago / Vultr ORD) on Vultr bare metal: the `kura-us-central`
+    # node pool (a `vultrFleets` entry), local-NVMe storage, and a hostNetwork
+    # regional gateway bound to the box's public IP. The id matches the legacy
+    # cache fleet's `cache-us-central.tuist.dev` endpoint, which was also in
+    # Chicago, so an account moved off the legacy lane keeps the region name it
+    # already knows.
+    #
+    # Vultr rather than OVH because no provider in the fleet sells bare metal in
+    # the US interior: OVH's datacenter availability API lists vin and hil in the
+    # United States, Hetzner sells Ashburn and Hillsboro, and Dedibox is EU-only.
+    # Chicago is where the interior's CI runs, and neither Vint Hill nor
+    # Hillsboro reaches it well.
+    %{
+      id: "us-central",
+      aws_region: "us-east-2",
+      display_name: "US Central",
+      cluster_id: "us-central-1",
+      ingress_class_name: "kura-us-central",
+      node_pool: "kura-us-central",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Same metered plan as sa-west: a 10 TB/month egress quota rather than the
+      # unmetered bandwidth the OVH and Dedibox regions buy, so the quota rather
+      # than the link binds. Vultr pools the quota account-wide, so sa-west's
+      # unused allowance covers a burst here. 500 Mbps matches sa-west and is
+      # provisional until the region serves enough to measure.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Vultr ORD, Chicago, Illinois.
+      country: "US",
+      subdivision: "US-IL"
     }
   ]
-  # Private runner-cache regions. Both share the same model: a single-
-  # replica `KuraInstance` pinned to a specific node pool of the umbrella
-  # cluster, exposed only as a `ClusterIP` Service (no public host, no
-  # ingress, no certificate, no LoadBalancer). The runner pool reaches
-  # the cache pod by Kubernetes Service DNS, so cache traffic never
-  # leaves the cluster. The control plane provisions exactly one of
+  # Private runner caches use the ordinary managed two-replica rollout and
+  # continuous account mesh replication. Their regional gateway admits the
+  # runner network and publishes a stable per-account private hostname.
+  # The control plane provisions exactly one of
   # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
   # and the runner dispatch hands the URL back as `cache_endpoint_url`.
   #
@@ -370,6 +498,8 @@ defmodule Tuist.Kura.Regions do
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
+      replicas: 2,
+      ingress_class_name: "kura-runners",
       display_name: "Scaleway fr-par (runner cache)",
       cluster_id: "scw-fr-par",
       node_pool: "kura-scw-fr-par",
@@ -379,17 +509,16 @@ defmodule Tuist.Kura.Regions do
       # via the local-path provisioner (`scw-local-nvme` StorageClass,
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
+      # Conservative accounting for legacy rows without a pin or loaded account.
+      # Governed provisioning still uses the account claim, not this fallback.
       storage_size: "50Gi",
+      storage_governed: true,
+      memory_governed: true,
       runner_platforms: [:macos],
-      # The macOS Tart VMs reach this pool over a Scaleway Private
-      # Network, not the cluster's pod network, so cluster Service DNS
-      # neither resolves nor routes for them. Dispatch hands out
-      # `http://<node PN address>:<NodePort>` instead, read from the
-      # KuraInstance status the kura-controller maintains.
-      data_plane: :node_port,
-      # The PN subnet (minis + kura nodes). NodePort traffic keeps the
-      # client's source address, which the per-instance NetworkPolicy
-      # only admits through this ipBlock.
+      # Tart VMs use the PN gateway hostname; retain allocated NodePorts for
+      # jobs that received the former node-address URL before migration.
+      data_plane: :private_gateway,
+      expose_node_port: true,
       client_cidrs: ["172.16.0.0/22"],
       # Per-account egress ceiling (Cilium bandwidth manager). The pool's
       # node NIC is shared by every tenant pod on it; the cap keeps one
@@ -470,19 +599,37 @@ defmodule Tuist.Kura.Regions do
   def private?(_), do: false
 
   @doc """
+  True iff the region's instances join the controller-managed per-account peer
+  mesh (replicate with the account's other nodes under one per-account CA).
+  """
+  def mesh?(%__MODULE__{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
+  def mesh?(_), do: false
+
+  @doc """
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
-  grant. `:enterprise` and `:pro` have their own; every other plan, `:air`
-  included, takes the smallest. Unknown plans fall there too, which is the safe
-  side on a shared box.
+  grant. The paid plans share the larger ceiling, which sets how large a burst
+  an instance absorbs. Each plan reserves its own floor, and every plan other
+  than `:enterprise` and `:pro`, `:air` included, takes the smallest profile.
+  Unknown plans fall there too, which is the safe side on a shared box.
   """
-  def memory_profile(:enterprise),
-    do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @enterprise_memory_ceiling_mib}
+  def memory_profile(:enterprise), do: %{floor_mib: @enterprise_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
-  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
+  def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @paid_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+
+  @doc """
+  The `limits.cpu` in millicores for a billing plan.
+
+  The counterpart to `memory_profile/1`'s ceiling, and the burst bound half of
+  the same pair egress already has: a floor that is guaranteed and a ceiling
+  that is enforced. The floor has no entry here because the controller observes
+  it per instance rather than granting it per plan.
+  """
+  def cpu_ceiling_milli(plan) when plan in [:enterprise, :pro], do: @paid_cpu_ceiling_milli
+  def cpu_ceiling_milli(_plan), do: @standard_cpu_ceiling_milli
 
   @doc """
   True iff the region sizes its instances per tier rather than taking the
@@ -500,14 +647,12 @@ defmodule Tuist.Kura.Regions do
   The `%{claim_size:}` storage profile for a billing plan: the filesystem quota
   each replica of that plan's cache instance reserves.
 
-  Every plan gets a profile, the same way memory does. `:enterprise` and `:pro`
-  have their own; every other plan takes air's, which is also the floor no
+  Every plan gets a profile, the same way memory does. `:enterprise` has its own;
+  every other plan, `:pro` included, takes air's, which is also the floor no
   instance is sized below. Unknown plans land there too, which is the side that
   admits rather than the side that refuses.
   """
   def storage_profile(:enterprise), do: %{claim_size: @enterprise_storage_claim}
-
-  def storage_profile(:pro), do: %{claim_size: @pro_storage_claim}
 
   def storage_profile(_plan), do: %{claim_size: @air_storage_claim}
 
@@ -692,14 +837,12 @@ defmodule Tuist.Kura.Regions do
     |> Enum.map(& &1.id)
   end
 
-  @doc """
-  True iff this private region's runner fleet dials a node-published
-  endpoint (`http://<node address>:<NodePort>`) instead of cluster
-  Service DNS — the data plane for fleets that share a network with
-  the region's node pool but not with the cluster's pod network.
-  """
-  def node_port_data_plane?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :node_port
-  def node_port_data_plane?(_), do: false
+  @doc "Maximum age of the controller observation used for private endpoint validation and dispatch."
+  def private_endpoint_staleness_seconds, do: 120
+
+  def observed_private_endpoint?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :private_gateway
+
+  def observed_private_endpoint?(_), do: false
 
   @doc """
   The public hostname this region's account peer plane is reachable at from
@@ -804,6 +947,7 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
+        aws_region: Map.get(spec, :aws_region),
         hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
         private_url_template: @in_cluster_url_template,
@@ -848,20 +992,16 @@ defmodule Tuist.Kura.Regions do
         # their instances are sized per tier rather than taking the controller
         # default, and their ceilings are bin-packed against the node budget the
         # CAPI provider advertises. Per-tier sizing rides with the kubelet's
-        # MemoryQoS gate rather than landing ahead of it: a tiered floor sits
-        # far below its ceiling, so it is only a scheduling promise until the
-        # kernel enforces it as memory.min. The private runner-cache pool runs
-        # on Elastic Metal, which the provider does not patch, so it takes the
-        # controller default and stays off the bin-pack.
+        # MemoryQoS gate: a tiered floor is only a scheduling promise until the
+        # kernel enforces it as memory.min. Runner caches use the same profiles
+        # but do not request the extended ceiling resource, since their nodes
+        # do not advertise it.
         memory_governed: true,
         memory_ceiling_bin_packed: true,
         # Same reason the memory profile is per tier: packing density is what
         # constrains these boxes, and disk is the tighter of the two constraints
         # because a claim is reserved whole rather than shared under a ceiling.
-        # A region left off this sizes every instance alike, which is what the
-        # private runner-cache pool wants — it holds one instance per account
-        # regardless of plan, on capacity ordered for the runner fleet rather
-        # than for the customer plane.
+        # Private runner caches participate in the same account sizing policy.
         storage_governed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
@@ -888,7 +1028,7 @@ defmodule Tuist.Kura.Regions do
   # Environment suffix woven into managed-region public hostnames so the
   # ingress hosts, external-dns Cloudflare records, and cert-manager
   # certificates of staging/canary never collide with production. The
-  # managed regions (e.g. `eu-central`) are exposed in every environment
+  # managed regions (e.g. `eu-west`) are exposed in every environment
   # and share a `cluster_id`, so without a per-environment suffix all three
   # would mint the identical hostname and fight over the same DNS record.
   defp managed_region_host_suffix do
@@ -909,12 +1049,16 @@ defmodule Tuist.Kura.Regions do
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         private: true,
-        # In-cluster Service DNS the runner Pods resolve. `{instance}`
-        # interpolates to `instance_name(handle, region)`. Node-port
-        # regions don't use it for dispatch but keep it as the
-        # in-cluster debugging path.
+        # Stable in-cluster access, including debugging gateway regions.
+        # Off-cluster runner dispatch uses the observed private entrance.
         private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
+        expose_node_port: Map.get(spec, :expose_node_port, false),
+        private_host_template:
+          if(spec[:data_plane] == :private_gateway,
+            do: "{account_handle}-{cluster_id}-runners#{managed_region_host_suffix()}.kura.tuist.dev"
+          ),
+        ingress_class_name: Map.get(spec, :ingress_class_name),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
@@ -923,9 +1067,11 @@ defmodule Tuist.Kura.Regions do
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
-        storage_size: spec.storage_size,
+        storage_size: Map.get(spec, :storage_size),
+        storage_governed: Map.get(spec, :storage_governed, false),
+        memory_governed: Map.get(spec, :memory_governed, false),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
-        replicas: 1,
+        replicas: Map.get(spec, :replicas, 1),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the

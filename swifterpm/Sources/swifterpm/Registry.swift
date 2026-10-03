@@ -130,6 +130,12 @@ enum RegistryAuthorization {
         }
 
         let netrc = Environment.netrc
+        // SwiftPM's `--disable-keychain` intentionally leaves the registry keychain
+        // provider in place — see `SwiftCommandState.getRegistryAuthorizationProvider`,
+        // which ignores `options.security.keychain` and only honours `forceNetrc`. The
+        // flag disables the keychain for binary artifact downloads (`HTTPAuthorization`)
+        // and nothing else. Gating this call site as well would silently diverge from
+        // `swift package resolve` on the same inputs.
         if let credential = await prioritizedCredential(
             environmentNetrc: netrc.credential(for: url, from: .environment),
             fileNetrc: netrc.credential(for: url, from: .file),

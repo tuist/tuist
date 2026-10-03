@@ -47,6 +47,17 @@ defmodule TuistWeb.RemoteIp do
     cloudflare_ip || forwarded_ip || format_ip(conn.remote_ip)
   end
 
+  @doc "Cloudflare request identifier, accepted only over the trusted edge/ingress path."
+  def cloudflare_ray_id(conn) do
+    with true <- trusted_cloudflare_hop?(conn.remote_ip, header(conn, "x-forwarded-for"), edge_address(conn)),
+         ray when is_binary(ray) <- header(conn, "cf-ray"),
+         true <- Regex.match?(~r/\A[0-9a-f]{16}(?:-[A-Z]{3})?\z/, ray) do
+      ray
+    else
+      _ -> nil
+    end
+  end
+
   @doc """
   The coarsest label for where a request came from that still tells the
   candidate cache regions apart: an ISO 3166-1 country, narrowed to an
@@ -68,6 +79,13 @@ defmodule TuistWeb.RemoteIp do
       {:error, _reason} -> nil
     end
   end
+
+  @doc """
+  `origin/1` as LiveView session data, for a `live_session` whose views act on
+  where the person using them is. The page's HTTP request is the one the edge
+  located, so the origin is read there and carried over to the socket.
+  """
+  def live_session(conn), do: %{"origin" => origin(conn)}
 
   @doc """
   `origin/1`, with the reason when there is no origin to give.

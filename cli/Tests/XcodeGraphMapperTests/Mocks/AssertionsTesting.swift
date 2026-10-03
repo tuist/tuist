@@ -1,17 +1,11 @@
 import Foundation
 import Path
 import Testing
+import TuistTestSupport
 
 enum AssertionsTesting {
     static func fixturePath() -> AbsolutePath {
-        // swiftlint:disable:next force_try
-        try! AbsolutePath(
-            validating: #filePath
-        )
-        .parentDirectory
-        .parentDirectory
-        .parentDirectory
-        .appending(components: "Fixtures")
+        TestPaths.fixturesDirectory
     }
 
     /// Resolves a fixture path relative to the project's root.

@@ -3,6 +3,18 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "atlas_token_issuer/1" do
+    test "has no default, so Atlas tokens do not verify until it is configured" do
+      assert Environment.atlas_token_issuer(%{}) == nil
+    end
+
+    test "reads the configured issuer" do
+      secrets = %{"atlas" => %{"token_issuer" => "https://atlas-cluster.example"}}
+
+      assert Environment.atlas_token_issuer(secrets) == "https://atlas-cluster.example"
+    end
+  end
+
   describe "clickhouse_max_memory_usage_for_user_bytes/2" do
     test "uses the runtime environment value without mutating process-wide state" do
       environment = %{"TUIST_CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER_BYTES" => "8589934592"}
@@ -15,6 +27,44 @@ defmodule Tuist.EnvironmentTest do
 
       assert Environment.clickhouse_max_memory_usage_for_user_bytes(secrets, %{}) == 4_294_967_296
       assert Environment.clickhouse_max_memory_usage_for_user_bytes(%{}, %{}) == 0
+    end
+  end
+
+  describe "kura_placement_automatic_applies_per_day/1" do
+    test "reads nothing when the budget is unset or blank" do
+      assert Environment.kura_placement_automatic_applies_per_day(%{}) == %{}
+
+      assert Environment.kura_placement_automatic_applies_per_day(%{
+               "TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => ""
+             }) == %{}
+    end
+
+    test "reads a count per kind" do
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=2, correct=2 ,relocate=1"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) ==
+               %{"expand" => 2, "correct" => 2, "relocate" => 1}
+    end
+
+    test "reads nothing from a bare number" do
+      # A kind has to be named to run unattended, so a value written for a
+      # fleet-wide count cannot silently enable the kind it was not weighed for.
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "5"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) == %{}
+    end
+
+    test "reads `all` as no ceiling for that kind" do
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=all,retire=25"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) ==
+               %{"expand" => :unlimited, "retire" => 25}
+    end
+
+    test "drops an unreadable pair without losing the readable ones" do
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=2,correct=two,retire=-1"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) == %{"expand" => 2}
     end
   end
 
@@ -491,6 +541,16 @@ defmodule Tuist.EnvironmentTest do
 
     test "returns nil when Kura endpoints are not configured" do
       assert Environment.kura_endpoints(%{}) == nil
+    end
+  end
+
+  describe "license_key/1" do
+    # `[:license]` is the key path behind the TUIST_LICENSE env var, so the unified
+    # value reaches the license dispatch through this reader. Moving or dropping this
+    # fallback would send TUIST_LICENSE to a different branch than the one that
+    # tells certificates from online keys.
+    test "reads the unified license value" do
+      assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
     end
   end
 end

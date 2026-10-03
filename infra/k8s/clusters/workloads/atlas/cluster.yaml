@@ -1,0 +1,110 @@
+# Atlas production workload Cluster, topology mode against `tuist-hcloud`.
+#
+# Reconciled by the self-hosted CAPI + caph management cluster maintained
+# in tuist/tuist (`infra/k8s/clusters/clusterclass-tuist.yaml`). Atlas is a
+# non-critical internal service, so the base cluster stays small within
+# the CAPI model: 1× cpx22 control plane + 2× cpx32 workers in fsn1. The
+# two cpx32 workers (8 GiB each) carry the base workload, with room for
+# HA on the ClickHouse StatefulSet (2 replicas, required podAntiAffinity)
+# and the atlas web tier (2 replicas), alongside the CloudNativePG
+# primary, the vector search DB, and the platform charts (cert-manager /
+# ingress-nginx / external-dns / ESO / CNPG). Scale the general pool up
+# further if resource pressure appears.
+#
+# Atlas reuses tuist's `org-tuist` namespace and the `hetzner` Secret
+# living in it — the ClusterClass hardcodes `hetznerSecretRef.name:
+# hetzner`, so atlas's VMs land in tuist's Hetzner Cloud project. Full
+# blast-radius isolation would require a dedicated org namespace
+# (and a per-namespace `hetzner` Secret); we accepted this constraint
+# when atlas first onboarded and kept it through the move off Syself.
+#
+# Migrated into tuist/tuist from tuist/atlas (`infra/k8s/cluster-production.yaml`)
+# for Flux reconciliation. Keep byte-identical to the live Cluster so the
+# first reconcile is a no-op; the tuist/atlas copy is retired to a pointer.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: atlas-production
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      # Atlas is a non-critical internal service; a single-node control
+      # plane is enough. A control-plane outage only pauses scheduling —
+      # it does not take the running app down.
+      #
+      # Single-CP: control-plane MachineHealthCheck stays on the shared
+      # ClusterClass 33% ratio, which does NOT self-remediate a 1-of-1
+      # unhealthy node. A degraded control plane pages via Grafana Cloud
+      # (Pillar 2) and is rebuilt under break-glass.
+      replicas: 1
+    variables:
+      # Mirrors the live Cluster's variables exactly, including the
+      # ClusterClass-defaulted ones. CAPI materializes every defaulted
+      # variable onto the live object, so a manifest declaring only a subset
+      # makes Flux rewrite and re-order the list on every reconcile. Declaring
+      # the full set keeps the first reconcile a true no-op, and matches the
+      # rule that a defaulted ClusterClass variable must be declared in every
+      # Cluster CR (otherwise the drift check never settles).
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      - name: hcloudWorkerMachineType
+        value: cpx32
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+      - name: clusterEndpointHost
+        value: ""
+      - name: clusterEndpointPort
+        value: 443
+      - name: clusterLoadBalancerExtraServices
+        value: []
+      - name: clusterLoadBalancerType
+        value: lb11
+      - name: hcloudControlPlaneMachineImageName
+        value: ubuntu-24.04
+      - name: hcloudControlPlanePlacementGroupName
+        value: ""
+      - name: hcloudPlacementGroups
+        value: []
+      - name: hcloudWorkerMachineImageName
+        value: ubuntu-24.04
+      - name: hcloudWorkerMachinePlacementGroupName
+        value: ""
+      - name: bareMetalCluster
+        value: ""
+      - name: workerNodeLabels
+        value: ""
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,Hostname,InternalDNS,ExternalDNS
+      - name: disableControlPlaneKubeletLocalMode
+        value: false
+      - name: workerNodeTaints
+        value: ""
+      - name: workerResolvConf
+        value: ""
+      - name: statefulRaidLevel
+        value: 1
+    workers:
+      machineDeployments:
+        - class: hcloud-worker
+          name: md-0
+          # Two workers carry the base workload (app + Postgres + vector
+          # search DB + ingress + operators) and give ClickHouse and the
+          # atlas web tier a second scheduling target for HA. Scale up
+          # further only if resource pressure appears.
+          replicas: 2
+          failureDomain: fsn1

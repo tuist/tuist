@@ -6,10 +6,13 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -485,21 +488,196 @@ func TestDemotionWaitsForTheSuccessorToCatchUp(t *testing.T) {
 	r, _ := evacReconciler(t, stubRuntimeStatus{}, instance,
 		annotatedNode("old-box"), evacNode("new-box", false))
 
+	evacuating, err := r.evacuatingPodNames(context.Background(), pods)
+	if err != nil {
+		t.Fatalf("evacuatingPodNames: %v", err)
+	}
+	if !evacuating["kura-acct-region-0"] || evacuating["kura-acct-region-1"] {
+		t.Fatalf("evacuating = %v, want only the pod on the marked box", evacuating)
+	}
+
 	health := map[string]bool{"kura-acct-region-0": true, "kura-acct-region-1": true}
 	stillFilling := map[string]bool{"kura-acct-region-0": true}
 
-	if err := r.demoteEvacuatingPods(context.Background(), pods, health, stillFilling); err != nil {
-		t.Fatalf("demoteEvacuatingPods: %v", err)
-	}
+	demoteEvacuatingPods(pods, health, stillFilling, evacuating)
 	if !health["kura-acct-region-0"] {
 		t.Fatal("demoted the primary while the only successor was still catching up")
 	}
 
 	caughtUp := map[string]bool{"kura-acct-region-0": true, "kura-acct-region-1": true}
-	if err := r.demoteEvacuatingPods(context.Background(), pods, health, caughtUp); err != nil {
-		t.Fatalf("demoteEvacuatingPods: %v", err)
-	}
+	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
 	if health["kura-acct-region-0"] {
 		t.Fatal("kept the primary on the outgoing box after the successor caught up")
+	}
+}
+
+// peerService pins the public peer plane at a pod, which is the persisted
+// gateway designation the controller reads back.
+func peerService(pod string) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-acct-region-peers-public", Namespace: "kura"},
+		Spec:       corev1.ServiceSpec{Selector: map[string]string{podNameLabel: pod}},
+	}
+}
+
+func peerEndpoints(pods ...string) *corev1.Endpoints {
+	endpoints := servingEndpoints(pods...)
+	endpoints.Name = "kura-acct-region-peers-public"
+	return endpoints
+}
+
+func TestEndpointServedByAnotherPodHoldsWhenEndpointsAreForbidden(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(_ context.Context, _ client.WithWatch, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+					if _, ok := obj.(*corev1.Endpoints); ok {
+						return apierrors.NewForbidden(schema.GroupResource{Resource: "endpoints"}, key.Name, errors.New("forbidden"))
+					}
+					return nil
+				},
+			}).Build(),
+	}
+
+	served, err := reconciler.endpointServedByAnotherPod(context.Background(), "kura", "kura-acct-region", "kura-acct-region-0")
+	if err != nil {
+		t.Fatalf("expected a safe hold, got %v", err)
+	}
+	if served {
+		t.Fatal("expected a forbidden Endpoints read to hold the handover")
+	}
+}
+
+// The client Service having handed over is not the whole handover. The peer
+// Service is a second pin, and by design it names the pod the client Service
+// does not, so a replica released by one can still be carrying the region's
+// cross-region replication for the other. Deleting it there cuts that path
+// until the next reconcile repins it, which is INV-5 over the length of a
+// reschedule (kura/docs/replication-design.md §7).
+func TestEvacuateHoldsUntilThePeerPlaneReleasesThePod(t *testing.T) {
+	instance := evacInstance()
+	instance.Spec.Mesh = true
+	instance.Spec.MeshPublicPeerHost = "peer.region.kura.tuist.dev"
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
+	}}
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		// The client plane has already moved to the replica that is staying.
+		primaryService("kura-acct-region-1"),
+		servingEndpoints("kura-acct-region-1"),
+		// The peer plane has not.
+		peerService("kura-acct-region-0"),
+		peerEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacPod("kura-acct-region-1", "new-box", true),
+		annotatedNode("old-box"),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("deleted the pod the public peer Service still selects; the region loses its cross-region path")
+	}
+
+	// The pin moves, and an address behind it proves the move landed.
+	repinPeerPlane(t, c, "kura-acct-region-1")
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("expected the evacuation to proceed once the peer plane released the pod")
+	}
+}
+
+// A repointed selector is a write, not a fact. The peer endpoint has to follow
+// before the pod behind it goes, the same way the client handover waits.
+func TestEvacuateHoldsWhileThePeerEndpointHasNotFollowed(t *testing.T) {
+	instance := evacInstance()
+	instance.Spec.Mesh = true
+	instance.Spec.MeshPublicPeerHost = "peer.region.kura.tuist.dev"
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
+	}}
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		primaryService("kura-acct-region-1"),
+		servingEndpoints("kura-acct-region-1"),
+		peerService("kura-acct-region-1"),
+		// Endpoints have not propagated past the pod on its way out.
+		peerEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacPod("kura-acct-region-1", "new-box", true),
+		annotatedNode("old-box"),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("deleted the pod while it was still the only address behind the peer Service")
+	}
+}
+
+// A region with no public peer plane has no second pin to wait on, so the
+// guard must not turn its absence into a stall.
+func TestEvacuateProceedsWithoutAPublicPeerPlane(t *testing.T) {
+	instance := evacInstance()
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+		"kura-acct-region-1": routableStatus(backfillCycleComplete),
+	}}
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		primaryService("kura-acct-region-1"),
+		servingEndpoints("kura-acct-region-1"),
+		evacPod("kura-acct-region-0", "old-box", true),
+		evacPod("kura-acct-region-1", "new-box", true),
+		annotatedNode("old-box"),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("held the evacuation on a peer Service that does not exist")
+	}
+}
+
+// repinPeerPlane moves the public peer Service selector and the address behind
+// it onto another pod, which is what a reconcile pass does once the gateway
+// role has changed hands.
+func repinPeerPlane(t *testing.T, c client.Client, pod string) {
+	t.Helper()
+	ctx := context.Background()
+	key := client.ObjectKey{Namespace: "kura", Name: "kura-acct-region-peers-public"}
+
+	service := &corev1.Service{}
+	if err := c.Get(ctx, key, service); err != nil {
+		t.Fatalf("get peer service: %v", err)
+	}
+	service.Spec.Selector = map[string]string{podNameLabel: pod}
+	if err := c.Update(ctx, service); err != nil {
+		t.Fatalf("update peer service: %v", err)
+	}
+
+	endpoints := &corev1.Endpoints{}
+	if err := c.Get(ctx, key, endpoints); err != nil {
+		t.Fatalf("get peer endpoints: %v", err)
+	}
+	endpoints.Subsets = peerEndpoints(pod).Subsets
+	if err := c.Update(ctx, endpoints); err != nil {
+		t.Fatalf("update peer endpoints: %v", err)
 	}
 }

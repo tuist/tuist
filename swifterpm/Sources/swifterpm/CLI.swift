@@ -39,6 +39,7 @@ struct CLI {
     var netrcFile: CLIPath?
     var netrc = true
     var forceNetrc = false
+    var disableKeychain = false
     var disableSandbox = false
     var enableDependencyCache = false
     var disableDependencyCache = false
@@ -238,6 +239,15 @@ public struct SwifterPMCommand: AsyncParsableCommand {
     @Flag(name: .customLong("netrc"))
     var forceNetrc = false
 
+    // SwiftPM exposes this as `[--enable-keychain|--disable-keychain]`, defaulting
+    // to enabled on Darwin. Match the same pair here so a caller forwarding either
+    // spelling verbatim keeps working; the `disableKeychain` computed property below
+    // is what the rest of the pipeline reads.
+    @Flag(inversion: .prefixedEnableDisable)
+    var keychain: Bool = true
+
+    var disableKeychain: Bool { !keychain }
+
     @Flag(name: .customLong("disable-sandbox"))
     var disableSandbox = false
 
@@ -322,6 +332,7 @@ public struct SwifterPMCommand: AsyncParsableCommand {
             netrcFile: CLIPath.optional(netrcFile),
             netrc: netrc,
             forceNetrc: forceNetrc,
+            disableKeychain: disableKeychain,
             disableSandbox: disableSandbox,
             enableDependencyCache: enableDependencyCache,
             disableDependencyCache: disableDependencyCache,
@@ -518,7 +529,8 @@ enum CLIRunner {
         SwifterPMNetrcConfiguration(
             isEnabled: cli.netrc,
             path: paths.resolve(cli.netrcFile),
-            forcesNetrc: cli.forceNetrc
+            forcesNetrc: cli.forceNetrc,
+            disableKeychain: cli.disableKeychain
         )
     }
 
@@ -578,16 +590,20 @@ enum CLIRunner {
                 cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir)
             let registryConfig = try await cliRegistryConfig(
                 cli: cli, paths: paths, package: package)
+            let mirrors = try await MirrorConfig.load(
+                packageDir: package, configPath: paths.resolve(cli.configPath))
             let resolved = try await ResolvedFile.read(packageDir: package)
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: mirrors,
                 resolved: resolved,
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox)
             try await maybeWritePackageInfoCache(
-                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved)
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
+                mirrors: mirrors)
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved,
+                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
                 disableSandbox: cli.disableSandbox)
         }
     }
@@ -611,13 +627,35 @@ enum CLIRunner {
         let readOnly =
             cli.forceResolvedVersions || cli.disableAutomaticResolution
             || cli.onlyUseVersionsFromResolvedFile
+        let mirrors = try await MirrorConfig.load(
+            packageDir: package, configPath: paths.resolve(cli.configPath))
+
+        // On `resolve`, the seed Package.resolved may still list dependencies
+        // that have been removed from the manifest since the last install.
+        // Drop orphan pins before either path handles the file, so SwiftPM
+        // never chases a location that only the previous manifest reached.
+        // `update` and `--force-resolved-versions` bypass this: the former
+        // clears the file outright, the latter must not mutate it.
+        if preferResolvedFile, shouldWrite(write: write, printOnly: printOnly), !readOnly {
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheRoot: cacheRoot,
+                mirrors: mirrors,
+                disableSandbox: cli.disableSandbox
+            )
+        }
+
+        let registryConfig = try await cliRegistryConfig(
+            cli: cli, paths: paths, package: package)
 
         // Use the same native cold path as the embeddable API. The direct
         // invocation is only safe for lockfiles SwiftPM itself understands;
         // preserve SwifterPM's compatibility path for older custom pin kinds.
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
-            cacheRoot: cacheRoot
+            cacheRoot: cacheRoot,
+            registryConfig: registryConfig
         ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
@@ -636,6 +674,13 @@ enum CLIRunner {
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
                 cache: cache,
+                mirrors: mirrors,
+                resolved: resolved
+            )
+            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
                 resolved: resolved
             )
             if !cli.quiet {
@@ -645,14 +690,13 @@ enum CLIRunner {
         }
 
         let cache = try await Cache(root: cacheRoot)
-        let registryConfig = try await cliRegistryConfig(
-            cli: cli, paths: paths, package: package)
 
         let resolved = try await PackageResolver.resolveOrLoad(
             packageDir: package,
             scratchDir: scratch,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             registryConfigurationPath: paths.resolve(cli.configPath),
             defaultRegistryURL: cli.defaultRegistryURL,
             disableSandbox: cli.disableSandbox,
@@ -670,13 +714,15 @@ enum CLIRunner {
         if shouldRestore(restore: restore, printOnly: printOnly) {
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: mirrors,
                 resolved: resolved,
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox)
             try await maybeWritePackageInfoCache(
-                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved)
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
+                mirrors: mirrors)
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved,
+                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
                 disableSandbox: cli.disableSandbox)
 
             // With the pins restored, confirm they still satisfy the manifest the
@@ -697,7 +743,8 @@ enum CLIRunner {
     }
 
     private static func maybeWritePackageInfoCache(
-        cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL, resolved: ResolvedPins
+        cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL, resolved: ResolvedPins,
+        mirrors: MirrorConfig
     ) async throws {
         if cli.disablePackageInfoCache {
             return
@@ -706,6 +753,7 @@ enum CLIRunner {
             packageDir: package,
             scratchDir: scratch,
             resolved: resolved,
+            mirrors: mirrors,
             cacheDir: paths.resolve(cli.packageInfoCachePath),
             disableSandbox: cli.disableSandbox,
             quiet: cli.quiet

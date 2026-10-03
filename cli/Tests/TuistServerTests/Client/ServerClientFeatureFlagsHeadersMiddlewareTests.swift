@@ -17,21 +17,21 @@ struct ServerClientFeatureFlagsHeadersMiddlewareTests {
 
         let headerValue = try await headerValue(environment: environment)
 
-        #expect(headerValue == "A,KURA")
+        #expect(headerValue == "A")
     }
 
-    @Test func adds_the_default_enabled_feature_flags_when_no_variable_is_set() async throws {
+    @Test func omits_the_header_when_no_variable_is_set() async throws {
         let environment = Environment(variables: [:], arguments: [])
 
         let headerValue = try await headerValue(environment: environment)
 
-        #expect(headerValue == "KURA")
+        #expect(headerValue == nil)
     }
 
     @Test func omits_a_feature_flag_disabled_by_a_falsey_value() async throws {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_KURA": "0",
+                "TUIST_FEATURE_FLAG_B": "0",
                 "TUIST_FEATURE_FLAG_A": "1",
             ],
             arguments: []
@@ -45,7 +45,7 @@ struct ServerClientFeatureFlagsHeadersMiddlewareTests {
     @Test func omits_the_header_when_every_feature_flag_is_disabled() async throws {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_KURA": "false",
+                "TUIST_FEATURE_FLAG_A": "false",
             ],
             arguments: []
         )

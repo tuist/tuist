@@ -3,6 +3,7 @@ import Mockable
 import TuistConfig
 import TuistCore
 import TuistGenerator
+import TuistHasher
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -192,12 +193,15 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// - Parameter targetsToBinaryCache: The targets to binary cache.
         /// - Parameter configuration: The configuration to generate for.
         /// - Parameter cacheStorage: The cache storage instance.
+        /// - Parameter targetHashes: Content hashes the caller already computed for the same graph. Binary
+        /// replacement reuses them instead of hashing the graph again; pass an empty map to have it hash.
         /// - Returns: A Generator instance.
         func binaryCacheWarming(
             config: Tuist,
             targetsToBinaryCache: [Platform: Set<TargetQuery>],
             configuration: String,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            targetHashes: [TargetReference: TargetContentHash]
         ) -> Generating
 
         /// Returns a generator to load the graph before generating the project to warm the cache
@@ -437,7 +441,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             targetsToBinaryCache: [XcodeGraph.Platform: Set<TargetQuery>],
             configuration: String,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            targetHashes: [TargetReference: TargetContentHash]
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -453,7 +458,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 targets: targetsToBinaryCache,
                 cacheSources: Set(targetsToBinaryCache.flatMap(\.value)),
                 configuration: configuration,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                targetHashes: targetHashes
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 

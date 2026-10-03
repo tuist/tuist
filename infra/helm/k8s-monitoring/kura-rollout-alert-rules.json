@@ -1,0 +1,176 @@
+[
+  {
+    "annotations": {
+      "description": "The Kura fleet rollout stopped and will not move until someone resumes or aborts it from /ops/kura. A pause is the rollout's safety gate: either a health signal regressed on a scoped server, a wave could not converge within its one-hour deadline (wave_deadline_exceeded), or an operator paused it by hand. The fleet keeps serving on mixed versions meanwhile, so nothing is customer-visible yet; the risk is that it goes unnoticed for days. Open /ops/kura/rollouts for the pause reason, server and signal. For wave_deadline_exceeded, check the scoped StatefulSets for updateStrategy OnDelete or a partition left over from an incident before resuming.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-rollout-paused",
+      "summary": "Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Cache",
+    "title": "Kura - rollout paused",
+    "uid": "kura-rollout-paused"
+  },
+  {
+    "annotations": {
+      "description": "The Kura rollout has spent more than 5.5 of the last six hours running and unpaused. Every wave has a one-hour deadline that pauses the rollout, so a healthy one finishes or pauses long before this; in the 30 days to 2026-09-24 no rollout ran unpaused for more than 1.3 hours in any six-hour window. Reaching this means the reconciler is not advancing the rollout: it is not ticking, or it is erroring before the deadline check. Check the server logs for Tuist.Kura.Rollouts and the rollout page under /ops/kura/rollouts.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-rollout-running-without-progress",
+      "summary": "Kura rollout of {{ $labels.image_tag }} has been running for {{ $values.A.Value | printf \"%.1f\" }} of the last 6 hours in {{ $labels.env }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum_over_time((max by (cluster, env, image_tag, mode) (tuist_kura_rollout_active) - max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused))[6h:5m]) * 5 / 60",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 21900,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  5.5
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Cache",
+    "title": "Kura - rollout running without progress",
+    "uid": "kura-rollout-stalled"
+  }
+]

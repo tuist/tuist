@@ -20,8 +20,19 @@ ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/manager ./cmd/manager
+    go build -trimpath -ldflags="-s -w" -o /out/manager ./cmd/manager && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/cache-volumes ./cmd/cache-volumes
 
+
+# The storage agent needs reflink copies, loop devices and ext4 formatting; keep
+# those out of the controller's distroless runtime.
+FROM debian:bookworm-slim AS cache-volumes
+RUN apt-get update && apt-get install -y --no-install-recommends coreutils util-linux e2fsprogs ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /out/cache-volumes /usr/local/bin/cache-volumes
+COPY infra/runners-controller/scripts/provision-cache-filesystem.sh /usr/local/bin/provision-cache-filesystem
+ENTRYPOINT ["/usr/local/bin/cache-volumes"]
 
 FROM gcr.io/distroless/static-debian12:nonroot
 

@@ -5,7 +5,7 @@
 //! without a store or network; `SegmentState::age_ordered_references` /
 //! `next_evictee` produce the segment views.
 
-use crate::{constants::BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS, metrics::Metrics};
+use crate::metrics::Metrics;
 
 /// Min-age bound of one backfill pass. Entries with `version_ms` at or above
 /// `min_version_ms` are inside the window; `None` means the window is
@@ -89,22 +89,6 @@ pub fn horizon_version_ms(
     // boundary clamps to the newest segment's stat.
     let boundary = (count - margin_segments).min(count - 1);
     Some(age_ordered_stats_ms[boundary])
-}
-
-/// The watermark update on pass completion (R7):
-/// `max(existing, pass start − skew allowance)`, where the pass start point
-/// is the requester's wall clock at window computation time. The skew
-/// allowance gives the watermark term the same kind of slack the horizon
-/// term has — a writer whose clock runs behind the requester's can stamp
-/// entries below an exact start-point watermark. The `max` guard keeps the
-/// watermark monotonic if an older pass's completion lands after a newer
-/// one's. Passes over a peer are serialized today, so that interleaving
-/// cannot currently occur; the guard is retained as defense-in-depth (one
-/// comparison, protects against future lifecycle changes) — do not simplify
-/// it away.
-pub fn advance_watermark(existing_watermark_ms: Option<u64>, pass_start_wallclock_ms: u64) -> u64 {
-    let candidate = pass_start_wallclock_ms.saturating_sub(BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS);
-    existing_watermark_ms.map_or(candidate, |existing| existing.max(candidate))
 }
 
 /// The marginal-trade capacity test (R6), for segmented-artifact retrieval
@@ -320,32 +304,6 @@ mod tests {
         assert!(capacity_complete(5, ring_total, oldest_retained_stat, 100));
         // An empty ring view never capacity-completes regardless of counts.
         assert!(!capacity_complete(5, ring_total, None, 90));
-    }
-
-    #[test]
-    fn watermark_is_monotonic_under_out_of_order_completion_attempts() {
-        let skew = crate::constants::BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS;
-        let older_pass_start = 500_000;
-        let newer_pass_start = 900_000;
-
-        // The dirty-triggered newer pass completes first…
-        let watermark = advance_watermark(None, newer_pass_start);
-        assert_eq!(watermark, newer_pass_start - skew);
-
-        // …then the retried older pass completes; the max guard holds.
-        let watermark = advance_watermark(Some(watermark), older_pass_start);
-        assert_eq!(watermark, newer_pass_start - skew);
-
-        // In-order completions still advance.
-        let watermark = advance_watermark(Some(watermark), newer_pass_start + 1_000);
-        assert_eq!(watermark, newer_pass_start + 1_000 - skew);
-    }
-
-    #[test]
-    fn watermark_applies_the_skew_allowance_and_saturates_at_zero() {
-        let skew = crate::constants::BACKFILL_WATERMARK_SKEW_ALLOWANCE_MS;
-        assert_eq!(advance_watermark(None, skew + 5), 5);
-        assert_eq!(advance_watermark(None, skew / 2), 0);
     }
 
     #[test]

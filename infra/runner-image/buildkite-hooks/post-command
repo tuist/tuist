@@ -1,0 +1,37 @@
+#!/bin/bash
+# Buildkite global `post-command` hook. Runs immediately after the job's
+# command, for every job the agent takes.
+#
+# Identical on the macOS and Linux fleets; keep the two copies in step.
+#
+# Copies the agent's job-log temp file somewhere stable. The agent
+# exports BUILDKITE_JOB_LOG_TMPFILE and documents it as "removed at the
+# end of the job", so `pre-exit` cannot rely on it still being there —
+# the first staging run reported its outcome correctly and shipped zero
+# log lines for exactly this reason. Copying here, while the command has
+# only just finished, is the last point the file is guaranteed to exist.
+
+set -uo pipefail
+
+STATE_DIR="${TUIST_RUNNER_STATE_DIR:-/var/log/tuist-runner}"
+mkdir -p "${STATE_DIR}" 2>/dev/null || true
+
+log() { echo "$(date -u +%FT%TZ) buildkite-post-command: $*"; }
+
+src="${BUILDKITE_JOB_LOG_TMPFILE:-}"
+if [ -z "${src}" ]; then
+  log "BUILDKITE_JOB_LOG_TMPFILE unset; agent not started with --enable-job-log-tmpfile?"
+  exit 0
+fi
+if [ ! -f "${src}" ]; then
+  log "BUILDKITE_JOB_LOG_TMPFILE=${src} does not exist"
+  exit 0
+fi
+
+if cp "${src}" "${STATE_DIR}/job.log" 2>/dev/null; then
+  log "captured $(wc -l <"${STATE_DIR}/job.log" | tr -d ' ') log lines"
+else
+  log "failed to copy ${src}"
+fi
+
+exit 0

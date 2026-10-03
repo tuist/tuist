@@ -174,17 +174,20 @@
     gap: var(--noora-spacing-6);
 
     & [data-part="widgets-card-section"].noora-card__section {
-      flex-direction: row;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: var(--noora-spacing-4);
       padding: var(--noora-spacing-8);
 
-      & > * {
-        flex-grow: 1;
+      @media (max-width: 1024px) {
+        & {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
 
       @media (max-width: 768px) {
         & {
-          flex-direction: column;
+          grid-template-columns: minmax(0, 1fr);
         }
       }
     }

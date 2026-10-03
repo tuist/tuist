@@ -147,6 +147,17 @@ struct CLITests {
         #expect(!(try CLIParser.parse(["resolve"]).forceNetrc))
     }
 
+    @Test
+    func keychainIsAParsedEnableDisablePair() throws {
+        // SwiftPM defines `[--enable-keychain|--disable-keychain]` as a
+        // prefixedEnableDisable pair, defaulting to enabled on Darwin. `tuist
+        // install` forwards either spelling verbatim, so both have to parse and
+        // the default has to match "enabled" here.
+        #expect(try CLIParser.parse(["--disable-keychain", "resolve"]).disableKeychain)
+        #expect(!(try CLIParser.parse(["--enable-keychain", "resolve"]).disableKeychain))
+        #expect(!(try CLIParser.parse(["resolve"]).disableKeychain))
+    }
+
     @Test(arguments: ["--disable-prefetching", "--enable-prefetching"])
     func deprecatedSwiftPackageManagerOptionsAreAccepted(option: String) throws {
         // `tuist install` forwards passthrough arguments verbatim and ahead of the
@@ -189,6 +200,7 @@ struct CLITests {
                 "--force-resolved-versions",
                 "--skip-update",
                 "--replace-scm-with-registry",
+                "--disable-keychain",
                 "--package-info-cache-path", packageInfoCache.path,
                 "--cached-directory-materialization", "symlink",
                 "--quiet",
@@ -203,7 +215,10 @@ struct CLITests {
             #expect(request.cacheDirectory == cache.standardizedFileURL)
             #expect(request.scratchDirectory == scratch.standardizedFileURL)
             #expect(request.registryConfigurationPath == config.standardizedFileURL)
-            #expect(request.netrc == SwifterPMNetrcConfiguration(path: netrc.standardizedFileURL))
+            #expect(
+                request.netrc
+                    == SwifterPMNetrcConfiguration(path: netrc.standardizedFileURL, disableKeychain: true)
+            )
             #expect(request.defaultRegistryURL == "https://registry.example.com")
             #expect(request.disableSandbox)
             #expect(request.forceResolvedVersions)

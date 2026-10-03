@@ -71,8 +71,8 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
         packageToTargetsToArtifactPaths _: [String: [String: Path.AbsolutePath]],
         packageModuleAliases _: [String: [String: String]],
         packageSettings _: TuistCore.PackageSettings
-    ) async throws -> [String: [ProjectDescription.TargetDependency]] {
-        [:]
+    ) async throws -> ResolvedExternalDependencies {
+        ResolvedExternalDependencies(products: [:], packageProducts: [:])
     }
 
     func map(
@@ -81,6 +81,7 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
         packageType: PackageType,
         packageSettings _: TuistCore.PackageSettings,
         packageModuleAliases _: [String: [String: String]],
+        packageProducts _: [String: [String: [ProjectDescription.TargetDependency]]],
         enabledTraits _: Set<String>
     ) async throws -> ProjectDescription.Project? {
         let capturedPrebuilt: CapturedPackagePrebuilt?
@@ -140,6 +141,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageType: .any,
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .willReturn(.test())
@@ -206,7 +208,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageModuleAliases: .any,
                         packageSettings: .any
                     )
-                    .willReturn([:])
+                    .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
                 // When
                 let (got, lintingIssues) = try await subject.load(
@@ -352,7 +354,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
         let subject = SwiftPackageManagerGraphLoader(
             swiftPackageManagerController: swiftPackageManagerController,
             packageInfoMapper: packageInfoMapper,
@@ -430,7 +432,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         let (got, lintingIssues) = try await subject.load(
@@ -491,7 +493,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -511,6 +513,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageType: .any,
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -547,7 +550,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -567,6 +570,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageType: .any,
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -613,7 +617,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -709,7 +713,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageModuleAliases: .any,
                         packageSettings: .any
                     )
-                    .willReturn([:])
+                    .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
                 // When
                 let (got, _) = try await subject.load(
@@ -742,6 +746,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         },
                         packageSettings: .any,
                         packageModuleAliases: .any,
+                        packageProducts: .any,
                         enabledTraits: .any
                     )
                     .called(1)
@@ -834,7 +839,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageModuleAliases: .any,
                         packageSettings: .any
                     )
-                    .willReturn([:])
+                    .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
                 // When
                 let (got, _) = try await subject.load(
@@ -1092,7 +1097,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         _ = try await subject.load(
@@ -1124,6 +1129,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 },
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -1224,7 +1230,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         let (got, _) = try await subject.load(
@@ -1255,6 +1261,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 },
                 packageSettings: .any,
                 packageModuleAliases: .any,
+                packageProducts: .any,
                 enabledTraits: .any
             )
             .called(1)
@@ -1338,7 +1345,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
-            .willReturn([:])
+            .willReturn(ResolvedExternalDependencies(products: [:], packageProducts: [:]))
 
         // When
         let (got, _) = try await subject.load(

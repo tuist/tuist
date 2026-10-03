@@ -1,0 +1,30 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  # Without `provider: github`, source-controller treats the secret as generic
+  # basic-auth and silently ignores the GitHub App fields ESO syncs into it —
+  # rotating the App would then not rotate what Flux actually uses.
+  provider: github
+  ref:
+    branch: main
+  secretRef:
+    name: flux-system
+  url: https://github.com/tuist/tuist
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./infra/flux/mgmt
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

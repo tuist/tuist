@@ -1,3 +1,5 @@
+import { bindScrollIndicator } from "./ScrollIndicator.js";
+
 // Floating header and horizontal scrollbar for tables.
 //
 // Both pin to the edges of the element that actually scrolls the table (the app's content pane,
@@ -42,31 +44,13 @@ export default {
     this.scrollParent = this.findScrollParent();
 
     if (this.overlayThumb) {
-      this.onThumbDown = (e) => {
-        e.preventDefault();
-        this.thumbDrag = {
-          x: e.clientX,
-          scrollLeft: this.container.scrollLeft,
-        };
-        this.overlayThumb.setPointerCapture(e.pointerId);
-      };
-      this.onThumbMove = (e) => {
-        if (!this.thumbDrag) return;
-        const maxScroll =
-          this.container.scrollWidth - this.container.clientWidth;
-        const maxLeft =
-          this.overlayBar.clientWidth - this.overlayThumb.offsetWidth;
-        if (maxLeft <= 0) return;
-        this.container.scrollLeft =
-          this.thumbDrag.scrollLeft +
-          (e.clientX - this.thumbDrag.x) * (maxScroll / maxLeft);
-      };
-      this.onThumbUp = () => {
-        this.thumbDrag = null;
-      };
-      this.overlayThumb.addEventListener("pointerdown", this.onThumbDown);
-      this.overlayThumb.addEventListener("pointermove", this.onThumbMove);
-      this.overlayThumb.addEventListener("pointerup", this.onThumbUp);
+      this.scrollIndicator = bindScrollIndicator(
+        this.container,
+        this.overlayBar,
+        this.overlayThumb,
+        "horizontal",
+        { autoUpdate: false },
+      );
     }
 
     this.header = document.createElement("div");
@@ -198,9 +182,7 @@ export default {
       capture: true,
     });
     window.removeEventListener("resize", this.onResize);
-    this.overlayThumb?.removeEventListener("pointerdown", this.onThumbDown);
-    this.overlayThumb?.removeEventListener("pointermove", this.onThumbMove);
-    this.overlayThumb?.removeEventListener("pointerup", this.onThumbUp);
+    this.scrollIndicator?.destroy();
     this.header?.remove();
   },
 
@@ -287,13 +269,7 @@ export default {
 
   syncOverlayThumb() {
     if (!this.overlayBar?.hasAttribute("data-visible")) return;
-    const track = this.overlayBar.clientWidth;
-    const { scrollWidth, clientWidth, scrollLeft } = this.container;
-    const width = Math.max((clientWidth / scrollWidth) * track, 24);
-    const maxScroll = scrollWidth - clientWidth;
-    const left = maxScroll > 0 ? (scrollLeft / maxScroll) * (track - width) : 0;
-    this.overlayThumb.style.width = `${width}px`;
-    this.overlayThumb.style.transform = `translateX(${left}px)`;
+    this.scrollIndicator?.update();
   },
 
   sync() {

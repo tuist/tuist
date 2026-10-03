@@ -119,8 +119,35 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Gets projects by their full handles (account_handle/project_handle) in a single query.
-  Returns a map of full_handle => project.
+  The ids of the projects named by `{account_id, project_handle}` pairs, in a
+  single query, keyed by the pairs as given. Handles match regardless of casing.
+  """
+  def project_ids_by_account_and_handle([]), do: %{}
+
+  def project_ids_by_account_and_handle(pairs) when is_list(pairs) do
+    pairs = Enum.uniq(pairs)
+    account_ids = pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+    handles = pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+
+    ids =
+      from(p in Project,
+        where: p.account_id in ^account_ids and p.name in ^handles,
+        select: {p.account_id, p.name, p.id}
+      )
+      |> Repo.all()
+      |> Map.new(fn {account_id, name, id} -> {{account_id, String.downcase(name)}, id} end)
+
+    for {account_id, handle} = pair <- pairs,
+        {:ok, id} <- [Map.fetch(ids, {account_id, String.downcase(handle)})],
+        into: %{},
+        do: {pair, id}
+  end
+
+  @doc """
+  Resolves analytics project handles (account_handle/project_handle) in a single query.
+  Current and retained account handles resolve through their permanent reservations,
+  including events queued before a rename. Returns a map keyed by the supplied handles.
+  This lookup does not authorize access to a project.
   """
   def projects_by_full_handles(full_handles) when is_list(full_handles) do
     handle_pairs =
@@ -138,22 +165,22 @@ defmodule Tuist.Projects do
 
     projects =
       from(p in Project,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where: a.name in ^account_handles,
+        join: reservation in "account_handle_reservations",
+        on: p.account_id == reservation.account_id,
+        where: reservation.name in ^account_handles,
         where: p.name in ^project_handles,
-        select: %{project: p, account_name: a.name}
+        select: %{project: p, account_name: reservation.name}
       )
       |> Repo.all()
       |> Map.new(fn %{project: project, account_name: account_name} ->
-        full_handle = "#{account_name}/#{project.name}"
+        full_handle = "#{String.downcase(account_name)}/#{project.name}"
         {full_handle, project}
       end)
 
     handle_pairs
     |> Enum.map(fn {account_handle, project_handle} ->
       full_handle = "#{account_handle}/#{project_handle}"
-      {full_handle, Map.get(projects, full_handle)}
+      {full_handle, Map.get(projects, "#{String.downcase(account_handle)}/#{project_handle}")}
     end)
     |> Enum.reject(fn {_full_handle, project} -> is_nil(project) end)
     |> Map.new()
@@ -310,7 +337,7 @@ defmodule Tuist.Projects do
     |> Repo.transaction()
     |> case do
       {:ok, %{project: project}} ->
-        seed_kura_cache_demand(project)
+        seed_kura_cache_demand(project, Keyword.get(opts, :origin))
         {:ok, project}
 
       {:error, _step, changeset, _changes} ->
@@ -348,16 +375,17 @@ defmodule Tuist.Projects do
 
   # Creating a project is the earliest signal that builds are coming, so it is
   # where an account with no Kura instance gets one
-  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`). Out of band, because
-  # the cache decision reads the cluster and resolves a region, and that wait
-  # does not belong to a person naming a project.
+  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`), placed nearest
+  # `origin`, where the request creating the project came from. Out of band,
+  # because the cache decision reads the cluster and resolves a region, and that
+  # wait does not belong to a person naming a project.
   #
   # A rejected enqueue is logged rather than raised: the project is already
   # committed, and an account this misses is provisioned the ordinary way on
   # its first cache request. Anything that raises here is schema drift or a
   # dead connection rather than a cache decision, so it is left to surface.
-  defp seed_kura_cache_demand(%Project{account_id: account_id}) do
-    case %{account_id: account_id} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
+  defp seed_kura_cache_demand(%Project{account_id: account_id}, origin) do
+    case %{account_id: account_id, origin: origin} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
       {:ok, _job} ->
         :ok
 
@@ -720,7 +748,8 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository.
+  Get all projects connected to a VCS repository. The handle is matched
+  case-insensitively, like GitHub matches owner and repository names.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
@@ -729,7 +758,8 @@ defmodule Tuist.Projects do
       from p in Project,
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
-        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
+        order_by: [asc: p.id],
         preload: ^preload
     )
   end

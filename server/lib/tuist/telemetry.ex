@@ -85,6 +85,6 @@ defmodule Tuist.Telemetry do
   end
 
   def event_name_ingestion_buffer_dropped do
-    [:tuist, :ingestion, :buffer, :dropped]
+    TuistCommon.Ingestion.Buffer.dropped_event()
   end
 end

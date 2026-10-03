@@ -152,6 +152,66 @@ defmodule TuistWeb.Utilities.Query do
   end
 
   @doc """
+  Parses a positive integer query parameter and falls back when it is missing or invalid.
+  """
+  def positive_integer(value, default \\ 1)
+
+  def positive_integer(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> integer
+      _ -> default
+    end
+  end
+
+  def positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+  def positive_integer(_value, default), do: default
+
+  @default_max_page 100
+
+  @doc """
+  Parses a paginated `page` query parameter, clamping the value to a
+  safe upper bound.
+
+  The upper bound is defense in depth against enumeration walks over
+  paginated dashboards. A real user rarely paginates past a couple of
+  screens; a bot walking every page to enumerate a table hits the
+  ceiling early and stops driving expensive `count(*)` and offset
+  queries against ClickHouse/Postgres for pages nobody would visit.
+
+  Also hardens against unsafe callers that used `String.to_integer/1`
+  directly on the query param, which raises `ArgumentError` on any
+  non-integer input (e.g. `?page=abc`).
+
+  ## Options
+
+    * `:max` - the maximum page returned. Defaults to `#{@default_max_page}`.
+    * `:default` - the page returned when the input is missing or
+      invalid. Defaults to `1`.
+
+  ## Examples
+
+      iex> TuistWeb.Utilities.Query.bounded_page("3")
+      3
+
+      iex> TuistWeb.Utilities.Query.bounded_page(nil)
+      1
+
+      iex> TuistWeb.Utilities.Query.bounded_page("xyz")
+      1
+
+      iex> TuistWeb.Utilities.Query.bounded_page("5000")
+      100
+
+      iex> TuistWeb.Utilities.Query.bounded_page("5000", max: 200)
+      200
+  """
+  def bounded_page(value, opts \\ []) do
+    default = Keyword.get(opts, :default, 1)
+    max = Keyword.get(opts, :max, @default_max_page)
+    min(positive_integer(value, default), max)
+  end
+
+  @doc """
   Clears cursor parameters (before/after) that are incompatible with the given
   sort order.
 

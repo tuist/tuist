@@ -5,6 +5,7 @@ This context owns OAuth2 token/client handling (Boruta).
 ## Responsibilities
 - Implement Boruta access token behavior with cache-backed lookups.
 - Issue and revoke access/refresh tokens with custom client fetching.
+- `Google` verifies One Tap signatures, audience, issuer, timestamps, verified email and session nonce. Public signing keys are cached for at most five minutes within Google's advertised cache lifetime; untrusted token claims never choose a key-fetch address.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

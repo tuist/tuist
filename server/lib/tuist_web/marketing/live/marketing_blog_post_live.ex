@@ -4,15 +4,20 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   use Noora
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
-  import TuistWeb.Marketing.MarketingHTML, only: [marketing_banner: 1]
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Blog.CoverArtwork
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.MarketingBlogCovers
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
+
+  embed_templates "marketing_blog_post_live/*"
+
+  def render(assigns), do: blog_post(assigns)
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :csp_nonce, get_csp_nonce())}
@@ -31,6 +36,25 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     author = Blog.get_authors()[post.author]
     post_image_url = post_image_url(post)
 
+    # A post with cover artwork puts its dark variant on the social card
+    # instead of the raster image.
+    head_image_url =
+      if MarketingBlogCovers.cover?(post) do
+        Tuist.Environment.app_url(
+          path: OpenGraph.image_path(:marketing_blog_cover, slug: CoverArtwork.basename(post)),
+          marketing: true
+        )
+      else
+        post_image_url
+      end
+
+    # The redesigned page closes with the three most recent other posts;
+    # get_posts/0 is already newest-first.
+    read_next_posts =
+      Blog.get_posts()
+      |> Enum.reject(&(&1.slug == post.slug))
+      |> Enum.take(3)
+
     current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
 
     socket =
@@ -38,14 +62,12 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       |> assign(:current_path, current_path)
       |> assign(:post, post)
       |> assign(:author, author)
+      |> assign(:read_next_posts, read_next_posts)
       |> assign(:head_title, post.title)
       |> assign(:head_description, post.excerpt)
       |> assign(:head_keywords, post.tags)
       |> assign(:head_fediverse_creator, author["fediverse_username"])
-      |> assign(
-        :head_image,
-        post_image_url
-      )
+      |> assign(:head_image, head_image_url)
       |> assign(:post_image_url, post_image_url)
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_article_head_meta(published_at: post.date, author_url: Blog.get_post_author_url(post))

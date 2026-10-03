@@ -13,6 +13,11 @@ defmodule Tuist.MCP.Components.Tools.ListBazelCacheEvents do
         "project_handle" => %{"type" => "string", "description" => "The project handle."},
         "invocation_id" => %{"type" => "string", "description" => "Filter by Bazel invocation identifier."},
         "outcome" => %{"type" => "string", "description" => "Filter by hit, miss, or write."},
+        "operation" => %{
+          "type" => "string",
+          "enum" => ["action_cache", "cas"],
+          "description" => "Filter by action cache or content-addressable storage operation."
+        },
         "page" => %{"type" => "integer", "description" => "Page number, defaulting to 1."},
         "page_size" => %{"type" => "integer", "description" => "Results per page, up to 100."}
       },
@@ -43,6 +48,7 @@ defmodule Tuist.MCP.Components.Tools.ListBazelCacheEvents do
       [%{field: :project_id, op: :==, value: project.id}]
       |> maybe_append_filter(:invocation_id, Map.get(args, "invocation_id"))
       |> maybe_append_outcome(Map.get(args, "outcome"))
+      |> maybe_append_operation(Map.get(args, "operation"))
 
     {events, meta} =
       ReapiCache.list_cache_events(project.id, %{
@@ -68,4 +74,9 @@ defmodule Tuist.MCP.Components.Tools.ListBazelCacheEvents do
     do: filters ++ [%{field: :outcome, op: :==, value: outcome}]
 
   defp maybe_append_outcome(filters, _outcome), do: filters
+
+  defp maybe_append_operation(filters, operation) when operation in ["action_cache", "cas"],
+    do: filters ++ [%{field: :operation, op: :==, value: operation}]
+
+  defp maybe_append_operation(filters, _operation), do: filters
 end

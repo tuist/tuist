@@ -1,4 +1,5 @@
-#build-run {
+#build-run,
+#once-run {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -428,6 +429,12 @@
           & td:nth-child(2),
           & td:nth-child(3) {
             width: 12%;
+          }
+
+          & [data-part="task-cas-actions"] {
+            display: flex;
+            justify-content: flex-start;
+            padding: var(--noora-spacing-5);
           }
 
           & [data-part="cas-outputs-list"] {

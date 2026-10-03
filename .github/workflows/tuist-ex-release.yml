@@ -1,0 +1,125 @@
+name: Tuist Elixir Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tuist_ex/**
+      - mise/tasks/release/components.json
+      - .github/workflows/tuist-ex-release.yml
+      - .github/workflows/tuist-ex.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuist-ex-release
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  check:
+    name: Check for releasable changes
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.tuist-ex-should-release }}
+      next-version: ${{ steps.check.outputs.tuist-ex-next-version }}
+      next-version-number: ${{ steps.check.outputs.tuist-ex-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run --skip-tools release:check tuist-ex
+
+  validate:
+    needs: check
+    if: needs.check.outputs.should-release == 'true'
+    uses: ./.github/workflows/tuist-ex.yml
+
+  publish:
+    name: Publish Tuist Elixir
+    needs: [check, validate]
+    if: needs.check.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: tuist_ex
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir git-cliff"
+          cache: "false"
+          working-directory: tuist_ex
+      - name: Prepare release
+        env:
+          RELEASE_VERSION: ${{ needs.check.outputs.next-version-number }}
+          RELEASE_TAG: ${{ needs.check.outputs.next-version }}
+        run: |
+          set -euo pipefail
+          sed -i "s/version: \".*\"/version: \"$RELEASE_VERSION\"/" mix.exs
+          latest=$(git tag -l 'tuist-ex@*' | sort -V | tail -n1)
+          range=()
+          if [ -n "$latest" ]; then
+            range=("$latest..HEAD")
+          fi
+          git cliff --include-path 'tuist_ex/**/*' --config cliff.toml --repository .. \
+            --tag "$RELEASE_TAG" -- "${range[@]}" > "$RUNNER_TEMP/tuist-ex-release.md"
+          test -s "$RUNNER_TEMP/tuist-ex-release.md"
+      - run: mix local.hex --force
+      - run: mix deps.get --check-locked
+      - run: mix hex.build
+      - run: mix docs --warnings-as-errors
+      - name: Publish package and documentation
+        run: |
+          set -euo pipefail
+          published_tar="$RUNNER_TEMP/tuist_ex-published.tar"
+          published_status=$(curl --silent --show-error --location --output "$published_tar" \
+            --write-out '%{http_code}' \
+            "https://repo.hex.pm/tarballs/tuist_ex-${{ needs.check.outputs.next-version-number }}.tar")
+
+          case "$published_status" in
+            200)
+              local_checksum=$(sha256sum "tuist_ex-${{ needs.check.outputs.next-version-number }}.tar" | cut -d ' ' -f1)
+              published_checksum=$(sha256sum "$published_tar" | cut -d ' ' -f1)
+              if [ "$local_checksum" != "$published_checksum" ]; then
+                echo "The published Hex package has different contents for this version" >&2
+                exit 1
+              fi
+              mix hex.publish docs --yes
+              ;;
+            404)
+              mix hex.publish --yes
+              ;;
+            *)
+              echo "Could not check the published Hex package (status $published_status)" >&2
+              exit 1
+              ;;
+          esac
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          target_commitish: ${{ github.sha }}
+          tag_name: ${{ needs.check.outputs.next-version }}
+          name: Tuist Elixir ${{ needs.check.outputs.next-version-number }}
+          body_path: ${{ runner.temp }}/tuist-ex-release.md
+          files: tuist_ex/tuist_ex-${{ needs.check.outputs.next-version-number }}.tar

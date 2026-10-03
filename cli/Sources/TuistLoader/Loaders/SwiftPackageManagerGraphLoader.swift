@@ -318,6 +318,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
+                    packageProducts: externalDependencies.packageProducts,
                     enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
                 )
             )
@@ -343,7 +344,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         return (
             DependenciesGraph(
-                externalDependencies: externalDependencies,
+                externalDependencies: externalDependencies.products,
                 externalProjects: externalProjects
             ),
             []

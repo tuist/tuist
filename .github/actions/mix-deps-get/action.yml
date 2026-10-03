@@ -40,9 +40,28 @@ runs:
       env:
         GH_DEP_TOKEN: ${{ inputs.github-token || github.token }}
       run: |
+        mix_deps_get() {
+          local attempt
+          local delay
+
+          for attempt in 1 2 3; do
+            if mix deps.get; then
+              return 0
+            fi
+
+            if [ "${attempt}" -eq 3 ]; then
+              return 1
+            fi
+
+            delay=$((attempt * 2))
+            echo "::warning::Mix dependency fetch attempt ${attempt} failed; retrying in ${delay} seconds"
+            sleep "${delay}"
+          done
+        }
+
         if [ -z "${GH_DEP_TOKEN}" ]; then
           echo "::warning::No GitHub token available; dependency fetches stay anonymous."
-          mix deps.get
+          mix_deps_get
           exit 0
         fi
 
@@ -51,4 +70,4 @@ runs:
         GIT_CONFIG_COUNT=1 \
           GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
           GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth_header}" \
-          mix deps.get
+          mix_deps_get

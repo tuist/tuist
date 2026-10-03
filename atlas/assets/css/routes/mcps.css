@@ -1,0 +1,48 @@
+#mcps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--noora-spacing-5);
+    align-items: flex-start;
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+    max-width: 60rem;
+  }
+
+  & [data-part="servers-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="session-state"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    flex-wrap: wrap;
+  }
+
+  & [data-part="session-expiry"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+}

@@ -187,8 +187,15 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		return r.reconcileDelete(ctx, pool)
 	}
+	// Patched, not Updated. A full-object Update writes back every
+	// field the controller decoded, including an
+	// `autoscaling.minWarmPoolFloor` the API server supplied from the
+	// CRD default because helm rendered none. That pins the floor and
+	// moves the field's manager from `helm` to this controller, after
+	// which the chart can no longer set it.
+	beforeFinalizer := pool.DeepCopy()
 	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
-		if err := r.Update(ctx, pool); err != nil {
+		if err := r.Patch(ctx, pool, client.MergeFrom(beforeFinalizer)); err != nil {
 			return ctrl.Result{}, fmt.Errorf("add drain finalizer: %w", err)
 		}
 	}
@@ -391,7 +398,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		case isAlive(p):
 			alive++
 			staleImage := isStaleImage(p, pool)
-			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool)
 			switch {
 			case staleImage || staleRuntimeClassRevision:
 				staleAlive++
@@ -663,8 +670,9 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	original := pool.DeepCopy()
 	controllerutil.RemoveFinalizer(pool, runnerPoolFinalizer)
-	if err := r.Update(ctx, pool); err != nil {
+	if err := r.Patch(ctx, pool, client.MergeFrom(original)); err != nil {
 		return ctrl.Result{}, fmt.Errorf("remove drain finalizer: %w", err)
 	}
 	logger.Info("pool drained; finalizer released", "drainedIdle", drainedIdle)
@@ -1066,7 +1074,7 @@ func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
 // replacement because its image or RuntimeClass revision no longer
 // matches the pool's current template.
 func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
-	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool)
+	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool)
 }
 
 // isStaleImage returns true when the Pod's runner container image
@@ -1160,4 +1168,15 @@ func randHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func isStaleCacheVolumes(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "linux" {
+		return false
+	}
+	revision := pod.Annotations["tuist.dev/cache-volume-revision"]
+	if revision == "" && pool.Spec.CacheVolumeRoot == "" {
+		return false
+	}
+	return revision != podtemplate.CacheVolumeRevision(pool)
 }

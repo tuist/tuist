@@ -28,69 +28,68 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
-      <.sidebar_item
-        :if={Project.bazel_project?(@selected_project)}
-        label={dgettext("dashboard", "Invocations")}
-        icon="versions"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/invocations"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/invocations"
-          )
-        }
-      />
+      <% once? = Project.once_project?(@selected_project) %>
+      <% builds_root =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/builds",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" %>
+      <% build_runs_path =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs" %>
+      <% tests_root =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" %>
+      <% test_runs_path =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/test-runs",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs" %>
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project)}
+        :if={
+          Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            once?
+        }
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        default_open={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-          )
-        }
+        navigate={builds_root}
+        selected={@current_path == builds_root}
+        default_open={String.starts_with?(@current_path, builds_root)}
         phx-update="ignore"
       >
         <.sidebar_item
           label={dgettext("dashboard", "Build Runs")}
           icon="chart_column"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+          navigate={build_runs_path}
           selected={
-            String.starts_with?(
-              @current_path,
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
-            )
+            String.starts_with?(@current_path, build_runs_path) or
+              String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
+              )
           }
         />
       </.sidebar_group>
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
+        :if={
+          Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            once?
+        }
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
-        default_open={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
-          )
-        }
+        navigate={tests_root}
+        selected={@current_path == tests_root}
+        default_open={String.starts_with?(@current_path, tests_root)}
         phx-update="ignore"
       >
         <.sidebar_item
           label={dgettext("dashboard", "Test Runs")}
           icon="dashboard"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+          navigate={test_runs_path}
           selected={
-            String.starts_with?(
-              @current_path,
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
-            ) or
+            String.starts_with?(@current_path, test_runs_path) or
               String.starts_with?(
                 @current_path,
                 "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
@@ -113,7 +112,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -125,7 +123,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
@@ -149,6 +146,30 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
       </.sidebar_group>
+      <.sidebar_item
+        :if={Project.bazel_project?(@selected_project)}
+        label={dgettext("dashboard", "Bazel Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"
+          )
+        }
+      />
+      <.sidebar_item
+        :if={Project.once_project?(@selected_project)}
+        label={dgettext("dashboard", "Once Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
+          )
+        }
+      />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"
@@ -194,6 +215,17 @@ defmodule TuistWeb.AppLayoutComponents do
               (not is_nil(@selected_run) and @selected_run.name == "generate")
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Modules")}
+          icon="apps"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/modules"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/modules"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_item
         :if={Project.xcode_project?(@selected_project)}
@@ -227,6 +259,17 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Tasks")}
+          icon="subtask"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
             )
           }
         />
@@ -316,10 +359,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
-          )
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
         }
       />
       <.sidebar_item
@@ -404,6 +444,14 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="stack_2"
           navigate={runner_jobs_path}
           selected={String.starts_with?(@current_path, runner_jobs_path)}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard_runners", "Volumes")}
+          icon="database"
+          navigate={~p"/#{@selected_account.name}/runners/volumes"}
+          selected={
+            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners/volumes")
+          }
         />
         <.sidebar_item
           :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
@@ -575,7 +623,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={dgettext("dashboard", "Errors")}
         icon="alert_triangle"
-        href="https://sentry.io/organizations/tuist/issues/"
+        href="https://hive.tuist.dev/errors"
         target="_blank"
         rel="noopener noreferrer"
         external
@@ -603,12 +651,7 @@ defmodule TuistWeb.AppLayoutComponents do
     <header class="headerbar">
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
-          <img
-            src={~p"/images/tuist_dashboard.png"}
-            alt={dgettext("dashboard", "Tuist Icon")}
-            class="headerbar__logo"
-            decoding="async"
-          />
+          <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
         </.link>
         <span :if={@title} data-part="title">{@title}</span>
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
@@ -646,12 +689,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <div data-part="first-row">
         <div data-part="left-section">
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
-            <img
-              src={~p"/images/tuist_dashboard.png"}
-              alt={dgettext("dashboard", "Tuist Icon")}
-              class="headerbar__logo"
-              decoding="async"
-            />
+            <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
           </.link>
           <span :if={@title} data-part="title">{@title}</span>
         </div>

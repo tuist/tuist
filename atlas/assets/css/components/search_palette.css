@@ -1,0 +1,160 @@
+.search-palette {
+  &[data-open="false"] {
+    display: none;
+  }
+
+  & > [data-part="backdrop"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: var(--noora-z-index-11);
+    backdrop-filter: blur(2.5px);
+    background: var(--noora-surface-overlay);
+    width: 100dvw;
+    height: 100dvh;
+  }
+
+  & > [data-part="positioner"] {
+    display: flex;
+    position: fixed;
+    top: 15dvh;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--noora-z-index-12);
+    box-sizing: border-box;
+    width: min(600px, calc(100vw - var(--noora-spacing-7) * 2));
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      box-shadow: var(--noora-border-heavy);
+      border-radius: var(--noora-radius-8);
+      background: var(--noora-surface-background-primary);
+      overflow: hidden;
+    }
+  }
+
+  & [data-part="search"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-5) var(--noora-spacing-6);
+    border-bottom: 1px solid var(--noora-content-divider-line);
+
+    & .noora-text-input {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  & [data-part="results"] {
+    display: flex;
+    flex-direction: column;
+    max-height: 60dvh;
+    overflow-y: auto;
+    padding: var(--noora-spacing-4);
+  }
+
+  & [data-part="empty"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    align-items: center;
+    padding: var(--noora-spacing-8) var(--noora-spacing-6);
+    text-align: center;
+
+    & [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="group"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  & [data-part="group-header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
+  & [data-part="item"] {
+    display: flex;
+
+    & > [data-part="link"] {
+      display: flex;
+      flex-direction: row;
+      flex: 1;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      padding: var(--noora-spacing-4);
+      border-radius: var(--noora-radius-4);
+      color: var(--noora-surface-label-primary);
+      text-decoration: none;
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        background: var(--noora-button-background-secondary-hover);
+        outline: none;
+      }
+
+      & > [data-part="favicon"] {
+        flex-shrink: 0;
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-surface-background-secondary);
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+      }
+
+      & [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-1);
+        min-width: 0;
+      }
+
+      & [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & [data-part="description"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+}

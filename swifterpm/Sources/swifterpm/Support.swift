@@ -88,17 +88,29 @@ enum SystemProcess {
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
         if forwardOutput {
-            let result = try await Subprocess.run(
+            // Standard error is teed rather than inherited so a failure can report what the
+            // child printed, not only its exit status.
+            let outcome = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
                 environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
-                output: .standardOutput,
-                error: .standardError
-            )
+                output: .standardOutput
+            ) { _, errorSequence in
+                var captured = Data()
+                for try await buffer in errorSequence {
+                    let chunk = buffer.withUnsafeBytes { Data($0) }
+                    FileHandle.standardError.write(chunk)
+                    captured.append(chunk.prefix(max(0, outputLimit - captured.count)))
+                }
+                return captured
+            }
 
-            guard result.terminationStatus.isSuccess else {
-                throw ToolError.message(result.terminationStatus.description)
+            guard outcome.terminationStatus.isSuccess else {
+                let stderrText = String(decoding: outcome.value, as: UTF8.self)
+                throw ToolError.message(
+                    stderrText.isEmpty ? outcome.terminationStatus.description : stderrText
+                )
             }
 
             return Result(stdout: Data(), stderr: Data())
@@ -390,10 +402,13 @@ enum HTTPAuthorization {
         // ranks its environment token above netrc, but we keep netrc first here
         // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
         // host a netrc entry deliberately targets.
+        let netrc = Environment.netrc
         if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
-            netrcCredential: Environment.netrc.credential(for: url),
-            keychain: { await KeychainAuthorization.credential(for: url) },
+            netrcCredential: netrc.credential(for: url),
+            keychain: {
+                netrc.keychainDisabled ? nil : await KeychainAuthorization.credential(for: url)
+            },
             gitHubEnvToken: GitHubAuth.envToken(from: environment)
         ) {
             return header
@@ -460,9 +475,6 @@ enum Hashing {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    static func shortRevision(_ revision: String) -> String {
-        String(revision.prefix(12))
-    }
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))

@@ -1,6 +1,8 @@
+import Crypto
 import Foundation
 import Mockable
 import Path
+import TuistLogging
 import TuistServer
 import TuistSupport
 
@@ -61,6 +63,46 @@ public struct MultipartModuleCacheUploadService: MultipartModuleCacheUploadServi
         authenticationURL: URL,
         serverAuthenticationController: ServerAuthenticationControlling
     ) async throws {
+        let upload = {
+            try await uploadOnce(
+                artifactPath: artifactPath,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                hash: hash,
+                name: name,
+                cacheCategory: cacheCategory,
+                serverURL: serverURL,
+                authenticationURL: authenticationURL,
+                serverAuthenticationController: serverAuthenticationController
+            )
+        }
+        do {
+            try await upload()
+        } catch let error as CompleteModuleCacheMultipartUploadServiceError {
+            // The bytes changed between the buffers hashed here and the server's
+            // assembly. A whole-artifact digest cannot say which part, and the
+            // server already dropped the session, so the only repair is the whole
+            // upload again from a fresh session, once. A second mismatch means
+            // something on this path damages the artifact every time.
+            guard case .checksumMismatch = error else { throw error }
+            Logger.current.debug(
+                "The server refused \(name) with hash \(hash) because its assembled bytes did not match the uploaded checksum. Uploading it again..."
+            )
+            try await upload()
+        }
+    }
+
+    private func uploadOnce(
+        artifactPath: AbsolutePath,
+        accountHandle: String,
+        projectHandle: String,
+        hash: String,
+        name: String,
+        cacheCategory: String,
+        serverURL: URL,
+        authenticationURL: URL,
+        serverAuthenticationController: ServerAuthenticationControlling
+    ) async throws {
         guard let uploadId = try await startUploadService.startUpload(
             accountHandle: accountHandle,
             projectHandle: projectHandle,
@@ -88,6 +130,10 @@ public struct MultipartModuleCacheUploadService: MultipartModuleCacheUploadServi
         var partNumber = 1
         var uploadedParts: [Int] = []
         var buffer = [UInt8](repeating: 0, count: Self.partSize)
+        // Fed the exact buffers handed to the network rather than a second read of
+        // the file, so the digest describes the bytes the parts carried even if the
+        // file changes on disk mid-upload.
+        var hasher = SHA256()
 
         while inputStream.hasBytesAvailable {
             let bytesRead = inputStream.read(&buffer, maxLength: Self.partSize)
@@ -104,6 +150,7 @@ public struct MultipartModuleCacheUploadService: MultipartModuleCacheUploadServi
             }
 
             let partData = Data(bytes: buffer, count: bytesRead)
+            hasher.update(data: partData)
 
             try await uploadPartService.uploadPart(
                 accountHandle: accountHandle,
@@ -125,6 +172,7 @@ public struct MultipartModuleCacheUploadService: MultipartModuleCacheUploadServi
             projectHandle: projectHandle,
             uploadId: uploadId,
             parts: uploadedParts,
+            checksumSHA256: hasher.finalize().map { String(format: "%02x", $0) }.joined(),
             serverURL: serverURL,
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController

@@ -67,6 +67,19 @@ cat > "${CONFIG_DIR}/query_log.xml" << 'EOF'
 </clickhouse>
 EOF
 
+# ClickHouse 26.3 lowered `http_max_fields` from 1,000,000 to 1,000, and the
+# in-cluster servers run 26.3. Dev and CI pin an older release, so apply the
+# same limit here to catch queries that bind one HTTP parameter per list element.
+cat > "${CONFIG_DIR}/http_limits.xml" << 'EOF'
+<clickhouse>
+    <profiles>
+        <default>
+            <http_max_fields>1000</http_max_fields>
+        </default>
+    </profiles>
+</clickhouse>
+EOF
+
 # ClickHouse Keeper is the built-in coordination service (the ZooKeeper
 # replacement). Transactions need it enabled so the sandbox can begin and roll
 # back ClickHouse sessions during tests.

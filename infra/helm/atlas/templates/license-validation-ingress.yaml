@@ -1,0 +1,24 @@
+{{- if .Values.ingress.licenseValidationRateLimit.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "atlas.fullname" . }}-license-validation
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.licenseValidationRateLimit.requestsPerSecond | quote }}
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: {{ .Values.ingress.licenseValidationRateLimit.burstMultiplier | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
+          - path: /api/licenses/actions/validate-key
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "atlas.fullname" . }}
+                port:
+                  name: http
+{{- end }}

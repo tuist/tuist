@@ -36,6 +36,10 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "cacheable_tasks_count" => %{"type" => "integer"},
         "cacheable_task_local_hits_count" => %{"type" => "integer"},
         "cacheable_task_remote_hits_count" => %{"type" => "integer"},
+        "cas_output_download_count" => %{"type" => "integer"},
+        "cas_output_upload_count" => %{"type" => "integer"},
+        "cas_output_download_bytes" => %{"type" => "integer"},
+        "cas_output_upload_bytes" => %{"type" => "integer"},
         "inserted_at" => %{"type" => "string"},
         "archive_url" => %{"type" => "string"}
       },
@@ -56,6 +60,10 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "cacheable_tasks_count",
         "cacheable_task_local_hits_count",
         "cacheable_task_remote_hits_count",
+        "cas_output_download_count",
+        "cas_output_upload_count",
+        "cas_output_download_bytes",
+        "cas_output_upload_bytes",
         "inserted_at",
         "archive_url"
       ],
@@ -92,6 +100,8 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
              :build,
              "Build not found: #{build_run_id}"
            ) do
+      cas_output_metrics = Builds.cas_output_metrics(build.id)
+
       {:ok,
        %{
          id: build.id,
@@ -110,6 +120,10 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
          cacheable_tasks_count: build.cacheable_tasks_count,
          cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
          cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
+         cas_output_download_count: cas_output_metrics.download_count,
+         cas_output_upload_count: cas_output_metrics.upload_count,
+         cas_output_download_bytes: cas_output_metrics.download_bytes,
+         cas_output_upload_bytes: cas_output_metrics.upload_bytes,
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc),
          archive_url: archive_url(build, project)
        }}

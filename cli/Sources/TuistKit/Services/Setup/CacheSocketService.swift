@@ -18,7 +18,7 @@ struct CacheSocketService: CacheSocketServicing {
         let deadline = clock.now.advanced(by: timeout)
 
         repeat {
-            if canConnect(to: path.pathString) {
+            if await canConnect(to: path.pathString, deadline: deadline) {
                 return true
             }
             if clock.now >= deadline || Task.isCancelled {
@@ -28,7 +28,7 @@ struct CacheSocketService: CacheSocketServicing {
         } while true
     }
 
-    private func canConnect(to path: String) -> Bool {
+    private func canConnect(to path: String, deadline: ContinuousClock.Instant) async -> Bool {
         #if canImport(Darwin)
             let descriptor = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         #else
@@ -70,6 +70,18 @@ struct CacheSocketService: CacheSocketServicing {
                 #endif
             }
         }
-        return result == 0
+        guard result == 0, shutdown(descriptor, SHUT_WR) == 0 else { return false }
+
+        // Closing before the server accepts can make Darwin reject SwiftNIO's
+        // fcntl calls and kill the daemon. Keep the read side open until the
+        // server responds or closes its side, proving it handled the connection.
+        var byte: UInt8 = 0
+        repeat {
+            let received = recv(descriptor, &byte, 1, MSG_PEEK | MSG_DONTWAIT)
+            if received >= 0 { return true }
+            guard errno == EAGAIN || errno == EWOULDBLOCK else { return false }
+            if ContinuousClock.now >= deadline || Task.isCancelled { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        } while true
     }
 }

@@ -15,8 +15,8 @@ The Tuist CLI ships through three channels with different stability guarantees. 
 | Channel | Version format | Cadence | Resolved by default? |
 | --- | --- | --- | --- |
 | Canary | `X.Y.0-canary.N` (e.g. `4.201.0-canary.42`) | Every commit to `main` | No — explicit opt-in |
-| Release candidate | `X.Y.0-rc.N` (e.g. `4.200.0-rc.1`) | Cut from `main`, soaks ~1 week | No — explicit opt-in |
-| Stable | `X.Y.Z` (e.g. `4.200.0`, `4.200.1`) | Promoted after a clean soak | **Yes** |
+| Release candidate | `X.Y.0-rc.N` (e.g. `4.200.0-rc.1`) | Cut from `main` every Monday, soaks ~1 week | No — explicit opt-in |
+| Stable | `X.Y.Z` (e.g. `4.200.0`, `4.200.1`) | Promoted every Monday after a clean soak | **Yes** |
 
 Canary and release candidate builds are published as prereleases. Tools like Mise and Homebrew exclude prereleases when resolving `latest`, a bare install, or a line pin, so you only ever land on one of them by asking for it explicitly.
 

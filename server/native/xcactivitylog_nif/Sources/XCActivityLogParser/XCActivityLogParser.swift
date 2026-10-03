@@ -8,7 +8,8 @@ public struct XCActivityLogParser: Sendable {
     public func parse(
         xcactivitylogURL: URL,
         casAnalyticsDatabasePath: AbsolutePath,
-        legacyCASMetadataPath: AbsolutePath? = nil
+        legacyCASMetadataPath: AbsolutePath? = nil,
+        onBuildStep: (@Sendable (BuildStepData) throws -> Void)? = nil
     ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
@@ -78,11 +79,66 @@ public struct XCActivityLogParser: Sendable {
             issues: Array(issues.prefix(1000)),
             files: files,
             cacheable_tasks: cacheableTasks,
-            cas_outputs: casOutputs
+            cas_outputs: casOutputs,
+            build_steps: try extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog, onBuildStep: onBuildStep)
         )
     }
 
     // MARK: - Build Steps
+
+    private func extractBuildSteps(from steps: [BuildStep], build: BuildStep, activityLog: IDEActivityLog, onBuildStep: (@Sendable (BuildStepData) throws -> Void)?) throws -> [BuildStepData] {
+        let logs = BuildStepLog(root: activityLog.mainSection)
+        var targets = [String: (String, String)]()
+        var events = [BuildStepData]()
+        for (index, step) in steps.enumerated() {
+            let inherited = targets[step.parentIdentifier] ?? ("", "")
+            let target = step.type == .target && step.title.hasPrefix("Build target ")
+                ? step.title.replacingOccurrences(of: "Build target ", with: "")
+                : inherited.0
+            let signatureProject = extractProjectFromSignature(step.signature)
+            let project = signatureProject.isEmpty ? inherited.1 : signatureProject
+            targets[step.identifier] = (target, project)
+
+            // Container steps include their children's time. Emitting only leaf
+            // operations avoids counting Swift driver and target wrappers twice.
+            guard step.type == .detail, step.subSteps.isEmpty,
+                  let (start, duration) = BuildStepData.interval(
+                      start: step.startTimestamp, end: step.endTimestamp,
+                      buildStart: build.startTimestamp, buildEnd: build.endTimestamp
+                  )
+            else { continue }
+
+            let log = logs.extract(step: step)
+            let event = BuildStepData(
+                event_id: index,
+                title: String(step.title.prefix(1000)),
+                target: target,
+                project: project,
+                category: buildStepCategory(step),
+                start_ms: start,
+                duration_ms: duration,
+                status: (step.errors ?? []).contains { $0.severity == 2 } ? "failure" : "success",
+                log: log.text,
+                log_truncated: log.truncated
+            )
+            if let onBuildStep { try onBuildStep(event) } else { events.append(event) }
+        }
+        return events
+    }
+
+    private func buildStepCategory(_ step: BuildStep) -> String {
+        if step.signature.hasPrefix("SwiftCompile ") || step.signature.hasPrefix("SwiftEmitModule ")
+            || step.signature.hasPrefix("EmitSwiftModule ") {
+            return "swiftCompilation"
+        }
+        if step.signature.hasPrefix("PrecompileModule ") {
+            return "cCompilation"
+        }
+        if step.title.hasPrefix("Run custom shell script ") {
+            return "scriptExecution"
+        }
+        return step.detailStepType.rawValue
+    }
 
     // Iterative DFS so build trees thousands of levels deep don't overflow the
     // stack. Order matches the recursive walk: parent before children.
@@ -318,7 +374,9 @@ public struct XCActivityLogParser: Sendable {
 
             guard let op = operation else { continue }
 
-            let isMiss = step.notes?.contains { $0.title == "cache key query miss" } ?? false
+            // Swift query steps say `cache key query miss`. Xcode 27's clang query
+            // steps say `cache miss`, and `cache hit` when the remote serves the key.
+            let isMiss = step.notes?.contains { $0.title == "cache key query miss" || $0.title == "cache miss" } ?? false
             var status = keyStatuses[key] ?? (taskType: taskType, hasQuery: false, hasMaterialize: false, hasUpload: false, isMiss: false)
             status.taskType = taskType
             if op == "query" { status.hasQuery = true }
@@ -482,17 +540,22 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Regex Helpers
 
+    // Swift titles wrap the key in a JSON array (`query key ["0~…"]`). Xcode 27's
+    // clang titles carry it bare (`Clang caching query key 0~…`).
     private func extractCacheKey(from title: String) -> String? {
         if title.contains("query key") || title.contains("materialize key") {
             return extractWithPattern("\\[\"([^\"]+)\"\\]", from: title)
+                ?? extractWithPattern("(?:query|materialize) key (0~[A-Za-z0-9+/_=-]+)", from: title)
         } else if title.contains("upload key") {
             return extractWithPattern("upload key ([^\\s]+)", from: title)
         }
         return nil
     }
 
+    // Xcode 27's clang compile steps name their key in `replayed cache hit: 0~…`
+    // or `cache miss: 0~…` rather than the Swift `local cache … for key:` notes.
     private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {
-        let pattern = "(?i)(?:local cache found for key:|local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+        let pattern = "(?i)(?:local cache found for key:|local cache miss for key:|replayed cache hit:|^cache miss:)\\s+(0~[A-Za-z0-9+/_=-]+)"
         return extractWithPattern(pattern, from: noteTitle)
     }
 

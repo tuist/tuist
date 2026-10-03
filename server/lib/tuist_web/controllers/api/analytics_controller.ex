@@ -8,6 +8,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
+  alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -19,6 +20,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
   alias TuistWeb.RemoteIp
@@ -338,6 +340,12 @@ defmodule TuistWeb.API.AnalyticsController do
                                ]
                              }
                            },
+                           dependencies: %Schema{
+                             type: :array,
+                             description:
+                               "Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.",
+                             items: %Schema{type: :string}
+                           },
                            binary_cache_metadata: %Schema{
                              type: :object,
                              description: "Binary cache metadata",
@@ -360,6 +368,30 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},
@@ -406,6 +438,30 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},
@@ -471,7 +527,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)
-    git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
+    git_remote_url_origin = body_params |> Map.get(:git_remote_url_origin) |> RemoteURL.strip_credentials()
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
@@ -497,7 +553,7 @@ defmodule TuistWeb.API.AnalyticsController do
     selective_testing_metadata = selective_testing_metadata(body_params)
 
     command_event =
-      CommandEvents.create_command_event(%{
+      %{
         id: command_event_id,
         name: body_params.name,
         subcommand: Map.get(body_params, :subcommand, nil),
@@ -527,7 +583,18 @@ defmodule TuistWeb.API.AnalyticsController do
         ran_at: date(body_params),
         build_run_id: build_run_id,
         test_run_id: test_run_id
-      })
+      }
+      |> CommandEvents.create_command_event()
+      |> case do
+        {:ok, command_event} ->
+          command_event
+
+        {:error, :not_found} ->
+          raise NotFoundError,
+                dgettext("dashboard", "The project %{project_slug} was not found.", %{
+                  project_slug: "#{selected_project.account.name}/#{selected_project.name}"
+                })
+      end
 
     # Where the account's cache traffic comes from, counted once per run that
     # used the cache. This is the unit placement thresholds are expressed in:
@@ -1089,6 +1156,9 @@ defmodule TuistWeb.API.AnalyticsController do
       case type do
         "result_bundle" ->
           CommandEvents.get_result_bundle_key(run_id, project)
+
+        "stress_result_bundle" ->
+          CommandEvents.get_stress_result_bundle_key(run_id, project)
 
         "invocation_record" ->
           CommandEvents.get_result_bundle_invocation_record_key(

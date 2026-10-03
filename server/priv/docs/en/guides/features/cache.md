@@ -11,38 +11,33 @@ Build artifacts are not shared across environments, forcing you to rebuild the s
 
 Learn the cache workflow that matches your project or deployment model:
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Module cache"
-        details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
-        linkText="Set up module cache"
-        link="/guides/features/cache/module-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Xcode cache"
-        details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
-        linkText="Set up Xcode cache"
-        link="/guides/features/cache/xcode-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
-        title="Gradle cache"
-        details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
-        linkText="Set up Gradle cache"
-        link="/guides/features/cache/gradle-cache"/>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Bazel' width='32' height='32' />"
-        title="Bazel cache and invocations"
-        details="Share Bazel remote-cache entries and inspect completed command duration, outcome, and attributable cache totals."
-        linkText="Set up Bazel cache"
-        link="/guides/features/cache/bazel-cache"/>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="Self-hosting"
-        details="Run cache nodes close to CI, offices, or regional compute and connect them to hosted or self-hosted Tuist."
-        linkText="Deploy self-hosted cache"
-        link="/guides/features/cache/self-hosting"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="Module cache"
+    details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
+    link="/guides/features/cache/module-cache"
+/>
+  <.home_card
+    title="Xcode cache"
+    details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
+    link="/guides/features/cache/xcode-cache"
+/>
+  <.home_card
+    title="Gradle cache"
+    details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
+    link="/guides/features/cache/gradle-cache"
+/>
+  <.home_card
+    title="Bazel cache"
+    details="Point Bazel at Tuist's Remote Execution API cache to share action outputs across your team and CI."
+    link="/guides/features/cache/bazel-cache"
+/>
+  <.home_card
+    title="Self-hosting"
+    details="Run cache nodes close to CI, offices, or regional compute and connect them to hosted or self-hosted Tuist."
+    link="/guides/features/cache/self-hosting"
+/>
+</.home_cards>
 
 > [!TIP]
 > **Fastest on Tuist Runners**

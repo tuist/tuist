@@ -20,7 +20,6 @@ struct SupportTests {
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         #expect(Hashing.sha256Hex(Data("abc".utf8)) == expected)
         #expect(Hashing.stable("abc") == expected)
-        #expect(Hashing.shortRevision("abcdef1234567890") == "abcdef123456")
     }
 
     @Test
@@ -40,6 +39,26 @@ struct SupportTests {
 
         #expect(result.stdoutString == "out")
         #expect(result.stderrString == "err")
+    }
+
+    @Test
+    func forwardedProcessFailureCarriesItsStandardError() async throws {
+        let error = await #expect(throws: ToolError.self) {
+            try await SystemProcess.run(
+                "/bin/sh", ["-c", "printf 'error: boom' >&2; exit 3"], forwardOutput: true
+            )
+        }
+
+        #expect(error?.description == "error: boom")
+    }
+
+    @Test
+    func forwardedProcessFailureWithoutStandardErrorFallsBackToItsStatus() async throws {
+        let error = await #expect(throws: ToolError.self) {
+            try await SystemProcess.run("/bin/sh", ["-c", "exit 1"], forwardOutput: true)
+        }
+
+        #expect(error?.description == "exited(1)")
     }
 
     @Test

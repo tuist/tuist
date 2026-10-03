@@ -41,6 +41,17 @@ defmodule Tuist.Kura.PlacerRegions do
     |> Enum.map(& &1.region)
   end
 
+  @doc "Every claimed region for many accounts, including retiring regions."
+  def claimed_regions_all(accounts) when is_list(accounts) do
+    account_ids = Enum.map(accounts, & &1.id)
+
+    PlacerRegion
+    |> where([placer], placer.account_id in ^account_ids)
+    |> select([placer], {placer.account_id, placer.region})
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
   @doc """
   The account's regions that are on their way out.
   """
@@ -123,6 +134,44 @@ defmodule Tuist.Kura.PlacerRegions do
     |> Repo.update_all(set: [role: :secondary, updated_at: DateTime.truncate(DateTime.utc_now(), :second)])
 
     upsert(account_id, region, %{role: :primary, status: :desired, evidence: evidence})
+  end
+
+  @doc """
+  Writes `region` as the account's primary unless it already has one, and
+  says which primary the account has afterwards: `{:recorded, row}` when this
+  call wrote it, `{:existing, row}` when another already had.
+
+  Insert-only, on purpose. `put_primary/3` demotes whatever holds the role,
+  which is right for a decision that supersedes another and wrong for a first
+  placement racing itself: two demand flushes on two nodes can each read an
+  account with no primary and, from their separately cached room readings,
+  choose different regions, and the second `put_primary/3` would demote the
+  first region to a serving secondary, leaving the account provisioned in
+  both. Here the one-primary-per-account index decides the race, and the
+  loser follows the winner. `{:error, changeset}` is the insert failing for
+  any other reason, such as the account already holding `region` as a
+  secondary; the caller places without recording.
+  """
+  def record_first_primary(%Account{id: account_id}, region, evidence \\ %{}) do
+    %PlacerRegion{}
+    |> PlacerRegion.changeset(%{
+      account_id: account_id,
+      region: region,
+      role: :primary,
+      status: :desired,
+      evidence: evidence
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, row} ->
+        {:recorded, row}
+
+      {:error, changeset} ->
+        case Repo.get_by(PlacerRegion, account_id: account_id, role: :primary) do
+          %PlacerRegion{} = row -> {:existing, row}
+          nil -> {:error, changeset}
+        end
+    end
   end
 
   @doc """

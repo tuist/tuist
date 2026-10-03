@@ -125,7 +125,7 @@
         value={
           if @jobs_breakdown.ok?,
             do:
-              Integer.to_string(
+              format_number(
                 TuistWeb.RunnerJobsLive.jobs_breakdown_value(
                   @jobs_breakdown.result,
                   @jobs_breakdown_type
@@ -160,7 +160,7 @@
               <span data-part="separator">-</span>
               <span data-part="value">
                 {if @jobs_breakdown.ok?,
-                  do: Integer.to_string(@jobs_breakdown.result.total.count),
+                  do: format_number(@jobs_breakdown.result.total.count),
                   else: dgettext("dashboard_runners", "N/A")}
               </span>
             </div>
@@ -177,7 +177,7 @@
               <span data-part="separator">-</span>
               <span data-part="value">
                 {if @jobs_breakdown.ok?,
-                  do: Integer.to_string(@jobs_breakdown.result.successful.count),
+                  do: format_number(@jobs_breakdown.result.successful.count),
                   else: dgettext("dashboard_runners", "N/A")}
               </span>
             </div>
@@ -194,7 +194,7 @@
               <span data-part="separator">-</span>
               <span data-part="value">
                 {if @jobs_breakdown.ok?,
-                  do: Integer.to_string(@jobs_breakdown.result.failed.count),
+                  do: format_number(@jobs_breakdown.result.failed.count),
                   else: dgettext("dashboard_runners", "N/A")}
               </span>
             </div>
@@ -297,7 +297,7 @@
         }
         value={
           if @cumulative_minutes.ok? do
-            Integer.to_string(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
+            format_number(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
           end
         }
         loading={!@cumulative_minutes.ok?}
@@ -476,7 +476,7 @@
         }
         value={
           if @live_status_counts.ok? do
-            Integer.to_string(
+            format_number(
               Map.get(@live_status_counts.result, "running", 0) +
                 Map.get(@live_status_counts.result, "claimed", 0)
             )
@@ -491,7 +491,7 @@
         description={dgettext("dashboard_runners", "Jobs waiting for a runner to pick them up.")}
         value={
           if @live_status_counts.ok? do
-            Integer.to_string(Map.get(@live_status_counts.result, "queued", 0))
+            format_number(Map.get(@live_status_counts.result, "queued", 0))
           end
         }
         loading={!@live_status_counts.ok?}

@@ -1,0 +1,16 @@
+name = "atlas-inbox"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+ATLAS_URL = "https://atlas.tuist.dev"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+# ATLAS_INBOX_WEBHOOK_SECRET is an encrypted secret — set it once with:
+#   wrangler secret put ATLAS_INBOX_WEBHOOK_SECRET
+# The value lives in 1Password at INBOX_WORKER_WEBHOOK_SECRET/password
+# (vault: atlas-k8s-production) and is also injected into the Atlas pod
+# via External Secrets from the same 1Password item.

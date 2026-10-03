@@ -6,6 +6,7 @@ enum PackageResolver {
         scratchDir: URL? = nil,
         cache: Cache,
         registryConfig _: RegistryConfig,
+        mirrors: MirrorConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -41,7 +42,7 @@ enum PackageResolver {
                 version: resolvedFileSchemaVersion(toolsVersion: toolsVersion)
             )
             if writeResolvedFile {
-                try await ResolvedFile.write(packageDir: packageDir, resolved: resolved)
+                try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
             }
             return resolved
         }
@@ -69,11 +70,11 @@ enum PackageResolver {
         )
         resolved.originHash = originHash
         resolved.pins = dedupePinsByIdentity(resolved.pins)
-        resolved = resolved.normalizedForResolvedFile()
+        resolved = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
             // SwiftPM writes Package.resolved with its own originHash; rewrite
             // with ours so consumers can detect manifest changes.
-            try await ResolvedFile.write(packageDir: packageDir, resolved: resolved)
+            try await ResolvedFile.write(packageDir: packageDir, resolved: resolved, mirrors: mirrors)
         }
         progress?.finished(pinCount: resolved.pins.count)
         return resolved
@@ -97,14 +98,18 @@ enum PackageResolver {
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
         // `swift package resolve` also reads pins from
         // `<scratch>/workspace-state.json` when Package.resolved is missing,
         // so a stale workspace state silently pins the resolve at whatever
         // the previous install had checked out — the exact scenario `update`
         // exists to escape. Clear both together and let SwiftPM rewrite each
         // from the fresh solver output.
-        let workspaceStatePath = (scratchDir ?? packageDir.appendingPathComponent(".build"))
-            .appendingPathComponent("workspace-state.json")
+        let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
+        // Native SwiftPM updates an existing git checkout in place, which would rewrite a
+        // cached source through its `checkouts/<identity>` symlink.
+        try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
+        try await copyBinaryArtifactSymlinks(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
@@ -155,10 +160,52 @@ enum PackageResolver {
         }
     }
 
+    /// Only links whose target still has a `.git` can be checked out in place.
+    private static func detachNativeCheckoutSymlinks(scratchDir: URL) async throws {
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        guard try await fileSystem.exists(checkouts.absolutePath) else { return }
+        for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
+            where fileSystem.isSymlink(entry)
+        {
+            guard try await fileSystem.exists(entry.appendingPathComponent(".git").absolutePath) else {
+                continue
+            }
+            try await fileSystem.removePath(entry)
+        }
+    }
+
+    /// SwiftPM extracts a changed binary target over `artifacts/<identity>/<target>` but expects an
+    /// unchanged one to still be there, so each link becomes a copy SwiftPM can overwrite.
+    private static func copyBinaryArtifactSymlinks(scratchDir: URL) async throws {
+        let artifacts = scratchDir.appendingPathComponent("artifacts")
+        guard try await fileSystem.exists(artifacts.absolutePath) else { return }
+        for package in try await fileSystem.contentsOfDirectory(at: artifacts)
+            where fileSystem.isDirectoryAndNotSymlink(package)
+        {
+            for entry in try await fileSystem.contentsOfDirectory(at: package)
+                where fileSystem.isSymlink(entry)
+            {
+                let cached = entry.resolvingSymlinksInPath()
+                try await fileSystem.removePath(entry)
+                if try await fileSystem.exists(cached.absolutePath) {
+                    try await fileSystem.copy(cached.absolutePath, to: entry.absolutePath)
+                }
+            }
+        }
+    }
+
     /// Returns true when SwifterPM cannot restore every pinned dependency from
     /// its own source cache. In that case native SwiftPM is the shortest
     /// correct path: it is already responsible for fetching each missing pin.
-    static func shouldUseNativeColdPath(packageDir: URL, cacheRoot: URL) async throws -> Bool {
+    ///
+    /// Registry pins are probed the same way, against the checksum marker the cache keeps
+    /// inside each registry release. Keying the cache path on identity, version and registry
+    /// URL alone is what makes that probe possible without asking the registry anything.
+    static func shouldUseNativeColdPath(
+        packageDir: URL,
+        cacheRoot: URL,
+        registryConfig: RegistryConfig
+    ) async throws -> Bool {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else {
             return true
@@ -175,11 +222,18 @@ enum PackageResolver {
         }
 
         for pin in pins {
-            // A registry source path includes the archive checksum, which is
-            // only available after a registry request. Do not make that extra
-            // request just to probe the cache on a cold installation.
             guard PinKind.isSourceControl(pin.kind) else {
-                return true
+                guard PinKind.isRegistry(pin.kind) else {
+                    return true
+                }
+                guard try await WorkspaceRestorer.cachedRegistrySourceExists(
+                    cacheRoot: cacheRoot,
+                    registryConfig: registryConfig,
+                    pin: pin
+                ) else {
+                    return true
+                }
+                continue
             }
             let source = try Cache.sourcePath(root: cacheRoot, pin: pin)
             guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {
@@ -253,6 +307,144 @@ enum PackageResolver {
         }
     }
 
+    /// Drop pins whose declaring dependency has been removed from the
+    /// manifest since the seed `Package.resolved` was written. Native
+    /// SwiftPM's `swift package resolve` tries to fetch every pin it sees,
+    /// so an orphan whose location no longer resolves (a private mirror
+    /// gone, a revoked network, a moved repo) aborts the whole resolve
+    /// instead of being dropped as unused.
+    ///
+    /// Only prunes when the manifest actually diverged from the seed
+    /// (originHash mismatch) and only pins whose identity is definitely no
+    /// longer declared by the root manifest or any local package under it.
+    /// Direct-dep pins keep their exact recorded versions; transitives of
+    /// pruned direct deps are dropped along with them and re-resolved from
+    /// the remaining manifest, matching the behavior of a `resolve` that
+    /// never saw the removed dependency in the first place.
+    ///
+    /// Package.resolved is rewritten in place so both the warm and cold
+    /// paths see the pruned seed. Reachable package manifests are inspected
+    /// from version-specific cached sources or registry downloads before a
+    /// pin is considered orphaned. Unversioned scratch checkouts and local
+    /// repositories may describe another revision and cannot establish reachability.
+    /// If a reachable manifest is unavailable or cannot be evaluated, pruning
+    /// is skipped and normal resolution handles the current requirements.
+    ///
+    /// `workspace-state.json` is cleared when pruning happens, because SwiftPM
+    /// otherwise re-associates the seed with the stale checkout state and still
+    /// reaches for the orphan.
+    static func pruneStalePinsIfNeeded(
+        packageDir: URL,
+        scratchDir: URL,
+        cacheRoot: URL,
+        mirrors: MirrorConfig,
+        disableSandbox: Bool
+    ) async throws {
+        let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        guard try await fileSystem.exists(resolvedPath.absolutePath) else { return }
+
+        let resolved = try await ResolvedFile.read(packageDir: packageDir)
+        guard !resolved.pins.isEmpty else { return }
+
+        let currentOriginHash = try await originHash(packageDir: packageDir)
+        guard resolved.originHash != currentOriginHash else { return }
+
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        var expectedIdentities = Set(
+            try ManifestParser.dependencies(manifest).map { mirrors.identity(of: $0) }
+        )
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            for dependency in try ManifestParser.dependencies(localPackage.manifest) {
+                expectedIdentities.insert(mirrors.identity(of: dependency))
+            }
+        }
+        var identitiesToInspect = Array(expectedIdentities)
+        var inspectedIdentities = Set<String>()
+        while let identity = identitiesToInspect.popLast() {
+            guard inspectedIdentities.insert(identity).inserted,
+                  let pin = resolved.pins.first(where: {
+                      $0.identity.lowercased() == identity
+                  })
+            else {
+                continue
+            }
+
+            // A pin that is not directly declared can still be a valid
+            // transitive dependency. Only prune once every reachable package
+            // has a materialized manifest that we can inspect. If a direct
+            // package is unavailable, retaining the unknown pins is safer than
+            // deleting a valid transitive lock entry.
+            guard let manifest = try? await manifestForPin(
+                pin,
+                scratchDir: scratchDir,
+                cacheRoot: cacheRoot,
+                disableSandbox: disableSandbox
+            ), let dependencies = try? ManifestParser.dependencies(manifest) else {
+                return
+            }
+            for dependency in dependencies {
+                let dependencyIdentity = mirrors.identity(of: dependency)
+                if expectedIdentities.insert(dependencyIdentity).inserted {
+                    identitiesToInspect.append(dependencyIdentity)
+                }
+            }
+        }
+
+        let survivors = resolved.pins.filter {
+            expectedIdentities.contains($0.identity.lowercased())
+        }
+        guard survivors.count != resolved.pins.count else { return }
+
+        var pruned = resolved
+        pruned.pins = survivors
+        try await ResolvedFile.write(packageDir: packageDir, resolved: pruned, mirrors: mirrors)
+
+        let workspaceStatePath = scratchDir.appendingPathComponent("workspace-state.json")
+        if try await fileSystem.exists(workspaceStatePath.absolutePath) {
+            try? await fileSystem.removePath(workspaceStatePath)
+        }
+    }
+
+    private static func manifestForPin(
+        _ pin: ResolvedPin,
+        scratchDir: URL,
+        cacheRoot: URL,
+        disableSandbox: Bool
+    ) async throws -> Any? {
+        var candidates: [URL] = []
+        if PinKind.isRegistry(pin.kind),
+           let subpath = try? PinKind.registryDownloadSubpath(pin)
+        {
+            candidates.append(
+                scratchDir
+                    .appendingPathComponent("registry/downloads")
+                    .appendingPathComponent(subpath)
+            )
+        }
+        if let cached = try? Cache.sourcePath(root: cacheRoot, pin: pin) {
+            candidates.append(cached)
+        }
+        for candidate in candidates {
+            guard try await fileSystem.exists(
+                candidate.appendingPathComponent("Package.swift").absolutePath
+            ) else {
+                continue
+            }
+            return try await ManifestLoader.dumpPackage(
+                packageDir: candidate,
+                disableSandbox: disableSandbox
+            )
+        }
+        return nil
+    }
+
     /// Load the resolved pins for `packageDir`, resolving fresh only when
     /// needed. Centralizes the read-only / current-file / seed-and-resolve
     /// decision so every entry point (and any `SwifterPMCore` embedder) seeds
@@ -262,6 +454,7 @@ enum PackageResolver {
         scratchDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
+        mirrors: MirrorConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -297,14 +490,30 @@ enum PackageResolver {
         // read the file as-is even when it predates the `originHash` field
         // (SwiftPM Package.resolved v2). Tightening this to `readIfCurrent`
         // would silently fall through to a full resolve for every v2 file.
+        // SwiftPM still resolves again, even with `--skip-update`, when a mirror now maps a pin
+        // to a package with another identity.
         if skipUpdate, resolvedFileExists {
-            return try await ResolvedFile.read(packageDir: packageDir)
+            let existing = try await ResolvedFile.read(packageDir: packageDir)
+            if existing.pins.allSatisfy(mirrors.isConsistent(with:)),
+               try await mirroredRegistryDependenciesArePinned(
+                   by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+               )
+            {
+                return existing
+            }
         }
         if preferResolvedFile,
-           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir)
+           let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir),
+           existing.pins.allSatisfy(mirrors.isConsistent(with:)),
+           try await mirroredRegistryDependenciesArePinned(
+               by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+           ),
+           try await localPackageDependenciesArePinned(
+               by: existing, mirrors: mirrors, packageDir: packageDir, disableSandbox: disableSandbox
+           )
         {
             return try await normalizeLoadedResolvedFile(
-                existing, packageDir: packageDir, writeResolvedFile: writeResolvedFile
+                existing, packageDir: packageDir, mirrors: mirrors, writeResolvedFile: writeResolvedFile
             )
         }
         // Mirror SwiftPM: `resolve` seeds the solver with the existing
@@ -325,6 +534,7 @@ enum PackageResolver {
             scratchDir: scratchDir,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
@@ -333,6 +543,93 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             progress: progress
         )
+    }
+
+    /// The `originHash` does not cover the mirrors, and a registry pin only records the identity
+    /// a mirror resolved to, so a changed registry mirror shows up as a dependency of the root or
+    /// of a local package whose mirrored identity has no pin.
+    private static func mirroredRegistryDependenciesArePinned(
+        by resolved: ResolvedPins,
+        mirrors: MirrorConfig,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        guard !mirrors.isEmpty else { return true }
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        var dependencies = try ManifestParser.dependencies(manifest)
+        for localPackage in try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        ) {
+            dependencies.append(contentsOf: try ManifestParser.requiredDependencies(localPackage.manifest))
+        }
+        return mirrors.registryDependenciesArePinned(dependencies, by: resolved.pins)
+    }
+
+    /// The `originHash` only covers the root `Package.swift`, so it stays the same
+    /// when a local package declares different dependencies, whether its manifest
+    /// was edited or branches on `Context.environment`. Every remote dependency a
+    /// local package's products require must have a pin that satisfies its
+    /// requirement for the resolved file to be current. SwiftPM does not pin a local
+    /// package's test-only or unused dependencies.
+    private static func localPackageDependenciesArePinned(
+        by resolved: ResolvedPins,
+        mirrors: MirrorConfig,
+        packageDir: URL,
+        disableSandbox: Bool
+    ) async throws -> Bool {
+        let manifest = try await ManifestLoader.dumpPackage(
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
+        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: manifest,
+            disableSandbox: disableSandbox
+        )
+        for localPackage in localPackages {
+            for dependency in try ManifestParser.requiredDependencies(localPackage.manifest) {
+                guard resolved.pins.contains(where: { pin($0, satisfies: dependency, mirrors: mirrors) }) else {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private static func pin(
+        _ pin: ResolvedPin,
+        satisfies dependency: ManifestDependency,
+        mirrors: MirrorConfig
+    ) -> Bool {
+        let identity = mirrors.identity(of: dependency)
+        var pinIdentities: Set<String> = [pin.identity.lowercased()]
+        if let originalLocation = pin.originalLocation {
+            pinIdentities.insert(ResolvedPin.identity(package: nil, location: originalLocation))
+        }
+        // A registry pin that replaced a source-control dependency is identified as
+        // `scope.name`, and SwiftPM does not always record its `originalLocation`.
+        if PinKind.isRegistry(pin.kind),
+           let name = pin.identity.split(separator: ".", maxSplits: 1).last
+        {
+            pinIdentities.insert(name.lowercased())
+        }
+        guard pinIdentities.contains(identity) else {
+            return false
+        }
+        switch dependency.requirement {
+        case let .branch(branch):
+            return pin.state.branch == branch
+        case let .revision(revision):
+            return pin.state.revision == revision
+        case .exact, .range:
+            guard let range = ManifestParser.versionRange(for: dependency.requirement),
+                  let version = pin.state.version.flatMap({ try? SemVer($0) })
+            else { return false }
+            return range.contains(version)
+        }
     }
 
     /// Reject an out-of-date `Package.resolved` under `--force-resolved-versions`
@@ -381,11 +678,12 @@ enum PackageResolver {
     private static func normalizeLoadedResolvedFile(
         _ resolved: ResolvedPins,
         packageDir: URL,
+        mirrors: MirrorConfig,
         writeResolvedFile: Bool
     ) async throws -> ResolvedPins {
-        let normalized = resolved.normalizedForResolvedFile()
+        let normalized = resolved.normalizedForResolvedFile(mirrors: mirrors)
         if writeResolvedFile {
-            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized)
+            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized, mirrors: mirrors)
         }
         return normalized
     }

@@ -4,9 +4,11 @@ This context owns business logic and data related to accounts, users, organizati
 
 ## Responsibilities
 - Manage accounts and organizations, including billing metadata and SSO credentials.
+- Sign-up reporting queries use explicit inclusive-start/exclusive-end creation periods and deterministic ordering, so adjacent hourly reports do not overlap.
 - Issue and validate account/user tokens, device codes, and invitations.
 - Resolve organization membership and role assignments.
 - Own the WorkOS auth.md registration state machine, including service-signed identity assertions, browser claims, scheduled registration expiry, exchanged access-token records, audit events, and provider security events.
+- The account usage worker refreshes remote cache hits and metered cache egress and requests, then queues Air limit notifications through `Tuist.Billing.AirUsageNotifications` for the execution time, so delayed jobs cannot overwrite current-month counts with the previous month. `UserNotifier.air_usage_email/3` builds the HTML and plain-text email in the recipient’s preferred locale for delivery and previews.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -21,3 +23,10 @@ This context owns business logic and data related to accounts, users, organizati
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- Account handles ending in `-staging` or `-canary` are reserved case-insensitively to prevent stable cache DNS collisions across environments. Existing suffixed handles keep regional endpoints until explicitly renamed. Stable managed endpoint responses preserve eligible custom endpoints and registered self-hosted URLs.
+- Email-derived signup handles receive a numeric suffix when reserved, with the
+  normal collision retries; explicit reserved handles remain invalid. Add custom
+  endpoints only after stable hand-out succeeds, so absent managed instances
+  still trigger provisioning and the existing client-specific fallback.
+- Account handles are reserved for the account lifetime, including retired names. The database initializes and protects `kura_tenant_id`; do not cast or update it from account attributes. `Accounts.update_account/2` gates Kura account renames until compatible runtimes are deployed. See `../kura/AGENTS.md`.

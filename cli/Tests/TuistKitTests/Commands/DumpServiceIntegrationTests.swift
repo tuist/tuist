@@ -253,6 +253,7 @@ final class DumpServiceTests: TuistTestCase {
                     ],
                     "onOutdatedDependencies": "warn",
                     "optionalAuthentication": false,
+                    "projectFormat": "pbxproj",
                     "registryEnabled": false,
                     "resolveDependenciesWithSystemScm": false,
                     "staticSideEffectsWarningTargets": {
@@ -284,6 +285,11 @@ final class DumpServiceTests: TuistTestCase {
                   "plugins": [
 
                   ]
+                }
+              },
+              "testInsights": {
+                "coverage": {
+                  "upload": true
                 }
               },
               "url": "https://tuist.dev",

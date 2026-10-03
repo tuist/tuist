@@ -1,8 +1,10 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
+import TuistTestSupport
 import XCResultParser
 @testable import TuistXCResultService
 
@@ -174,10 +176,58 @@ struct XCResultServiceTests {
         #expect(got.testCases.contains { $0.testSuite != nil })
     }
 
+    @Test(.inTemporaryDirectory)
+    func parseCoverageReturnsTheBundlesReport() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let coverageParser = MockXcodeCoverageParsing()
+        let manifest = XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [])
+        let coverage = XcodeCoverageReport(partial: false, files: [])
+        given(coverageParser)
+            .parse(resultBundlePath: .value(xcresult), manifest: .value(manifest))
+            .willReturn(coverage)
+        let subject = XCResultService(coverageParser: coverageParser)
+
+        // When
+        let got = try await subject.parseCoverage(path: xcresult, manifest: manifest)
+
+        // Then
+        #expect(got == coverage)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseDoesNotReadCoverage() async throws {
+        // Given: a coverage parser with no expectations, which Mockable fails on if called.
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService(coverageParser: MockXcodeCoverageParsing())
+
+        // When
+        let got = try #require(await subject.parse(path: xcresult, rootDirectory: nil))
+
+        // Then
+        #expect(got.coverage == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseCoverageSwallowsAReportItCannotRead() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let coverageParser = MockXcodeCoverageParsing()
+        given(coverageParser)
+            .parse(resultBundlePath: .any, manifest: .any)
+            .willThrow(NSError(domain: "xccov", code: 1))
+        let subject = XCResultService(coverageParser: coverageParser)
+
+        // When / Then
+        #expect(try await subject.parseCoverage(
+            path: xcresult,
+            manifest: XcodeCoverageManifest(rootDirectories: [], partial: false, files: [])
+        ) == nil)
+    }
+
     private func fixtureXCResult(_ name: String) async throws -> AbsolutePath {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let source = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/\(name)"))
+        let source = TestPaths.fixturesDirectory.appending(component: name)
         let destination = temporaryDirectory.appending(component: name)
 
         try await FileSystem().copy(source, to: destination)

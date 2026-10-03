@@ -46,21 +46,35 @@ struct Cache: Sendable {
                 .appendingPathComponent("sources")
                 .appendingPathComponent(SafePathComponent.make(pin.identity))
                 .appendingPathComponent(
-                    SafePathComponent.make("\(version)-\(Hashing.shortRevision(pin.revision()))"))
+                    SafePathComponent.make("\(version)-\(pin.revision())"))
     }
 
     func archivePath(url: String, revision: String) -> URL {
         root
             .appendingPathComponent("archives")
             .appendingPathComponent(
-                "\(Hashing.stable(url))-\(Hashing.shortRevision(revision)).tar.gz")
+                "\(Hashing.stable(url))-\(revision).tar.gz")
     }
 
+    /// The path is keyed on what a `Package.resolved` pin already carries, so it can be probed
+    /// without asking the registry anything. The archive checksum identifies the payload rather
+    /// than the location, so it is recorded inside the directory
+    /// (`WorkspaceRestorer.registryChecksumMarkerFilename`) instead of in the path.
     func registrySourcePath(
         identity: String,
         version: String,
-        registryURL: String,
-        checksum: String
+        registryURL: String
+    ) -> URL {
+        Cache.registrySourcePath(
+            root: root, identity: identity, version: version, registryURL: registryURL
+        )
+    }
+
+    static func registrySourcePath(
+        root: URL,
+        identity: String,
+        version: String,
+        registryURL: String
     ) -> URL {
         root
             .appendingPathComponent("sources")
@@ -69,7 +83,6 @@ struct Cache: Sendable {
                 SafePathComponent.make([
                     version,
                     String(Hashing.stable(registryURL).prefix(12)),
-                    checksum,
                     "registry",
                 ].joined(separator: "-"))
             )

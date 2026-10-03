@@ -232,6 +232,75 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
+  test "defers the job when GitHub returns a transient upstream error on a REST call" do
+    # Repeats the shape of the Hive report: attempt 1 saw HTTP 502 from GitHub's
+    # edge and Oban.PerformError re-raised the bare {:http_error, 502} tuple.
+    # The retry budget already covers this; deferring turns each blip into a
+    # snooze instead of a Sentry-reported failure.
+    for status <- [429, 502, 503, 504] do
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:error, {:http_error, status}}
+      end)
+
+      stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+      stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
+      stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+      assert {:snooze, 600} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end
+  end
+
+  test "defers the job when a transient upstream error is wrapped in a manifest fetch failure" do
+    # A per-manifest `{:http_error, 503}` bubbles up as
+    # `{:manifest_fetch_failed, [%{path: ..., reason: {:http_error, 503}}]}`,
+    # so the deferral walk has to look inside the wrapping tuple/list/map.
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:error, {:http_error, 503}}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+    assert {:snooze, 600} =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
   test "snoozes immediately without retrying when the skip-write lock is contended" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
@@ -320,6 +389,73 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     assert Agent.get(package_lock_attempts, & &1) == 3
   end
 
+  # Briefly removes a dead process's files from inside its single shared server,
+  # which every new job calls with a 5s timeout. Leaving a large package tree
+  # for it to delete stalled that server and crashed the next release jobs, so
+  # the job must have removed the tree by the time `perform/1` returns.
+  describe "release working directory" do
+    test "is removed when the release sync returns an error" do
+      stub_release_download(fn archive_path ->
+        write_package_tree(archive_path)
+        {:error, {:http_error, 503}}
+      end)
+
+      assert {:snooze, _seconds} = ReleaseWorker.perform(release_job())
+
+      assert_received {:tmp_dir, tmp_dir}
+      refute File.exists?(tmp_dir)
+    end
+
+    test "is removed when the release sync raises" do
+      stub_release_download(fn archive_path ->
+        write_package_tree(archive_path)
+        raise "download crashed"
+      end)
+
+      assert_raise RuntimeError, "download crashed", fn -> ReleaseWorker.perform(release_job()) end
+
+      assert_received {:tmp_dir, tmp_dir}
+      refute File.exists?(tmp_dir)
+    end
+
+    defp stub_release_download(download) do
+      stub(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ -> {:ok, :acquired} end)
+      stub(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] -> {:error, :not_found} end)
+      stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected metadata write") end)
+
+      stub(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      stub(TuistCommon.GitHub, :get_file_content, fn
+        "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ -> {:ok, @default_manifest_content}
+        "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ -> {:error, :not_found}
+      end)
+
+      stub(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser", "token", "v1.0.0", archive_path, _ ->
+        download.(archive_path)
+      end)
+    end
+
+    defp write_package_tree(archive_path) do
+      tmp_dir = Path.dirname(archive_path)
+      File.mkdir_p!(Path.join(tmp_dir, "extract/repo-v1.0.0/Sources"))
+      File.write!(Path.join(tmp_dir, "extract/repo-v1.0.0/Sources/File.swift"), "")
+      send(self(), {:tmp_dir, tmp_dir})
+    end
+
+    defp release_job do
+      %Oban.Job{
+        args: %{
+          "scope" => "apple",
+          "name" => "swift-argument-parser",
+          "repository_full_handle" => "apple/swift-argument-parser",
+          "tag" => "v1.0.0"
+        }
+      }
+    end
+  end
+
   test "deduplicates manifest metadata by Swift tools version" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
@@ -396,6 +532,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     """
 
     assert ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
+  test "does not skip a submodule based on unrelated not-found output" do
+    for output <- [
+          "remote: Not Found",
+          "fatal: repository 'https://example.com/dep.git/' not found in local cache",
+          "fatal: command not found"
+        ] do
+      refute ReleaseWorker.skippable_submodule_failure?(output)
+    end
   end
 
   test "treats a submodule host that denies anonymous access as a skippable submodule failure" do
@@ -515,6 +661,67 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   end
 
   describe "update_submodules/1" do
+    test "skips a repository reported as not found and continues with sibling submodules" do
+      clone = Briefly.create!(directory: true)
+      missing_submodule = Path.join(clone, "homebrew-formulae")
+      File.mkdir_p!(missing_submodule)
+      File.write!(Path.join(missing_submodule, "partial-checkout"), "incomplete")
+      File.write!(Path.join(clone, "Package.swift"), @default_manifest_content)
+
+      stub_git(fn args ->
+        cond do
+          "ls-files" in args ->
+            {gitlink_record("homebrew-formulae") <> gitlink_record("Vendor/Required"), 0}
+
+          List.last(args) == "homebrew-formulae" ->
+            {"""
+             remote: Not Found
+             fatal: repository 'https://github.com/muter-mutation-testing/muter.git/homebrew-formulae/' not found
+             fatal: clone of 'https://github.com/muter-mutation-testing/muter.git/homebrew-formulae' into submodule path '#{missing_submodule}' failed
+             Failed to clone 'homebrew-formulae' a second time, aborting
+             """, 1}
+
+          true ->
+            {"", 0}
+        end
+      end)
+
+      log =
+        capture_log(fn ->
+          assert :ok =
+                   ReleaseWorker.update_submodules(%{
+                     destination: clone,
+                     repository_full_handle: "muter-mutation-testing/muter",
+                     tag: "v0.6.0"
+                   })
+        end)
+
+      refute File.exists?(missing_submodule)
+      assert File.exists?(Path.join(clone, "Package.swift"))
+      assert log =~ "Skipping submodule homebrew-formulae"
+      assert Enum.any?(git_invocations(), &(List.last(&1) == "Vendor/Required"))
+    end
+
+    test "defers a repository reported as not found when the host also asks us to retry" do
+      for hint <- ["remote: Please try again later.", "The requested URL returned error: 503"] do
+        stub_git(fn args ->
+          if "ls-files" in args do
+            {gitlink_record("homebrew-formulae"), 0}
+          else
+            {"fatal: repository 'https://github.com/muter-mutation-testing/muter.git/homebrew-formulae/' not found\n#{hint}",
+             1}
+          end
+        end)
+
+        assert {:error, {:git_submodule_update_throttled, "homebrew-formulae", 1, _output}} =
+                 ReleaseWorker.update_submodules(%{
+                   destination: "/nonexistent",
+                   repository_full_handle: "muter-mutation-testing/muter",
+                   tag: "v0.6.0"
+                 })
+      end
+    end
+
     test "removes only the failing nested submodule and keeps the submodule that reached it" do
       root = Briefly.create!(directory: true)
       clone = superproject_clone_with_nested_submodule(root, nil)

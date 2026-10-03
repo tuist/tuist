@@ -10,6 +10,7 @@ public struct RunnerCommand: AsyncParsableCommand {
             abstract: "Interact with Tuist runners.",
             subcommands: [
                 RunnerSSHCommand.self,
+                RunnerVolumeCommand.self,
             ]
         )
     }

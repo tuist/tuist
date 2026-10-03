@@ -184,12 +184,14 @@ export const MobileMenuDropdown = {
     addListener(action, "click", toggleDropdown);
     action.style.cursor = "pointer";
 
-    // Initialize ARIA attributes
-    const dropdownId = `mobile-dropdown-${Math.random().toString(36).substr(2, 9)}`;
-    dropdown.setAttribute("id", dropdownId);
-    action.setAttribute("aria-controls", dropdownId);
-    action.setAttribute("role", "button");
-    action.setAttribute("tabindex", "0");
+    // The markup renders the trigger as a <button aria-controls> pointing at
+    // the dropdown's id; only fill those in for a trigger that lacks them.
+    if (!dropdown.id) dropdown.setAttribute("id", `mobile-dropdown-${Math.random().toString(36).substr(2, 9)}`);
+    if (!action.hasAttribute("aria-controls")) action.setAttribute("aria-controls", dropdown.id);
+    if (action.tagName !== "BUTTON") {
+      action.setAttribute("role", "button");
+      action.setAttribute("tabindex", "0");
+    }
 
     // Handle keyboard interaction
     addListener(action, "keydown", keydownHandler);

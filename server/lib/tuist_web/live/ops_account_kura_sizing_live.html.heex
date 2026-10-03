@@ -14,7 +14,7 @@
           <.text_cell label={Timex.from_now(decision.inserted_at)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Change")}>
-          <.text_cell label={"#{decision.current_claim_size} → #{decision.recommended_claim_size}"} />
+          <.text_cell label={TuistWeb.OpsAccountLive.claim_history_change(decision)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
           <% {label, color} = TuistWeb.OpsAccountLive.claim_history_outcome(decision) %>

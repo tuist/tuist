@@ -17,6 +17,109 @@ defmodule TuistWeb.RunDetailLiveTest do
   end
 
   describe "run detail" do
+    test "JSON comparison retains individual hash inputs and historical unknowns", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      run = CommandEventsFixtures.command_event_fixture(project: project, name: "test", user_id: user.id)
+      graph = XcodeFixtures.xcode_graph_fixture(command_event_id: run.id)
+      xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+      for {purpose, destinations} <- [{:binary_cache_hash, ["iPhone"]}, {:selective_testing_hash, ["mac"]}] do
+        XcodeFixtures.xcode_target_fixture([
+          {purpose, "hash"},
+          {:name, "Target"},
+          {:dependencies, ["Networking", "Core"]},
+          {:xcode_project_id, xcode_project.id},
+          {:destinations, ["iphone", "ipad", "mac"]},
+          {:hashed_destinations, destinations},
+          {:embedded_product_references_hash, ""},
+          {:foreign_build_hash, "foreign"},
+          {:test_device, ""},
+          {:test_runtime, ""}
+        ])
+
+        XcodeFixtures.xcode_target_fixture([
+          {purpose, "old"},
+          {:name, "Historical"},
+          {:xcode_project_id, xcode_project.id},
+          {:destinations, ["iphone", "ipad", "mac"]}
+        ])
+      end
+
+      for {tab, button, expected} <- [
+            {"module-cache", "copy-binary-cache-json", ["iPhone"]},
+            {"test-optimizations", "copy-selective-testing-json", ["mac"]}
+          ] do
+        {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{run.id}?tab=#{tab}")
+
+        [json] =
+          lv |> render() |> Floki.parse_fragment!() |> Floki.find("##{button}") |> Floki.attribute("data-clipboard-value")
+
+        targets = JSON.decode!(json)
+        library = Enum.find(targets, &(&1["name"] == "Target"))
+        historical = Enum.find(targets, &(&1["name"] == "Historical"))
+        assert library["hashed_destinations"] == expected
+        assert historical["hashed_destinations"] == nil
+        assert Map.has_key?(historical, "hashed_destinations")
+        assert library["embedded_product_references_hash"] == ""
+        assert library["foreign_build_hash"] == "foreign"
+        assert library["dependencies"] == ["Core", "Networking"]
+        assert library["test_device"] == ""
+        assert library["test_runtime"] == ""
+
+        for field <- ["embedded_product_references_hash", "foreign_build_hash", "test_device", "test_runtime"] do
+          assert historical[field] == nil
+          assert Map.has_key?(historical, field)
+        end
+
+        refute Map.has_key?(library, "destinations")
+        refute Map.has_key?(historical, "destinations")
+      end
+    end
+
+    test "JSON comparison derives empty destination availability from the CLI version", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      for {version, expected} <- [{"4.207.0", nil}, {"4.208.0", []}] do
+        run =
+          CommandEventsFixtures.command_event_fixture(
+            project: project,
+            name: "test",
+            user_id: user.id,
+            tuist_version: version
+          )
+
+        graph = XcodeFixtures.xcode_graph_fixture(command_event_id: run.id)
+        xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+        for purpose <- [:binary_cache_hash, :selective_testing_hash] do
+          XcodeFixtures.xcode_target_fixture([{purpose, "hash"}, {:xcode_project_id, xcode_project.id}])
+        end
+
+        for {tab, button} <- [
+              {"module-cache", "copy-binary-cache-json"},
+              {"test-optimizations", "copy-selective-testing-json"}
+            ] do
+          {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{run.id}?tab=#{tab}")
+
+          [json] =
+            lv
+            |> render()
+            |> Floki.parse_fragment!()
+            |> Floki.find("##{button}")
+            |> Floki.attribute("data-clipboard-value")
+
+          assert [%{"hashed_destinations" => ^expected}] = JSON.decode!(json)
+        end
+      end
+    end
+
     test "shows details of a test run", %{
       conn: conn,
       organization: organization,

@@ -59,6 +59,14 @@ defmodule Tuist.Kura.OriginsTest do
 
       assert Repo.aggregate(OriginRollup, :count) == 0
     end
+
+    test "ignores late signals for a deleted account", %{account: account} do
+      Repo.delete!(account)
+
+      assert :ok = Origins.record_run(account.id, "FR")
+      assert :ok = Origins.record_demand(account.id, "FR")
+      assert Repo.aggregate(OriginRollup, :count) == 0
+    end
   end
 
   describe "upsert_many/1" do
@@ -75,6 +83,27 @@ defmodule Tuist.Kura.OriginsTest do
       Origins.upsert_many([row(account, "FR", 1, 0), Map.put(row(account, "FR", 5, 0), :date, yesterday)])
 
       assert Repo.aggregate(OriginRollup, :count) == 2
+    end
+
+    test "skips deleted accounts while preserving other accounts' counts", %{account: account} do
+      deleted_account = AccountsFixtures.account_fixture()
+      Origins.upsert_many([row(account, "FR", 3, 1)])
+      rows = [row(deleted_account, "FR", 10, 5), row(account, "FR", 4, 2), row(account, "US-VA", 1, 1)]
+      Repo.delete!(deleted_account)
+
+      assert {:ok, 2} = Origins.upsert_many(rows)
+
+      assert %OriginRollup{run_count: 7, demand_count: 3} = rollup(account, "FR")
+      assert %OriginRollup{run_count: 1, demand_count: 1} = rollup(account, "US-VA")
+      assert Repo.aggregate(OriginRollup, :count) == 2
+    end
+
+    test "returns zero when every account in the batch has been deleted", %{account: account} do
+      rows = [row(account, "FR", 3, 1), row(account, "US-VA", 2, 4)]
+      Repo.delete!(account)
+
+      assert {:ok, 0} = Origins.upsert_many(rows)
+      assert Repo.aggregate(OriginRollup, :count) == 0
     end
   end
 
@@ -99,7 +128,7 @@ defmodule Tuist.Kura.OriginsTest do
 
       assert [
                %{origin: "US-OR", region: "us-west", run_count: 30, demand_count: 1},
-               %{origin: "FR", region: "eu-central", run_count: 10, demand_count: 2}
+               %{origin: "FR", region: "eu-west", run_count: 10, demand_count: 2}
              ] = Origins.traffic_mix(account, 14)
     end
 

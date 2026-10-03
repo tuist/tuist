@@ -1,0 +1,8 @@
+[data-part="pagination"] {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+  padding-top: var(--noora-spacing-3);
+}

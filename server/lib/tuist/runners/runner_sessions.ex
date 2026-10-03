@@ -106,6 +106,12 @@ defmodule Tuist.Runners.RunnerSessions do
       # correctly, it just cannot be attributed to a machine afterwards.
       node_name: Map.get(attrs, :node_name),
       runner_name: Map.get(attrs, :runner_name, ""),
+      # Set at open time only by the Buildkite lane, where an acquisition
+      # token is minted for one job UUID and the runner can take no other.
+      # The GitHub lane leaves it nil and learns the binding later from
+      # the `workflow_job.in_progress` webhook, because GitHub, not us,
+      # decides which job a label-bound runner receives.
+      executed_workflow_job_id: Map.get(attrs, :executed_workflow_job_id),
       repository: Map.get(attrs, :repository, ""),
       workflow_name: Map.get(attrs, :workflow_name, ""),
       started_at: started_at,
@@ -307,6 +313,34 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
+  The `%{account_id, repository}` pairs that ran the most jobs in the
+  `fleet_names` pools since `since`, most first, at most `limit`. A macOS host
+  prefetches the cache masters these jobs use, so the next one it is handed can
+  start warm.
+
+  `:node_names` limits it to jobs that ran on those Nodes.
+  """
+  def recent_demand(fleet_names, %DateTime{} = since, limit, opts \\ [])
+      when is_list(fleet_names) and is_integer(limit) and limit > 0 do
+    query =
+      from(s in RunnerSession,
+        where: s.fleet_name in ^fleet_names and s.started_at >= ^since and not is_nil(s.account_id),
+        group_by: [s.account_id, s.repository],
+        order_by: [desc: count(s.id), desc: max(s.started_at), asc: s.account_id, asc: s.repository],
+        limit: ^limit,
+        select: %{account_id: s.account_id, repository: s.repository}
+      )
+
+    query =
+      case Keyword.fetch(opts, :node_names) do
+        {:ok, node_names} -> where(query, [s], s.node_name in ^node_names)
+        :error -> query
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
   Open sessions per fleet that have already passed the six-hour safety
   bound — the rows `p95_concurrent_last_hour/1` clamps out of the
   forecast and that `occupied_counts_per_fleet/0` has stopped counting.
@@ -467,7 +501,11 @@ defmodule Tuist.Runners.RunnerSessions do
     RunnerSession
     |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at) and not is_nil(s.executed_workflow_job_id))
     |> order_by([s], desc: s.started_at)
-    |> select([s], %{workflow_job_id: s.executed_workflow_job_id, account_id: s.account_id})
+    |> select([s], %{
+      workflow_job_id: s.executed_workflow_job_id,
+      account_id: s.account_id,
+      runner_name: s.runner_name
+    })
     |> limit(1)
     |> Repo.one()
     |> case do
@@ -670,7 +708,8 @@ defmodule Tuist.Runners.RunnerSessions do
       workflow_job_id: s.workflow_job_id,
       account_id: s.account_id,
       fleet_name: s.fleet_name,
-      pod_name: s.pod_name
+      pod_name: s.pod_name,
+      runner_name: s.runner_name
     })
     |> limit(1)
     |> Repo.one()

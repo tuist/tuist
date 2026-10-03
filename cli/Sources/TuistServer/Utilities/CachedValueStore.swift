@@ -16,6 +16,18 @@ public enum CachedValueStoreBackend: Sendable {
     case inSystemProcess
 }
 
+/// Thrown when the file-system-backed cache cannot acquire its cross-process
+/// lock within the configured wall-clock ceiling. Wrapping `flock()` in a
+/// bounded polling loop turns "a peer holds the lock and never releases it"
+/// from a silent, uncancellable stall into a clear error the caller can retry.
+public struct CachedValueStoreFileLockTimeoutError: LocalizedError, Sendable {
+    public let seconds: TimeInterval
+
+    public var errorDescription: String? {
+        "Timed out after \(Int(seconds))s waiting to acquire the cached-value-store file lock. Another Tuist process may be holding it."
+    }
+}
+
 /// Actor that caches a piece of work asynchronously in a thread-safe manner.
 @Mockable
 public protocol CachedValueStoring: Sendable {
@@ -67,6 +79,43 @@ public actor CachedValueStore: CachedValueStoring {
                 .appending(component: "cached_value_store")
                 .appending(component: "\(sanitizedKey).lock")
         }
+
+        /// Wall-clock ceiling for acquiring the cross-process file lock.
+        /// A peer `tuist` process that holds the lock while its own work
+        /// stalls (e.g. a slow HTTPS refresh on a flaky Linux runner) would
+        /// otherwise block every subsequent invocation on this host forever.
+        private static let fileLockAcquisitionTimeout: TimeInterval = 30
+
+        /// Interval between non-blocking `flock` attempts. Kept short enough
+        /// that a well-behaved peer that releases quickly barely notices,
+        /// long enough that the polling cost is negligible.
+        private static let fileLockRetryInterval: TimeInterval = 0.1
+
+        /// Acquires `fileLock` with a bounded wall-clock timeout by polling
+        /// its non-blocking variant with backoff. `TSCBasic.FileLock` wraps
+        /// `flock(_:LOCK_EX)`, which is not cancellable via Swift Concurrency
+        /// and does not honour any deadline; using `blocking: false` in a
+        /// timed loop is the only way to bound it. On acquisition the caller
+        /// is responsible for calling `fileLock.unlock()` (typically via
+        /// `defer`).
+        static func acquireFileLockWithTimeout(
+            _ fileLock: FileLock,
+            timeout: TimeInterval = CachedValueStore.fileLockAcquisitionTimeout,
+            retryInterval: TimeInterval = CachedValueStore.fileLockRetryInterval
+        ) async throws {
+            let deadline = Date().addingTimeInterval(timeout)
+            while true {
+                do {
+                    try fileLock.lock(type: .exclusive, blocking: false)
+                    return
+                } catch ProcessLockError.unableToAquireLock {
+                    if Date() >= deadline {
+                        throw CachedValueStoreFileLockTimeoutError(seconds: timeout)
+                    }
+                    try await Task.sleep(nanoseconds: UInt64(retryInterval * 1_000_000_000))
+                }
+            }
+        }
     #endif
 
     public func getValue<Value>(
@@ -117,32 +166,33 @@ public actor CachedValueStore: CachedValueStoring {
                             at: try TSCBasic.AbsolutePath(validating: lockPath.pathString)
                         )
 
-                        return try await fileLock.withLock(type: .exclusive) {
-                            // Double-check cache after acquiring lock
-                            // Another process might have computed the value
-                            if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
-                                Logger.current
-                                    .debug(
-                                        "The value for \(key) has been computed from a different process, returning its value early"
-                                    )
-                                return cacheEntry.value
-                            }
+                        try await Self.acquireFileLockWithTimeout(fileLock)
+                        defer { fileLock.unlock() }
 
-                            Logger.current.debug("Computing the value for \(key) if needed")
-                            if let result = try await computeIfNeeded() {
-                                let value = result.value
-                                let expirationDate = result.expiresAt
+                        // Double-check cache after acquiring lock
+                        // Another process might have computed the value
+                        if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
+                            Logger.current
+                                .debug(
+                                    "The value for \(key) has been computed from a different process, returning its value early"
+                                )
+                            return cacheEntry.value
+                        }
 
-                                // Store in cache
-                                let entry = CacheEntry(value: value, expirationDate: expirationDate)
-                                cache[key] = entry
+                        Logger.current.debug("Computing the value for \(key) if needed")
+                        if let result = try await computeIfNeeded() {
+                            let value = result.value
+                            let expirationDate = result.expiresAt
 
-                                Logger.current.debug("Computed value for \(key)")
-                                return value
-                            } else {
-                                Logger.current.debug("Computed value for \(key) is nil")
-                                return nil
-                            }
+                            // Store in cache
+                            let entry = CacheEntry(value: value, expirationDate: expirationDate)
+                            cache[key] = entry
+
+                            Logger.current.debug("Computed value for \(key)")
+                            return value
+                        } else {
+                            Logger.current.debug("Computed value for \(key) is nil")
+                            return nil
                         }
                 #endif
                 case .inSystemProcess:

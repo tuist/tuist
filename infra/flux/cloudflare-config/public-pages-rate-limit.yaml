@@ -1,0 +1,25 @@
+# Imported from the live tuist.dev rate-limiting entry-point ruleset on
+# 2026-09-05. Its read-only adoption reconciled without proposed changes
+# before active management was enabled.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareRateLimit
+metadata:
+  name: public-pages-anti-bombardment
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Public pages – anti-bombardment"
+  expression: "(http.request.method eq \"GET\" and not cf.client.bot)"
+  action: managed_challenge
+  enabled: true
+  mode: active
+  adopt:
+    ruleId: 20a7e7c0f002481baa1b6b91af90e3ba
+  retainOnDelete: true
+  ratelimit:
+    characteristics:
+      - "ip.src"
+      - "cf.colo.id"
+    requestsPerPeriod: 60
+    period: 10
+    mitigationTimeoutSeconds: 0
+    countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"

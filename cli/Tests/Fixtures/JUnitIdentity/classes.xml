@@ -1,0 +1,1 @@
+<testsuite name="Combined"><testcase classname="FirstClass" name="test"><failure/></testcase><testcase classname="SecondClass" name="test"><failure/></testcase></testsuite>

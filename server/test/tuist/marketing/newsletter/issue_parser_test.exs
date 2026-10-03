@@ -26,7 +26,7 @@ defmodule Tuist.Marketing.Newsletter.IssueParserTest do
     parsed_body = Floki.parse_fragment!(attrs["body"])
 
     [link] = Floki.find(parsed_body, "a")
-    assert Floki.attribute(link, "style") == ["color: #622ed4; font-weight: bold;"]
+    assert Floki.attribute(link, "style") == ["color: #191a1b; text-decoration: underline; font-weight: bold;"]
 
     [blockquote] = Floki.find(parsed_body, "blockquote")
     assert Floki.attribute(blockquote, "style") == ["font-style: italic; color: red;"]

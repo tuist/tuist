@@ -86,7 +86,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorkerTest do
     end)
 
     expect(Tuist.Bazel, :create_invocation_logs, fn logs ->
-      assert Enum.map(logs, & &1.sequence_number) == [10, 20]
+      assert Enum.map(logs, & &1.sequence_number) == [20, 40]
       assert Enum.map(logs, & &1.id) == Enum.map(Enum.reverse(results), & &1.id)
       assert Enum.at(logs, 0).message == "[Bazel test log for //A:Tests]\n--token <REDACTED>"
       assert Enum.at(logs, 1).message == "[Bazel test log for //B:Tests]\nAuthorization: <REDACTED>"

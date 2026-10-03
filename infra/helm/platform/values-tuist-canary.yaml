@@ -1,6 +1,15 @@
 # Canary workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist-canary.
 
+cacheDNS:
+  enabled: true
+  hostedZoneId: Z046862130S1WUMPV7Z3P
+  ownerId: tuist-canary-cache
+  externalSecret:
+    enabled: true
+    writerItem: cache-dns-writer
+    solverItem: cache-dns-solver
+
 # Stable outbound source IP for canary Tuist server traffic. The gateway runs HA
 # across the md-egress pool (see cluster-canary.yaml): the failover controller
 # keeps the Floating IP + active label on one Ready node; the host-configurer
@@ -37,43 +46,27 @@ ingress-nginx:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
-kura-eu-central-ingress-nginx:
+# gRPC ingress for the Once events listener. It sits on the same general fsn1
+# pool as the main controller. See `grpc-ingress-nginx` in values.yaml for why
+# it is a separate controller.
+grpc-ingress-nginx:
   enabled: true
   controller:
-    # eu-central is cut over to the Dedibox bare-metal box: the regional gateway
-    # runs on the box's host network so serving traffic hits the box NIC directly
-    # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
-    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
-    # into each Ingress status so external-dns resolves the per-account hosts to
-    # the box.
-    kind: DaemonSet
-    hostNetwork: true
-    dnsPolicy: ClusterFirstWithHostNet
-    reportNodeInternalIp: true
-    # Direct client connections on this hostNetwork path: no Hetzner LB adds a
-    # PROXY header, so the shared regional default (use-proxy-protocol: true)
-    # would mangle every connection. Turn it off here.
-    config:
-      use-proxy-protocol: "false"
-    nodeSelector:
-      node.cluster.x-k8s.io/pool: kura-dedibox
-    tolerations:
-      - key: tuist.dev/kura-cache
-        operator: Exists
-        effect: NoSchedule
-    publishService:
-      enabled: false
     service:
-      type: ClusterIP
-      externalTrafficPolicy: ""
-      annotations: {}
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
+
+# Public non-production Kura now runs only on OVH ca-east.
+kura-eu-west-ingress-nginx:
+  enabled: false
 
 kura-ca-east-ingress-nginx:
   enabled: true
   controller:
     # ca-east runs on the OVH bare-metal box: the regional gateway runs on the
     # box's host network so serving traffic hits the box NIC directly (OVH has no
-    # Hetzner LB) — the same shape as eu-central on Dedibox. The DaemonSet binds
+    # Hetzner LB). The DaemonSet binds
     # one nginx per cache node; reportNodeInternalIp publishes the box's public
     # IP (its node InternalIP) into each Ingress status so external-dns resolves
     # the per-account hosts to the box.
@@ -98,3 +91,12 @@ kura-ca-east-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+kura-runners-ingress-nginx:
+  enabled: true
+
+# The gateways above are host-network, so a region with more than one box needs
+# this to let a gateway reach Kura pods on the other boxes. Without it those
+# requests are dropped by the per-instance NetworkPolicy and answer 504.
+kuraGatewayNetworkPolicy:
+  enabled: true

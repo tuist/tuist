@@ -81,6 +81,21 @@
 //                            manage all envs, the tag-per-env
 //                            split is for credential isolation,
 //                            not human access boundaries.
+//   tag:tuist-rack-edge      A rack's edge node, which relays its
+//                            switches' management traffic to the
+//                            Omada controller on the tailnet,
+//                            translated to its own address
+//                            (infra/helm/rack-edge).
+//                            Joins from its install stick with a
+//                            single-use key minted from the
+//                            TAILSCALE_RACK_NODES OAuth client,
+//                            whose tags must own this tag.
+//   tag:tuist-rack-node      A rack's other Linux nodes (services,
+//                            storage). They join from a netboot
+//                            install with a single-use key the
+//                            operator mints from the same OAuth
+//                            client, whose tag:tuist-rack-edge
+//                            owns this tag.
 
 {
 	// Human access groups for the Kubernetes API server proxy.
@@ -118,6 +133,8 @@
 		"tag:tuist-macmini-staging":   ["autogroup:admin"],
 		"tag:tuist-macmini-canary":    ["autogroup:admin"],
 		"tag:tuist-macmini-production":["autogroup:admin"],
+		"tag:tuist-rack-edge":         ["autogroup:admin"],
+		"tag:tuist-rack-node":         ["autogroup:admin", "tag:tuist-rack-edge"],
 	},
 
 	"grants": [
@@ -201,7 +218,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
@@ -219,7 +243,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
@@ -237,7 +268,24 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
+		},
+		{
+			// The in-cluster ClickHouse as a Tailscale Service, served by
+			// the `tailnet-ingress` ProxyGroup rather than a standalone
+			// proxy (clickhouse.managed.tailscale.proxyGroup). A Service is
+			// addressed by its own VIP, which the tag grant above does not
+			// cover, so the xcresult processor needs this one to connect.
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-clickhouse-production"],
+			"ip":  ["tcp:8123"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
@@ -266,6 +314,103 @@
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["10.128.0.0/12"],
 			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
+		},
+
+		// Staging cluster → the BER1 rack's Mac minis, on SSH only.
+		//
+		// This is the FIRST-DIAL path for rack-owned Mac minis
+		// (RackAppleSiliconMachine). A rented mini has a public IP the
+		// operator can reach before anything is installed on it; a mini in a
+		// rack we own does not, and it is not on the tailnet yet either: 
+		// bootstrap is what puts it there. So the operator reaches it at its
+		// address on the rack's machines segment, which both of the rack's
+		// edges advertise (infra/helm/rack-edge).
+		//
+		// Routing it separately from the host's OWN tailnet identity is
+		// deliberate, not incidental. Bootstrap stops and replaces tailscaled
+		// to install the operator's pinned build; over a session transported
+		// by the host's own tailnet identity that would drop the tunnel it is
+		// riding, which is exactly why the drift loop's tailnet fallback has
+		// to set SkipTailscaleInstall. Through a separate router the session
+		// survives, so a rack host can be fully bootstrapped in one pass.
+		//
+		// Subnet-routed destinations match by CIDR, not by the router's tag,
+		// hence the literal prefix. tcp:22 only: everything else a mini serves
+		// (node_exporter, tart-kubelet, the VNC relay) is reached over the
+		// per-machine egress Service once the host has joined the tailnet, the
+		// same as for a rented one.
+		//
+		// A /32 PER HOST, never the machines segment's whole prefix, and that is
+		// load-bearing while the catch-all grant at the top of this list still
+		// exists. A catch-all of `*->*` subsumes the narrowing below, so what an
+		// advertised route actually exposes today is every address in it, on
+		// every port, to every device on the tailnet: three clusters' nodes, the
+		// rented Mac mini fleet, ops laptops, and every Tart runner VM that holds
+		// a tailnet identity. The edges advertise one /32 per mini for the same
+		// reason, so the segment's other addresses, the edges' own among them,
+		// are not routed at all.
+		//
+		// The cost is that a mini's address is load-bearing here as well as in
+		// its RackHost's `spec.address`, from which the edges render its DHCP
+		// reservation and its route.
+		//
+		// Widen to the segment's prefix only once the catch-all above is gone
+		// and this file is the thing that actually decides reachability. That
+		// removal is a PREREQUISITE for the BER1 rack, not a follow-up: a rack
+		// advertised as one prefix under the catch-all gives every device on the
+		// tailnet SSH to every mini, and the runner VMs on this tailnet execute
+		// customer build code. The per-env grants below were written to survive
+		// the removal, so the work is auditing what still leans on the catch-all
+		// (Talos node access, ops laptops) rather than rewriting them.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["10.10.0.101/32"],
+			"ip":  ["tcp:22"],
+		},
+
+		// Staging cluster → the BER1 rack's Linux nodes. SSH: the operator
+		// joins each one over its own tailnet address and keeps it converged
+		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
+		// API server reaches each node's kubelet (logs, exec, port-forward)
+		// through the node's own kubelet proxy Pod, which the operator runs.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
+			"ip":  ["tcp:22", "tcp:10250"],
+		},
+
+		// The BER1 switches → the Omada controller in the staging cluster, on
+		// its device ports only. The switches are not on the tailnet: their
+		// traffic reaches it through the rack's edge node, translated to the
+		// edge node's own address, so the source here is the edge node's tag and
+		// the management prefix is not advertised or routed. The destination is
+		// the staging operator's tag, which the controller's exposed Service
+		// carries. 29811-29817 are the device management, adoption, upgrade
+		// and monitoring channels; 8044 firmware upgrades; 29810 and 19810
+		// discovery and management over UDP.
+		{
+			"src": ["tag:tuist-rack-edge"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:29811-29817", "tcp:8044", "udp:29810", "udp:19810"],
+		},
+
+		// The BER1 edge node → the staging Alloy receiver's loki.source.api.
+		// The node's pod logs (alloy-rack-edge in infra/helm/k8s-monitoring)
+		// have no other way into Loki: the node has no route to cluster
+		// Services.
+		{
+			"src": ["tag:tuist-rack-edge"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:3100"],
+		},
+
+		// Admins → the Omada controller's web UI and Open API in staging. The
+		// controller's own login is the access control; this keeps the path
+		// once the catch-all above is gone.
+		{
+			"src": ["autogroup:admin"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:8043"],
 		},
 
 		// Humans SSH into any Mac mini. Not load-bearing — the
@@ -378,9 +523,25 @@
 	// break the route on each rollout). Scoped to the staging
 	// cluster tag — the 100.64.0.0/10 advertisement predates this
 	// file's autoApprovers section and stays manually approved.
+	//
+	// The BER1 edges' routes are auto-approved too, and only inside the
+	// rack's machines segment. They advertise one /32 per Mac mini,
+	// rendered from the rack's inventory (infra/rack-switch-fleet), so
+	// racking a mini changes their routes and hand approval would be a step
+	// per mini per edge. Scoped to the segment, the tag can put nothing else
+	// into the tailnet's routing table.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
+			"10.10.0.0/24":  ["tag:tuist-rack-edge"],
+		},
+		// Tailscale Services the operator's ingress ProxyGroups advertise
+		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator
+		// creates the Service when a Kubernetes Service opts in, and its
+		// proxies re-advertise it on every restart, so hand approval would
+		// take it offline on each rollout.
+		"services": {
+			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
 		},
 	},
 
@@ -483,6 +644,15 @@
 		{
 			"src": "tag:tuist-k8s-staging",
 			"accept": [
+				"tag:tuist-rack-edge:22",
+				"tag:tuist-rack-node:22",
+				"tag:tuist-rack-edge:10250",
+				"tag:tuist-rack-node:10250",
+			],
+		},
+		{
+			"src": "tag:tuist-k8s-staging",
+			"accept": [
 				"tag:tuist-macmini-staging:8080",
 				"tag:tuist-macmini-staging:9091",
 				"tag:tuist-macmini-staging:9100",
@@ -538,6 +708,11 @@
 		{
 			"src": "tag:tuist-macmini-production",
 			"accept": ["tag:tuist-k8s-production:3100"],
+		},
+		// The rack edge node's pod logs, the same receiver port.
+		{
+			"src": "tag:tuist-rack-edge",
+			"accept": ["tag:tuist-k8s-staging:3100"],
 		},
 		// Note: no test entries with autogroup-based src. Tailscale's
 		// test engine doesn't resolve `autogroup:*` as a concrete

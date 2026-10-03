@@ -8,41 +8,58 @@ defmodule Tuist.Marketing.OpenGraph do
 
   @max_length 35
 
+  @doc """
+  The title-on-template card for blog posts without a cover, changelog
+  entries and newsletter issues: the title left-aligned on
+  `og_template.png`.
+  """
   def generate_og_image_binary(title) do
-    with {:ok, image} <- generate_image(title) do
+    generate(title, "og_template.png", :left)
+  end
+
+  @doc """
+  The card for marketing pages without a designed one: the title centered
+  on `og_marketing_template.png`.
+  """
+  def generate_title_card_binary(title) do
+    generate(title, "og_marketing_template.png", :center)
+  end
+
+  defp generate(title, template, layout) do
+    with {:ok, image} <- generate_image(title, template, layout) do
       Image.write(image, :memory, quality: 95, strip_metadata: false, suffix: ".jpg")
     end
   end
 
-  defp generate_image(title) do
-    {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
+  # Text configuration: plain regular Inter in the primary label color on
+  # the dark templates (neutral-light-50, #FDFDFD) — no weight, gradient
+  # or shadow treatment. Line height is 100% (one font size per line).
+  @font_size 100
+  @text_options [
+    font: "Inter Variable",
+    font_weight: :normal,
+    font_size: @font_size,
+    text_fill_color: [253, 253, 253]
+  ]
+  @canvas_width 1920
+  @canvas_height 1080
+  @left_x 85
+  @left_base_y 450
 
-    # Load the background template image
-    template_path = Path.join([Application.app_dir(:tuist, "priv"), "static", "images", "og_template.png"])
+  defp generate_image(title, template, layout) do
+    lines =
+      title
+      |> og_image_title_lines()
+      |> Tuple.to_list()
+      |> Enum.reject(&(&1 == ""))
 
-    # Text configuration
-    # Color oklch(21.7% 0.002 247.941) - converted to RGB [25, 26, 27]
-    text_options = [
-      font: "Inter Variable",
-      font_weight: 500,
-      font_size: 100,
-      text_fill_color: [25, 26, 27]
-    ]
-
-    # Composite the text overlays onto the template.
-    # Line height: 100% (100px spacing = font size)
-    font_size = text_options[:font_size]
-    base_y = 450
-
-    lines = [
-      {title_line_1, base_y},
-      {title_line_2, base_y + font_size},
-      {title_line_3, base_y + font_size * 2}
-    ]
+    template_path = Path.join([Application.app_dir(:tuist, "priv"), "static", "images", template])
 
     with {:ok, background} <- Image.open(template_path) do
-      Enum.reduce_while(lines, {:ok, background}, fn {line, y}, {:ok, image} ->
-        case compose_line(image, line, y, text_options) do
+      lines
+      |> Enum.with_index()
+      |> Enum.reduce_while({:ok, background}, fn {line, index}, {:ok, image} ->
+        case compose_line(image, line, index, length(lines), layout) do
           {:ok, composed} -> {:cont, {:ok, composed}}
           {:error, reason} -> {:halt, {:error, reason}}
         end
@@ -50,11 +67,21 @@ defmodule Tuist.Marketing.OpenGraph do
     end
   end
 
-  defp compose_line(image, "", _y, _text_options), do: {:ok, image}
+  # :left — the lines hang from a fixed baseline block above the wordmark;
+  # :center — the block is centered on the canvas, every line centered.
+  defp compose_line(image, line, index, line_count, layout) do
+    with {:ok, text} <- Image.Text.text(line, @text_options) do
+      {x, y} =
+        case layout do
+          :left ->
+            {@left_x, @left_base_y + index * @font_size}
 
-  defp compose_line(image, line, y, text_options) do
-    with {:ok, text} <- Image.Text.text(line, text_options) do
-      Image.compose(image, text, x: 85, y: y)
+          :center ->
+            block_top = div(@canvas_height - line_count * @font_size, 2)
+            {div(@canvas_width - Image.width(text), 2), block_top + index * @font_size}
+        end
+
+      Image.compose(image, text, x: x, y: y)
     end
   end
 

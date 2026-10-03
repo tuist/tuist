@@ -24,6 +24,7 @@ defmodule Tuist.Kura.StorageRollups do
     :max_occupancy_percent,
     :max_live_segment_bytes,
     :last_ring_budget_bytes,
+    :min_ring_budget_bytes,
     :updated_at
   ]
 
@@ -61,6 +62,15 @@ defmodule Tuist.Kura.StorageRollups do
     |> Repo.all()
   end
 
+  @doc """
+  The rollups of `account_ids` in `region` on or after `since_date`.
+  """
+  def for_region(region, account_ids, since_date) do
+    StorageRollup
+    |> where([rollup], rollup.region == ^region and rollup.account_id in ^account_ids and rollup.date >= ^since_date)
+    |> Repo.all()
+  end
+
   # Homogeneous keys: `insert_all` requires them.
   defp merge_aggregates(evictions, snapshots) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
@@ -91,7 +101,8 @@ defmodule Tuist.Kura.StorageRollups do
           snapshot_count: aggregate.snapshot_count,
           max_occupancy_percent: aggregate.max_occupancy_percent,
           max_live_segment_bytes: aggregate.max_live_segment_bytes,
-          last_ring_budget_bytes: aggregate.last_ring_budget_bytes
+          last_ring_budget_bytes: aggregate.last_ring_budget_bytes,
+          min_ring_budget_bytes: aggregate.min_ring_budget_bytes
         })
       )
     end)
@@ -113,6 +124,7 @@ defmodule Tuist.Kura.StorageRollups do
       max_occupancy_percent: nil,
       max_live_segment_bytes: nil,
       last_ring_budget_bytes: nil,
+      min_ring_budget_bytes: nil,
       inserted_at: now,
       updated_at: now
     }

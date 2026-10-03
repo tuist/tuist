@@ -3796,12 +3796,19 @@ export class NooraNeutralButton extends NooraCompactButton {
   ];
 
   render() {
-    const content = html`<slot></slot>`;
+    const content = this.label
+      ? html`
+          <slot name="icon-left"></slot>
+          <span data-part="label">${this.label}</span>
+          <slot name="icon-right"></slot>
+        `
+      : html`<slot></slot>`;
     if (this.href && !this.disabled) {
       return html`<a
         class=${this.constructor.contract.className}
         part="control"
         data-size=${validated(this, "size")}
+        ?data-with-label=${Boolean(this.label)}
         href=${this.href}
         aria-label=${ifDefined(this._ariaLabel)}
         >${content}</a
@@ -3812,6 +3819,7 @@ export class NooraNeutralButton extends NooraCompactButton {
       class=${this.constructor.contract.className}
       part="control"
       data-size=${validated(this, "size")}
+      ?data-with-label=${Boolean(this.label)}
       type="button"
       ?disabled=${this.disabled}
       aria-label=${ifDefined(this._ariaLabel)}

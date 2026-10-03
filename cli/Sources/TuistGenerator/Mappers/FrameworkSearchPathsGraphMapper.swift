@@ -50,9 +50,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let responseFileDirectory: AbsolutePath
         let additions: [(key: String, values: [String])]
         var responseFile: FileDescriptor?
-        /// Non-nil for targets that went through consolidation, including when the set is empty: the cleanup
-        /// directory has to be registered either way so links left by earlier Tuist versions are still removed.
-        var frameworkLinkPaths: Set<AbsolutePath>?
+        var frameworkLinkPaths: Set<AbsolutePath> = []
         var symbolicLinks: [SideEffectDescriptor] = []
     }
 
@@ -94,8 +92,9 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                 components: Constants.DerivedDirectory.name,
                 Constants.DerivedDirectory.frameworkSearchPaths
             )
-            // Registered for every project, including those that end up contributing no response file, so the
-            // cleanup descriptor still removes files left behind by a previous generation.
+            // Registered for every project, including those that end up contributing no response file or symbolic
+            // link: the directory is preserved across generations, so the cleanup descriptors are what remove files
+            // and links left behind by a previous generation.
             generatedResponseFileDirectories.insert(responseFileDirectory)
 
             for (_, target) in project.targets {
@@ -133,10 +132,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                 activeFilesByDirectory[output.responseFileDirectory, default: []].insert(responseFile.path)
                 generatedFileSideEffects.append(.file(responseFile))
             }
-            if let frameworkLinkPaths = output.frameworkLinkPaths {
-                activeFrameworkLinksByDirectory[output.responseFileDirectory, default: []]
-                    .formUnion(frameworkLinkPaths)
-            }
+            activeFrameworkLinksByDirectory[output.responseFileDirectory, default: []]
+                .formUnion(output.frameworkLinkPaths)
             generatedSymbolicLinkSideEffects.append(contentsOf: output.symbolicLinks)
         }
 
@@ -161,18 +158,14 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                     include: ["*.resp"]
                 )
             ),
-        ]
-        if !activeFrameworkLinksByDirectory.isEmpty {
-            sideEffects.append(
-                .generatedFilesCleanup(
-                    GeneratedFilesCleanupDescriptor(
-                        directories: Set(activeFrameworkLinksByDirectory.keys),
-                        activeFilesByDirectory: activeFrameworkLinksByDirectory,
-                        include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
-                    )
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: generatedResponseFileDirectories,
+                    activeFilesByDirectory: activeFrameworkLinksByDirectory,
+                    include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
                 )
-            )
-        }
+            ),
+        ]
         sideEffects.append(contentsOf: generatedFileSideEffects)
         sideEffects.append(contentsOf: generatedSymbolicLinkSideEffects)
         return (graph, sideEffects, environment)
@@ -283,7 +276,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         var values: [String] = []
         var linkPaths: Set<AbsolutePath> = []
         var symbolicLinks: [SideEffectDescriptor] = []
-        // The caller registers this target's cleanup directory unconditionally, so stale symbolic links (for
+        // The cleanup of the links directory is registered for every project, so stale symbolic links (for
         // example `.xcframework` links created by older Tuist versions) are removed even when this target now
         // has no active `.framework` links to link into the consolidated Swift search directory.
         if !linkableArtifacts.isEmpty {

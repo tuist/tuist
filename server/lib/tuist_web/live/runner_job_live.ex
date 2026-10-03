@@ -9,13 +9,17 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -57,6 +61,8 @@ defmodule TuistWeb.RunnerJobLive do
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
+        buildkite_job = Buildkite.get_job(job.workflow_job_id)
+        gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -70,10 +76,13 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:buildkite_job, buildkite_job)
+         |> assign(:gitlab_job, gitlab_job)
+         |> assign(:volumes, CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -132,6 +141,54 @@ defmodule TuistWeb.RunnerJobLive do
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
 
   def header_title(job), do: job_title(job)
+
+  attr :volumes, :list, required: true
+  attr :account_name, :string, required: true
+
+  def job_volumes(assigns) do
+    ~H"""
+    <.card
+      :if={@volumes != []}
+      title={dgettext("dashboard_runners", "Volumes")}
+      icon="database"
+      data-part="volumes-card"
+    >
+      <.card_section>
+        <.table
+          id="runner-job-volumes"
+          rows={@volumes}
+          row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
+        >
+          <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
+            <.text_cell label={usage.volume.key} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
+            <.badge_cell
+              :if={not is_nil(usage.warm)}
+              label={
+                if usage.warm,
+                  do: dgettext("dashboard_runners", "Hit"),
+                  else: dgettext("dashboard_runners", "Miss")
+              }
+              color={if usage.warm, do: "success", else: "neutral"}
+              style="light-fill"
+            />
+            <.text_cell :if={is_nil(usage.warm)} label="—" />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Used space")}>
+            <.text_cell label={volume_bytes(usage.size_bytes)} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Capacity")}>
+            <.text_cell label={volume_bytes(usage.capacity_bytes)} />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  defp volume_bytes(nil), do: "—"
+  defp volume_bytes(value), do: ByteFormatter.format_bytes(value)
 
   def header_status(%{status: "completed", conclusion: conclusion}) do
     case conclusion do
@@ -213,6 +270,19 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def github_job_url(_), do: nil
+
+  @doc """
+  The Buildkite build a job belongs to, or `nil` for a GitHub job.
+
+  Buildkite's own job-level anchor is not part of any documented URL
+  contract, so this stops at the build, which is stable.
+  """
+  def buildkite_build_url(%{organization_slug: org, pipeline_slug: pipeline, build_number: number})
+      when is_binary(org) and org != "" and is_binary(pipeline) and pipeline != "" and is_integer(number) and number > 0 do
+    "https://buildkite.com/#{org}/#{pipeline}/builds/#{number}"
+  end
+
+  def buildkite_build_url(_), do: nil
 
   @doc """
   Builds the deep link to a single workflow_job. Mirrors GitHub's
@@ -308,6 +378,62 @@ defmodule TuistWeb.RunnerJobLive do
     if starts != [] and ends != [] do
       %{min: Enum.min(starts), max: Enum.max(ends)}
     end
+  end
+
+  @doc """
+  Left offset of a step's Gantt bar as a percentage of the job window,
+  or `nil` when the step or window can't place it. The value is
+  formatted as a percentage for the bar's offset custom property.
+  """
+  def step_bar_offset_percent(step, %{min: min, max: max}) when max > min do
+    case step_epoch_ms(step.started_at) do
+      nil ->
+        nil
+
+      started ->
+        started
+        |> Kernel.-(min)
+        |> Kernel./(max - min)
+        |> clamp_unit()
+        |> format_bar_percent()
+    end
+  end
+
+  def step_bar_offset_percent(%{started_at: %DateTime{}}, %{min: min, max: max}) when max == min, do: "0.0%"
+
+  def step_bar_offset_percent(_, _), do: nil
+
+  @doc """
+  Width of a step's Gantt bar as a percentage of the job window. A
+  zero-length step still returns `"0.0%"` so the stylesheet can fall back
+  to a min-width tick — otherwise a 0s "Set up job" row would render
+  nothing at all.
+  """
+  def step_bar_width_percent(step, %{min: min, max: max}) when max > min do
+    with started when not is_nil(started) <- step_epoch_ms(step.started_at),
+         completed when not is_nil(completed) <- step_epoch_ms(step.completed_at) do
+      completed
+      |> Kernel.-(started)
+      |> max(0)
+      |> Kernel./(max - min)
+      |> clamp_unit()
+      |> format_bar_percent()
+    else
+      _ -> nil
+    end
+  end
+
+  def step_bar_width_percent(%{started_at: %DateTime{}, completed_at: %DateTime{}}, %{min: min, max: max})
+      when max == min, do: "0.0%"
+
+  def step_bar_width_percent(_, _), do: nil
+
+  defp clamp_unit(value) when is_float(value) or is_integer(value) do
+    value |> max(0.0) |> min(1.0)
+  end
+
+  defp format_bar_percent(value) do
+    "#{Float.round(value * 100, 2)}%"
   end
 
   @doc """
@@ -478,8 +604,8 @@ defmodule TuistWeb.RunnerJobLive do
     }
   end
 
-  defp assign_runner_insights(socket, selected_account, job) do
-    case Jobs.projects_for_runner_job(selected_account, job) do
+  defp assign_runner_insights(socket, selected_account, job, buildkite_job) do
+    case Jobs.projects_for_runner_job(selected_account, job, buildkite_job) do
       {:error, :not_found} ->
         socket
         |> assign(:insights_project, nil)
@@ -491,8 +617,8 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
       {:ok, projects} ->
-        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
-        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id, buildkite_job)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id, buildkite_job)
 
         build_command_events = Jobs.command_events_for_runs(build_runs, :build)
         test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)

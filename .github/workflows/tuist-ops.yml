@@ -18,7 +18,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_CEILING_PATHS: ${{ github.workspace }}
 
@@ -42,9 +41,8 @@ jobs:
             tuist-ops/deps
             tuist-ops/_build
           key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: tuist-ops
@@ -69,9 +67,8 @@ jobs:
             tuist-ops/deps
             tuist-ops/_build
           key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: tuist-ops
@@ -110,9 +107,8 @@ jobs:
             tuist-ops/deps
             tuist-ops/_build
           key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: tuist-ops

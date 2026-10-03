@@ -2,7 +2,7 @@
 title: "L10N.md: localization built like we ship software"
 category: "engineering"
 tags: ["engineering", "localization", "i18n", "llm", "agents"]
-excerpt: "Existing localization tools take content out of the repository and translate it in environments where changes can't be validated. We tried Crowdin and Weblate, none of them felt right. So we built our own system on top of LLMs, with the repository as the source of truth and a lockfile to keep things incremental."
+excerpt: "We built an LLM-powered localization system that keeps translations in the repository, making changes easier to validate and the repo the source of truth."
 author: pepicrft
 og_image_path: /marketing/images/blog/2026/04/28/localization-with-llms/og.jpg
 ---

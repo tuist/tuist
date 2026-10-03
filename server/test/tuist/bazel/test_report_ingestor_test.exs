@@ -1,14 +1,22 @@
 defmodule Tuist.Bazel.TestReportIngestorTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.Bazel.TestReportIngestor
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias Tuist.Projects.Project
+
+  setup do
+    stub(Tuist.Tests, :get_test_case_states_at, fn _project_id, ids, _at ->
+      Map.new(ids, &{&1, %{state: "enabled", is_flaky: false}})
+    end)
+
+    :ok
+  end
 
   setup :verify_on_exit!
 
   test "creates one run with independently derived modules and invocation context" do
-    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    project = %Project{id: 1, account_id: 1, build_system: :bazel}
     test_run_id = UUIDv7.generate()
 
     invocation = %{
@@ -16,7 +24,7 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
       invocation_id: "invocation-1",
       duration_ms: 4_000,
       exit_code: 3,
-      target_patterns: ["//..."],
+      target_patterns: ["//...", "-//App:SkippedTests"],
       git_branch: "feature/bazel-tests",
       git_commit_sha: "abcdef123456",
       finished_at: ~N[2026-09-04 12:00:04],
@@ -70,7 +78,7 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
   end
 
   test "preserves attempts as repetitions so flaky cases can be detected" do
-    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    project = %Project{id: 1, account_id: 1, build_system: :bazel}
     test_run_id = UUIDv7.generate()
 
     invocation = %{
@@ -89,8 +97,8 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
     passed = ~s(<testsuite name="Suite"><testcase name="case" /></testsuite>)
 
     results = [
-      result("//App:FlakyTests", "failure", 300, failed, attempt: 1),
-      result("//App:FlakyTests", "flaky", 200, passed, attempt: 2)
+      result("//App:FlakyTests", "flaky", 200, passed, attempt: 2),
+      result("//App:FlakyTests", "failure", 300, failed, attempt: 1)
     ]
 
     expect(Tuist.Tests, :create_test, fn attrs ->
@@ -99,6 +107,9 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
       assert [%{status: "success", test_cases: [test_case]}] = attrs.test_modules
       assert test_case.status == "success"
       assert Enum.map(test_case.repetitions, & &1.status) == ["failure", "success"]
+      assert Enum.map(test_case.repetitions, & &1.repetition_number) == [1, 2]
+      assert Enum.map(test_case.repetitions, & &1.name) == ["Attempt 1", "Attempt 2"]
+      assert [%{message: "first attempt"}] = test_case.failures
       {:ok, %{id: test_run_id}}
     end)
 
@@ -106,7 +117,7 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
   end
 
   test "preserves skipped targets, suites, cases, and runs" do
-    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    project = %Project{id: 1, account_id: 1, build_system: :bazel}
     test_run_id = UUIDv7.generate()
 
     invocation = %{
@@ -138,12 +149,65 @@ defmodule Tuist.Bazel.TestReportIngestorTest do
     assert {:ok, %{id: ^test_run_id}} = TestReportIngestor.ingest(project, invocation, results, summaries)
   end
 
+  test "a later successful run does not hide a terminal failure in another run" do
+    project = %Project{id: 1, account_id: 1, build_system: :bazel}
+    failed = ~s(<testsuite name="Suite"><testcase name="case"><failure>failed run</failure></testcase></testsuite>)
+    passed = ~s(<testsuite name="Suite"><testcase name="case" /></testsuite>)
+
+    results = [
+      result("//App:Tests", "success", 20, passed, run: 2),
+      result("//App:Tests", "failure", 30, failed, run: 1)
+    ]
+
+    expect(Tuist.Tests, :create_test, fn attrs ->
+      assert [%{status: "failure", test_cases: [%{status: "failure"} = test_case]}] = attrs.test_modules
+      assert Enum.map(test_case.repetitions, & &1.status) == ["failure", "success"]
+      {:ok, %{id: attrs.id}}
+    end)
+
+    assert {:ok, _} = TestReportIngestor.ingest(project, invocation(), results, [])
+  end
+
+  test "quarantine attribution uses the invocation start rather than processing time" do
+    project = %Project{id: 1, account_id: 1, build_system: :bazel}
+    invocation = invocation()
+    started_at = invocation.started_at
+    report = ~s(<testsuite name="Suite"><testcase name="case"><failure>failure</failure></testcase></testsuite>)
+
+    expect(Tuist.Tests, :get_test_case_states_at, fn 1, [id], ^started_at ->
+      %{id => %{state: "muted", is_flaky: false}}
+    end)
+
+    expect(Tuist.Tests, :create_test, fn attrs ->
+      assert [%{test_cases: [%{status: "failure", is_quarantined: true}]}] = attrs.test_modules
+      {:ok, %{id: attrs.id}}
+    end)
+
+    assert {:ok, _} =
+             TestReportIngestor.ingest(project, invocation, [result("//App:Tests", "failure", 10, report)], [])
+  end
+
+  defp invocation do
+    %{
+      test_run_id: UUIDv7.generate(),
+      invocation_id: "invocation",
+      duration_ms: 100,
+      exit_code: 3,
+      target_patterns: ["//..."],
+      git_branch: "main",
+      git_commit_sha: "abcdef",
+      started_at: ~N[2026-09-04 12:00:00],
+      finished_at: ~N[2026-09-04 12:00:01],
+      is_ci: true
+    }
+  end
+
   defp result(target_label, status, duration_ms, junit_content, opts \\ []) do
     %{
       target_label: target_label,
       status: status,
       duration_ms: duration_ms,
-      run: 0,
+      run: Keyword.get(opts, :run, 0),
       shard: 0,
       attempt: Keyword.get(opts, :attempt, 1),
       is_ci: true,

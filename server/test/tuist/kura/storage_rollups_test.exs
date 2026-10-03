@@ -37,6 +37,7 @@ defmodule Tuist.Kura.StorageRollupsTest do
       assert rollup.max_occupancy_percent == 50
       assert rollup.max_live_segment_bytes == 5_368_709_120
       assert rollup.last_ring_budget_bytes == 10_737_418_240
+      assert rollup.min_ring_budget_bytes == 10_737_418_240
     end
 
     test "a refresh converges the same day instead of duplicating it", %{account: account} do

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TuistAutomation
 import TuistConfig
 import TuistDependencies
@@ -836,6 +837,29 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertContainsElementOfType(cacheMappers, ModuleMapMapper.self)
             XCTAssertContainsElementOfType(cacheMappers, StaticXCFrameworkModuleMapGraphMapper.self)
             XCTAssertContainsElementOfType(cacheMappers, StaticXCFrameworkAppIntentsMetadataGraphMapper.self)
+        }
+    }
+
+    struct CacheGraphMapperFactoryBinaryCacheWarmingTests {
+        private let subject = CacheGraphMapperFactory(contentHasher: ContentHasher())
+
+        @Test func binaryCacheWarming_generatesSchemesAfterCacheReplacement() throws {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring()
+            )
+
+            // Then
+            let schemesMapperIndex = try #require(got.lastIndex(where: { $0 is GenerateCacheableSchemesGraphMapper }))
+            let cacheReplacementIndex = try #require(got.firstIndex(where: { $0 is TargetsToCacheBinariesGraphMapper }))
+            #expect(schemesMapperIndex > cacheReplacementIndex)
         }
     }
 #endif

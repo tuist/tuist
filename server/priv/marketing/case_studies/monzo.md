@@ -1,10 +1,10 @@
 ---
-title: "Monzo slashed CI pipeline time by 70%"
+title: "Monzo slashed CI pipeline by 70%"
 date: "2026-05-26"
 url: "https://monzo.com/"
 founded_date: "2015"
 company: "Monzo"
-excerpt: "Monzo used Tuist project generation, Binary Cache, and selective testing to cut median PR time from 52 minutes to 15 minutes while scaling its iOS codebase to nearly 200 modules."
+excerpt: "Monzo used Tuist to cut median PR time from 52 to 15 minutes while scaling its codebase to nearly 200 modules."
 ---
 
 ## The challenge

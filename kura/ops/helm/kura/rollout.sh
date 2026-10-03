@@ -88,7 +88,7 @@ first_install() {
 }
 
 main() {
-  local replicas target_revision ordinal pod_name baseline_cluster_outbox baseline_cluster_fd_timeouts current_cluster_fd_timeouts
+  local replicas target_revision ordinal pod_name baseline_cluster_fd_timeouts current_cluster_fd_timeouts
   local cluster_nodes=()
 
   # On first install the StatefulSet doesn't exist yet, so the
@@ -111,28 +111,22 @@ main() {
 
   for ((ordinal = replicas - 1; ordinal >= 0; ordinal -= 1)); do
     pod_name="$(pod_name_for_ordinal "${ordinal}")"
-    read -r baseline_cluster_outbox baseline_cluster_fd_timeouts < <(
-      rollout_collect_cluster_load_totals "${cluster_nodes[@]}"
-    )
+    baseline_cluster_fd_timeouts="$(rollout_collect_cluster_fd_timeouts "${cluster_nodes[@]}")"
 
     helm_upgrade_partition "${ordinal}"
     wait_for_updated_revision "${pod_name}" "${target_revision}"
     rollout_wait_for_gate \
       "${pod_name}" \
       "${replicas}" \
-      "${baseline_cluster_outbox}" \
       "${baseline_cluster_fd_timeouts}" \
       "${READY_STEADY_STATE_SECONDS}" \
       "${cluster_nodes[@]}"
 
     if (( ordinal == replicas - 1 )); then
-      read -r _ current_cluster_fd_timeouts < <(
-        rollout_collect_cluster_load_totals "${cluster_nodes[@]}"
-      )
+      current_cluster_fd_timeouts="$(rollout_collect_cluster_fd_timeouts "${cluster_nodes[@]}")"
       rollout_wait_for_gate \
         "${pod_name}" \
         "${replicas}" \
-        "${baseline_cluster_outbox}" \
         "${current_cluster_fd_timeouts}" \
         "${CANARY_STEADY_STATE_SECONDS}" \
         "${cluster_nodes[@]}"

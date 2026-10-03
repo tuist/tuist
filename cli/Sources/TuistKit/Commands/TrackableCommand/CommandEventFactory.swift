@@ -74,6 +74,7 @@ public struct CommandEventFactory {
         selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]],
         targetContentHashSubhashes: [String: TargetContentHashSubhashes]
     ) -> RunGraph {
+        let graphTraverser = GraphTraverser(graph: graph)
         let graphProjects = graph.projects.map { project in
             RunProject(
                 name: project.value.name,
@@ -118,6 +119,11 @@ public struct CommandEventFactory {
                         selectiveTestingMetadata = nil
                     }
 
+                    let dependencies = graphTraverser
+                        .directTargetDependencies(path: project.value.path, name: target.value.name)
+                        .map(\.target.name)
+                        .sorted()
+
                     return RunTarget(
                         name: target.value.name,
                         product: target.value.product,
@@ -125,7 +131,8 @@ public struct CommandEventFactory {
                         productName: target.value.productName,
                         destinations: target.value.destinations,
                         binaryCacheMetadata: binaryCacheMetadata,
-                        selectiveTestingMetadata: selectiveTestingMetadata
+                        selectiveTestingMetadata: selectiveTestingMetadata,
+                        dependencies: dependencies
                     )
                 }
                 .sorted(by: { $0.name < $1.name })

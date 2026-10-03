@@ -166,6 +166,10 @@ type Reconciler struct {
 	// lifecycle no-ops.
 	Volumes *VolumeManager
 
+	// Converge fast-forwards the masters in Volumes to their volumes' HEADs off
+	// every job's critical path. Nil when Volumes is.
+	Converge *ConvergeWorker
+
 	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
 	// background convergence waits for the guest to stage the cache-volume HEAD.
 	// Zero values use the package defaults; injectable so tests don't wait real
@@ -436,6 +440,10 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return fmt.Errorf("resolve env: %w", err)
 	}
 
+	// A runner Pod carries the server's dispatch URL, which is where the converge
+	// worker asks which masters to prefetch.
+	r.Converge.ObservePod(pod)
+
 	vmName := VMNameForPod(pod)
 	envDir, err := r.Tart.StageEnvFile(vmName, env)
 	if err != nil {
@@ -567,8 +575,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// label (maybeMaterializeVolume), so one account's cache can never reach a
 	// VM that runs another account's job. Done here — after the adoption
 	// early-return above — so a restart-adopted VM doesn't get a stray branch.
-	// A declined admission or a disabled feature leaves att.Attached false and
-	// the VM boots on the cold path.
+	// A disabled feature or an unmounted runner-cache root leaves att.Attached
+	// false and the VM boots on the cold path. Admission runs later, when the
+	// branch is materialized for a job.
 	sharedDirs := []string{"env:" + envDir + ":ro"}
 	att, err := r.allocateVolumeBranch(vmName)
 	if err != nil {

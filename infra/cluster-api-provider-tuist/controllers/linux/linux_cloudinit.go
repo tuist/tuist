@@ -141,7 +141,7 @@ RebootWatchdogSec=5min
 	// kubeletClientCAPath is where the self-join drops the cluster CA so the
 	// kubelet's authentication.x509.clientCAFile can verify the apiserver's
 	// --kubelet-client-certificate. Kept under /var/lib/kubelet so it rides the
-	// same /data bind-mount as the kubeconfig on separate-/data boxes (Dedibox),
+	// same /data bind-mount as the kubeconfig on separate-/data boxes (OVH),
 	// rather than a path the mount would shadow.
 	kubeletClientCAPath = "/var/lib/kubelet/ca.crt"
 )
@@ -358,7 +358,7 @@ export DEBIAN_FRONTEND=noninteractive
 %[4]s
 %[6]s
 %[2]ssed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-# Bare-metal boxes (e.g. Scaleway Dedibox) ship a small root partition plus a
+# Bare-metal boxes (e.g. OVH) ship a small root partition plus a
 # large separate /data. Point containerd's image store at /data so image pulls
 # land on the big disk, not the ~20G root. (The kubelet root is bind-mounted to
 # /data earlier, before its config is written, so the mount can't shadow it.)
@@ -681,7 +681,7 @@ mountpoint -q "$data" || exit 0
 fstype="$(findmnt -no FSTYPE "$data")"
 if [ "$fstype" != xfs ]; then
   echo "tuist: $data is $fstype, but per-account cache quotas need xfs project quotas." >&2
-  echo "tuist: this box predates the xfs /data layout and cannot grow one in place; reinstall it (mise run baremetal:prep-ovh / prep-dedibox) before it can rejoin." >&2
+  echo "tuist: this box predates the xfs /data layout and cannot grow one in place; reinstall it (mise run baremetal:prep-ovh) before it can rejoin." >&2
   exit 1
 fi
 
@@ -716,8 +716,7 @@ fi
 `
 
 // kuraCacheTaintKey marks a box as a Kura cache region. Every cache fleet
-// template hardcodes it (ovh-fleet.yaml, ovh-fleets.yaml's default,
-// dedibox-fleet.yaml); a pool that is not a cache region overrides nodeTaints
+// template hardcodes it (ovh-fleet.yaml and ovh-fleets.yaml's default); a pool that is not a cache region overrides nodeTaints
 // with its own, which is already what keeps it out of the cache-only surfaces
 // keyed off that map. Reusing it here keeps one source of truth for "is this a
 // cache box" rather than adding a second that can drift from the taint.
@@ -851,7 +850,7 @@ func dataProjectQuotaSetup(sudo string, writeFile func(producer, path string) st
 
 // dataKubeletMount brings up the /data bind-mount for the kubelet root. The
 // SSH-script form runs it BEFORE writing the kubelet config so that on a box with
-// a separate /data disk (Scaleway Dedibox: small root + large /data) the mount
+// a separate /data disk (OVH: small root + large /data) the mount
 // doesn't shadow the freshly-written config.yaml + kubeconfig — the bug that left
 // the kubelet crash-looping on a missing config file. A no-op (the trailing `true`
 // keeps set -e happy) where /data is not its own filesystem (single-partition
@@ -899,6 +898,7 @@ func kataSetup(sudo, sudoE string, enabled bool) string {
 # written in: registering it against a v2 config is silently ignored, and the
 # node then reports Ready while every runtimeClassName=kata-qemu Pod hangs.
 %[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
+%[5]s
 %[2]sapt-get install -y zstd
 # kata-static expands with a top-level opt/, so extracting at / lands the shim
 # and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
@@ -932,7 +932,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath)
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

@@ -28,8 +28,35 @@ defmodule Tuist.Kura.PlacerRegion do
     timestamps(type: :utc_datetime)
   end
 
+  @capacity_spill_signal "capacity_spill"
+  @creation_origin_signal "creation_origin"
+
   def roles, do: @roles
   def statuses, do: @statuses
+
+  @doc """
+  The evidence signal on a primary that first placement wrote because the
+  region the account's traffic preferred had no room for its instance.
+  """
+  def capacity_spill_signal, do: @capacity_spill_signal
+
+  @doc """
+  The evidence signal on a primary the project-creation seed wrote for the
+  region nearest where the project was created.
+  """
+  def creation_origin_signal, do: @creation_origin_signal
+
+  @doc """
+  True iff the row is a guess rather than a decision: a primary first placement
+  steered off a full region, or one the project-creation seed placed where the
+  project was created, neither of which the placer weighed. The row still holds
+  the account to its region, but it leaves the fast first-placement correction
+  open, exactly as a primary with no row behind it does.
+  """
+  def guess?(%__MODULE__{evidence: %{"signal" => signal}})
+      when signal in [@capacity_spill_signal, @creation_origin_signal], do: true
+
+  def guess?(%__MODULE__{}), do: false
 
   def changeset(placer_region, attrs) do
     placer_region

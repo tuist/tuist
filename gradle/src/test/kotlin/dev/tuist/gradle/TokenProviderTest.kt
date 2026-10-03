@@ -6,11 +6,17 @@ import dev.tuist.gradle.services.RefreshAuthTokenService
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.io.InterruptedIOException
 import java.net.ConnectException
+import java.net.SocketTimeoutException
 import java.net.URI
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class TokenProviderTest {
 
@@ -80,7 +86,7 @@ class TokenProviderTest {
         writeCredentials(store, expiredToken, "refresh-token")
 
         val mockRefreshService = object : RefreshAuthTokenService() {
-            override fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
                 return AuthenticationTokens(newToken, "new-refresh")
             }
         }
@@ -126,7 +132,7 @@ class TokenProviderTest {
         writeCredentials(store, expiredJwt(), "refresh-token")
 
         val failingRefreshService = object : RefreshAuthTokenService() {
-            override fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
                 throw RuntimeException("refresh failed")
             }
         }
@@ -139,12 +145,84 @@ class TokenProviderTest {
     }
 
     @Test
+    fun `refresh is given the time left before the deadline`() {
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        var refreshTimeoutMs: Long? = null
+        val refreshService = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                refreshTimeoutMs = timeoutMs
+                return AuthenticationTokens(validJwt(), "new-refresh")
+            }
+        }
+        val provider = createProvider(refreshService = refreshService, credentialStore = store)
+
+        provider.getToken(deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5))
+
+        val timeoutMs = assertNotNull(refreshTimeoutMs)
+        assertTrue(timeoutMs in 1..5_000, "The refresh was given ${timeoutMs}ms")
+    }
+
+    @Test
+    fun `refresh without a deadline keeps the client's own timeouts`() {
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        var refreshTimeoutMs: Long? = -1
+        val refreshService = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                refreshTimeoutMs = timeoutMs
+                return AuthenticationTokens(validJwt(), "new-refresh")
+            }
+        }
+        val provider = createProvider(refreshService = refreshService, credentialStore = store)
+
+        provider.getToken()
+
+        assertNull(refreshTimeoutMs)
+    }
+
+    @Test
+    fun `refresh that times out is rethrown rather than reported as not authenticated`() {
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        val timingOutService = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                throw SocketTimeoutException("timeout")
+            }
+        }
+        val provider = createProvider(refreshService = timingOutService, credentialStore = store)
+
+        assertFailsWith<InterruptedIOException> {
+            provider.getToken(deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5))
+        }
+    }
+
+    @Test
+    fun `refresh is not attempted once the deadline has passed`() {
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        var refreshed = false
+        val refreshService = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                refreshed = true
+                return AuthenticationTokens(validJwt(), "new-refresh")
+            }
+        }
+        val provider = createProvider(refreshService = refreshService, credentialStore = store)
+
+        assertFailsWith<InterruptedIOException> {
+            provider.getToken(deadlineNanos = System.nanoTime() - 1)
+        }
+        assertEquals(false, refreshed)
+    }
+
+    @Test
     fun `ConnectException is rethrown directly`() {
         val store = createCredentialStore()
         writeCredentials(store, expiredJwt(), "refresh-token")
 
         val connectExceptionService = object : RefreshAuthTokenService() {
-            override fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
                 throw ConnectException("Connection refused")
             }
         }

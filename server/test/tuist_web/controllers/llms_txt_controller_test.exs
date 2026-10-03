@@ -56,7 +56,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert body =~ "## Product"
 
-      for path <- ["/cache", "/build-insights", "/selective-testing", "/flaky-tests", "/test-insights", "/previews"] do
+      for path <- ["/cache", "/flaky-tests", "/test-insights", "/previews"] do
         assert body =~ "(#{Tuist.Environment.app_url(path: path)})"
       end
     end

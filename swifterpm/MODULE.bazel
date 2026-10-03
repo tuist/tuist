@@ -4,7 +4,7 @@ module(
 )
 
 bazel_dep(name = "apple_support", version = "2.5.4")
-bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "rules_apple", version = "4.3.3")
 bazel_dep(name = "rules_swift_package_manager", version = "1.18.1")
 bazel_dep(name = "swift_argument_parser", version = "1.7.0")

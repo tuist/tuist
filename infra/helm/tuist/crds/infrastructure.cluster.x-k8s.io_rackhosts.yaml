@@ -1,0 +1,334 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: rackhosts.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: RackHost
+    listKind: RackHostList
+    plural: rackhosts
+    shortNames:
+      - rh
+    singular: rackhost
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.address
+          name: Address
+          type: string
+        - jsonPath: .status.machine
+          name: Machine
+          type: string
+        - jsonPath: .status.power
+          name: Power
+          type: string
+        - jsonPath: .status.quarantined
+          name: Quarantined
+          type: boolean
+        - jsonPath: .spec.parked
+          name: Parked
+          type: boolean
+        - jsonPath: .spec.serial
+          name: Serial
+          priority: 1
+          type: string
+        - jsonPath: .spec.location.site
+          name: Site
+          priority: 1
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: RackHost is one physical Mac mini in a rack we operate.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackHostSpec describes one physical Mac mini we own, sitting in a rack we
+                operate: the BER1 colo programme's hardware, as opposed to capacity ordered
+                from a provider API.
+
+                A host is its own node. The RackHost controller keeps one CAPI Machine and
+                the RackAppleSiliconMachine it owns for each host, named `<fleet>-<host>`,
+                with the host as their controller owner. A box upgrades in place, so there
+                is no MachineDeployment and no pool of hosts to claim from.
+              properties:
+                address:
+                  description: |-
+                    Address is what the operator dials for SSH: an IP or a DNS name. For a
+                    rack host this is normally the in-rack LAN address, reachable from the
+                    cluster over a tailnet subnet route advertised by the rack's service
+                    node.
+
+                    A subnet-routed address is deliberate rather than incidental. Bootstrap
+                    stops and replaces tailscaled on the host to install the operator's
+                    pinned build; over a session transported by the HOST's own tailnet
+                    identity that would drop the tunnel it is riding (which is exactly why
+                    the drift loop's tailnet fallback sets SkipTailscaleInstall). Routed via
+                    a separate subnet router, the session survives, so a rack host can be
+                    fully bootstrapped over one transport.
+                  type: string
+                location:
+                  description: |-
+                    Location is where the box physically is. Nothing in the reconcile path
+                    reads rack/shelf/positionU: they exist so that a human handed an
+                    alerting node name can walk to it, but `site` IS load-bearing: it names
+                    the rack site and composes the providerID, so the machine controller
+                    does not bootstrap a host without one.
+                  properties:
+                    positionU:
+                      description: PositionU is the lowest rack unit the mount occupies.
+                      type: integer
+                    rack:
+                      description: Rack identifies the rack within the site.
+                      type: string
+                    shelf:
+                      description: |-
+                        Shelf identifies the mount within the rack (a 3-up tray, in the BER1
+                        build).
+                      type: string
+                    site:
+                      description: |-
+                        Site is the rack site (e.g. `ber1`). Load-bearing: it composes the
+                        providerID, so it must be stable for the life of the host.
+                      type: string
+                  type: object
+                machine:
+                  description: |-
+                    Machine sizes the node the host runs as. The controller copies it onto
+                    the host's RackAppleSiliconMachine, and a change reaches the host
+                    through the host-config drift loop.
+                  properties:
+                    guestCapacity:
+                      description: GuestCapacity is how many Tart guests the host is expected to run.
+                      type: integer
+                    hostCPU:
+                      description: HostCPU is the CPU-core count advertised on the Node.
+                      type: integer
+                    hostMemoryMB:
+                      description: |-
+                        HostMemoryMB is the memory advertised on the Node: the box's RAM minus
+                        the ~2 GB Virtualization.framework reserves for the host.
+                      type: integer
+                    maxPods:
+                      description: MaxPods is the Pod ceiling tart-kubelet advertises.
+                      type: integer
+                    runnerCacheVolumeGiB:
+                      description: |-
+                        RunnerCacheVolumeGiB is the quota of the host's runner-cache volume. An
+                        explicit 0 disables cache volumes on the host; unset inherits the
+                        operator's default.
+                      type: integer
+                  type: object
+                parked:
+                  description: |-
+                    Parked keeps the host declared with no Machine: bench work, an RMA, a
+                    box that is off. Parking a host deletes its Machine and its Node without
+                    draining it, so drain the Node first; unparking it makes a new Machine,
+                    which bootstraps the host again.
+                  type: boolean
+                power:
+                  description: |-
+                    Power names the outlet this host is plugged into. Cycling it is the
+                    fleet's remote reboot: Apple silicon minis power on when mains is
+                    applied, and every fleet host runs `pmset autorestart 1`, so an outlet
+                    cycle is a full reboot with no console. It is the only repair a host
+                    that fails bootstrap has short of being quarantined and paging a human.
+                  properties:
+                    credentialsSecretRef:
+                      description: |-
+                        CredentialsSecretRef names a Secret in the operator's namespace holding
+                        `username` and `password` for the endpoint's HTTP auth. Optional: an
+                        unauthenticated plug on a management VLAN needs none. Several hosts
+                        normally point at the same Secret, since a PDU has one credential and
+                        many outlets.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    driver:
+                      default: shelly
+                      description: |-
+                        Driver selects the power backend. `shelly` speaks the Shelly Gen2 RPC
+                        (with a Gen1 fallback) and is for home and office prototypes only: it is
+                        the BER1 prototype's PDU stand-in, not a rack driver. A colo rack's
+                        switched PDUs get their own driver rather than being forced through this
+                        one.
+                      enum:
+                        - shelly
+                      type: string
+                    host:
+                      description: |-
+                        Host is the PDU / plug endpoint, as a host or host:port. Plain HTTP by
+                        default; give it an `https://` prefix to force TLS.
+                      type: string
+                    outlet:
+                      default: "0"
+                      description: |-
+                        Outlet identifies the outlet on that endpoint. Driver-specific; for
+                        Shelly it is the switch channel id, `"0"` on a single-channel plug.
+                      type: string
+                  type: object
+                serial:
+                  description: |-
+                    Serial is the Mac's hardware serial (e.g. `C07FC05JQ6NY`). This is the
+                    host's durable identity: it survives a hostname change, a DFU restore
+                    and a re-cabling, it is what Apple Business Manager and the MDM know the
+                    box by, and it is what the providerID is composed from. The address can
+                    change; this cannot.
+                  type: string
+                sshIngressAllowCIDRs:
+                  description: |-
+                    SSHIngressAllowCIDRs are the source addresses a dial to Address arrives
+                    from: the LAN address of every subnet router that advertises it, as a
+                    /32. A router forwards with SNAT (the default on Linux, the only mode on
+                    macOS), so the host sees the router, not the operator. They are added to
+                    the host's SSH ingress guard on top of the fleet-wide
+                    `--ssh-ingress-allow-cidrs`.
+
+                    Without them the router path works only while the host still holds its
+                    own tailnet identity. The guard admits :22 from the tailnet, the fleet
+                    list and the last session's source, and that last one is overwritten by
+                    every push, including one over the tailnet fallback. A rented mini keeps
+                    a public path through the fleet list; a rack mini has none, so one that
+                    comes back without its tailnet device is reachable only from its
+                    console. List every router when there is more than one, since a failover
+                    changes the source address.
+                  items:
+                    pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$
+                    type: string
+                  type: array
+                sshUser:
+                  default: tuist
+                  description: |-
+                    SSHUser is the account the operator logs in as. On rack hosts this is
+                    the MDM-provisioned service account rather than a provider-issued one,
+                    so it is per-host configurable instead of read back from an API.
+                  type: string
+              type: object
+            status:
+              description: RackHostStatus is the observed state of one physical host.
+              properties:
+                conditions:
+                  description: Conditions are CAPI-style condition entries (PowerReachable).
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                lastPowerAction:
+                  description: |-
+                    LastPowerAction / LastPowerActionTime record the last action the
+                    operator took on the outlet (`on`, `off`, `cycle`), so a host that
+                    rebooted has a visible cause rather than looking like a spontaneous
+                    panic.
+                  type: string
+                lastPowerActionTime:
+                  format: date-time
+                  type: string
+                machine:
+                  description: |-
+                    Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
+                    make this host a node, and of the Node they register: `<fleet>-<host>`.
+                  type: string
+                power:
+                  description: |-
+                    Power is the last observed outlet state: On, Off, or Unknown when the
+                    host has no outlet configured or the driver could not reach it.
+                  type: string
+                quarantineReason:
+                  description: QuarantineReason carries the failure that caused it.
+                  type: string
+                quarantined:
+                  description: |-
+                    Quarantined holds off bootstrapping the host after the machine
+                    controller exhausted its bootstrap attempts on it. It is
+                    controller-set and expires after the operator's
+                    `--rackhost-quarantine-retry-after`, when bootstrap starts over.
+                  type: boolean
+                quarantinedAt:
+                  description: |-
+                    QuarantinedAt is when the quarantine was applied, and it is what lets the
+                    quarantine expire. Clearing a quarantine by hand needs write access to
+                    rackhosts/status, which a human reaching the cluster through the kubectl
+                    gateway does not have.
+                  format: date-time
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

@@ -3,7 +3,7 @@ import { fakeStatus } from "./dev/fake-status.js";
 import { fetchRawFields, fetchRawIncidents, fetchStatusFromGrafana } from "./grafana-irm.js";
 import type { Env, StatusSnapshot } from "./types.js";
 import { atomFeed, rssFeed } from "./views/feed.js";
-import { faviconSvg } from "./views/logo.js";
+import { FAVICON_16, FAVICON_32, FAVICON_ICO, FAVICON_SVG } from "./views/favicon.js";
 import { statusPage } from "./views/page.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -83,14 +83,25 @@ app.get("/feed.atom", async (c) => {
   });
 });
 
+// The marketing site's favicon set (see views/favicon.ts), served under the
+// same paths tuist.dev uses.
+const FAVICON_CACHE = "public, max-age=86400, immutable";
+
 app.get("/favicon.svg", (c) =>
-  c.body(faviconSvg(), 200, {
-    "Content-Type": "image/svg+xml; charset=utf-8",
-    "Cache-Control": "public, max-age=86400, immutable",
-  }),
+  c.body(FAVICON_SVG, 200, { "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": FAVICON_CACHE }),
 );
 
-app.get("/favicon.ico", (c) => c.body(null, 204));
+app.get("/favicon.ico", (c) =>
+  c.body(FAVICON_ICO, 200, { "Content-Type": "image/x-icon", "Cache-Control": FAVICON_CACHE }),
+);
+
+app.get("/favicon-32x32.png", (c) =>
+  c.body(FAVICON_32, 200, { "Content-Type": "image/png", "Cache-Control": FAVICON_CACHE }),
+);
+
+app.get("/favicon-16x16.png", (c) =>
+  c.body(FAVICON_16, 200, { "Content-Type": "image/png", "Cache-Control": FAVICON_CACHE }),
+);
 
 app.get("/healthz", (c) => c.text("ok"));
 

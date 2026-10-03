@@ -31,6 +31,41 @@ defmodule Tuist.MCP.Components.Tools.CreateProjectTest do
       assert full_handle == "#{user.account.name}/#{project_handle}"
     end
 
+    test "creates a Bazel project" do
+      user = AccountsFixtures.user_fixture()
+      project_handle = "mcp-bazel-project-#{TuistTestSupport.Utilities.unique_integer()}"
+
+      result =
+        CreateProject.call(%Plug.Conn{assigns: %{current_user: user}}, %{
+          "account_handle" => user.account.name,
+          "project_handle" => project_handle,
+          "build_system" => "bazel"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      full_handle = "#{user.account.name}/#{project_handle}"
+
+      assert %{
+               "build_system" => "bazel",
+               "full_handle" => ^full_handle
+             } = JSON.decode!(text)
+    end
+
+    test "creates a Once project" do
+      user = AccountsFixtures.user_fixture()
+      project_handle = "mcp-once-project-#{TuistTestSupport.Utilities.unique_integer()}"
+
+      result =
+        CreateProject.call(%Plug.Conn{assigns: %{current_user: user}}, %{
+          "account_handle" => user.account.name,
+          "project_handle" => project_handle,
+          "build_system" => "once"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      assert %{"build_system" => "once"} = JSON.decode!(text)
+    end
+
     test "returns project changeset errors" do
       user = AccountsFixtures.user_fixture()
       project_handle = "mcp-project-#{TuistTestSupport.Utilities.unique_integer()}"

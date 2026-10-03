@@ -461,7 +461,8 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func usesLocalCacheStorageWhenNoRemoteCacheEndpointIsReachable() async throws {
+    @Test(arguments: [CacheURLStoreError.noReachableEndpoints, .noEndpointsAvailable, .endpointBeingPrepared])
+    func usesLocalCacheStorageWhenNoRemoteCacheEndpointIsServing(error: CacheURLStoreError) async throws {
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
@@ -476,7 +477,7 @@ struct GenerateServiceTests {
         )
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.noReachableEndpoints)
+            .willThrow(error)
         given(cacheStorageFactory)
             .cacheLocalStorage()
             .willReturn(localCacheStorage)

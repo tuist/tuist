@@ -9,10 +9,6 @@ public enum ClientFeatureFlags {
 
     private static let environmentPrefix = "TUIST_FEATURE_FLAG_"
 
-    /// Feature flags that are on unless a `TUIST_FEATURE_FLAG_<NAME>` variable
-    /// turns them off.
-    static let defaultEnabled: Set<String> = ["KURA"]
-
     private static let disablingValues: Set<String> = ["", "0", "false", "no", "off"]
 
     public static func headerValue(environment: Environmenting = Environment.current) -> String? {
@@ -30,16 +26,14 @@ public enum ClientFeatureFlags {
     }
 
     /// The raw `TUIST_FEATURE_FLAG_*` variables, for forwarding the client
-    /// feature flags to a process that does not inherit the environment. The
-    /// default-enabled flags do not travel here; the receiving process derives
-    /// them from `defaultEnabled` itself.
+    /// feature flags to a process that does not inherit the environment.
     public static func environmentVariables(environment: Environmenting = Environment.current) -> [String: String] {
         environment.variables.filter { $0.key.hasPrefix(environmentPrefix) }
     }
 
     static func featureFlags(environment: Environmenting = Environment.current) -> [String] {
         environment.variables
-            .reduce(into: defaultEnabled) { featureFlags, variable in
+            .reduce(into: Set<String>()) { featureFlags, variable in
                 guard let featureName = featureName(from: variable.key) else { return }
 
                 if isEnabling(variable.value) {

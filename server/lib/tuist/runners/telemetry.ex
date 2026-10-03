@@ -31,6 +31,11 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
+  # The Buildkite lane's counterpart to `event_name_webhook`. Carries both
+  # what the queue held and what we reserved: the gap between them is a
+  # sibling stack taking our jobs, which no other signal would show.
+  def event_name_buildkite_poll, do: [:tuist, :runners, :buildkite, :poll]
+
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]
 
   # Queued jobs excluded from the autoscaler's demand signal because

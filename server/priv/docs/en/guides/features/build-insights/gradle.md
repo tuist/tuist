@@ -7,12 +7,6 @@
 ---
 # Gradle build insights {#gradle-build-insights}
 
-> [!WARNING]
-> **Requirements**
->
-> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
-
-
 Tuist's Gradle plugin can send build analytics to Tuist, giving you visibility into task execution and build performance.
 
 ## Configure upload behavior {#configure-upload-behavior}

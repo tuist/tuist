@@ -39,6 +39,15 @@ extension Tuist {
             case fail
         }
 
+        /// The on-disk format used to serialize each generated `.xcodeproj`.
+        public enum ProjectFormat: String, Codable, Equatable, Sendable {
+            /// The classic OpenStep property list format stored in `project.pbxproj`.
+            case pbxproj
+            /// The experimental JSON5 format introduced in Xcode 27.2, stored in `project.xcproj`.
+            /// Requires Xcode 27.2 or later to open the generated projects.
+            case xcproj
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -138,6 +147,10 @@ extension Tuist {
         /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
         public var onOutdatedDependencies: OutdatedDependenciesAction
 
+        /// The on-disk format used to serialize each generated `.xcodeproj`. Defaults to `.pbxproj`.
+        /// Set to `.xcproj` to opt into Xcode 27.2's experimental JSON5 project format.
+        public var projectFormat: ProjectFormat
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -153,7 +166,8 @@ extension Tuist {
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = "5",
             manifestEnvironment: [String] = [],
-            onOutdatedDependencies: OutdatedDependenciesAction = .warn
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -173,7 +187,8 @@ extension Tuist {
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
                 manifestEnvironment: manifestEnvironment,
-                onOutdatedDependencies: onOutdatedDependencies
+                onOutdatedDependencies: onOutdatedDependencies,
+                projectFormat: projectFormat
             )
         }
 
@@ -214,7 +229,8 @@ extension Tuist {
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
                 manifestEnvironment: [],
-                onOutdatedDependencies: .warn
+                onOutdatedDependencies: .warn,
+                projectFormat: .pbxproj
             )
         }
 
@@ -250,7 +266,8 @@ extension Tuist {
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
                 manifestEnvironment: [],
-                onOutdatedDependencies: .warn
+                onOutdatedDependencies: .warn,
+                projectFormat: .pbxproj
             )
         }
     }

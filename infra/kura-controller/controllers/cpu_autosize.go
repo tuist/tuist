@@ -1,0 +1,412 @@
+package controllers
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
+)
+
+const (
+	cpuBucketDuration   = 6 * time.Hour
+	cpuBucketCount      = 28
+	cpuSampleInterval   = time.Minute
+	cpuSustainedSamples = 10
+
+	cpuHeadroomNumerator   = 5
+	cpuHeadroomDenominator = 4
+
+	cpuColdStartMilli = 100
+
+	cpuShrinkMinBuckets = 8
+
+	cpuScheduleCapTTL = 24 * time.Hour
+
+	// This read is optional and runs before primary selection, holding a
+	// reconcile worker for its duration, so it may not outlast a
+	// metrics-server that accepts the connection and never answers. Losing a
+	// sample costs nothing: the ring holds six-hour windows and the next pass
+	// is 30 seconds away.
+	cpuMetricsTimeout = 2 * time.Second
+)
+
+// The scheduler names the short resource only in the condition message, built
+// per unfittable resource by NodeResourcesFit. Reason is `Unschedulable` for
+// every scheduling failure, disk, taints and affinity included.
+const insufficientCPUPredicate = "Insufficient cpu"
+
+// cpuUnobservedWindow marks a window that closed with no reading. It is
+// distinct from a reading of zero, which an idle pod genuinely produces.
+const cpuUnobservedWindow int32 = -1
+
+// Requests land on a band so load drifting within one does not re-template
+// the StatefulSet and roll its pods. The ends bound the reservation, not the
+// usage: the smallest keeps an idle pod at a real share under contention, and
+// the largest stops one instance reserving a whole box. What an instance may
+// actually use is spec.cpuCeilingMilli, which the plan grants and the kernel
+// enforces.
+var cpuRequestBands = []int32{50, 75, 100, 150, 250, 400, 600, 1000, 1500, 2000, 3000}
+
+// PodMetricsClient reads current per-pod CPU from the metrics.k8s.io
+// aggregated API.
+type PodMetricsClient interface {
+	PodCPUMilli(ctx context.Context, namespace string, selector map[string]string) (map[string]int64, error)
+}
+
+// A rebuild consumes CPU on both the joining replica and its serving donor.
+// Keep the existing reservation for the whole instance until every replica is
+// caught up. Ordinary replication after the initial cycle still counts.
+func (r *KuraInstanceReconciler) observeSteadyCPUUsage(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus) {
+	if r.MetricsClient == nil {
+		return
+	}
+	if !r.cpuObservationEligible(ctx, instance, pods, samples) {
+		if state := instance.Status.CPUAutosize; state != nil {
+			// Do not splice observations across a maintenance window, even when
+			// it starts and ends within one metrics-server sampling minute.
+			state.SamplesMilli = nil
+		}
+		return
+	}
+	r.observeCPUUsage(ctx, instance, pods)
+}
+
+func (r *KuraInstanceReconciler) cpuObservationEligible(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus) bool {
+	if len(pods) != int(replicas(instance)) {
+		return false
+	}
+	for i := range pods {
+		pod := &pods[i]
+		status, observed := samples[pod.Name]
+		if pod.DeletionTimestamp != nil || !podReady(pod) || !observed || !status.Ready || status.BackfillInitialCycle != backfillCycleComplete {
+			return false
+		}
+		// The marker precedes pod deletion. Exclude the source's CPU before
+		// the first replacement becomes visible, too. A failed lookup is
+		// missing evidence, never evidence of an idle or settled instance.
+		node := &corev1.Node{}
+		if pod.Spec.NodeName == "" || r.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node) != nil {
+			return false
+		}
+		if _, evacuating := node.Annotations[EvacuateNodeAnnotation]; evacuating {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) observeCPUUsage(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {
+	if r.MetricsClient == nil || len(pods) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, cpuMetricsTimeout)
+	defer cancel()
+	usage, err := r.MetricsClient.PodCPUMilli(ctx, instance.Namespace, selectorLabels(instance))
+	if err != nil {
+		log.FromContext(ctx).V(1).Info("failed to read Kura pod CPU usage", "error", err)
+		return
+	}
+
+	var peak int64
+	var reported bool
+	for i := range pods {
+		milli, ok := usage[pods[i].Name]
+		if !ok {
+			continue
+		}
+		reported = true
+		if milli > peak {
+			peak = milli
+		}
+	}
+	// A reading that could not be taken is not a reading of zero: folding one
+	// in would age real samples out of the ring and shrink the fleet.
+	if !reported {
+		return
+	}
+
+	instance.Status.CPUAutosize = observeCPUSample(instance.Status.CPUAutosize, peak, time.Now())
+}
+
+// A reconcile can run repeatedly on the same metrics-server reading. Count
+// at most one observation per minute, and require ten consecutive observed
+// minutes before feeding their mean to the long-lived sizing history.
+func observeCPUSample(state *kurav1alpha1.KuraInstanceCPUAutosize, milli int64, now time.Time) *kurav1alpha1.KuraInstanceCPUAutosize {
+	next := state.DeepCopy()
+	if next == nil {
+		next = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: cpuColdStartMilli}
+	}
+	minute := now.UTC().Truncate(cpuSampleInterval)
+	if next.SampledAt == nil {
+		// Legacy buckets contain instantaneous peaks, not sustained demand.
+		// Preserve the reservation and scheduling cap while rebuilding evidence.
+		next.PeakMilli = 0
+		next.BucketStartedAt = nil
+		next.BucketPeaksMilli = nil
+		next.SamplesMilli = nil
+	} else {
+		gap := minute.Sub(next.SampledAt.Time)
+		if gap <= 0 {
+			return next
+		}
+		if gap > cpuSampleInterval {
+			next.SamplesMilli = nil
+		}
+	}
+	next.SampledAt = &metav1.Time{Time: minute}
+	next.SamplesMilli = append(next.SamplesMilli, clampMilli(milli))
+	if len(next.SamplesMilli) > cpuSustainedSamples {
+		next.SamplesMilli = next.SamplesMilli[len(next.SamplesMilli)-cpuSustainedSamples:]
+	}
+	if len(next.SamplesMilli) < cpuSustainedSamples {
+		return next
+	}
+	var total int64
+	for _, sample := range next.SamplesMilli {
+		total += int64(sample)
+	}
+	return observeCPUPeak(next, (total+cpuSustainedSamples-1)/cpuSustainedSamples, now)
+}
+
+// Retain peaks of sustained demand so quiet weekends do not erase weekday
+// requirements. Raw metrics must pass through observeCPUSample first.
+func observeCPUPeak(state *kurav1alpha1.KuraInstanceCPUAutosize, peakMilli int64, now time.Time) *kurav1alpha1.KuraInstanceCPUAutosize {
+	next := state.DeepCopy()
+	if next == nil {
+		next = &kurav1alpha1.KuraInstanceCPUAutosize{}
+	}
+	sample := clampMilli(peakMilli)
+	start := now.UTC().Truncate(cpuBucketDuration)
+
+	switch {
+	case next.BucketStartedAt == nil || len(next.BucketPeaksMilli) == 0:
+		next.BucketPeaksMilli = []int32{sample}
+	case start.After(next.BucketStartedAt.Time):
+		steps := int(start.Sub(next.BucketStartedAt.Time) / cpuBucketDuration)
+		if steps > cpuBucketCount {
+			steps = cpuBucketCount
+		}
+		// Windows nothing was observed in are marked rather than
+		// backfilled: they contribute no peak, and they are not history
+		// either, so a gap cannot pass the shrink gate on its own.
+		for i := 1; i < steps; i++ {
+			next.BucketPeaksMilli = append(next.BucketPeaksMilli, cpuUnobservedWindow)
+		}
+		next.BucketPeaksMilli = append(next.BucketPeaksMilli, sample)
+	default:
+		last := len(next.BucketPeaksMilli) - 1
+		if sample > next.BucketPeaksMilli[last] {
+			next.BucketPeaksMilli[last] = sample
+		}
+	}
+
+	if overflow := len(next.BucketPeaksMilli) - cpuBucketCount; overflow > 0 {
+		next.BucketPeaksMilli = next.BucketPeaksMilli[overflow:]
+	}
+	next.BucketStartedAt = &metav1.Time{Time: start}
+	next.PeakMilli = 0
+	for _, bucket := range next.BucketPeaksMilli {
+		if bucket > next.PeakMilli {
+			next.PeakMilli = bucket
+		}
+	}
+	next.RequestMilli = nextCPURequestMilli(next)
+	return next
+}
+
+func nextCPURequestMilli(state *kurav1alpha1.KuraInstanceCPUAutosize) int32 {
+	want := cpuBand(int64(state.PeakMilli) * cpuHeadroomNumerator / cpuHeadroomDenominator)
+	current := state.RequestMilli
+	if current == 0 {
+		current = cpuColdStartMilli
+	}
+	// Growth applies at once. Shrinkage waits for a ring long enough that an
+	// instance which merely looks idle has been watched through a full day.
+	if want > current {
+		return want
+	}
+	if want < current && observedWindows(state) >= cpuShrinkMinBuckets {
+		return want
+	}
+	return current
+}
+
+func observedWindows(state *kurav1alpha1.KuraInstanceCPUAutosize) int {
+	observed := 0
+	for _, bucket := range state.BucketPeaksMilli {
+		if bucket != cpuUnobservedWindow {
+			observed++
+		}
+	}
+	return observed
+}
+
+func cpuBand(milli int64) int32 {
+	for _, band := range cpuRequestBands {
+		if milli <= int64(band) {
+			return band
+		}
+	}
+	return cpuRequestBands[len(cpuRequestBands)-1]
+}
+
+// bandBelow is the largest band under milli, bounded by the ladder's first
+// entry.
+func bandBelow(milli int32) int32 {
+	below := cpuRequestBands[0]
+	for _, band := range cpuRequestBands {
+		if band >= milli {
+			break
+		}
+		below = band
+	}
+	return below
+}
+
+func clampMilli(milli int64) int32 {
+	ceiling := int64(cpuRequestBands[len(cpuRequestBands)-1]) * cpuHeadroomDenominator
+	switch {
+	case milli < 0:
+		return 0
+	case milli > ceiling:
+		return int32(ceiling)
+	default:
+		return int32(milli)
+	}
+}
+
+func cpuRequestMilli(instance *kurav1alpha1.KuraInstance) int32 {
+	state := instance.Status.CPUAutosize
+	if state == nil {
+		return cpuColdStartMilli
+	}
+	milli := state.RequestMilli
+	if milli == 0 {
+		milli = cpuColdStartMilli
+	}
+	if state.ScheduleCapMilli > 0 && state.ScheduleCapMilli < milli {
+		return state.ScheduleCapMilli
+	}
+	return milli
+}
+
+// seedCPURequest adopts the request the instance is already running with, so
+// the first reading is compared against what is live rather than against the
+// cold-start constant. Without it the shrink gate never covers the largest
+// move of all: an instance carrying the flat request this replaces would drop
+// to the cold start on one quiet sample, before any history exists to justify
+// it. A brand-new instance has no pods to read, and keeps the cold start.
+//
+// A starting point rather than a floor: once a decision is persisted it
+// governs, or an instance that legitimately shrank would be dragged back up
+// by pods still running the value it shrank from.
+func seedCPURequest(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {
+	if state := instance.Status.CPUAutosize; state != nil && state.RequestMilli > 0 {
+		return
+	}
+
+	var seed int32
+	for i := range pods {
+		if milli := podCPURequestMilli(&pods[i]); milli > seed {
+			seed = milli
+		}
+	}
+	if seed == 0 {
+		return
+	}
+
+	state := instance.Status.CPUAutosize
+	if state == nil {
+		state = &kurav1alpha1.KuraInstanceCPUAutosize{}
+	}
+	state.RequestMilli = seed
+	instance.Status.CPUAutosize = state
+}
+
+// applyScheduleCap bounds the template request by what the scheduler has
+// shown it will admit. A raise the node cannot fit deletes the running pod
+// and leaves the replacement Pending, and a Pending pod reports no metrics,
+// so the observation that asked for the raise would otherwise hold it
+// forever. The cap is remembered, or the next pass would raise the request
+// again and roll the pod straight back into Pending.
+func applyScheduleCap(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, now time.Time) {
+	state := instance.Status.CPUAutosize
+	if state == nil {
+		state = &kurav1alpha1.KuraInstanceCPUAutosize{}
+	}
+
+	// The cap describes one moment's occupancy of one box, so it is
+	// forgotten once that box has had time to change.
+	if state.ScheduleCapSetAt != nil && now.Sub(state.ScheduleCapSetAt.Time) >= cpuScheduleCapTTL {
+		state.ScheduleCapMilli = 0
+		state.ScheduleCapSetAt = nil
+	}
+
+	var stuck, admitted int32
+	for i := range pods {
+		milli := podCPURequestMilli(&pods[i])
+		if podUnschedulableForCPU(&pods[i]) {
+			if stuck == 0 || milli < stuck {
+				stuck = milli
+			}
+			continue
+		}
+		if pods[i].Spec.NodeName != "" && milli > admitted {
+			admitted = milli
+		}
+	}
+
+	if stuck > 0 {
+		capped := bandBelow(stuck)
+		// A scheduled sibling is proof of what fits, so recovery is one
+		// step instead of a walk down the ladder.
+		if admitted > 0 && admitted < capped {
+			capped = admitted
+		}
+		if state.ScheduleCapMilli == 0 || capped < state.ScheduleCapMilli {
+			state.ScheduleCapMilli = capped
+			state.ScheduleCapSetAt = &metav1.Time{Time: now.UTC()}
+		}
+	}
+
+	if state.ScheduleCapMilli == 0 && state.RequestMilli == 0 && len(state.BucketPeaksMilli) == 0 {
+		return
+	}
+	instance.Status.CPUAutosize = state
+}
+
+// podUnschedulableForCPU is true only when the scheduler reports CPU among
+// what it could not fit. Lowering the reservation places a pod that CPU is
+// blocking and does nothing for one blocked on disk, a taint or affinity,
+// where it would shrink the instance's guarantee for a day without moving it.
+func podUnschedulableForCPU(pod *corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodPending {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodScheduled &&
+			condition.Status == corev1.ConditionFalse &&
+			condition.Reason == corev1.PodReasonUnschedulable &&
+			strings.Contains(condition.Message, insufficientCPUPredicate) {
+			return true
+		}
+	}
+	return false
+}
+
+func podCPURequestMilli(pod *corev1.Pod) int32 {
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name != kuraContainerName {
+			continue
+		}
+		request := pod.Spec.Containers[i].Resources.Requests.Cpu()
+		return int32(request.MilliValue())
+	}
+	return 0
+}

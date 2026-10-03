@@ -9,6 +9,7 @@ defmodule TuistWeb.LayoutComponents do
   def head_favicon_links(assigns) do
     ~H"""
     <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     """
@@ -134,9 +135,24 @@ defmodule TuistWeb.LayoutComponents do
       page_section: assigns.page_section
     }
 
-    assigns = assign(assigns, :analytics_opts, analytics_opts)
+    assigns =
+      assigns
+      |> assign(:analytics_opts, analytics_opts)
+      |> assign(
+        :glossia_enabled,
+        Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() and
+          not Map.get(assigns, :analytics_disabled?, false)
+      )
 
     ~H"""
+    <script
+      :if={@glossia_enabled}
+      async
+      nonce={get_csp_nonce()}
+      data-domain="tuist.dev"
+      src="https://glossia.ai/assets/glossia-web.js"
+    >
+    </script>
     <script nonce={get_csp_nonce()}>
       globalThis.analytics = <%= raw JSON.encode!(@analytics_opts) %>;
     </script>

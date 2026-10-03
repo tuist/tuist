@@ -12,7 +12,7 @@ defmodule Tuist.Kura.Demand do
 
   It is deliberately a proxy for cache traffic rather than a measure of it, and
   it errs in both directions. `tuist setup cache` installs a LaunchAgent with
-  `RunAtLoad`, so the cache daemon resolves an endpoint on every login: an
+  `RunAtLoad`, so the CAS proxy resolves an endpoint on every login: an
   account whose agent is installed but idle keeps refreshing its clock without
   anyone building, and may never reach a full inactive window. In the other
   direction the CLI caches a resolved endpoint for an hour, so most requests
@@ -52,7 +52,29 @@ defmodule Tuist.Kura.Demand do
   alias Tuist.Repo
 
   @table __MODULE__
+  @kick_table __MODULE__.Kicks
   @flush_interval to_timeout(minute: 1)
+
+  # How often one account may be kicked from this node. Matches both the
+  # cache-endpoint answer's max-age while provisioning and
+  # `Tuist.Kura.Workers.ProvisionOnDemandWorker`'s unique window, so a fleet of
+  # clients asking together collapses to the same one job that window already
+  # allows rather than to one write-through and one unique insert each.
+  @kick_interval_ms to_timeout(second: 5)
+
+  # Once an account has been kicked continuously for longer than a provisioning
+  # attempt is given before it counts as stalled
+  # (`Tuist.Kura.provisioning_stall_seconds/0`), nothing this path does is
+  # going to place it: it is being refused for capacity, or its provision is
+  # wedged. Both are operational problems the reconciler tick and the stalled
+  # instance alert own, so the kick drops back to the tick's own cadence rather
+  # than keeping a per-request cost on an account that will not be served.
+  @kick_backoff_after_ms to_timeout(minute: 15)
+  @kick_backoff_interval_ms to_timeout(minute: 1)
+
+  # A gap this much past an account's allowance is a new arrival rather than a
+  # continuing streak, so its backoff starts over.
+  @kick_streak_reset_ms to_timeout(minute: 5)
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -72,11 +94,16 @@ defmodule Tuist.Kura.Demand do
   say where from. A `nil` origin still records demand — an account the edge
   could not locate keeps its instance warm exactly as before, it just does not
   vote on where the instance goes.
-  """
-  def record(account_id, origin \\ nil)
 
-  def record(account_id, origin) when is_integer(account_id) do
-    Origins.record_demand(account_id, origin)
+  `persist_origin: true` writes the origin count through instead of buffering
+  it, for a request about to have its instance placed by a job that may run on
+  another node (`Tuist.Kura.Workers.ProvisionOnDemandWorker`), where this
+  node's buffer is not visible.
+  """
+  def record(account_id, origin \\ nil, opts \\ [])
+
+  def record(account_id, origin, opts) when is_integer(account_id) do
+    Origins.record_demand(account_id, origin, persist: Keyword.get(opts, :persist_origin, false))
 
     if Environment.kura_demand_write_through_repo?() do
       persist([{account_id, System.system_time(:second)}])
@@ -89,7 +116,7 @@ defmodule Tuist.Kura.Demand do
     ArgumentError -> :ok
   end
 
-  def record(_account_id, _origin), do: :ok
+  def record(_account_id, _origin, _opts), do: :ok
 
   @doc """
   Drains this node's buffer into `kura_account_region_lifecycles`. Called on
@@ -120,6 +147,64 @@ defmodule Tuist.Kura.Demand do
   end
 
   @doc """
+  Whether this node should act on an account's unserved cache-endpoint
+  resolution now, rather than leave it to the one it already acted on.
+
+  Acting costs a write-through of the request's origin and a unique job insert,
+  which for an account with no instance serving is every client of that account
+  on every request. That is the right price once, for the account about to be
+  provisioned; paying it per request buys nothing, because the work it
+  schedules is deduplicated anyway.
+
+  Returns `true` for the first resolution in `@kick_interval_ms`, and backs a
+  long streak off to the reconciler's own cadence — see `@kick_backoff_after_ms`.
+  Returns `true` unconditionally before the buffer has started, so a node
+  without it behaves as it did.
+  """
+  def claim_provision_kick(account_id) when is_integer(account_id) do
+    now = System.monotonic_time(:millisecond)
+
+    case :ets.lookup(@kick_table, account_id) do
+      [{^account_id, next_allowed_ms, _streak_started_ms}] when next_allowed_ms > now ->
+        false
+
+      [{^account_id, next_allowed_ms, streak_started_ms}] ->
+        streak_started_ms =
+          if now - next_allowed_ms > @kick_streak_reset_ms, do: now, else: streak_started_ms
+
+        claim(account_id, now, streak_started_ms)
+
+      [] ->
+        claim(account_id, now, now)
+    end
+  rescue
+    # Racing a node that has not started its buffer yet: kick rather than
+    # silently turning the fast path off.
+    ArgumentError -> true
+  end
+
+  def claim_provision_kick(_account_id), do: false
+
+  defp claim(account_id, now, streak_started_ms) do
+    interval =
+      if now - streak_started_ms > @kick_backoff_after_ms,
+        do: @kick_backoff_interval_ms,
+        else: @kick_interval_ms
+
+    :ets.insert(@kick_table, {account_id, now + interval, streak_started_ms})
+    true
+  end
+
+  @doc """
+  Writes one account's demand through the caller's connection at once, instead
+  of leaving it in this node's buffer. For a caller that is about to act on the
+  demand, possibly on another node, and so cannot wait for a flush.
+  """
+  def persist_now(account_id, %DateTime{} = demand_at) do
+    persist([{account_id, DateTime.to_unix(demand_at)}])
+  end
+
+  @doc """
   The lifecycle row for an account-region, or `nil` when the account has never
   asked for Kura cache in that region.
   """
@@ -132,12 +217,22 @@ defmodule Tuist.Kura.Demand do
 
   Cache-endpoint resolution uses this to decide what to answer while no Kura
   instance is serving: a lifecycle-managed account falls back to the
-  Tuist-hosted default lane rather than to its own legacy custom endpoints,
-  because routing archived accounts at the custom-endpoint path would make
-  archival the thing that keeps that path alive.
+  Tuist-hosted default lane, or gets no endpoints for a client that is always
+  routed to Kura, rather than to its own legacy custom endpoints, because
+  routing archived accounts at the custom-endpoint path would make archival the
+  thing that keeps that path alive.
   """
   def lifecycle_managed?(%Account{id: account_id}) do
     Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id))
+  end
+
+  @doc """
+  True when an instance of the account was reclaimed for never storing anything
+  and has not been returned since. Only cache demand recorded after that
+  archival returns it.
+  """
+  def unused_hold?(%Account{id: account_id}) do
+    Repo.exists?(from(l in AccountRegionLifecycle, where: l.account_id == ^account_id and l.drain_reason == :unused))
   end
 
   @doc """
@@ -153,13 +248,19 @@ defmodule Tuist.Kura.Demand do
   leaving the client caching a stand-in lane for its full interval.
 
   The cost is that an account the region keeps refusing for capacity reports
-  `true` for as long as that lasts, and re-resolves every 30 seconds. That is
-  accepted: a region with no room is an operational problem to be alerted on
-  and fixed by adding a machine, not a steady state to design around. The
-  `capacity_refused` counter is the signal for it.
+  `true` for as long as that lasts, and re-resolves on the provisioning
+  answer's short max age. That is accepted: a region with no room is an
+  operational problem to be alerted on and fixed by adding a machine, not a
+  steady state to design around, and `claim_provision_kick/1` keeps the
+  re-resolutions from each doing provisioning work. The `capacity_refused`
+  counter is the signal for it.
+
+  Resolved without reading room and without recording a placement
+  (`AccountPolicies.resolvable?/1`): the answer does not depend on which
+  region, and a request is not where a placement should be taken.
   """
   def instance_expected?(%Account{} = account) do
-    match?({:ok, _resolution}, AccountPolicies.resolve(account))
+    AccountPolicies.resolvable?(account)
   end
 
   @doc """
@@ -200,6 +301,7 @@ defmodule Tuist.Kura.Demand do
   @impl GenServer
   def init(opts) do
     :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
+    :ets.new(@kick_table, [:named_table, :public, :set, write_concurrency: true, read_concurrency: true])
     interval = Keyword.get(opts, :flush_interval, @flush_interval)
     schedule_flush(interval)
     {:ok, %{flush_interval: interval}}
@@ -208,8 +310,19 @@ defmodule Tuist.Kura.Demand do
   @impl GenServer
   def handle_info(:flush, state) do
     drain()
+    expire_kicks()
     schedule_flush(state.flush_interval)
     {:noreply, state}
+  end
+
+  # An account that stopped asking keeps no row: its next resolution starts a
+  # fresh streak anyway, so the entry only holds memory.
+  defp expire_kicks do
+    cutoff = System.monotonic_time(:millisecond) - @kick_streak_reset_ms
+
+    :ets.select_delete(@kick_table, [
+      {{:_, :"$1", :_}, [{:<, :"$1", cutoff}], [true]}
+    ])
   end
 
   defp schedule_flush(interval), do: Process.send_after(self(), :flush, interval)
@@ -285,29 +398,50 @@ defmodule Tuist.Kura.Demand do
   defp upsert_all(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    rows =
-      Enum.map(rows, fn row ->
-        row
-        |> Map.put(:id, UUIDv7.generate())
-        |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
-        |> Map.put(:inserted_at, now)
-        |> Map.put(:updated_at, now)
-      end)
+    Repo.transaction(fn ->
+      live_account_ids = lock_live_account_ids(Enum.map(rows, & &1.account_id))
 
-    {count, _} =
-      Repo.insert_all(AccountRegionLifecycle, rows,
-        conflict_target: [:account_id, :service_region],
-        on_conflict:
-          from(l in AccountRegionLifecycle,
-            update: [
-              set: [
-                last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
-                updated_at: fragment("EXCLUDED.updated_at")
+      rows =
+        rows
+        |> Enum.filter(&MapSet.member?(live_account_ids, &1.account_id))
+        |> Enum.map(fn row ->
+          row
+          |> Map.put(:id, UUIDv7.generate())
+          |> Map.update!(:last_cache_demand_at, &DateTime.truncate(&1, :second))
+          |> Map.put(:inserted_at, now)
+          |> Map.put(:updated_at, now)
+        end)
+
+      {count, _} =
+        Repo.insert_all(AccountRegionLifecycle, rows,
+          conflict_target: [:account_id, :service_region],
+          on_conflict:
+            from(l in AccountRegionLifecycle,
+              update: [
+                set: [
+                  last_cache_demand_at: fragment("GREATEST(?, EXCLUDED.last_cache_demand_at)", l.last_cache_demand_at),
+                  updated_at: fragment("EXCLUDED.updated_at")
+                ]
               ]
-            ]
-          )
-      )
+            )
+        )
 
-    {:ok, count}
+      count
+    end)
+  end
+
+  # An account deleted between resolving its region and this insert would fail
+  # the foreign key and crash the buffer, dropping every other account's
+  # buffered demand with it. The key-share lock holds off a concurrent delete
+  # until the insert commits; an already-deleted account is simply skipped.
+  defp lock_live_account_ids(account_ids) do
+    from(a in Account,
+      where: a.id in ^Enum.uniq(account_ids),
+      order_by: a.id,
+      select: a.id,
+      lock: "FOR KEY SHARE"
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 end

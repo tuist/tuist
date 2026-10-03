@@ -13,9 +13,22 @@ defmodule TuistWeb.CldrHelpers do
     {locale, opts} = Keyword.pop(opts, :locale)
     digits = Keyword.get(opts, :fractional_digits, 0)
 
-    number
-    |> decimal()
-    |> format_decimal(locale(locale), digits)
+    number = decimal(number)
+    locale = locale(locale)
+
+    if Decimal.compare(Decimal.abs(number), 10_000) == :lt do
+      format_decimal(number, locale, digits)
+    else
+      # Promote rounded unit boundaries (999.95K becomes 1M, not 1000K).
+      {divisor, suffix} =
+        Enum.find([{1_000_000_000_000, "T"}, {1_000_000_000, "B"}, {1_000_000, "M"}, {1_000, "K"}], fn {divisor, _} ->
+          Decimal.compare(Decimal.abs(number), divisor - div(divisor, 20_000)) != :lt
+        end)
+
+      scaled = number |> Decimal.div(divisor) |> Decimal.round(1)
+      digits = if Decimal.equal?(scaled, Decimal.round(scaled)), do: 0, else: 1
+      format_decimal(scaled, locale, digits) <> suffix
+    end
   end
 
   def format_money(%Money{} = money, opts \\ []) do

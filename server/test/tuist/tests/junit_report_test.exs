@@ -3,6 +3,32 @@ defmodule Tuist.Tests.JunitReportTest do
 
   alias Tuist.Tests.JunitReport
 
+  test "matches the shared command-line identity fixtures" do
+    directory = Path.expand("../../../../cli/Tests/Fixtures/JUnitIdentity", __DIR__)
+    fixtures = directory |> Path.join("expected.json") |> File.read!() |> JSON.decode!()
+    reports = directory |> File.ls!() |> Enum.filter(&String.ends_with?(&1, ".xml"))
+    assert Enum.sort(Enum.map(fixtures, & &1["file"])) == Enum.sort(reports)
+
+    for fixture <- fixtures do
+      report = directory |> Path.join(fixture["file"]) |> File.read!()
+      assert {:ok, %{test_cases: cases}} = JunitReport.parse(report)
+      identities = Enum.map(cases, &%{"suite" => &1.test_suite_name, "name" => &1.name})
+      assert identities == fixture["cases"], "Identity mismatch in #{fixture["file"]}"
+    end
+  end
+
+  test "distinguishes the same method name in different reported classes" do
+    report = """
+    <testsuite name="All tests">
+      <testcase classname="FirstClass" name="test"><failure>failed</failure></testcase>
+      <testcase classname="SecondClass" name="test"/>
+    </testsuite>
+    """
+
+    assert {:ok, parsed} = JunitReport.parse(report)
+    assert Enum.map(parsed.test_cases, & &1.test_suite_name) == ["FirstClass", "SecondClass"]
+  end
+
   test "parses individual JUnit test cases and their failures" do
     report = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -18,8 +44,6 @@ defmodule Tuist.Tests.JunitReportTest do
     """
 
     assert {:ok, parsed} = JunitReport.parse(report)
-
-    assert parsed.test_suites == [%{name: "ExampleTests", status: "failure", duration: 376}]
 
     assert parsed.test_cases == [
              %{

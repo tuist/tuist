@@ -1,0 +1,42 @@
+# Runs one GitHub Actions job on a Mac mini we own, in the BER1 rack, to prove
+# the machine is a working CI runner and not merely a registered Node.
+#
+# `runs-on` targets the `tuist-ber1-smoke` dispatch label. That label reaches
+# the STAGING Tuist server's webhook handler, which matches it to the rack pool
+# in values-managed-staging.yaml and dispatches a runner onto a rack Node.
+# Production receives the same webhook, has no pool with this label, and ignores
+# it.
+#
+# Manual dispatch only. There is one prototype box behind a home subnet router,
+# so this must never sit in a repository's automatic path.
+name: BER1 Smoke
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Run on rack hardware
+    runs-on: tuist-ber1-smoke
+    timeout-minutes: 20
+    steps:
+      - name: Identify the machine this job is running on
+        run: |
+          echo "host      : $(scutil --get LocalHostName 2>/dev/null || hostname)"
+          echo "serial    : $(system_profiler SPHardwareDataType | awk -F': ' '/Serial Number/{print $2}')"
+          echo "chip      : $(system_profiler SPHardwareDataType | awk -F': ' '/Chip/{print $2}')"
+          echo "macOS     : $(sw_vers -productVersion)"
+          echo "arch      : $(uname -m)"
+          echo "uptime    : $(uptime)"
+
+      - name: Do actual work
+        run: |
+          set -euo pipefail
+          swift --version
+          # Something with a real, checkable result rather than a bare echo.
+          python3 -c "print(sum(i*i for i in range(1_000_000)))" > /tmp/sum.txt
+          test "$(cat /tmp/sum.txt)" = "333332833333500000"
+          echo "computed and verified on rack hardware"

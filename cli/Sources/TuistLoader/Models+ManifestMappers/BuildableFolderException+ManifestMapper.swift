@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistSupport
 import XcodeGraph
 
 extension XcodeGraph.BuildableFolderException {
@@ -13,13 +14,13 @@ extension XcodeGraph.BuildableFolderException {
     ) async throws -> Self {
         var excluded: [AbsolutePath] = []
         for pattern in manifest.excluded {
-            let expandedPaths = try await fileSystem.glob(directory: buildableFolder, include: [pattern]).collect()
+            let expandedPaths = try await fileSystem.manifestGlob(directory: buildableFolder, include: [pattern]).collect()
             excluded.append(contentsOf: expandedPaths)
         }
 
         var included: [AbsolutePath] = []
         for pattern in manifest.included {
-            let expandedPaths = try await fileSystem.glob(directory: buildableFolder, include: [pattern]).collect()
+            let expandedPaths = try await fileSystem.manifestGlob(directory: buildableFolder, include: [pattern]).collect()
             included.append(contentsOf: expandedPaths)
         }
 

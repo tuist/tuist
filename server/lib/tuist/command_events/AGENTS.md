@@ -3,6 +3,7 @@
 This context owns command event ingestion and analytics retrieval.
 
 ## Responsibilities
+- Share the cache counting-window rule (calendar month or later free-tier reset) with Air usage notifications through `usage_counted_from/2`.
 - Query and paginate command events from ClickHouse (including test runs).
 - Resolve associated user/project metadata and normalize enums.
 - Manage result bundle storage keys and signed download URLs.

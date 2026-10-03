@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -206,5 +207,95 @@ func TestEgressClassPodAnnotation(t *testing.T) {
 	}
 	if _, ok := egressClassPodAnnotation(unshaped); ok {
 		t.Fatal("must not render for unshaped instances")
+	}
+}
+
+type failingReader struct{ t *testing.T }
+
+func (r failingReader) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	r.t.Fatal("an allocated instance must not read the apiserver")
+	return nil
+}
+
+func (r failingReader) List(context.Context, client.ObjectList, ...client.ListOption) error {
+	r.t.Fatal("an allocated instance must not read the apiserver")
+	return nil
+}
+
+// Listing every KuraInstance from the apiserver on every reconcile made one pass
+// over the namespace quadratic. Once an instance carries its account's id, the
+// informer cache is enough to confirm it.
+func TestReconcileEgressClassIDReadsOnlyTheCacheOnceAllocated(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "kura-acme-eu",
+			Namespace:   "kura",
+			Annotations: map[string]string{egressClassIDAnnotation: formatEgressClassID(egressClassIDCandidate("acme"))},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:  "acme",
+			PodAnnotations: map[string]string{"kubernetes.io/egress-bandwidth": "1500M"},
+		},
+	}
+	r := &KuraInstanceReconciler{
+		Client:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build(),
+		APIReader: failingReader{t: t},
+		Scheme:    scheme,
+	}
+
+	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Allocation still decides against the apiserver: a claim another reconcile
+// wrote a moment ago may not have reached the cache yet.
+func TestReconcileEgressClassIDAllocatesAgainstTheAPIServer(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	shaped := func(name, account string) *kurav1alpha1.KuraInstance {
+		return &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+			Spec: kurav1alpha1.KuraInstanceSpec{
+				AccountHandle:  account,
+				PodAnnotations: map[string]string{"kubernetes.io/egress-bandwidth": "1500M"},
+			},
+		}
+	}
+	collision := egressClassIDCandidate("acme")
+	acme := shaped("kura-acme-eu", "acme")
+	cachedOther := shaped("kura-other-eu", "other")
+	liveOther := cachedOther.DeepCopy()
+	liveOther.Annotations = map[string]string{egressClassIDAnnotation: formatEgressClassID(collision)}
+	r := &KuraInstanceReconciler{
+		Client:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(acme, cachedOther).Build(),
+		APIReader: fake.NewClientBuilder().WithScheme(scheme).WithObjects(acme.DeepCopy(), liveOther).Build(),
+		Scheme:    scheme,
+	}
+
+	if err := r.reconcileEgressClassID(ctx, acme); err != nil {
+		t.Fatal(err)
+	}
+
+	allocated, ok := parseEgressClassID(acme.Annotations[egressClassIDAnnotation])
+	if !ok {
+		t.Fatalf("expected an allocated id, got %v", acme.Annotations)
+	}
+	if allocated == collision {
+		t.Fatalf("allocated %#x, which the apiserver already shows claimed by another account", allocated)
 	}
 }

@@ -374,25 +374,27 @@ spec:
                   type: array
                 bootstrapAttempts:
                   description: |-
-                    BootstrapAttempts counts consecutive bootstrap (Stage 2)
-                    failures on the currently-adopted host. Reset to zero on a
-                    successful bootstrap or whenever the underlying ServerID
-                    changes (mini swapped out). Drives the tiered recovery
-                    escalation in the BootstrapFailed path: at the reboot threshold
-                    the controller asks Scaleway to reboot the host to clear
-                    volatile state (PAM lockouts, sshd throttling, half-open
-                    connections); at the release threshold it returns the host to
-                    the adopt pool so the next reconcile claims a different mini.
+                    BootstrapAttempts counts consecutive bootstrap failures on the currently
+                    held host. Reset to zero on a successful bootstrap, and whenever the
+                    underlying host changes (a mini swapped out), since the count describes
+                    a host rather than a Machine. It drives each kind's tiered recovery
+                    escalation: at the reboot threshold the controller clears volatile host
+                    state (PAM lockouts, sshd throttling, half-open connections), and at the
+                    give-up threshold it stops retrying the same box: the Scaleway kind by
+                    releasing it so a different mini gets claimed, the static kind by
+                    quarantining it, since releasing hardware we own would hand back the
+                    same broken host.
                   format: int32
                   type: integer
                 bootstrapRebootIssued:
                   description: |-
-                    BootstrapRebootIssued records that a recovery reboot has
-                    already been triggered for the current host. Prevents
-                    re-rebooting the same host on every retry after the threshold
-                    crossing. Cleared when the underlying ServerID changes (mini
-                    swapped out, e.g., via release-to-pool) or on successful
-                    bootstrap.
+                    BootstrapRebootIssued records that a recovery reboot has already been
+                    triggered for the current host, so a long retry tail doesn't re-reboot
+                    it on every attempt past the threshold. Cleared when the host changes or
+                    on a successful bootstrap. What "reboot" means is kind-specific: the
+                    Scaleway kind calls the provider API, the static kind cycles the host's
+                    PDU outlet, which is a reboot because Apple silicon powers on when mains
+                    is applied.
                   type: boolean
                 conditions:
                   description: |-
@@ -440,18 +442,53 @@ spec:
                       - type
                     type: object
                   type: array
+                failedHostConfigHash:
+                  description: |-
+                    FailedHostConfigHash records the desired hash that exhausted its
+                    update-retry budget and drove the CR terminal. A broken config can never
+                    be applied, so HostConfigHash never advances to it and a
+                    desired-vs-last-applied comparison would see drift forever, resetting
+                    the retry cap on every reconcile. Comparing desired-vs-failed keeps the
+                    cap for an unchanged broken config while still retrying a new one.
+                  type: string
                 failureMessage:
                   type: string
                 failureReason:
                   description: |-
-                    FailureReason / FailureMessage are set on terminal failures. CAPI
-                    core surfaces them on the Machine object and prevents auto-retry.
+                    FailureReason / FailureMessage are set on terminal failures. CAPI core
+                    surfaces them on the Machine object and stops auto-driving it.
+                  type: string
+                hostConfigHash:
+                  description: |-
+                    HostConfigHash is the fleet-wide canonical hash of every host config the
+                    operator pushes: the rendered install scripts plus the embedded
+                    binaries (bootstrap.HostConfigHash). Drift between this and the
+                    operator's own computed hash re-pushes on the next reconcile, so a
+                    change to ANY pushed config (a script tweak, a fleet CIDR, a re-baked
+                    binary) rolls to existing hosts rather than only a binary change.
+                  type: string
+                lastUpdateFailureTime:
+                  description: |-
+                    LastUpdateFailureTime is when the drift loop last recorded a failure for
+                    this host. It exists so the terminal state can expire on a timer:
+                    FailedHostConfigHash alone only lifts it when a NEW config ships, which
+                    is right for a config the host rejected and wrong for the far more
+                    common verdict: the host was simply unreachable (`dial tcp ...:22: i/o
+                    timeout`). Those hosts otherwise stay terminal indefinitely while
+                    remaining Ready, schedulable, and running jobs against a host config
+                    frozen at whatever the operator last managed to push, so a fleet-wide
+                    fix rolls out and silently misses them. Re-arming after a cooldown lets
+                    a host that has since come back take the current config on its own,
+                    while a genuinely broken config still backs off to one attempt budget
+                    per cooldown rather than per reconcile.
+                  format: date-time
                   type: string
                 phase:
                   description: |-
-                    Phase tracks lifecycle: Pending | Provisioning | Bootstrapping |
-                    Ready | Deleting | Failed. Operator-facing only; CAPI core
-                    drives off Ready + Conditions.
+                    Phase tracks lifecycle for operators: Pending | Adopting |
+                    Bootstrapping | Ready | Deleting | Failed. CAPI core drives off Ready +
+                    Conditions instead; this is the human-readable summary and the series
+                    the stuck-Failed alert keys on.
                   type: string
                 ready:
                   description: |-
@@ -465,62 +502,26 @@ spec:
                     mini. The Machine reconciler uses this for delete + status
                     polling against Scaleway's API.
                   type: string
-                failedHostConfigHash:
-                  description: |-
-                    FailedHostConfigHash records the desired HostConfigHash that
-                    exhausted its update-retry budget and drove the CR into the
-                    terminal Failed state. A broken config can never be applied, so
-                    HostConfigHash never advances to it and comparing
-                    desired-vs-last-applied would see drift forever and reset the
-                    retry cap every reconcile. Comparing desired-vs-FailedHostConfigHash
-                    instead keeps the cap for an unchanged broken config while still
-                    retrying a genuinely new one.
-                  type: string
-                lastUpdateFailureTime:
-                  description: |-
-                    LastUpdateFailureTime is when the drift loop last recorded an
-                    update failure for this host. It exists so the terminal Failed
-                    state can expire: FailedHostConfigHash alone only lifts it when a
-                    NEW config ships, which is right for a config the host rejected
-                    but wrong for the far more common verdict — the host was simply
-                    unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
-                    terminal indefinitely while remaining Ready and schedulable, so
-                    they kept running jobs on a host config frozen at whatever the
-                    operator last managed to push. Re-arming after a cooldown lets a
-                    host that has since come back take the current config on its own,
-                    while a genuinely broken config still backs off to a handful of
-                    attempts per cooldown instead of hammering every reconcile.
-                  format: date-time
-                  type: string
-                hostConfigHash:
-                  description: |-
-                    HostConfigHash is the fleet-wide canonical hash of every host
-                    config the operator pushes — the rendered install scripts plus
-                    the embedded binaries (bootstrap.HostConfigHash). Drift between
-                    this and the operator's own computed hash re-pushes the host
-                    config on the next reconcile, so a change to ANY pushed config (a
-                    script tweak, a fleet CIDR, or a re-baked binary) rolls to
-                    existing hosts instead of only a tart-kubelet binary change.
-                  type: string
                 tartKubeletBinarySHA:
                   description: |-
-                    TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary
-                    currently installed on the Mac mini. Drift between this and the
-                    operator's own baked-in binary SHA triggers a rolling update of
-                    the agent on each reconcile.
+                    TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary currently
+                    installed on the host, stamped after each successful push. It is a
+                    record, not the drift trigger: HostConfigHash is, and it covers this
+                    binary among everything else.
                   type: string
                 tartKubeletUpdateAttempts:
                   description: |-
-                    TartKubeletUpdateAttempts counts consecutive failures of the
-                    drift-loop's UpdateTartKubelet call. Reset to zero on success.
-                    Once it crosses the operator's max-attempts threshold the CR
-                    transitions to a terminal Failed state with FailureReason set
-                    to "TartKubeletUpdateExceededRetries"; CAPI core surfaces that
-                    on the parent Machine and stops auto-driving it. Recovery is
-                    manual: clear FailureReason + zero this counter to resume the
-                    loop. Without this cap a persistently-broken host (binary
-                    corruption, disk-full, network partition) gets SSH-hammered
-                    every 60s indefinitely with no terminal-failure signal.
+                    TartKubeletUpdateAttempts counts consecutive failures of the drift
+                    loop's host-config push. Reset to zero on success. Once it crosses the
+                    operator's max-attempts threshold the CR transitions to a terminal
+                    Failed state with FailureReason "TartKubeletUpdateExceededRetries";
+                    CAPI core surfaces that on the parent Machine and stops auto-driving
+                    it. Recovery is automatic on a new config or an elapsed cooldown (see
+                    FailedHostConfigHash and LastUpdateFailureTime), and operator-driven
+                    before then: clear failureReason and zero this counter. Without the cap
+                    a persistently-broken host (binary corruption, a full disk, a network
+                    partition) gets SSH-hammered every 60s forever with no terminal signal
+                    for ops to alert on.
                   format: int32
                   type: integer
               type: object

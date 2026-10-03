@@ -4,13 +4,16 @@ defmodule TuistWeb.API.CacheController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
   alias Tuist.API.Pipeline
   alias Tuist.Authorization
   alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Kura
+  alias Tuist.Kura.Identity
   alias Tuist.Storage
+  alias TuistWeb.API.Authorization.BillingPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
@@ -39,7 +42,7 @@ defmodule TuistWeb.API.CacheController do
        ]
        when action not in [:access, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token]
+  plug BillingPlug when action not in [:access, :endpoints, :token]
 
   plug :sign
 
@@ -64,7 +67,7 @@ defmodule TuistWeb.API.CacheController do
         headers: %{
           "cache-control" => %OpenApiSpex.Header{
             description:
-              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.",
+              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.",
             schema: %Schema{type: :string}
           }
         },
@@ -79,6 +82,11 @@ defmodule TuistWeb.API.CacheController do
                 endpoints: %Schema{
                   type: :array,
                   items: %Schema{type: :string}
+                },
+                provisioning: %Schema{
+                  type: :boolean,
+                  description:
+                    "Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready."
                 }
               }
             }
@@ -97,23 +105,101 @@ defmodule TuistWeb.API.CacheController do
   # its endpoint is unpublished, so an answer held for its full life is never
   # pointing at something already gone. `Tuist.Kura.placement_drain_seconds/0`
   # is what guarantees it.
-  @provisioning_cache_max_age 30
+  @provisioning_cache_max_age 5
+
+  # The first CLI and Gradle plugin versions that no longer send the `kura` client
+  # feature flag. They are always routed to Kura, and never to the legacy cache
+  # nodes. A CLI built from source reports `x.y.z`.
+  @kura_minimum_cli_version Version.parse!("4.209.0-canary.23")
+  @kura_minimum_gradle_plugin_version Version.parse!("0.15.0")
+
+  # The first CLI version that falls back to the local cache when this endpoint
+  # refuses the account, rather than failing the cache proxy or `tuist bazel
+  # setup`. Earlier versions get an empty endpoint list instead.
+  @forbidden_minimum_cli_version Version.parse!("4.211.0")
 
   # Answers where the cache is, not whether the caller may use it. Clients hold
   # the answer for up to an hour, so a plan that lapses inside that window would
   # never be reported here; the refusal belongs on the token exchange, and
   # finally on the cache node itself.
+  #
+  # Membership is the exception: a caller that cannot read the account's cache
+  # at all is refused, so the client can say which account it is logged in as.
   def endpoints(conn, params) do
-    %{endpoints: endpoints, provisioning: provisioning} =
-      params[:account_handle]
-      |> authorized_account_handle(conn)
-      |> Accounts.get_cache_resolution_for_handle(technology(conn), RemoteIp.attributed_origin(conn))
+    technology = technology(conn)
+    account_handle = params[:account_handle]
+    authorized_account_handle = authorized_account_handle(account_handle, conn)
 
-    max_age = if provisioning, do: @provisioning_cache_max_age, else: Kura.endpoint_freshness_seconds()
+    if is_binary(account_handle) and is_nil(authorized_account_handle) and handles_forbidden_endpoints?(conn) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: forbidden_endpoints_message(conn, account_handle)})
+    else
+      render_endpoints(conn, authorized_account_handle, technology)
+    end
+  end
+
+  defp render_endpoints(conn, account_handle, technology) do
+    %{endpoints: endpoints, provisioning: provisioning} =
+      Accounts.get_cache_resolution_for_handle(account_handle, technology, RemoteIp.attributed_origin(conn))
+
+    # `no-cache` while provisioning: `:kura` clients poll this endpoint until the
+    # instance serves, and an HTTP cache honoring the max-age would answer every
+    # poll with the same empty list.
+    cache_control =
+      cond do
+        provisioning and technology == :kura -> "private, no-cache, max-age=#{@provisioning_cache_max_age}"
+        provisioning -> "private, max-age=#{@provisioning_cache_max_age}"
+        true -> "private, max-age=#{Kura.endpoint_freshness_seconds()}"
+      end
 
     conn
-    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
-    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1)})
+    |> put_resp_header("cache-control", cache_control)
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
+  end
+
+  defp technology(conn) do
+    cond do
+      kura_client?(conn) -> :kura
+      Headers.get_client_feature_flag(conn, "kura") -> :kura_with_legacy_fallback
+      true -> :legacy
+    end
+  end
+
+  defp kura_client?(conn) do
+    cond do
+      Headers.get_cli_version_string(conn) == "x.y.z" ->
+        true
+
+      cli_version = Headers.get_cli_version(conn) ->
+        Version.compare(cli_version, @kura_minimum_cli_version) != :lt
+
+      gradle_plugin_version = Headers.get_gradle_plugin_version(conn) ->
+        Version.compare(gradle_plugin_version, @kura_minimum_gradle_plugin_version) != :lt
+
+      true ->
+        false
+    end
+  end
+
+  defp handles_forbidden_endpoints?(conn) do
+    cond do
+      Headers.get_cli_version_string(conn) == "x.y.z" -> true
+      cli_version = Headers.get_cli_version(conn) -> Version.compare(cli_version, @forbidden_minimum_cli_version) != :lt
+      true -> false
+    end
+  end
+
+  defp forbidden_endpoints_message(conn, account_handle) do
+    case Authentication.authenticated_subject(conn) do
+      %User{} = user ->
+        user_account_name = Accounts.get_account_from_user(user).name
+
+        "You are logged in as '#{user_account_name}', which is not a member of '#{account_handle}', so you can't access its remote cache. Log in with an account that has access to '#{account_handle}', or ask one of its admins to invite you."
+
+      _ ->
+        "The credentials in use cannot access the remote cache of '#{account_handle}'."
+    end
   end
 
   defp free_tier_exhausted_account(nil), do: nil
@@ -125,30 +211,26 @@ defmodule TuistWeb.API.CacheController do
   end
 
   defp render_free_tier_exhausted(conn, account) do
+    message =
+      if Billing.payment_failed?(account) do
+        BillingPlug.payment_failed_message(account.name)
+      else
+        "The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}."
+      end
+
     conn
     |> put_status(:payment_required)
-    |> json(%{
-      message:
-        "The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}."
-    })
+    |> json(%{message: message})
   end
 
   defp authorized_account_handle(nil, _conn), do: nil
 
   defp authorized_account_handle(account_handle, conn) do
-    account = Accounts.get_account_by_handle(account_handle)
+    account = Identity.account_for_handle(account_handle)
     subject = Authentication.authenticated_subject(conn)
 
     if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
-      account_handle
-    end
-  end
-
-  defp technology(conn) do
-    if Headers.get_client_feature_flag(conn, "kura") do
-      :kura
-    else
-      :default
+      account.name
     end
   end
 
@@ -177,6 +259,12 @@ defmodule TuistWeb.API.CacheController do
                type: :array,
                description:
                  "Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.",
+               items: %Schema{type: :string}
+             },
+             payment_failed: %Schema{
+               type: :array,
+               description:
+                 "The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.",
                items: %Schema{type: :string}
              }
            }

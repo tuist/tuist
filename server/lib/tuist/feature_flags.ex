@@ -4,6 +4,17 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
 
   @doc """
+  Whether the account may advertise and receive its managed stable cache
+  hostname. Canary is automatically enabled. Every other environment requires
+  the `:kura_stable_hostname` flag for the account or for everyone. The same
+  flag controls advertising intent and URL hand-out; readiness still gates
+  publication and endpoint selection.
+  """
+  def kura_stable_hostname_enabled?(account) do
+    Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+  end
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and
@@ -23,6 +34,65 @@ defmodule Tuist.FeatureFlags do
   end
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
+  Whether Xcode code coverage is ingested, processed and shown for the given
+  account. Canary and production require an explicit `:xcode_coverage`
+  FunWithFlags toggle for the account while the feature is in early access, so
+  its data model and API can still change. Development, test, and staging
+  default to enabled.
+  """
+  def xcode_coverage_enabled?(nil), do: false
+
+  def xcode_coverage_enabled?(account) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
+  end
+
+  @doc """
+  Whether the account is on usage-based pricing: the usage page shows its
+  cache and test insights charges, and the nightly Stripe sync reports the
+  cache egress, cache request, and passing test case meters for it
+  instead of the remote cache hit meter. Off unless the
+  `:usage_based_pricing` FunWithFlags toggle is enabled for the account.
+  """
+  def usage_based_pricing_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing, for: account)
+  end
+
+  @doc """
+  Whether the switch worker may move this account's subscription onto the
+  usage-based meters at its next renewal. Off unless
+  `:usage_based_pricing_switch` is enabled for the account or for everyone,
+  which is what paces the migration: an account is only switched once its
+  notice period has passed.
+  """
+  def usage_based_pricing_switch_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing_switch, for: account)
+  end
+
+  @doc """
+  Whether the pricing page shows usage-based pricing. Anonymous visitors see
+  it once the `:usage_based_pricing_page` flag is enabled for everyone; a
+  signed-in user sees it once the flag is enabled for them, so the page can be
+  previewed before it goes public.
+  """
+  def usage_based_pricing_page_enabled?(nil), do: FunWithFlags.enabled?(:usage_based_pricing_page)
+  def usage_based_pricing_page_enabled?(user), do: FunWithFlags.enabled?(:usage_based_pricing_page, for: user)
+
+  @doc """
+  Whether dispatch stamps a job's repository cache volume on its Pod. Canary and
+  production require an explicit `:runner_cache_volumes_per_repository` toggle,
+  so a deploy never starts stamping while replicas of the previous version are
+  still serving. Those replicas resolve every promote and upload URL under the
+  account's `tuist-cache` volume, so a repository-labelled Pod whose upload one
+  of them mints and whose promote a new replica accepts would publish a HEAD
+  pointing at an object under the other volume's prefix, which no host can then
+  download. Turn it on once the rollout is complete; the host side has its own
+  gate (`tuist.dev/cache-volumes-per-repository`).
+  """
+  def runner_cache_volumes_per_repository_enabled? do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
+  end
 
   @doc """
   Whether Kura runtime-image rollouts run through the rollout
@@ -55,21 +125,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether Sentry envelopes produced by this node should be rerouted to
-  the self-hosted Hive ingest (`../hive`) instead of Sentry. Off by
-  default: flipping `hive_error_tracking_enabled` on in `/ops/flags`
-  (no deploy, no rolling restart) tells `TuistCommon.SentryHTTPClient`
-  to rewrite the destination URL and the `X-Sentry-Auth` header for
-  every subsequent envelope. Flipping the flag off is the immediate
-  revert path if Hive misbehaves.
-
-  Independent of `TUIST_SENTRY_HIVE_DSN`: without a configured Hive
-  DSN the reroute callback returns `nil` even when the flag is on and
-  the SDK keeps sending to Sentry, so enabling the flag on a Pod that
-  is missing the secret is a no-op rather than a drop.
+  Whether anonymous entry to a public-project or public-account
+  dashboard has to solve a Cloudflare Turnstile challenge before the
+  LiveView mounts. Shape mirrors `turnstile_enabled?`: the env-var
+  toggle `TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED` decides where the gate
+  is armed at all, and `:public_page_challenge_kill_switch` is a
+  flag-flippable emergency off with no deploy required. Off by default
+  everywhere so a rollout is one env-var change per environment.
   """
-  def hive_error_tracking_enabled? do
-    FunWithFlags.enabled?(:hive_error_tracking_enabled)
+  def public_page_challenge_enabled? do
+    Environment.public_page_challenge_required?() and
+      not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

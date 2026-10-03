@@ -13,6 +13,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     # By default, treat every triggered test case as validated on the default
@@ -942,6 +943,199 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   end
 
   describe "baseline establishment" do
+    test "a failed backlog action does not prevent recovery from an earlier generation" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          recovery_enabled: true,
+          recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+          recovery_actions: [%{"type" => "change_state", "state" => "enabled"}],
+          trigger_actions: [%{"type" => "send_slack", "channel" => "archived-channel", "message" => "Matching test"}]
+        )
+
+      recovering = IngestRepo.insert!(RunsFixtures.test_case_fixture(project_id: automation.project_id, state: "muted"))
+
+      matching =
+        Enum.map(1..2, fn _ ->
+          IngestRepo.insert!(RunsFixtures.test_case_fixture(project_id: automation.project_id))
+        end)
+
+      [failing_id, successful_id] = Enum.sort(Enum.map(matching, & &1.id))
+      old_time = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+
+      Automations.create_alert_event(%{
+        alert_id: automation.id,
+        test_case_id: recovering.id,
+        baseline_generation: automation.baseline_generation,
+        status: "triggered",
+        triggered_at: old_time,
+        inserted_at: old_time
+      })
+
+      {:ok, requested} =
+        Automations.update_alert(automation, %{
+          trigger_config: Map.put(automation.trigger_config, "apply_actions_to_existing_matches", true)
+        })
+
+      stub(FlakyTestsMonitor, :evaluate, fn _, ids ->
+        %{triggered: Enum.filter(ids, &(&1 in [failing_id, successful_id]))}
+      end)
+
+      stub(FlakyTestsMonitor, :evaluate, fn _ -> %{triggered: [failing_id, successful_id]} end)
+      stub(FlakyTestsMonitor, :measurable_test_case_ids, fn _, ids -> ids end)
+      test_pid = self()
+
+      stub(ActionExecutor, :execute_actions, fn actions, _, %{id: id} ->
+        send(test_pid, {:action, id, actions})
+        if id == failing_id, do: {:error, :channel_not_found}, else: :ok
+      end)
+
+      assert :ok = run(requested.id)
+      assert Repo.reload!(requested).baseline_established_at
+      assert_received {:action, ^failing_id, _}
+      assert_received {:action, ^successful_id, _}
+      assert Enum.any?(Automations.list_active_alert_events(requested.id), &(&1.test_case_id == recovering.id))
+
+      assert :ok = run(requested.id)
+      recovering_id = recovering.id
+      recovery_actions = requested.recovery_actions
+      assert_received {:action, ^recovering_id, ^recovery_actions}
+      refute Enum.any?(Automations.list_active_alert_events(requested.id), &(&1.test_case_id == recovering.id))
+      assert [%{test_case_id: ^successful_id}] = Automations.list_active_alert_events(requested.id)
+    end
+
+    test "Slack actions require a fresh opt-in after condition or action edits" do
+      config = %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"}
+      actions = [%{"type" => "send_slack", "channel" => "test-channel", "message" => "Matching test"}]
+
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          baseline_established_at: nil,
+          trigger_config: Map.put(config, "apply_actions_to_existing_matches", true),
+          trigger_actions: actions
+        )
+
+      test_case = RunsFixtures.test_case_fixture(project_id: automation.project_id)
+      IngestRepo.insert!(test_case)
+      id = test_case.id
+      stub(FlakyTestsMonitor, :evaluate, fn _alert, _ids -> %{triggered: [id]} end)
+      stub(FlakyTestsMonitor, :evaluate, fn _alert -> %{triggered: [id]} end)
+      test_pid = self()
+
+      stub(ActionExecutor, :execute_actions, fn actions, _alert, %{id: ^id} ->
+        send(test_pid, {:executed, actions})
+        :ok
+      end)
+
+      assert :ok = run(automation.id)
+      assert_received {:executed, ^actions}
+      refute Repo.reload!(automation).trigger_config["apply_actions_to_existing_matches"]
+
+      {:ok, edited} = Automations.update_alert(automation, %{trigger_config: Map.put(config, "threshold", 20)})
+      assert :ok = run(edited.id)
+      refute_received {:executed, _}
+
+      edited_actions = [%{"type" => "send_slack", "channel" => "test-channel", "message" => "Updated message"}]
+      {:ok, edited} = Automations.update_alert(edited, %{trigger_actions: edited_actions})
+      assert :ok = run(edited.id)
+      refute_received {:executed, _}
+
+      {:ok, requested} =
+        Automations.update_alert(edited, %{
+          trigger_config: Map.put(edited.trigger_config, "apply_actions_to_existing_matches", true)
+        })
+
+      assert :ok = run(requested.id)
+      assert_received {:executed, ^edited_actions}
+      assert :ok = run(requested.id)
+      refute_received {:executed, _}
+    end
+
+    test "opting in recovers the backlog from a silent baseline without repeating actions" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          baseline_established_at: nil,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 100,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 500,
+            "states" => ["muted"]
+          },
+          trigger_actions: [
+            %{"type" => "change_state", "state" => "enabled"},
+            %{"type" => "remove_label", "label" => "flaky"}
+          ]
+        )
+
+      test_case = RunsFixtures.test_case_fixture(project_id: automation.project_id, state: "muted", is_flaky: true)
+      IngestRepo.insert!(test_case)
+      id = test_case.id
+      stub(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _alert, _ids -> %{triggered: [id]} end)
+      stub(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn _alert -> %{triggered: [id]} end)
+
+      assert :ok = run(automation.id)
+      assert [%{test_case_id: ^id}] = Automations.list_active_alert_events(automation.id)
+      assert %{^id => %{state: "muted", is_flaky: true}} = Tests.get_test_case_states(automation.project_id, [id])
+
+      {:ok, opted_in} =
+        Automations.update_alert(automation, %{
+          trigger_config: Map.put(automation.trigger_config, "apply_actions_to_existing_matches", true)
+        })
+
+      assert :ok = run(automation.id)
+      completed = Repo.reload!(opted_in)
+      assert completed.baseline_established_at
+      refute completed.trigger_config["apply_actions_to_existing_matches"]
+      assert [%{test_case_id: ^id}] = Automations.list_active_alert_events(automation.id)
+      assert %{^id => %{state: "enabled", is_flaky: false}} = Tests.get_test_case_states(automation.project_id, [id])
+
+      reject(&ActionExecutor.execute_actions/3)
+      assert :ok = run(automation.id)
+    end
+
+    test "opted-in baselines apply trigger actions to qualifying current matches" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          baseline_established_at: nil,
+          trigger_config: %{
+            "threshold" => 100,
+            "window_type" => "rolling",
+            "rolling_window_size" => 500,
+            "states" => ["muted"],
+            "apply_actions_to_existing_matches" => true
+          },
+          monitor_type: "reliability_rate",
+          trigger_actions: [
+            %{"type" => "change_state", "state" => "enabled"},
+            %{"type" => "remove_label", "label" => "flaky"}
+          ]
+        )
+
+      [muted, skipped] = [Ecto.UUID.generate(), Ecto.UUID.generate()]
+
+      expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn ^automation, [^muted, ^skipped] ->
+        %{triggered: [muted, skipped]}
+      end)
+
+      expect(Tests, :get_test_case_states, fn _project_id, [^muted, ^skipped] ->
+        %{muted => %{state: "muted"}, skipped => %{state: "skipped"}}
+      end)
+
+      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch, apply_match ->
+        assert evaluate_batch.([muted, skipped]) == [muted]
+        assert :ok = apply_match.(automation, muted)
+        :ok
+      end)
+
+      expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^muted} ->
+        assert actions == automation.trigger_actions
+        :ok
+      end)
+
+      assert :ok = run(automation.id)
+    end
+
     test "first evaluation records the matching set silently and stamps baseline_established_at" do
       automation = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
 

@@ -9,10 +9,14 @@ named after a Pod:
 
   * xcresult-processor Tart VMs join with TAILSCALE_HOSTNAME = the Pod name (see
     the Deployment template and infra/xcresult-processor-image/tailscale-up.sh),
-    so every image roll mints a brand-new device and abandons the old one. The
-    `ephemeral=true` flag on the minted key only reaps VMs that stay online less
-    than four hours, and these Pods live for days between releases, so they are
-    converted to standard tagged devices and kept.
+    so every image roll mints a brand-new device and abandons the old one. On
+    the OAuth path the minted key is `ephemeral=true`, and Tailscale deletes an
+    ephemeral device 30 to 60 minutes after it was last seen, however long it
+    had been online. (Its docs say an ephemeral device present for four hours
+    "will count as a standard tagged device"; that is billing, not removal.)
+    So these clean up after themselves unless the join is not ephemeral, which
+    is what a legacy pre-auth key produced: production joined that way until
+    2026-08-17, and every device registered that way outlived its Pod.
   * The Tailscale K8s operator's proxy Pods (macmini-egress-*, the cluster
     routers, the pg-pooler and OCI egress proxies) re-register when their state
     Secret is recreated, stranding the previous device under the same hostname.
@@ -20,8 +24,9 @@ named after a Pod:
 Measured on 2026-08-17: 67 tagged devices on the tailnet, 44 of them online. Of
 the 23 dead ones, 17 were xcresult-processor rolls from the preceding four days
 and 6 were operator proxies stale for 6-70 days. That is a third of the tailnet
-billed as tagged resources for nothing, and it grows by roughly 10-15 devices a
-week -- the plan's included allowance is 50.
+billed as tagged resources for nothing, and it was growing by roughly 10-15
+devices a week -- the plan's included allowance is 50. The xcresult-processor
+share of that growth stopped when production's join became ephemeral.
 
 Why a reaper rather than only fixing the hostname: stabilising the
 xcresult-processor identity (a StatefulSet ordinal, or the Node name, which is

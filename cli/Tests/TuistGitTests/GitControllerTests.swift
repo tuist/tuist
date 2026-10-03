@@ -25,6 +25,35 @@ struct GitControllerTests {
         #expect(commandRunner.called(["git", "-C", path.pathString, "rev-parse", "--show-toplevel"]) == true)
     }
 
+    @Test(.inTemporaryDirectory) func sourceFileBlobIds() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+
+        commandRunner.succeedCommand(
+            git + ["ls-files", "--stage", "-z"],
+            output: [
+                "100644 aaa 0\tSources/A.swift",
+                "100644 bbb 0\tSources/B.swift",
+                "100644 ccc 0\tREADME.md",
+                "160000 ddd 0\tVendor/Submodule.swift",
+            ].joined(separator: "\0") + "\0"
+        )
+        commandRunner.succeedCommand(git + ["diff", "--name-only", "--diff-filter=d", "-z"], output: "Sources/B.swift\0")
+        commandRunner.succeedCommand(
+            git + ["ls-files", "--others", "--exclude-standard", "-z"],
+            output: "Sources/New.m\0notes.txt\0"
+        )
+        commandRunner.succeedCommand(
+            git + ["hash-object", "--", "Sources/B.swift", "Sources/New.m"],
+            output: "b2\nnew\n"
+        )
+
+        let got = try await subject.sourceFileBlobIds(workingDirectory: path, pathExtensions: ["swift", "m"])
+
+        // The working tree's contents win over the index's for a changed file.
+        #expect(got == ["Sources/A.swift": "aaa", "Sources/B.swift": "b2", "Sources/New.m": "new"])
+    }
+
     @Test(.inTemporaryDirectory) func cloneInto() async throws {
         let url = "https://some/url/to/repo.git"
         let path = try #require(FileSystem.temporaryTestDirectory)

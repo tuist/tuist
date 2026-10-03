@@ -10,11 +10,23 @@ public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
     /// `--netrc`, SwiftPM's `forceNetrc`: skip the OS credential store for registry
     /// requests so a netrc entry beats a keychain item for the same host.
     public var forcesNetrc: Bool
+    /// `--disable-keychain`, SwiftPM's `SecurityOptions.keychain = false`: skip the OS
+    /// credential store for source-control and binary artifact downloads. It does not
+    /// affect registry auth, matching `SwiftCommandState.getRegistryAuthorizationProvider`
+    /// which gates the registry keychain provider on `forceNetrc` alone. The flag is
+    /// forwarded to a child `swift package` subprocess so its own provider agrees.
+    public var disableKeychain: Bool
 
-    public init(isEnabled: Bool = true, path: URL? = nil, forcesNetrc: Bool = false) {
+    public init(
+        isEnabled: Bool = true,
+        path: URL? = nil,
+        forcesNetrc: Bool = false,
+        disableKeychain: Bool = false
+    ) {
         self.isEnabled = isEnabled
         self.path = path
         self.forcesNetrc = forcesNetrc
+        self.disableKeychain = disableKeychain
     }
 
     public static let `default` = SwifterPMNetrcConfiguration()
@@ -54,16 +66,25 @@ struct Netrc: Sendable {
     /// Skips the keychain for registry requests, SwiftPM's `forceNetrc`.
     var forcesNetrc: Bool { configuration.forcesNetrc }
 
+    /// Skips the OS credential store entirely, SwiftPM's `--disable-keychain`.
+    var keychainDisabled: Bool { configuration.disableKeychain }
+
     /// The netrc flags to hand a child `swift package` invocation so it authenticates
     /// against the same credentials this process does.
     var swiftPackageArguments: [String] {
-        guard configuration.isEnabled else { return ["--disable-netrc"] }
         var arguments: [String] = []
-        if let path = configuration.path {
-            arguments.append(contentsOf: ["--netrc-file", path.path])
+        if configuration.isEnabled {
+            if let path = configuration.path {
+                arguments.append(contentsOf: ["--netrc-file", path.path])
+            }
+            if configuration.forcesNetrc {
+                arguments.append("--netrc")
+            }
+        } else {
+            arguments.append("--disable-netrc")
         }
-        if configuration.forcesNetrc {
-            arguments.append("--netrc")
+        if configuration.disableKeychain {
+            arguments.append("--disable-keychain")
         }
         return arguments
     }

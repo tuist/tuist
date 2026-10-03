@@ -14,18 +14,22 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
-  test "puts the starting journeys first in the guides sidebar" do
-    [%Sidebar.Group{label: nil, items: [chooser]} | rest] = Sidebar.guides_tree()
+  test "puts install and the starting journeys first in the guides sidebar" do
+    [%Sidebar.Group{label: nil, items: [install, chooser]} | rest] = Sidebar.guides_tree()
+
+    assert install.label == "Install Tuist"
+    assert install.slug == "/en/guides/install-tuist"
+    assert install.icon == "download"
 
     assert chooser.label == "Get started"
     assert chooser.slug == "/en/guides/get-started"
     assert chooser.icon == "bulb"
 
     assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
-             {"Observe", "/en/guides/get-started/observability"},
-             {"Optimize", "/en/guides/get-started/optimization"},
-             {"Run", "/en/guides/get-started/tuist-runners"},
-             {"Ask", "/en/guides/get-started/ask"}
+             {"Xcode project", "/en/guides/get-started/existing-xcode-project"},
+             {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
+             {"Gradle project", "/en/guides/get-started/gradle-project"},
+             {"Bazel project", "/en/guides/get-started/bazel-project"}
            ]
 
     refute Enum.any?(rest, &(&1.label == "Guides"))
@@ -79,6 +83,27 @@ defmodule Tuist.Docs.SidebarTest do
     assert Sidebar.item_or_children_active?(item, "/en/parent")
     assert Sidebar.item_or_children_active?(item, "/en/parent/child")
     refute Sidebar.item_or_children_active?(item, "/en/other")
+  end
+
+  test "localizes each Insights item by its catalogue path, not by English label" do
+    tree = Sidebar.tree_for_tab(:guides, "es")
+
+    insights_by_group =
+      for %Sidebar.Group{label: group, items: items} <- tree,
+          group in ["Builds", "Tests", "Bundles"],
+          item <- items,
+          item.slug in [
+            "/es/guides/features/build-insights",
+            "/es/guides/features/test-insights",
+            "/es/guides/features/bundle-insights"
+          ],
+          into: %{} do
+        {group, item.label}
+      end
+
+    assert insights_by_group["Builds"] == "Análisis de builds"
+    assert insights_by_group["Tests"] == "Insights"
+    assert insights_by_group["Bundles"] == "Insights"
   end
 
   test "returns the top-level category for localized slugs" do

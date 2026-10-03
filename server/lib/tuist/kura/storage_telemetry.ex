@@ -7,10 +7,10 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Kura.EvictionEvent
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.StorageSnapshot
 
   @max_events_per_batch 5_000
@@ -44,7 +44,7 @@ defmodule Tuist.Kura.StorageTelemetry do
   defp lookup_account_ids(events) do
     events
     |> Enum.map(& &1["tenant_id"])
-    |> Accounts.get_account_ids_by_handles()
+    |> Identity.account_ids()
   end
 
   defp eviction_row(event, account_ids_by_handle, now) do
@@ -135,8 +135,11 @@ defmodule Tuist.Kura.StorageTelemetry do
   end
 
   @doc """
-  Per-day eviction aggregates for every account-region with capacity
-  evictions on `dates`, deduplicated by event id.
+  Per-day eviction aggregates for every account-region with capacity or disk-pressure
+  evictions on `dates`, deduplicated by event id. Pressure counts prevent an
+  unsafe occupancy shrink, but pressure bytes are not turnover. Any pressure
+  event invalidates that day's retention ages, including mixed-reason days: a
+  quota-limited ring cannot prove the configured ring's retention or fit.
 
   `min_shed_age_seconds` / `median_shed_age_seconds` measure
   `evicted_at - newest_content_at`: how soon after being written the youngest
@@ -150,7 +153,7 @@ defmodule Tuist.Kura.StorageTelemetry do
     deduped =
       from(e in EvictionEvent,
         where: fragment("toDate(?)", e.evicted_at) in ^dates,
-        where: e.account_id > 0 and e.reason == "capacity",
+        where: e.account_id > 0 and e.reason in ["capacity", "disk_pressure"],
         group_by: e.event_id,
         select: %{
           account_id: fragment("argMax(?, ?)", e.account_id, e.inserted_at),
@@ -158,6 +161,7 @@ defmodule Tuist.Kura.StorageTelemetry do
           evicted_at: fragment("argMax(?, ?)", e.evicted_at, e.inserted_at),
           segment_created_at: fragment("argMax(?, ?)", e.segment_created_at, e.inserted_at),
           newest_content_at: fragment("argMax(?, ?)", e.newest_content_at, e.inserted_at),
+          reason: fragment("argMax(?, ?)", e.reason, e.inserted_at),
           artifact_count: fragment("argMax(?, ?)", e.artifact_count, e.inserted_at),
           bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at)
         }
@@ -171,18 +175,26 @@ defmodule Tuist.Kura.StorageTelemetry do
           region: e.region,
           date: fragment("toDate(?)", e.evicted_at),
           eviction_count: fragment("toUInt64(count())"),
-          evicted_bytes: fragment("sum(?)", e.bytes),
-          evicted_artifact_count: fragment("sum(?)", e.artifact_count),
-          min_shed_age_seconds: fragment("min(dateDiff('second', ?, ?))", e.newest_content_at, e.evicted_at),
+          evicted_bytes: fragment("sumIf(?, ? = 'capacity')", e.bytes, e.reason),
+          evicted_artifact_count: fragment("sumIf(?, ? = 'capacity')", e.artifact_count, e.reason),
+          min_shed_age_seconds:
+            fragment(
+              "if(countIf(? = 'disk_pressure') > 0, NULL, min(dateDiff('second', ?, ?)))",
+              e.reason,
+              e.newest_content_at,
+              e.evicted_at
+            ),
           median_shed_age_seconds:
             fragment(
-              "toInt64(quantileExact(0.5)(dateDiff('second', ?, ?)))",
+              "if(countIf(? = 'disk_pressure') > 0, NULL, toInt64(quantileExact(0.5)(dateDiff('second', ?, ?))))",
+              e.reason,
               e.newest_content_at,
               e.evicted_at
             ),
           median_ring_span_seconds:
             fragment(
-              "toInt64(quantileExact(0.5)(dateDiff('second', ?, ?)))",
+              "if(countIf(? = 'disk_pressure') > 0, NULL, toInt64(quantileExact(0.5)(dateDiff('second', ?, ?))))",
+              e.reason,
               e.segment_created_at,
               e.evicted_at
             )
@@ -239,7 +251,8 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   Occupancy compares live segment bytes to the ring budget the node resolved
   from its claim. The day's maximum is what sizing reads: shrink wants to know
-  the ring never filled, grow wants to know it did.
+  the ring never filled, grow wants to know it did. The smallest non-zero
+  budget tells whether any instance still ran a smaller ring that day.
   """
   def snapshot_day_aggregates([]), do: []
 
@@ -274,7 +287,8 @@ defmodule Tuist.Kura.StorageTelemetry do
               s.ring_budget_bytes
             ),
           max_live_segment_bytes: fragment("max(?)", s.live_segment_bytes),
-          last_ring_budget_bytes: fragment("argMax(?, ?)", s.ring_budget_bytes, s.captured_at)
+          last_ring_budget_bytes: fragment("argMax(?, ?)", s.ring_budget_bytes, s.captured_at),
+          min_ring_budget_bytes: fragment("minIf(?, ? > 0)", s.ring_budget_bytes, s.ring_budget_bytes)
         }
       )
     )

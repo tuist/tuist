@@ -60,6 +60,7 @@ impl TrafficState {
 
 pub struct RuntimeState {
     draining: AtomicBool,
+    drain_requested: Notify,
     serving: AtomicBool,
     // Boot guardrail for nodes whose peer view arrives from the control plane
     // (managed peers sync): serving is withheld until the first successful
@@ -73,7 +74,6 @@ pub struct RuntimeState {
     grpc_inflight: AtomicUsize,
     public_request_latency_ewma_micros: AtomicU64,
     public_request_latency_sampled_at_ms: AtomicU64,
-    outbox_depth: AtomicUsize,
     inflight_changed: Notify,
 }
 
@@ -81,6 +81,7 @@ impl RuntimeState {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             draining: AtomicBool::new(false),
+            drain_requested: Notify::new(),
             serving: AtomicBool::new(false),
             peer_view_required: AtomicBool::new(false),
             peer_view_ready: AtomicBool::new(false),
@@ -89,17 +90,25 @@ impl RuntimeState {
             grpc_inflight: AtomicUsize::new(0),
             public_request_latency_ewma_micros: AtomicU64::new(0),
             public_request_latency_sampled_at_ms: AtomicU64::new(0),
-            outbox_depth: AtomicUsize::new(0),
             inflight_changed: Notify::new(),
         })
     }
 
-    pub fn update_outbox_depth(&self, depth: usize) {
-        self.outbox_depth.store(depth, Ordering::Relaxed);
+    pub fn request_drain(&self) -> bool {
+        let entered = !self.draining.swap(true, Ordering::SeqCst);
+        if entered {
+            self.drain_requested.notify_waiters();
+        }
+        entered
     }
 
-    pub fn request_drain(&self) -> bool {
-        !self.draining.swap(true, Ordering::SeqCst)
+    pub async fn wait_for_drain(&self) {
+        let notified = self.drain_requested.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+        if !self.is_draining() {
+            notified.await;
+        }
     }
 
     pub fn is_draining(&self) -> bool {

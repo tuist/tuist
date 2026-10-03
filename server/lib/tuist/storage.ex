@@ -15,6 +15,19 @@ defmodule Tuist.Storage do
   @delete_objects_max_concurrency 4
   @file_upload_chunk_max_attempts 3
   @file_upload_chunk_attempt_timeout 30_000
+  # ExAws only retries a stalled ranged GET once the HTTP receive timeout fires,
+  # so it has to be well below the per-chunk task timeout; with both at 60s a
+  # single stall killed the whole download before any retry could run.
+  @file_download_chunk_timeout to_timeout(minute: 3)
+  @file_download_http_opts [receive_timeout: 15_000, pool_timeout: 5_000]
+  # `object_exists?/2` collapses every error into `false`, so the pool timeout
+  # stays at the global default rather than turning pool contention into
+  # "object not found".
+  @metadata_http_opts [receive_timeout: 5_000, pool_timeout: 5_000]
+  @object_transfer_http_opts [receive_timeout: 30_000, pool_timeout: 5_000]
+  # S3 may take minutes to assemble a multipart object and only keeps the
+  # connection alive with whitespace in the meantime.
+  @multipart_complete_http_opts [receive_timeout: 60_000, pool_timeout: 5_000]
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
@@ -64,16 +77,39 @@ defmodule Tuist.Storage do
       :s3 ->
         {config, bucket_name} = s3_config_and_bucket(actor)
 
-        presigned_url_opts = [
-          query_params: query_params,
-          expires_in: Keyword.get(opts, :expires_in, 3600)
-        ]
+        presigned_url_opts =
+          [
+            query_params: query_params,
+            expires_in: Keyword.get(opts, :expires_in, 3600)
+          ] ++ signed_headers_opt(opts)
 
         {:ok, url} =
           ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
 
         url
     end
+  end
+
+  # Passed only when there is something to sign, so a URL that signs no headers
+  # is generated exactly as it was before signed headers existed.
+  defp signed_headers_opt(opts) do
+    case Keyword.get(opts, :signed_headers, []) do
+      [] -> []
+      signed_headers -> [headers: signed_headers]
+    end
+  end
+
+  @doc """
+  Whether presigned upload URLs for this actor's storage can carry signed
+  request headers (e.g. `x-amz-checksum-sha256`, which makes the object store
+  verify the received bytes at ingest). True for S3-compatible providers, whose
+  SigV4 query URLs sign header names into the signature; false for Azure Blob,
+  where the SAS-based URLs carry no signed headers. Callers that would tell a
+  client to send such a header must check this first — an unsigned checksum
+  header on a URL that did not cover it fails the request outright.
+  """
+  def supports_signed_upload_headers?(actor) do
+    storage_provider(actor) == :s3
   end
 
   def multipart_complete_upload(object_key, upload_id, parts, actor) do
@@ -89,7 +125,7 @@ defmodule Tuist.Storage do
             result =
               bucket_name
               |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-              |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+              |> ExAws.request(with_http_opts(config, @multipart_complete_http_opts))
 
             case result do
               {:ok, _response} -> :ok
@@ -107,6 +143,30 @@ defmodule Tuist.Storage do
     report_multipart_complete_failure(object_key, upload_id, result)
 
     result
+  end
+
+  @doc """
+  Discards the parts of an unfinished multipart upload. An upload that no
+  longer exists, because it completed or was already aborted, is not an error.
+  """
+  def multipart_abort(object_key, upload_id, actor) do
+    case storage_provider(actor) do
+      # Azure discards uncommitted blocks on its own.
+      :azure_blob ->
+        :ok
+
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        bucket_name
+        |> ExAws.S3.abort_multipart_upload(object_key, upload_id)
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
+        |> case do
+          {:ok, _response} -> :ok
+          {:error, {:http_error, 404, _}} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
   end
 
   defp report_multipart_complete_failure(_object_key, _upload_id, :ok), do: :ok
@@ -224,7 +284,7 @@ defmodule Tuist.Storage do
             |> ExAws.S3.put_object(object_key, content)
             |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
 
-          ExAws.request(operation, Map.merge(config, fast_api_req_opts()))
+          ExAws.request(operation, with_http_opts(config, @object_transfer_http_opts))
       end
 
     case result do
@@ -245,7 +305,7 @@ defmodule Tuist.Storage do
 
             bucket_name
             |> ExAws.S3.get_object(object_key)
-            |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+            |> ExAws.request(with_http_opts(config, @object_transfer_http_opts))
         end
       end)
 
@@ -274,7 +334,7 @@ defmodule Tuist.Storage do
 
             case bucket_name
                  |> ExAws.S3.head_object(object_key)
-                 |> ExAws.request(Map.merge(config, fast_api_req_opts())) do
+                 |> ExAws.request(with_http_opts(config, @metadata_http_opts)) do
               {:ok, _} -> true
               {:error, _} -> false
             end
@@ -299,8 +359,8 @@ defmodule Tuist.Storage do
         {config, bucket_name} = s3_config_and_bucket(actor)
 
         bucket_name
-        |> ExAws.S3.download_file(object_key, file_path)
-        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> ExAws.S3.download_file(object_key, file_path, timeout: @file_download_chunk_timeout)
+        |> ExAws.request(Map.put(config, :http_opts, @file_download_http_opts))
         |> normalize_download_error()
     end
   catch
@@ -335,7 +395,7 @@ defmodule Tuist.Storage do
 
             bucket_name
             |> ExAws.S3.get_object(object_key)
-            |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+            |> ExAws.request(with_http_opts(config, @object_transfer_http_opts))
         end
       end)
 
@@ -363,7 +423,7 @@ defmodule Tuist.Storage do
 
             bucket_name
             |> ExAws.S3.get_object(object_key, range: "bytes=#{first}-#{last}")
-            |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+            |> ExAws.request(with_http_opts(config, @object_transfer_http_opts))
         end
       end)
 
@@ -416,7 +476,7 @@ defmodule Tuist.Storage do
       |> ExAws.S3.initiate_multipart_upload(object_key)
       |> Map.put(:headers, Map.new(headers))
 
-    case ExAws.request(operation, Map.merge(config, fast_api_req_opts())) do
+    case ExAws.request(operation, with_http_opts(config, @metadata_http_opts)) do
       {:ok, %{body: %{upload_id: upload_id}}} -> {:ok, upload_id}
       {:error, reason} -> {:error, reason}
     end
@@ -516,14 +576,14 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.list_objects_v2(list_opts)
-        |> ExAws.request(Map.merge(ExAws.Config.new(:s3), fast_api_req_opts()))
+        |> ExAws.request(with_http_opts(ExAws.Config.new(:s3), @object_transfer_http_opts))
     end
   end
 
   defp delete_objects_from_bucket(object_keys, bucket_name, config, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency, @delete_objects_max_concurrency)
-    request_opts = fast_api_req_opts(opts)
-    task_timeout = Keyword.get(opts, :task_timeout, request_timeout(request_opts))
+    http_opts = Keyword.merge(@metadata_http_opts, Keyword.take(opts, [:receive_timeout, :pool_timeout]))
+    task_timeout = Keyword.get(opts, :task_timeout, request_timeout(http_opts))
 
     object_keys
     |> Enum.chunk_every(1000)
@@ -531,7 +591,7 @@ defmodule Tuist.Storage do
       fn object_keys_chunk ->
         bucket_name
         |> ExAws.S3.delete_multiple_objects(object_keys_chunk)
-        |> ExAws.request(Map.merge(config, request_opts))
+        |> ExAws.request(with_http_opts(config, http_opts))
         |> handle_delete_objects_response()
       end,
       max_concurrency: max_concurrency,
@@ -649,7 +709,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.head_object(object_key)
-        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
     end
   end
 
@@ -875,15 +935,14 @@ defmodule Tuist.Storage do
     end
   end
 
-  defp fast_api_req_opts(opts \\ []) do
-    %{
-      receive_timeout: Keyword.get(opts, :receive_timeout, 5_000),
-      pool_timeout: Keyword.get(opts, :pool_timeout, 1_000)
-    }
+  # ExAws only hands `config[:http_opts]` to the HTTP client; timeouts set as
+  # top-level config keys are silently dropped.
+  defp with_http_opts(config, http_opts) do
+    Map.update(config, :http_opts, http_opts, &Keyword.merge(&1, http_opts))
   end
 
-  defp request_timeout(request_opts) do
-    case {Map.fetch!(request_opts, :receive_timeout), Map.fetch!(request_opts, :pool_timeout)} do
+  defp request_timeout(http_opts) do
+    case {Keyword.fetch!(http_opts, :receive_timeout), Keyword.fetch!(http_opts, :pool_timeout)} do
       {:infinity, _pool_timeout} -> :infinity
       {_receive_timeout, :infinity} -> :infinity
       {receive_timeout, pool_timeout} -> receive_timeout + pool_timeout + 1_000

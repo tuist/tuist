@@ -4,7 +4,7 @@ import TuistEnvironment
 @testable import TuistServer
 
 struct ClientFeatureFlagsTests {
-    @Test func header_value_carries_the_default_enabled_flags_when_no_variable_is_set() async {
+    @Test func header_value_is_nil_when_no_flag_variable_is_set() async {
         let environment = Environment(
             variables: [
                 "TUIST_TOKEN": "token",
@@ -17,33 +17,33 @@ struct ClientFeatureFlagsTests {
             ClientFeatureFlags.headerValue()
         }
 
-        #expect(headerValue == "KURA")
+        #expect(headerValue == nil)
     }
 
-    @Test func kura_is_enabled_when_no_variable_is_set() async {
+    @Test func kura_is_not_enabled_when_no_variable_is_set() async {
         let environment = Environment(variables: [:], arguments: [])
 
         let containsKura = await Environment.$current.withValue(environment) {
             ClientFeatureFlags.contains("kura")
         }
 
-        #expect(containsKura)
+        #expect(containsKura == false)
     }
 
     @Test(arguments: ["0", "false", "FALSE", "no", "", " 0 "])
-    func a_falsey_value_disables_a_default_enabled_flag(value: String) async {
+    func a_falsey_value_disables_a_flag(value: String) async {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_KURA": value,
+                "TUIST_FEATURE_FLAG_A": value,
             ],
             arguments: []
         )
 
-        let (containsKura, headerValue) = await Environment.$current.withValue(environment) {
-            (ClientFeatureFlags.contains("kura"), ClientFeatureFlags.headerValue())
+        let (containsA, headerValue) = await Environment.$current.withValue(environment) {
+            (ClientFeatureFlags.contains("a"), ClientFeatureFlags.headerValue())
         }
 
-        #expect(containsKura == false)
+        #expect(containsA == false)
         #expect(headerValue == nil)
     }
 
@@ -51,32 +51,33 @@ struct ClientFeatureFlagsTests {
     func a_truthy_value_enables_a_flag(value: String) async {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_KURA": value,
+                "TUIST_FEATURE_FLAG_A": value,
             ],
             arguments: []
         )
 
-        let (containsKura, headerValue) = await Environment.$current.withValue(environment) {
-            (ClientFeatureFlags.contains("kura"), ClientFeatureFlags.headerValue())
+        let (containsA, headerValue) = await Environment.$current.withValue(environment) {
+            (ClientFeatureFlags.contains("a"), ClientFeatureFlags.headerValue())
         }
 
-        #expect(containsKura)
-        #expect(headerValue == "KURA")
+        #expect(containsA)
+        #expect(headerValue == "A")
     }
 
-    @Test func a_falsey_value_disables_a_flag_declared_in_lowercase() async {
+    @Test func a_flag_declared_in_lowercase_is_enabled() async {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_kura": "0",
+                "TUIST_FEATURE_FLAG_coverage": "1",
             ],
             arguments: []
         )
 
-        let containsKura = await Environment.$current.withValue(environment) {
-            ClientFeatureFlags.contains("kura")
+        let (containsCoverage, headerValue) = await Environment.$current.withValue(environment) {
+            (ClientFeatureFlags.contains("COVERAGE"), ClientFeatureFlags.headerValue())
         }
 
-        #expect(containsKura == false)
+        #expect(containsCoverage)
+        #expect(headerValue == "COVERAGE")
     }
 
     @Test func header_value_encodes_feature_flags_as_a_comma_separated_list() async {
@@ -93,13 +94,13 @@ struct ClientFeatureFlagsTests {
             ClientFeatureFlags.headerValue()
         }
 
-        #expect(headerValue == "A,B,KURA")
+        #expect(headerValue == "A,B")
     }
 
     @Test func a_falsey_value_disables_only_the_flag_it_names() async {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_KURA": "0",
+                "TUIST_FEATURE_FLAG_B": "0",
                 "TUIST_FEATURE_FLAG_A": "1",
             ],
             arguments: []
@@ -127,10 +128,10 @@ struct ClientFeatureFlagsTests {
         #expect(containsExperiment)
     }
 
-    @Test func environment_variables_forward_an_opt_out_to_processes_that_do_not_inherit_the_environment() async {
+    @Test func environment_variables_forward_the_flags_to_processes_that_do_not_inherit_the_environment() async {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_FLAG_KURA": "0",
+                "TUIST_FEATURE_FLAG_COVERAGE": "1",
                 "TUIST_TOKEN": "token",
             ],
             arguments: []
@@ -140,35 +141,13 @@ struct ClientFeatureFlagsTests {
             ClientFeatureFlags.environmentVariables()
         }
 
-        #expect(variables == ["TUIST_FEATURE_FLAG_KURA": "0"])
+        #expect(variables == ["TUIST_FEATURE_FLAG_COVERAGE": "1"])
 
         let forwarded = Environment(variables: variables, arguments: [])
-        let containsKura = await Environment.$current.withValue(forwarded) {
-            ClientFeatureFlags.contains("kura")
+        let containsCoverage = await Environment.$current.withValue(forwarded) {
+            ClientFeatureFlags.contains("coverage")
         }
 
-        #expect(containsKura == false)
-    }
-
-    @Test func a_process_that_inherits_no_variables_computes_the_same_defaults() async {
-        let environment = Environment(
-            variables: [
-                "TUIST_TOKEN": "token",
-            ],
-            arguments: []
-        )
-
-        let variables = await Environment.$current.withValue(environment) {
-            ClientFeatureFlags.environmentVariables()
-        }
-
-        #expect(variables.isEmpty)
-
-        let forwarded = Environment(variables: variables, arguments: [])
-        let containsKura = await Environment.$current.withValue(forwarded) {
-            ClientFeatureFlags.contains("kura")
-        }
-
-        #expect(containsKura)
+        #expect(containsCoverage)
     }
 }

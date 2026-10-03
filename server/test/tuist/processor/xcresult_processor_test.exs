@@ -126,6 +126,48 @@ defmodule Tuist.Processor.XCResultProcessorTest do
     end
 
     @tag :tmp_dir
+    test "only leaves the coverage manifest for the parser when asked to read coverage", %{tmp_dir: tmp_dir} do
+      {:ok, fixture_zip} =
+        :zip.create(
+          ~c"#{Path.join(tmp_dir, "fixture.zip")}",
+          [
+            {~c"Test.xcresult/Info.plist", "fake"},
+            {~c"Test.xcresult/tuist_coverage_manifest.json", "{}"}
+          ]
+        )
+
+      manifest_seen = fn read_coverage ->
+        expect(XCResultNIF, :parse, fn xcresult_path, _root_dir ->
+          send(self(), {:manifest, File.exists?(Path.join(xcresult_path, "tuist_coverage_manifest.json"))})
+          {:ok, %{"test_modules" => []}}
+        end)
+
+        {:ok, _} = XCResultProcessor.process_local(to_string(fixture_zip), read_coverage: read_coverage)
+        assert_receive {:manifest, seen}
+        seen
+      end
+
+      refute manifest_seen.(false)
+      assert manifest_seen.(true)
+    end
+
+    test "logs why the coverage could not be read and keeps the parsed tests" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+        {:ok, %{"test_modules" => [], "coverage_error" => "xcresult parsing timed out after 300s"}}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, %{"test_modules" => []}} = XCResultProcessor.process_local(fixture_zip)
+        end)
+
+      assert log =~ "xcresult coverage could not be read: xcresult parsing timed out after 300s"
+    end
+
+    @tag :tmp_dir
     test "applies quarantine marking from quarantined_tests.json", %{tmp_dir: tmp_dir} do
       quarantined_tests = [
         %{"target" => "AppTests", "class" => "Suite", "method" => "testA()"}

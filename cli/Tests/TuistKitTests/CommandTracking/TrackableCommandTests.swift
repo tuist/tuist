@@ -525,7 +525,7 @@ private struct DelayedUploadAnalyticsService: UploadAnalyticsServicing {
 
     @discardableResult
     func upload(
-        commandEvent _: CommandEvent,
+        commandEvent _: TuistCore.CommandEvent,
         fullHandle _: String,
         serverURL _: URL,
         sessionDirectory _: AbsolutePath?

@@ -148,6 +148,19 @@ defmodule Tuist.Runners.DispatchTest do
     claim
   end
 
+  defp queue_job!(account, workflow_job_id) do
+    :ok =
+      WorkflowJobs.upsert_queued(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "macos-pool",
+        platform: "macos",
+        vcpus: 6,
+        memory_gb: 14,
+        repository: "tuist/tuist"
+      })
+  end
+
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
@@ -567,6 +580,62 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert Claims.counts_per_account() == %{account.id => 1}
       assert Claims.by_pod_name(claim.pod_name) == :error
+    end
+
+    # The other half of the shuffle. The job GitHub actually placed on the
+    # runner was never claimed by this Pod, so nothing in the claim path
+    # moves it: `transition_running/3` only CASes the Pod's own
+    # `claimed → running`. Left alone it reads `queued` for its entire
+    # runtime — the dashboard says Queued while the build burns CPU, and
+    # the queue gauges the autoscaler reads count it as work still to
+    # provision for.
+    test "moves the job GitHub actually ran to running", %{account: account} do
+      claimed_job_id = 4420
+      executed_job_id = 4421
+      claim_running!(account, claimed_job_id, "pod-shuffle", "runner-shuffle")
+      queue_job!(account, executed_job_id)
+
+      stub(RunnerSessions, :record_execution, fn "runner-shuffle", 4421, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: executed_job_id, runner_name: "runner-shuffle"), 1)
+
+      executed = Repo.get!(WorkflowJob, executed_job_id)
+      assert executed.status == "running"
+      assert executed.runner_name == "runner-shuffle"
+      assert executed.pod_name == "pod-shuffle"
+      assert executed.executed_workflow_job_id == executed_job_id
+      assert %DateTime{} = executed.started_at
+      assert %DateTime{} = executed.claimed_at
+
+      assert Repo.get!(WorkflowJob, claimed_job_id).status == "queued"
+    end
+
+    # A job the shuffle displaced onto this runner is no longer a dispatch
+    # candidate, so the only way back to `queued` is a stale claim naming
+    # it — the ClickHouse-lag double-claim shape. Releasing that claim must
+    # not re-queue a job that is executing on someone else's Pod.
+    test "keeps an executing job out of the queue when a stale claim is released", %{account: account} do
+      claimed_job_id = 4430
+      executed_job_id = 4431
+      claim_running!(account, claimed_job_id, "pod-stale", "runner-stale")
+      queue_job!(account, executed_job_id)
+
+      stub(RunnerSessions, :record_execution, fn "runner-stale", 4431, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: executed_job_id, runner_name: "runner-stale"), 1)
+
+      {:ok, stale_claim} =
+        Claims.attempt(executed_job_id, account.id, "macos-pool", "pod-late", %{
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14
+        })
+
+      assert :ok = Claims.release(executed_job_id, stale_claim.claimed_at)
+
+      assert Repo.get!(WorkflowJob, executed_job_id).status == "running"
     end
 
     test "a mismatch on either store wins over a matched on the other" do

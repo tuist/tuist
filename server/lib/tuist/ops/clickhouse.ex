@@ -12,7 +12,12 @@ defmodule Tuist.Ops.ClickHouse do
 
   require Logger
 
-  @max_rows 200
+  # Atlas time-series widgets aggregate by day (up to ~365 rows for a 12-month
+  # window) and per-table listings enumerate all app tables (currently ~90). A
+  # 200-row cap forced `result_overflow_mode: throw`, so the widget rendered
+  # "Unavailable" whenever a series spanned enough days. The memory/time/bytes
+  # safeties below still bound the query cost.
+  @max_rows 10_000
   @max_execution_time_seconds 10
   @request_timeout_milliseconds 15_000
   @max_memory_usage_bytes 1024 * 1024 * 1024

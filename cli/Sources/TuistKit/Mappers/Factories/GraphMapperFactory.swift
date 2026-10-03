@@ -6,6 +6,7 @@ import TuistConfig
 import TuistCore
 import TuistDependencies
 import TuistGenerator
+import TuistHasher
 import TuistServer
 import XcodeGraph
 
@@ -327,17 +328,14 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             targets: [XcodeGraph.Platform: Set<TargetQuery>],
             cacheSources: Set<TargetQuery>,
             configuration: String,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            targetHashes: [TargetReference: TargetContentHash] = [:]
         ) -> [GraphMapping] {
             var mappers = self.default(
                 config: config,
                 includedTargets: cacheSources,
                 preserveGraphBeforeFocus: !cacheSources.isEmpty
             )
-
-            // Insert scheme generation mapper after ExternalProjectsPlatformNarrowerGraphMapper so it sees narrowed destinations
-            let narrowerIndex = mappers.firstIndex(where: { $0 is ExternalProjectsPlatformNarrowerGraphMapper }) ?? 0
-            mappers.insert(GenerateCacheableSchemesGraphMapper(targets: targets), at: narrowerIndex + 1)
 
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
@@ -346,10 +344,13 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     exceptions: cacheSources
                 ),
                 configuration: configuration,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                precomputedTargetHashes: targetHashes
             )
             mappers.append(focusTargetsGraphMapper)
             mappers.append(TreeShakePrunedTargetsGraphMapper())
+            // Runs after the cache replacement so the schemes also build the cache hits kept as source.
+            mappers.append(GenerateCacheableSchemesGraphMapper(targets: targets))
             mappers.append(StaticXCFrameworkModuleMapGraphMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
 

@@ -18,8 +18,17 @@ extension Client {
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
-            ] + additionalMiddlewares
+            ] + requestCompressionMiddlewares + additionalMiddlewares
         )
+    }
+
+    /// Innermost, so verbose logging still shows the uncompressed body.
+    private static var requestCompressionMiddlewares: [any ClientMiddleware] {
+        #if canImport(Darwin)
+            [ServerClientRequestCompressionMiddleware()]
+        #else
+            []
+        #endif
     }
 
     /// Tuist client for unauthenticated sessions

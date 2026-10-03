@@ -802,15 +802,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [macroPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [macroPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
@@ -830,15 +829,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory)
@@ -863,12 +861,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory)
@@ -893,12 +893,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
@@ -923,15 +925,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     // MARK: - Upload Error Handling Tests
@@ -995,7 +996,7 @@ struct CacheRemoteStorageTests {
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
-    func store_handles_individual_upload_failures_gracefully() async throws {
+    func store_uploads_the_rest_and_throws_the_items_that_failed() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
@@ -1053,16 +1054,20 @@ struct CacheRemoteStorageTests {
         ).willReturn(())
 
         // When
-        let result = try await subject.store(items, cacheCategory: .binaries)
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(items, cacheCategory: .binaries)
+        }
 
         // Then
-        #expect(result.count == 1)
-        #expect(result.first?.name == "target2")
-        #expect(result.first?.hash == "hash2")
-
-        // Verify warning was logged for failed upload
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target1 with hash hash1 due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target1", hash: "hash1")])
+        verify(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .value("hash2"),
+            name: .value("target2"),
+            cacheCategory: .any,
+            uploadId: .any,
+            parts: .any
+        ).called(1)
     }
 }

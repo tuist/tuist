@@ -1,48 +1,58 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
-import TuistCAS
 import TuistEnvironment
-import TuistLoggerTesting
-import TuistServer
+import TuistLaunchctl
 import TuistTesting
 
 @testable import TuistKit
 
 struct CacheStartCommandServiceTests {
-    private let serverURL = URL(string: "https://test.tuist.dev")!
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
-    private let serverAuthenticationController = MockServerAuthenticationControlling()
-    private let cacheURLStore = MockCacheURLStoring()
+    private let fileSystem = FileSystem()
+    private let launchctlController = MockLaunchctlControlling()
     private let subject: CacheStartCommandService
 
     init() {
-        subject = CacheStartCommandService(
-            serverEnvironmentService: serverEnvironmentService,
-            serverAuthenticationController: serverAuthenticationController,
-            cacheURLStore: cacheURLStore
-        )
+        subject = CacheStartCommandService(fileSystem: fileSystem, launchctlController: launchctlController)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedLogger())
-    func run_exitsCleanlyWithoutStartingServer_whenNotAuthenticated() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func removes_the_launch_agent_and_socket_of_the_retired_daemon_before_booting_it_out() async throws {
         // Given
-        given(serverEnvironmentService)
-            .url()
-            .willReturn(serverURL)
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
-            .willReturn(nil)
+        let environment = try #require(Environment.mocked)
+        let plistPath = environment.homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+        let socketPath = environment.cacheSocketPath(for: "organization/project")
+        try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
+        try await fileSystem.writeText("", at: plistPath)
+        try await fileSystem.writeText("", at: socketPath)
+        given(launchctlController)
+            .bootout(label: .any)
+            .willProduce { _ in
+                #expect(FileManager.default.fileExists(atPath: plistPath.pathString) == false)
+                #expect(FileManager.default.fileExists(atPath: socketPath.pathString) == false)
+            }
 
         // When
-        // A clean return (no thrown error, no started gRPC server) lets the daemon
-        // exit with status 0 so the KeepAlive LaunchAgent does not respawn it every
-        // ~10 seconds while the user is logged out.
-        try await subject.run(fullHandle: "tuist/tuist", url: nil)
+        try await subject.run(fullHandle: "organization/project")
 
         // Then
-        verify(cacheURLStore)
-            .getCacheURL(for: .any, accountHandle: .any)
-            .called(0)
+        verify(launchctlController)
+            .bootout(label: .value("tuist.cache.organization_project"))
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func succeeds_when_nothing_is_left_to_remove_and_the_agent_cannot_be_booted_out() async throws {
+        // Given
+        given(launchctlController)
+            .bootout(label: .any)
+            .willThrow(TestError("launchctl failed"))
+
+        // When / Then
+        try await subject.run(fullHandle: "organization/project")
     }
 }

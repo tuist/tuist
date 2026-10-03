@@ -24,7 +24,7 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
   setup do
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
-    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-central"] end)
+    stub(Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-west"] end)
     :ok
   end
 
@@ -154,7 +154,7 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
 
     assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
 
-    assert Demand.get(account.id, "eu-central")
+    assert Demand.get(account.id, "eu-west")
     refute Demand.get(account.id, "us-east")
   end
 
@@ -233,7 +233,7 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
     assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
 
     assert Demand.get(account.id, "us-east")
-    refute Demand.get(account.id, "eu-central")
+    refute Demand.get(account.id, "eu-west")
   end
 
   test "skips accounts with no resolvable service region" do
@@ -245,6 +245,6 @@ defmodule Tuist.Kura.Workers.BackfillCacheDemandWorkerTest do
     assert :ok = BackfillCacheDemandWorker.perform(%Oban.Job{args: %{}})
 
     refute Demand.get(account.id, "us-east")
-    refute Demand.get(account.id, "eu-central")
+    refute Demand.get(account.id, "eu-west")
   end
 end

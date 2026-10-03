@@ -31,7 +31,7 @@ That is the substantive change. The old fleet had its own operating system, its 
 
 | Region | Provider | Location |
 | --- | --- | --- |
-| `eu-central` | Scaleway Dedibox | Europe, central |
+| `eu-west` | OVHcloud | Gravelines, France |
 | `us-east` | OVHcloud | Vint Hill, Virginia |
 | `us-west` | OVHcloud | Hillsboro, Oregon |
 | `scw-fr-par-runners` | Scaleway Elastic Metal | Paris |
@@ -40,19 +40,39 @@ The first three serve customers. `scw-fr-par-runners` is private: it serves the 
 
 Customers do not choose among them. An account is placed in the region its cache traffic comes from, and the placement follows that traffic when it durably moves; what an account states is where its data may live (the storage region setting), which is a compliance boundary rather than a placement. Each account also has a cache hostname without a region in it, so a client that writes the endpoint down keeps working when its cache moves.
 
-Each region is one box today. A region's capacity grows by adding boxes, not by splitting an account across them, because an account's cache pods are kept together on a single box.
+EU-West runs on three OVH boxes. A region's capacity grows by adding boxes; each account's cache pods are kept together on a single box.
+
+## How an instance is sized
+
+An account's cache instance is bounded on four dimensions: memory, CPU, disk, and egress. Each is a pair, a floor the instance is guaranteed and a ceiling it may reach at peak, and the two are deliberately unequal. Floors decide how many accounts fit on a box, because the scheduler places pods against the sum of their floors and nothing else. Ceilings decide how large a burst an account absorbs before it is shed, and they oversubscribe the box on purpose: headroom above a floor costs nothing until someone uses it.
+
+What differs between the dimensions is where the number comes from.
+
+| Dimension | Floor | Ceiling |
+| --- | --- | --- |
+| Memory | Granted per plan | Granted per plan |
+| CPU | Measured per instance | Granted per plan |
+| Disk | Granted per plan, then grown from measured shedding | The same value: the claim is the quota |
+| Egress | Granted per region, overridable per account | Granted per region |
+
+**CPU is the one we measure.** Every other floor is a number we choose in advance, which works when a plan predicts the need. For CPU it does not: instances on the same plan differ from each other by nearly two orders of magnitude, and the two replicas of one instance differ by around ten times, because one serves traffic while the other stands by. No value chosen per plan can see either. So the controller watches each instance's actual usage, keeps a week of it, and asks for what that instance has been observed to need. A flat reservation is what it replaced, and that reservation, not real load, is what once filled a region to the point that new accounts could not be placed in it while the box ran at under a tenth of its capacity.
+
+The ceiling is still granted per plan, because how much an account may take is an entitlement while how much it needs is an observation.
+
+**Compressible and incompressible dimensions behave differently at the ceiling, and that is why the ceilings are not set alike.** Exceeding a memory ceiling kills the process, so the ceiling has to be far enough above real use that a normal burst never reaches it. CPU is compressible: exceeding the reservation only means being slowed down, and only while the box is contended. But the mechanism that enforces a CPU ceiling is not proportional the way the one for bandwidth is. It hands out a budget every tenth of a second and stops the container dead once that budget is spent, even on a machine that is otherwise idle, so a ceiling set close to real use produces stalls that look like the service being slow rather than being limited. The CPU ceilings are therefore set several times above observed use: high enough to bound a runaway instance, far enough away that ordinary work never meets them.
+
+The values themselves live in `server/lib/tuist/kura/regions.ex`, which is where to change them. They are not repeated here, because a number in two places is a number that will disagree with itself.
 
 ## Bringing a node into the fleet
 
 The controllers never order hardware. A box is ordered by hand, prepared, and then adopted.
 
-1. **Order the box** in the provider console. OVHcloud for the US regions, Dedibox for `eu-central`.
+1. **Order the box** in the provider console. OVHcloud for EU-West and the US regions.
 
-2. **Prepare it.** One task installs Ubuntu, the fleet's secure shell key, and the sudo password, then sets the adoption marker as its final step:
+2. **Prepare it.** One task starts the Ubuntu installation with the fleet's secure shell key, then sets the adoption marker as its final step:
 
    ```bash
    PREP_NAMESPACE=tuist-production mise run baremetal:prep-ovh <service-name> <fleet-name>
-   PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>
    ```
 
    The install runs asynchronously and takes roughly twenty to forty minutes. `PREP_NAMESPACE` selects the environment, which selects both the 1Password vault and the values file the marker is read from. Pass `PREP_SKIP_MARK=1` to stage capacity without releasing it into the pool yet.
@@ -73,7 +93,7 @@ Kura is a mesh, and it is deployed with rolling updates, so nodes running differ
 
 **Observability.** Metrics, logs, and traces reach Grafana Cloud through the in-cluster agent. Dashboards are version-controlled in `infra/grafana-dashboards/` and synchronized with Grafana Cloud.
 
-**Release.** Releasing a box wipes and reinstalls Scaleway Elastic Metal machines. Dedibox and OVHcloud machines are left installed and can be re-adopted.
+**Release.** Releasing an OVHcloud or Scaleway Elastic Metal box wipes and reinstalls it before it can be re-adopted. This does not cancel its provider subscription. The Dedibox fleet has been retired and its provisioning support removed.
 
 ## The fleet being retired
 

@@ -5,6 +5,7 @@ defmodule TuistWeb.RateLimitTest do
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.TooManyRequestsError
   alias TuistWeb.RateLimit
   alias TuistWeb.RateLimit.InMemory
   alias TuistWeb.RateLimit.PersistentFixedWindow
@@ -135,9 +136,15 @@ defmodule TuistWeb.RateLimitTest do
     test "allows the request when the rate limit is not reached" do
       expect(Environment, :tuist_hosted?, fn -> true end)
       expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      expect(Environment, :public_project_rate_limit_bucket_size, fn -> 120 end)
 
       expect(RateLimit, :hit, fn
         "dashboard:GET:/:account_handle/:project_handle/bundles/:bundle_id:ip:127.0.0.1", [limit: 60, window: _window] ->
+          {:allow, 1}
+      end)
+
+      expect(RateLimit, :hit, fn
+        "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks", [limit: 120, window: _window] ->
           {:allow, 1}
       end)
 
@@ -145,6 +152,7 @@ defmodule TuistWeb.RateLimitTest do
         :get
         |> build_conn("/tuist/ios_app_with_frameworks/bundles/01973a7f")
         |> Plug.Conn.put_private(:phoenix_router, TuistWeb.Router)
+        |> Map.put(:path_params, %{"account_handle" => "tuist", "project_handle" => "ios_app_with_frameworks"})
 
       assert conn == RateLimit.rate_limit(conn, %{})
     end
@@ -154,9 +162,81 @@ defmodule TuistWeb.RateLimitTest do
       expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
       expect(RateLimit, :hit, fn _key, _opts -> {:deny, 1} end)
 
-      assert_raise TuistWeb.Errors.TooManyRequestsError, fn ->
+      assert_raise TooManyRequestsError, fn ->
         RateLimit.rate_limit(build_conn(), %{})
       end
+    end
+
+    test "raises TooManyRequestsError when the anon per-scope limit is reached even if the per-IP limit allows" do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+      expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      expect(Environment, :public_project_rate_limit_bucket_size, fn -> 120 end)
+
+      expect(RateLimit, :hit, fn "dashboard:GET:" <> _rest, _opts -> {:allow, 1} end)
+      expect(RateLimit, :hit, fn "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks", _opts -> {:deny, 1} end)
+
+      conn =
+        :get
+        |> build_conn("/tuist/ios_app_with_frameworks/tests/test-runs")
+        |> Plug.Conn.put_private(:phoenix_router, TuistWeb.Router)
+        |> Map.put(:path_params, %{"account_handle" => "tuist", "project_handle" => "ios_app_with_frameworks"})
+
+      assert_raise TooManyRequestsError, fn ->
+        RateLimit.rate_limit(conn, %{})
+      end
+    end
+
+    test "keys the anon per-scope limit on the account when only an account handle is present" do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+      expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      expect(Environment, :public_project_rate_limit_bucket_size, fn -> 120 end)
+
+      expect(RateLimit, :hit, fn "dashboard:GET:" <> _rest, _opts -> {:allow, 1} end)
+      expect(RateLimit, :hit, fn "dashboard:anon-scope:GET:tuist", _opts -> {:allow, 1} end)
+
+      conn =
+        :get
+        |> build_conn("/tuist")
+        |> Plug.Conn.put_private(:phoenix_router, TuistWeb.Router)
+        |> Map.put(:path_params, %{"account_handle" => "tuist"})
+
+      assert conn == RateLimit.rate_limit(conn, %{})
+    end
+
+    test "does not apply the anon per-scope limit when the request is authenticated" do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+      expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      Mimic.reject(&Environment.public_project_rate_limit_bucket_size/0)
+      Mimic.reject(&RemoteIp.get/1)
+
+      expect(RateLimit, :hit, fn
+        "dashboard:GET:/:account_handle:user:123", [limit: 60, window: _window] ->
+          {:allow, 1}
+      end)
+
+      conn =
+        :get
+        |> build_conn("/tuist")
+        |> Plug.Conn.put_private(:phoenix_router, TuistWeb.Router)
+        |> Map.put(:path_params, %{"account_handle" => "tuist"})
+        |> Authentication.put_current_user(%User{id: 123})
+
+      assert conn == RateLimit.rate_limit(conn, %{})
+    end
+
+    test "does not apply the anon per-scope limit when the request path carries no scope" do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+      expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      Mimic.reject(&Environment.public_project_rate_limit_bucket_size/0)
+
+      expect(RateLimit, :hit, fn _key, _opts -> {:allow, 1} end)
+
+      conn =
+        :get
+        |> build_conn("/")
+        |> Plug.Conn.put_private(:phoenix_router, TuistWeb.Router)
+
+      assert conn == RateLimit.rate_limit(conn, %{})
     end
 
     test "uses the authenticated user in the key" do
@@ -185,6 +265,26 @@ defmodule TuistWeb.RateLimitTest do
       conn = build_conn()
 
       assert conn == RateLimit.rate_limit(conn, limit: 10)
+    end
+
+    test "allows an anon per-scope limit override" do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+      expect(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      Mimic.reject(&Environment.public_project_rate_limit_bucket_size/0)
+
+      expect(RateLimit, :hit, fn "dashboard:GET:" <> _rest, _opts -> {:allow, 1} end)
+
+      expect(RateLimit, :hit, fn "dashboard:anon-scope:GET:tuist/ios_app_with_frameworks", [limit: 42, window: _window] ->
+        {:allow, 1}
+      end)
+
+      conn =
+        :get
+        |> build_conn("/tuist/ios_app_with_frameworks/tests")
+        |> Plug.Conn.put_private(:phoenix_router, TuistWeb.Router)
+        |> Map.put(:path_params, %{"account_handle" => "tuist", "project_handle" => "ios_app_with_frameworks"})
+
+      assert conn == RateLimit.rate_limit(conn, anon_scope_limit: 42)
     end
 
     test "does not check the rate limit when self-hosted" do

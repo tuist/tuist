@@ -89,7 +89,7 @@ defmodule TuistWeb.Marketing.Components.IncrementalityModelsLab do
       }
 
       .incrementality-models-lab__node--reused {
-        fill: var(--noora-purple-100);
+        fill: var(--marketing-tint-purple);
         stroke: var(--noora-button-primary-background);
       }
 
