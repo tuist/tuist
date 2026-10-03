@@ -1,0 +1,344 @@
+defmodule TuistWeb.API.MixController do
+  use OpenApiSpex.ControllerSpecs
+  use TuistWeb, :controller
+
+  alias OpenApiSpex.Schema
+  alias Tuist.Mix
+  alias Tuist.Projects
+  alias Tuist.VCS.RemoteURL
+  alias TuistWeb.API.Responses
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Authentication
+
+  plug(TuistWeb.Plugs.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
+
+  plug(TuistWeb.Plugs.LoaderPlug)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+
+  tags ["Mix"]
+
+  # The same limits the context enforces, so a report that would be truncated
+  # or wrapped by a storage column is refused instead.
+  @limits Mix.limits()
+  @uint32 @limits.uint32
+  @int64 @limits.int64
+  @max_name 1_024
+  @max_message 10_000
+
+  operation(:create_build,
+    summary: "Create a Mix (Elixir) compile build.",
+    operation_id: "createMixBuild",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Mix build data", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "Client-generated UUID for the build."
+           },
+           contract_version: %Schema{
+             type: :string,
+             description: "Version of the client-server analytics contract the caller was built against."
+           },
+           duration_ms: %Schema{
+             type: :integer,
+             minimum: 0,
+             maximum: @uint32,
+             description: "Total compile duration in milliseconds."
+           },
+           started_at: %Schema{
+             type: :string,
+             format: :"date-time",
+             description: "ISO 8601 timestamp for when the compile started."
+           },
+           status: %Schema{
+             type: :string,
+             enum: ["success", "failure"],
+             description: "The outcome of the compile."
+           },
+           is_ci: %Schema{
+             type: :boolean,
+             description: "Whether the compile ran on a continuous integration provider."
+           },
+           elixir_version: %Schema{
+             type: :string,
+             description: "The Elixir version used to compile (e.g., \"1.20.2\")."
+           },
+           otp_version: %Schema{
+             type: :string,
+             description: "The Erlang/OTP release used to compile (e.g., \"29\")."
+           },
+           mix_env: %Schema{
+             type: :string,
+             description: ~s{The Mix environment the compile ran in (e.g., "dev", "test").}
+           },
+           git_branch: %Schema{type: :string, description: "Git branch."},
+           git_commit_sha: %Schema{type: :string, description: "Git commit SHA."},
+           git_ref: %Schema{type: :string, description: "Git ref."},
+           git_remote_url_origin: %Schema{type: :string, description: "Git remote URL origin."},
+           ci_run_id: %Schema{type: :string, description: "The CI run identifier."},
+           ci_project_handle: %Schema{
+             type: :string,
+             description: "The CI project handle (e.g., 'owner/repo')."
+           },
+           ci_provider: %Schema{
+             type: :string,
+             enum: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"],
+             description: "The CI provider."
+           },
+           ci_host: %Schema{
+             type: :string,
+             description: "The CI host URL, useful for self-hosted providers."
+           },
+           machine_metrics: %Schema{
+             type: :array,
+             maxItems: @limits.machine_metrics,
+             description: "Machine performance samples collected during the compile.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp: %Schema{
+                   type: :number,
+                   minimum: 0,
+                   maximum: @limits.timestamp,
+                   description: "Unix timestamp in seconds."
+                 },
+                 cpu_usage_percent: %Schema{
+                   type: :number,
+                   minimum: 0,
+                   maximum: 100,
+                   description: "CPU usage percentage (0-100)."
+                 },
+                 memory_used_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 memory_total_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 network_bytes_in: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 network_bytes_out: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 disk_bytes_read: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 disk_bytes_written: %Schema{type: :integer, minimum: 0, maximum: @int64}
+               },
+               required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes]
+             }
+           },
+           custom_metadata: %Schema{
+             type: :object,
+             description: "Custom metadata for the build run.",
+             properties: %{
+               tags: %Schema{
+                 type: :array,
+                 items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                 maxItems: 50
+               },
+               values: %Schema{
+                 type: :object,
+                 additionalProperties: %Schema{type: :string, maxLength: 500},
+                 maxProperties: 20
+               }
+             }
+           },
+           files: %Schema{
+             type: :array,
+             maxItems: @limits.files,
+             description:
+               "Per-file compile profile: how long each file compiled, the project files it depends on, and how long it sat paused while other files compiled.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 path: %Schema{type: :string, maxLength: @max_name, description: "Path relative to the project root."},
+                 start_offset_ms: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Milliseconds from the start of the compile to when the file started compiling."
+                 },
+                 compile_duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 wait_duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 modules: %Schema{
+                   type: :array,
+                   maxItems: @limits.nested,
+                   items: %Schema{type: :string, maxLength: @max_name}
+                 },
+                 dependencies: %Schema{
+                   type: :array,
+                   maxItems: @limits.nested,
+                   description: "The project files this file references.",
+                   items: %Schema{
+                     type: :object,
+                     properties: %{
+                       path: %Schema{
+                         type: :string,
+                         maxLength: @max_name,
+                         description: "Path relative to the project root."
+                       },
+                       kind: %Schema{
+                         type: :string,
+                         enum: ["compile", "export", "runtime"],
+                         description:
+                           "compile: needed while the file compiles. export: its struct or an import. runtime: only called from inside functions."
+                       }
+                     },
+                     required: [:path, :kind]
+                   }
+                 },
+                 waits: %Schema{
+                   type: :array,
+                   maxItems: @limits.nested,
+                   items: %Schema{
+                     type: :object,
+                     properties: %{
+                       module: %Schema{type: :string, description: "The module the file waited on."},
+                       path: %Schema{
+                         type: :string,
+                         nullable: true,
+                         description: "The project file defining that module, when known."
+                       },
+                       kind: %Schema{type: :string, description: "What was needed, such as module or struct."},
+                       duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                       start_offset_ms: %Schema{
+                         type: :integer,
+                         nullable: true,
+                         minimum: 0,
+                         maximum: @uint32,
+                         description: "Milliseconds from the start of the compile to when the wait began, when known."
+                       }
+                     },
+                     required: [:module, :duration_ms]
+                   }
+                 }
+               },
+               required: [:path, :compile_duration_ms]
+             }
+           },
+           steps: %Schema{
+             type: :array,
+             maxItems: @limits.steps,
+             description:
+               "The work of the build besides compiling files, such as type checking a module or writing modules to disk.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 category: %Schema{
+                   type: :string,
+                   enum: ["type_check", "write", "compiler", "other"],
+                   description: "The kind of work."
+                 },
+                 title: %Schema{type: :string, maxLength: @max_name, description: "What the step did."},
+                 path: %Schema{
+                   type: :string,
+                   nullable: true,
+                   description: "The project file the step is about, when it concerns one."
+                 },
+                 start_offset_ms: %Schema{
+                   type: :integer,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Milliseconds from the start of the compile to when the step started."
+                 },
+                 duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32}
+               },
+               required: [:category, :title, :start_offset_ms, :duration_ms]
+             }
+           },
+           diagnostics: %Schema{
+             type: :array,
+             maxItems: @limits.diagnostics,
+             description: "Compile-time diagnostics emitted during the build.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 severity: %Schema{type: :string, enum: ["warning", "error"]},
+                 file: %Schema{type: :string, maxLength: @max_name, description: "Path relative to the project root."},
+                 module: %Schema{
+                   type: :string,
+                   maxLength: @max_name,
+                   description: "The module the diagnostic belongs to."
+                 },
+                 message: %Schema{type: :string, maxLength: @max_message, description: "The diagnostic message."},
+                 line: %Schema{type: :integer, nullable: true, minimum: 0, maximum: @uint32},
+                 column: %Schema{type: :integer, nullable: true, minimum: 0, maximum: @uint32},
+                 compiler: %Schema{
+                   type: :string,
+                   description: ~s{The compiler that emitted it (e.g. "elixir", "app").}
+                 }
+               },
+               required: [:severity, :message]
+             }
+           }
+         },
+         required: [:id, :duration_ms, :status]
+       }},
+    responses: %{
+      created:
+        {"Build created", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+           },
+           required: [:id]
+         }},
+      bad_request: {"Invalid request", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
+    body = RemoteURL.strip_credentials_from_params(body)
+
+    case Mix.create_build(build_attributes(conn, project, body)) do
+      {:ok, build_id} ->
+        Projects.notify_connected(project, Authentication.current_user(conn))
+
+        conn
+        |> put_status(:created)
+        |> json(%{id: build_id})
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The custom metadata is invalid."})
+    end
+  end
+
+  @build_fields ~w(id duration_ms started_at status elixir_version otp_version mix_env
+                   git_branch git_commit_sha git_ref git_remote_url_origin ci_provider
+                   ci_run_id ci_project_handle ci_host contract_version)a
+
+  defp build_attributes(conn, project, body) do
+    metadata = body[:custom_metadata] || %{}
+
+    body
+    |> Map.take(@build_fields)
+    |> Map.merge(%{
+      project_id: project.id,
+      account_id: Authentication.authenticated_subject_account(conn).id,
+      is_ci: body[:is_ci] || false,
+      custom_tags: Map.get(metadata, :tags, []),
+      custom_values: Map.get(metadata, :values, %{}),
+      diagnostics: body[:diagnostics] || [],
+      files: body[:files] || [],
+      steps: body[:steps] || [],
+      machine_metrics: body[:machine_metrics] || []
+    })
+  end
+end

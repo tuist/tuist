@@ -29,11 +29,18 @@ defmodule Tuist.Docs.SidebarTest do
              {"Xcode project", "/en/guides/get-started/existing-xcode-project"},
              {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
              {"Gradle project", "/en/guides/get-started/gradle-project"},
+             {"Elixir project", "/en/guides/get-started/elixir-project"},
              {"Bazel project", "/en/guides/get-started/bazel-project"}
            ]
 
     refute Enum.any?(rest, &(&1.label == "Guides"))
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
+  end
+
+  test "links the library documentation from the references sidebar" do
+    libraries = Enum.find(Sidebar.references_tree(), &(&1.label == "Libraries"))
+
+    assert [%{label: "Elixir", url: "https://hexdocs.pm/tuist_ex", icon: "brand_elixir"}] = libraries.items
   end
 
   test "all sidebar slugs correspond to actual docs pages" do

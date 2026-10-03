@@ -941,11 +941,16 @@ defmodule Tuist.Tests do
         shard_index: shard_index || 0,
         status: status,
         duration: duration || 0,
-        ran_at: Map.get(attrs, :ran_at, now),
+        ran_at: attrs |> Map.get(:ran_at, now) |> shard_run_ran_at(),
         inserted_at: now
       }
     ])
   end
+
+  # A client that reports when its run started sends a timestamp with a zone;
+  # the column holds a naive one.
+  defp shard_run_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
+  defp shard_run_ran_at(ran_at), do: ran_at
 
   defp mark_test_run_as_flaky(test, []), do: test
   defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky_ids), do: test

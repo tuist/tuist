@@ -5,7 +5,7 @@ defmodule Mix.Tasks.Docs.ValidatePage do
   Validates that a documentation Markdown page can be parsed and rendered.
   """
   use Mix.Task
-  use Boundary, classify_to: Tuist.Mix
+  use Boundary, classify_to: Tuist.MixTasks
 
   alias Tuist.Docs
 

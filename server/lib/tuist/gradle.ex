@@ -58,7 +58,7 @@ defmodule Tuist.Gradle do
 
       machine_metrics = Map.get(attrs, :machine_metrics, [])
 
-      create_machine_metrics(build_id, machine_metrics, now)
+      create_machine_metrics(build_id, attrs.project_id, machine_metrics, now)
       create_configuration_operations(build_id, attrs.project_id, Map.get(attrs, :configuration_operations, []), now)
       create_artifact_transforms(build_id, attrs.project_id, Map.get(attrs, :artifact_transforms, []), now)
 
@@ -132,11 +132,12 @@ defmodule Tuist.Gradle do
     )
   end
 
-  defp create_machine_metrics(build_id, metrics, now) do
+  defp create_machine_metrics(build_id, project_id, metrics, now) do
     entries =
       Enum.map(metrics, fn metric ->
         %{
           gradle_build_id: build_id,
+          project_id: project_id,
           timestamp: metric.timestamp,
           cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,

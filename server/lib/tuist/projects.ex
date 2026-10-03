@@ -78,6 +78,17 @@ defmodule Tuist.Projects do
     end
   end
 
+  @doc """
+  Tells the pages waiting for a project's first sign of life that the user
+  reached it from their machine. A report sent with a project token has no
+  user, and tells nobody.
+  """
+  def notify_connected(_project, nil), do: :ok
+
+  def notify_connected(%Project{id: id}, user) do
+    Tuist.PubSub.broadcast(%{user: user}, "projects.#{id}", :show)
+  end
+
   def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
     preloads = Keyword.get(opts, :preload, [:account])
     extra_preloads = Enum.reject(preloads, &(&1 == :account))
