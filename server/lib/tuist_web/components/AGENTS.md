@@ -35,3 +35,5 @@ This area owns shared UI components for LiveView and templates.
 - Widgets and legends format numeric values through `CldrHelpers.format_number/2`; preformatted strings retain their units. Count table cells must use the same helper.
 
 - Do not render fallback coverage or internal clock-origin banners. Pages hide Timeline when the required recorded data is unavailable; Bazel requires a published profile, not retained build-summary spans. Preserve coverage and clock-origin metadata in the API.
+
+- `AsyncCard` coordinates required analytics results through a readiness flag while preserving each card’s existing loading markup. Guard required result reads with that flag, keep optional results independently guarded, and leave header actions available. Use `async_section` around analytics inside a card with synchronous table content. Failed required loads render the shared error section; successful content stays mounted during refresh. Scatter charts retain points during refresh and show an explicit failure within the chart area. Their requested period can update before the points finish refreshing, so keep the pending state visible.
