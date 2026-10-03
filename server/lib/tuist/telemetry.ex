@@ -87,4 +87,8 @@ defmodule Tuist.Telemetry do
   def event_name_ingestion_buffer_dropped do
     TuistCommon.Ingestion.Buffer.dropped_event()
   end
+
+  def event_name_once_events_refused do
+    [:tuist, :once_events, :refused]
+  end
 end

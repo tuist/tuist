@@ -74,10 +74,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
-      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
+      connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
 
@@ -426,6 +426,11 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
+        live Path.join(locale_path_prefix, "/globe"),
+             TuistWeb.Marketing.MarketingGlobeLive,
+             metadata: @marketing_route_metadata,
+             private: private
+
         live Path.join(locale_path_prefix, "/previews"),
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: @marketing_route_metadata,
@@ -639,6 +644,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -719,6 +725,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -1443,6 +1450,17 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
+      get "/once", RedirectPlug, to: "/once/builds"
+      get "/once/runs", RedirectPlug, to: "/once/build-runs"
+      live "/once/runs/:once_run_id", OnceRunLive, :overview
+      live "/once/runs/:once_run_id/cache", OnceRunLive, :cache
+      live "/once/builds", OnceRunsLive, :builds
+      live "/once/build-runs", OnceRunsLive, :build_runs
+      live "/once/tests", OnceTestsLive
+      live "/once/test-runs", OnceRunsLive, :tests
+      live "/once/test-runs/:once_run_id", OnceTestRunLive
+      live "/once/test-runs/:once_run_id/test-cases/:case_id", OnceTestCaseRunLive
+      live "/once-cache", OnceCacheLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive

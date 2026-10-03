@@ -46,6 +46,17 @@ ingress-nginx:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
+# gRPC ingress for the Once events listener. It sits on the same general fsn1
+# pool as the main controller. See `grpc-ingress-nginx` in values.yaml for why
+# it is a separate controller.
+grpc-ingress-nginx:
+  enabled: true
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
+
 # Public non-production Kura now runs only on OVH ca-east.
 kura-eu-west-ingress-nginx:
   enabled: false

@@ -1,5 +1,13 @@
 <div class="overview">
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[
+      @binary_cache_hit_rate_analytics,
+      @build_analytics,
+      @build_time_analytics,
+      @selective_testing_analytics,
+      @test_analytics
+    ]}
     title={dgettext("dashboard_projects", "Analytics")}
     icon="chart_arcs"
     data-part="analytics"
@@ -88,7 +96,7 @@
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
-          loading={!@binary_cache_hit_rate_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_projects", "Cache effectiveness")}
           description={
             dgettext(
@@ -97,7 +105,7 @@
             )
           }
           value={
-            if @binary_cache_hit_rate_analytics.ok?,
+            if ready?,
               do:
                 dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
                   binary_cache_effectiveness:
@@ -108,18 +116,18 @@
           }
           id="widget-binary-cache-effectiveness"
           trend_value={
-            if @binary_cache_hit_rate_analytics.ok?,
+            if ready?,
               do: @binary_cache_hit_rate_analytics.result.trend,
               else: nil
           }
           trend_label={@analytics_trend_label}
           empty={
-            @binary_cache_hit_rate_analytics.ok? &&
+            ready? &&
               @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
           }
         />
         <.widget
-          loading={!@selective_testing_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_projects", "Selective test effectiveness")}
           description={
             dgettext(
@@ -128,7 +136,7 @@
             )
           }
           value={
-            if @selective_testing_analytics.ok?,
+            if ready?,
               do:
                 dgettext("dashboard_projects", "%{selective_tests_effectiveness}%",
                   selective_tests_effectiveness:
@@ -139,18 +147,18 @@
           }
           id="widget-selective-tests-effectiveness"
           trend_value={
-            if @selective_testing_analytics.ok?,
+            if ready?,
               do: @selective_testing_analytics.result.trend,
               else: nil
           }
           trend_label={@analytics_trend_label}
           empty={
-            @selective_testing_analytics.ok? &&
+            ready? &&
               @selective_testing_analytics.result.hit_rate == 0.0
           }
         />
         <.widget
-          loading={!@build_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_projects", "Average build time")}
           description={
             dgettext(
@@ -159,20 +167,20 @@
             )
           }
           value={
-            if @build_analytics.ok?,
+            if ready?,
               do:
                 dgettext("dashboard_projects", "%{duration}s",
                   duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
                 )
           }
           id="widget-average-build-time"
-          trend_value={if @build_analytics.ok?, do: @build_analytics.result.trend, else: nil}
+          trend_value={if ready?, do: @build_analytics.result.trend, else: nil}
           trend_label={@analytics_trend_label}
           trend_type={:inverse}
-          empty={@build_analytics.ok? && @build_analytics.result.total_average_duration == 0}
+          empty={ready? && @build_analytics.result.total_average_duration == 0}
         />
         <.widget
-          loading={!@test_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_tests", "Avg. test run duration")}
           description={
             dgettext(
@@ -181,29 +189,30 @@
             )
           }
           value={
-            if @test_analytics.ok? do
+            if ready? do
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                 @test_analytics.result.total_average_duration
               )
             end
           }
           id="widget-test-run-duration"
-          trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
+          trend_value={if ready?, do: @test_analytics.result.trend, else: nil}
           trend_label={@analytics_trend_label}
           trend_type={:inverse}
-          empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
+          empty={ready? && @test_analytics.result.total_average_duration == 0}
         />
       </div>
       <div
         :if={
-          !@binary_cache_hit_rate_analytics.ok? ||
+          !ready? ||
             @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
         }
         data-part="cache-cards-section"
       >
         <.card_section
-          :if={!@binary_cache_hit_rate_analytics.ok? || !@selective_testing_analytics.ok?}
+          :if={!ready?}
           data-part="cache-effectiveness-card-chart-section"
+          data-chart-frame="standard"
         >
           <div data-part="effectiveness-chart">
             <div data-part="legends">
@@ -215,11 +224,11 @@
         </.card_section>
         <.card_section
           :if={
-            @binary_cache_hit_rate_analytics.ok? &&
-              @selective_testing_analytics.ok? &&
+            ready? &&
               @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
           }
           data-part="cache-effectiveness-card-chart-section"
+          data-chart-frame="standard"
         >
           <div data-part="effectiveness-chart">
             <div data-part="legends">
@@ -335,12 +344,13 @@
         </.card_section>
         <.card_section
           :if={
-            @build_time_analytics.ok? &&
+            ready? &&
               @analytics_environment == "ci" &&
               @build_time_analytics.result.total_time_saved != 0 &&
               @build_time_analytics.result.total_build_time != 0
           }
           data-part="time-saved-card-chart-section"
+          data-chart-frame="standard"
         >
           <div data-part="legends">
             <.legend
@@ -435,11 +445,12 @@
       </div>
       <.empty_card_section
         :if={
-          @binary_cache_hit_rate_analytics.ok? &&
+          ready? &&
             @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
         }
         title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
         get_started_href="https://tuist.dev/en/docs/"
+        data-chart-frame="standard"
       >
         <:image>
           <img
@@ -457,8 +468,13 @@
         </:image>
       </.empty_card_section>
     </div>
-  </.card>
-  <.card title={dgettext("dashboard_projects", "Tests")} icon="subtask">
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@failed_test_runs_count, @passed_test_runs_count, @recent_test_runs]}
+    title={dgettext("dashboard_projects", "Tests")}
+    icon="subtask"
+  >
     <:actions>
       <.button
         variant="secondary"
@@ -468,7 +484,7 @@
         disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
-    <.card_section :if={!@recent_test_runs.ok?}>
+    <.card_section :if={!ready?} data-chart-frame="standard">
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.skeleton_legend />
@@ -477,7 +493,10 @@
         <.skeleton_chart />
       </div>
     </.card_section>
-    <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
+    <.card_section
+      :if={ready? && not Enum.empty?(@recent_test_runs.result)}
+      data-chart-frame="standard"
+    >
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.legend
@@ -544,9 +563,10 @@
       </div>
     </.card_section>
     <.empty_card_section
-      :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
+      :if={ready? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_projects", "Runs: no data yet")}
       get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -563,7 +583,7 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
   <.card title={dgettext("dashboard_projects", "Previews")} icon="devices" data-part="previews">
     <:actions>
       <.button
@@ -620,7 +640,9 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@bundle_size_analytics]}
     title={dgettext("dashboard_projects", "Bundles")}
     icon="chart_donut_4"
     data-part="bundle-size-card"
@@ -688,7 +710,11 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <.card_section :if={!@bundle_size_analytics.ok?} data-part="bundle-size-chart-card-section">
+    <.card_section
+      :if={!ready?}
+      data-part="bundle-size-chart-card-section"
+      data-chart-frame="standard"
+    >
       <span data-part="legend" class="tuist-loading-skeleton">
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
       </span>
@@ -696,10 +722,11 @@
     </.card_section>
     <.card_section
       :if={
-        @bundle_size_analytics.ok? &&
+        ready? &&
           Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
       }
       data-part="bundle-size-chart-card-section"
+      data-chart-frame="standard"
     >
       <span data-part="legend">{dgettext("dashboard_projects", "Install size")}</span>
       <.chart
@@ -762,10 +789,11 @@
     </.card_section>
     <.empty_card_section
       :if={
-        @bundle_size_analytics.ok? &&
+        ready? &&
           Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
       }
       title={dgettext("dashboard_projects", "No bundles yet")}
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -782,8 +810,15 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
-  <.card
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[
+      @builds_duration_analytics,
+      @failed_build_runs_count,
+      @passed_build_runs_count,
+      @recent_build_runs
+    ]}
     title={dgettext("dashboard_projects", "Builds")}
     icon="subtask"
     data-part="builds-card-section"
@@ -868,11 +903,10 @@
       </.date_picker>
     </:actions>
     <div data-part="builds-card-sections">
-      <.card_section :if={
-        !@recent_build_runs.ok? ||
-          (not Enum.empty?(@recent_build_runs.result) &&
-             (!@passed_build_runs_count.ok? || !@failed_build_runs_count.ok?))
-      }>
+      <.card_section
+        :if={!ready?}
+        data-chart-frame="large"
+      >
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.skeleton_legend />
@@ -881,12 +915,13 @@
           <.skeleton_chart />
         </div>
       </.card_section>
-      <.card_section :if={
-        @recent_build_runs.ok? &&
-          @passed_build_runs_count.ok? &&
-          @failed_build_runs_count.ok? &&
-          not Enum.empty?(@recent_build_runs.result)
-      }>
+      <.card_section
+        :if={
+          ready? &&
+            not Enum.empty?(@recent_build_runs.result)
+        }
+        data-chart-frame="large"
+      >
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.legend
@@ -952,9 +987,10 @@
         </div>
       </.card_section>
       <.empty_card_section
-        :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
+        :if={ready? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_projects", "No recent builds yet")}
         get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
+        data-chart-frame="large"
       >
         <:image>
           <img
@@ -972,8 +1008,9 @@
         </:image>
       </.empty_card_section>
       <.card_section
-        :if={!@builds_duration_analytics.ok?}
+        :if={!ready?}
         data-part="average-build-time-card-section"
+        data-chart-frame="large"
       >
         <div data-part="average-build-time-chart">
           <div data-part="legends">
@@ -984,10 +1021,11 @@
       </.card_section>
       <.card_section
         :if={
-          @builds_duration_analytics.ok? &&
+          ready? &&
             @builds_duration_analytics.result.total_average_duration != 0
         }
         data-part="average-build-time-card-section"
+        data-chart-frame="large"
       >
         <div data-part="average-build-time-chart">
           <.button
@@ -1081,11 +1119,12 @@
       </.card_section>
       <.empty_card_section
         :if={
-          @builds_duration_analytics.ok? &&
+          ready? &&
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_projects", "No builds yet")}
         get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
+        data-chart-frame="large"
       >
         <:image>
           <img
@@ -1103,5 +1142,5 @@
         </:image>
       </.empty_card_section>
     </div>
-  </.card>
+  </.async_card>
 </div>

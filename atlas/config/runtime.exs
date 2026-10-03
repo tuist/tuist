@@ -3,6 +3,7 @@ import Config
 alias Atlas.Config.DevInstance
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
+alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
@@ -148,7 +149,15 @@ config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
   from_email: System.get_env("ATLAS_SUPPORT_FROM_EMAIL", "contact@tuist.dev"),
-  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID")
+  slack_channel_id: System.get_env("ATLAS_SUPPORT_SLACK_CHANNEL_ID"),
+  # Env var wins in every environment. In production only, fall back to the
+  # shared `#support-filtered` channel in the Tuist workspace so silenced
+  # classifications still land somewhere without manual wiring. Dev, test,
+  # and any downstream fork stay unset unless they set the env explicitly —
+  # otherwise a locally booted Atlas could cross-post into prod Slack.
+  slack_filtered_channel_id:
+    System.get_env("ATLAS_SUPPORT_FILTERED_SLACK_CHANNEL_ID") ||
+      if(config_env() == :prod, do: "C0C5LBMM278")
 
 config :atlas, :support_chat, parent_origins: support_chat_parent_origins
 
@@ -167,6 +176,30 @@ if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
     base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
 end
 
+allowed_email_domain =
+  case System.get_env("ATLAS_ALLOWED_EMAIL_DOMAIN") do
+    nil ->
+      if config_env() == :prod and System.get_env("GOOGLE_CLIENT_ID") do
+        IO.puts(
+          :stderr,
+          "ATLAS_ALLOWED_EMAIL_DOMAIN is unset; sign-in retains the configured Tuist domain. Set it explicitly for your organization."
+        )
+      end
+
+      Application.fetch_env!(:atlas, :allowed_email_domain)
+
+    value ->
+      domain = value |> String.trim() |> String.downcase()
+
+      if Regex.match?(~r/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\z/, domain) do
+        domain
+      else
+        raise "ATLAS_ALLOWED_EMAIL_DOMAIN must be a non-empty email domain"
+      end
+  end
+
+config :atlas, :allowed_email_domain, allowed_email_domain
+
 # Atlas uses a dedicated Finch pool for all Req traffic so production can tune
 # connection checkout behaviour independently of Req's shared defaults.
 config :atlas, :http,
@@ -180,6 +213,8 @@ config :atlas, :http,
       start_pool_metrics?: true
     ]
   }
+
+config :ueberauth, Ueberauth, providers: [google: {Google, [default_scope: "email profile", hd: allowed_email_domain]}]
 
 # Configure Google OAuth if env vars are set
 if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
@@ -404,7 +439,12 @@ config :atlas, :tax_certificate_profile,
       "ATLAS_TAX_CERTIFICATE_TAX_OFFICE_POSTAL_CODE",
       :tax_office_postal_code
     ),
-  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city)
+  tax_office_city: tax_certificate_profile_value.("ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY", :tax_office_city),
+  signature_jpeg_base64:
+    tax_certificate_profile_value.(
+      "ATLAS_TAX_CERTIFICATE_SIGNATURE_JPEG_BASE64",
+      :signature_jpeg_base64
+    )
 
 if vector_url = System.get_env("ATLAS_VECTOR_URL") do
   config :atlas, :vector, base_url: vector_url

@@ -171,8 +171,10 @@
     />
   </.tab_menu_horizontal>
 
-  <.card
+  <.async_card
+    :let={ready?}
     :if={@selected_tab == "overview"}
+    results={[@analytics, @previous_analytics, @previous_reliability, @reliability, @series]}
     title={dgettext("dashboard_tests", "Analytics")}
     icon="chart_arcs"
     data-part="analytics"
@@ -226,11 +228,11 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <.card_section data-part="analytics-body">
+    <.card_section data-part="analytics-body" data-chart-frame="standard">
       <div data-part="analytics-main">
         <div data-part="widgets">
           <.widget
-            loading={!@analytics.ok?}
+            loading={!ready?}
             title={
               case @selected_runs_type do
                 "failed" -> dgettext("dashboard_tests", "Failed test case runs")
@@ -252,7 +254,7 @@
               )
             }
             value={
-              if @analytics.ok? do
+              if ready? do
                 format_number(
                   case @selected_runs_type do
                     "failed" -> @analytics.result.outcome_counts.failed
@@ -267,7 +269,7 @@
             phx_value_widget="test_case_runs"
             selected={@analytics_selected_widget == "test_case_runs"}
             trend_value={
-              if @analytics.ok? and @previous_analytics.ok? do
+              if ready? do
                 trend(
                   @previous_analytics.result,
                   runs_count(@previous_analytics.result, @selected_runs_type),
@@ -277,7 +279,7 @@
             }
             trend_type={if @selected_runs_type == "total", do: :neutral, else: :inverse}
             trend_label={@analytics_trend_label}
-            empty={@analytics.ok? && @analytics.result.total_count == 0}
+            empty={ready? && @analytics.result.total_count == 0}
           >
             <:select>
               <.dropdown_item
@@ -291,7 +293,7 @@
                   <span data-part="label">{dgettext("dashboard_tests", "All")}</span>
                   <span data-part="separator">-</span>
                   <span data-part="value">
-                    {if @analytics.ok?,
+                    {if ready?,
                       do: format_number(@analytics.result.total_count),
                       else: dgettext("dashboard_tests", "N/A")}
                   </span>
@@ -308,7 +310,7 @@
                   <span data-part="label">{dgettext("dashboard_tests", "Failed")}</span>
                   <span data-part="separator">-</span>
                   <span data-part="value">
-                    {if @analytics.ok?,
+                    {if ready?,
                       do: format_number(@analytics.result.outcome_counts.failed),
                       else: dgettext("dashboard_tests", "N/A")}
                   </span>
@@ -325,7 +327,7 @@
                   <span data-part="label">{dgettext("dashboard_tests", "Flaky")}</span>
                   <span data-part="separator">-</span>
                   <span data-part="value">
-                    {if @analytics.ok?,
+                    {if ready?,
                       do: format_number(@analytics.result.outcome_counts.flaky),
                       else: dgettext("dashboard_tests", "N/A")}
                   </span>
@@ -334,7 +336,7 @@
             </:select>
           </.widget>
           <.widget
-            loading={!@analytics.ok?}
+            loading={!ready?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
             legend_color="flaky"
             description={
@@ -343,13 +345,13 @@
                 "Percentage of test runs that were flaky in the selected period."
               )
             }
-            value={if @analytics.ok?, do: "#{flakiness_rate(@analytics.result)}%"}
+            value={if ready?, do: "#{flakiness_rate(@analytics.result)}%"}
             id="widget-flakiness-rate"
             phx_click="select_widget"
             phx_value_widget="flakiness_rate"
             selected={@analytics_selected_widget == "flakiness_rate"}
             trend_value={
-              if @analytics.ok? and @previous_analytics.ok? do
+              if ready? do
                 trend(
                   @previous_analytics.result,
                   flakiness_rate(@previous_analytics.result),
@@ -359,11 +361,11 @@
             }
             trend_type={:inverse}
             trend_label={@analytics_trend_label}
-            empty={@analytics.ok? && @analytics.result.total_count == 0}
+            empty={ready? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
           <.widget
-            loading={!@reliability.ok?}
+            loading={!ready?}
             title={dgettext("dashboard_tests", "Test reliability")}
             legend_color="tertiary"
             description={
@@ -373,15 +375,13 @@
                 branch: @selected_project.default_branch
               )
             }
-            value={
-              if @reliability.ok? && @reliability.result, do: format_percent(@reliability.result)
-            }
+            value={if ready? && @reliability.result, do: format_percent(@reliability.result)}
             id="widget-test-reliability"
             phx_click="select_widget"
             phx_value_widget="reliability"
             selected={@analytics_selected_widget == "reliability"}
             trend_value={
-              if @reliability.ok? and @previous_reliability.ok? and
+              if ready? and
                    not is_nil(@reliability.result) and not is_nil(@previous_reliability.result) do
                 Analytics.trend(
                   previous_value: @previous_reliability.result,
@@ -391,11 +391,11 @@
             }
             trend_type={:regular}
             trend_label={@analytics_trend_label}
-            empty={@reliability.ok? && is_nil(@reliability.result)}
+            empty={ready? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
           <.percentile_dropdown_widget
-            loading={!@analytics.ok?}
+            loading={!ready?}
             title={
               case @selected_duration_type do
                 "p99" -> dgettext("dashboard_tests", "p99 test case run duration")
@@ -419,7 +419,7 @@
               )
             }
             value={
-              if @analytics.ok?,
+              if ready?,
                 do:
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                     case @selected_duration_type do
@@ -431,7 +431,7 @@
                   )
             }
             metrics={
-              if @analytics.ok? do
+              if ready? do
                 %{
                   avg:
                     Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -459,7 +459,7 @@
             phx_value_widget="duration"
             selected={@analytics_selected_widget == "duration"}
             trend_value={
-              if @analytics.ok? and @previous_analytics.ok? do
+              if ready? do
                 trend(
                   @previous_analytics.result,
                   duration(@previous_analytics.result, @selected_duration_type),
@@ -469,14 +469,14 @@
             }
             trend_type={:inverse}
             trend_label={@analytics_trend_label}
-            empty={@analytics.ok? && @analytics.result.total_count == 0}
+            empty={ready? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
         </div>
-        <div :if={!@series.ok?} data-part="analytics-chart">
+        <div :if={!ready?} data-part="analytics-chart">
           <.skeleton_chart />
         </div>
-        <div :if={@series.ok? and charted?(@series.result)} data-part="analytics-chart">
+        <div :if={ready? and charted?(@series.result)} data-part="analytics-chart">
           <.chart
             :if={@analytics_selected_widget == "test_case_runs"}
             id="test-case-runs-chart"
@@ -722,7 +722,7 @@
           />
         </div>
         <div
-          :if={@series.ok? and not charted?(@series.result)}
+          :if={ready? and not charted?(@series.result)}
           data-part="analytics-chart-empty"
         >
           <img
@@ -776,7 +776,7 @@
         />
       </div>
     </.card_section>
-  </.card>
+  </.async_card>
 
   <.card
     :if={

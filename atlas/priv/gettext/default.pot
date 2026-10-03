@@ -1233,3 +1233,18 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "e.g. deliveryhero-production"
 msgstr ""
+
+#: lib/atlas_web/live/admin/inference_providers_live.ex:114
+#, elixir-autogen, elixir-format
+msgid "Decision endpoint"
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_providers_live.ex:190
+#, elixir-autogen, elixir-format
+msgid "Decision endpoint path (optional)"
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_providers_live.ex:194
+#, elixir-autogen, elixir-format
+msgid "For Jev, use https://api.typesafe.ai/v1 as the endpoint and systemone as the decision path. Leave the path empty for chat-only providers."
+msgstr ""

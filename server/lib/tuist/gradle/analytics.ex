@@ -168,6 +168,7 @@ defmodule Tuist.Gradle.Analytics do
     %{
       trend: trend(previous_hit_rate, current_hit_rate),
       avg_hit_rate: current_hit_rate,
+      has_data: Enum.any?(hit_rate_data),
       dates: Enum.map(processed_data, & &1.date),
       values: Enum.map(processed_data, & &1.hit_rate)
     }

@@ -13,6 +13,28 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ## Exportable Data
 
+### Atlas inference decision usage
+
+Atlas's internal inference relay can proxy Jev decision calls, including pull
+request quality reviews. Its PostgreSQL `inference_providers.decision_path`
+stores the relative decision endpoint alongside the existing provider endpoint.
+The existing `inference_model_bindings` records contain the model and configured
+input/output prices. `inference_usages` records the `decision` operation,
+provider/model, response status, input/output/total token counts, calculated cost
+in United States dollars, profile/token references, and creation time. Submitted
+state, questions, source diffs, and answers are forwarded but are not persisted
+by the relay. Provider credentials are encrypted and excluded from exports.
+
+These are internal Atlas records, separate from the Tuist server's account data.
+Where a request covers these records, retrieve the applicable profiles and their
+usage by `model_binding_id` or `token_id`, excluding credential ciphertext and
+token hashes. There is no automatic age-based expiry of inference usage;
+deleting its profile or token cascades to the associated usage rows. Audit events
+retain relay metadata, including decision usage availability, under the existing
+Atlas audit policy. The review workflow
+retains its GitHub report artifacts for 14 days and its published comment under
+GitHub's repository retention settings.
+
 ### Error Diagnostics
 
 - Failed ClickHouse reads attach the query template (up to 16,384 characters), repository name, and execution, decoding, and pool-wait timings to the existing error event under `extra.database_query`. Bound parameter values and query results are not included. Reports use the configured Sentry-compatible destination, including Hive, and its existing retention policy. Where an event is associated with an account or project through its existing context, its diagnostic data can be retrieved with that event for an export.
@@ -160,6 +182,9 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Bazel quarantine attribution** (`test_case_runs.is_quarantined`): Resolved from the shared test-case state history at invocation start, not at delayed ingestion time. Exported with the existing test-case runs under their existing retention policy. Bazel retry records include ordered attempt numbers, and failure diagnostics remain available when a retry passes.
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan and, for Bazel, the source invocation identifier. Kura reads Bazel's bounded conventional JUnit XML (`test.xml`) and test log (`test.log`) references from the Build Event Protocol and pushes the bytes it can resolve from its local content-addressable storage. An asynchronous processor combines every delivered target and attempt for an invocation into one test run, storing parsed test-case names, target/module names, suite names, statuses, durations, repetitions, and sanitized failure diagnostics. Tuist never pulls cache artifacts from Kura. The `proj_by_project_ran_at` projection stores `project_id`, run `id`, `duration`, `status`, and `ran_at`, ordered by project and run time for recent-run dashboard queries. It contains no data beyond the source `test_runs` rows and is exported through those source records rather than as a separate dataset.
+- **Once runs** (`once_runs` table, PostgreSQL): One row per `once` command reported over the live `once.events.v1` gRPC event protocol. Columns include the client-minted `run_id` (unique per project), `project_id`, `kind` (`build`, `test`, or `generic`), Once and protocol versions, coarse `host_class`, whether the run happened on CI (`is_ci`), the git branch it was built from (`git_branch`, empty when the client could not determine one) along with the git revision and dirty flag, normalized argv (RFC 0008 argv tokens; safe literals rendered verbatim, other tokens hashed under a project-scoped key), the argv hash key id under which those hashes were produced, safe-literal allowlist version, workspace-relative cwd, environment fingerprint, root graph digest, effective negotiated limits, the display-only rendered command line, the finalization state (`active`, `finalizing`, `finalized`, `finalization_pending`, or `lost`), exit status, cancellation reason, wall clock duration, projected roll-ups (total actions, cached, executed, failed), `started_at`, `finalized_at`, last heartbeat, `acked_seq` (the highest event sequence durably projected for the run, used to answer a reconnecting client), and `test_report_published_at`, which records when a test run's results were copied into the shared test store described below. Command lines never persist raw argument values other than allowlisted safe literals. Rows are retained for the project's lifetime and included in project data exports.
+- **Once test results** (`test_runs` / `test_module_runs` / `test_suite_runs` / `test_case_runs` tables, ClickHouse): When a Once `test` run finalizes, its results are published into the same shared test store Xcode, Gradle and Bazel results use, tagged `build_system = "once"` and linked back to the originating run by `once_run_id`. Those rows carry the test case names, suite and target names, per-attempt statuses and durations, git branch and commit, and whether the run happened on CI. The `once_test_suite_runs` and `once_test_case_runs` PostgreSQL tables below remain as the ingestion staging the streamed events accumulate into before that publication. Included in project data exports.
+- **Once actions** (`once_actions` table, PostgreSQL): One row per declared action inside a Once run, keyed by `(once_run_id, target_execution_id, capability, action_index)` so retries and reingest are idempotent. Columns include the parent run id, `project_id`, `target_execution_id`, `capability` (typically `build` or `test`), `action_index` within the target, the Starlark-declared `identifier` (may be null), terminal `result`, `was_cached`, `exit_code`, `duration_ms`, `started_at`, and `finished_at`. Row content is limited to identifiers and outcomes; no argv, environment, filesystem paths, or artifact contents are stored. Included in project data exports.
 - **Bazel invocation logs** (`bazel_invocation_logs` table): Bounded Bazel Build Event Protocol progress output and conventional Bazel `test.log` output sent by Kura. Each row includes the invocation identifier, stream, sequence number, sanitized message, project identifier, and observation time. Kura retains no more than 32 progress entries and 32 kibibytes for one in-flight invocation. Logs can contain tool output and local source paths, but terminal control sequences, credential-shaped values, credential-bearing URLs, and common local-path prefixes are redacted before the long-lived ClickHouse write. Stored in ClickHouse with a 90-day retention period and included in project data exports.
 - **Pending Bazel test ingestion** (`bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries` tables, PostgreSQL): Durable, idempotent staging records used while the build processor waits for a completed Bazel invocation and combines its target attempts. Records include the project and invocation identifiers, target label, run, shard, attempt, per-attempt and overall status, duration, start and finish times, cached counts and continuous-integration provenance, Build Event Protocol ordering, artifact digests, and the bounded raw JUnit Extensible Markup Language and test-log bodies delivered by Kura. Raw artifact bodies are capped at 64 mebibytes per invocation and are deleted after successful processing or when the invocation cannot be resolved within 15 minutes. An indexed, batched daily cleanup deletes any remaining unprocessed records after 90 days, so a project export includes records still pending inside that window. Raw content can contain test output, failure messages, source paths, and credentials; redaction happens when the processor writes the long-lived test failures and invocation logs.
 - **Test run errors** (`test_run_errors` table): Run/target-level entries modelled separately from test failures. Two categories are stored: errors where the test runner itself errored (e.g. a target whose `.xctest` bundle could not be loaded), and Swift Testing issues recorded while no test was running, which xcresult reports under an "Issues recorded without an associated test or suite" case. For the latter, `message` carries the recorded issue and can therefore contain a source file path, a line number, and the asserted expression from the customer's test code. Columns: `id`, `test_run_id`, `project_id`, `module_name` (the test target, empty for run-level), `message`, and `inserted_at`.
@@ -220,6 +245,27 @@ account, can be attributed to a source at all; it is the only personal data in
 these records beyond the account handle. Sign-in attempts additionally carry an
 explicit outcome. Logs deliberately exclude credentials, tokens, and request
 bodies.
+
+### Website localization analytics
+
+Hosted production marketing, documentation and dashboard pages send pageviews to
+Glossia for the `tuist.dev` project. The browser sends the full page address and
+referrer, browser languages, timezone, screen width and a per-tab session
+identifier stored in session storage. Page addresses can include organization
+and project names or query parameters. No Tuist user identifiers, account
+identifiers or authentication tokens are explicitly attached.
+
+Glossia stores events in its `analytics_events` ClickHouse table, deriving
+country and a daily-rotated visitor hash from the request's network address and
+browser identification header. Page addresses are reduced to hostname and path
+for storage, while the referrer is retained. The raw network address and browser
+header are not stored in the event row. Retention follows Glossia's configured retention;
+the inspected event-table migration does not define an automatic expiry.
+These external records are outside the standard Tuist export archive. For a
+transparency request, retrieve matching events from the Glossia `tuist.dev`
+project using available page, time and session context; they are not an
+account-indexed browsing history. Embedded blog visualizations, development,
+staging and self-hosted installations do not send these pageviews.
 
 ### Browser performance telemetry
 

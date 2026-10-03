@@ -3,7 +3,11 @@ defmodule AtlasWeb.AuthController do
 
   alias Atlas.Users
 
-  plug Ueberauth
+  plug :authenticate_with_provider
+
+  defp authenticate_with_provider(conn, _opts) do
+    Ueberauth.call(conn, Ueberauth.init([]))
+  end
 
   def request(conn, _params) do
     conn

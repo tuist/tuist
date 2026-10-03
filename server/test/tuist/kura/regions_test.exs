@@ -31,7 +31,7 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       # us-east/us-west run on OVH bare metal (hostNetwork gateway, local-NVMe,
-      # two replicas); eu-west is on Dedibox bare metal (asserted below).
+      # two replicas); eu-west retains its historical pool selector (asserted below).
       for id <- ["us-east", "us-west"] do
         config = Regions.get(id).provisioner_config
         assert config.hetzner_location == nil
@@ -383,11 +383,11 @@ defmodule Tuist.Kura.RegionsTest do
   describe "node_location/1" do
     test "gives every provisionable region the location of the datacenter it runs in" do
       locations = %{
-        # OVH Vint Hill VA / Hillsboro OR, Scaleway Dedibox (Paris region),
+        # OVH Vint Hill VA / Hillsboro OR / Gravelines (Hauts-de-France),
         # OVHcloud BHS in Quebec, Scaleway Elastic Metal fr-par.
         "us-east" => %{country: "US", subdivision: "US-VA"},
         "us-west" => %{country: "US", subdivision: "US-OR"},
-        "eu-west" => %{country: "FR", subdivision: "FR-IDF"},
+        "eu-west" => %{country: "FR", subdivision: "FR-HDF"},
         "ca-east" => %{country: "CA", subdivision: "CA-QC"},
         "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"},
         # Singapore is a city-state: its ISO 3166-2 codes are CDC statistical
@@ -477,7 +477,7 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "eu-west" do
-    test "is the Paris Dedibox region, renamed from eu-central" do
+    test "is the Gravelines OVH region, retaining its legacy placement identifiers" do
       assert %Regions{provisioner: KubernetesController, provisioner_config: config} =
                Regions.get("eu-west")
 
@@ -486,7 +486,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.ingress_class_name == "kura-eu-west"
       assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-dedibox"}
       assert config.country == "FR"
-      assert config.subdivision == "FR-IDF"
+      assert config.subdivision == "FR-HDF"
     end
 
     test "leaves nothing behind under the old name" do

@@ -246,9 +246,9 @@ defmodule Tuist.Kura.Regions do
       country: "US",
       subdivision: "US-OR"
     },
-    # EU West (Paris) runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
-    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
-    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # Production EU West runs on OVH in Gravelines, retaining the historical
+    # `kura-dedibox` pool selector and local-NVMe storage. Its hostNetwork
+    # regional gateway publishes the OVH nodes' public IPs,
     # and two bounded-size replicas so a rolling deploy fails the cache Service
     # over to the warm standby instead of dropping traffic while the primary pod
     # restarts. Both replicas of an account stay co-located on its box (controller
@@ -277,15 +277,14 @@ defmodule Tuist.Kura.Regions do
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
-      # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both sit
-      # in the Paris region.
+      # OVHcloud Gravelines, Hauts-de-France.
       country: "FR",
-      subdivision: "FR-IDF"
+      subdivision: "FR-HDF"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
     # hostNetwork regional gateway bound to the box's public IP (OVH has no
-    # Hetzner LB) — the same bare-metal shape as eu-west on Dedibox. The
+    # Hetzner LB) — the same bare-metal shape as eu-west on OVH. The
     # provider (OVH) is an implementation detail behind the geographic id. Gated
     # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
     # is validated; production serves us-east/us-west on their own OVH fleets).

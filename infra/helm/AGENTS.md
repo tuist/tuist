@@ -6,27 +6,21 @@ This node covers Helm assets under `infra/helm/`.
 - Umbrella and component charts for deploying Tuist services on Kubernetes
 - Values for embedded vs external infrastructure dependencies
 - Kubernetes manifests and helper templates for app services, data services, and observability
+- Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
-  Dedibox fleets now declare `replicas: 0` in all three environments. Deploy
-  retirement only after production DNS withdrawal/soak and non-production
-  instance teardown. Retain the Dedibox reconciler and
-  credentials until all Machine finalizers complete. Follow the DNS withdrawal
-  and soak gates in [the migration runbook](../kura-controller/eu-west-ovh-migration.md)
-  before deploying retirement. Staging/canary Dedibox retirement also requires decommissioning their
-  EU-West instances first; public validation continues on OVH `ca-east`. Preserve
-  deletion-time support and the separate Scaleway Mac runner cache (`kuraFleet`). The historical
-  `kura-dedibox` selector and `scw-local-nvme` class also serve OVH workloads.
-  Production EU-West ingress temporarily pins `publish-status-address` to the
-  three OVH IPs while retaining gateways on Dedibox for DNS drain. Update that
-  list on any OVH replacement, then remove the override after Dedibox retirement.
-  Non-production EU-West ingress and egress-tree pool entries are removed;
-  public staging/canary validation uses OVH `ca-east`. Provider release wipes
-  the boxes but does not cancel their monthly subscriptions. Remove retained
-  zero-replica definitions and credentials only after every finalizer completes.
+  Dedibox support is removed after all Machine release finalizers completed
+  on September 28, 2026: no fleet values, templates, provider implementation,
+  CRD sources, credentials wiring, or provider permissions remain. Helm does
+  not prune installed CRDs or the legacy IAM ExternalSecret hook; both require
+  explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
+  Production EU-West ingress discovers OVH gateway Node addresses automatically.
+  Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
+  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
 - OVH Machine repairs use `patch ovhdedicatedmachines` in the directly bound
@@ -80,6 +74,8 @@ This node covers Helm assets under `infra/helm/`.
 - Processor runtime dependencies: `processor/AGENTS.md`
 
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
+
+- The Once events listener (`once.events.v1`, gRPC on the server's port 4001) is served by `platform`'s `grpc-ingress-nginx` controller (`nginx-grpc` class), and its hosts are DNS-only with a cert-manager certificate. Do not move it to the main `nginx` class or turn Cloudflare proxying back on. The main controller keeps upstream keepalive off for the Bandit backends, which makes ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that header, and Cowboy resets the stream with PROTOCOL_ERROR (nginx logs `upstream rejected request with error 1`). Cloudflare answers gRPC to a proxied host with a 403. To check a change, send a gRPC-shaped request (`content-type: application/grpc`) to the host: a healthy listener answers HTTP 200 with a `grpc-status` header.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
 

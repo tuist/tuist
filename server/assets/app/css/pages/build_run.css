@@ -1,4 +1,5 @@
-#build-run {
+#build-run,
+#once-run {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);

@@ -1,5 +1,7 @@
 <div class="gradle-overview">
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[@build_duration_analytics, @cache_hit_rate_analytics, @test_duration_analytics]}
     title={dgettext("dashboard_gradle", "Analytics")}
     icon="chart_arcs"
     data-part="analytics"
@@ -86,7 +88,7 @@
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
-          loading={!@cache_hit_rate_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_gradle", "Cache hit rate")}
           description={
             dgettext(
@@ -95,7 +97,7 @@
             )
           }
           value={
-            if @cache_hit_rate_analytics.ok?,
+            if ready?,
               do:
                 dgettext("dashboard_gradle", "%{hit_rate}%",
                   hit_rate:
@@ -106,18 +108,18 @@
           }
           id="widget-cache-hit-rate"
           trend_value={
-            if @cache_hit_rate_analytics.ok?,
+            if ready?,
               do: @cache_hit_rate_analytics.result.trend,
               else: nil
           }
           trend_label={@analytics_trend_label}
           empty={
-            @cache_hit_rate_analytics.ok? &&
-              @cache_hit_rate_analytics.result.avg_hit_rate == 0.0
+            ready? &&
+              !@cache_hit_rate_analytics.result.has_data
           }
         />
         <.widget
-          loading={!@build_duration_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_gradle", "Average build time")}
           description={
             dgettext(
@@ -126,7 +128,7 @@
             )
           }
           value={
-            if @build_duration_analytics.ok?,
+            if ready?,
               do:
                 dgettext("dashboard_gradle", "%{duration}s",
                   duration:
@@ -135,19 +137,19 @@
           }
           id="widget-average-build-time"
           trend_value={
-            if @build_duration_analytics.ok?,
+            if ready?,
               do: @build_duration_analytics.result.trend,
               else: nil
           }
           trend_label={@analytics_trend_label}
           trend_type={:inverse}
           empty={
-            @build_duration_analytics.ok? &&
+            ready? &&
               @build_duration_analytics.result.total_average_duration == 0
           }
         />
         <.widget
-          loading={!@test_duration_analytics.ok?}
+          loading={!ready?}
           title={dgettext("dashboard_gradle", "Average test time")}
           description={
             dgettext(
@@ -156,7 +158,7 @@
             )
           }
           value={
-            if @test_duration_analytics.ok?,
+            if ready?,
               do:
                 dgettext("dashboard_gradle", "%{duration}s",
                   duration:
@@ -165,21 +167,22 @@
           }
           id="widget-average-test-time"
           trend_value={
-            if @test_duration_analytics.ok?,
+            if ready?,
               do: @test_duration_analytics.result.trend,
               else: nil
           }
           trend_label={@analytics_trend_label}
           trend_type={:inverse}
           empty={
-            @test_duration_analytics.ok? &&
+            ready? &&
               @test_duration_analytics.result.total_average_duration == 0
           }
         />
       </div>
       <.card_section
-        :if={!@cache_hit_rate_analytics.ok?}
+        :if={!ready?}
         data-part="cache-hit-rate-chart-section"
+        data-chart-frame="standard"
       >
         <div data-part="cache-hit-rate-chart">
           <div data-part="legends">
@@ -189,10 +192,9 @@
         </div>
       </.card_section>
       <.card_section
-        :if={
-          @cache_hit_rate_analytics.ok? && @cache_hit_rate_analytics.result.avg_hit_rate != 0.0
-        }
+        :if={ready? && @cache_hit_rate_analytics.result.has_data}
         data-part="cache-hit-rate-chart-section"
+        data-chart-frame="standard"
       >
         <div data-part="cache-hit-rate-chart">
           <div data-part="legends">
@@ -275,11 +277,10 @@
         </div>
       </.card_section>
       <.empty_card_section
-        :if={
-          @cache_hit_rate_analytics.ok? && @cache_hit_rate_analytics.result.avg_hit_rate == 0.0
-        }
+        :if={ready? && !@cache_hit_rate_analytics.result.has_data}
         title={dgettext("dashboard_gradle", "No data yet")}
         get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
+        data-chart-frame="standard"
       >
         <:image>
           <img
@@ -297,8 +298,13 @@
         </:image>
       </.empty_card_section>
     </div>
-  </.card>
-  <.card title={dgettext("dashboard_gradle", "Tests")} icon="subtask">
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@failed_test_runs_count, @passed_test_runs_count, @recent_test_runs]}
+    title={dgettext("dashboard_gradle", "Tests")}
+    icon="subtask"
+  >
     <:actions>
       <.button
         variant="secondary"
@@ -308,7 +314,7 @@
         disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
-    <.card_section :if={!@recent_test_runs.ok?}>
+    <.card_section :if={!ready?} data-chart-frame="standard">
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.skeleton_legend />
@@ -317,7 +323,10 @@
         <.skeleton_chart />
       </div>
     </.card_section>
-    <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
+    <.card_section
+      :if={ready? && not Enum.empty?(@recent_test_runs.result)}
+      data-chart-frame="standard"
+    >
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.legend
@@ -383,9 +392,10 @@
       </div>
     </.card_section>
     <.empty_card_section
-      :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
+      :if={ready? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_gradle", "Runs: no data yet")}
       get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -402,8 +412,15 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
-  <.card
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[
+      @builds_duration_analytics,
+      @failed_builds_count,
+      @recent_build_runs,
+      @successful_builds_count
+    ]}
     title={dgettext("dashboard_gradle", "Builds")}
     icon="subtask"
     data-part="builds-card-section"
@@ -488,7 +505,7 @@
       </.date_picker>
     </:actions>
     <div data-part="builds-card-sections">
-      <.card_section :if={!@recent_build_runs.ok?}>
+      <.card_section :if={!ready?} data-chart-frame="large">
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.skeleton_legend />
@@ -497,7 +514,10 @@
           <.skeleton_chart />
         </div>
       </.card_section>
-      <.card_section :if={@recent_build_runs.ok? && not Enum.empty?(@recent_build_runs.result)}>
+      <.card_section
+        :if={ready? && not Enum.empty?(@recent_build_runs.result)}
+        data-chart-frame="large"
+      >
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.legend
@@ -562,9 +582,10 @@
         </div>
       </.card_section>
       <.empty_card_section
-        :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
+        :if={ready? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_gradle", "No recent builds yet")}
         get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
+        data-chart-frame="large"
       >
         <:image>
           <img
@@ -583,14 +604,15 @@
       </.empty_card_section>
       <.card_section
         :if={
-          !@builds_duration_analytics.ok? ||
+          !ready? ||
             @builds_duration_analytics.result.total_average_duration != 0
         }
         data-part="average-build-time-card-section"
+        data-chart-frame="large"
       >
         <div data-part="average-build-time-chart">
           <.button
-            :if={@builds_duration_analytics.ok?}
+            :if={ready?}
             data-part="view-more"
             label={dgettext("dashboard_gradle", "View more")}
             size="small"
@@ -598,9 +620,9 @@
             navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
           />
           <div data-part="legends">
-            <.skeleton_legend :if={!@builds_duration_analytics.ok?} />
+            <.skeleton_legend :if={!ready?} />
             <.legend
-              :if={@builds_duration_analytics.ok?}
+              :if={ready?}
               title={dgettext("dashboard_gradle", "Average build time")}
               value={
                 dgettext("dashboard_gradle", "%{duration}s",
@@ -614,9 +636,9 @@
               style="secondary"
             />
           </div>
-          <.skeleton_chart :if={!@builds_duration_analytics.ok?} />
+          <.skeleton_chart :if={!ready?} />
           <.chart
-            :if={@builds_duration_analytics.ok?}
+            :if={ready?}
             id="average-build-time-chart"
             type="line"
             extra_options={
@@ -685,11 +707,12 @@
       </.card_section>
       <.empty_card_section
         :if={
-          @builds_duration_analytics.ok? &&
+          ready? &&
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_gradle", "No builds yet")}
         get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
+        data-chart-frame="large"
       >
         <:image>
           <img
@@ -707,5 +730,5 @@
         </:image>
       </.empty_card_section>
     </div>
-  </.card>
+  </.async_card>
 </div>

@@ -131,7 +131,7 @@ func TestPlanSchemaHandlesASingleDisk(t *testing.T) {
 }
 
 // A default that already mounts /data only needs its filesystem forced, the same
-// minimal override the Dedibox path makes. Re-carving it would take space from a
+// minimal filesystem override. Re-carving it would take space from a
 // root that has already given some up.
 func TestPlanSchemaOnlyReformatsAnExistingData(t *testing.T) {
 	def := singleDiskDefaultSchema()
