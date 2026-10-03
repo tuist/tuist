@@ -567,6 +567,7 @@ public struct GraphLinter: GraphLinting {
         ],
         LintableTarget(platform: .iOS, product: .unitTests): [
             LintableTarget(platform: .iOS, product: .app),
+            LintableTarget(platform: .iOS, product: .appExtension),
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
