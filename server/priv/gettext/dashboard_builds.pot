@@ -18,8 +18,8 @@ msgid "%{hit_rate}%"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.ex:950
-#: lib/tuist_web/live/mix_build_live.ex:194
-#: lib/tuist_web/live/mix_build_live.ex:200
+#: lib/tuist_web/live/mix_build_live.ex:199
+#: lib/tuist_web/live/mix_build_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
 msgstr ""
@@ -319,7 +319,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
 #: lib/tuist_web/live/mix_build_live.html.heex:91
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:20
-#: lib/tuist_web/live/mix_builds_live.html.heex:670
+#: lib/tuist_web/live/mix_builds_live.html.heex:680
 #: lib/tuist_web/live/once_run_live.ex:267
 #: lib/tuist_web/live/run_detail_live.html.heex:115
 #, elixir-autogen, elixir-format
@@ -342,7 +342,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:655
 #: lib/tuist_web/live/build_run_live.html.heex:662
 #: lib/tuist_web/live/build_run_live.html.heex:725
-#: lib/tuist_web/live/mix_build_live.ex:215
+#: lib/tuist_web/live/mix_build_live.ex:220
 #: lib/tuist_web/live/mix_build_live.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Compilation duration"
@@ -757,7 +757,7 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.ex:1206
-#: lib/tuist_web/live/mix_build_live.ex:212
+#: lib/tuist_web/live/mix_build_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -1920,7 +1920,7 @@ msgstr ""
 msgid "Loading..."
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:228
+#: lib/tuist_web/live/mix_build_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "%{count} file"
 msgid_plural "%{count} files"
@@ -1932,23 +1932,23 @@ msgstr[1] ""
 msgid "%{duration}s"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:173
+#: lib/tuist_web/live/mix_build_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "Compilation failed"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:174
+#: lib/tuist_web/live/mix_build_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Compilation warning"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:214
+#: lib/tuist_web/live/mix_build_live.ex:219
 #: lib/tuist_web/live/mix_build_live.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependencies"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:213
+#: lib/tuist_web/live/mix_build_live.ex:218
 #: lib/tuist_web/live/mix_build_live.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependents"
@@ -1960,13 +1960,13 @@ msgid "Elixir / OTP"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.html.heex:148
-#: lib/tuist_web/live/mix_builds_live.ex:237
-#: lib/tuist_web/live/mix_builds_live.html.heex:454
+#: lib/tuist_web/live/mix_builds_live.ex:231
+#: lib/tuist_web/live/mix_builds_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "Elixir version"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:175
+#: lib/tuist_web/live/mix_build_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Elixir file %{path}"
 msgstr ""
@@ -1977,15 +1977,15 @@ msgid "Mix Build"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.html.heex:166
-#: lib/tuist_web/live/mix_builds_live.ex:236
-#: lib/tuist_web/live/mix_builds_live.html.heex:474
+#: lib/tuist_web/live/mix_builds_live.ex:230
+#: lib/tuist_web/live/mix_builds_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Mix environment"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.html.heex:157
-#: lib/tuist_web/live/mix_builds_live.ex:235
-#: lib/tuist_web/live/mix_builds_live.html.heex:464
+#: lib/tuist_web/live/mix_builds_live.ex:229
+#: lib/tuist_web/live/mix_builds_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "OTP version"
 msgstr ""
@@ -2010,7 +2010,7 @@ msgstr ""
 msgid "Type checking"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:178
+#: lib/tuist_web/live/mix_build_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Elixir file %{path}"
 msgstr ""
