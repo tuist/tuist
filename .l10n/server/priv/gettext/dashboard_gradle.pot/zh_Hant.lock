@@ -1,5 +1,5 @@
 {
-  "hash": "2c9eb99fa39a094659617dc771a8632d4d00b5de1471c259a634104a5c88cf9a",
+  "hash": "4c65369cc6cf4c92e6a93cdaa12e9d6205344813cb24b8f41f8d1b70e930e7d9",
   "hash_tree": {
     "context": {
       "child": {
@@ -11,9 +11,9 @@
     },
     "source": {
       "file": "server/priv/gettext/dashboard_gradle.pot",
-      "hash": "4830157411fe0ba195202cf14dbe72b13e65c66c97f979bf187ccdd13df8e6bf"
+      "hash": "80722fc588d8fa1b716a94021a8638b6ab9cbfdec33867095a7667d7cd83abbf"
     }
   },
-  "model": "openai:gpt-4.1-mini",
-  "translated_at": "2026-05-11T14:16:24.862163Z"
+  "model": "hive:Translator",
+  "translated_at": "2026-09-15T12:54:15.024358Z"
 }
