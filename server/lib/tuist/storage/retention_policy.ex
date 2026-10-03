@@ -17,8 +17,8 @@ defmodule Tuist.Storage.RetentionPolicy do
     xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 30},
     preview_app_build: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     preview_icon: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
-    build_archive: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
-    run_session: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    build_archive: %{air: 7, open_source: 7, pro: 14, enterprise: 30},
+    run_session: %{air: 7, open_source: 7, pro: 14, enterprise: 30},
     test_attachment: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     shard_bundle: %{air: 7, open_source: 7, pro: 14, enterprise: 30}
   }
