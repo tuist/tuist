@@ -18,6 +18,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -888,6 +889,7 @@ defmodule TuistWeb.API.BuildsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:origin, RemoteIp.origin(conn))
 
     case get_or_create_build(run_params) do
       {:ok, build} ->
@@ -955,7 +957,10 @@ defmodule TuistWeb.API.BuildsController do
           generation_id: Map.get(params, :generation_id),
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{}),
-          machine_metrics: Map.get(params, :machine_metrics, [])
+          machine_metrics: Map.get(params, :machine_metrics, []),
+          # The build is uploaded from the machine that ran it, so this
+          # request's origin is where the build came from.
+          client_origin: params.origin
         }
 
         result =
@@ -990,7 +995,8 @@ defmodule TuistWeb.API.BuildsController do
                 git_remote_url_origin: Map.get(params, :git_remote_url_origin),
                 generation_id: Map.get(params, :generation_id),
                 custom_tags: Map.get(custom_metadata, :tags, []),
-                custom_values: Map.get(custom_metadata, :values, %{})
+                custom_values: Map.get(custom_metadata, :values, %{}),
+                client_origin: params.origin
               },
               vcs_comment_params: %{
                 git_commit_sha: Map.get(params, :git_commit_sha),

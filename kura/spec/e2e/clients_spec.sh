@@ -47,6 +47,23 @@ Describe 'actively supported protocol interoperability'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
+  # The CAS proxy records this header to report which region served a build,
+  # so every region must name itself on REAPI responses.
+  It 'names the serving region on REAPI responses'
+    grpc_region() {
+      printf '\0\0\0\0\0' |
+        curl --silent --http2-prior-knowledge --output /dev/null --dump-header - \
+          --header 'content-type: application/grpc' --header 'te: trailers' \
+          --data-binary @- \
+          "http://127.0.0.1:$1/build.bazel.remote.execution.v2.Capabilities/GetCapabilities" |
+        tr -d '\r' | awk -F': ' 'tolower($1) == "x-kura-region" { print $2 }'
+    }
+
+    The value "$(grpc_region "$KURA_US_CACHE_PORT")" should equal 'us-east'
+    The value "$(grpc_region "$KURA_EU_CACHE_PORT")" should equal 'eu-west'
+    The value "$(grpc_region "$KURA_AP_CACHE_PORT")" should equal 'ap-south'
+  End
+
   It 'reuses Bazel remote cache entries across regions'
     marker="bazel-$(new_marker)"
     instance_name="bazel/${marker}"

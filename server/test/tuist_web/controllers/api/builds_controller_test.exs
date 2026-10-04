@@ -695,6 +695,63 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
   end
 
+  describe "POST /api/projects/:account_handle/:project_handle/xcode/builds cache region" do
+    test "records where the build came from", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      build_id = UUIDv7.generate()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("x-forwarded-for", "203.0.113.10, 173.245.48.10")
+        |> put_req_header("cf-ipcountry", "AU")
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{organization.account.name}/#{project.name}/xcode/builds", %{
+          id: build_id,
+          status: "processing",
+          is_ci: false
+        })
+
+      assert json_response(conn, 200)
+      Build.Buffer.flush()
+
+      {:ok, build} = Builds.get_build(build_id, project_id: project.id)
+      assert build.client_origin == "AU"
+
+      assert_enqueued(
+        worker: ProcessBuildWorker,
+        args: %{
+          "build_id" => build_id,
+          "build_metadata" => %{"client_origin" => "AU"}
+        }
+      )
+    end
+
+    test "records nothing for a request the edge did not locate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      build_id = UUIDv7.generate()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/xcode/builds", %{
+          id: build_id,
+          status: "success",
+          is_ci: false
+        })
+
+      assert json_response(conn, 200)
+      Build.Buffer.flush()
+
+      {:ok, build} = Builds.get_build(build_id, project_id: project.id)
+      assert build.client_origin == ""
+    end
+  end
+
   describe "POST /api/projects/:account_handle/:project_handle/builds/upload/start" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])

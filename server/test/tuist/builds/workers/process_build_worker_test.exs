@@ -95,6 +95,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     ])
   end
 
+  # Written through the real `Builds.create_build/1`, which needs targets with a
+  # project and no steps.
+  defp served_parsed_data(region) do
+    parsed_data()
+    |> Map.put("targets", [])
+    |> Map.put("build_steps", [])
+    |> Map.put("cache_serving_region", region)
+  end
+
   describe "perform/1 happy path" do
     test "downloads, parses and writes the build run", %{
       account: account,
@@ -160,6 +169,54 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+  end
+
+  describe "perform/1 cache region" do
+    setup %{account: account, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          status: "processing",
+          duration: 0,
+          client_origin: "AU"
+        )
+
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+
+      %{region_build: build}
+    end
+
+    test "stores the region that served the build next to where it came from", %{
+      account: account,
+      project: project,
+      region_build: build
+    } do
+      expect(BuildProcessor, :process_build, fn _path, true, consume ->
+        consume.(served_parsed_data("us-central"))
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+      Build.Buffer.flush()
+
+      {:ok, processed} = Builds.get_build(build.id, project_id: project.id)
+      assert processed.client_origin == "AU"
+      assert processed.cache_serving_region == "us-central"
+    end
+
+    test "leaves the serving region empty when the proxy recorded none", %{
+      account: account,
+      project: project,
+      region_build: build
+    } do
+      expect(BuildProcessor, :process_build, fn _path, true, consume -> consume.(served_parsed_data(nil)) end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+      Build.Buffer.flush()
+
+      {:ok, processed} = Builds.get_build(build.id, project_id: project.id)
+      assert processed.cache_serving_region == ""
     end
   end
 
