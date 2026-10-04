@@ -79,8 +79,8 @@ ingress:
 
 # Phoenix runtime knobs that aren't secret.
 env:
-  # Keep the existing managed upstream discovery; standalone defaults opt out.
-  MCP_PROXY_SERVERS: ""
+  # Explicitly retain Tuist's managed upstream discovery.
+  MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
   POOL_SIZE: "10"
   DATABASE_SSL: "1"
