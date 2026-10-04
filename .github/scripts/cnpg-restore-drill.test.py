@@ -63,7 +63,7 @@ exit 0
                 )
                 self.assertEqual(result.returncode, expected)
                 calls = [call.splitlines() for call in log.read_text().split("--CALL--\n") if call]
-                deletion = next(call for call in calls if "clusters.postgresql.cnpg.io" in call)
+                deletion = next(call for call in calls if call[:4] == ["-n", "tuist", "delete", "clusters.postgresql.cnpg.io"])
                 self.assertEqual(deletion[:5], ["-n", "tuist", "delete", "clusters.postgresql.cnpg.io", "pg-restore-drill-test"])
                 for flag in ["--wait=true", "--ignore-not-found", "--cascade=foreground", "--timeout=5m"]:
                     self.assertIn(flag, deletion)
