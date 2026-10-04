@@ -25,6 +25,7 @@ defmodule Tuist.Release do
   )
   @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags coverage_commits)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
+  @repair_settle_minutes 15
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
   # Column-level rather than table-level because every table below sits next to a
@@ -195,7 +196,7 @@ defmodule Tuist.Release do
 
     case Backfill.run() do
       {:ok, report} ->
-        Logger.info("ClickHouse backfill finished: #{inspect(report)}")
+        Logger.info("ClickHouse backfill finished: #{inspect(report, limit: :infinity)}")
         :ok
 
       {:error, reason} ->
@@ -211,6 +212,10 @@ defmodule Tuist.Release do
   Raises when a chunk fails, unlike `backfill_clickhouse/0`: a repair is run
   for one known gap, and a Job that succeeds with part of it unfilled would
   read as fixed. Running it again retries only the failed chunks.
+
+  The span has to end `#{@repair_settle_minutes}` minutes in the past. A
+  mirrored write can still be retrying for minutes after Cloud took it, and
+  one that lands after the repair copied the same row stores it twice.
   """
   def repair_clickhouse(from, to) do
     window = clickhouse_repair_window(from, to)
@@ -218,7 +223,7 @@ defmodule Tuist.Release do
 
     case Backfill.run(windows: [window]) do
       {:ok, report} ->
-        Logger.info("ClickHouse repair finished: #{inspect(report)}")
+        Logger.info("ClickHouse repair finished: #{inspect(report, limit: :infinity)}")
 
         case for({table, %{failed: failed}} when failed > 0 <- report, do: table) do
           [] -> :ok
@@ -231,14 +236,17 @@ defmodule Tuist.Release do
   end
 
   @doc false
-  def clickhouse_repair_window(from, to) do
+  def clickhouse_repair_window(from, to, now \\ DateTime.utc_now()) do
     with {:ok, from, _offset} <- DateTime.from_iso8601(from),
          {:ok, to, _offset} <- DateTime.from_iso8601(to),
          {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)},
-         :lt <- DateTime.compare(from, to) do
+         :lt <- DateTime.compare(from, to),
+         true <- DateTime.compare(to, DateTime.add(now, -@repair_settle_minutes, :minute)) != :gt do
       {from, to}
     else
-      _ -> raise ArgumentError, "a ClickHouse repair needs two ISO 8601 instants, the first before the second"
+      _ ->
+        raise ArgumentError,
+              "a ClickHouse repair needs two ISO 8601 instants, the first before the second and the second at least #{@repair_settle_minutes} minutes ago"
     end
   end
 

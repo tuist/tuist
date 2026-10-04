@@ -62,7 +62,7 @@ mise run clickhouse:migration production repair --from 2026-09-25T08:00:00Z --to
 
 It copies only what the destination lacks in the span, for every table with a time column, and records the span in the ledger like any other chunk, so running the same span again retries only what failed. Unlike `backfill`, it fails the Job when any chunk fails. Tables with no time column cannot be bounded by a span and are left to `parity`.
 
-Give the span a margin of a few minutes on each side, and end it a few minutes in the past. A row the mirror is still retrying when the repair copies it reaches the destination twice.
+Give the span a margin of a few minutes on each side. It has to end at least 15 minutes in the past, and the step refuses a span that does not: a row the mirror is still retrying when the repair copies it reaches the destination twice.
 
 ## The deploy hook
 

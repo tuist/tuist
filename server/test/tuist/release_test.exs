@@ -48,7 +48,7 @@ defmodule Tuist.ReleaseTest do
     end
   end
 
-  describe "clickhouse_repair_window/2" do
+  describe "clickhouse_repair_window/3" do
     test "parses the instants as UTC, to the second" do
       assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:05:00.500Z") ==
                {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}
@@ -61,6 +61,17 @@ defmodule Tuist.ReleaseTest do
 
     test "raises on an instant that does not parse" do
       assert_raise ArgumentError, fn -> Release.clickhouse_repair_window("2026-10-04 17:15", "2026-10-04T19:05:00Z") end
+    end
+
+    test "raises unless the span ended long enough ago for the mirror to have settled" do
+      now = ~U[2026-10-04 19:30:00Z]
+
+      assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:15:00Z", now) ==
+               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:15:00Z]}
+
+      assert_raise ArgumentError, ~r/15 minutes ago/, fn ->
+        Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:20:00Z", now)
+      end
     end
 
     test "raises unless the span starts before it ends" do
