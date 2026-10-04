@@ -19,6 +19,14 @@ defmodule TuistEx.Analytics.MetadataTest do
     assert values == %{"ticket" => "PROJ-123", "owner" => "infra"}
   end
 
+  test "reads tags and values from the project config it is given" do
+    assert %{tags: ["nightly"], values: %{"team" => "platform"}} =
+             Metadata.collect(
+               environment: fn _ -> nil end,
+               project_config: [tags: ["nightly"], values: %{"team" => "platform"}]
+             )
+  end
+
   test "accepts inline options and de-duplicates tags" do
     environment = fn _ -> nil end
 

@@ -9,7 +9,8 @@ defmodule TuistEx.Analytics.Metadata do
   # Precedence (highest first):
   #   TUIST_TAGS / TUIST_VALUES environment variables
   #   `--tag foo` / `--value key=val` runtime options
-  #   `Mix.Project.config()[:tuist][:tags]` and `[:values]`
+  #   `Mix.Project.config()[:tuist][:tags]` and `[:values]` (see
+  #   `Config.project_tuist_config/1`)
 
   # The server refuses a report whose metadata breaks these rules, so entries
   # that do are left out here: a mistyped tag must not cost the whole report.
@@ -21,7 +22,7 @@ defmodule TuistEx.Analytics.Metadata do
 
   def collect(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
-    project = Config.project_tuist_config()
+    project = Config.project_tuist_config(options)
 
     tags = collect_tags(options, environment, project)
     values = collect_values(options, environment, project)

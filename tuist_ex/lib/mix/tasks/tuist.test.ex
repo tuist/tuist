@@ -50,6 +50,7 @@ defmodule Mix.Tasks.Tuist.Test do
   use Mix.Task
 
   alias TuistEx.Analytics.Args
+  alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.TempDir
@@ -319,6 +320,9 @@ defmodule Mix.Tasks.Tuist.Test do
     Application.load(:ex_unit)
     existing = Application.get_env(:ex_unit, :formatters, [ExUnit.CLIFormatter])
     Application.put_env(:ex_unit, :formatters, formatters(existing))
+    # Read here, in the project `mix test` was started from: the formatter
+    # runs inside each child of an umbrella, which has its own config.
+    options = Keyword.put_new_lazy(options, :project_config, &Config.project_tuist_config/0)
     Application.put_env(:tuist_ex, :analytics_options, options)
     :ok
   end

@@ -15,6 +15,17 @@ defmodule TuistEx.Analytics.ConfigTest do
     assert resolved.project_handle == %{account: "acme", project: "widgets"}
   end
 
+  test "reads the project config it is given instead of the current project's" do
+    # In an umbrella, tests run inside each child app; the task hands over the
+    # root's `tuist:` options.
+    assert {:ok,
+            %{url: "https://root.example", project_handle: %{account: "acme", project: "app"}}} =
+             Config.resolve(
+               environment: fn _ -> nil end,
+               project_config: [url: "https://root.example", project: "acme/app"]
+             )
+  end
+
   test "the environment takes precedence over explicit options" do
     environment = fn
       "TUIST_URL" -> "https://env.example"

@@ -17,7 +17,7 @@ defmodule TuistEx.Analytics.Config do
   end
 
   defp resolve_url(options, environment) do
-    project_url = Keyword.get(project_tuist_config(), :url)
+    project_url = Keyword.get(project_tuist_config(options), :url)
     url = environment.("TUIST_URL") || Keyword.get(options, :url) || project_url || @default_url
 
     if valid_url?(url) do
@@ -42,7 +42,7 @@ defmodule TuistEx.Analytics.Config do
     project_handle =
       environment.("TUIST_PROJECT") ||
         Keyword.get(options, :project) ||
-        Keyword.get(project_tuist_config(), :project)
+        Keyword.get(project_tuist_config(options), :project)
 
     case project_handle do
       handle when is_binary(handle) ->
@@ -63,11 +63,15 @@ defmodule TuistEx.Analytics.Config do
 
   @doc """
   The `:tuist` options of the Mix project, or an empty list without any.
+  `options[:project_config]` takes their place when given: in an umbrella,
+  tests run inside each child app, whose project does not have the root's.
   """
-  def project_tuist_config do
-    case Mix.Project.config()[:tuist] do
-      value when is_list(value) -> value
-      _ -> []
-    end
+  def project_tuist_config(options \\ []) do
+    Keyword.get_lazy(options, :project_config, fn ->
+      case Mix.Project.config()[:tuist] do
+        value when is_list(value) -> value
+        _ -> []
+      end
+    end)
   end
 end
