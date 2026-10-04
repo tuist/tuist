@@ -31,6 +31,16 @@ defmodule Tuist.ReleaseTest do
       assert Release.check_clickhouse_parity() == :ok
     end
 
+    test "names every differing table when it raises" do
+      differing = Enum.map(1..60, &%{table: "table_#{&1}", source: %{"rows" => 1}, destination: %{"rows" => 0}})
+
+      stub(Parity, :compare, fn ->
+        {:ok, %{parity_report(%{missing_on_destination: [], only_on_destination: []}) | differing: differing}}
+      end)
+
+      assert_raise RuntimeError, ~r/table_60/, fn -> Release.check_clickhouse_parity() end
+    end
+
     test "raises when the destination's ledger is missing a version" do
       stub(Parity, :compare, fn ->
         {:ok, parity_report(%{missing_on_destination: [20_260_910_150_000], only_on_destination: []})}
