@@ -189,7 +189,10 @@ jobs:
           exit $fail
 
       - name: Tear down recovery cluster
-        if: always()
+        if: always() && env.NS != ''
+        timeout-minutes: 6
         run: |
+          set -euo pipefail
+          [[ "$RECOVERY" == pg-restore-drill-* ]]
           kubectl -n "$NS" delete clusters.postgresql.cnpg.io "$RECOVERY" \
-            --ignore-not-found --wait=false || true
+            --ignore-not-found --wait=true --timeout=5m

@@ -64,7 +64,7 @@ restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
 ## Restore drills
 
-CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path.
+CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Teardown must target only the run's `pg-restore-drill-*` cluster, wait for deletion, and propagate failures rather than silently leaving an active copy of customer data.
 
 ## Pull request quality
 
