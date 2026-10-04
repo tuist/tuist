@@ -18,6 +18,7 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
     unique: [keys: [:test_run_id, :shard_index], states: :incomplete, period: :infinity]
 
   alias Tuist.Accounts
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Environment
   alias Tuist.Storage
   alias Tuist.Tests
@@ -28,7 +29,9 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
   @run_wait_seconds 3600
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args, inserted_at: inserted_at}) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(%Oban.Job{args: args, inserted_at: inserted_at}) do
     %{"test_run_id" => test_run_id, "project_id" => project_id, "storage_key" => storage_key} = args
     partial = Map.get(args, "partial", false)
     shard_index = Map.get(args, "shard_index")

@@ -3,6 +3,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Storage
   alias Tuist.Tests
   alias TuistWeb.API.Responses
@@ -186,7 +187,9 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
     }
   )
 
-  def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
+  def create(conn, params), do: ReadRoute.primary(fn -> create_run_attachment(conn, params) end)
+
+  defp create_run_attachment(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
     with {:ok, test_case_run} <-
            Tests.get_test_case_run_by_id(body_params.test_case_run_id,
              project_id: project.id,

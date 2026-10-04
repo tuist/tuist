@@ -11,6 +11,7 @@ defmodule TuistWeb.API.GitHistoryController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.GitHistory
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Schemas.Error
@@ -293,7 +294,9 @@ defmodule TuistWeb.API.GitHistoryController do
     responses: Map.put(@common_responses, :no_content, "The listing was stored")
   )
 
-  def upload_listing(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
+  def upload_listing(conn, params), do: ReadRoute.primary(fn -> store_listing(conn, params) end)
+
+  defp store_listing(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     case repository_id(project, body.repository_url) do
       nil ->
         bad_request(conn)

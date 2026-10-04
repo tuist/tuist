@@ -27,6 +27,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     ]
 
   alias Tuist.Builds
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Projects
   alias Tuist.Storage
 
@@ -48,13 +49,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   def timeout(_job), do: to_timeout(minute: 5)
 
   @impl Oban.Worker
-  def perform(%Oban.Job{
-        args:
-          %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
-            args,
-        attempt: attempt,
-        max_attempts: max_attempts
-      }) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(%Oban.Job{
+         args:
+           %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
+             args,
+         attempt: attempt,
+         max_attempts: max_attempts
+       }) do
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
     build_metadata = Map.get(args, "build_metadata", %{})
 

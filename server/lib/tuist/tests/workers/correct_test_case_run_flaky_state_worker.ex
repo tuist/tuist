@@ -17,10 +17,13 @@ defmodule Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker do
       states: :incomplete
     ]
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Tests
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"test_case_run_ids" => test_case_run_ids}}) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(%Oban.Job{args: %{"test_case_run_ids" => test_case_run_ids}}) do
     Tests.apply_test_case_run_flaky_corrections(test_case_run_ids)
   end
 end

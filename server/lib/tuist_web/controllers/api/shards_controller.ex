@@ -3,6 +3,7 @@ defmodule TuistWeb.API.ShardsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Shards
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -116,7 +117,9 @@ defmodule TuistWeb.API.ShardsController do
     }
   )
 
-  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+  def create(conn, params), do: ReadRoute.primary(fn -> plan_shards(conn, params) end)
+
+  defp plan_shards(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     params = %{
       reference: body_params.reference,
       modules: Map.get(body_params, :modules),
@@ -203,7 +206,9 @@ defmodule TuistWeb.API.ShardsController do
     }
   )
 
-  def start_upload(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+  def start_upload(conn, params), do: ReadRoute.primary(fn -> start_bundle_upload(conn, params) end)
+
+  defp start_bundle_upload(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     artifact = Map.get(body_params, :artifact)
 
     result =
@@ -396,13 +401,15 @@ defmodule TuistWeb.API.ShardsController do
     }
   )
 
-  def generate_url(
-        %{
-          assigns: %{selected_project: selected_project},
-          body_params: %{upload_id: upload_id, part_number: part_number} = body_params
-        } = conn,
-        _params
-      ) do
+  def generate_url(conn, params), do: ReadRoute.primary(fn -> generate_bundle_upload_url(conn, params) end)
+
+  defp generate_bundle_upload_url(
+         %{
+           assigns: %{selected_project: selected_project},
+           body_params: %{upload_id: upload_id, part_number: part_number} = body_params
+         } = conn,
+         _params
+       ) do
     artifact = Map.get(body_params, :artifact)
 
     result =
@@ -511,13 +518,15 @@ defmodule TuistWeb.API.ShardsController do
     }
   )
 
-  def complete(
-        %{
-          assigns: %{selected_project: selected_project},
-          body_params: %{upload_id: upload_id, parts: parts} = body_params
-        } = conn,
-        _params
-      ) do
+  def complete(conn, params), do: ReadRoute.primary(fn -> complete_bundle_upload(conn, params) end)
+
+  defp complete_bundle_upload(
+         %{
+           assigns: %{selected_project: selected_project},
+           body_params: %{upload_id: upload_id, parts: parts} = body_params
+         } = conn,
+         _params
+       ) do
     parts_list =
       Enum.map(parts, fn part ->
         {part.part_number, part.etag}

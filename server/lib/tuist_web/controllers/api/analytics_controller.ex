@@ -3,6 +3,7 @@ defmodule TuistWeb.API.AnalyticsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.CommandEvents
   alias Tuist.Kura.Origins
   alias Tuist.Storage
@@ -518,8 +519,10 @@ defmodule TuistWeb.API.AnalyticsController do
     }
   )
 
+  def create(conn, params), do: ReadRoute.primary(fn -> create_analytics_event(conn, params) end)
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
+  defp create_analytics_event(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
     user_id =
       case Authentication.attributed_user(conn) do
         nil -> nil
