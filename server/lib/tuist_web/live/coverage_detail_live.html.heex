@@ -55,18 +55,18 @@
           </:trigger>
         </.tooltip>
         <.tooltip
-          :if={@summary.partial_schemes != []}
-          id="coverage-partial-run"
-          title={dgettext("dashboard_tests", "Partial run")}
-          description={partial_run_title(@summary)}
+          :if={@subject.kind == :commit and Commits.incomplete?(@summary)}
+          id="coverage-incomplete"
+          title={dgettext("dashboard_tests", "Incomplete")}
+          description={incomplete_title(@summary)}
           size="large"
         >
           <:trigger :let={attrs}>
             <span {attrs}>
-              <span data-part="partial">
+              <span data-part="incomplete">
                 <.badge
-                  label={dgettext("dashboard_tests", "Partial run")}
-                  color="warning"
+                  label={dgettext("dashboard_tests", "Incomplete")}
+                  color="neutral"
                   style="light-fill"
                   size="large"
                 />
@@ -424,8 +424,10 @@
             <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell
                 :if={row.measured}
+                id={"coverage-commit-incomplete-#{row.git_commit_sha}"}
                 covered={row.covered_lines}
                 executable={row.executable_lines}
+                incomplete={if Commits.incomplete?(row), do: incomplete_title(row)}
               />
               <.text_cell :if={not row.measured} label="—" />
             </:col>

@@ -66,7 +66,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, "#coverage-detail [data-part='status']")
   end
 
-  test "states a partial run as a badge beside the status, not as a banner", %{
+  test "says a figure is incomplete with a badge beside the status, not a banner", %{
     conn: conn,
     base: base,
     organization: organization,
@@ -79,11 +79,12 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/commits/a")
 
-    assert has_element?(lv, "#coverage-detail [data-part='badges'] [data-part='partial']", "Partial run")
+    # A selective run whose skipped tests nothing listed: their coverage is unknown.
+    assert has_element?(lv, "#coverage-detail [data-part='badges'] [data-part='incomplete']", "Incomplete")
     refute has_element?(lv, ".noora-alert")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
-    refute has_element?(lv, "#coverage-detail [data-part='partial']")
+    refute has_element?(lv, "#coverage-detail [data-part='incomplete']")
   end
 
   test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{

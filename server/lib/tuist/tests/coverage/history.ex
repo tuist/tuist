@@ -16,9 +16,10 @@ defmodule Tuist.Tests.Coverage.History do
   commits labelled with it, in time order, and says so (`ordered_by: :time`).
 
   A commit **chains** into the trend when it is complete (the client
-  signalled its pipeline finished): its change is from the complete commit
-  before it. Other commits stay in the history with their measured set and
-  out of the chart.
+  signalled its pipeline finished) and so is its figure
+  (`Tuist.Tests.Coverage.Commits.incomplete?/1`): its change is from the
+  commit chained before it. Other commits stay in the history with their
+  measured set and out of the chart, the headline figure and the changes.
   """
 
   import Ecto.Query
@@ -61,7 +62,8 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   The branch's coverage over the period, drawn from its complete commits
-  only (the ones whose pipeline signalled it finished), oldest first and at
+  only (the ones whose pipeline signalled it finished, with a complete
+  figure: `Tuist.Tests.Coverage.Commits.complete_figures/1`), oldest first and at
   most #{@max_trend_points} points: one per commit when they fit, otherwise
   the latest complete commit of each day, week or month, the finest of them
   that fits, and by month only the most recent #{@max_trend_points}. Each
@@ -115,7 +117,7 @@ defmodule Tuist.Tests.Coverage.History do
         ref -> {base |> where([c], c.ref_id == ^ref.id) |> in_period(opts), :committed_at}
       end
 
-    {Commits.comparable(query), at}
+    {query |> Commits.comparable() |> Commits.complete_figures(), at}
   end
 
   defp trend_rows(query, at, :commit),
@@ -459,7 +461,7 @@ defmodule Tuist.Tests.Coverage.History do
     below = Enum.map(lookback, &(&1 |> with_coverage() |> Map.put(:measured, true)))
 
     (page ++ below)
-    |> Enum.map(&Map.put(&1, :chained, &1.measured and Map.get(&1, :complete, false)))
+    |> Enum.map(&Map.put(&1, :chained, &1.measured and Map.get(&1, :complete, false) and not Commits.incomplete?(&1)))
     |> with_changes()
     |> Enum.take(length(page))
   end

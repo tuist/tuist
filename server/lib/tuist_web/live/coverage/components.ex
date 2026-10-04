@@ -227,6 +227,11 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :covered, :integer, required: true
   attr :executable, :integer, required: true
+  attr :id, :string, default: nil, doc: "Required with `incomplete`, for its tooltip."
+
+  attr :incomplete, :string,
+    default: nil,
+    doc: "Why the figure is incomplete (`incomplete_title/1`), shown beside it; nil for a complete figure."
 
   def coverage_cell(assigns) do
     ~H"""
@@ -234,6 +239,17 @@ defmodule TuistWeb.Coverage.Components do
       <div data-part="coverage-cell">
         <.progress_bar value={@covered} max={max(@executable, 1)} />
         <span data-part="percentage">{Coverage.percentage(@covered, @executable)}%</span>
+        <.tooltip
+          :if={@incomplete}
+          id={@id}
+          size="large"
+          title={dgettext("dashboard_tests", "Incomplete")}
+          description={@incomplete}
+        >
+          <:trigger :let={attrs}>
+            <span {attrs} tabindex="0"><span data-part="incomplete"><.info_circle /></span></span>
+          </:trigger>
+        </.tooltip>
       </div>
     </div>
     """
@@ -253,7 +269,7 @@ defmodule TuistWeb.Coverage.Components do
           do: dgettext("dashboard_tests", "Partial"),
           else: dgettext("dashboard_tests", "Full")
       }
-      color={if @partial, do: "warning", else: "success"}
+      color="neutral"
       description={
         if @partial,
           do:
@@ -369,36 +385,27 @@ defmodule TuistWeb.Coverage.Components do
 
   def displayed_lines(_summary), do: %{covered_lines: 0, executable_lines: 0}
 
-  @doc "What the page says about a commit some scheme of which only ran selectively."
-  def partial_run_title(%{reported: %{kind: "reported"} = reported} = commit) do
-    dgettext(
+  @doc """
+  What the page says about a commit whose figure is incomplete
+  (`Tuist.Tests.Coverage.Commits.incomplete?/1`).
+  """
+  def incomplete_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
+      when skipped > carried do
+    dngettext(
       "dashboard_tests",
-      "Some tests were skipped (%{schemes}). The coverage of the %{count} skipped tests was carried forward from the commits they last ran at, every file they executed being unchanged, so the total is what a full run would measure: %{reported}% reported, %{measured}% measured here.",
-      schemes: Enum.join(commit.partial_schemes, ", "),
-      count: reported.carried_tests_count,
-      reported: reported.coverage,
-      measured: commit.coverage
+      "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher.",
+      "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher.",
+      skipped - carried,
+      count: skipped - carried
     )
   end
 
-  def partial_run_title(%{reported: %{kind: "partial", skipped_tests_count: skipped} = reported} = commit)
-      when skipped > 0 do
-    dgettext(
-      "dashboard_tests",
-      "Some tests were skipped (%{schemes}): the total is not compared, and only the files some test executed are. The coverage of %{carried} of the %{skipped} skipped tests could be carried forward; the rest changed, failed or has no line evidence.",
-      schemes: Enum.join(commit.partial_schemes, ", "),
-      carried: reported.carried_tests_count,
-      skipped: skipped
-    )
-  end
-
-  def partial_run_title(commit) do
-    dgettext(
-      "dashboard_tests",
-      "Some tests were skipped (%{schemes}): the total is not compared, and only the files some test executed are.",
-      schemes: Enum.join(commit.partial_schemes, ", ")
-    )
-  end
+  def incomplete_title(_commit),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
+      )
 
   @doc """
   A commit's status in a list: `Not measured` when no run measured it (a

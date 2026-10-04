@@ -60,6 +60,28 @@ defmodule Tuist.Tests.Coverage.Commits do
   def fully_carried?(%{reported_kind: "reported", schemes: []}), do: true
   def fully_carried?(_row), do: false
 
+  @doc """
+  Whether the commit's figure is incomplete: some scheme ran selectively and
+  the coverage of some of the tests it skipped could not be determined
+  (`reported_kind` `partial`, or a selective run whose skipped tests nothing
+  could list), so the actual coverage may be higher. A figure whose skipped
+  tests were all carried forward is complete, as is one nothing skipped in.
+  """
+  def incomplete?(%{reported_kind: "partial"}), do: true
+  def incomplete?(%{reported_kind: kind}) when kind in ~w(measured reported), do: false
+  def incomplete?(%{partial_schemes: schemes}), do: schemes not in [nil, []]
+  def incomplete?(_row), do: false
+
+  @doc "Narrows a query over `CoverageCommit` to the commits whose figure is complete (`incomplete?/1`)."
+  def complete_figures(query) do
+    where(
+      query,
+      [c],
+      c.reported_kind in ["measured", "reported"] or
+        (c.reported_kind != "partial" and fragment("cardinality(?) = 0", c.partial_schemes))
+    )
+  end
+
   @doc "Whether the commit already has a published coverage row."
   def measured?(_project_id, sha) when sha in [nil, ""], do: false
 
