@@ -4,6 +4,7 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouse.Backfill
   alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.SchemaClone
   alias Tuist.ClickHouseCapabilities
@@ -192,13 +193,52 @@ defmodule Tuist.Release do
   def backfill_clickhouse do
     load_app()
 
-    case Tuist.ClickHouse.Backfill.run() do
+    case Backfill.run() do
       {:ok, report} ->
         Logger.info("ClickHouse backfill finished: #{inspect(report)}")
         :ok
 
       {:error, reason} ->
         raise "ClickHouse backfill could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Copies onto the in-cluster server the rows it lacks between two UTC
+  instants, for every table with a time column. For a span the mirror is
+  known to have lost writes in; see `Tuist.ClickHouse.Backfill.run/1`.
+
+  Raises when a chunk fails, unlike `backfill_clickhouse/0`: a repair is run
+  for one known gap, and a Job that succeeds with part of it unfilled would
+  read as fixed. Running it again retries only the failed chunks.
+  """
+  def repair_clickhouse(from, to) do
+    window = clickhouse_repair_window(from, to)
+    load_app()
+
+    case Backfill.run(windows: [window]) do
+      {:ok, report} ->
+        Logger.info("ClickHouse repair finished: #{inspect(report)}")
+
+        case for({table, %{failed: failed}} when failed > 0 <- report, do: table) do
+          [] -> :ok
+          tables -> raise "ClickHouse repair left failed chunks in: #{Enum.join(Enum.sort(tables), ", ")}"
+        end
+
+      {:error, reason} ->
+        raise "ClickHouse repair could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc false
+  def clickhouse_repair_window(from, to) do
+    with {:ok, from, _offset} <- DateTime.from_iso8601(from),
+         {:ok, to, _offset} <- DateTime.from_iso8601(to),
+         {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)},
+         :lt <- DateTime.compare(from, to) do
+      {from, to}
+    else
+      _ -> raise ArgumentError, "a ClickHouse repair needs two ISO 8601 instants, the first before the second"
     end
   end
 
