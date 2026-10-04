@@ -12,9 +12,11 @@ name: Coverage
 # notify-failure.yml does not list it.
 #
 # Dispatched with a `sha`, it collects an earlier commit on main instead, to
-# backfill commits that had no run (`mise run coverage:backfill`). The commit's
-# sources are tested with this workflow's tools, because an older pin of the
-# CLI may not upload coverage at all.
+# backfill commits that had no run. Dispatch one at a time: each holds two
+# macOS runners for up to two hours. The commit's sources are tested with this
+# workflow's tools, because an older pin of the CLI may not upload coverage at
+# all, but its .xcode-version is its own, so commits before the move to Xcode 27
+# (f834b57656) cannot run on this image.
 on:
   push:
     branches:
