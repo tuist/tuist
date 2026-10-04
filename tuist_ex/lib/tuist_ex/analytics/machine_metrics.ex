@@ -17,7 +17,7 @@ defmodule TuistEx.Analytics.MachineMetrics do
 
   alias TuistEx.Analytics.IOCounters
 
-  # Started on demand (see ensure_os_mon_started/0), so not a declared dependency.
+  # Started on demand (see start_os_mon/0), so not a declared dependency.
   @compile {:no_warn_undefined, [:cpu_sup, :memsup]}
 
   @default_interval_ms 1_000
@@ -87,7 +87,7 @@ defmodule TuistEx.Analytics.MachineMetrics do
     sample = Keyword.get(opts, :sample)
 
     state = %{
-      started_os_mon?: is_nil(sample) and ensure_os_mon_started(),
+      os_mon: if(is_nil(sample), do: start_os_mon()),
       sample: sample || fn rates -> sample(&os_time_seconds/0, rates) end,
       counters: Keyword.get(opts, :counters, &IOCounters.read/0),
       sink: Keyword.fetch!(opts, :sink),
@@ -125,14 +125,32 @@ defmodule TuistEx.Analytics.MachineMetrics do
   # Stop the monitor with the sampler; left running, its port programs print
   # "Erlang has closed" when the VM exits. The whole application, so the next
   # sampler starts it again with every child. Only when this sampler is the
-  # one that started it.
+  # one that started it, and with the settings it found put back, so a host
+  # application that starts the monitor later gets all of it.
   @impl true
-  def terminate(_reason, %{started_os_mon?: true}) do
-    Application.stop(:os_mon)
+  def terminate(_reason, %{os_mon: settings}) when is_list(settings) do
+    :logger.add_primary_filter(__MODULE__, {&__MODULE__.drop_os_mon_exit/2, []})
+
+    try do
+      Application.stop(:os_mon)
+    after
+      :logger.remove_primary_filter(__MODULE__)
+    end
+
+    restore(settings)
     :ok
   end
 
   def terminate(_reason, _state), do: :ok
+
+  # Stopping the monitor is not news to the user: without this, every build
+  # ends with "Application os_mon exited: :stopped".
+  @doc false
+  def drop_os_mon_exit(%{msg: {:report, %{label: {:application_controller, :exit}} = report}}, _) do
+    if Keyword.get(report.report, :application) == :os_mon, do: :stop, else: :ignore
+  end
+
+  def drop_os_mon_exit(_event, _extra), do: :ignore
 
   defp schedule_sample(interval_ms), do: Process.send_after(self(), :sample, interval_ms)
 
@@ -146,8 +164,6 @@ defmodule TuistEx.Analytics.MachineMetrics do
       value when is_number(value) -> value * 1.0
       _ -> 0.0
     end
-  rescue
-    _ -> 0.0
   catch
     _, _ -> 0.0
   end
@@ -165,8 +181,6 @@ defmodule TuistEx.Analytics.MachineMetrics do
 
   defp memory_data do
     :memsup.get_system_memory_data()
-  rescue
-    _ -> []
   catch
     _, _ -> []
   end
@@ -174,20 +188,34 @@ defmodule TuistEx.Analytics.MachineMetrics do
   # The OS monitor is started on demand rather than declared as a dependency,
   # so it never boots inside the host application. Its disk monitor is turned
   # off: it would log "disk almost full" alarms into the user's terminal.
-  defp ensure_os_mon_started do
-    if Code.ensure_loaded?(Mix) and function_exported?(Mix, :ensure_application!, 1) do
-      Mix.ensure_application!(:os_mon)
-    end
+  # Returns the settings it replaced when it started the monitor, else nil.
+  @os_mon_settings [:start_disksup, :start_os_sup]
 
-    Application.put_env(:os_mon, :start_disksup, false)
-    Application.put_env(:os_mon, :start_os_sup, false)
+  defp start_os_mon do
+    if Code.ensure_loaded?(Mix), do: Mix.ensure_application!(:os_mon)
+    settings = Enum.map(@os_mon_settings, &{&1, Application.fetch_env(:os_mon, &1)})
+    Enum.each(@os_mon_settings, &Application.put_env(:os_mon, &1, false))
 
     case Application.ensure_all_started(:os_mon) do
-      {:ok, started} -> :os_mon in started
-      _ -> false
+      {:ok, started} ->
+        if :os_mon in started, do: settings, else: restore(settings)
+
+      _ ->
+        restore(settings)
     end
   rescue
-    _ -> false
+    _ -> nil
+  end
+
+  defp restore(settings) do
+    for {key, value} <- settings do
+      case value do
+        {:ok, value} -> Application.put_env(:os_mon, key, value)
+        :error -> Application.delete_env(:os_mon, key)
+      end
+    end
+
+    nil
   end
 
   defp os_time_seconds, do: :os.system_time(:millisecond) / 1_000
