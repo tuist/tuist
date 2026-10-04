@@ -76,7 +76,7 @@ defmodule Mix.Tasks.Tuist.Test do
     # A retry reruns what its parent already selected for the shard.
     selection = if retrying?, do: {options, test_args}, else: shard(options, test_args)
 
-    case {selection, System.get_env(@retry_results), retries(options)} do
+    case {selection, System.get_env(@retry_results), retries_for(options, test_args)} do
       {:nothing_to_run, _path, _retries} ->
         :ok
 
@@ -281,6 +281,27 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   @doc false
+  # Retrying needs the first run to raise when it fails, and `mix test` then
+  # raises before it gets to `--warnings-as-errors`: the retries would pass
+  # and the warnings would never fail the run.
+  defp retries_for(options, test_args) do
+    case retries(options) do
+      count when count > 0 ->
+        if "--warnings-as-errors" in test_args do
+          Mix.shell().info(
+            "warning: Tuist does not retry failed tests when `--warnings-as-errors` is given."
+          )
+
+          0
+        else
+          count
+        end
+
+      count ->
+        count
+    end
+  end
+
   def retries(options, environment \\ &System.get_env/1) do
     configured =
       Keyword.get(options, :retries) || environment.("TUIST_TEST_RETRIES") ||
