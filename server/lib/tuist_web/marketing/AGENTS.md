@@ -3,6 +3,7 @@
 This area owns marketing controllers and components for the public site.
 
 ## Responsibilities
+- Keep individual changelog entries, including their localized URLs, in the marketing sitemap. Shared canonical URLs must not retain tracking or filtering parameters.
 - Browser newsletter issue documents include the shared analytics component; their email versions must omit scripts.
 - Render marketing pages and UI components.
 - Bridge marketing content from `Tuist.Marketing` into controllers/views.

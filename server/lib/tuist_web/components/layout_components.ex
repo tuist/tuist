@@ -6,6 +6,8 @@ defmodule TuistWeb.LayoutComponents do
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
+  alias TuistWeb.Utilities.SEO
+
   def head_favicon_links(assigns) do
     ~H"""
     <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -38,16 +40,37 @@ defmodule TuistWeb.LayoutComponents do
     )
   end
 
+  defp description(%{head_description: description}) when is_binary(description), do: description
+
+  defp description(%{selected_project: %{name: name}, selected_account: %{name: account}} = assigns) do
+    page = assigns |> Map.get(:head_title, "Overview") |> String.split(" · ") |> List.first()
+
+    dgettext(
+      "dashboard",
+      "%{page} for %{project} on Tuist. Explore the project's build, test, and cache insights.",
+      page: page,
+      project: "#{account}/#{name}"
+    )
+  end
+
+  defp description(_assigns), do: default_description()
+
+  def head_canonical_link(assigns) do
+    ~H"""
+    <link rel="canonical" href={SEO.canonical_url(assigns[:current_path])} />
+    """
+  end
+
   def head_meta_meta_tags(assigns) do
     ~H"""
-    <meta name="description" content={assigns[:head_description] || default_description()} />
+    <meta name="description" content={description(assigns)} />
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
-    <meta property="og:url" content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")} />
+    <meta property="og:url" content={SEO.canonical_url(assigns[:current_path])} />
     <meta property="og:type" content={assigns[:head_og_type] || "website"} />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
-    <meta property="og:description" content={assigns[:head_description] || default_description()} />
+    <meta property="og:description" content={description(assigns)} />
     <meta
       :if={not is_nil(assigns[:head_site_name])}
       property="og:site_name"
@@ -108,14 +131,14 @@ defmodule TuistWeb.LayoutComponents do
       <meta name="twitter:image" content={assigns[:head_image]} />
     <% end %>
     <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
-    <meta name="twitter:description" content={assigns[:head_description] || default_description()} />
+    <meta name="twitter:description" content={description(assigns)} />
     <meta
       property="twitter:domain"
       content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
     />
     <meta
       property="twitter:url"
-      content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")}
+      content={SEO.canonical_url(assigns[:current_path])}
     />
     """
   end

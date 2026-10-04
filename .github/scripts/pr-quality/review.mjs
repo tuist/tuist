@@ -1,6 +1,6 @@
-import { TypeSafeClient, APIError } from '@typesafe-ai/sdk';
+import { TypeSafeClient, TypeSafeError, APIError, APIConnectionError, APITimeoutError } from '@typesafe-ai/sdk';
 import metrics from './metrics.json' with { type: 'json' };
-import { changedLines, evidenceQuestions, evaluateEvidence, annotateDiff } from './evidence.mjs';
+import { changedLines, evidenceQuestions, evaluateEvidence, EvidenceValidationError, annotateDiff } from './evidence.mjs';
 
 // Rubric and question wording adapted from Jev Review; see ../../PR_QUALITY.md and the retained license files.
 const levels = [
@@ -15,6 +15,63 @@ const levels = [
   '9 — Very strong and well fitted to its context.',
   '10 — Exceptional; little meaningful improvement is available. Use rarely.',
 ];
+
+const failureMessages = Object.freeze({
+  input_limit: 'The complete PR exceeds the provider input limit. Split the PR into smaller coherent changes; no partial review was accepted.',
+  request_failed: 'Jev request failed. Check credentials, quota, input size, or service availability and rerun.',
+  timeout: 'Jev request timed out at the 60-second limit. Check service latency and rerun.',
+  connection_failed: 'Jev request failed to connect or complete transport. Check network and service availability.',
+  client_error: 'The review SDK could not process the request. Check local configuration and request schema.',
+  internal_error: 'The evaluator failed locally. Check its implementation and configuration.',
+  invalid_response: 'Jev returned invalid or missing quality answers. Check the provider response contract; no scores were accepted.',
+  invalid_evidence: 'Jev returned invalid or missing source evidence. Check the provider response contract; no scores were accepted.',
+  unassessable: 'Jev could not assess any quality dimension. No scores were accepted.',
+  no_reviewable_diff: 'No reviewable PR diff was found.',
+  diff_too_large: 'The complete PR diff exceeds the 1 MB request guard. Split the PR into smaller changes.',
+  context_too_large: 'PR description and repository context exceed 64,000 bytes.',
+  binary_only: 'The PR only changes binary files, which Jev cannot assess. Review them separately.',
+  missing_credentials: 'JEV_API_KEY is missing. Set a TypeSafe credential or an Atlas profile token before running the review.',
+  review_failed: 'Check authentication, configuration, diff size, and service availability.',
+});
+
+function validStatus(status) {
+  return Number.isInteger(status) && status >= 100 && status <= 599;
+}
+
+export function reviewFailureMessage(failure) {
+  const code = Object.hasOwn(failureMessages, failure?.code) ? failure.code : 'review_failed';
+  return failureMessages[code] + (validStatus(failure?.status) ? ` (HTTP ${failure.status})` : '');
+}
+
+export class ReviewFailure extends Error {
+  constructor(code, status) {
+    const safeCode = Object.hasOwn(failureMessages, code) ? code : 'request_failed';
+    const safeStatus = validStatus(status) ? status : undefined;
+    super(reviewFailureMessage({ code: safeCode, status: safeStatus }));
+    this.code = safeCode;
+    this.status = safeStatus;
+  }
+}
+
+export function sanitizeReviewFailure(error) {
+  return error instanceof ReviewFailure
+    ? { code: Object.hasOwn(failureMessages, error.code) ? error.code : 'request_failed',
+      ...(validStatus(error.status) ? { status: error.status } : {}) }
+    : { code: 'review_failed' };
+}
+
+export function classifyReviewError(error) {
+  if (error instanceof ReviewFailure) return error;
+  if (error instanceof APITimeoutError) return new ReviewFailure('timeout');
+  if (error instanceof APIConnectionError) return new ReviewFailure('connection_failed');
+  if (error instanceof APIError) {
+    const inputLimit = error.status === 413
+      || (error.status === 400 && error.body?.detail?.error_type === 'max_tokens_exceeded');
+    return new ReviewFailure(inputLimit ? 'input_limit' : 'request_failed', error.status);
+  }
+  if (error instanceof EvidenceValidationError) return new ReviewFailure('invalid_evidence');
+  return new ReviewFailure(error instanceof TypeSafeError ? 'client_error' : 'internal_error');
+}
 
 export function buildQuestions() {
   return Object.fromEntries(metrics.flatMap((metric) => [
@@ -62,7 +119,7 @@ export function evaluateResponse(response, threshold) {
       || score?.type !== 'score' || !boundedNumber(score.score, 0, 9) || !boundedNumber(score.confidence, 0, 1)
       || weakness?.type !== 'choice' || !Object.hasOwn(metric.weaknesses, weakness.choice)
       || !boundedNumber(weakness.confidence, 0, 1)) {
-      throw new Error(`Invalid or missing Jev answer for ${metric.key}.`);
+      throw new ReviewFailure('invalid_response');
     }
     if (applicable.noul < 0.5) return { key: metric.key, label: metric.label, applicable: false };
     // Jev returns a zero-based score. Compare before rounding so 6.99 cannot pass 7.
@@ -77,7 +134,7 @@ export function evaluateResponse(response, threshold) {
       hint: weakness.choice === 'no_material_issue' ? null : metric.weaknesses[weakness.choice],
     };
   });
-  if (!ratings.some((rating) => rating.applicable)) throw new Error('Jev could not assess any quality dimension.');
+  if (!ratings.some((rating) => rating.applicable)) throw new ReviewFailure('unassessable');
   return { passed: ratings.every((rating) => !rating.applicable || rating.passed), ratings };
 }
 
@@ -90,16 +147,16 @@ export function separateBinaryChanges(diff) {
   const binaryFiles = sections.filter((section) => binaryMarker.test(section))
     .map((section) => section.slice(0, section.indexOf('\n')).match(/^diff --git a\/.+ b\/(.+)$/)?.[1] ?? 'unknown binary file');
   if (!text.length && binaryFiles.length) {
-    throw new Error('The PR only changes binary files, which Jev cannot assess. Review them separately.');
+    throw new ReviewFailure('binary_only');
   }
   return { diff: text.join(''), binaryFiles };
 }
 
 // Completeness is a PR-level judgment: keep implementations, callers, and tests together.
 export function validateDiff(diff) {
-  if (!diff.startsWith('diff --git ')) throw new Error('No reviewable PR diff was found.');
+  if (!diff.startsWith('diff --git ')) throw new ReviewFailure('no_reviewable_diff');
   if (Buffer.byteLength(diff) > 1_000_000) {
-    throw new Error('The complete PR diff exceeds the 1 MB request guard. Split the PR into smaller changes.');
+    throw new ReviewFailure('diff_too_large');
   }
   if (binaryMarker.test(diff)) {
     throw new Error('Binary changes must be separated before the Jev review.');
@@ -107,13 +164,13 @@ export function validateDiff(diff) {
 }
 
 export async function review({ diff: completeDiff, task, repositoryContext, threshold, apiKey, baseURL = 'https://api.typesafe.ai', model = 'jev-latest', fetch }) {
-  if (!apiKey?.trim()) throw new Error('JEV_API_KEY is missing. Set a TypeSafe credential or an Atlas profile token before running the review.');
+  if (!apiKey?.trim()) throw new ReviewFailure('missing_credentials');
   const { diff, binaryFiles } = separateBinaryChanges(completeDiff);
   validateDiff(diff);
   const binaryContext = binaryFiles.length
     ? `\nThese binary files also changed but are not included in the diff and were not assessed:\n${binaryFiles.map((file) => `- ${file}`).join('\n')}`
     : '';
-  if (Buffer.byteLength(task + repositoryContext) > 64_000) throw new Error('PR description and repository context exceed 64,000 bytes.');
+  if (Buffer.byteLength(task + repositoryContext) > 64_000) throw new ReviewFailure('context_too_large');
   const client = new TypeSafeClient({
     apiKey,
     baseURL,
@@ -145,11 +202,7 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
     }
   } catch (error) {
     // Never log SDK error bodies: providers may echo submitted code or credentials.
-    if (error instanceof APIError && error.status === 400 && error.body?.detail?.error_type === 'max_tokens_exceeded') {
-      throw new Error('The complete PR exceeds Jev’s input limit. Split the PR into smaller coherent changes; no partial review was accepted.');
-    }
-    const status = error instanceof APIError ? ` (HTTP ${error.status})` : '';
-    throw new Error(`Jev request failed${status}. Check credentials, quota, input size, or service availability and rerun.`);
+    throw classifyReviewError(error);
   }
   for (const rating of result.ratings) {
     if (['maliciousBehavior', 'promptInjection'].includes(rating.key) && !findings.some((finding) => finding.check === rating.label)) {
