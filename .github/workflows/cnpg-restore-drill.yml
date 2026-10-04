@@ -59,6 +59,14 @@ jobs:
           install_args: "--locked kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
+      - name: Resolve namespace
+        run: |
+          case "$ENVIRONMENT" in
+            production) NS=tuist ;;
+            staging|canary) NS="tuist-$ENVIRONMENT" ;;
+            *) echo "::error::Unsupported environment: $ENVIRONMENT"; exit 1 ;;
+          esac
+          echo "NS=$NS" >> "$GITHUB_ENV"
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -69,7 +77,6 @@ jobs:
             --vault "tuist-k8s-$ENVIRONMENT" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
           kubectl --request-timeout=10s get --raw /version >/dev/null
-          echo "NS=tuist-$ENVIRONMENT" >> "$GITHUB_ENV"
 
       - name: Read live cluster spec + baseline
         run: |
@@ -184,5 +191,5 @@ jobs:
       - name: Tear down recovery cluster
         if: always()
         run: |
-          kubectl -n "${NS:-tuist-$ENVIRONMENT}" delete clusters.postgresql.cnpg.io "$RECOVERY" \
+          kubectl -n "$NS" delete clusters.postgresql.cnpg.io "$RECOVERY" \
             --ignore-not-found --wait=false || true
