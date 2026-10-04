@@ -37,7 +37,7 @@ TUIST_TEST_RETRIES=2 mix test
 
 The flag takes precedence over the environment variable, and the environment variable over `mix.exs`.
 
-Only the tests that failed run again, the way `mix test --failed` runs them, and the dashboard shows each attempt of a test and how long it took. A run that ExUnit stopped early because of `--max-failures` is not retried.
+Only the tests that failed run again, the way `mix test --failed` runs them, and the dashboard shows each attempt of a test and how long it took. A run that ExUnit stopped early because of `--max-failures` is not retried. Retries are also skipped with `--warnings-as-errors`, which `mix test` would no longer enforce, and from the root of an umbrella project; run the tests inside one of its applications to retry them.
 
 ![A flaky ExUnit test and its history](/images/guides/features/elixir/flaky-test-case.png)
 

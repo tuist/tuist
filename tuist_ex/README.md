@@ -122,6 +122,9 @@ always that of `mix test`.
 
 A run that `--max-failures` cut short is never retried: the tests it did not
 reach are unknown, so the run is reported as it is and stays failed.
+Retries are also skipped with `--warnings-as-errors`, which `mix test` would
+no longer enforce, and from an umbrella's root: run the tests inside one of
+its applications to retry them.
 
 Without retries, Tuist still flags a failure as flaky when the same test has
 also passed on the same commit in continuous integration, for example after

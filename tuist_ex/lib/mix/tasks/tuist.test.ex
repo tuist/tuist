@@ -71,27 +71,30 @@ defmodule Mix.Tasks.Tuist.Test do
   defp run_in_test_env(args) do
     {options, test_args} = split_args(args)
     warn_if_formatter_override(test_args)
-    retrying? = System.get_env(@retry_results) not in [nil, ""]
 
-    # A retry reruns what its parent already selected for the shard.
-    selection = if retrying?, do: {options, test_args}, else: shard(options, test_args)
+    case System.get_env(@retry_results, "") do
+      "" ->
+        case shard(options, test_args) do
+          {options, test_args} ->
+            case retries_for(options, test_args) do
+              0 ->
+                configure(options)
+                run_test(test_args)
 
-    case {selection, System.get_env(@retry_results), retries_for(options, test_args)} do
-      {:nothing_to_run, _path, _retries} ->
-        :ok
+              retries ->
+                run_with_retries(options, test_args, retries)
+            end
 
-      {{options, test_args}, path, _retries} when is_binary(path) and path != "" ->
-        # This process is a retry started by the branch below: record what
-        # the tests did for the parent, which reports the whole run.
+          :nothing_to_run ->
+            :ok
+        end
+
+      # This process is a retry started by `run_with_retries/3`, rerunning
+      # what its parent selected: record what the tests did for the parent,
+      # which reports the whole run.
+      path ->
         configure(Keyword.put(options, :mode, {:collect, path}))
         run_test(test_args)
-
-      {{options, test_args}, _path, 0} ->
-        configure(options)
-        run_test(test_args)
-
-      {{options, test_args}, _path, retries} ->
-        run_with_retries(options, test_args, retries)
     end
   end
 
@@ -233,8 +236,16 @@ defmodule Mix.Tasks.Tuist.Test do
   end
 
   # `--failed` picks what to rerun, so the options that pick tests by other
-  # means, and that Mix refuses next to it, are left out.
-  @not_for_retries ["--raise", "--failed", "--stale"]
+  # means, and that Mix refuses next to it, are left out. So is coverage: the
+  # first run already wrote it for the whole suite, and the reruns alone
+  # would overwrite it and fall under its threshold.
+  @not_for_retries ["--raise", "--failed", "--stale", "--cover"]
+
+  defp retry_args(["--export-coverage", _name | rest]), do: retry_args(rest)
+  defp retry_args(["--export-coverage=" <> _name | rest]), do: retry_args(rest)
+  defp retry_args([arg | rest]) when arg in @not_for_retries, do: retry_args(rest)
+  defp retry_args([arg | rest]), do: [arg | retry_args(rest)]
+  defp retry_args([]), do: []
 
   # A fresh process, like running `mix test --failed` by hand: the test
   # helper, the application and every module start clean, which rerunning in
@@ -249,7 +260,7 @@ defmodule Mix.Tasks.Tuist.Test do
         color = if IO.ANSI.enabled?(), do: ["--color"], else: []
 
         args =
-          ["tuist.test", "--failed"] ++ color ++ Enum.reject(test_args, &(&1 in @not_for_retries))
+          ["tuist.test", "--failed"] ++ color ++ retry_args(test_args)
 
         {_output, status} =
           System.cmd(mix, args,
@@ -280,28 +291,38 @@ defmodule Mix.Tasks.Tuist.Test do
     Keyword.get(opts, :exit_status, 2)
   end
 
-  @doc false
-  # Retrying needs the first run to raise when it fails, and `mix test` then
-  # raises before it gets to `--warnings-as-errors`: the retries would pass
-  # and the warnings would never fail the run.
+  # Retrying needs the first run to raise when it fails. `mix test` then
+  # raises before it gets to `--warnings-as-errors`, so the retries would
+  # pass and the warnings would never fail the run. In an umbrella it raises
+  # in the first application that fails, and the ones after it never run.
   defp retries_for(options, test_args) do
-    case retries(options) do
-      count when count > 0 ->
-        if "--warnings-as-errors" in test_args do
-          Mix.shell().info(
-            "warning: Tuist does not retry failed tests when `--warnings-as-errors` is given."
-          )
+    count = retries(options)
 
-          0
-        else
-          count
-        end
+    cond do
+      count == 0 ->
+        0
 
-      count ->
+      "--warnings-as-errors" in test_args ->
+        Mix.shell().info(
+          "warning: Tuist does not retry failed tests when `--warnings-as-errors` is given."
+        )
+
+        0
+
+      Mix.Project.umbrella?() ->
+        Mix.shell().info(
+          "warning: Tuist does not retry failed tests from an umbrella's root yet. " <>
+            "Run them inside one of its applications to retry them."
+        )
+
+        0
+
+      true ->
         count
     end
   end
 
+  @doc false
   def retries(options, environment \\ &System.get_env/1) do
     configured =
       Keyword.get(options, :retries) || environment.("TUIST_TEST_RETRIES") ||
