@@ -176,7 +176,6 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
 // fallback (gRPC status 12) becomes the co-hosted router's fallback for
 // otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
-    let served_by = super::served_by::ServedBy::new(&state.config.region);
     let service = ReapiService::new(state.clone());
     spawn_snapshot_refresh_task(service.clone());
     let assets = super::asset::server(service.clone());
@@ -196,18 +195,15 @@ pub fn routes(state: SharedState) -> axum::Router {
             state.clone(),
             admit_grpc_write_decode,
         ))
-        .layer(GrpcRequestAccountingLayer { state })
+        .layer(GrpcRequestAccountingLayer {
+            state: state.clone(),
+        })
         .layer(axum::middleware::map_response(
             crate::http::guard_response_stream_transport,
         ))
-        .layer(axum::middleware::map_response(
-            move |mut response: axum::response::Response| {
-                let served_by = served_by.clone();
-                async move {
-                    served_by.apply(&mut response);
-                    response
-                }
-            },
+        .layer(axum::middleware::map_response_with_state(
+            state,
+            crate::served_by::stamp,
         ))
 }
 

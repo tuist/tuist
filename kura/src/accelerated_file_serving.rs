@@ -38,6 +38,7 @@ use crate::{
         log_request_completion, request_id, scope_request,
     },
     runtime::HttpTrafficClass,
+    served_by::REGION_HEADER,
     state::SharedState,
     store::AcceleratedArtifactFile,
     telemetry::{attach_parent_context_from_map, record_trace_context, trace_export_active},
@@ -269,6 +270,7 @@ async fn serve_connection(
                     denial.reason,
                     JSON_CONTENT_TYPE,
                     &headers,
+                    state.served_by.region(),
                     body.as_bytes(),
                 )
                 .await;
@@ -822,6 +824,7 @@ async fn serve_accelerated(
                 "Too Many Requests",
                 JSON_CONTENT_TYPE,
                 &headers,
+                state.served_by.region(),
                 body.as_bytes(),
             )
             .await?;
@@ -877,6 +880,7 @@ async fn serve_accelerated(
     let transfer_span = body_span.clone();
     let request_started_at = request_context.started_at();
     let response_request_id = request_context.request_id().to_owned();
+    let served_by = state.served_by.clone();
     let artifact_size = file.size;
     let etag = entity_tag(file.version_ms, file.size);
     let result = tokio::task::spawn_blocking(
@@ -899,6 +903,7 @@ async fn serve_accelerated(
                     Some(etag.as_str()),
                     file.content_sha256.as_deref(),
                     &response_request_id,
+                    served_by.region(),
                     keep_alive,
                 )?;
                 // Time to first byte is measured once the headers are on the
@@ -1394,12 +1399,15 @@ fn parse_query_map(query: &str) -> BTreeMap<String, String> {
         .collect()
 }
 
+// Both raw writers name the serving region, as the axum path does: a node-local
+// fast path must not change which headers a client sees.
 async fn write_response(
     stream: &mut TcpStream,
     status: u16,
     reason: &str,
     content_type: &str,
     headers: &BTreeMap<String, String>,
+    region: Option<&str>,
     body: &[u8],
 ) -> std::io::Result<()> {
     let mut response = Vec::new();
@@ -1409,6 +1417,7 @@ async fn write_response(
         body.len()
     )?;
     append_headers(&mut response, headers)?;
+    append_region(&mut response, region)?;
     response.extend_from_slice(b"\r\n");
     response.extend_from_slice(body);
     stream.write_all(&response).await
@@ -1425,6 +1434,7 @@ fn write_headers(
     etag: Option<&str>,
     content_sha256: Option<&str>,
     request_id: &str,
+    region: Option<&str>,
     keep_alive: bool,
 ) -> std::io::Result<()> {
     let connection = if keep_alive { "keep-alive" } else { "close" };
@@ -1449,7 +1459,15 @@ fn write_headers(
     {
         write!(stream, "tuist-checksum-sha256: {content_sha256}\r\n")?;
     }
+    append_region(stream, region)?;
     stream.write_all(b"\r\n")
+}
+
+fn append_region(output: &mut impl Write, region: Option<&str>) -> std::io::Result<()> {
+    match region {
+        Some(region) => write!(output, "{}: {region}\r\n", REGION_HEADER.as_str()),
+        None => Ok(()),
+    }
 }
 
 fn append_headers(
@@ -1782,7 +1800,7 @@ mod tests {
         ArtifactRequest, MAX_HEADER_BYTES, ParsedRequest, RequestContext, RequestLogPolicy,
         TransferFailure, artifact_request, consume_headers, json_error_body, parse_request,
         peek_request, request_wants_keep_alive, sanitized_content_type, serve_accelerated,
-        system_page_bytes,
+        system_page_bytes, write_headers, write_response,
     };
 
     fn benchmark_artifact_request() -> ArtifactRequest {
@@ -2156,6 +2174,76 @@ mod tests {
         );
     }
 
+    // The raw writers bypass axum, so they have to send the same region header
+    // the router stamps: an artifact GET and a denial must not differ in headers
+    // depending on whether this node took the fast path.
+    #[tokio::test]
+    async fn raw_responses_name_the_serving_region() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let client = std::net::TcpStream::connect(address).expect("connect test client");
+        let (mut server, _) = listener.accept().expect("accept test client");
+        write_headers(
+            &mut server,
+            200,
+            "OK",
+            "application/octet-stream",
+            10,
+            None,
+            None,
+            None,
+            "raw-get",
+            Some("us-central"),
+            false,
+        )
+        .expect("write artifact headers");
+        drop(server);
+        let mut headers = String::new();
+        std::io::Read::read_to_string(&mut { client }, &mut headers)
+            .expect("read artifact headers");
+        assert!(
+            headers.contains("x-kura-region: us-central\r\n"),
+            "got: {headers}"
+        );
+        assert!(headers.ends_with("\r\n\r\n"), "got: {headers}");
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let mut client = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect test client");
+        let (mut server, _) = listener.accept().await.expect("accept test client");
+        let body = json_error_body("Unauthorized");
+        write_response(
+            &mut server,
+            401,
+            "Unauthorized",
+            "application/json",
+            &BTreeMap::from([("x-request-id".to_owned(), "raw-denial".to_owned())]),
+            Some("us-central"),
+            body.as_bytes(),
+        )
+        .await
+        .expect("write denial");
+        drop(server);
+        let mut response = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut client, &mut response)
+            .await
+            .expect("read denial");
+        let response = String::from_utf8(response).expect("response should be valid UTF-8");
+        assert!(response.starts_with("HTTP/1.1 401 Unauthorized\r\n"));
+        assert!(
+            response.contains("x-kura-region: us-central\r\n"),
+            "got: {response}"
+        );
+        assert!(
+            response.ends_with(&format!("\r\n\r\n{body}")),
+            "got: {response}"
+        );
+    }
+
     #[test]
     fn sanitizes_content_type_with_unsafe_characters() {
         assert_eq!(sanitized_content_type("application/zip"), "application/zip");
@@ -2167,7 +2255,8 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn accelerator_sends_retryable_error_before_success_when_memory_is_exhausted() {
-        let context = crate::test_support::test_context(|_| {}).await;
+        let context =
+            crate::test_support::test_context(|config| config.region = "us-central".into()).await;
         let response_pool_bytes = context
             .state
             .memory
@@ -2262,6 +2351,7 @@ mod tests {
         // these bytes have to match what the Axum path writes.
         assert!(response.contains("content-type: application/json\r\n"));
         assert!(response.contains("x-request-id: accelerated-test\r\n"));
+        assert!(response.contains("x-kura-region: us-central\r\n"));
         let body = response
             .split_once("\r\n\r\n")
             .expect("response should have a body")
@@ -2386,7 +2476,8 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn an_accelerated_full_read_advertises_accept_ranges_without_claiming_partial() {
-        let context = crate::test_support::test_context(|_| {}).await;
+        let context =
+            crate::test_support::test_context(|config| config.region = "us-central".into()).await;
         let path = context.state.config.tmp_dir.join("full-artifact");
         std::fs::write(&path, b"0123456789").expect("write accelerated artifact");
         let file = AcceleratedArtifactFile {
@@ -2457,6 +2548,10 @@ mod tests {
             "got: {response}"
         );
         assert!(!response.contains("content-range:"), "got: {response}");
+        assert!(
+            response.contains("x-kura-region: us-central\r\n"),
+            "got: {response}"
+        );
         assert!(response.ends_with("\r\n\r\n0123456789"), "got: {response}");
     }
 
