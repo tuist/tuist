@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { formatComment, marker, runReview } from './run.mjs';
+import { ReviewFailure } from './review.mjs';
 
 const pr = { number: 12, state: 'open', title: 'Change', body: null, head: { sha: 'a'.repeat(40) }, base: { sha: 'b'.repeat(40) } };
 const report = { passed: false, threshold: 7, ratings: [{ key: 'correctness', label: 'Correctness', applicable: true, score: 6, confidence: 0.9, passed: false, hint: 'An edge case is missing.' }] };
@@ -61,6 +62,42 @@ test('provider failure replaces old scores without exposing error text', async (
   assert.equal(saved.report, undefined);
   assert.match(saved.body, /could not complete/);
   assert.doesNotMatch(calls.at(-1).options.body.body, /secret-source-text/);
+});
+
+test('preserves sanitized provider status without copying provider error bodies', async () => {
+  let saved;
+  const failure = new ReviewFailure('request_failed', 429);
+  failure.message = 'credential-and-source-text';
+  const { calls, options } = fixture({ evaluate: async () => { throw failure; }, save: (value) => { saved = value; } });
+  assert.equal((await runReview(options)).failed, true);
+  assert.deepEqual(saved.failure, { code: 'request_failed', status: 429 });
+  assert.equal(saved.report, undefined);
+  assert.match(saved.body, /HTTP 429/);
+  assert.doesNotMatch(JSON.stringify(saved), /credential-and-source-text/);
+  assert.doesNotMatch(calls.at(-1).options.body.body, /credential-and-source-text/);
+});
+
+test('reports provider input limits rather than accepting a partial review', async () => {
+  let saved;
+  const { options } = fixture({
+    evaluate: async () => { throw new ReviewFailure('input_limit', 400); },
+    save: (value) => { saved = value; },
+  });
+  assert.equal((await runReview(options)).failed, true);
+  assert.deepEqual(saved.failure, { code: 'input_limit', status: 400 });
+  assert.match(saved.body, /provider input limit/);
+  assert.match(saved.body, /no partial review/);
+});
+
+test('does not trust status fields on arbitrary provider exceptions', async () => {
+  let saved;
+  const { options } = fixture({
+    evaluate: async () => { throw Object.assign(new Error('secret'), { code: 'input_limit', status: 'secret' }); },
+    save: (value) => { saved = value; },
+  });
+  await runReview(options);
+  assert.deepEqual(saved.failure, { code: 'review_failed' });
+  assert.doesNotMatch(JSON.stringify(saved), /secret/);
 });
 
 test('local report mode does not contact GitHub to publish', async () => {
