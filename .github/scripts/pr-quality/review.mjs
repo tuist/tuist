@@ -1,6 +1,6 @@
-import { TypeSafeClient, APIError, APIConnectionError, APITimeoutError } from '@typesafe-ai/sdk';
+import { TypeSafeClient, TypeSafeError, APIError, APIConnectionError, APITimeoutError } from '@typesafe-ai/sdk';
 import metrics from './metrics.json' with { type: 'json' };
-import { changedLines, evidenceQuestions, evaluateEvidence, annotateDiff } from './evidence.mjs';
+import { changedLines, evidenceQuestions, evaluateEvidence, EvidenceValidationError, annotateDiff } from './evidence.mjs';
 
 // Rubric and question wording adapted from Jev Review; see ../../PR_QUALITY.md and the retained license files.
 const levels = [
@@ -21,6 +21,8 @@ const failureMessages = Object.freeze({
   request_failed: 'Jev request failed. Check credentials, quota, input size, or service availability and rerun.',
   timeout: 'Jev request timed out at the 60-second limit. Check service latency and rerun.',
   connection_failed: 'Jev request failed to connect or complete transport. Check network and service availability.',
+  client_error: 'The review SDK could not process the request. Check local configuration and request schema.',
+  internal_error: 'The evaluator failed locally. Check its implementation and configuration.',
   invalid_response: 'Jev returned invalid or missing quality answers. Check the provider response contract; no scores were accepted.',
   invalid_evidence: 'Jev returned invalid or missing source evidence. Check the provider response contract; no scores were accepted.',
   unassessable: 'Jev could not assess any quality dimension. No scores were accepted.',
@@ -58,7 +60,7 @@ export function sanitizeReviewFailure(error) {
     : { code: 'review_failed' };
 }
 
-export function classifyReviewError(error, validationCode = 'invalid_response') {
+export function classifyReviewError(error) {
   if (error instanceof ReviewFailure) return error;
   if (error instanceof APITimeoutError) return new ReviewFailure('timeout');
   if (error instanceof APIConnectionError) return new ReviewFailure('connection_failed');
@@ -67,7 +69,8 @@ export function classifyReviewError(error, validationCode = 'invalid_response') 
       || (error.status === 400 && error.body?.detail?.error_type === 'max_tokens_exceeded');
     return new ReviewFailure(inputLimit ? 'input_limit' : 'request_failed', error.status);
   }
-  return new ReviewFailure(validationCode);
+  if (error instanceof EvidenceValidationError) return new ReviewFailure('invalid_evidence');
+  return new ReviewFailure(error instanceof TypeSafeError ? 'client_error' : 'internal_error');
 }
 
 export function buildQuestions() {
@@ -116,7 +119,7 @@ export function evaluateResponse(response, threshold) {
       || score?.type !== 'score' || !boundedNumber(score.score, 0, 9) || !boundedNumber(score.confidence, 0, 1)
       || weakness?.type !== 'choice' || !Object.hasOwn(metric.weaknesses, weakness.choice)
       || !boundedNumber(weakness.confidence, 0, 1)) {
-      throw new Error(`Invalid or missing Jev answer for ${metric.key}.`);
+      throw new ReviewFailure('invalid_response');
     }
     if (applicable.noul < 0.5) return { key: metric.key, label: metric.label, applicable: false };
     // Jev returns a zero-based score. Compare before rounding so 6.99 cannot pass 7.
@@ -180,7 +183,6 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
   const candidates = changedLines(diff);
   let result;
   const findings = [];
-  let validationCode = 'invalid_response';
   try {
     const state = {
       task, diff,
@@ -196,13 +198,11 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
       const evidence = await client.systemOne({
         state: { ...state, diff: annotateDiff(diff, candidates) }, questions,
       });
-      validationCode = 'invalid_evidence';
       findings.push(...evaluateEvidence(evidence, questions, candidates));
-      validationCode = 'invalid_response';
     }
   } catch (error) {
     // Never log SDK error bodies: providers may echo submitted code or credentials.
-    throw classifyReviewError(error, validationCode);
+    throw classifyReviewError(error);
   }
   for (const rating of result.ratings) {
     if (['maliciousBehavior', 'promptInjection'].includes(rating.key) && !findings.some((finding) => finding.check === rating.label)) {

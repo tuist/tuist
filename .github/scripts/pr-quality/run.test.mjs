@@ -115,6 +115,7 @@ test('publishes allowlisted validation and transport diagnostics without excepti
   for (const [code, message] of [
     ['timeout', /60-second limit/], ['connection_failed', /transport/],
     ['invalid_response', /quality answers/], ['invalid_evidence', /source evidence/],
+    ['client_error', /SDK/], ['internal_error', /locally/],
     ['unassessable', /could not assess/], ['no_reviewable_diff', /No reviewable/],
     ['diff_too_large', /1 MB/], ['context_too_large', /64,000/],
     ['binary_only', /binary files/], ['missing_credentials', /JEV_API_KEY is missing/],

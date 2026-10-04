@@ -1,5 +1,7 @@
 import metrics from './metrics.json' with { type: 'json' };
 
+export class EvidenceValidationError extends Error {}
+
 const checks = metrics.filter((metric) => ['maliciousBehavior', 'promptInjection'].includes(metric.key));
 
 // Select evidence from known changed lines instead of asking the model to invent locations.
@@ -60,7 +62,7 @@ export function evaluateEvidence(response, questions, candidates) {
     const answer = response?.answers?.[id];
     if (answer?.type !== 'choice' || !Object.hasOwn(question.criteria, answer.choice)
       || !Number.isFinite(answer.confidence) || answer.confidence < 0 || answer.confidence > 1) {
-      throw new Error('Invalid or missing Jev evidence answer.');
+      throw new EvidenceValidationError('Invalid or missing Jev evidence answer.');
     }
     if (answer.choice === 'no_material_issue') return [];
     const check = checks.find((item) => id.startsWith(`${item.key}_evidence_`));
