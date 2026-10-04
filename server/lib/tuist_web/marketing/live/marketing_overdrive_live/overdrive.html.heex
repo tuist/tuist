@@ -1,0 +1,62 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-overdrive">
+    <header data-part="header">
+      <span data-part="eyebrow">{dgettext("marketing", "Open source in Overdrive")}</span>
+      <h1 data-part="title">{dgettext("marketing", "Overdrive")}</h1>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "We fork popular open source projects and run their builds and tests through Tuist, so you can see how much faster they'd move. Every number comes from the fork's public dashboard over the last %{days} days, and you can dig into the data yourself.",
+          days: @period_days
+        )}
+      </p>
+    </header>
+
+    <ul data-part="projects">
+      <li :for={project <- @projects} data-part="project-item">
+        <.link data-part="project" href={project_href(project)}>
+          <div data-part="content">
+            <span data-part="upstream">
+              {dgettext("marketing", "Fork of %{upstream}", upstream: project.upstream_handle)}
+            </span>
+            <h2 data-part="title">{project.name}</h2>
+            <p data-part="description">{project.description}</p>
+          </div>
+          <.overdrive_stats stats={project.stats} />
+          <span class="noora-link-button" data-part="view" data-size="large">
+            <span>{dgettext("marketing", "See the numbers")}</span>
+            <.chevron_right />
+          </span>
+        </.link>
+      </li>
+    </ul>
+
+    <p data-part="disclaimer">
+      {dgettext(
+        "marketing",
+        "These forks are maintained by Tuist to showcase what Tuist brings to a project. They aren't affiliated with or endorsed by the upstream maintainers."
+      )}
+    </p>
+
+    <section data-part="cta" aria-labelledby="cta-title">
+      <span data-part="eyebrow">{dgettext("marketing", "Maintain an open source project?")}</span>
+      <h2 id="cta-title">{dgettext("marketing", "Put your project in Overdrive")}</h2>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Tuist is free for open source. Connect your project, make its dashboard public, and get these numbers for real."
+        )}
+      </p>
+      <div data-part="actions" role="group" aria-labelledby="cta-title">
+        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
+        <.button
+          href="https://slack.tuist.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        />
+      </div>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

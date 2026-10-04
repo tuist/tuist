@@ -654,6 +654,10 @@
           & > [data-part="resource"]:nth-child(7) {
             animation-delay: 0.21s;
           }
+
+          & > [data-part="resource"]:nth-child(8) {
+            animation-delay: 0.24s;
+          }
         }
 
         /* Special handling for developers dropdown with two columns */
@@ -1256,13 +1260,8 @@
 
   /* ── Resources ── */
   /* Figma: 2-column hairline grid of 90px rows (4 x 90 = the panel's 360px).
-     Column flow: About/Public dashboard/Customers fill the left column's
-     first three rows, Slack/Newsletter/GitHub/Community forum the right
-     column. A spacer pinned to the left column's last row keeps
-     auto-placement from spilling the right-column links into it; its top
-     edge closes the grid under Customers. Children in DOM order: About,
-     Public dashboard, Customers, Slack, Newsletter, GitHub, Community
-     forum, spacer. */
+     Column flow: About/Public dashboard/Customers/Overdrive fill the left
+     column, Slack/Newsletter/GitHub/Community forum the right one. */
   & > [data-part="panel"] > [data-dropdown="resources"] {
     display: grid;
     grid-template-rows: repeat(4, 90px);
@@ -1295,21 +1294,15 @@
       }
 
       /* Right column cells (Slack onwards) carry the vertical hairline. */
-      &:nth-child(n + 4) {
+      &:nth-child(n + 5) {
         border-left: 1px solid var(--marketing-stroke-default);
       }
 
       /* Horizontal hairlines between rows: every cell below the first row
-         of its column, i.e. all but About (1st) and Slack (4th). */
-      &:not(:nth-child(1)):not(:nth-child(4)) {
+         of its column, i.e. all but About (1st) and Slack (5th). */
+      &:not(:nth-child(1)):not(:nth-child(5)) {
         border-top: 1px solid var(--marketing-stroke-default);
       }
-    }
-
-    & > [data-part="spacer"] {
-      grid-row: 4;
-      grid-column: 1;
-      border-top: 1px solid var(--marketing-stroke-default);
     }
   }
 }

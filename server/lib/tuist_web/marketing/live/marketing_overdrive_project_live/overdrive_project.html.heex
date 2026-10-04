@@ -1,0 +1,64 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-overdrive-project">
+    <header data-part="header">
+      <.link
+        data-part="eyebrow"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href("/overdrive")}
+      >
+        {dgettext("marketing", "Overdrive")}
+      </.link>
+      <h1 data-part="title">{@project.name}</h1>
+      <p data-part="subtitle">{@project.description}</p>
+      <p data-part="disclaimer">
+        {dgettext(
+          "marketing",
+          "Tuist forked %{upstream} and runs its builds and tests through Tuist to show what the project would gain. The fork isn't affiliated with or endorsed by the upstream maintainers.",
+          upstream: @project.upstream_handle
+        )}
+      </p>
+      <div data-part="actions">
+        <.button href={dashboard_href(@project)} label={dgettext("marketing", "Open dashboard")} />
+        <.button
+          href={@project.fork_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={dgettext("marketing", "View the fork")}
+        />
+        <.button
+          href={@project.upstream_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="secondary"
+          label={@project.upstream_handle}
+        />
+      </div>
+    </header>
+
+    <section data-part="numbers" aria-labelledby="numbers-title">
+      <h2 id="numbers-title" data-part="section-title">
+        {dgettext("marketing", "Last %{days} days", days: @period_days)}
+      </h2>
+      <.overdrive_stats stats={@project.stats} />
+    </section>
+
+    <section data-part="share" aria-labelledby="share-title">
+      <h2 id="share-title" data-part="section-title">{dgettext("marketing", "Share it")}</h2>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Links to this page unfurl into this card on social networks and chat apps, with the numbers kept up to date."
+        )}
+      </p>
+      <img
+        data-part="card"
+        src={@card_image_url}
+        alt={dgettext("marketing", "%{name} in Overdrive", name: @project.name)}
+        width="1920"
+        height="1080"
+        loading="lazy"
+        decoding="async"
+      />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

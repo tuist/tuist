@@ -421,6 +421,16 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
+        live Path.join(locale_path_prefix, "/overdrive"),
+             TuistWeb.Marketing.MarketingOverdriveLive,
+             metadata: @marketing_route_metadata,
+             private: private
+
+        live Path.join(locale_path_prefix, "/overdrive/:account_handle/:project_handle"),
+             TuistWeb.Marketing.MarketingOverdriveProjectLive,
+             metadata: @marketing_route_metadata,
+             private: private
+
         live Path.join(locale_path_prefix, "/cache"),
              TuistWeb.Marketing.MarketingCacheLive,
              metadata: @marketing_route_metadata,

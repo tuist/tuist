@@ -89,7 +89,7 @@ developers_items = [
 ]
 
 # Ordered for the dropdown's column-flow 2-column grid: left column is
-# About/Public dashboard/Customers, right column
+# About/Public dashboard/Customers/Overdrive, right column
 # Slack/Newsletter/GitHub/Community forum.
 resources_items = [
   %{
@@ -109,6 +109,12 @@ resources_items = [
     title: dgettext("marketing", "Customers"),
     subtitle: dgettext("marketing", "See how leading teams scale with Tuist"),
     href: TuistWeb.Marketing.MarketingHTML.localized_href("/customers")
+  },
+  %{
+    icon: :trending_up,
+    title: dgettext("marketing", "Overdrive"),
+    subtitle: dgettext("marketing", "Open source projects, put in Overdrive by Tuist"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/overdrive")
   },
   %{
     icon: :brand_slack,
@@ -526,7 +532,6 @@ mobile menu underneath the user. --%>
             {item.subtitle}
           </p>
         </.link>
-        <div data-part="spacer" aria-hidden="true"></div>
       </div>
     </div>
   </div>

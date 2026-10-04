@@ -37,6 +37,7 @@ defmodule Tuist do
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Customers.CoverArtwork,
+      Marketing.Overdrive,
       # App Store release lookups for the marketing download page.
       AppStore,
       Marketing.Stats,
