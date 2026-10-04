@@ -45,6 +45,26 @@ class ProductionErrorsTest(unittest.TestCase):
             ["CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public;"],
         )
         self.assertNotIn("ensure", database["spec"])
+        self.assertEqual(cluster["spec"]["postgresql"]["parameters"]["pg_stat_statements.track"], "top")
+
+    def test_query_stats_preserves_explicit_tracking_parameters(self):
+        resources = render(
+            "postgresql.cnpg.enabled=true",
+            "postgresql.cnpg.queryStats.enabled=true",
+            r"postgresql.cnpg.parameters.pg_stat_statements\.track=all",
+        )
+        cluster = resource(resources, "Cluster", "-pg")
+        self.assertEqual(cluster["spec"]["postgresql"]["parameters"]["pg_stat_statements.track"], "all")
+
+    def test_query_stats_enables_tracking_without_other_postgresql_settings(self):
+        resources = render(
+            "postgresql.cnpg.enabled=true",
+            "postgresql.cnpg.queryStats.enabled=true",
+            "postgresql.cnpg.instances=1",
+            "postgresql.cnpg.parameters=null",
+        )
+        cluster = resource(resources, "Cluster", "-pg")
+        self.assertEqual(cluster["spec"]["postgresql"]["parameters"], {"pg_stat_statements.track": "top"})
 
     def test_query_stats_respects_custom_database_and_owner_in_cnpg_mode(self):
         resources = render(
@@ -66,6 +86,9 @@ class ProductionErrorsTest(unittest.TestCase):
         ]:
             resources = render(*settings)
             self.assertFalse(any(r and r["kind"] == "Database" for r in resources))
+            if settings[0] == "postgresql.cnpg.enabled=true":
+                cluster = resource(resources, "Cluster", "-pg")
+                self.assertNotIn("pg_stat_statements.track", cluster["spec"]["postgresql"]["parameters"])
 
     def test_pull_through_cache_can_expire_cached_manifests(self):
         resources = render("registryCache.enabled=true")

@@ -60,15 +60,20 @@ wired into Noora CI; the root Noora test suite does not run Storybook tests.
 
 ### CNPG: reconcile the extension on existing databases
 
-The library is already preloaded, but bootstrap-only SQL never installed the
-view on the existing cluster. Read-only database inspection found no
-`pg_stat_statements` extension in the application database. The live Database
-CRD supports extension reconciliation but rejects the reserved name `postgres`.
+The library is already preloaded, but no `pg_stat_statements.*` parameter
+enables CNPG's built-in extension manager. That manager removes the extension
+when enabling parameters are absent, even if bootstrap SQL or a Database CR
+creates it. Staging exposed this conflict: the Database reported the extension
+applied while live SQL found the view missing. CNPG 1.29.1's instance-controller
+source confirms the removal behavior. The live Database CRD supports extension
+reconciliation but rejects the reserved name `postgres`.
 
 Adopt the configured application database through a CNPG Database resource,
 using its existing owner, a `retain` reclaim policy, and only the requested
 extension. Install the view in `public` and target that database from the
-exporter. Fresh-cluster SQL and the manual recovery fallback use the same schema.
+exporter. Default `pg_stat_statements.track` to `top` when query statistics are
+enabled, preserving explicitly configured tracking values, so CNPG retains the
+extension. Fresh-cluster SQL and the manual recovery fallback use the same schema.
 CNPG >= 1.26 is required only when the opt-in query-stats feature is enabled.
 The managed operator supports this API. Existing `citext` and `uuid-ossp`
 extensions are not removed or upgraded.

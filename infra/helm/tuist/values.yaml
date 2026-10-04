@@ -3170,8 +3170,9 @@ postgresql:
     # Per-query latency observability. When enabled, the chart renders a
     # custom CNPG monitoring query over pg_stat_statements
     # (cnpg_tuist_query_stats_*) for the dashboard's query-latency panels.
-    # Requires CNPG >= 1.26 and `pg_stat_statements` in sharedPreloadLibraries
-    # above. The chart reconciles the extension in the application database.
+    # Requires CNPG >= 1.26. The chart defaults pg_stat_statements.track to
+    # top so CNPG preloads and retains the extension, and reconciles its schema
+    # in the application database. Explicit tracking parameters are preserved.
     # Off by default (local/preview clusters do not preload the library).
     queryStats:
       enabled: false

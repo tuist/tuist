@@ -16,6 +16,10 @@
 {{- $opsRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-ops-ro") -}}
 {{- $grafanaRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-grafana-ro") -}}
 {{- $swiftRegistrySyncRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-swift-registry-sync") -}}
+{{- $parameters := deepCopy (.Values.postgresql.cnpg.parameters | default dict) -}}
+{{- if and .Values.postgresql.cnpg.queryStats.enabled (not (hasKey $parameters "pg_stat_statements.track")) -}}
+{{- $_ := set $parameters "pg_stat_statements.track" "top" -}}
+{{- end -}}
 # CloudNativePG Cluster. The `cloudnative-pg` operator owns the primary,
 # the synchronous replicas, instance scheduling, role provisioning, and
 # WAL archiving. The chart only declares intent: replica count, storage
@@ -60,7 +64,9 @@ spec:
   # a parameter map entry because CNPG's admission webhook treats
   # `shared_preload_libraries` as a fixed parameter (the operator
   # manages its own required entries) and rejects it under `parameters`.
-  {{- if or .Values.postgresql.cnpg.parameters .Values.postgresql.cnpg.sharedPreloadLibraries (gt (int .Values.postgresql.cnpg.instances) 1) }}
+  # CNPG removes managed extensions when their enabling parameters are absent,
+  # even if the library is preloaded and a Database CR created the extension.
+  {{- if or $parameters .Values.postgresql.cnpg.sharedPreloadLibraries (gt (int .Values.postgresql.cnpg.instances) 1) }}
   postgresql:
     {{- with .Values.postgresql.cnpg.sharedPreloadLibraries }}
     shared_preload_libraries:
@@ -68,7 +74,7 @@ spec:
       - {{ . | quote }}
       {{- end }}
     {{- end }}
-    {{- with .Values.postgresql.cnpg.parameters }}
+    {{- with $parameters }}
     parameters:
       {{- range $key, $value := . }}
       {{ $key }}: {{ $value | quote }}
