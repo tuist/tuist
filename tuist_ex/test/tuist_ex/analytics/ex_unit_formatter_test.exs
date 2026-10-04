@@ -306,7 +306,6 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
 
     assert %{status: "failure"} = ExUnitFormatter.record(new_test(state: {:invalid, SomeModule}))
     assert %{status: "skipped"} = ExUnitFormatter.record(new_test(state: {:skipped, "reason"}))
-    assert %{status: "skipped"} = ExUnitFormatter.record(new_test(state: {:excluded, "reason"}))
   end
 
   test "extracts failure location and assertion issue type" do
@@ -415,6 +414,8 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert_receive {:submitted, payload}, 2000
     assert [module] = payload.test_modules
     assert module.status == "success"
+    # A test a filter excluded was not part of the run.
+    assert [%{name: "skipped one", status: "skipped"}] = module.test_cases
 
     :ok = GenServer.stop(pid)
   end

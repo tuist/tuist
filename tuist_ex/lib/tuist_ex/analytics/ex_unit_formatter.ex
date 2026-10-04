@@ -61,6 +61,11 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     {:noreply, %{state | monotonic_start_ns: System.monotonic_time(), ran_at: DateTime.utc_now()}}
   end
 
+  # A test a filter left out, such as `--only` or `file:line`, was not part
+  # of the run: reported as skipped, it would look like it was turned off.
+  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, _}}}, state),
+    do: {:noreply, state}
+
   def handle_cast({:test_finished, test}, state) do
     {:noreply, %{state | tests: [record(test) | state.tests]}}
   end
@@ -286,7 +291,6 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   defp status({:failed, _}), do: "failure"
   defp status({:invalid, _}), do: "failure"
   defp status({:skipped, _}), do: "skipped"
-  defp status({:excluded, _}), do: "skipped"
   defp status(_), do: "success"
 
   defp failures({:failed, entries}, test_file),
