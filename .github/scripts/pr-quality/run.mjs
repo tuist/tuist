@@ -36,7 +36,10 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, baseU
   } catch (error) {
     // Only typed, sanitized diagnostics are published, never exception text.
     failure = error instanceof ReviewFailure
-      ? { code: error.code, status: error.status }
+      ? {
+        code: error.code === 'input_limit' ? 'input_limit' : 'request_failed',
+        ...(Number.isInteger(error.status) && error.status >= 100 && error.status <= 599 ? { status: error.status } : {}),
+      }
       : { code: 'review_failed' };
   }
   const body = formatComment(report, pr, runUrl, failure);
