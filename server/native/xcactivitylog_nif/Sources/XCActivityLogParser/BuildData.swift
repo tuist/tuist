@@ -15,4 +15,7 @@ public struct BuildData: Encodable, Sendable {
     public let cacheable_tasks: [CacheableTask]
     public let cas_outputs: [CASOutput]
     public let build_steps: [BuildStepData]
+    /// The Kura region that answered most of the build's recorded remote cache
+    /// requests, or nil when none was recorded.
+    public var cache_serving_region: String? = nil
 }

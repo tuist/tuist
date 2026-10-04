@@ -415,6 +415,7 @@ pub struct Remote {
     config: RemoteConfig,
     tokens: Arc<TokenProvider>,
     channel: OnceLock<Result<Channel, String>>,
+    served: Arc<crate::served_by::ServedByCell>,
     chunking: std::sync::Mutex<Option<(Instant, bool)>>,
     chunking_disabled_until_ms: AtomicU64,
     uploaded_blob_bytes: AtomicU64,
@@ -793,6 +794,7 @@ impl Remote {
             config,
             tokens,
             channel: OnceLock::new(),
+            served: Arc::default(),
             chunking: std::sync::Mutex::new(None),
             chunking_disabled_until_ms: AtomicU64::new(0),
             uploaded_blob_bytes: AtomicU64::new(0),
@@ -806,6 +808,12 @@ impl Remote {
             write_pressure_backoff_until_ms: AtomicU64::new(0),
             shed_writes: AtomicU64::new(0),
         })
+    }
+
+    /// The Kura region that last answered this `Remote`, or `None` until a
+    /// Kura that names its region has answered.
+    pub fn served_by(&self) -> Option<Arc<str>> {
+        self.served.current()
     }
 
     /// Whether this `Remote` is inside a window in which the server was last
@@ -1021,6 +1029,7 @@ impl Remote {
             });
             match response {
                 Ok(response) => {
+                    self.served.observe(response.metadata());
                     let manifest = response
                         .into_inner()
                         .output_files
@@ -1040,7 +1049,10 @@ impl Remote {
                         .collect();
                     Ok(Some(manifest))
                 }
-                Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+                Err(status) if status.code() == tonic::Code::NotFound => {
+                    self.served.observe(status.metadata());
+                    Ok(None)
+                }
                 Err(status) => {
                     note_payment_required(&status);
                     Err(format!("get_action: {status}"))
@@ -1083,6 +1095,7 @@ impl Remote {
         });
         match response {
             Ok(response) => {
+                self.served.observe(response.metadata());
                 let Some(file) = response.into_inner().output_files.into_iter().next() else {
                     return Ok(None);
                 };
@@ -1400,6 +1413,7 @@ impl Remote {
             for chunk in &chunks {
                 let client = client.clone();
                 let auth = auth.clone();
+                let served = self.served.clone();
                 let request = reapi::BatchReadBlobsRequest {
                     instance_name: instance.clone(),
                     digests: chunk.to_vec(),
@@ -1417,7 +1431,10 @@ impl Remote {
                         }
                     })
                     .await
-                    .map(|response| response.into_inner().responses)
+                    .map(|response| {
+                        served.observe(response.metadata());
+                        response.into_inner().responses
+                    })
                     .map_err(|status| format!("batch_read: {status}"))
                 });
             }
@@ -1463,6 +1480,7 @@ impl Remote {
                 runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
             })
             .map_err(|status| format!("find_missing: {status}"))?;
+            self.served.observe(response.metadata());
             Ok(response.into_inner().missing_blob_digests)
         })();
         self.get_stats.record(started.elapsed());
@@ -1759,6 +1777,7 @@ impl Remote {
                     runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
+                self.served.observe(response.metadata());
                 for entry in response.into_inner().responses {
                     if validate_responses {
                         let digest = entry
@@ -1852,7 +1871,8 @@ impl Remote {
                 }
                 runtime().block_on(client.update_action_result(request))
             })
-            .map_err(|status| format!("update_action: {status}"))?;
+            .map_err(|status| format!("update_action: {status}"))
+            .map(|response| self.served.observe(response.metadata()))?;
             Ok(())
         })();
         self.post_stats.record(started.elapsed());

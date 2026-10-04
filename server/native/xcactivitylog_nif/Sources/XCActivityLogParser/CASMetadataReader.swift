@@ -13,6 +13,19 @@ struct KeyValueMetadataEntry: Decodable {
     let duration: Double
 }
 
+struct ServedRegions: Sendable {
+    struct Key: Hashable, Sendable {
+        let key: String
+        let operationType: String
+    }
+
+    let regions: [Key: String]
+
+    func region(key: String, operationType: String) -> String? {
+        regions[Key(key: key, operationType: operationType)]
+    }
+}
+
 struct CASMetadataReader: Sendable {
     private let db: Connection?
     private let legacyCASMetadataPath: AbsolutePath?
@@ -81,6 +94,29 @@ struct CASMetadataReader: Sendable {
             components: "keyvalue", operationType, "\(sanitizeCacheKey(key)).json"
         )
         return try? await fileSystem.readJSONFile(at: path)
+    }
+
+    /// Every region the CAS proxy recorded, by operation type and key. Read in
+    /// one pass: the table holds at most an hour of the machine's operations,
+    /// and a build looks up one row per key and output. Databases written
+    /// before the proxy recorded it (or by the legacy writer) have no table,
+    /// which reads as empty.
+    func readServedRegions() -> ServedRegions {
+        guard let db,
+              let rows = try? db.prepare(
+                  ServedBySchema.table.select(ServedBySchema.key, ServedBySchema.operationType, ServedBySchema.region)
+              )
+        else { return ServedRegions(regions: [:]) }
+        var regions = [ServedRegions.Key: String]()
+        for row in rows {
+            guard let key = try? row.get(ServedBySchema.key),
+                  let operationType = try? row.get(ServedBySchema.operationType),
+                  let region = try? row.get(ServedBySchema.region),
+                  !region.isEmpty
+            else { continue }
+            regions[ServedRegions.Key(key: key, operationType: operationType)] = region
+        }
+        return ServedRegions(regions: regions)
     }
 
     private func sanitize(_ value: String) -> String {

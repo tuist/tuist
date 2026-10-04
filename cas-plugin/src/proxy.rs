@@ -3146,6 +3146,7 @@ impl Proxy {
                         key,
                         "read",
                         crate::analytics::millis(op_start.elapsed()),
+                        remote.served_by(),
                     );
                 }
                 return Ok(None);
@@ -3164,7 +3165,12 @@ impl Proxy {
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", crate::analytics::millis(op_start.elapsed()));
+            analytics.record_keyvalue(
+                key,
+                "read",
+                crate::analytics::millis(op_start.elapsed()),
+                remote.served_by(),
+            );
         }
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
@@ -3425,6 +3431,7 @@ impl Proxy {
                                 compressed,
                                 transfer,
                                 codec,
+                                remote.served_by(),
                             );
                         }
                     }
@@ -3858,6 +3865,9 @@ impl Proxy {
         let blob = pending.blob.clone();
         let inlined = pending.contents.is_some();
         let fetch_started = Instant::now();
+        // Bytes that arrived inline with an earlier lookup were answered by
+        // whoever answered that lookup, which its own row records.
+        let mut served_by = None;
         let blob_bytes = match pending.contents {
             Some(bytes) => bytes,
             None => {
@@ -3866,7 +3876,10 @@ impl Proxy {
                 };
                 let remote = self.remote_for(&instance);
                 match self.demand_fetch(&instance, &remote, &blob)? {
-                    Some(bytes) => bytes,
+                    Some(bytes) => {
+                        served_by = remote.served_by();
+                        bytes
+                    }
                     None => {
                         if !remote.declining_reads() {
                             self.distrust_snapshots_advertising(&confirmed_evicted(
@@ -3924,6 +3937,7 @@ impl Proxy {
                     blob.size_bytes,
                     transfer,
                     codec,
+                    served_by,
                 );
             }
         }
@@ -4499,6 +4513,7 @@ impl Proxy {
                         compressed,
                         transfer,
                         0.0,
+                        remote.served_by(),
                     );
                 }
             }
@@ -4509,6 +4524,7 @@ impl Proxy {
                 &record.key,
                 "write",
                 crate::analytics::millis(op_start.elapsed()),
+                remote.served_by(),
             );
         }
         result
