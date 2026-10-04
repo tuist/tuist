@@ -100,6 +100,17 @@ test('does not trust status fields on arbitrary provider exceptions', async () =
   assert.doesNotMatch(JSON.stringify(saved), /secret/);
 });
 
+test('validates typed diagnostic fields again before saving them', async () => {
+  let saved;
+  const failure = new ReviewFailure('request_failed', 500);
+  failure.code = 'secret-code';
+  failure.status = 'secret-status';
+  const { options } = fixture({ evaluate: async () => { throw failure; }, save: (value) => { saved = value; } });
+  await runReview(options);
+  assert.deepEqual(saved.failure, { code: 'request_failed' });
+  assert.doesNotMatch(JSON.stringify(saved), /secret/);
+});
+
 test('local report mode does not contact GitHub to publish', async () => {
   const { options } = fixture({ post: false, api: () => assert.fail('unexpected GitHub call') });
   assert.equal((await runReview(options)).published, false);
