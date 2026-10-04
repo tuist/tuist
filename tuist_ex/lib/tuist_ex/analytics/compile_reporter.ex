@@ -217,13 +217,15 @@ defmodule TuistEx.Analytics.CompileReporter do
   def handle_info(_message, state), do: {:noreply, state}
 
   defp normalize_diagnostic(diagnostic, compiler) when is_map(diagnostic) do
+    {line, column} = position(diagnostic)
+
     %{
       severity: severity(diagnostic),
-      file: string(diagnostic, :file),
+      file: file(diagnostic),
       module: module_name(diagnostic),
-      message: string(diagnostic, :message),
-      line: integer(diagnostic, [:position, :line]),
-      column: integer(diagnostic, [:position, :column]),
+      message: message(diagnostic),
+      line: line,
+      column: column,
       compiler: compiler_name(diagnostic, compiler)
     }
   end
@@ -242,43 +244,28 @@ defmodule TuistEx.Analytics.CompileReporter do
     end
   end
 
-  defp string(diagnostic, key) do
-    case Map.get(diagnostic, key) do
-      value when is_binary(value) -> value
-      _ -> ""
-    end
-  end
+  # Relative, like the compiled files: an absolute path says where the
+  # checkout is, which is nobody's business.
+  defp file(%{file: file}) when is_binary(file), do: Path.relative_to_cwd(file)
+  defp file(_diagnostic), do: ""
 
-  defp module_name(diagnostic) do
-    case Map.get(diagnostic, :source) do
-      value when is_atom(value) and not is_nil(value) -> inspect(value)
-      value when is_binary(value) -> value
-      _ -> ""
-    end
-  end
+  defp message(%{message: message}) when is_binary(message) or is_list(message),
+    do: IO.chardata_to_string(message)
 
-  defp integer(diagnostic, [key]) do
-    case Map.get(diagnostic, key) do
-      n when is_integer(n) and n >= 0 -> n
-      {line, _} when is_integer(line) and line >= 0 -> line
-      _ -> nil
-    end
-  end
+  defp message(_diagnostic), do: ""
 
-  defp integer(diagnostic, [:position, :line]) do
-    case Map.get(diagnostic, :position) do
-      n when is_integer(n) and n >= 0 -> n
-      {line, _} when is_integer(line) and line >= 0 -> line
-      _ -> nil
-    end
-  end
+  # The module the diagnostic was raised in, when its stacktrace says.
+  defp module_name(%{stacktrace: [{module, _function, _arity, _location} | _]})
+       when is_atom(module), do: inspect(module)
 
-  defp integer(diagnostic, [:position, :column]) do
-    case Map.get(diagnostic, :position) do
-      {_, column} when is_integer(column) and column >= 0 -> column
-      _ -> nil
-    end
-  end
+  defp module_name(_diagnostic), do: ""
+
+  defp position(%{position: {line, column}})
+       when is_integer(line) and line >= 0 and is_integer(column) and column >= 0,
+       do: {line, column}
+
+  defp position(%{position: line}) when is_integer(line) and line >= 0, do: {line, nil}
+  defp position(_diagnostic), do: {nil, nil}
 
   defp build_payload(state, duration_ms) do
     environment = Keyword.get(state.opts, :environment, &System.get_env/1)

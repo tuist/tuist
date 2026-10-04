@@ -27,11 +27,14 @@ defmodule TuistEx.Analytics.CompileReporterTest do
 
     reporter = start(submit: submit)
 
+    # As Mix reports it: absolute paths, the module in the stacktrace, and
+    # the message as chardata.
     diagnostic = %{
       severity: :warning,
-      file: "lib/foo.ex",
-      source: Foo,
-      message: "unused variable",
+      file: Path.expand("lib/foo.ex"),
+      source: Path.expand("lib/foo.ex"),
+      stacktrace: [{Foo, :bar, 1, [file: ~c"lib/foo.ex", line: 12]}],
+      message: [~c"unused ", "variable"],
       position: {12, 3}
     }
 
@@ -46,6 +49,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     assert d.severity == "warning"
     assert d.file == "lib/foo.ex"
     assert d.module == "Foo"
+    assert d.message == "unused variable"
     assert d.line == 12
     assert d.column == 3
     assert d.compiler == "elixir"
