@@ -151,8 +151,11 @@ jobs:
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Signal that the commit's coverage is complete
+        # A release without the command still exits 0 for `--help`, printing
+        # the root help instead, so the command's own help text is what tells.
         run: |
-          if tuist coverage complete --help > /dev/null 2>&1; then
+          help=$(tuist coverage complete --help 2>/dev/null || true)
+          if grep -q "coverage pipeline" <<< "$help"; then
             tuist coverage complete
           else
             echo "::notice::$(tuist version) has no 'tuist coverage complete'; the commit stays in progress until a release with it is pinned."
