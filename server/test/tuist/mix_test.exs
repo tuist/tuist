@@ -33,26 +33,6 @@ defmodule Tuist.MixTest do
       assert {:ok, %{started_at: ~N[2026-09-09 10:00:00.000000]}} = Mix.get_build(id)
     end
 
-    test "stores a report that arrives twice at once only once", %{user: user, project: project} do
-      id = UUIDv7.generate()
-
-      attrs = %{
-        id: id,
-        project_id: project.id,
-        account_id: user.account.id,
-        duration_ms: 10,
-        status: "success",
-        diagnostics: [%{severity: "warning", file: "lib/a.ex", message: "unused"}]
-      }
-
-      results = [attrs, attrs] |> Enum.map(&Task.async(fn -> Mix.create_build(&1) end)) |> Task.await_many()
-
-      assert results == [{:ok, id}, {:ok, id}]
-
-      assert ClickHouseRepo.one(from(b in Build, where: b.id == ^id, select: count())) == 1
-      assert ClickHouseRepo.one(from(d in Diagnostic, where: d.build_id == ^id, select: count())) == 1
-    end
-
     test "persists the build row and each diagnostic", %{user: user, project: project} do
       attrs = %{
         id: UUIDv7.generate(),

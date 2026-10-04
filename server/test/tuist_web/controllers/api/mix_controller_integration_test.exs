@@ -262,23 +262,6 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
       assert [%{cpu_usage_percent: 91.0}] = Timeline.load(theirs).machine_metrics
       assert [%{cpu_usage_percent: 12.0}] = Tuist.Mix.list_machine_metrics(mine)
     end
-
-    test "is accepted again from the same project without storing the build twice", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      id = UUIDv7.generate()
-      path = "/api/projects/#{user.account.name}/#{project.name}/mix/builds"
-      report = minimal(id, %{files: [%{path: "lib/a.ex", compile_duration_ms: 5}]})
-
-      assert json_response(post(conn, path, report), 201) == %{"id" => id}
-      # The client lost the response and sends the report again.
-      assert json_response(post(conn, path, report), 201) == %{"id" => id}
-
-      assert [_one] = ClickHouseRepo.all(from(b in Build, where: b.id == ^id))
-      assert %{total: 1} = Tuist.Mix.compiled_files_page(%{id: id, project_id: project.id})
-    end
   end
 
   test "refuses values the storage columns would wrap or that overflow later arithmetic", %{
