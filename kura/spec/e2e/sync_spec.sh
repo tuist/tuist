@@ -10,6 +10,7 @@
 #   B-3        the same pair with a 100-row feed cap (410 → backward pass)
 #   B-4        the same pair, drain gate of a departing replica
 #   B-5..B-7   two regions × two replicas (gateway links, tombstones, failover)
+#   B-12       the same four nodes, a remote gateway silent for 40 s (§2.5)
 #   B-9, B-10  a region of one beside a two-replica region, no server
 #   B-11       a pair whose membership is one-way (§11.2)
 #
@@ -731,6 +732,32 @@ Describe 'pull replication across two regions of two replicas'
     # Other namespaces are untouched.
     b2_keep="$(status_only "$(kv_url "${KURA_B2_URL}" "${SYNC_NAMESPACE}" b7-keep)")"
     The variable b2_keep should eq 200
+  End
+
+  # B-12
+  It 'holds a remote gateway that stops answering for seconds instead of moving its links'
+    # Design §2.5: a silent peer stays in the view for the grace window, so a
+    # short outage costs no link restart and no region backward pass. A
+    # paused peer accepts the probe's connection and never answers, so the
+    # probe fails at the peer client's 30 s idle timeout; 40 s is past that
+    # and well inside the 60 s window.
+    since="$(utc_now)"
+    b1_container="$(service_container_id kura-b1)"
+    docker pause "$b1_container" >/dev/null || return 1
+    sleep 38
+    a1_links_during="$(node_links "${KURA_A1_URL}")"
+    b2_gateway_during="$(node_gateway "${KURA_B2_URL}")"
+    sleep 2
+    docker unpause "$b1_container" >/dev/null || return 1
+    The variable a1_links_during should eq "region:region-b>${B1_NODE_URL} replica:region-a>${A2_NODE_URL}"
+    The variable b2_gateway_during should eq false
+
+    # Replication resumes on the same link, without a backward pass.
+    put_status="$(kv_put "${KURA_B2_URL}" "${SYNC_NAMESPACE}" b12-after b12-after-value)"
+    The variable put_status should eq 204
+    wait_for_kv_present "${KURA_A2_URL}" "${SYNC_NAMESPACE}" b12-after b12-after-value 60 0.2 || return 1
+    restarts="$(dc logs --no-color --since "$since" kura-a1 kura-b2 2>&1 | grep -c -e 'closing pull link' -e 'region backward pass starting' || true)"
+    The variable restarts should eq 0
   End
 
   # B-6
