@@ -302,8 +302,8 @@ regressions are isolated in automation-only
 [PR #13804](https://github.com/tuist/tuist/pull/13804), alongside sanitized
 review-failure diagnostics. All 11 automation checks passed, including its live
 provider review on the initial automation revision. Follow-up regressions also
-make restore cleanup failures visible instead of silently retaining an active
-recovery cluster. Auto-merge is queued behind the required code-owner review;
+make restore cleanup failures visible and distinguish local SDK/implementation
+failures from invalid provider answers. Auto-merge is queued behind the required code-owner review;
 no review or environment protection was overridden. Once merged, the corrected
 drill can run from trusted main without promoting the application PR.
 
@@ -312,10 +312,40 @@ no scores or findings were returned. Its trusted-base publisher discarded even
 safe HTTP status/input-limit diagnostics. The automation fix preserves only
 allowlisted codes and validated numeric statuses, keeps failed score reports
 null, and runs evaluator tests separately without provider credentials. Local
-verification covers **42 evaluator tests** and **three restore-workflow tests**,
+verification covers **43 evaluator tests** and **four restore-workflow tests**,
 including response/evidence classification and cleanup-failure propagation. The
 underlying provider failure is not yet diagnosed; passing the smaller automation
 review is not evidence that the larger application review succeeded.
+
+### Restore-volume lifecycle follow-up
+
+Read-only live inspection found **three Released/Retain canary restore volumes**,
+including `pg-restore-drill-37208293115-1`. The earlier successful drill inherited
+the default volume retention policy; deleting its Cluster did not reclaim the
+copied data. None of those existing volumes was patched or deleted.
+
+Future drills clone the source data PVC's provisioning settings into a unique
+`pg-restore-drill-*` StorageClass with `Delete` reclamation and no default-class
+annotation. The source class and existing volumes are unchanged. Cleanup uses
+foreground Cluster deletion, verifies PVC removal, waits for the captured owned
+PVs to disappear, and then deletes its class. The job budget includes cleanup;
+the 20-minute recovery health gate remains unchanged.
+
+Fixed canary drill
+[37217331125](https://github.com/tuist/tuist/actions/runs/37217331125) **passed**,
+including storage cleanup. A subsequent read-only PV inventory confirms **zero
+PVs** remain from that run, while the three old retained volumes remain intact.
+Their cleanup needs a separate human-approved canary elevation intent. Production
+capacity and its workflow identity's StorageClass/PV permissions still need
+validation before a production-sized drill. Final independent adversarial
+review of the automation reported **NO BLOCKERS**; it is not GitHub code-owner
+approval.
+
+CodeQL interpreted a cleanup test's list-membership assertion as URL substring
+sanitization. The assertion now matches the exact kubectl argument prefix;
+runtime behavior is unchanged. The diagnostic and storage fixes are on both PR
+branches, but the privileged publisher still runs trusted main until approval
+and merge.
 
 ### Bounded staging S3 manifest expiry test
 
