@@ -3,6 +3,7 @@
 This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
+- `ProjectSitemapController` serves a sitemap index and bounded public-project root pages. Select only public handles and disable caching to reflect visibility changes; never enumerate private records, settings, or unbounded build histories.
 - Standalone documentation and error documents use `LayoutComponents.head_analytics_scripts`, like the shared page layouts.
 - Stripe customer updates acknowledge customers without a matching account, as subscription updates do. Keep failures updating an existing account visible so Stripe can retry delivery.
 - Cache endpoint discovery resolves retained account handles through `Kura.Identity` and still authorizes the caller against the owning account before using its current name. Mesh responses carry current handles, retained aliases and activated endpoint redirect targets; do not treat a historical handle as authorization.

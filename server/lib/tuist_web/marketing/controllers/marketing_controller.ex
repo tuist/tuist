@@ -698,6 +698,13 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     post_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
 
+    changelog_entries =
+      for locale <- Localization.all_locales(), entry <- Changelog.get_entries() do
+        "/changelog/#{entry.id}"
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(entry.date)
+      end
+
     case_study_entries =
       for locale <- Localization.all_locales(),
           case_study <- Customers.get_case_studies(),
@@ -738,7 +745,8 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     entries =
       localized_entries ++
-        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
+        case_study_entries ++
+        page_entries ++ post_entries ++ changelog_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
     |> assign(:entries, Enum.uniq_by(entries, & &1.loc))

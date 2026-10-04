@@ -3,6 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- `LayoutComponents.head_canonical_link` shares canonical URLs across marketing, docs, and app layouts. Project descriptions fall back to page and project identity; preserve explicit descriptions and keep social URL metadata aligned with the canonical URL.
 - `LayoutComponents.head_analytics_scripts` loads Glossia independently with `async` on hosted production marketing, documentation and dashboard pages. Use `https://glossia.ai/assets/glossia-web.js` with the `tuist.dev` domain and keep the `https://glossia.ai` script and collection origin aligned with the shared content security policy, and honor `analytics_disabled?` for embedded visualizations.
 - `GoogleOneTap` shares the protected credential form and configuration gates between marketing pages and login/sign-up LiveViews. It supports static mounting and LiveView lifecycle hooks.
 - Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors using the existing amber chart token.
