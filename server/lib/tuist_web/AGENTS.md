@@ -16,7 +16,6 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - If a route should not contribute any `robots.txt` entry, opt it out explicitly with `metadata: %{robots_txt: false}`.
 
 ## Search Indexing
-- Follow `server/seo.md` for the public-page indexing policy and deployment checks.
 - Informational public-project LiveViews opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed; do not opt settings, connection flows, or raw downloads into indexing.
 
 ## Browser Telemetry
