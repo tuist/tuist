@@ -27,20 +27,15 @@ defmodule TuistEx.Analytics.MetadataTest do
              )
   end
 
-  test "accepts inline options and de-duplicates tags" do
-    environment = fn _ -> nil end
-
-    assert %{tags: ["a", "b"], values: %{"k" => "v"}} =
+  test "de-duplicates tags" do
+    assert %{tags: ["a", "b"]} =
              Metadata.collect(
-               environment: environment,
-               tag: "a",
-               tag: "a",
-               tag: "b",
-               value: "k=v"
+               environment: &%{"TUIST_TAGS" => "a,b"}[&1],
+               project_config: [tags: ["a"]]
              )
   end
 
-  test "environment overrides runtime options" do
+  test "the environment overrides the project's values and adds to its tags" do
     environment = fn
       "TUIST_TAGS" -> "prod"
       "TUIST_VALUES" -> "ticket=PROJ-999"
@@ -50,8 +45,7 @@ defmodule TuistEx.Analytics.MetadataTest do
     assert %{tags: tags, values: values} =
              Metadata.collect(
                environment: environment,
-               tag: "staging",
-               value: "ticket=PROJ-100"
+               project_config: [tags: ["staging"], values: %{"ticket" => "PROJ-100"}]
              )
 
     assert "prod" in tags

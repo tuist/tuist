@@ -15,6 +15,7 @@ defmodule TuistEx.Analytics.CompileReporter do
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.MachineMetrics
   alias TuistEx.Analytics.Metadata
+  alias TuistEx.Analytics.Report
 
   # Long enough for the stored login to be refreshed under its lock and the
   # report sent.
@@ -93,7 +94,7 @@ defmodule TuistEx.Analytics.CompileReporter do
        sampler_pid: sampler_pid,
        opts: opts,
        submit: Keyword.get(opts, :submit, &HTTP.submit_mix_build/2),
-       shell: Keyword.get(opts, :shell, &default_shell/1)
+       shell: Keyword.get(opts, :shell, &Report.debug/1)
      }}
   end
 
@@ -278,7 +279,7 @@ defmodule TuistEx.Analytics.CompileReporter do
       end
 
     %{
-      id: uuidv4(),
+      id: Report.id(),
       contract_version: Contract.version(),
       duration_ms: duration_ms,
       status: status,
@@ -324,23 +325,5 @@ defmodule TuistEx.Analytics.CompileReporter do
         max_bytes
       )
     end
-  end
-
-  defp uuidv4 do
-    <<a::32, b::16, c::16, d::16, e::48>> = :crypto.strong_rand_bytes(16)
-    c = Bitwise.bor(Bitwise.band(c, 0x0FFF), 0x4000)
-    d = Bitwise.bor(Bitwise.band(d, 0x3FFF), 0x8000)
-
-    "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b"
-    |> :io_lib.format([a, b, c, d, e])
-    |> IO.iodata_to_binary()
-  end
-
-  defp default_shell(message) do
-    if System.get_env("TUIST_DEBUG") == "1" do
-      IO.puts(:stderr, message)
-    end
-
-    :ok
   end
 end

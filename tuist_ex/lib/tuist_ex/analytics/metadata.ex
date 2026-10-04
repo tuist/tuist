@@ -8,7 +8,6 @@ defmodule TuistEx.Analytics.Metadata do
   #
   # Precedence (highest first):
   #   TUIST_TAGS / TUIST_VALUES environment variables
-  #   `--tag foo` / `--value key=val` runtime options
   #   `Mix.Project.config()[:tuist][:tags]` and `[:values]` (see
   #   `Config.project_tuist_config/1`)
 
@@ -24,33 +23,30 @@ defmodule TuistEx.Analytics.Metadata do
     environment = Keyword.get(options, :environment, &System.get_env/1)
     project = Config.project_tuist_config(options)
 
-    tags = collect_tags(options, environment, project)
-    values = collect_values(options, environment, project)
+    tags = collect_tags(environment, project)
+    values = collect_values(environment, project)
 
-    if !(tags == [] and map_size(values) == 0) do
+    if tags != [] or values != %{} do
       %{tags: tags, values: values}
     end
   end
 
-  defp collect_tags(options, environment, project) do
+  defp collect_tags(environment, project) do
     from_env = parse_tags(environment.("TUIST_TAGS"))
-    from_options = List.wrap(Keyword.get_values(options, :tag))
     from_project = List.wrap(Keyword.get(project, :tags, []))
 
-    (from_env ++ from_options ++ from_project)
+    (from_env ++ from_project)
     |> Enum.map(&normalize_string/1)
     |> Enum.filter(&valid_tag?/1)
     |> Enum.uniq()
     |> Enum.take(@max_tags)
   end
 
-  defp collect_values(options, environment, project) do
+  defp collect_values(environment, project) do
     from_env = parse_values(environment.("TUIST_VALUES"))
-    from_options = options |> Keyword.get_values(:value) |> Map.new(&parse_value_pair/1)
     from_project = project |> Keyword.get(:values, %{}) |> Map.new()
 
     from_project
-    |> Map.merge(from_options)
     |> Map.merge(from_env)
     |> Map.new(fn {key, value} -> {normalize_string(key), normalize_string(value)} end)
     |> Enum.filter(&valid_value?/1)

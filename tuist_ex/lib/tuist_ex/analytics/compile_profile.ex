@@ -202,8 +202,7 @@ defmodule TuistEx.Analytics.CompileProfile do
     entries = :ets.tab2list(profile.entries)
     dependencies = dependencies(entries, :ets.tab2list(profile.references), project_source)
 
-    origin =
-      Enum.find_value(entries, fn entry -> match?({:origin, _}, entry) && elem(entry, 1) end)
+    origin = origin(profile)
 
     modules = for {{:module, file}, {module, at}} <- entries, do: {file, inspect(module), at}
     module_files = Map.new(modules, fn {file, module, _at} -> {module, file} end)
@@ -218,8 +217,8 @@ defmodule TuistEx.Analytics.CompileProfile do
       )
 
     compiling = Map.new(for({{:compiling, file}, duration} <- entries, do: {file, duration}))
-    starts = min_by_file(for({{:start, file}, at} <- entries, do: {file, at}), &Enum.min/1)
-    stops = min_by_file(for({{:stop, file}, at} <- entries, do: {file, at}), &Enum.max/1)
+    starts = by_file(for({{:start, file}, at} <- entries, do: {file, at}), &Enum.min/1)
+    stops = by_file(for({{:stop, file}, at} <- entries, do: {file, at}), &Enum.max/1)
 
     (Map.keys(compiling) ++ Map.keys(starts))
     |> Enum.uniq()
@@ -280,8 +279,7 @@ defmodule TuistEx.Analytics.CompileProfile do
   def steps(profile) do
     entries = :ets.tab2list(profile.entries)
 
-    origin =
-      Enum.find_value(entries, fn entry -> match?({:origin, _}, entry) && elem(entry, 1) end)
+    origin = origin(profile)
 
     module_files =
       Map.new(for {{:module, file}, {module, _at}} <- entries, do: {inspect(module), file})
@@ -408,7 +406,14 @@ defmodule TuistEx.Analytics.CompileProfile do
 
   defp now, do: System.monotonic_time(:millisecond)
 
-  defp min_by_file(pairs, pick) do
+  defp origin(profile) do
+    case :ets.lookup(profile.entries, :origin) do
+      [{:origin, origin} | _] -> origin
+      [] -> nil
+    end
+  end
+
+  defp by_file(pairs, pick) do
     pairs
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
     |> Map.new(fn {file, values} -> {file, pick.(values)} end)

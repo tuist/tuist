@@ -26,6 +26,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Metadata
+  alias TuistEx.Analytics.Report
 
   @deferred :deferred_test_run
 
@@ -40,7 +41,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
        opts: merged,
-       shell: Keyword.get(merged, :shell, &default_shell/1)
+       shell: Keyword.get(merged, :shell, &Report.debug/1)
      }}
   end
 
@@ -110,7 +111,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   """
   def submit(payload, opts) do
     submit = Keyword.get(opts, :submit, &HTTP.submit_test_run/2)
-    shell = Keyword.get(opts, :shell, &default_shell/1)
+    shell = Keyword.get(opts, :shell, &Report.debug/1)
 
     case Isolated.run(fn -> submit.(payload, opts) end, 60_000) do
       :ok -> :ok
@@ -250,13 +251,8 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     if Enum.any?(records, &(&1.status == "failure")), do: "failure", else: "success"
   end
 
-  # Phoenix's HTTP stack (used by the pluggable submit function) sends a few
-  # informational messages back to the caller process. Swallow them so tests
-  # and real runs don't fill the log with "unexpected message" warnings.
   def handle_info(_message, state), do: {:noreply, state}
 
-  # `Kernel.function_exported?` on private helpers is a formatting convention
-  # helper; expose the mapping publicly for tests.
   @doc false
   def record(%ExUnit.Test{} = test) do
     describe = test.tags[:describe]
@@ -384,7 +380,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     environment = Keyword.get(opts, :environment, &System.get_env/1)
 
     %{
-      id: uuidv4(),
+      id: Report.id(),
       contract_version: Contract.version(),
       build_system: "mix",
       duration: duration_ms,
@@ -446,22 +442,5 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       failures: record.failures
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
-  end
-
-  defp uuidv4 do
-    <<a::32, b::16, c::16, d::16, e::48>> = :crypto.strong_rand_bytes(16)
-    c = Bitwise.bor(Bitwise.band(c, 0x0FFF), 0x4000)
-    d = Bitwise.bor(Bitwise.band(d, 0x3FFF), 0x8000)
-
-    :io_lib.format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b", [a, b, c, d, e])
-    |> IO.iodata_to_binary()
-  end
-
-  defp default_shell(message) do
-    if System.get_env("TUIST_DEBUG") == "1" do
-      IO.puts(:stderr, message)
-    end
-
-    :ok
   end
 end

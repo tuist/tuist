@@ -140,7 +140,7 @@ defmodule TuistEx.Analytics.IOCounters do
     read = Regex.scan(~r/"Bytes \(Read\)"=(\d+)/, text, capture: :all_but_first)
     written = Regex.scan(~r/"Bytes \(Write\)"=(\d+)/, text, capture: :all_but_first)
 
-    if !(read == [] and written == []) do
+    if read != [] or written != [] do
       {read |> List.flatten() |> Enum.map(&integer/1) |> Enum.sum(),
        written |> List.flatten() |> Enum.map(&integer/1) |> Enum.sum()}
     end

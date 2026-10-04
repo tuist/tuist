@@ -68,11 +68,7 @@ defmodule Mix.Tasks.Tuist.Compile do
       # above are not registered. The root returns what they did, merged, but
       # says `:ok` even when none of them compiled anything: whether one did
       # is left to the files the compiler profiled.
-      with {status, diagnostics} <- result,
-           true <- Mix.Project.umbrella?() do
-        status = if status == :error, do: :error, else: :noop
-        CompileReporter.record(reporter, :compile, {status, diagnostics})
-      end
+      if Mix.Project.umbrella?(), do: record_umbrella(reporter, result)
 
       result
     catch
@@ -91,6 +87,14 @@ defmodule Mix.Tasks.Tuist.Compile do
       CompileReporter.finish(reporter, files, steps)
     end
   end
+
+  defp record_umbrella(reporter, {status, diagnostics}) do
+    status = if status == :error, do: :error, else: :noop
+    CompileReporter.record(reporter, :compile, {status, diagnostics})
+  end
+
+  # `:noop` when compile had already run in this invocation.
+  defp record_umbrella(_reporter, _result), do: :ok
 
   # Reading the profile is analytics work like any other: if it fails, the
   # build is still reported, only without its per-file detail.
