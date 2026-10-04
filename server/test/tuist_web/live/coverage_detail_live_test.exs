@@ -85,6 +85,11 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
     refute has_element?(lv, "#coverage-detail [data-part='incomplete']")
+
+    # Lists say it where the change would be.
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
+    assert has_element?(lv, "#coverage-commit-change-a", "Incomplete")
+    refute has_element?(lv, "#coverage-commit-change-b")
   end
 
   test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{

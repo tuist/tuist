@@ -74,15 +74,13 @@
               <.text_cell label={short_sha(row.git_commit_sha)} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
-              <.coverage_cell
-                id={"coverage-recent-commit-incomplete-#{row.git_commit_sha}"}
-                covered={row.covered_lines}
-                executable={row.executable_lines}
-                incomplete={if Commits.incomplete?(row), do: incomplete_title(row)}
-              />
+              <.coverage_cell covered={row.covered_lines} executable={row.executable_lines} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-              <.change_cell delta={row.change} />
+              <.commit_change_cell
+                id={"coverage-recent-commit-change-#{row.git_commit_sha}"}
+                commit={row}
+              />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
               <.text_cell sublabel={

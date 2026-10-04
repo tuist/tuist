@@ -424,15 +424,16 @@
             <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
               <.coverage_cell
                 :if={row.measured}
-                id={"coverage-commit-incomplete-#{row.git_commit_sha}"}
                 covered={row.covered_lines}
                 executable={row.executable_lines}
-                incomplete={if Commits.incomplete?(row), do: incomplete_title(row)}
               />
               <.text_cell :if={not row.measured} label="—" />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-              <.change_cell delta={row.change} />
+              <.commit_change_cell
+                id={"coverage-commit-change-#{row.git_commit_sha}"}
+                commit={row}
+              />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
               <.tooltip_badge_cell

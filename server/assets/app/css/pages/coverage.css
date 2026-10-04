@@ -207,23 +207,6 @@
       font: var(--noora-font-body-medium);
       text-align: right;
     }
-
-    /* Above the row's link overlay, so hovering it explains the figure. */
-    & > .noora-tooltip {
-      position: relative;
-      z-index: 1;
-    }
-
-    & [data-part="incomplete"] {
-      display: inline-flex;
-      cursor: help;
-      color: var(--noora-surface-label-secondary);
-
-      & > svg {
-        width: 16px;
-        height: 16px;
-      }
-    }
   }
 
   & [data-part="cell"][data-type="badge"] {

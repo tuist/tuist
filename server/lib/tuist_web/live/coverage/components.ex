@@ -11,6 +11,7 @@ defmodule TuistWeb.Coverage.Components do
   import TuistWeb.Components.EmptyCardSection
 
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Commits
   alias TuistWeb.Utilities.Query
 
   attr :branch, :string, required: true
@@ -227,11 +228,6 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :covered, :integer, required: true
   attr :executable, :integer, required: true
-  attr :id, :string, default: nil, doc: "Required with `incomplete`, for its tooltip."
-
-  attr :incomplete, :string,
-    default: nil,
-    doc: "Why the figure is incomplete (`incomplete_title/1`), shown beside it; nil for a complete figure."
 
   def coverage_cell(assigns) do
     ~H"""
@@ -239,19 +235,29 @@ defmodule TuistWeb.Coverage.Components do
       <div data-part="coverage-cell">
         <.progress_bar value={@covered} max={max(@executable, 1)} />
         <span data-part="percentage">{Coverage.percentage(@covered, @executable)}%</span>
-        <.tooltip
-          :if={@incomplete}
-          id={@id}
-          size="large"
-          title={dgettext("dashboard_tests", "Incomplete")}
-          description={@incomplete}
-        >
-          <:trigger :let={attrs}>
-            <span {attrs} tabindex="0"><span data-part="incomplete"><.info_circle /></span></span>
-          </:trigger>
-        </.tooltip>
       </div>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :commit, :map, required: true, doc: "A commit row with its `change`."
+
+  @doc """
+  A commit's change in a list, or, when its figure is incomplete
+  (`Tuist.Tests.Coverage.Commits.incomplete?/1`) and so has no change, an
+  Incomplete badge saying why.
+  """
+  def commit_change_cell(assigns) do
+    ~H"""
+    <.tooltip_badge_cell
+      :if={Commits.incomplete?(@commit)}
+      id={@id}
+      label={dgettext("dashboard_tests", "Incomplete")}
+      color="neutral"
+      description={incomplete_title(@commit)}
+    />
+    <.change_cell :if={not Commits.incomplete?(@commit)} delta={@commit.change} />
     """
   end
 
