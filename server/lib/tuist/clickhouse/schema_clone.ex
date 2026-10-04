@@ -154,6 +154,7 @@ defmodule Tuist.ClickHouse.SchemaClone do
 
       only_on_source
       |> Enum.reject(&(name_of(&1) in retyped))
+      |> in_source_order(positions)
       |> Enum.map(fn column ->
         statement = add_column_statement(target.database, table, column, positions)
 
@@ -167,6 +168,18 @@ defmodule Tuist.ClickHouse.SchemaClone do
         end
       end)
     end)
+  end
+
+  @doc """
+  The missing columns in the order the source has them. Each one is added
+  after its predecessor on the source (`add_column_statement/4`), so a run of
+  new adjacent columns only lands when they are added front to back: added in
+  any other order, each column after the first refers to one that is not
+  there yet and fails.
+  """
+  def in_source_order(columns, positions) do
+    index = positions |> Enum.with_index() |> Map.new()
+    Enum.sort_by(columns, &Map.get(index, name_of(&1), length(positions)))
   end
 
   defp retyped_columns(only_on_source, only_on_destination) do

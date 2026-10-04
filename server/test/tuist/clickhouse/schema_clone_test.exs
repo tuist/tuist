@@ -135,6 +135,28 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
     end
   end
 
+  describe "in_source_order/2" do
+    test "adds a run of new adjacent columns front to back, so each one's predecessor exists" do
+      positions = ["id", "base_branch", "merge_base_sha", "is_pull_request", "pull_request_number", "git_dirty"]
+      # The drift lists missing columns alphabetically.
+      missing = ["git_dirty Bool", "is_pull_request Bool", "merge_base_sha String", "pull_request_number UInt32"]
+
+      ordered = SchemaClone.in_source_order(missing, positions)
+
+      assert ordered == ["merge_base_sha String", "is_pull_request Bool", "pull_request_number UInt32", "git_dirty Bool"]
+
+      assert ordered
+             |> Enum.map(&SchemaClone.add_column_statement("tuist", "test_runs", &1, positions))
+             |> Enum.map(fn statement ->
+               statement |> String.split(" AFTER ") |> List.last()
+             end) == ["`base_branch`", "`merge_base_sha`", "`is_pull_request`", "`pull_request_number`"]
+    end
+
+    test "keeps a column the source no longer lists, last" do
+      assert SchemaClone.in_source_order(["gone String", "b UInt8"], ["a", "b"]) == ["b UInt8", "gone String"]
+    end
+  end
+
   describe "add_column_statement/4" do
     @positions ~w(id name inserted_at)
 
