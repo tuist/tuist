@@ -27,6 +27,7 @@ var fleetWideConfigFields = map[string]bool{
 	"SSHIngressAllowCIDRs":    true,
 	"NodeExporterBinary":      true,
 	"LogShipperBinary":        true,
+	"HostSensorsBinary":       true,
 	"LogShipURL":              true,
 	"LogShipEnv":              true,
 	"HostCPU":                 true,

@@ -1292,6 +1292,7 @@ var hashPartInstaller = map[string]string{
 	"software-update-policy":  "installSoftwareUpdatePolicy",
 	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
+	"host-sensors":            "installHostSensors",
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
@@ -1300,6 +1301,7 @@ var hashPartInstaller = map[string]string{
 	"tailscale-binaries":   "installTailscale",
 	"node-exporter-binary": "installNodeExporter",
 	"log-shipper-binary":   "installLogShipper",
+	"host-sensors-binary":  "installHostSensors",
 }
 
 // Reads the source rather than the behaviour because the invariant is

@@ -8,12 +8,13 @@
 // AWS EC2 Mac path described in PR #10499's BYOC section will land
 // as a sibling module that imports macos-host-bootstrap unchanged.
 //
-// tart-kubelet and macos-log-shipper have no dependencies on the
-// others — both ship as darwin/arm64 binaries baked into each
-// provider's controller image and uploaded to the hosts over SSH.
-// macos-log-shipper is stdlib-only on purpose: every host binary is
-// re-pushed on each drift roll, so its size is roll time multiplied
-// by the fleet.
+// tart-kubelet, macos-log-shipper and macos-host-sensors have no
+// dependencies on the others — they ship as darwin/arm64 binaries baked
+// into each provider's controller image and uploaded to the hosts over
+// SSH. macos-log-shipper is stdlib-only on purpose: every host binary is
+// re-pushed on each drift roll, so its size is roll time multiplied by
+// the fleet. macos-host-sensors takes one small dependency, purego, which
+// is what lets it call IOKit without cgo; it builds to about 2 MB.
 
 go 1.25.0
 
@@ -25,6 +26,7 @@ use (
 	./infra/kura-controller
 	./infra/linux-runner-image
 	./infra/macos-host-bootstrap
+	./infra/macos-host-sensors
 	./infra/macos-log-shipper
 	./infra/mdm/enroller
 	./infra/rack-switch-controller
