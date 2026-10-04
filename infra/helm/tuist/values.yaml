@@ -1695,6 +1695,11 @@ rackFleet:
 # cluster from there.
 rackLinuxFleet:
   enabled: false
+  # The host agent repairs local CNI even when a node is NotReady. Override
+  # scheduling tolerations only with care for that recovery path.
+  nodeAgent:
+    tolerations:
+      - operator: Exists
   name: ""             # default: <release>-rack-linux
   site: ""             # default site; composes the providerID
   sshUser: tuist

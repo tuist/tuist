@@ -6,6 +6,7 @@ Run with python3 infra/helm/test-production-errors.py (requires Helm and PyYAML)
 
 import pathlib
 import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -13,8 +14,10 @@ import yaml
 CHART = pathlib.Path(__file__).resolve().parent / "tuist"
 
 
-def render(*settings):
+def render(*settings, values=()):
     command = ["helm", "template", "tuist", str(CHART), "--set", "server.enabled=false"]
+    for value in values:
+        command.extend(["--values", str(CHART / value)])
     for setting in settings:
         command.extend(["--set", setting])
     return list(yaml.safe_load_all(subprocess.check_output(command, text=True)))
@@ -89,6 +92,28 @@ class ProductionErrorsTest(unittest.TestCase):
             if settings[0] == "postgresql.cnpg.enabled=true":
                 cluster = resource(resources, "Cluster", "-pg")
                 self.assertNotIn("pg_stat_statements.track", cluster["spec"]["postgresql"]["parameters"])
+
+    def test_staging_rack_agent_can_repair_not_ready_nodes_without_targeting_unreachable_hosts(self):
+        fleet = yaml.safe_load((CHART / "values-managed-staging.yaml").read_text())["rackLinuxFleet"]
+        with tempfile.TemporaryDirectory() as directory:
+            values = pathlib.Path(directory) / "rack-fleet.yaml"
+            values.write_text(yaml.safe_dump({"rackLinuxFleet": fleet}))
+            resources = render(values=(values,))
+        tolerations = resource(resources, "DaemonSet", "-rack-linux-node-agent")["spec"]["template"]["spec"]["tolerations"]
+        for key, expected in [("node.kubernetes.io/unreachable", False), ("node.kubernetes.io/not-ready", True)]:
+            with self.subTest(key=key):
+                tolerated = any(
+                    t.get("effect", "NoSchedule") == "NoSchedule"
+                    and (t.get("key", "") == key or (not t.get("key") and t.get("operator") == "Exists"))
+                    for t in tolerations
+                )
+                self.assertEqual(tolerated, expected)
+        self.assertIn({"key": "tuist.dev/rack-edge", "operator": "Exists", "effect": "NoSchedule"}, tolerations)
+
+    def test_rack_agent_default_tolerations_are_unchanged(self):
+        resources = render("rackLinuxFleet.enabled=true")
+        agent = resource(resources, "DaemonSet", "-rack-linux-node-agent")
+        self.assertEqual(agent["spec"]["template"]["spec"]["tolerations"], [{"operator": "Exists"}])
 
     def test_pull_through_cache_can_expire_cached_manifests(self):
         resources = render("registryCache.enabled=true")

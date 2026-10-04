@@ -267,7 +267,7 @@ spec:
         node.cluster.x-k8s.io/instance-type: rack
         kubernetes.io/os: linux
       tolerations:
-        - operator: Exists
+        {{- toYaml .Values.rackLinuxFleet.nodeAgent.tolerations | nindent 8 }}
       terminationGracePeriodSeconds: 30
       containers:
         - name: agent

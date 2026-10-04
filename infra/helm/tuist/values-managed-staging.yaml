@@ -783,6 +783,18 @@ rackFleet:
 
 rackLinuxFleet:
   enabled: true
+  # A disconnected kubelet cannot run an agent update. Exclude unreachable
+  # scheduling targets, but retain NotReady so the agent can repair local CNI.
+  nodeAgent:
+    tolerations:
+      - key: tuist.dev/rack-edge
+        operator: Exists
+        effect: NoSchedule
+      - key: node.kubernetes.io/not-ready
+        operator: Exists
+        effect: NoSchedule
+      - operator: Exists
+        effect: NoExecute
   site: ber1
   sshExternalSecret:
     enabled: true
