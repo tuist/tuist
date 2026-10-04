@@ -67,18 +67,44 @@ struct XCSchemeMapper: SchemeMapping {
     ) throws -> BuildAction? {
         guard let action else { return nil }
 
-        let targets = try action.buildActionEntries.compactMap {
-            try mapTargetReference(buildableReference: $0.buildableReference, graphType: graphType)
+        let entries = try action.buildActionEntries.map { entry -> (target: TargetReference, buildFor: Set<BuildAction.BuildFor>) in
+            let target = try mapTargetReference(buildableReference: entry.buildableReference, graphType: graphType)
+            let buildFor = mapBuildFor(entry.buildFor)
+            return (target, buildFor)
         }
+        let targets = entries.map(\.target)
+        let defaultBuildFor = Set(BuildAction.BuildFor.allCases)
+        let nonDefaultBuildForEntries = entries.filter { $0.buildFor != defaultBuildFor }
+        let buildFor = Dictionary(uniqueKeysWithValues: nonDefaultBuildForEntries)
 
         return BuildAction(
             targets: targets,
+            buildFor: buildFor,
             preActions: [],
             postActions: [],
             parallelizeBuild: action.parallelizeBuild,
             runPostActionsOnFailure: action.runPostActionsOnFailure ?? false,
             findImplicitDependencies: action.buildImplicitDependencies
         )
+    }
+
+    private func mapBuildFor(
+        _ buildFor: [XCScheme.BuildAction.Entry.BuildFor]
+    ) -> Set<BuildAction.BuildFor> {
+        Set(buildFor.map {
+            switch $0 {
+            case .analyzing:
+                BuildAction.BuildFor.analyzing
+            case .archiving:
+                BuildAction.BuildFor.archiving
+            case .profiling:
+                BuildAction.BuildFor.profiling
+            case .running:
+                BuildAction.BuildFor.running
+            case .testing:
+                BuildAction.BuildFor.testing
+            }
+        })
     }
 
     /// Maps the optional test action into a domain `TestAction`, or returns `nil` if not present.
