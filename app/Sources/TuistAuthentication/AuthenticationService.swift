@@ -45,15 +45,18 @@ public final class AuthenticationService: ObservableObject {
     private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
     private let redirectURI = "tuist://oauth-callback"
     private let deleteAccountService: DeleteAccountServicing
+    private let revokeOAuthTokenService: RevokeOAuthTokenServicing
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         appStorage: AppStoring = AppStorage(),
-        deleteAccountService: DeleteAccountServicing = DeleteAccountService()
+        deleteAccountService: DeleteAccountServicing = DeleteAccountService(),
+        revokeOAuthTokenService: RevokeOAuthTokenServicing = RevokeOAuthTokenService()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.appStorage = appStorage
         self.deleteAccountService = deleteAccountService
+        self.revokeOAuthTokenService = revokeOAuthTokenService
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
         Logger.current.notice(
@@ -115,11 +118,16 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signOut() async {
+        let serverURL = serverEnvironmentService.url()
         Logger.current.notice(
-            "Signing out and deleting credentials for server: \(serverEnvironmentService.url().absoluteString)"
+            "Signing out and deleting credentials for server: \(serverURL.absoluteString)"
+        )
+        revokeOAuthRefreshToken(
+            credentials: try? await ServerCredentialsStore.current.read(serverURL: serverURL),
+            serverURL: serverURL
         )
         do {
-            try await ServerCredentialsStore.current.delete(serverURL: serverEnvironmentService.url())
+            try await ServerCredentialsStore.current.delete(serverURL: serverURL)
         } catch {
             Logger.current.error(
                 "Failed to delete credentials when signing out: \(error.localizedDescription)"
@@ -128,6 +136,28 @@ public final class AuthenticationService: ObservableObject {
 
         await MainActor.run {
             try? updateAuthenticationState(with: nil)
+        }
+    }
+
+    /// Best effort: sign-out must succeed offline, so the revocation isn't awaited and its
+    /// failures are only logged. Only OAuth sessions are revoked; email and Apple sign-ins
+    /// issue tokens the OAuth server doesn't track.
+    private func revokeOAuthRefreshToken(credentials: ServerCredentials?, serverURL: URL) {
+        guard let credentials,
+              let refreshToken = credentials.refreshToken,
+              (try? JWT.parse(credentials.accessToken))?.type == "account"
+        else { return }
+
+        let revokeOAuthTokenService = revokeOAuthTokenService
+        Task {
+            do {
+                try await revokeOAuthTokenService.revokeRefreshToken(refreshToken, serverURL: serverURL)
+                Logger.current.notice("Revoked the OAuth refresh token on sign out")
+            } catch {
+                Logger.current.error(
+                    "Failed to revoke the OAuth refresh token on sign out: \(error.localizedDescription)"
+                )
+            }
         }
     }
 
