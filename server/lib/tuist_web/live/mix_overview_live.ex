@@ -157,15 +157,4 @@ defmodule TuistWeb.MixOverviewLive do
        failed_builds_count: failed_builds_count
      }}
   end
-
-  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
-  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
-  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_gradle", "since last year")
-  defp analytics_trend_label("custom"), do: dgettext("dashboard_gradle", "since last period")
-  defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
-
-  defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
-  defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
-  defp environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
-  defp environment_label(_other), do: dgettext("dashboard_gradle", "Any")
 end

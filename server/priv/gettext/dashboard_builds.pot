@@ -1960,7 +1960,7 @@ msgid "Elixir / OTP"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.html.heex:148
-#: lib/tuist_web/live/mix_builds_live.ex:231
+#: lib/tuist_web/live/mix_builds_live.ex:206
 #: lib/tuist_web/live/mix_builds_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "Elixir version"
@@ -1977,14 +1977,14 @@ msgid "Mix Build"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.html.heex:166
-#: lib/tuist_web/live/mix_builds_live.ex:230
+#: lib/tuist_web/live/mix_builds_live.ex:205
 #: lib/tuist_web/live/mix_builds_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Mix environment"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.html.heex:157
-#: lib/tuist_web/live/mix_builds_live.ex:229
+#: lib/tuist_web/live/mix_builds_live.ex:204
 #: lib/tuist_web/live/mix_builds_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "OTP version"

@@ -250,8 +250,8 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
       for buffer <- [Build.Buffer, Diagnostic.Buffer, Tuist.Mix.CompiledFile.Buffer, BuildMachineMetric.Buffer],
           do: buffer.flush()
 
-      {:ok, mine} = Tuist.Mix.get_build(id, project_id: project.id)
-      {:ok, theirs} = Tuist.Mix.get_build(id, project_id: other_project.id)
+      {:ok, mine} = Tuist.Mix.get_build(id, project.id)
+      {:ok, theirs} = Tuist.Mix.get_build(id, other_project.id)
 
       assert Tuist.Mix.list_diagnostics(mine) == []
       assert %{rows: [%{name: "lib/mine.ex"}]} = Tuist.Mix.compiled_files_page(mine)

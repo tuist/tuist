@@ -36,8 +36,7 @@ defmodule TuistWeb.BuildController do
   defp timeline_build(%{build_system: :xcode} = project, %{"build_run_id" => id}),
     do: Builds.get_build(id, project_id: project.id)
 
-  defp timeline_build(%{build_system: :mix} = project, %{"build_run_id" => id}),
-    do: Mix.get_build(id, project_id: project.id)
+  defp timeline_build(%{build_system: :mix} = project, %{"build_run_id" => id}), do: Mix.get_build(id, project.id)
 
   defp timeline_build(_project, _params), do: {:error, :not_found}
 

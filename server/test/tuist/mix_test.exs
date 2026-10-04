@@ -30,7 +30,7 @@ defmodule Tuist.MixTest do
                  started_at: "2026-09-09T10:00:00Z"
                })
 
-      assert {:ok, %{started_at: ~N[2026-09-09 10:00:00.000000]}} = Mix.get_build(id)
+      assert {:ok, %{started_at: ~N[2026-09-09 10:00:00.000000]}} = Mix.get_build(id, project.id)
     end
 
     test "persists the build row and each diagnostic", %{user: user, project: project} do

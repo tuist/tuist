@@ -25,20 +25,6 @@ defmodule TuistWeb.MixBuildsLive do
     |> assign_recent_builds()
   end
 
-  def handle_info({:mix_build_created, _build}, socket) do
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign_handle_params(socket.assigns.current_params)
-       |> assign_configuration_insights_options(socket.assigns.current_params)
-       |> assign_initial_configuration_insights()}
-    end
-  end
-
-  def handle_info(_event, socket), do: {:noreply, socket}
-
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
@@ -163,17 +149,6 @@ defmodule TuistWeb.MixBuildsLive do
       value_formatter: "{value}%"
     }
   end
-
-  defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
-  defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
-  defp environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
-  defp environment_label(_other), do: dgettext("dashboard_gradle", "Any")
-
-  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
-  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
-  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_gradle", "since last year")
-  defp analytics_trend_label("custom"), do: dgettext("dashboard_gradle", "since last period")
-  defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
   def assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "elixir-version"

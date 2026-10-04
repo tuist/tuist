@@ -42,7 +42,7 @@ defmodule Tuist.Mix.TimelineTest do
         ],
         do: buffer.flush()
 
-    {:ok, build} = Mix.get_build(id, project_id: project.id)
+    {:ok, build} = Mix.get_build(id, project.id)
     build
   end
 

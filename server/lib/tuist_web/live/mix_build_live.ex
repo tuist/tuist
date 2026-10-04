@@ -19,7 +19,7 @@ defmodule TuistWeb.MixBuildLive do
   @impl true
   def mount(%{"build_id" => build_id}, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Mix.get_build(build_id, project_id: project.id) do
+      case Mix.get_build(build_id, project.id) do
         {:ok, run} ->
           run
 

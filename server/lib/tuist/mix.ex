@@ -18,26 +18,15 @@ defmodule Tuist.Mix do
   alias Tuist.Mix.Step
 
   @doc """
-  Fetches a Mix build by id, scoped to a project when `:project_id` is given.
+  Fetches a project's Mix build by id.
   """
-  def get_build(id, opts \\ []) do
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} ->
-        query = from(b in Build, where: b.id == ^uuid, limit: 1)
-
-        query =
-          case Keyword.get(opts, :project_id) do
-            nil -> query
-            project_id -> from(b in query, where: b.project_id == ^project_id)
-          end
-
-        case ClickHouseRepo.one(query) do
-          nil -> {:error, :not_found}
-          build -> {:ok, build}
-        end
-
-      :error ->
-        {:error, :not_found}
+  def get_build(id, project_id) do
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         %Build{} = build <-
+           ClickHouseRepo.one(from(b in Build, where: b.id == ^uuid and b.project_id == ^project_id, limit: 1)) do
+      {:ok, build}
+    else
+      _ -> {:error, :not_found}
     end
   end
 

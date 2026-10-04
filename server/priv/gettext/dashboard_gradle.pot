@@ -52,6 +52,7 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:32
 #: lib/tuist_web/live/gradle_builds_live.ex:175
 #: lib/tuist_web/live/gradle_builds_live.html.heex:10
 #: lib/tuist_web/live/gradle_cache_live.ex:206
@@ -61,11 +62,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_overview_live.html.heex:17
 #: lib/tuist_web/live/gradle_overview_live.html.heex:436
 #: lib/tuist_web/live/gradle_tasks_live.ex:169
-#: lib/tuist_web/live/mix_builds_live.ex:167
-#: lib/tuist_web/live/mix_builds_live.ex:170
 #: lib/tuist_web/live/mix_builds_live.html.heex:10
-#: lib/tuist_web/live/mix_overview_live.ex:166
-#: lib/tuist_web/live/mix_overview_live.ex:169
 #: lib/tuist_web/live/mix_overview_live.html.heex:15
 #: lib/tuist_web/live/mix_overview_live.html.heex:378
 #, elixir-autogen, elixir-format
@@ -205,7 +202,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.ex:170
 #: lib/tuist_web/live/gradle_builds_live.html.heex:119
-#: lib/tuist_web/live/mix_builds_live.ex:162
+#: lib/tuist_web/live/mix_builds_live.ex:148
 #: lib/tuist_web/live/mix_builds_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
@@ -214,7 +211,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_builds_live.ex:142
 #: lib/tuist_web/live/gradle_builds_live.html.heex:97
 #: lib/tuist_web/live/gradle_overview_live.html.heex:424
-#: lib/tuist_web/live/mix_builds_live.ex:134
+#: lib/tuist_web/live/mix_builds_live.ex:120
 #: lib/tuist_web/live/mix_builds_live.html.heex:86
 #: lib/tuist_web/live/mix_overview_live.html.heex:366
 #, elixir-autogen, elixir-format
@@ -235,6 +232,7 @@ msgstr ""
 msgid "Built by"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:31
 #: lib/tuist_web/live/gradle_build_runs_live.ex:254
 #: lib/tuist_web/live/gradle_builds_live.ex:177
 #: lib/tuist_web/live/gradle_builds_live.html.heex:26
@@ -246,9 +244,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_overview_live.html.heex:25
 #: lib/tuist_web/live/gradle_overview_live.html.heex:444
 #: lib/tuist_web/live/gradle_tasks_live.ex:167
-#: lib/tuist_web/live/mix_builds_live.ex:169
 #: lib/tuist_web/live/mix_builds_live.html.heex:26
-#: lib/tuist_web/live/mix_overview_live.ex:168
 #: lib/tuist_web/live/mix_overview_live.html.heex:23
 #: lib/tuist_web/live/mix_overview_live.html.heex:386
 #, elixir-autogen, elixir-format
@@ -493,7 +489,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_builds_live.html.heex:139
 #: lib/tuist_web/live/gradle_builds_live.html.heex:643
 #: lib/tuist_web/live/gradle_overview_live.html.heex:529
-#: lib/tuist_web/live/mix_builds_live.ex:148
+#: lib/tuist_web/live/mix_builds_live.ex:134
 #: lib/tuist_web/live/mix_builds_live.html.heex:130
 #: lib/tuist_web/live/mix_builds_live.html.heex:615
 #: lib/tuist_web/live/mix_overview_live.html.heex:468
@@ -640,6 +636,7 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:30
 #: lib/tuist_web/live/gradle_build_live.ex:749
 #: lib/tuist_web/live/gradle_build_live.html.heex:975
 #: lib/tuist_web/live/gradle_build_live.html.heex:1155
@@ -654,9 +651,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_overview_live.html.heex:33
 #: lib/tuist_web/live/gradle_overview_live.html.heex:452
 #: lib/tuist_web/live/gradle_tasks_live.ex:168
-#: lib/tuist_web/live/mix_builds_live.ex:168
 #: lib/tuist_web/live/mix_builds_live.html.heex:18
-#: lib/tuist_web/live/mix_overview_live.ex:167
 #: lib/tuist_web/live/mix_overview_live.html.heex:31
 #: lib/tuist_web/live/mix_overview_live.html.heex:394
 #, elixir-autogen, elixir-format
@@ -1239,52 +1234,47 @@ msgstr ""
 msgid "p99 cache hit rate"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:38
 #: lib/tuist_web/live/gradle_builds_live.ex:183
 #: lib/tuist_web/live/gradle_cache_live.ex:245
 #: lib/tuist_web/live/gradle_overview_live.ex:164
 #: lib/tuist_web/live/gradle_tasks_live.ex:91
-#: lib/tuist_web/live/mix_builds_live.ex:176
-#: lib/tuist_web/live/mix_overview_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:37
 #: lib/tuist_web/live/gradle_builds_live.ex:182
 #: lib/tuist_web/live/gradle_cache_live.ex:244
 #: lib/tuist_web/live/gradle_overview_live.ex:163
 #: lib/tuist_web/live/gradle_tasks_live.ex:90
-#: lib/tuist_web/live/mix_builds_live.ex:175
-#: lib/tuist_web/live/mix_overview_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:35
 #: lib/tuist_web/live/gradle_builds_live.ex:180
 #: lib/tuist_web/live/gradle_cache_live.ex:242
 #: lib/tuist_web/live/gradle_overview_live.ex:161
 #: lib/tuist_web/live/gradle_tasks_live.ex:88
-#: lib/tuist_web/live/mix_builds_live.ex:173
-#: lib/tuist_web/live/mix_overview_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:36
 #: lib/tuist_web/live/gradle_builds_live.ex:181
 #: lib/tuist_web/live/gradle_cache_live.ex:243
 #: lib/tuist_web/live/gradle_overview_live.ex:162
 #: lib/tuist_web/live/gradle_tasks_live.ex:89
-#: lib/tuist_web/live/mix_builds_live.ex:174
-#: lib/tuist_web/live/mix_overview_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
+#: lib/tuist_web/helpers/mix_analytics.ex:34
 #: lib/tuist_web/live/gradle_builds_live.ex:179
 #: lib/tuist_web/live/gradle_cache_live.ex:241
 #: lib/tuist_web/live/gradle_overview_live.ex:160
 #: lib/tuist_web/live/gradle_tasks_live.ex:87
-#: lib/tuist_web/live/mix_builds_live.ex:172
-#: lib/tuist_web/live/mix_overview_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
