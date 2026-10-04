@@ -15,7 +15,7 @@ defmodule TuistEx.HTTP do
 
     request =
       if body do
-        {String.to_charlist(url), headers, ~c"application/json", Jason.encode!(body)}
+        {String.to_charlist(url), headers, ~c"application/json", JSON.encode!(body)}
       else
         {String.to_charlist(url), headers}
       end
@@ -38,7 +38,7 @@ defmodule TuistEx.HTTP do
     case :httpc.request(method, request, options, body_format: :binary) do
       {:ok, {{_, status, _}, _, response}} ->
         decoded =
-          case Jason.decode(response) do
+          case JSON.decode(response) do
             {:ok, value} -> value
             _ -> %{}
           end

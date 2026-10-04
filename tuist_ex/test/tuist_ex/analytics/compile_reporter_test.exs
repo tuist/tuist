@@ -226,7 +226,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     :ok = CompileReporter.finish(reporter, files)
 
     assert_receive {:submitted, payload}, 2000
-    assert byte_size(Jason.encode!(payload)) <= 20_000
+    assert byte_size(JSON.encode!(payload)) <= 20_000
     assert payload.files != []
     assert hd(payload.files).path == "lib/f400.ex"
   end

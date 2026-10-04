@@ -126,7 +126,7 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
     case environment.("GITHUB_OUTPUT") do
       path when is_binary(path) and path != "" ->
-        File.write!(path, "matrix=#{Jason.encode!(%{shard: indexes})}\n", [:append])
+        File.write!(path, "matrix=#{JSON.encode!(%{shard: indexes})}\n", [:append])
         Mix.shell().info("Tuist: wrote the shard matrix to GITHUB_OUTPUT")
 
       _ ->
@@ -134,7 +134,7 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
         File.write!(
           path,
-          Jason.encode!(%{reference: reference, shard_count: length(shards), shards: shards})
+          JSON.encode!(%{reference: reference, shard_count: length(shards), shards: shards})
         )
 
         Mix.shell().info("Tuist: wrote the shard plan to #{path}")

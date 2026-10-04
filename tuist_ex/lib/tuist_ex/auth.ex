@@ -235,7 +235,7 @@ defmodule TuistEx.Auth do
   defp expired?(token) do
     with [_, payload, _] <- String.split(token, "."),
          {:ok, decoded} <- Base.url_decode64(payload, padding: false),
-         {:ok, %{"exp" => expiration}} <- Jason.decode(decoded) do
+         {:ok, %{"exp" => expiration}} <- JSON.decode(decoded) do
       expiration <= System.system_time(:second) + 30
     else
       _ -> true
@@ -243,7 +243,7 @@ defmodule TuistEx.Auth do
   end
 
   defp read(path) do
-    with {:ok, content} <- File.read(path), do: Jason.decode(content)
+    with {:ok, content} <- File.read(path), do: JSON.decode(content)
   end
 
   defp save(path, credentials) do
@@ -256,7 +256,7 @@ defmodule TuistEx.Auth do
     try do
       try do
         File.chmod!(temporary, 0o600)
-        :ok = IO.binwrite(file, Jason.encode!(credentials))
+        :ok = IO.binwrite(file, JSON.encode!(credentials))
       after
         File.close(file)
       end

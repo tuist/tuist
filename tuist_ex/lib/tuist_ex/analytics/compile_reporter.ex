@@ -313,7 +313,7 @@ defmodule TuistEx.Analytics.CompileReporter do
     largest = Enum.max_by(@trimmable, &length(Map.get(payload, &1, [])))
     entries = Map.get(payload, largest, [])
 
-    if entries == [] or byte_size(Jason.encode!(payload)) <= max_bytes do
+    if entries == [] or byte_size(JSON.encode!(payload)) <= max_bytes do
       payload
     else
       entries =

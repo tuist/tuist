@@ -216,7 +216,7 @@ defmodule TuistEx.AuthTest do
   test "rereads credentials after waiting for the refresh lock", context do
     path = Path.join(context.directory, "config/tuist/credentials/tuist.example.json")
     File.mkdir_p!(Path.dirname(path))
-    File.write!(path, Jason.encode!(%{"accessToken" => jwt(0), "refreshToken" => "old"}))
+    File.write!(path, JSON.encode!(%{"accessToken" => jwt(0), "refreshToken" => "old"}))
 
     parent = self()
 
@@ -230,7 +230,7 @@ defmodule TuistEx.AuthTest do
               # Replaced in one step, as the real refresh does: a plain write
               # empties the file first, and the reader below may look at it
               # in that instant and find no credentials.
-              File.write!(path <> ".tmp", Jason.encode!(%{"accessToken" => jwt(4_000_000_000)}))
+              File.write!(path <> ".tmp", JSON.encode!(%{"accessToken" => jwt(4_000_000_000)}))
               File.rename!(path <> ".tmp", path)
           end
         end)
@@ -253,7 +253,7 @@ defmodule TuistEx.AuthTest do
   test "reports a refresh network failure without marking the session expired", context do
     path = Path.join(context.directory, "config/tuist/credentials/tuist.example.json")
     File.mkdir_p!(Path.dirname(path))
-    File.write!(path, Jason.encode!(%{"accessToken" => jwt(0), "refreshToken" => "refresh"}))
+    File.write!(path, JSON.encode!(%{"accessToken" => jwt(0), "refreshToken" => "refresh"}))
 
     expect(HTTP, :request, fn :post, "https://tuist.example/api/auth/refresh_token", body ->
       assert body == %{refresh_token: "refresh"}
@@ -265,7 +265,7 @@ defmodule TuistEx.AuthTest do
   end
 
   defp jwt(expiration) do
-    payload = %{exp: expiration} |> Jason.encode!() |> Base.url_encode64(padding: false)
+    payload = %{exp: expiration} |> JSON.encode!() |> Base.url_encode64(padding: false)
     "header.#{payload}.signature"
   end
 
@@ -273,7 +273,7 @@ defmodule TuistEx.AuthTest do
     directory
     |> Path.join("config/tuist/credentials/tuist.example.json")
     |> File.read!()
-    |> Jason.decode!()
+    |> JSON.decode!()
   end
 
   defp lock_path(directory) do
