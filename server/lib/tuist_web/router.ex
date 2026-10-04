@@ -817,6 +817,20 @@ defmodule TuistWeb.Router do
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
 
+          scope "/coverage" do
+            get "/settings", CoverageController, :settings
+            post "/uploads", CoverageController, :create_upload
+            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+          end
+
+          scope "/git-history" do
+            get "/settings", GitHistoryController, :settings
+            post "/commits/missing", GitHistoryController, :missing_commits
+            post "/commits", GitHistoryController, :upload_commits
+            post "/listings/missing", GitHistoryController, :missing_listings
+            post "/listings", GitHistoryController, :upload_listing
+          end
+
           scope "/shards" do
             post "/", ShardsController, :create
             post "/upload/start", ShardsController, :start_upload
@@ -1436,6 +1450,10 @@ defmodule TuistWeb.Router do
       ] do
       live "/tests", TestsLive, metadata: @public_project_route_metadata
       live "/tests/test-runs", TestRunsLive, metadata: @public_project_route_metadata
+      live "/tests/coverage", CoverageLive
+      live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
+      live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
+      live "/tests/coverage/files/*path", CoverageFileLive, :show
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
       live "/tests/test-cases", TestCasesLive, metadata: @public_project_route_metadata
       live "/tests/test-cases/:test_case_id", TestCaseLive, metadata: @public_project_route_metadata

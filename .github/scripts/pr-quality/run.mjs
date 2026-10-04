@@ -1,13 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { parseThreshold, review, summary } from './review.mjs';
+import { parseThreshold, review, reviewFailureMessage, sanitizeReviewFailure, summary } from './review.mjs';
 
 export const marker = '<!-- tuist-pr-quality -->';
 
-export function formatComment(report, pr, runUrl) {
+export function formatComment(report, pr, runUrl, failure) {
+  const reason = reviewFailureMessage(failure);
   const details = report ? summary(report)
-    : `## Pull request quality\n\n⚠️ The review could not complete. No scores are available.\n\nReviewed commit: \`${pr.head.sha}\`.`;
+    : `## Pull request quality\n\n⚠️ The review could not complete. No scores are available.\n\n${reason}\n\nReviewed commit: \`${pr.head.sha}\`.`;
   return `${marker}\n${details}${runUrl ? `\n\n[Workflow logs and report](${runUrl})` : ''}`;
 }
 
@@ -20,16 +21,18 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, baseU
   let repositoryContext = 'No root AGENTS.md found.';
   try { repositoryContext = git('show', `${pr.base.sha}:AGENTS.md`); } catch { /* Guidance is optional. */ }
   let report;
+  let failure;
   try {
     report = await evaluate({ diff, task: `${pr.title ?? ''}\n\n${pr.body ?? ''}`, repositoryContext, threshold, apiKey, baseURL, model });
     report.head = pr.head.sha;
     report.base = pr.base.sha;
     report.repository = pr.base.repo?.full_name;
-  } catch {
-    // Provider failures can echo source text or credentials. Publish a fixed message.
+  } catch (error) {
+    // Only typed, sanitized diagnostics are published, never exception text.
+    failure = sanitizeReviewFailure(error);
   }
-  const body = formatComment(report, pr, runUrl);
-  save({ report, body });
+  const body = formatComment(report, pr, runUrl, failure);
+  save({ report, body, failure });
   if (post) {
     const current = await api(`pulls/${pr.number}`);
     if (current.state !== 'open' || current.head.sha !== pr.head.sha || current.base.sha !== pr.base.sha || current.title !== pr.title || current.body !== pr.body) {
@@ -69,9 +72,10 @@ async function main() {
     baseURL: process.env.JEV_BASE_URL, model: process.env.JEV_MODEL,
     threshold: parseThreshold(process.env.JEV_MIN_SCORE ?? '7'), post,
     runUrl: process.env.GITHUB_RUN_ID ? `https://github.com/${repository}/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined,
-    save: ({ report, body }) => {
+    save: ({ report, body, failure }) => {
       // Always replace the report, including failed runs, so reruns cannot reuse stale scores.
       writeFileSync('pr-quality.json', JSON.stringify(report ?? null, null, 2) + '\n');
+      writeFileSync('pr-quality-error.json', JSON.stringify(failure ?? null, null, 2) + '\n');
       writeFileSync('pr-quality.md', body + '\n');
       if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, body + '\n');
       console.log(body);

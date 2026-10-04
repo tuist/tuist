@@ -65,6 +65,7 @@ jobs:
           name: pr-quality-${{ github.event.pull_request.number }}
           path: |
             pr-quality.json
+            pr-quality-error.json
             pr-quality.md
           if-no-files-found: ignore
           retention-days: 14
