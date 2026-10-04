@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #MISE description="Run one step of moving ClickHouse onto the in-cluster server, as a one-off Job outside any deploy."
 #USAGE arg "<env>" help="Environment (staging | canary | production)"
-#USAGE arg "<step>" help="clone | backfill | parity | check-reads | enable-reads | disable-reads"
+#USAGE arg "<step>" help="clone | backfill | repair | parity | check-reads | enable-reads | disable-reads"
 #USAGE flag "--cutoff <instant>" help="backfill only: copy rows written before this UTC instant, e.g. 2026-09-15T12:00:00Z"
+#USAGE flag "--from <instant>" help="repair only: start of the span to fill, as a UTC instant, e.g. 2026-10-04T17:15:00Z"
+#USAGE flag "--to <instant>" help="repair only: end of the span to fill, as a UTC instant, e.g. 2026-10-04T19:05:00Z"
 #USAGE flag "--dry-run" help="Print the Job manifest without creating it"
 
 # Runs a `Tuist.Release` ClickHouse task as its own Job, cloned from the
@@ -18,6 +20,8 @@ set -euo pipefail
 readonly ENV="${usage_env:?}"
 readonly STEP="${usage_step:?}"
 readonly CUTOFF="${usage_cutoff:-}"
+readonly FROM="${usage_from:-}"
+readonly TO="${usage_to:-}"
 readonly DRY_RUN="${usage_dry_run:-false}"
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -33,15 +37,18 @@ esac
 case "$STEP" in
   clone)         TASK="clone_clickhouse_schema" ;;
   backfill)      TASK="backfill_clickhouse" ;;
+  repair)        TASK="repair_clickhouse" ;;
   parity)        TASK="check_clickhouse_parity" ;;
   check-reads)   TASK="check_clickhouse_reads" ;;
   enable-reads)  TASK="enable_clickhouse_bare_metal_reads" ;;
   disable-reads) TASK="disable_clickhouse_bare_metal_reads" ;;
-  *) err "step must be one of clone|backfill|parity|check-reads|enable-reads|disable-reads"; exit 64 ;;
+  *) err "step must be one of clone|backfill|repair|parity|check-reads|enable-reads|disable-reads"; exit 64 ;;
 esac
 
+readonly INSTANT='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+
 if [[ "$STEP" == "backfill" ]]; then
-  if [[ ! "$CUTOFF" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+  if [[ ! "$CUTOFF" =~ $INSTANT ]]; then
     err "backfill needs --cutoff as a UTC instant, e.g. --cutoff 2026-09-15T12:00:00Z"
     exit 64
   fi
@@ -49,6 +56,25 @@ elif [[ -n "$CUTOFF" ]]; then
   err "--cutoff only applies to backfill"
   exit 64
 fi
+
+# The instants are interpolated into the task's `eval` below, which the
+# pattern keeps safe. Same-format UTC instants also compare as strings.
+EVAL="Tuist.Release.$TASK"
+if [[ "$STEP" == "repair" ]]; then
+  if [[ ! "$FROM" =~ $INSTANT || ! "$TO" =~ $INSTANT ]]; then
+    err "repair needs --from and --to as UTC instants, e.g. --from 2026-10-04T17:15:00Z --to 2026-10-04T19:05:00Z"
+    exit 64
+  fi
+  if [[ ! "$FROM" < "$TO" ]]; then
+    err "repair needs --from before --to"
+    exit 64
+  fi
+  EVAL="Tuist.Release.$TASK(\"$FROM\", \"$TO\")"
+elif [[ -n "$FROM" || -n "$TO" ]]; then
+  err "--from and --to only apply to repair"
+  exit 64
+fi
+readonly EVAL
 
 JOB_NAME="clickhouse-${STEP}-$(date -u +%Y%m%d-%H%M%S)"
 WORKDIR="$(mktemp -d)"
@@ -78,7 +104,7 @@ jq \
   --arg name "$JOB_NAME" \
   --arg namespace "$NAMESPACE" \
   --arg step "$STEP" \
-  --arg task "Tuist.Release.$TASK" \
+  --arg task "$EVAL" \
   --arg cutoff "$CUTOFF" \
   '{"app.kubernetes.io/name": "tuist", "app.kubernetes.io/component": "clickhouse-migration", "tuist.dev/clickhouse-migration-step": $step} as $labels
   | {
@@ -109,7 +135,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
   exit 0
 fi
 
-log "Running Tuist.Release.$TASK on $ENV as Job $JOB_NAME ($(jq -r '.spec.template.spec.containers[0].image' "$WORKDIR/job.json"))"
+log "Running $EVAL on $ENV as Job $JOB_NAME ($(jq -r '.spec.template.spec.containers[0].image' "$WORKDIR/job.json"))"
 
 if ! k create -f "$WORKDIR/job.json"; then
   err "Could not create the Job. On canary and production that needs an active elevation: /elevate $ENV <duration> <intent> in Slack."
