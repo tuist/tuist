@@ -52,6 +52,8 @@ Describe 'actively supported protocol interoperability'
     The status should be success
     The output should include 'RECOVERY_PASS compressed=false writes=2 queries=1 offsets=[0, 0] verified_bytes=8388608'
     The output should include 'RECOVERY_PASS compressed=true writes=2 queries=1 offsets=[0, 0] verified_bytes=8388608'
+    # Bazel extraction and JDK deprecation notices go to stderr.
+    The stderr should not include 'Exception'
   End
 
   It 'reuses Bazel remote cache entries across regions'
