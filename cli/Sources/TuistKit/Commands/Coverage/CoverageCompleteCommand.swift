@@ -13,7 +13,7 @@ public struct CoverageCompleteCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "complete",
             _superCommandName: "coverage",
-            abstract: "Signal that the coverage pipeline of a commit has finished, so its coverage is complete and its gates can be judged."
+            abstract: "Signal that the coverage pipeline of a commit has finished, so its coverage is complete."
         )
     }
 

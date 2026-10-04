@@ -62,7 +62,7 @@ public protocol CompleteCommitCoverageServicing {
 }
 
 /// Tells the server that a commit's coverage pipeline finished: every run that gathers coverage
-/// has reported, so the commit's coverage is complete and the pull request's gates can be judged.
+/// has reported, so the commit's coverage is complete.
 public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
     private let fullHandleService: FullHandleServicing
 
