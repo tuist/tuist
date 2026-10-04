@@ -86,8 +86,28 @@ defmodule TuistEx.Analytics.Env do
     end
   end
 
-  def git_branch(environment \\ &System.get_env/1),
-    do: environment.("GIT_BRANCH") || git("rev-parse", ["--abbrev-ref", "HEAD"])
+  # The variables CI providers name the branch in, in the CLI's order. A pull
+  # request on GitHub Actions is a detached checkout of its merge commit, where
+  # git can only answer "HEAD".
+  @branch_variables ~w(GIT_BRANCH GITHUB_HEAD_REF CI_COMMIT_REF_NAME BITRISE_GIT_BRANCH
+                       CIRCLE_BRANCH BUILDKITE_BRANCH CM_BRANCH AC_GIT_BRANCH CI_BRANCH
+                       teamcity.build.branch BUILD_SOURCEBRANCHNAME)
+
+  def git_branch(environment \\ &System.get_env/1) do
+    Enum.find_value(@branch_variables, &nilify_empty(environment.(&1) || "")) ||
+      github_branch(environment) ||
+      case git("rev-parse", ["--abbrev-ref", "HEAD"]) do
+        "HEAD" -> nil
+        branch -> branch
+      end
+  end
+
+  # For the events `GITHUB_HEAD_REF` does not cover, such as a push. On a tag
+  # push `GITHUB_REF_NAME` names the tag, which is not a branch.
+  defp github_branch(environment) do
+    if environment.("GITHUB_REF_TYPE") == "branch",
+      do: nilify_empty(environment.("GITHUB_REF_NAME") || "")
+  end
 
   def git_commit_sha(environment \\ &System.get_env/1),
     do: environment.("GIT_COMMIT") || git("rev-parse", ["HEAD"])

@@ -86,6 +86,20 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_remote_url_origin(environment) == "git@github.com:tuist/tuist.git"
   end
 
+  test "takes the branch from the CI provider before git" do
+    # A GitHub Actions pull request is a detached checkout, where git says "HEAD".
+    assert Env.git_branch(&%{"GITHUB_HEAD_REF" => "feature/x"}[&1]) == "feature/x"
+    assert Env.git_branch(&%{"CI_COMMIT_REF_NAME" => "main"}[&1]) == "main"
+
+    assert Env.git_branch(&%{"GITHUB_REF_TYPE" => "branch", "GITHUB_REF_NAME" => "main"}[&1]) ==
+             "main"
+  end
+
+  test "does not take a GitHub tag push for a branch" do
+    refute Env.git_branch(&%{"GITHUB_REF_TYPE" => "tag", "GITHUB_REF_NAME" => "v1.0.0"}[&1]) ==
+             "v1.0.0"
+  end
+
   test "never reports credentials embedded in the git remote" do
     environment = fn
       "GIT_REMOTE_URL" -> "https://x-access-token:secret-token@github.com/acme/private.git"
