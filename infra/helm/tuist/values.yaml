@@ -2959,6 +2959,7 @@ cache:
 # that lands.
 registryCache:
   enabled: false
+  # Keep one TTL scheduler for the shared S3 cache and its persisted state.
   replicaCount: 1
   image:
     # ECR Public (the Docker-sponsored mirror, same source server.yml uses

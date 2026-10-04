@@ -46,6 +46,10 @@ spec:
               value: ":5000"
             - name: REGISTRY_LOG_LEVEL
               value: {{ .Values.registryCache.logLevel | quote }}
+            # The proxy's TTL scheduler deletes expired cached manifests.
+            # Without this, OnExpire returns "operation unsupported" forever.
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
             - name: REGISTRY_PROXY_REMOTEURL
               value: {{ .Values.registryCache.proxy.remoteUrl | quote }}
             {{- with .Values.registryCache.proxy.ttl }}
