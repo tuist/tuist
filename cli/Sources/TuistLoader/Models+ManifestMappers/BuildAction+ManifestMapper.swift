@@ -58,7 +58,10 @@ private extension XcodeGraph.BuildAction {
             return (graphTargetReference, graphBuildForOptions)
         }
 
-        return Dictionary(uniqueKeysWithValues: keyValuePairs)
+        return Dictionary(
+            keyValuePairs,
+            uniquingKeysWith: { existing, duplicate in existing.union(duplicate) }
+        )
     }
 }
 

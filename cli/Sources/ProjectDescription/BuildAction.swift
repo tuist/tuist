@@ -54,9 +54,19 @@ public struct BuildAction: Equatable, Codable, Sendable {
         runPostActionsOnFailure: Bool = false,
         findImplicitDependencies: Bool = true
     ) -> BuildAction {
-        BuildAction(
-            targets: buildActionTargets.map(\.target),
-            buildFor: Dictionary(uniqueKeysWithValues: buildActionTargets.map { ($0.target, $0.buildFor) }),
+        var targets: [TargetReference] = []
+        var seenTargets: Set<TargetReference> = []
+        for buildActionTarget in buildActionTargets {
+            guard seenTargets.insert(buildActionTarget.target).inserted else { continue }
+            targets.append(buildActionTarget.target)
+        }
+
+        return BuildAction(
+            targets: targets,
+            buildFor: Dictionary(
+                buildActionTargets.map { ($0.target, $0.buildFor) },
+                uniquingKeysWith: { existing, duplicate in existing.union(duplicate) }
+            ),
             preActions: preActions,
             postActions: postActions,
             buildOrder: buildOrder,
