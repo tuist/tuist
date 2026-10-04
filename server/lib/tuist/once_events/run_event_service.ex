@@ -28,6 +28,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   alias Tuist.OnceEvents.Projector
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Telemetry
 
   require Logger
 
@@ -83,7 +84,7 @@ defmodule Tuist.OnceEvents.RunEventService do
         }
 
       {:error, reason} ->
-        raise GRPC.RPCError, status: :unauthenticated, message: to_string(reason)
+        refuse!(:get_argv_hash_key, :admission, reason)
     end
   end
 
@@ -94,7 +95,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   # member or a deactivated user from writing until the client disconnects, as
   # the per-request HTTP API would not allow.
   def publish_run_events(request_stream, stream) do
-    project = require_project!(stream)
+    project = require_project!(stream, :publish_run_events, :admission)
 
     _last_check =
       Enum.reduce(request_stream, now_ms(), fn batch, checked_at ->
@@ -113,8 +114,8 @@ defmodule Tuist.OnceEvents.RunEventService do
     if now - checked_at < @reauthenticate_after_ms do
       checked_at
     else
-      if require_project!(stream).id != project.id do
-        raise GRPC.RPCError, status: :unauthenticated, message: "no access to the requested project"
+      if require_project!(stream, :publish_run_events, :recheck).id != project.id do
+        refuse!(:publish_run_events, :recheck, "no access to the requested project")
       end
 
       now
@@ -207,7 +208,7 @@ defmodule Tuist.OnceEvents.RunEventService do
   # ---- GetRunAck -----------------------------------------------------
 
   def get_run_ack(req, stream) do
-    project = require_project!(stream)
+    project = require_project!(stream, :get_run_ack, :admission)
 
     acked_seq = OnceEvents.acked_seq(project.id, req.run_id)
 
@@ -245,11 +246,25 @@ defmodule Tuist.OnceEvents.RunEventService do
     end
   end
 
-  defp require_project!(stream) do
+  defp require_project!(stream, rpc, stage) do
     case resolve_project(stream, nil) do
       {:ok, project} -> project
-      {:error, reason} -> raise GRPC.RPCError, status: :unauthenticated, message: to_string(reason)
+      {:error, reason} -> refuse!(rpc, stage, reason)
     end
+  end
+
+  # A refusal is the caller's problem, not the server's, so the endpoint keeps it
+  # out of error reporting (see `Tuist.OnceEvents.GRPCExceptionFilter`). The
+  # counter keeps a spike of refusals, such as tokens expiring under long runs,
+  # visible and alertable.
+  defp refuse!(rpc, stage, reason) do
+    :telemetry.execute(Telemetry.event_name_once_events_refused(), %{count: 1}, %{
+      rpc: rpc,
+      stage: stage,
+      status: :unauthenticated
+    })
+
+    raise GRPC.RPCError, status: :unauthenticated, message: to_string(reason)
   end
 
   defp resolve_project(stream, hint_project_id) do

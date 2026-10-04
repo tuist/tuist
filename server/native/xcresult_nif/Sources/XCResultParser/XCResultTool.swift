@@ -16,17 +16,29 @@ public struct XCResultToolOutput: Sendable {
 /// The parser invokes Xcode tools at this boundary so parser tests can provide fixture output.
 public typealias XCResultToolExecuting = @Sendable ([String]) async throws -> XCResultToolOutput
 
+/// Like `XCResultToolExecuting`, with standard output written to the given file instead of
+/// returned, for output too large to hold in memory. The returned output's `standardOutput` is
+/// empty.
+public typealias XCResultToolFileExecuting = @Sendable ([String], URL) async throws -> XCResultToolOutput
+
 public func executeXCResultTool(_ arguments: [String]) async throws -> XCResultToolOutput {
+    let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: outputURL) }
+    let output = try await executeXCResultTool(arguments, standardOutputTo: outputURL)
+    return XCResultToolOutput(
+        standardOutput: try String(contentsOf: outputURL, encoding: .utf8),
+        standardError: output.standardError,
+        succeeded: output.succeeded
+    )
+}
+
+public func executeXCResultTool(_ arguments: [String], standardOutputTo outputURL: URL) async throws -> XCResultToolOutput {
     guard let executableName = arguments.first else {
         throw XCResultToolError.missingExecutable
     }
 
-    let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let errorURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer {
-        try? FileManager.default.removeItem(at: outputURL)
-        try? FileManager.default.removeItem(at: errorURL)
-    }
+    defer { try? FileManager.default.removeItem(at: errorURL) }
 
     FileManager.default.createFile(atPath: outputURL.path, contents: nil)
     FileManager.default.createFile(atPath: errorURL.path, contents: nil)
@@ -55,7 +67,7 @@ public func executeXCResultTool(_ arguments: [String]) async throws -> XCResultT
     }
 
     return XCResultToolOutput(
-        standardOutput: try String(contentsOf: outputURL, encoding: .utf8),
+        standardOutput: "",
         standardError: try String(contentsOf: errorURL, encoding: .utf8),
         succeeded: process.terminationStatus == 0
     )

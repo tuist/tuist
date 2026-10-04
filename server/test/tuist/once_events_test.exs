@@ -29,6 +29,7 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.OnceEvents.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup do
     project = ProjectsFixtures.project_fixture()
@@ -294,6 +295,19 @@ defmodule Tuist.OnceEventsTest do
       assert error.status == GRPC.Status.unauthenticated()
     end
 
+    test "a refused call is counted with the call and the stage that refused it", %{handle: handle, run: run} do
+      event_name = Tuist.Telemetry.event_name_once_events_refused()
+      event_ref = TelemetryCapture.attach_event_handlers([event_name])
+      outsider = AccountsFixtures.user_fixture(preload: [:account])
+
+      assert_raise GRPC.RPCError, fn ->
+        RunEventService.publish_run_events([empty_batch(run)], user_stream(outsider, %{"once-project-id" => handle}))
+      end
+
+      assert_received {^event_name, ^event_ref, %{count: 1},
+                       %{rpc: :publish_run_events, stage: :admission, status: :unauthenticated}}
+    end
+
     test "naming a project that does not exist is rejected", %{member: member, run: run} do
       error =
         assert_raise GRPC.RPCError, fn ->
@@ -481,6 +495,32 @@ defmodule Tuist.OnceEventsTest do
 
       assert_received {:ack, %BatchAck{batch_id: "before"}}
       refute_received {:ack, %BatchAck{batch_id: "after"}}
+    end
+
+    test "a refusal on the periodic check of an open stream is counted as such", %{
+      organization: organization,
+      member: member,
+      handle: handle,
+      run: run
+    } do
+      event_name = Tuist.Telemetry.event_name_once_events_refused()
+      event_ref = TelemetryCapture.attach_event_handlers([event_name])
+      flag = clock_that_jumps_when_flagged(minutes: 6)
+
+      removing = fn ->
+        :ok = Tuist.Accounts.remove_user_from_organization(member, organization)
+        :atomics.put(flag, 1, 1)
+      end
+
+      assert unauthenticated?(fn ->
+               RunEventService.publish_run_events(
+                 removing_between_batches(run, removing),
+                 stream_with(login_session(member), %{"once-project-id" => handle})
+               )
+             end)
+
+      assert_received {^event_name, ^event_ref, %{count: 1},
+                       %{rpc: :publish_run_events, stage: :recheck, status: :unauthenticated}}
     end
 
     test "within the check interval the open stream keeps going", %{

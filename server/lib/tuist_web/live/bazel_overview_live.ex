@@ -655,7 +655,7 @@ defmodule TuistWeb.BazelOverviewLive do
 
   defp recent_invocations_chart_options(invocations) do
     %{
-      grid: %{width: "100%", left: "0.4%", height: "88%", top: "5%"},
+      grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
       tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: "minute"},
       xAxis: %{axisLabel: %{show: false}, data: Enum.map(invocations, & &1.date)},
       yAxis: %{
