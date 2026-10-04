@@ -108,6 +108,39 @@ struct XCSchemeMapperTests {
         #expect(mappedAction.buildFor.isEmpty)
     }
 
+    @Test("Combines Build For options for duplicate build action entries")
+    func mapBuildActionWithDuplicateTargets() async throws {
+        let targetReference = XCScheme.BuildableReference(
+            referencedContainer: "container:App.xcodeproj",
+            blueprintIdentifier: "123",
+            buildableName: "App.app",
+            blueprintName: "App"
+        )
+        let xcscheme = XCScheme.test(
+            name: "UserScheme",
+            buildAction: XCScheme.BuildAction(
+                buildActionEntries: [
+                    XCScheme.BuildAction.Entry(
+                        buildableReference: targetReference,
+                        buildFor: [.running]
+                    ),
+                    XCScheme.BuildAction.Entry(
+                        buildableReference: targetReference,
+                        buildFor: [.testing]
+                    ),
+                ],
+                parallelizeBuild: true,
+                buildImplicitDependencies: true
+            )
+        )
+
+        let mapped = try await mapper.map(xcscheme, shared: false, graphType: graphType)
+        let mappedAction = try #require(mapped.buildAction)
+        let mappedTarget = try #require(mappedAction.targets.first)
+
+        #expect(mappedAction.buildFor[mappedTarget] == [.running, .testing])
+    }
+
     @Test("Maps a test action with testable references, coverage, and environment")
     func mapTestAction() async throws {
         // Given

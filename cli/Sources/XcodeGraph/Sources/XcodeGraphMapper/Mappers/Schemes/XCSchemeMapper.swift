@@ -74,8 +74,14 @@ struct XCSchemeMapper: SchemeMapping {
         }
         let targets = entries.map(\.target)
         let defaultBuildFor = Set(BuildAction.BuildFor.allCases)
-        let nonDefaultBuildForEntries = entries.filter { $0.buildFor != defaultBuildFor }
-        let buildFor = Dictionary(uniqueKeysWithValues: nonDefaultBuildForEntries)
+        let mergedBuildFor = Dictionary(
+            entries.map { ($0.target, $0.buildFor) },
+            uniquingKeysWith: { existing, duplicate in existing.union(duplicate) }
+        )
+        let buildFor = mergedBuildFor.reduce(into: [TargetReference: Set<BuildAction.BuildFor>]()) { result, entry in
+            guard entry.value != defaultBuildFor else { return }
+            result[entry.key] = entry.value
+        }
 
         return BuildAction(
             targets: targets,
