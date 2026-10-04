@@ -1,18 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { parseThreshold, review, ReviewFailure, summary } from './review.mjs';
+import { parseThreshold, review, reviewFailureMessage, sanitizeReviewFailure, summary } from './review.mjs';
 
 export const marker = '<!-- tuist-pr-quality -->';
 
 export function formatComment(report, pr, runUrl, failure) {
-  const status = Number.isInteger(failure?.status) && failure.status >= 100 && failure.status <= 599
-    ? ` (HTTP ${failure.status})` : '';
-  const reason = failure?.code === 'input_limit'
-    ? 'The complete PR exceeds the provider input limit. Split it into smaller coherent changes; no partial review was accepted.'
-    : failure?.code === 'request_failed'
-      ? `The provider request failed${status}. Check credentials, quota, input size, or service availability.`
-      : 'Check authentication, configuration, diff size, and service availability.';
+  const reason = reviewFailureMessage(failure);
   const details = report ? summary(report)
     : `## Pull request quality\n\n⚠️ The review could not complete. No scores are available.\n\n${reason}\n\nReviewed commit: \`${pr.head.sha}\`.`;
   return `${marker}\n${details}${runUrl ? `\n\n[Workflow logs and report](${runUrl})` : ''}`;
@@ -35,12 +29,7 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, baseU
     report.repository = pr.base.repo?.full_name;
   } catch (error) {
     // Only typed, sanitized diagnostics are published, never exception text.
-    failure = error instanceof ReviewFailure
-      ? {
-        code: error.code === 'input_limit' ? 'input_limit' : 'request_failed',
-        ...(Number.isInteger(error.status) && error.status >= 100 && error.status <= 599 ? { status: error.status } : {}),
-      }
-      : { code: 'review_failed' };
+    failure = sanitizeReviewFailure(error);
   }
   const body = formatComment(report, pr, runUrl, failure);
   save({ report, body, failure });
