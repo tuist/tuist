@@ -37,6 +37,7 @@ This node covers Helm assets under `infra/helm/`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Embedded object storage uses the same digest-pinned `ghcr.io/coollabsio/minio` community image for the server and bundled `mc` initializer because the upstream Quay images no longer allow anonymous pulls. Keep both image pins aligned and validate changes with `helm:k3s-smoke`; managed environments use external storage.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- CNPG query statistics require CNPG >= 1.26. A retain-policy Database CR adopts the configured application database and reconciles `public.pg_stat_statements`; the exporter targets that database, since CNPG cannot adopt the reserved `postgres` database. Keep bootstrap SQL, exporter target, and extension schema aligned. Regression checks: `python3 infra/helm/test-production-errors.py` (Helm + PyYAML).
 - The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
   release binaries and imports it into the disposable cluster. Existing-context
   runs must preload that image; the smoke values never pull it from a registry.

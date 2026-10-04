@@ -790,7 +790,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Mean statement execution time by class (read/write/other) from pg_stat_statements on the primary. Needs queryStats enabled and the pg-stat-statements extension (infra/cnpg/pg-stat-statements.sql).",
+        "description": "Mean statement execution time by class (read/write/other) from pg_stat_statements on the primary. With queryStats enabled, the chart reconciles the extension in the application database (CNPG >= 1.26).",
         "fieldConfig": {
           "defaults": {
             "color": {

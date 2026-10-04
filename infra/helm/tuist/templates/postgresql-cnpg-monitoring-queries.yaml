@@ -6,11 +6,11 @@
 #
 # Prerequisites:
 #   * pg_stat_statements preloaded (postgresql.cnpg.sharedPreloadLibraries).
-#   * The extension created in the `postgres` database, one-time via
-#     infra/cnpg/pg-stat-statements.sql (see infra/cnpg/README.md). Until
-#     then the exporter query errors and the metric is simply absent.
+#   * CNPG >= 1.26, whose Database extension reconciliation installs the view
+#     in the application database, including already-bootstrapped clusters
+#     (templates/postgresql-cnpg-query-stats-database.yaml).
 #
-# The exporter runs this against `postgres` (target_databases). Because
+# The exporter runs this against the application database. Because
 # pg_stat_statements is instance-global, a single target database yields
 # cluster-wide stats; the query filters to the application database by dbid
 # and buckets statements read/write/other, so the metric has 3 series (low
@@ -40,7 +40,7 @@ data:
           sum(calls)::bigint AS calls,
           sum(total_exec_time) AS total_exec_time_ms,
           sum(rows)::bigint AS rows
-        FROM pg_stat_statements
+        FROM public.pg_stat_statements
         WHERE dbid = (SELECT oid FROM pg_database WHERE datname = '{{ .Values.postgresql.cnpg.database }}')
         GROUP BY 1
       metrics:
@@ -57,5 +57,5 @@ data:
             usage: "COUNTER"
             description: "Cumulative rows processed by the statements"
       target_databases:
-        - postgres
+        - {{ .Values.postgresql.cnpg.database | quote }}
 {{- end }}

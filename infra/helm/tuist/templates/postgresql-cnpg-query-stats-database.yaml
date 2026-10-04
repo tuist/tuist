@@ -1,0 +1,24 @@
+{{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) .Values.postgresql.cnpg.queryStats.enabled }}
+# Bootstrap SQL cannot install extensions on an existing cluster. Adopt the
+# application database with its existing owner and reconcile the metrics view.
+# CNPG's Database CR forbids the reserved maintenance database name `postgres`.
+# This represents the application database itself: NEVER set spec.ensure to
+# absent. That drops the database even with databaseReclaimPolicy: retain.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-query-stats") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  name: {{ .Values.postgresql.cnpg.database | quote }}
+  owner: {{ .Values.postgresql.cnpg.owner | quote }}
+  cluster:
+    name: {{ include "tuist.componentName" (dict "root" . "component" "pg") }}
+  databaseReclaimPolicy: retain
+  extensions:
+    - name: pg_stat_statements
+      ensure: present
+      schema: public
+{{- end }}

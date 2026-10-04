@@ -517,7 +517,7 @@ postgresql:
     sharedPreloadLibraries:
       - pg_stat_statements
     # Expose pg_stat_statements as query-latency metrics. The library above
-    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    # is loaded; the Database CR reconciles the extension in the application DB.
     # Powers the dashboard's read/write query-latency panels.
     queryStats:
       enabled: true
