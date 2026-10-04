@@ -62,6 +62,10 @@ Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
+## Restore drills
+
+CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path.
+
 ## Pull request quality
 
 `workflows/pr-quality-tests.yml` runs evaluator security/publication tests on pull requests without provider credentials. Keep it separate from the privileged publishing workflow.
