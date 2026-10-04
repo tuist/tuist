@@ -91,9 +91,11 @@ Do not claim that restarting it clears old objects or that this fix reclaims
 previously orphaned entries. Client deletion remains unsupported in proxy mode.
 Watch S3 deletes and upstream re-fetches after rollout; retain the single replica.
 
-Four Helm regression tests cover extension/target alignment, custom names,
-CNPG/query-stats gating, and cache deletion configuration. They failed before
-the fixes and pass afterwards. Helm CI installs pinned PyYAML and runs them;
+Eight Helm regression tests cover extension/target alignment, custom names,
+CNPG/query-stats gating, tracking parameters, cache deletion configuration,
+and staging rack-agent scheduling without changing other environments' defaults.
+The original regressions and staging-discovered cases failed before their
+respective fixes and pass afterwards. Helm CI installs pinned PyYAML and runs them;
 the script lives outside the packaged chart.
 
 ## Critical unresolved issue: ClickHouse backup recovery
@@ -168,7 +170,10 @@ configuration fixes in this PR do not claim to resolve that backlog.
 
 - Red then green: two dependency-free ExUnit production-config tests and four
   Helm/Python regressions.
-- `python3 infra/helm/test-production-errors.py`: four passing tests.
+- `python3 infra/helm/test-production-errors.py`: eight passing tests.
+- `python3 infra/helm/test-staging-monitoring.py`: two passing tests, including
+  a clean Helm repository configuration after adding the locked dependency's
+  Grafana repository explicitly.
 - `elixir -e 'ExUnit.start(); Code.require_file("slack/test/slack/production_config_test.exs"); Code.require_file("noora/storybook/test/production_config_test.exs")'`: two passing tests.
 - Storybook's exact standalone CI command passes from `noora/`.
 - Full production `helm template` with common, production, and CI values passes.
@@ -187,7 +192,78 @@ configuration fixes in this PR do not claim to resolve that backlog.
   CI/packaging gaps, and the persistent S3-cache tradeoff. Those implementation
   findings were addressed; the final solution review reported no blockers.
 
-Before promotion: deploy through the normal staging/canary/production sequence,
-verify Database extension reconciliation and migration completion, confirm query
-metrics appear and updater/scheduler errors stop, and monitor cache deletion and
-upstream pull behavior. None of those deployment checks has been performed.
+## Staging rollout and live validation
+
+Staging deployment [37199348746](https://github.com/tuist/tuist/actions/runs/37199348746)
+completed after narrowly scoped live repairs. A second deployment,
+[37203051378](https://github.com/tuist/tuist/actions/runs/37203051378), successfully
+replayed the committed chart fixes from `3a44cee6891c` without further manual
+patches. Application, registry, and codebase-search images reuse
+`sha-907b3c0d66c5`; platform configuration revision 498 and unrelated fleet/runtime
+pins were preserved. No canary or production deployment was dispatched.
+
+Deployment blockers and recovery:
+
+- The two BER1 edges have had disconnected kubelets and tailnet peers since
+  September 28 around 19:27 UTC. Their owned Nodes, Machines, and hosts were
+  not deleted. The underlying physical power/network failure is not diagnosed;
+  both-offline AMT relay dependence still prevents remote recovery.
+- Staging node-exporter now tolerates explicit infrastructure roles rather than
+  every `NoSchedule` taint. Two already-terminating, read-only exporter Pod
+  records on disconnected hosts were removed with UID preconditions to unblock
+  the rolling update. All eligible exporters were updated and Ready: **11/11**
+  in the final snapshot. This count follows the current live node inventory.
+- The staging rack-node-agent also excluded unreachable scheduling targets.
+  Unlike the exporter, it retains NotReady toleration so it can repair local
+  CNI. The disconnected hosts are not readiness targets while offline; their
+  privileged agent Pod records were not force-deleted. Other environments keep
+  their original agent tolerations, and Helm readiness waits remain enabled.
+- During the first application rollout, both general-purpose cloud workers
+  became unavailable and CAPI began replacement. The staging API temporarily
+  timed out and the public endpoint returned HTTP 525. Existing management
+  access was used only for read-only diagnosis; no administrative credential
+  was fetched or permission expanded. Replacement proceeded through the owning
+  controllers. The underlying worker failure is still unproved.
+- One terminating PostgreSQL Pod record stalled the drain. Its logs confirmed
+  PostgreSQL and its manager had completed shutdown, and `pg_controldata` showed
+  a clean shutdown. Only that record was removed with UID/resource-version
+  preconditions; its PVC was retained. The controller subsequently completed
+  volume detachment and worker replacement. No volume or backup was deleted.
+- Recovery left most stateless workloads on one replacement worker, preventing
+  a 1 GiB PostgreSQL replica from fitting there despite free capacity elsewhere.
+  One stateless processor Pod was restarted with its normal termination grace.
+  It moved to the less-loaded worker, allowing the replica to schedule. Both
+  workers and PostgreSQL instances recovered.
+- Live SQL then caught the CNPG extension-manager conflict described above.
+  A dry-run-validated staging parameter patch enabled tracking. The committed
+  chart now supplies the same parameter; declarative status alone was not
+  treated as sufficient evidence.
+
+Live results on October 4, approximately 12:39–12:51 UTC:
+
+- Both deployment runs succeeded, including the application migration Job.
+- CNPG reports **2/2 Ready**, `Cluster in healthy state`, with primary
+  `tuist-tuist-pg-2`. The committed `pg_stat_statements.track: top` setting is
+  present after the replay.
+- Read-only SQL confirms database `tuist`, owner `tuist_app`, and
+  `public.pg_stat_statements`. Existing `citext`, `uuid-ossp`, and `plpgsql`
+  remain present. Exporter schema/table privileges are valid.
+- Both instance exporters expose `cnpg_tuist_query_stats_*` samples and
+  `cnpg_last_error 0`, with no missing-view error sample in those scrapes.
+- Application `/ready`, Swift registry `/up`, registry protocol availability,
+  and `swiftlang/swift-syntax` release metadata return HTTP 200.
+- The Docker mirror serves an Alpine 3.22 OCI index with HTTP 200 when the
+  request includes the appropriate OCI Accept header. Two exploratory requests
+  without that header returned expected `MANIFEST_UNKNOWN` errors; they are
+  not expiry failures.
+- The cache's TTL scheduler started and deletion is enabled. Logs from
+  **12:02–12:51 UTC** contain no error-level expiry/deletion failures. The
+  existing repository/tag-remover warning remains. No controlled expiry cycle,
+  S3-delete verification, or historical orphan cleanup was performed, so this
+  observation is not proof of a complete cache TTL cycle.
+
+Slack and Storybook's immutable-timezone configuration is covered locally and
+in CI, but their production-only deployment workflows were not run for staging.
+Before promotion, verify their deployed behavior, continue cache-expiry
+observation, and resolve the ClickHouse backup/restore risk. Staging success
+neither repairs the rack nor resolves the separate Atlas backlog.

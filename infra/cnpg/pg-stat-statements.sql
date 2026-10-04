@@ -5,7 +5,10 @@
 --
 -- The library is already preloaded via spec.postgresql.shared_preload_libraries
 -- (postgresql.cnpg.sharedPreloadLibraries in the chart values); this file
--- creates the extension so the reading view exists.
+-- creates the extension so the reading view exists. CNPG also needs an
+-- enabling spec.postgresql.parameters entry (for example,
+-- pg_stat_statements.track: top); otherwise its built-in extension manager
+-- removes the extension again. Query-stats-enabled charts set this default.
 --
 -- Run against the configured application database (`tuist` by default).
 -- pg_stat_statements is instance-global, but its SQL view must exist in the
