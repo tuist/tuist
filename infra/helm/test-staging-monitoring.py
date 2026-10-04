@@ -30,6 +30,11 @@ def tolerates(toleration, key, value=""):
 class StagingMonitoringTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        subprocess.run(
+            ["helm", "repo", "add", "grafana", "https://grafana.github.io/helm-charts"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
         subprocess.run(["helm", "dependency", "build", str(CHART)], check=True, stdout=subprocess.PIPE)
         rendered = subprocess.check_output(
             ["helm", "template", "k8s-monitoring", str(CHART), "-f", str(CHART / "values-staging.yaml")],
