@@ -123,16 +123,41 @@ Recovery actions:
 4. Verify completion and perform a bounded restore check; Pod readiness or a
    larger memory budget is not proof that the backups are usable.
 
-## Atlas issue-list caveat
+## Atlas follow-up and environment attribution
 
-Atlas's unresolved issue list identified muter submodule errors, Req HTTP/2
-failures, manifest timeouts, and test-attachment expiry timeouts. Its list/get
-responses expose issue metadata and lifetime counts, not a production-filtered
-12-hour event history. The muter classifier already exists in deployed SHA
-`929c11937db8`. Production registry logs do not reproduce those release errors
-in this window, so no duplicate classifier or unproved expiry-worker fix was
-introduced. The production ClaimSizingWorker checkout timeout is a separate
-confirmed database event, not proof that test-attachment expiry timed out here.
+Atlas's list/get responses expose last-seen timestamps and lifetime counts,
+not a production-filtered 12-hour event history. A subsequent review of the
+100 most recently seen unresolved issues used their timestamps to find matching
+Loki events across production, canary, and staging. This is not an exhaustive
+review of the historical backlog, and issue statuses were left unchanged.
+
+- **Muter submodule failures:** the October 4 08:53:54 event is from staging's
+  `swift-registry-sync`, running `sha-0b93604a05fb`, which predates the classifier
+  fix in #13770. The classifier already exists in production's inspected SHA
+  `929c11937db8` and this branch. Update staging rather than introduce a duplicate
+  code fix. Atlas's 2,887 events are a lifetime total, not this window's count.
+- **Req HTTP/2 `closed_for_writing`:** the October 4 08:33:50 release exception
+  also comes from staging. It is a separate transport failure, not the permanent
+  submodule classification problem. No transport fix is claimed by this PR.
+- **Test-attachment cleanup timeouts:** production has three matching Oban
+  exception events at 02:30:22, 02:30:52, and 02:32:27 on October 4. They are
+  logged at info level and were missed by the original error-level census.
+  This corrects the initial conclusion that production occurrence was unproved.
+  Each first-attempt job ran for about 11 seconds and returned `{:error, :timeout}`.
+  These events do not establish whether storage deletion or another operation
+  timed out; inspect retries and dependencies before changing timeouts or pooling.
+  The ClaimSizingWorker checkout timeout is a separate event.
+- **Kura telemetry export:** the 08:30:20 Atlas occurrence matches production's
+  `kura-pinterest-sa-west-1-0` BatchSpanProcessor HTTP export failure. This is the
+  same unresolved exporter/network category already inventoried above. The
+  lifetime total of 22,144 does not imply that many recent cache-request failures.
+- **Cache globe DateTime query parameters:** the 728-event issue was last seen
+  October 2 at 11:47:15. The whole-second truncation fix already exists in #13788
+  and this branch. Its unresolved status alone does not prove a current failure.
+
+Manifest-fetch timeouts, build and xcresult processing failures, retention,
+pooling, and other older issue groups still need targeted follow-up. The local
+configuration fixes in this PR do not claim to resolve that backlog.
 
 ## Validation and review
 
