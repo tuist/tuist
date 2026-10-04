@@ -1076,4 +1076,3 @@ IO.puts(
   "  - coverage: #{length(entries)} commits (#{published} published) over #{length(runs) + 1} runs, " <>
     "#{length(CoverageSeed.product_files())} product files; checks passed"
 )
-

@@ -220,7 +220,7 @@
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
-    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <TuistWeb.LayoutComponents.head_canonical_link {assigns} />
   </head>
   <body data-scrollable="true">
     <TuistWeb.GoogleOneTap.prompt current_user={assigns[:current_user]} />

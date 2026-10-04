@@ -15,6 +15,9 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - Routes without `:robots_txt` metadata default to `Disallow` entries derived from the router.
 - If a route should not contribute any `robots.txt` entry, opt it out explicitly with `metadata: %{robots_txt: false}`.
 
+## Search Indexing
+- Informational public-project LiveViews opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed; do not opt settings, connection flows, or raw downloads into indexing.
+
 ## Browser Telemetry
 - `BrowserTelemetry.Enrichment` adds reserved measurement context using route metadata and gateway-observed authentication. Browser URL/session/navigation fields remain untrusted; never equate authentication or metadata completeness with humanity.
 - Preserve raw LCP values and attribution. Keep the schema contract and staged alert rollout in `infra/helm/k8s-monitoring/browser-rum.md` aligned.
