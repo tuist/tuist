@@ -52,6 +52,15 @@ peerTls:
   certFileName: tls.crt
   keyFileName: tls.key
 
+# Enable only after bidirectional underlay verification. These values describe
+# every host eligible for this StatefulSet; use a matching nodeSelector.
+# private_url may contain $(POD_NAME) and $(POD_NAMESPACE). It must have a valid
+# peer certificate SAN. A provider name alone does not establish a private path.
+peerTopology: {}
+# provider: ovh
+# private_network: verified-vrack-id-and-vlan
+# private_url: https://$(POD_NAME).kura-headless.$(POD_NAMESPACE).svc.cluster.local:7443
+
 headlessService:
   annotations: {}
 

@@ -2671,6 +2671,7 @@ async fn internal_status(
         "region": state.config.region.clone(),
         "tenant_id": state.config.tenant_id.clone(),
         "node_url": node_url,
+        "topology": state.config.peer_topology,
         "traffic_state": state.runtime.traffic_state().as_str(),
         "pulling": true,
         "incarnation": format!("{:016x}", state.store.sync_feed().incarnation()),

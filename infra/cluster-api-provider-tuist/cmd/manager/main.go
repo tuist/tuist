@@ -68,10 +68,12 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr          string
-		probeAddr            string
-		enableLeaderElection bool
-		secretsNamespace     string
+		metricsAddr               string
+		probeAddr                 string
+		enableLeaderElection      bool
+		secretsNamespace          string
+		ovhPrivateNetworkConfig   string
+		vultrPrivateNetworkConfig string
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
@@ -123,6 +125,10 @@ func main() {
 		"Single-leader election; required when running >1 replica")
 	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
 		"Namespace where the operator stores per-fleet SSH key Secrets")
+	flag.StringVar(&vultrPrivateNetworkConfig, "vultr-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
+	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
 		"External API server URL Mac minis dial when joining (https://...). "+
@@ -823,16 +829,18 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&linux.OVHDedicatedMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			OVHClient:          ovhClient,
-			Recorder:           mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
-			CredentialsManager: credsManager,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultDatacenter:  "vin",
-			DefaultOS:          "ubuntu_24.04",
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			OVHClient:                ovhClient,
+			Recorder:                 mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultDatacenter:        "vin",
+			DefaultOS:                "ubuntu_24.04",
+			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)
@@ -853,15 +861,17 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&linux.VultrMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			VultrClient:        vultrClient,
-			Recorder:           mgr.GetEventRecorderFor("vultrmachine-controller"),
-			CredentialsManager: credsManager,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultRegion:      "scl",
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			VultrClient:              vultrClient,
+			Recorder:                 mgr.GetEventRecorderFor("vultrmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultRegion:            "scl",
+			PrivateNetworkConfigName: vultrPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup VultrMachineReconciler")
 			os.Exit(1)

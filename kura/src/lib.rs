@@ -27,6 +27,7 @@ mod mmap;
 mod multipart;
 mod node_location;
 mod peer_tls;
+mod peer_topology;
 mod reapi;
 mod registration;
 mod replication;

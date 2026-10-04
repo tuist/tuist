@@ -27,6 +27,25 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Deployment Topology
 
+- Managed OVH topology derives from real Node provider IDs and converged private
+  route attestations. Missing or mixed evidence holds topology publication while
+  other template changes continue with the previous topology and selector; never
+  silently remove an active topology on a failed network observation. Keep the
+  qualified network scheduling selector and per-pod mTLS endpoint together.
+  See [private network reconciliation](private-network-provisioning.md).
+
+- Provider-private replication qualification and staged rollout:
+  [private-replication.md](private-replication.md). Runtime topology remains opt-in
+  until provider attachments, both underlay directions and fail-closed routing
+  are verified. Do not infer provider identity from a pool during migration.
+  Managed environments enable this for their qualified OVH domain. Canary has
+  one OVH host; its colocated fixture does not prove a physical host pair.
+  Vultr Chicago also passed physical qualification and activates through current-
+  boot route attestations on merge. Santiago remains VPC-only and canonical.
+  [Vultr private networking](vultr-private-networking.md) covers Kubernetes
+  ownership, retained creation intent, isolated tests and rollback. Never enable
+  two incompatible Vultr domains without an explicit cross-domain policy.
+
 - Production public EU-West runs on OVH. All managed Dedibox hosts and
   staging/canary EU-West instances have completed retirement; public validation
   uses OVH `ca-east`. Follow the [post-retirement cleanup](eu-west-ovh-migration.md#post-retirement-cleanup)
