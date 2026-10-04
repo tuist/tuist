@@ -47,11 +47,13 @@ Describe 'actively supported protocol interoperability'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
-  It 'recovers interrupted identity and compressed uploads with the real Bazel uploader'
+  It 'recovers interrupted uploads and answers stored-blob uploads with the real Bazel uploader'
     When run bash "${PROJECT_ROOT}/test/e2e/bytestream-recovery/run.sh" "127.0.0.1:${KURA_US_CACHE_PORT}"
     The status should be success
     The output should include 'RECOVERY_PASS compressed=false writes=2 queries=1 offsets=[0, 0] verified_bytes=8388608'
     The output should include 'RECOVERY_PASS compressed=true writes=2 queries=1 offsets=[0, 0] verified_bytes=8388608'
+    The output should include 'STORED_PASS compressed=false writes=1 answered_from_stored=1'
+    The output should include 'STORED_PASS compressed=true writes=1 answered_from_stored=1'
     # Bazel extraction and JDK deprecation notices go to stderr.
     The stderr should not include 'Exception'
   End
