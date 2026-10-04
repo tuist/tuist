@@ -17,6 +17,7 @@ admin panel where an operator can manually accept invitation requests.
 
 ## Runtime behavior
 - The app runs Ecto migrations on boot unless `SKIP_MIGRATIONS=true`.
+- Production disables tzdata's auto-updater because the release filesystem is read-only. Timezone data comes from the bundled dependency and must be refreshed through dependency updates and redeploys; keep the filesystem hardened.
 - Confirmed invitation requests can emit an internal Slack notification via `Slack.Notifier` when bot credentials are configured.
 - The admin panel is protected by HTTP basic auth and intentionally returns `503` if the credentials are missing.
 
