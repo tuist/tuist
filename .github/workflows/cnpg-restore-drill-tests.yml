@@ -3,7 +3,7 @@ name: CNPG restore drill tests
 on:
   pull_request:
     paths:
-      - .github/scripts/cnpg-restore-drill.test.py
+      - .github/scripts/cnpg-restore-*.py
       - .github/workflows/cnpg-restore-drill*.yml
 
 permissions:

@@ -45,7 +45,7 @@ jobs:
     concurrency:
       group: cnpg-restore-drill-${{ inputs.environment || 'staging' }}
       cancel-in-progress: false
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       ENVIRONMENT: ${{ inputs.environment || 'staging' }}
@@ -116,6 +116,15 @@ jobs:
             echo "LIVE_USERS=$(q "SELECT count(*) FROM users;")"
           } >> "$GITHUB_ENV"
 
+      - name: Prepare disposable recovery storage
+        run: |
+          set -euo pipefail
+          source_class=$(kubectl -n "$NS" get pvc -l "cnpg.io/cluster=$CLUSTER,cnpg.io/pvcRole=PG_DATA" -o jsonpath='{.items[0].spec.storageClassName}')
+          [ -n "$source_class" ] || { echo "::error::Source data volume has no storage class"; exit 1; }
+          kubectl get storageclass "$source_class" -o json > source-storage.json
+          python3 .github/scripts/cnpg-restore-storage.py source-storage.json "$RECOVERY" > recovery-storage.json
+          kubectl apply -f recovery-storage.json
+
       - name: Launch recovery cluster
         run: |
           set -euo pipefail
@@ -142,6 +151,7 @@ jobs:
             enableSuperuserAccess: true
             storage:
               size: $SIZE
+              storageClass: $RECOVERY
             resources:
               requests: { cpu: "100m", memory: "256Mi" }
               limits: { cpu: "1000m", memory: "1Gi" }
@@ -190,9 +200,16 @@ jobs:
 
       - name: Tear down recovery cluster
         if: always() && env.NS != ''
-        timeout-minutes: 6
+        timeout-minutes: 12
         run: |
           set -euo pipefail
           [[ "$RECOVERY" == pg-restore-drill-* ]]
+          pvs=$(kubectl -n "$NS" get pvc -l "cnpg.io/cluster=$RECOVERY" -o jsonpath='{range .items[*]}{.spec.volumeName}{" "}{end}')
           kubectl -n "$NS" delete clusters.postgresql.cnpg.io "$RECOVERY" \
-            --ignore-not-found --wait=true --timeout=5m
+            --ignore-not-found --cascade=foreground --wait=true --timeout=5m
+          remaining=$(kubectl -n "$NS" get pvc -l "cnpg.io/cluster=$RECOVERY" -o name)
+          [ -z "$remaining" ] || { echo "::error::Recovery PVCs remain: $remaining"; exit 1; }
+          for pv in $pvs; do
+            kubectl wait --for=delete "pv/$pv" --timeout=5m
+          done
+          kubectl delete storageclass "$RECOVERY" --ignore-not-found --wait=true --timeout=1m
