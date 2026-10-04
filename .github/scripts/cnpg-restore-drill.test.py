@@ -30,6 +30,32 @@ class RestoreDrillNamespaceTest(unittest.TestCase):
                 )
                 self.assertEqual(output.read_text(), f"NS={expected}\n")
 
+    def test_cleanup_targets_only_the_drill_and_propagates_failure(self):
+        workflow = yaml.safe_load(WORKFLOW.read_text())
+        step = next(
+            s for s in workflow["jobs"]["restore-drill"]["steps"]
+            if s.get("name") == "Tear down recovery cluster"
+        )
+        for exit_code in [0, 42]:
+            with self.subTest(exit_code=exit_code), tempfile.TemporaryDirectory() as directory:
+                directory = pathlib.Path(directory)
+                command = directory / "kubectl"
+                command.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$LOG"\nexit ' + str(exit_code) + '\n')
+                command.chmod(0o755)
+                log = directory / "arguments"
+                result = subprocess.run(
+                    ["bash", "-euo", "pipefail", "-c", step["run"]],
+                    env={**os.environ, "PATH": str(directory) + os.pathsep + os.environ["PATH"],
+                         "NS": "tuist", "RECOVERY": "pg-restore-drill-test", "LOG": str(log)},
+                    capture_output=True,
+                )
+                self.assertEqual(result.returncode, exit_code)
+                arguments = log.read_text().splitlines()
+                self.assertEqual(arguments[:5], ["-n", "tuist", "delete", "clusters.postgresql.cnpg.io", "pg-restore-drill-test"])
+                self.assertIn("--wait=true", arguments)
+                self.assertIn("--ignore-not-found", arguments)
+                self.assertIn("--timeout=5m", arguments)
+
     def test_unknown_environment_is_rejected(self):
         workflow = yaml.safe_load(WORKFLOW.read_text())
         step = next(
