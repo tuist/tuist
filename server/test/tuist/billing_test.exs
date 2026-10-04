@@ -48,13 +48,55 @@ defmodule Tuist.BillingTest do
       email = "#{UUIDv7.generate()}@tuist.dev"
       name = UUIDv7.generate()
       customer_id = UUIDv7.generate()
-      search_params = %{query: "email:\"#{email}\""}
-      create_params = %{name: name, email: email}
-      stub(Stripe.Customer, :search, fn ^search_params -> {:ok, %{data: []}} end)
+      create_params = %{name: name, email: email, metadata: %{"tuist_account_id" => "42"}}
       stub(Stripe.Customer, :create, fn ^create_params -> {:ok, %{id: customer_id}} end)
 
       # When/then
-      assert Billing.create_customer(%{name: name, email: email}) == customer_id
+      assert Billing.create_customer(%{name: name, email: email, account_id: 42}) == customer_id
+    end
+  end
+
+  describe "on_unlinked_customer/1" do
+    test "ignores customers Tuist didn't create" do
+      reject(Sentry, :capture_message, 2)
+
+      assert Billing.on_unlinked_customer(%Stripe.Customer{id: "cus_atlas", metadata: %{}}) == :ok
+    end
+
+    test "ignores customers deleted in Stripe" do
+      reject(Sentry, :capture_message, 2)
+
+      assert Billing.on_unlinked_customer(%Stripe.Customer{id: "cus_deleted", metadata: nil}) == :ok
+    end
+
+    test "reports customers Tuist created for an account that is no longer linked to them" do
+      expect(Sentry, :capture_message, fn _message, opts ->
+        assert opts[:extra] == %{customer_id: "cus_orphan", account_id: "42"}
+        {:ok, ""}
+      end)
+
+      assert Billing.on_unlinked_customer(%Stripe.Customer{
+               id: "cus_orphan",
+               metadata: %{"tuist_account_id" => "42"}
+             }) == :ok
+    end
+
+    test "fetches the customer when given its id" do
+      stub(Stripe.Customer, :retrieve, fn "cus_orphan" ->
+        {:ok, %Stripe.Customer{id: "cus_orphan", metadata: %{"tuist_account_id" => "42"}}}
+      end)
+
+      expect(Sentry, :capture_message, fn _message, _opts -> {:ok, ""} end)
+
+      assert Billing.on_unlinked_customer("cus_orphan") == :ok
+    end
+
+    test "ignores the customer when it can't be retrieved" do
+      stub(Stripe.Customer, :retrieve, fn "cus_unknown" ->
+        {:error, %Stripe.Error{source: :network, code: :network_error, message: "timeout"}}
+      end)
+
+      assert Billing.on_unlinked_customer("cus_unknown") == :ok
     end
   end
 
@@ -268,6 +310,11 @@ defmodule Tuist.BillingTest do
 
   describe "on_subscription_change/1" do
     test "when an account for the given customer doesn't exist" do
+      # Given
+      stub(Stripe.Customer, :retrieve, fn "non_existing_customer_id" ->
+        {:ok, %Stripe.Customer{id: "non_existing_customer_id", metadata: %{}}}
+      end)
+
       # When
       assert(
         Billing.on_subscription_change(%{
