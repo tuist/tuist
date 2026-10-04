@@ -1,0 +1,25 @@
+name: Pull request quality tests
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/pr-quality/**
+      - .github/workflows/pr-quality*.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Evaluator security and publication tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --prefix .github/scripts/pr-quality
+      - run: npm test --prefix .github/scripts/pr-quality

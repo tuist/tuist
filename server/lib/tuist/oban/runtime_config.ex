@@ -35,6 +35,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
+    {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker}
@@ -46,6 +47,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   ]
 
   @hosted_only_crons [
+    {"* * * * *", Tuist.Marketing.Workers.CacheGlobeRefreshWorker},
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
     {"@hourly", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},

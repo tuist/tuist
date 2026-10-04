@@ -222,7 +222,7 @@ struct RestoreTests {
             )
 
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -276,6 +276,7 @@ struct RestoreTests {
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package,
                 scratchDir: scratch,
+                mirrors: MirrorConfig(),
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
                 disableSandbox: false
             )
@@ -332,6 +333,7 @@ struct RestoreTests {
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package,
                 scratchDir: scratch,
+                mirrors: MirrorConfig(),
                 resolved: resolved,
                 disableSandbox: false
             )
@@ -388,6 +390,7 @@ struct RestoreTests {
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package,
                 scratchDir: scratch,
+                mirrors: MirrorConfig(),
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
                 disableSandbox: false
             )
@@ -441,7 +444,7 @@ struct RestoreTests {
             let resolved = ResolvedPins(originHash: "origin", pins: [], version: 3)
 
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -480,6 +483,7 @@ struct RestoreTests {
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package,
                 scratchDir: scratch,
+                mirrors: MirrorConfig(),
                 resolved: ResolvedPins(originHash: "origin", pins: [], version: 3),
                 disableSandbox: false
             )
@@ -541,7 +545,7 @@ struct RestoreTests {
             let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
 
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -598,7 +602,7 @@ struct RestoreTests {
             let resolved = ResolvedPins(originHash: "origin", pins: [], version: 3)
 
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -662,7 +666,7 @@ struct RestoreTests {
                 progress: nil
             )
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -740,7 +744,7 @@ struct RestoreTests {
                 progress: nil
             )
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let statePath = scratch.appendingPathComponent("workspace-state.json")
@@ -904,7 +908,7 @@ struct RestoreTests {
                 progress: nil
             )
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved, disableSandbox: false
+                packageDir: package, scratchDir: scratch, mirrors: MirrorConfig(), resolved: resolved, disableSandbox: false
             )
 
             let artifactPath = scratch
@@ -999,6 +1003,14 @@ struct RestoreTests {
             "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: packageRepo
         )
         .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func initCommittedGitRepository(at repo: URL) async throws -> String {
+        try await SystemProcess.run("/usr/bin/git", ["init", "-q"], workingDirectory: repo)
+        try await commitAll(in: repo, message: "initial")
+        return try await SystemProcess.output(
+            "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: repo
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func commitAll(in repo: URL, message: String) async throws {
@@ -1305,6 +1317,104 @@ struct RestoreTests {
     }
 
     @Test
+    func restorePackageDoesNotFallBackToTheOriginalWhenTheMirrorFails() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("Dependency")
+            try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+            let revision = try await initCommittedGitRepository(at: repo)
+            let mirror = "file://\(root.appendingPathComponent("missing/Dependency.git").path)"
+            let pin = ResolvedPin(
+                identity: "dependency",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+
+            let error = await #expect(throws: (any Error).self) {
+                try await WorkspaceRestorer.restorePackage(
+                    scratchDir: root.appendingPathComponent("scratch"),
+                    cache: try await Cache(root: root.appendingPathComponent("cache")),
+                    registryConfig: RegistryConfig(),
+                    mirrors: MirrorConfig([repo.path: mirror]),
+                    resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3),
+                    progress: nil,
+                    disableSandbox: true
+                )
+            }
+
+            let message = String(describing: try #require(error))
+            #expect(message.contains("from \(mirror) (mirror of \(repo.path))"))
+        }
+    }
+
+    @Test
+    func restorePackageFetchesARegistryDependencyMirroredToSourceControl() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("dependency-mirror")
+            try await writeMinimalPackageManifest(at: repo, name: "Dependency")
+            let revision = try await initCommittedGitRepository(at: repo)
+            let mirrors = MirrorConfig(["acme.dependency": "file://\(repo.path)"])
+            // What SwiftPM writes for `.package(id: "acme.dependency", ...)` mirrored to git.
+            let pin = ResolvedPin(
+                identity: "dependency-mirror",
+                kind: "remoteSourceControl",
+                location: "acme.dependency",
+                state: ResolvedState(branch: nil, revision: revision, version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch,
+                cache: try await Cache(root: root.appendingPathComponent("cache")),
+                registryConfig: RegistryConfig(),
+                mirrors: mirrors,
+                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3),
+                progress: nil,
+                disableSandbox: true
+            )
+
+            #expect(mirrors.isConsistent(with: pin))
+            #expect(
+                try await fileSystem.exists(
+                    scratch.appendingPathComponent("checkouts/dependency-mirror/Package.swift").absolutePath
+                )
+            )
+        }
+    }
+
+    @Test
+    func cacheNativeSourceCheckoutsFindsTheCheckoutSwiftPMNamedAfterTheMirror() async throws {
+        try await withTemporaryDirectory { root in
+            let revision = "cccccccccccccccccccccccccccccccccccccccc"
+            let original = "https://example.com/Dependency.git"
+            let pin = ResolvedPin(
+                identity: "dependency-mirror",
+                kind: "remoteSourceControl",
+                location: original,
+                state: .init(branch: nil, revision: revision, version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let checkout = scratch.appendingPathComponent("checkouts/Dependency-Mirror")
+            try await writeMinimalPackageManifest(at: checkout, name: "Dependency")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                mirrors: MirrorConfig([original: "https://proxy.example/Dependency-Mirror.git"]),
+                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
+            )
+
+            #expect(fileSystem.isSymlink(checkout))
+            #expect(
+                try await fileSystem.exists(
+                    cache.sourcePath(pin: pin).appendingPathComponent("Package.swift").absolutePath
+                )
+            )
+        }
+    }
+
+    @Test
     func cacheNativeSourceCheckoutsLinksACheckoutTheCacheAlreadyHolds() async throws {
         try await withTemporaryDirectory { root in
             let revision = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -1329,6 +1439,7 @@ struct RestoreTests {
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
                 cache: cache,
+                mirrors: MirrorConfig(),
                 resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
             )
 
@@ -1370,6 +1481,7 @@ struct RestoreTests {
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
                 cache: cache,
+                mirrors: MirrorConfig(),
                 resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
             )
 

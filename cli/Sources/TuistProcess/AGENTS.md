@@ -11,6 +11,7 @@ This module provides process execution helpers and process lifecycle utilities.
 
 ## Invariants
 - Background processes are detached with stdout/stderr to null device.
+- `CommandRunner.runInOwnProcessGroup` spawns the command as the leader of a new process group. On cancellation it sends SIGTERM to the group (Git removes its lock files on it), then SIGKILL after the grace period, which also ends a child that ignores SIGTERM or is stopped. swift-subprocess's own teardown signals only the leader. The SIGKILL is sent from inside the `Subprocess.run` body, before the leader is reaped, so the group id cannot have been reused. It is opt-in: the group is not the terminal's foreground group, so Ctrl-C (tuist installs no SIGINT handler) no longer reaches the command, and the default `CommandRunning` implementation (mocks) forwards to `run`.
 - Subprocess output is read with blocking reads on a dedicated thread (`FileHandle.byteStream()`), never through `readabilityHandler`: on Linux its readability source can miss the end of file after a short-lived child writes and exits, leaving `CommandRunner` waiting forever.
 
 ## Tests

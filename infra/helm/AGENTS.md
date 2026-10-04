@@ -6,6 +6,7 @@ This node covers Helm assets under `infra/helm/`.
 - Umbrella and component charts for deploying Tuist services on Kubernetes
 - Values for embedded vs external infrastructure dependencies
 - Kubernetes manifests and helper templates for app services, data services, and observability
+- Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions

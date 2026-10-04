@@ -16,27 +16,27 @@ msgstr ""
 msgid "%{duplicates_count} duplicates"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:762
-#: lib/tuist_web/live/xcode_cache_live.html.heex:883
+#: lib/tuist_web/live/module_cache_live.html.heex:769
+#: lib/tuist_web/live/xcode_cache_live.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:74
-#: lib/tuist_web/live/module_cache_live.html.heex:160
-#: lib/tuist_web/live/module_cache_live.html.heex:178
-#: lib/tuist_web/live/module_cache_live.html.heex:185
-#: lib/tuist_web/live/module_cache_live.html.heex:192
-#: lib/tuist_web/live/module_cache_live.html.heex:199
-#: lib/tuist_web/live/module_cache_live.html.heex:671
-#: lib/tuist_web/live/module_cache_live.html.heex:745
-#: lib/tuist_web/live/xcode_cache_live.html.heex:129
-#: lib/tuist_web/live/xcode_cache_live.html.heex:147
-#: lib/tuist_web/live/xcode_cache_live.html.heex:154
-#: lib/tuist_web/live/xcode_cache_live.html.heex:161
-#: lib/tuist_web/live/xcode_cache_live.html.heex:168
-#: lib/tuist_web/live/xcode_cache_live.html.heex:788
-#: lib/tuist_web/live/xcode_cache_live.html.heex:866
+#: lib/tuist_web/live/module_cache_live.html.heex:166
+#: lib/tuist_web/live/module_cache_live.html.heex:183
+#: lib/tuist_web/live/module_cache_live.html.heex:190
+#: lib/tuist_web/live/module_cache_live.html.heex:197
+#: lib/tuist_web/live/module_cache_live.html.heex:204
+#: lib/tuist_web/live/module_cache_live.html.heex:678
+#: lib/tuist_web/live/module_cache_live.html.heex:752
+#: lib/tuist_web/live/xcode_cache_live.html.heex:136
+#: lib/tuist_web/live/xcode_cache_live.html.heex:153
+#: lib/tuist_web/live/xcode_cache_live.html.heex:160
+#: lib/tuist_web/live/xcode_cache_live.html.heex:167
+#: lib/tuist_web/live/xcode_cache_live.html.heex:174
+#: lib/tuist_web/live/xcode_cache_live.html.heex:802
+#: lib/tuist_web/live/xcode_cache_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
 msgstr ""
@@ -56,7 +56,7 @@ msgstr ""
 msgid "%{space_usage} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:173
+#: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "0 MB"
 msgstr ""
@@ -66,10 +66,10 @@ msgstr ""
 msgid "< 0.1 %"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:123
-#: lib/tuist_web/live/module_cache_module_live.html.heex:109
-#: lib/tuist_web/live/modules_live.html.heex:89
-#: lib/tuist_web/live/xcode_cache_live.html.heex:92
+#: lib/tuist_web/live/module_cache_live.html.heex:133
+#: lib/tuist_web/live/module_cache_module_live.html.heex:111
+#: lib/tuist_web/live/modules_live.html.heex:91
+#: lib/tuist_web/live/xcode_cache_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr ""
@@ -86,7 +86,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:322
 #: lib/tuist_web/live/module_cache_module_live.ex:358
 #: lib/tuist_web/live/module_cache_module_live.html.heex:41
-#: lib/tuist_web/live/module_cache_module_live.html.heex:447
+#: lib/tuist_web/live/module_cache_module_live.html.heex:454
 #: lib/tuist_web/live/modules_live.ex:332
 #: lib/tuist_web/live/modules_live.html.heex:11
 #, elixir-autogen, elixir-format
@@ -117,18 +117,18 @@ msgstr ""
 msgid "Assets"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:451
-#: lib/tuist_web/live/xcode_cache_live.html.heex:583
+#: lib/tuist_web/live/module_cache_live.html.heex:457
+#: lib/tuist_web/live/xcode_cache_live.html.heex:593
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:105
+#: lib/tuist_web/live/xcode_cache_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:136
+#: lib/tuist_web/live/module_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Avg. hit rate"
 msgstr ""
@@ -146,17 +146,17 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:81
 #: lib/tuist_web/live/bundles_live.ex:928
-#: lib/tuist_web/live/bundles_live.html.heex:362
+#: lib/tuist_web/live/bundles_live.html.heex:369
 #: lib/tuist_web/live/cache_runs_live.ex:60
 #: lib/tuist_web/live/cache_runs_live.html.heex:93
-#: lib/tuist_web/live/module_cache_module_live.html.heex:555
+#: lib/tuist_web/live/module_cache_module_live.html.heex:562
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.html.heex:43
 #: lib/tuist_web/live/module_cache_live.html.heex:36
-#: lib/tuist_web/live/module_cache_module_live.html.heex:443
+#: lib/tuist_web/live/module_cache_module_live.html.heex:450
 #, elixir-autogen, elixir-format
 msgid "Branch:"
 msgstr ""
@@ -171,7 +171,7 @@ msgstr ""
 msgid "Bundle ID"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:129
+#: lib/tuist_web/live/bundles_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Bundle Size"
 msgstr ""
@@ -187,7 +187,7 @@ msgid "Bundle not found."
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:33
-#: lib/tuist_web/live/bundles_live.html.heex:295
+#: lib/tuist_web/live/bundles_live.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -211,31 +211,31 @@ msgid "Cache Runs"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:237
-#: lib/tuist_web/live/xcode_cache_live.html.heex:200
+#: lib/tuist_web/live/xcode_cache_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
 msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:41
 #: lib/tuist_web/live/module_cache_live.ex:384
-#: lib/tuist_web/live/module_cache_live.html.heex:140
-#: lib/tuist_web/live/module_cache_live.html.heex:669
-#: lib/tuist_web/live/module_cache_module_live.html.heex:130
-#: lib/tuist_web/live/module_cache_module_live.html.heex:292
+#: lib/tuist_web/live/module_cache_live.html.heex:147
+#: lib/tuist_web/live/module_cache_live.html.heex:676
+#: lib/tuist_web/live/module_cache_module_live.html.heex:132
+#: lib/tuist_web/live/module_cache_module_live.html.heex:297
 #: lib/tuist_web/live/modules_live.ex:326
 #: lib/tuist_web/live/xcode_cache_live.ex:304
-#: lib/tuist_web/live/xcode_cache_live.html.heex:109
-#: lib/tuist_web/live/xcode_cache_live.html.heex:786
+#: lib/tuist_web/live/xcode_cache_live.html.heex:117
+#: lib/tuist_web/live/xcode_cache_live.html.heex:800
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:152
+#: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:121
+#: lib/tuist_web/live/xcode_cache_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
 msgstr ""
@@ -245,7 +245,7 @@ msgstr ""
 msgid "Cache hits"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:232
+#: lib/tuist_web/live/module_cache_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
 msgstr ""
@@ -255,35 +255,35 @@ msgstr ""
 msgid "Cache misses"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:252
+#: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:242
-#: lib/tuist_web/live/xcode_cache_live.html.heex:201
+#: lib/tuist_web/live/xcode_cache_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
 msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.ex:39
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
-#: lib/tuist_web/live/module_cache_live.html.heex:740
+#: lib/tuist_web/live/module_cache_live.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:160
-#: lib/tuist_web/live/bundles_live.html.heex:392
-#: lib/tuist_web/live/module_cache_module_live.html.heex:563
+#: lib/tuist_web/live/bundles_live.html.heex:399
+#: lib/tuist_web/live/module_cache_module_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:87
-#: lib/tuist_web/live/bundles_live.html.heex:307
 #: lib/tuist_web/live/bundles_live.html.heex:314
-#: lib/tuist_web/live/bundles_live.html.heex:403
+#: lib/tuist_web/live/bundles_live.html.heex:321
+#: lib/tuist_web/live/bundles_live.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Created at"
 msgstr ""
@@ -300,23 +300,23 @@ msgstr ""
 msgid "Directory"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:260
+#: lib/tuist_web/live/bundles_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "Donwload size"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:105
 #: lib/tuist_web/live/bundle_live.html.heex:108
-#: lib/tuist_web/live/bundles_live.html.heex:380
+#: lib/tuist_web/live/bundles_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Download size"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:954
-#: lib/tuist_web/live/bundles_live.html.heex:163
-#: lib/tuist_web/live/bundles_live.html.heex:205
-#: lib/tuist_web/live/bundles_live.html.heex:306
-#: lib/tuist_web/live/bundles_live.html.heex:330
+#: lib/tuist_web/live/bundles_live.html.heex:167
+#: lib/tuist_web/live/bundles_live.html.heex:211
+#: lib/tuist_web/live/bundles_live.html.heex:313
+#: lib/tuist_web/live/bundles_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Download size (MB)"
 msgstr ""
@@ -329,8 +329,8 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
 #: lib/tuist_web/live/cache_runs_live.html.heex:26
 #: lib/tuist_web/live/cache_runs_live.html.heex:101
-#: lib/tuist_web/live/module_cache_live.html.heex:759
-#: lib/tuist_web/live/xcode_cache_live.html.heex:880
+#: lib/tuist_web/live/module_cache_live.html.heex:766
+#: lib/tuist_web/live/xcode_cache_live.html.heex:894
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr ""
@@ -368,7 +368,7 @@ msgid "File Breakdown"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:543
-#: lib/tuist_web/live/bundles_live.html.heex:339
+#: lib/tuist_web/live/bundles_live.html.heex:346
 #: lib/tuist_web/live/cache_runs_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Filter"
@@ -385,8 +385,8 @@ msgstr ""
 msgid "Fonts"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:743
-#: lib/tuist_web/live/xcode_cache_live.html.heex:864
+#: lib/tuist_web/live/module_cache_live.html.heex:750
+#: lib/tuist_web/live/xcode_cache_live.html.heex:878
 #, elixir-autogen, elixir-format
 msgid "Hit Rate"
 msgstr ""
@@ -399,11 +399,11 @@ msgstr ""
 msgid "Hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:229
-#: lib/tuist_web/live/module_cache_module_live.html.heex:117
-#: lib/tuist_web/live/module_cache_module_live.html.heex:247
-#: lib/tuist_web/live/modules_live.html.heex:120
-#: lib/tuist_web/live/modules_live.html.heex:256
+#: lib/tuist_web/live/module_cache_live.html.heex:233
+#: lib/tuist_web/live/module_cache_module_live.html.heex:119
+#: lib/tuist_web/live/module_cache_module_live.html.heex:251
+#: lib/tuist_web/live/modules_live.html.heex:122
+#: lib/tuist_web/live/modules_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Hits"
 msgstr ""
@@ -418,17 +418,17 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:132
 #: lib/tuist_web/live/bundle_live.html.heex:135
-#: lib/tuist_web/live/bundles_live.html.heex:259
-#: lib/tuist_web/live/bundles_live.html.heex:370
+#: lib/tuist_web/live/bundles_live.html.heex:265
+#: lib/tuist_web/live/bundles_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Install size"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:946
-#: lib/tuist_web/live/bundles_live.html.heex:136
-#: lib/tuist_web/live/bundles_live.html.heex:206
-#: lib/tuist_web/live/bundles_live.html.heex:305
-#: lib/tuist_web/live/bundles_live.html.heex:322
+#: lib/tuist_web/live/bundles_live.html.heex:139
+#: lib/tuist_web/live/bundles_live.html.heex:212
+#: lib/tuist_web/live/bundles_live.html.heex:312
+#: lib/tuist_web/live/bundles_live.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Install size (MB)"
 msgstr ""
@@ -443,7 +443,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:18
 #: lib/tuist_web/live/module_cache_module_live.ex:356
 #: lib/tuist_web/live/module_cache_module_live.html.heex:42
-#: lib/tuist_web/live/module_cache_module_live.html.heex:526
+#: lib/tuist_web/live/module_cache_module_live.html.heex:533
 #: lib/tuist_web/live/modules_live.ex:330
 #: lib/tuist_web/live/modules_live.html.heex:12
 #: lib/tuist_web/live/xcode_cache_live.ex:426
@@ -463,7 +463,7 @@ msgid "Localizations"
 msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:33
-#: lib/tuist_web/live/module_cache_live.html.heex:249
+#: lib/tuist_web/live/module_cache_live.html.heex:253
 #: lib/tuist_web/live/module_cache_module_live.ex:334
 #: lib/tuist_web/live/modules_live.ex:216
 #: lib/tuist_web/live/modules_live.ex:328
@@ -488,22 +488,22 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:656
 #: lib/tuist_web/live/bundle_live.html.heex:675
 #: lib/tuist_web/live/bundles_live.ex:920
-#: lib/tuist_web/live/bundles_live.html.heex:359
+#: lib/tuist_web/live/bundles_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:275
+#: lib/tuist_web/live/bundles_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:420
+#: lib/tuist_web/live/bundles_live.html.heex:427
 #: lib/tuist_web/live/cache_runs_live.html.heex:135
-#: lib/tuist_web/live/module_cache_live.html.heex:520
-#: lib/tuist_web/live/module_cache_live.html.heex:780
-#: lib/tuist_web/live/xcode_cache_live.html.heex:748
-#: lib/tuist_web/live/xcode_cache_live.html.heex:901
+#: lib/tuist_web/live/module_cache_live.html.heex:526
+#: lib/tuist_web/live/module_cache_live.html.heex:787
+#: lib/tuist_web/live/xcode_cache_live.html.heex:761
+#: lib/tuist_web/live/xcode_cache_live.html.heex:915
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""
@@ -524,7 +524,7 @@ msgid "No modules found"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:126
-#: lib/tuist_web/live/bundles_live.html.heex:389
+#: lib/tuist_web/live/bundles_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Not available"
 msgstr ""
@@ -556,7 +556,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:77
 #: lib/tuist_web/live/bundles_live.ex:971
-#: lib/tuist_web/live/bundles_live.html.heex:395
+#: lib/tuist_web/live/bundles_live.html.heex:402
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr ""
@@ -569,27 +569,27 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:11
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
 #: lib/tuist_web/live/cache_runs_live.html.heex:117
-#: lib/tuist_web/live/module_cache_live.html.heex:772
-#: lib/tuist_web/live/module_cache_module_live.html.heex:568
-#: lib/tuist_web/live/xcode_cache_live.html.heex:893
+#: lib/tuist_web/live/module_cache_live.html.heex:779
+#: lib/tuist_web/live/module_cache_module_live.html.heex:575
+#: lib/tuist_web/live/xcode_cache_live.html.heex:907
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.ex:95
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
-#: lib/tuist_web/live/module_cache_live.html.heex:753
-#: lib/tuist_web/live/xcode_cache_live.html.heex:874
+#: lib/tuist_web/live/module_cache_live.html.heex:760
+#: lib/tuist_web/live/xcode_cache_live.html.heex:888
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:767
+#: lib/tuist_web/live/xcode_cache_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:652
+#: lib/tuist_web/live/module_cache_live.html.heex:659
 #, elixir-autogen, elixir-format
 msgid "Recent Runs"
 msgstr ""
@@ -614,10 +614,10 @@ msgstr ""
 msgid "Run the following command to analyze a bundle."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:512
+#: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:419
-#: lib/tuist_web/live/xcode_cache_live.html.heex:494
-#: lib/tuist_web/live/xcode_cache_live.html.heex:859
+#: lib/tuist_web/live/xcode_cache_live.html.heex:504
+#: lib/tuist_web/live/xcode_cache_live.html.heex:873
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr ""
@@ -640,9 +640,9 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:522
 #: lib/tuist_web/live/bundle_live.html.heex:652
-#: lib/tuist_web/live/bundles_live.html.heex:310
+#: lib/tuist_web/live/bundles_live.html.heex:317
 #: lib/tuist_web/live/cache_runs_live.html.heex:14
-#: lib/tuist_web/live/modules_live.html.heex:363
+#: lib/tuist_web/live/modules_live.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr ""
@@ -659,12 +659,12 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:165
+#: lib/tuist_web/live/bundles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:138
+#: lib/tuist_web/live/bundles_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
 msgstr ""
@@ -679,7 +679,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:53
 #: lib/tuist_web/live/bundle_live.html.heex:565
 #: lib/tuist_web/live/bundles_live.ex:936
-#: lib/tuist_web/live/bundles_live.html.heex:365
+#: lib/tuist_web/live/bundles_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Type"
 msgstr ""
@@ -709,7 +709,7 @@ msgstr ""
 msgid "Version"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:774
+#: lib/tuist_web/live/xcode_cache_live.html.heex:788
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""
@@ -732,50 +732,50 @@ msgstr ""
 msgid "compared to last bundle"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:490
-#: lib/tuist_web/live/xcode_cache_live.html.heex:622
+#: lib/tuist_web/live/module_cache_live.html.heex:496
+#: lib/tuist_web/live/xcode_cache_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:108
+#: lib/tuist_web/live/xcode_cache_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "p50 cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:139
+#: lib/tuist_web/live/module_cache_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "p50 hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:477
-#: lib/tuist_web/live/xcode_cache_live.html.heex:609
+#: lib/tuist_web/live/module_cache_live.html.heex:483
+#: lib/tuist_web/live/xcode_cache_live.html.heex:619
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:107
+#: lib/tuist_web/live/xcode_cache_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "p90 cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:138
+#: lib/tuist_web/live/module_cache_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "p90 hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:464
-#: lib/tuist_web/live/xcode_cache_live.html.heex:596
+#: lib/tuist_web/live/module_cache_live.html.heex:470
+#: lib/tuist_web/live/xcode_cache_live.html.heex:606
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:106
+#: lib/tuist_web/live/xcode_cache_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "p99 cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:137
+#: lib/tuist_web/live/module_cache_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "p99 hit rate"
 msgstr ""
@@ -929,129 +929,129 @@ msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.ex:434
 #: lib/tuist_web/live/xcode_cache_live.ex:421
-#: lib/tuist_web/live/xcode_cache_live.html.heex:495
+#: lib/tuist_web/live/xcode_cache_live.html.heex:505
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:507
+#: lib/tuist_web/live/module_cache_live.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:644
+#: lib/tuist_web/live/xcode_cache_live.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:293
+#: lib/tuist_web/live/xcode_cache_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:256
-#: lib/tuist_web/live/xcode_cache_live.html.heex:288
-#: lib/tuist_web/live/xcode_cache_live.html.heex:323
+#: lib/tuist_web/live/xcode_cache_live.html.heex:293
+#: lib/tuist_web/live/xcode_cache_live.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "Cache latency"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:280
-#: lib/tuist_web/live/xcode_cache_live.html.heex:383
-#: lib/tuist_web/live/xcode_cache_live.html.heex:418
+#: lib/tuist_web/live/xcode_cache_live.html.heex:388
+#: lib/tuist_web/live/xcode_cache_live.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Cache throughput"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:232
-#: lib/tuist_web/live/xcode_cache_live.html.heex:202
-#: lib/tuist_web/live/xcode_cache_live.html.heex:237
+#: lib/tuist_web/live/xcode_cache_live.html.heex:207
+#: lib/tuist_web/live/xcode_cache_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Cache transfer"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:207
+#: lib/tuist_web/live/xcode_cache_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:388
+#: lib/tuist_web/live/xcode_cache_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:285
-#: lib/tuist_web/live/xcode_cache_live.html.heex:381
+#: lib/tuist_web/live/xcode_cache_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:254
-#: lib/tuist_web/live/xcode_cache_live.html.heex:438
+#: lib/tuist_web/live/xcode_cache_live.html.heex:259
+#: lib/tuist_web/live/xcode_cache_live.html.heex:443
 #, elixir-autogen, elixir-format
 msgid "Downloads"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:343
+#: lib/tuist_web/live/xcode_cache_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Read"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:261
-#: lib/tuist_web/live/xcode_cache_live.html.heex:286
+#: lib/tuist_web/live/xcode_cache_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "Read latency"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:290
-#: lib/tuist_web/live/xcode_cache_live.html.heex:382
+#: lib/tuist_web/live/xcode_cache_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:271
-#: lib/tuist_web/live/xcode_cache_live.html.heex:458
+#: lib/tuist_web/live/xcode_cache_live.html.heex:276
+#: lib/tuist_web/live/xcode_cache_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Uploads"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_cache_live.html.heex:363
+#: lib/tuist_web/live/xcode_cache_live.html.heex:368
 #, elixir-autogen, elixir-format
 msgid "Write"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.ex:266
-#: lib/tuist_web/live/xcode_cache_live.html.heex:287
+#: lib/tuist_web/live/xcode_cache_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Write latency"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:140
+#: lib/tuist_web/live/module_cache_module_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "%{rate}%"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:596
+#: lib/tuist_web/live/module_cache_live.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "%{share}%"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:318
 #: lib/tuist_web/live/module_cache_module_live.ex:342
-#: lib/tuist_web/live/module_cache_module_live.html.heex:181
-#: lib/tuist_web/live/module_cache_module_live.html.heex:383
-#: lib/tuist_web/live/modules_live.html.heex:147
-#: lib/tuist_web/live/modules_live.html.heex:303
+#: lib/tuist_web/live/module_cache_module_live.html.heex:183
+#: lib/tuist_web/live/module_cache_module_live.html.heex:390
+#: lib/tuist_web/live/modules_live.html.heex:149
+#: lib/tuist_web/live/modules_live.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Changed"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:320
 #: lib/tuist_web/live/module_cache_module_live.ex:344
-#: lib/tuist_web/live/module_cache_module_live.html.heex:183
-#: lib/tuist_web/live/module_cache_module_live.html.heex:399
-#: lib/tuist_web/live/modules_live.html.heex:149
-#: lib/tuist_web/live/modules_live.html.heex:319
+#: lib/tuist_web/live/module_cache_module_live.html.heex:185
+#: lib/tuist_web/live/module_cache_module_live.html.heex:406
+#: lib/tuist_web/live/modules_live.html.heex:151
+#: lib/tuist_web/live/modules_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Cold"
 msgstr ""
@@ -1063,14 +1063,14 @@ msgid "Cold misses"
 msgstr ""
 
 #: lib/tuist_web/components/module_invalidations_table.ex:49
-#: lib/tuist_web/live/module_cache_module_live.html.heex:149
-#: lib/tuist_web/live/module_cache_module_live.html.heex:339
+#: lib/tuist_web/live/module_cache_module_live.html.heex:151
+#: lib/tuist_web/live/module_cache_module_live.html.heex:345
 #: lib/tuist_web/live/modules_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "Dependents"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:152
+#: lib/tuist_web/live/module_cache_module_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "How many modules this one invalidates downstream when it changes."
 msgstr ""
@@ -1080,44 +1080,44 @@ msgstr ""
 msgid "Module"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:539
+#: lib/tuist_web/live/module_cache_live.html.heex:546
 #: lib/tuist_web/live/module_cache_module_live.html.heex:3
 #: lib/tuist_web/live/modules_live.ex:28
-#: lib/tuist_web/live/modules_live.html.heex:97
-#: lib/tuist_web/live/modules_live.html.heex:213
-#: lib/tuist_web/live/modules_live.html.heex:342
+#: lib/tuist_web/live/modules_live.html.heex:99
+#: lib/tuist_web/live/modules_live.html.heex:215
+#: lib/tuist_web/live/modules_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:604
-#: lib/tuist_web/live/module_cache_live.html.heex:617
+#: lib/tuist_web/live/module_cache_live.html.heex:611
+#: lib/tuist_web/live/module_cache_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Most dependents"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:575
+#: lib/tuist_web/live/module_cache_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Most missed"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:199
+#: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:620
+#: lib/tuist_web/live/module_cache_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Needs CLI graph edges"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:642
-#: lib/tuist_web/live/modules_live.html.heex:389
+#: lib/tuist_web/live/module_cache_live.html.heex:649
+#: lib/tuist_web/live/modules_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "No cache misses yet"
 msgstr ""
 
-#: lib/tuist_web/live/modules_live.html.heex:425
+#: lib/tuist_web/live/modules_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
 msgstr ""
@@ -1127,32 +1127,32 @@ msgstr ""
 msgid "Product: %{product}"
 msgstr ""
 
-#: lib/tuist_web/live/modules_live.html.heex:354
+#: lib/tuist_web/live/modules_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Search modules"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:590
+#: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:133
+#: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:578
+#: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:319
 #: lib/tuist_web/live/module_cache_module_live.ex:343
-#: lib/tuist_web/live/module_cache_module_live.html.heex:182
-#: lib/tuist_web/live/module_cache_module_live.html.heex:391
-#: lib/tuist_web/live/modules_live.html.heex:148
-#: lib/tuist_web/live/modules_live.html.heex:311
+#: lib/tuist_web/live/module_cache_module_live.html.heex:184
+#: lib/tuist_web/live/module_cache_module_live.html.heex:398
+#: lib/tuist_web/live/modules_live.html.heex:150
+#: lib/tuist_web/live/modules_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Upstream"
 msgstr ""
@@ -1163,28 +1163,28 @@ msgstr ""
 msgid "Upstream misses"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:587
+#: lib/tuist_web/live/module_cache_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Upstream share"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:550
+#: lib/tuist_web/live/module_cache_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "View all modules"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_live.html.heex:607
+#: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:422
+#: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:514
-#: lib/tuist_web/live/module_cache_module_live.html.heex:559
+#: lib/tuist_web/live/module_cache_module_live.html.heex:521
+#: lib/tuist_web/live/module_cache_module_live.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
@@ -1195,48 +1195,48 @@ msgstr ""
 msgid "Cached"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:494
+#: lib/tuist_web/live/module_cache_module_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "No builds match these filters"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:434
+#: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Search commit sha"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:517
+#: lib/tuist_web/live/module_cache_module_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:532
+#: lib/tuist_web/live/module_cache_module_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:520
+#: lib/tuist_web/live/module_cache_module_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:537
+#: lib/tuist_web/live/module_cache_module_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Reason"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:468
+#: lib/tuist_web/live/module_cache_module_live.html.heex:475
 #, elixir-autogen, elixir-format
 msgid "Reason:"
 msgstr ""
 
-#: lib/tuist_web/live/modules_live.html.heex:100
+#: lib/tuist_web/live/modules_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Modules in the project, from the latest commit on its default branch."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:180
-#: lib/tuist_web/live/modules_live.html.heex:146
+#: lib/tuist_web/live/module_cache_module_live.html.heex:182
+#: lib/tuist_web/live/modules_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr ""
@@ -1247,12 +1247,12 @@ msgstr ""
 msgid "Changed misses"
 msgstr ""
 
-#: lib/tuist_web/live/modules_live.html.heex:123
+#: lib/tuist_web/live/modules_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Module builds served from cache instead of being rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:120
+#: lib/tuist_web/live/module_cache_module_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Builds where this module was served from the cache."
 msgstr ""
@@ -1294,10 +1294,10 @@ msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:321
 #: lib/tuist_web/live/module_cache_module_live.ex:345
-#: lib/tuist_web/live/module_cache_module_live.html.heex:184
-#: lib/tuist_web/live/module_cache_module_live.html.heex:407
-#: lib/tuist_web/live/modules_live.html.heex:150
-#: lib/tuist_web/live/modules_live.html.heex:327
+#: lib/tuist_web/live/module_cache_module_live.html.heex:186
+#: lib/tuist_web/live/module_cache_module_live.html.heex:414
+#: lib/tuist_web/live/modules_live.html.heex:152
+#: lib/tuist_web/live/modules_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Evicted"
 msgstr ""
@@ -1308,7 +1308,7 @@ msgstr ""
 msgid "Evicted misses"
 msgstr ""
 
-#: lib/tuist_web/live/modules_live.html.heex:107
+#: lib/tuist_web/live/modules_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
 msgstr ""

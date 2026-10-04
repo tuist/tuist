@@ -1,0 +1,570 @@
+<div id="coverage-detail">
+  <.button
+    label={@back.label}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={@back.href}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="kind" data-kind={@subject.kind}>
+          <div data-part="icon">
+            <.git_commit :if={@subject.kind == :commit} />
+            <.git_branch :if={@subject.kind == :branch} />
+          </div>
+        </div>
+        <h1 data-part="label" aria-label={subject_title(@subject)}>{@subject.name}</h1>
+        <.button
+          :if={@subject.kind == :commit}
+          id="copy-commit-sha-button"
+          variant="secondary"
+          size="small"
+          icon_only
+          type="button"
+          phx-hook="Clipboard"
+          data-clipboard-value={@subject.sha}
+          aria-label={dgettext("dashboard_tests", "Copy commit SHA")}
+        >
+          <.copy />
+        </.button>
+      </div>
+      <div data-part="badges">
+        <.tooltip
+          :if={@subject.kind == :commit and not @summary.complete}
+          id="coverage-status"
+          title={ref_status_label(@summary)}
+          description={head_status_title(@summary)}
+          size="large"
+        >
+          <:trigger :let={attrs}>
+            <span {attrs}>
+              <span data-part="status">
+                <.badge
+                  label={ref_status_label(@summary)}
+                  color={ref_status_color(@summary)}
+                  style="light-fill"
+                  size="large"
+                />
+              </span>
+            </span>
+          </:trigger>
+        </.tooltip>
+        <.tooltip
+          :if={@subject.kind == :commit and Commits.incomplete?(@summary)}
+          id="coverage-incomplete"
+          title={dgettext("dashboard_tests", "Incomplete")}
+          description={incomplete_title(@summary)}
+          size="large"
+        >
+          <:trigger :let={attrs}>
+            <span {attrs}>
+              <span data-part="incomplete">
+                <.badge
+                  label={dgettext("dashboard_tests", "Incomplete")}
+                  color="neutral"
+                  style="light-fill"
+                  size="large"
+                />
+              </span>
+            </span>
+          </:trigger>
+        </.tooltip>
+      </div>
+    </div>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      :for={tab <- tabs(@subject)}
+      selected={@tab == tab}
+      label={tab_label(tab)}
+      patch={
+        "?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page") |> Query.drop("after") |> Query.drop("before")}"
+      }
+    />
+  </.tab_menu_horizontal>
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="120px" />
+    <.skeleton_box width="100%" height="320px" />
+  </div>
+
+  <%= if not @loading do %>
+    <%!-- Overview --%>
+    <.coverage_analytics_card
+      :if={@tab == "overview" and @subject.kind == :branch}
+      branch={@subject.branch}
+      latest={@latest}
+      trends={@trends}
+      points={@points}
+      grouping={@grouping}
+      selected_widget={@selected_widget}
+      point_href={&commit_href(assigns, &1.git_commit_sha)}
+    >
+      <:actions>
+        <.coverage_period_picker
+          id="coverage-analytics-date-range-picker"
+          selected_preset={@coverage_preset}
+          period={@coverage_period}
+        />
+      </:actions>
+    </.coverage_analytics_card>
+    <.card
+      :if={@tab == "overview" and @subject.kind != :branch}
+      title={dgettext("dashboard_tests", "Analytics")}
+      icon="chart_arcs"
+      data-part="summary-card"
+    >
+      <.card_section data-part="summary-section">
+        <div data-part="widgets">
+          <.widget
+            id="widget-coverage"
+            title={dgettext("dashboard_tests", "Code Coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of executable lines some run's tests ran at least once, across %{schemes}.",
+                schemes: Enum.join(@summary.schemes, ", ")
+              )
+            }
+            value={"#{displayed_coverage(@summary)}%"}
+          />
+          <.widget
+            id="widget-covered-lines"
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={
+              dgettext("dashboard_tests", "Lines that commit's tests ran at least once.")
+            }
+            value={format_number(displayed_lines(@summary).covered_lines)}
+          />
+          <.widget
+            id="widget-executable-lines"
+            title={dgettext("dashboard_tests", "Executable lines")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Lines the compiler instrumented for coverage at that commit."
+              )
+            }
+            value={format_number(displayed_lines(@summary).executable_lines)}
+          />
+        </div>
+      </.card_section>
+    </.card>
+
+    <%!-- Targets --%>
+    <.card
+      :if={@tab == "targets"}
+      title={dgettext("dashboard_tests", "Targets")}
+      icon="stack_2"
+      data-part="targets-card"
+    >
+      <.card_section :if={@targets_measured?} data-part="targets-section">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="coverage-targets-search-form"
+            phx-change="search-targets"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-coverage-targets"
+              name="search"
+              placeholder={dgettext("dashboard_tests", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@targets_search}
+            />
+          </.form>
+          <.dropdown
+            id="coverage-targets-sort-by"
+            data-positioning-strategy="fixed"
+            label={
+              Enum.find_value(target_sorts(), fn {value, label} ->
+                if value == @targets_sort_by, do: label
+              end)
+            }
+            secondary_text={dgettext("dashboard_tests", "Sort by:")}
+          >
+            <.dropdown_item
+              :for={{value, label} <- target_sorts()}
+              value={value}
+              label={label}
+              patch={
+                "?#{@uri.query |> Query.put("targets-sort-by", value) |> Query.drop("targets-sort-order") |> drop_paging()}"
+              }
+              data-selected={@targets_sort_by == value}
+            >
+              <:right_icon :if={@targets_sort_by == value}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.filter_dropdown
+            id="coverage-targets-filter-dropdown"
+            data-positioning-strategy="fixed"
+            label={dgettext("dashboard_tests", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+        <div data-part="targets-table">
+          <.table id="coverage-targets-table" rows={@target_rows}>
+            <:col
+              :let={target}
+              label={dgettext("dashboard_tests", "Target")}
+              patch={@targets_sort_by == "name" && targets_sort_patch(assigns, "name")}
+              sort_order={@targets_sort_by == "name" && @targets_sort_order}
+            >
+              <.text_cell label={target.name} />
+            </:col>
+            <:col
+              :let={target}
+              label={dgettext("dashboard_tests", "Coverage")}
+              patch={@targets_sort_by == "coverage" && targets_sort_patch(assigns, "coverage")}
+              sort_order={@targets_sort_by == "coverage" && @targets_sort_order}
+            >
+              <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
+            </:col>
+            <:col
+              :let={target}
+              label={dgettext("dashboard_tests", "Files")}
+              patch={@targets_sort_by == "files" && targets_sort_patch(assigns, "files")}
+              sort_order={@targets_sort_by == "files" && @targets_sort_order}
+            >
+              <.text_cell label={format_number(target.files_count)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="stack_2"
+                title={dgettext("dashboard_tests", "No target matches these filters")}
+                subtitle={dgettext("dashboard_tests", "Try updating your search")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@targets_meta.total_pages > 1}
+            current_page={@targets_meta.current_page}
+            number_of_pages={@targets_meta.total_pages}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+          />
+        </div>
+      </.card_section>
+      <.coverage_empty
+        :if={not @targets_measured?}
+        title={dgettext("dashboard_tests", "No target was measured at this commit")}
+        image="table"
+        data-part="empty-targets"
+      />
+    </.card>
+
+    <%!-- Files --%>
+    <div :if={@tab == "files"} data-part="files">
+      <.card title={dgettext("dashboard_tests", "Files")} icon="file" data-part="files-card">
+        <.card_section :if={@files_measured?} data-part="files-section">
+          <div data-part="filters">
+            <.form
+              for={%{}}
+              id="coverage-files-search-form"
+              phx-change="search-files"
+              phx-debounce="200"
+            >
+              <.text_input
+                type="search"
+                id="search-coverage-files"
+                name="search"
+                placeholder={dgettext("dashboard_tests", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@files_search}
+              />
+            </.form>
+            <.dropdown
+              id="coverage-files-sort-by"
+              data-positioning-strategy="fixed"
+              label={
+                Enum.find_value(file_sorts(), fn {value, label} ->
+                  if value == @files_sort_by, do: label
+                end)
+              }
+              secondary_text={dgettext("dashboard_tests", "Sort by:")}
+            >
+              <.dropdown_item
+                :for={{value, label} <- file_sorts()}
+                value={value}
+                label={label}
+                patch={
+                  "?#{@uri.query |> Query.put("files-sort-by", value) |> Query.drop("files-sort-order") |> drop_paging()}"
+                }
+                data-selected={@files_sort_by == value}
+              >
+                <:right_icon :if={@files_sort_by == value}><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <.coverage_files_table
+            id="coverage-files-table"
+            rows={@file_rows}
+            file_href={&file_href(assigns, &1)}
+            meta={@files_meta}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+            sort_by={@files_sort_by}
+            sort_order={@files_sort_order}
+            sort_patch={fn column -> files_sort_patch(assigns, column) end}
+          />
+        </.card_section>
+        <.coverage_empty
+          :if={not @files_measured?}
+          title={dgettext("dashboard_tests", "No file was measured at this commit")}
+          image="table"
+          data-part="empty-files"
+        />
+      </.card>
+    </div>
+
+    <%!-- Commits --%>
+    <.card
+      :if={@tab == "commits"}
+      title={dgettext("dashboard_tests", "Commits")}
+      icon="git_commit"
+      data-part="commits"
+    >
+      <:actions>
+        <.coverage_period_picker
+          id="coverage-commits-date-range-picker"
+          selected_preset={@coverage_preset}
+          period={@coverage_period}
+        />
+      </:actions>
+      <.card_section data-part="commits-section">
+        <.alert
+          :if={@commits_ordered_by == :time and @subject.kind == :branch and @commit_rows != []}
+          id="coverage-commits-time-order"
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_tests",
+              "These commits are listed in the order they were measured, not the order the repository's history puts them in."
+            )
+          }
+        />
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="coverage-commits-filter-form"
+            phx-change="search-commits"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-coverage-commits"
+              name="search"
+              placeholder={dgettext("dashboard_tests", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@commits_search}
+            />
+          </.form>
+          <.dropdown
+            id="coverage-commits-status-dropdown"
+            data-positioning-strategy="fixed"
+            label={
+              Enum.find_value(
+                commit_statuses(),
+                dgettext("dashboard_tests", "Any"),
+                fn
+                  {value, label} -> if value == @commits_status, do: label
+                end
+              )
+            }
+            secondary_text={dgettext("dashboard_tests", "Status:")}
+          >
+            <.dropdown_item
+              value="any"
+              label={dgettext("dashboard_tests", "Any")}
+              patch={"?#{@uri.query |> Query.drop("commits-status") |> drop_paging()}"}
+              data-selected={@commits_status == ""}
+            >
+              <:right_icon :if={@commits_status == ""}><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              :for={{value, label} <- commit_statuses()}
+              value={value}
+              label={label}
+              patch={"?#{@uri.query |> Query.put("commits-status", value) |> drop_paging()}"}
+              data-selected={@commits_status == value}
+            >
+              <:right_icon :if={@commits_status == value}><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </div>
+        <div :if={@commit_rows != []} data-part="commits-table">
+          <.table
+            id="coverage-commits-table"
+            rows={@commit_rows}
+            row_navigate={
+              fn row ->
+                if row.measured,
+                  do: commit_href(assigns, row.git_commit_sha)
+              end
+            }
+          >
+            <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+              <.text_cell label={short_sha(row.git_commit_sha)} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell
+                :if={row.measured}
+                covered={row.covered_lines}
+                executable={row.executable_lines}
+              />
+              <.text_cell :if={not row.measured} label="—" />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
+              <.commit_change_cell
+                id={"coverage-commit-change-#{row.git_commit_sha}"}
+                commit={row}
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
+              <.tooltip_badge_cell
+                id={"coverage-commit-status-#{row.git_commit_sha}"}
+                color={commit_status_color(row)}
+                label={commit_status_label(row)}
+                description={commit_status_title(row)}
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+              <.text_cell sublabel={
+                if Map.get(row, :committed_at),
+                  do: Tuist.Utilities.DateFormatter.from_now(row.committed_at),
+                  else: Tuist.Utilities.DateFormatter.from_now(row.ran_at)
+              } />
+            </:col>
+          </.table>
+          <.pagination
+            uri={@uri}
+            has_previous_page={@commits_meta.has_previous_page?}
+            has_next_page={@commits_meta.has_next_page?}
+            start_cursor={@commits_meta.start_cursor}
+            end_cursor={@commits_meta.end_cursor}
+          />
+        </div>
+        <.coverage_empty
+          :if={@commit_rows == [] and (@commits_search != "" or @commits_status != "")}
+          title={dgettext("dashboard_tests", "No commit matches these filters")}
+          image="table"
+          data-part="empty-commits"
+        />
+        <.coverage_empty
+          :if={@commit_rows == [] and @commits_search == "" and @commits_status == ""}
+          title={dgettext("dashboard_tests", "No commit gathered coverage in this period")}
+          image="table"
+          data-part="empty-commits"
+        />
+      </.card_section>
+    </.card>
+
+    <%!-- Test Runs --%>
+    <.card
+      :if={@tab == "runs"}
+      title={dgettext("dashboard_tests", "Test Runs")}
+      icon="dashboard"
+      data-part="runs-card"
+    >
+      <:actions :if={@subject.kind != :commit}>
+        <.coverage_period_picker
+          id="coverage-runs-date-range-picker"
+          selected_preset={@coverage_preset}
+          period={@coverage_period}
+        />
+      </:actions>
+      <.card_section :if={@run_rows != [] or @runs_filtered?} data-part="runs-section">
+        <div data-part="filters">
+          <.form
+            for={%{}}
+            id="coverage-runs-search-form"
+            phx-change="search-runs"
+            phx-debounce="200"
+          >
+            <.text_input
+              type="search"
+              id="search-coverage-runs"
+              name="search"
+              placeholder={dgettext("dashboard_tests", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@runs_search}
+            />
+          </.form>
+          <.filter_dropdown
+            id="coverage-runs-filter-dropdown"
+            data-positioning-strategy="fixed"
+            label={dgettext("dashboard_tests", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+        <div data-part="runs-table">
+          <.table
+            id="coverage-runs-table"
+            rows={@run_rows}
+            row_navigate={
+              fn run ->
+                url(
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                )
+              end
+            }
+          >
+            <:col :let={run} label={scheme_label(@selected_project)}>
+              <.text_cell label={run.scheme} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Run")}>
+              <.run_kind_cell id={"coverage-run-kind-#{run.test_run_id}"} partial={run.partial} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
+              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="dashboard"
+                title={dgettext("dashboard_tests", "No run matches these filters")}
+                subtitle={dgettext("dashboard_tests", "Try updating your search")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination
+            :if={@run_rows != []}
+            uri={@uri}
+            has_previous_page={@runs_meta.has_previous_page?}
+            has_next_page={@runs_meta.has_next_page?}
+            start_cursor={@runs_meta.start_cursor}
+            end_cursor={@runs_meta.end_cursor}
+          />
+        </div>
+      </.card_section>
+      <.coverage_empty
+        :if={@run_rows == [] and not @runs_filtered?}
+        title={dgettext("dashboard_tests", "No run gathered coverage here")}
+        image="table"
+        data-part="empty-runs"
+      />
+    </.card>
+  <% end %>
+</div>

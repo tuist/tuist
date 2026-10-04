@@ -35,7 +35,39 @@
  *   data-emit-speed:   their rise in CSS px per second
  *   data-emit-life:    their lifetime in seconds
  *   data-emit-opacity: 0-100 — their peak opacity
+ *   data-emit-direction: "up" (default) drifts specks upward like smoke;
+ *                   "radial" sends each outward along the sphere's normal
+ *                   where it lifted off, so they leave in every direction
  *   data-offset-x / data-offset-y: center offset in px
+ *   --marketing-cache-globe-origin (CSS, on an ancestor): the colour of
+ *                   origin dots and arc heads; white when unset
+ *   data-markers:   JSON list of {lon, lat, active} region markers; when
+ *                   absent the globe shows the default serving regions.
+ *                   Inactive markers draw a dim core and no pulse.
+ *   data-arc-life:  seconds an arc takes from origin to region (default 1.6)
+ *   data-arc-rate:  most arcs launched per second across all origins; the
+ *                   origins' request rates are scaled down to fit, and each
+ *                   arc then stands for that many requests (default 12)
+ *   data-arc-max:   most arcs in flight at once (default 60)
+ *   data-arc-busy:  arcs a region can have in flight before an origin's
+ *                   next arc goes to the nearest region that is not busy
+ *                   (0 = always the origin's own region; default 0). Needs
+ *                   markers with ids.
+ *   data-paused:    "true" holds the frame until a motion event resumes it
+ *
+ * Runtime events on the canvas (dispatched by a page controller such as
+ * the cache globe page's CacheGlobe hook):
+ *   dither-globe:markers  detail.markers replaces the marker list; a
+ *                   marker may carry an id (its region) for arc routing
+ *   dither-globe:origins  detail.origins replaces the request origins: a
+ *                   list of {lon, lat, to: {lon, lat}, region, rate}, each a
+ *                   place requests come from, the serving region it reaches
+ *                   and its requests per second. Origins draw as small
+ *                   white dots on the surface and launch arcs to their
+ *                   region at their rate; when an arc lands the canvas
+ *                   dispatches dither-globe:arrival with detail {region,
+ *                   weight} (the requests the arc stood for).
+ *   dither-globe:motion   detail.paused holds or resumes the spin
  */
 
 import { onThemeChange } from "../lib/theme.js";
@@ -275,7 +307,7 @@ function gridDots(M, P, step) {
 /* Region markers: pulsing purple points glued to real locations on the
    sphere — they rotate with the globe and hide behind the horizon. No
    labels, just the pulse. */
-const MARKERS = [
+const DEFAULT_MARKERS = [
   [-0.1, 51.5], // EU West — London
   [8.7, 50.1], // EU Central — Frankfurt
   [-77.5, 38.9], // US East — N. Virginia
@@ -287,7 +319,60 @@ const MARKERS = [
   [103.8, 1.35], // Asia — Singapore
   [139.7, 35.7], // Japan — Tokyo
   [151.2, -33.9], // Australia — Sydney
-].map(([lon, lat]) => ll2xyz(lon, lat));
+].map(([lon, lat]) => ({ point: ll2xyz(lon, lat), active: true }));
+
+function markersFrom(list) {
+  if (!Array.isArray(list)) return DEFAULT_MARKERS;
+  const markers = [];
+  for (const marker of list) {
+    const lon = Number(marker?.lon);
+    const lat = Number(marker?.lat);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    markers.push({ point: ll2xyz(lon, lat), active: marker.active !== false, id: marker.id });
+  }
+  return markers;
+}
+
+function originsFrom(list) {
+  if (!Array.isArray(list)) return [];
+  const origins = [];
+  for (const origin of list) {
+    const lon = Number(origin?.lon);
+    const lat = Number(origin?.lat);
+    const toLon = Number(origin?.to?.lon);
+    const toLat = Number(origin?.to?.lat);
+    const rate = Number(origin?.rate);
+    if (![lon, lat, toLon, toLat].every(Number.isFinite) || !(rate > 0)) continue;
+    origins.push({
+      point: ll2xyz(lon, lat),
+      to: ll2xyz(toLon, toLat),
+      region: origin.region,
+      rate,
+      acc: Math.random(),
+    });
+  }
+  return origins;
+}
+
+// Shortest great-circle interpolation between two unit vectors.
+function slerp(a, b, t) {
+  const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return [a[0], a[1], a[2]];
+  const so = Math.sin(omega);
+  const wa = Math.sin((1 - t) * omega) / so;
+  const wb = Math.sin(t * omega) / so;
+  return [wa * a[0] + wb * b[0], wa * a[1] + wb * b[1], wa * a[2] + wb * b[2]];
+}
+
+function parseMarkers(raw) {
+  if (!raw) return DEFAULT_MARKERS;
+  try {
+    return markersFrom(JSON.parse(raw));
+  } catch {
+    return DEFAULT_MARKERS;
+  }
+}
 
 const PULSE_S = 2.4; // one ring per marker every PULSE_S seconds, staggered
 
@@ -310,6 +395,11 @@ const OPTIONS = [
   { key: "emitSpeed", attr: "emit-speed", def: 50 },
   { key: "emitLife", attr: "emit-life", def: 4.5 },
   { key: "emitOpacity", attr: "emit-opacity", def: 40 },
+  { key: "emitDirection", attr: "emit-direction", def: "up" },
+  { key: "arcLife", attr: "arc-life", def: 1.6 },
+  { key: "arcRate", attr: "arc-rate", def: 12 },
+  { key: "arcMax", attr: "arc-max", def: 60 },
+  { key: "arcBusy", attr: "arc-busy", def: 0 },
   { key: "offsetX", attr: "offset-x", def: 0 },
   { key: "offsetY", attr: "offset-y", def: 0 },
 ];
@@ -333,11 +423,37 @@ export const DitherGlobe = {
     this.drag = IDENTITY;
     this.specks = [];
     this.emitAcc = 0;
+    this.origins = [];
+    this.arcs = [];
     this.dt = 0;
+
+    this.markers = parseMarkers(this.el.dataset.markers);
+    this.held = this.el.dataset.paused === "true";
+    this.onOrigins = (event) => {
+      this.origins = originsFrom(event.detail && event.detail.origins);
+      if (this.raf === null) this.render();
+    };
+    this.onMarkers = (event) => {
+      this.markers = markersFrom(event.detail && event.detail.markers);
+      if (this.raf === null) this.render();
+    };
+    this.onMotion = (event) => {
+      this.held = Boolean(event.detail && event.detail.paused);
+      if (this.held) this.stop();
+      else if (this.visible && !this.reduced) this.start();
+      if (this.held) this.render();
+    };
+    this.canvas.addEventListener("dither-globe:markers", this.onMarkers);
+    this.canvas.addEventListener("dither-globe:origins", this.onOrigins);
+    this.canvas.addEventListener("dither-globe:motion", this.onMotion);
 
     this.opts = {};
     for (const o of OPTIONS) {
       const raw = this.el.dataset[o.attr.replace(/-(\w)/g, (_, c) => c.toUpperCase())];
+      if (typeof o.def === "string") {
+        this.opts[o.key] = raw === undefined || raw === "" ? o.def : raw;
+        continue;
+      }
       const n = raw === undefined ? NaN : Number(raw);
       this.opts[o.key] = Number.isFinite(n) ? n : o.def;
     }
@@ -350,6 +466,8 @@ export const DitherGlobe = {
         resolveTokenColor(this.host, "--marketing-cache-globe-dither-deep"),
       ];
       this.markerShade = resolveTokenColor(this.host, "--marketing-cache-globe-marker");
+      // Origin dots and arc heads: the page's token, white when unset.
+      this.originShade = resolveTokenColor(this.host, "--marketing-cache-globe-origin, #ffffff");
     };
     this.resolveColors();
     this.offThemeChange = onThemeChange(() => {
@@ -379,7 +497,7 @@ export const DitherGlobe = {
     this.viewObserver = new IntersectionObserver(
       ([entry]) => {
         this.visible = entry.isIntersecting;
-        if (this.visible && !this.reduced) this.start();
+        if (this.visible && !this.reduced && !this.held) this.start();
         else this.stop();
       },
       { threshold: 0.05 },
@@ -429,6 +547,9 @@ export const DitherGlobe = {
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.onPointerUp);
+    this.canvas.removeEventListener("dither-globe:markers", this.onMarkers);
+    this.canvas.removeEventListener("dither-globe:origins", this.onOrigins);
+    this.canvas.removeEventListener("dither-globe:motion", this.onMotion);
   },
 
   start() {
@@ -584,8 +705,219 @@ export const DitherGlobe = {
       ctx.fill(path);
     }
     ctx.globalAlpha = 1;
+    // Specks consume the frame's dt; the arcs need it too.
+    const dt = this.dt;
     this.renderSpecks(rad, cx, cy);
+    this.renderOrigins(rad, cx, cy);
+    this.renderArcs(rad, cx, cy, dt);
     this.renderMarkers(rad, cx, cy);
+  },
+
+  /* Request origins: small white dots on the surface, drawn in the tangent
+     plane like the markers so they hug the sphere and fade at the limb. */
+  renderOrigins(rad, cx, cy) {
+    const origins = this.origins;
+    if (!origins.length) return;
+    const { ctx } = this;
+    const R = this.rotation();
+    const r = Math.max(1.5, rad * 0.012) / rad;
+    const [or, og, ob] = this.originShade || [255, 255, 255];
+    ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
+    for (let i = 0; i < origins.length; i++) {
+      const surface = this.surface(R, origins[i].point, rad, cx, cy);
+      if (!surface) continue;
+      ctx.save();
+      ctx.transform(surface.a, 0, surface.b, surface.d, surface.px, surface.py);
+      ctx.globalAlpha = 0.85 * surface.limb;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  /* Arcs: each origin launches arcs toward its serving region at its
+     request rate (scaled so the whole globe never launches more than
+     arcRate a second; an arc then stands for the requests it replaced).
+     An arc is a great-circle path lifted off the sphere by a bow that
+     grows with the distance. It draws itself from the origin to the region
+     over arcLife seconds, its head easing along the path while the line
+     behind it stays, then holds complete for a moment and fades away.
+     Parts of the path behind the sphere are hidden. Landing dispatches an
+     arrival event so the page can count it. Nothing launches under reduced
+     motion. */
+  renderArcs(rad, cx, cy, dt) {
+    const arcs = this.arcs;
+    const origins = this.origins;
+    if (dt > 0 && !this.reduced && origins.length) {
+      let total = 0;
+      for (let i = 0; i < origins.length; i++) total += origins[i].rate;
+      const scale = total > this.opts.arcRate ? this.opts.arcRate / total : 1;
+      const weight = 1 / scale;
+      // Overflow routing: with a busy threshold, count each region's arcs
+      // in flight, and send an origin's next arc to the nearest region
+      // under the threshold — its own if it can take it.
+      const busy = this.opts.arcBusy;
+      const inFlight = {};
+      if (busy > 0) {
+        for (let i = 0; i < arcs.length; i++) {
+          if (!arcs[i].landed) inFlight[arcs[i].region] = (inFlight[arcs[i].region] || 0) + 1;
+        }
+      }
+      for (let i = 0; i < origins.length && arcs.length < this.opts.arcMax; i++) {
+        const origin = origins[i];
+        origin.acc += origin.rate * scale * dt;
+        while (origin.acc >= 1 && arcs.length < this.opts.arcMax) {
+          origin.acc -= 1;
+          const a = origin.point;
+          let b = origin.to;
+          let region = origin.region;
+          if (busy > 0 && (inFlight[region] || 0) >= busy) {
+            const routed = this.nearestFree(a, inFlight, busy);
+            if (routed) {
+              b = routed.point;
+              region = routed.id;
+            }
+          }
+          if (busy > 0) inFlight[region] = (inFlight[region] || 0) + 1;
+          const span = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+          arcs.push({
+            from: a,
+            to: b,
+            region,
+            weight,
+            age: 0,
+            life: Math.max(0.4, this.opts.arcLife) * (0.85 + Math.random() * 0.3),
+            fade: 1.1,
+            landed: false,
+            // Even a short hop lifts clearly off the sphere.
+            bow: 0.24 + 0.36 * (span / Math.PI),
+          });
+        }
+      }
+    }
+    if (!arcs.length) return;
+
+    const { ctx } = this;
+    const R = this.rotation();
+    const [mr, mg, mb] = this.markerShade;
+    const project = (p) => {
+      const wx = R[0] * p[0] + R[1] * p[1] + R[2] * p[2];
+      const wy = R[3] * p[0] + R[4] * p[1] + R[5] * p[2];
+      const wz = R[6] * p[0] + R[7] * p[1] + R[8] * p[2];
+      // A lifted point is behind the globe when it sits inside the disc
+      // on the far side.
+      const hidden = wz < 0 && wx * wx + wy * wy < 1;
+      return [cx + wx * rad, cy - wy * rad, hidden];
+    };
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(1, rad * 0.007);
+    const steps = 28;
+    for (let i = arcs.length - 1; i >= 0; i--) {
+      const arc = arcs[i];
+      if (dt > 0) arc.age += dt;
+      if (!arc.landed && arc.age >= arc.life) {
+        arc.landed = true;
+        this.canvas.dispatchEvent(
+          new CustomEvent("dither-globe:arrival", {
+            bubbles: true,
+            detail: { region: arc.region, weight: arc.weight },
+          }),
+        );
+      }
+      if (arc.age >= arc.life + arc.fade) {
+        arcs[i] = arcs[arcs.length - 1];
+        arcs.pop();
+        continue;
+      }
+      // Grow to the region, hold, then fade the whole line out.
+      const u = Math.min(1, arc.age / arc.life);
+      const head = u * u * (3 - 2 * u);
+      const settle = arc.landed ? Math.max(0, 1 - Math.max(0, arc.age - arc.life - 0.3) / (arc.fade - 0.3)) : 1;
+      // Project the path, then stroke each visible run as one path with a
+      // gradient from a dim tail to a bright head: one stroke per run, so
+      // no joints stack up and show through the alpha.
+      const points = [];
+      for (let k = 0; k <= steps; k++) {
+        const t = (head * k) / steps;
+        const s = slerp(arc.from, arc.to, t);
+        const lift = 1 + arc.bow * Math.sin(Math.PI * t);
+        points.push(project([s[0] * lift, s[1] * lift, s[2] * lift]));
+      }
+      ctx.lineJoin = "round";
+      let run = 0;
+      while (run < points.length) {
+        while (run < points.length && points[run][2]) run++;
+        let end = run;
+        while (end < points.length && !points[end][2]) end++;
+        if (end - run >= 2) {
+          const first = points[run];
+          const lastPoint = points[end - 1];
+          const gradient = ctx.createLinearGradient(first[0], first[1], lastPoint[0], lastPoint[1]);
+          const tailAlpha = arc.landed ? 0.9 : 0.35 + 0.55 * (run / steps);
+          const headAlpha = arc.landed ? 0.9 : 0.35 + 0.55 * ((end - 1) / steps);
+          gradient.addColorStop(0, `rgba(${mr}, ${mg}, ${mb}, ${tailAlpha * settle})`);
+          gradient.addColorStop(1, `rgba(${mr}, ${mg}, ${mb}, ${headAlpha * settle})`);
+          ctx.strokeStyle = gradient;
+          ctx.beginPath();
+          ctx.moveTo(first[0], first[1]);
+          for (let k = run + 1; k < end; k++) ctx.lineTo(points[k][0], points[k][1]);
+          ctx.stroke();
+        }
+        run = end;
+      }
+      const last = points[points.length - 1];
+      if (last && !last[2] && !arc.landed) {
+        const [or, og, ob] = this.originShade || [255, 255, 255];
+        ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(last[0], last[1], Math.max(1.2, rad * 0.008), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  },
+
+  // The nearest region marker (by great-circle distance from a point) with
+  // fewer arcs in flight than the busy threshold, or null if every region
+  // is busy.
+  nearestFree(point, inFlight, busy) {
+    let best = null;
+    let bestDot = -2;
+    for (const marker of this.markers) {
+      if (marker.id == null || (inFlight[marker.id] || 0) >= busy) continue;
+      const dot = point[0] * marker.point[0] + point[1] * marker.point[1] + point[2] * marker.point[2];
+      if (dot > bestDot) {
+        bestDot = dot;
+        best = marker;
+      }
+    }
+    return best;
+  },
+
+  // Screen placement of a point on the sphere: its limb fade and the
+  // canvas transform whose unit circle is the tangent-plane ellipse there,
+  // or null when it faces away.
+  surface(R, point, rad, cx, cy) {
+    const [x, y, z] = point;
+    const wz = R[6] * x + R[7] * y + R[8] * z;
+    if (wz <= 0.12) return null;
+    const wx = R[0] * x + R[1] * y + R[2] * z;
+    const wy = R[3] * x + R[4] * y + R[5] * z;
+    let t1x = wz;
+    let t1z = -wx;
+    const t1l = Math.hypot(t1x, t1z) || 1;
+    t1x /= t1l;
+    t1z /= t1l;
+    const t2x = wy * t1z;
+    const t2y = wz * t1x - wx * t1z;
+    const a = t1x * rad;
+    const b = t2x * rad;
+    const d = -t2y * rad;
+    if (Math.abs(a * d) < 1e-6) return null;
+    return { limb: Math.min(1, (wz - 0.12) / 0.3), a, b, d, px: cx + wx * rad, py: cy - wy * rad };
   },
 
   /* Specks: a slow trickle of faint squares that lift off the lit side of
@@ -609,8 +941,8 @@ export const DitherGlobe = {
           specks.pop();
           continue;
         }
-        sp.y -= sp.vy * dt;
-        sp.x += Math.sin(sp.age * sp.sway + sp.phase) * sp.drift * dt;
+        sp.x += sp.vx * dt + Math.sin(sp.age * sp.sway + sp.phase) * sp.drift * dt;
+        sp.y += sp.vy * dt;
       }
       this.emitAcc += rate * dt;
       const R = this.rotation();
@@ -628,10 +960,23 @@ export const DitherGlobe = {
           if (wz < 0.3) continue;
           const wx = R[0] * x + R[1] * y + R[2] * z;
           const wy = R[3] * x + R[4] * y + R[5] * z;
+          const speed = this.opts.emitSpeed * (0.7 + Math.random() * 0.6);
+          let vx = 0;
+          let vy = -speed;
+          if (this.opts.emitDirection === "radial") {
+            // Outward along the surface normal as seen on screen, which is
+            // the radial direction from the globe's centre, with a little
+            // scatter so specks near the centre still move.
+            const len = Math.hypot(wx, wy) || 1;
+            const scatter = Math.random() * Math.PI * 2;
+            vx = ((wx / len) * 0.75 + Math.cos(scatter) * 0.35) * speed;
+            vy = ((-wy / len) * 0.75 + Math.sin(scatter) * 0.35) * speed;
+          }
           specks.push({
             x: cx + wx * rad,
             y: cy - wy * rad,
-            vy: this.opts.emitSpeed * (0.7 + Math.random() * 0.6),
+            vx,
+            vy,
             drift: 2 + Math.random() * 4,
             sway: 0.6 + Math.random() * 0.8,
             phase: Math.random() * Math.PI * 2,
@@ -667,7 +1012,8 @@ export const DitherGlobe = {
      ellipses hugging the surface — tilting with the globe and squashing
      toward the limb — instead of flat screen circles. Markers fade out
      near the horizon and under prefers-reduced-motion only the static
-     cores show. */
+     cores show. Inactive markers (a region without recent activity) keep
+     a smaller, dimmer core and never pulse. */
   renderMarkers(rad, cx, cy) {
     const { ctx } = this;
     const R = this.rotation();
@@ -675,8 +1021,10 @@ export const DitherGlobe = {
     const color = `rgb(${mr}, ${mg}, ${mb})`;
     const coreR = Math.max(3, rad * 0.028) / rad;
     const maxRing = coreR + 0.11;
-    for (let i = 0; i < MARKERS.length; i++) {
-      const [x, y, z] = MARKERS[i];
+    const markers = this.markers;
+    for (let i = 0; i < markers.length; i++) {
+      const { point, active } = markers[i];
+      const [x, y, z] = point;
       const wz = R[6] * x + R[7] * y + R[8] * z;
       if (wz <= 0.12) continue;
       const limb = Math.min(1, (wz - 0.12) / 0.3);
@@ -702,11 +1050,11 @@ export const DitherGlobe = {
       ctx.save();
       ctx.transform(a, 0, b, d, px, py);
       ctx.fillStyle = color;
-      ctx.globalAlpha = limb;
+      ctx.globalAlpha = active ? limb : limb * 0.45;
       ctx.beginPath();
-      ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+      ctx.arc(0, 0, active ? coreR : coreR * 0.75, 0, Math.PI * 2);
       ctx.fill();
-      if (!this.reduced) {
+      if (active && !this.reduced) {
         // Stagger the phases so the pulses ripple around the globe
         // instead of firing in unison.
         const t = (this.pulseT / PULSE_S + i * 0.37) % 1;

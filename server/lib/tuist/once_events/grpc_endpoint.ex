@@ -10,6 +10,7 @@ defmodule Tuist.OnceEvents.GRPCEndpoint do
   use GRPC.Endpoint
 
   intercept(GRPC.Server.Interceptors.Logger)
+  intercept(TuistWeb.RateLimit.OnceEvents)
 
   run(Tuist.OnceEvents.RunEventService)
 end

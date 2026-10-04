@@ -12,7 +12,7 @@ defmodule Atlas.Inference.Usage do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
-  @operations ~w(chat_completion embedding)
+  @operations ~w(chat_completion embedding decision)
 
   schema "inference_usages" do
     field :operation, :string, default: "chat_completion"

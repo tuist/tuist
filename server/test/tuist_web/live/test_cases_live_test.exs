@@ -6,11 +6,41 @@ defmodule TuistWeb.TestCasesLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "test cases page" do
+    @tag capture_log: true
+    test "a failed table load keeps filters available and recovers on a patch", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+      stub(Tests, :list_test_cases, fn project_id, options, list_opts ->
+        attempt = Agent.get_and_update(attempts, fn count -> {count, count + 1} end)
+        if attempt == 0, do: raise("temporary table failure")
+        call_original(Tests, :list_test_cases, [project_id, options, list_opts])
+      end)
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-cases"
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 2_000)
+
+      assert has_element?(view, "[data-part=test-cases][data-state=failed] [data-error]")
+      assert has_element?(view, "#search-test-cases")
+      assert has_element?(view, "#test-cases-sort-by")
+      assert has_element?(view, "[data-part=test-cases] #filter-dropdown")
+
+      render_patch(view, path <> "?search=retry")
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-part=test-cases][data-state=ready]")
+      refute has_element?(view, "[data-part=test-cases] [data-error]")
+    end
+
     setup do
       copy(Analytics)
 

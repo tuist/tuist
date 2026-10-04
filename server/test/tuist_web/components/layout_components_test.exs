@@ -52,15 +52,15 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
       html = render_component(&LayoutComponents.head_analytics_scripts/1, %{page_section: section})
       script = html |> Floki.parse_fragment!() |> Floki.find("script[src]") |> hd()
 
-      assert Floki.attribute(script, "src") == ["https://cdn.glossia.ai/web.js"]
+      assert Floki.attribute(script, "src") == ["https://glossia.ai/assets/glossia-web.js"]
       assert Floki.attribute(script, "data-domain") == ["tuist.dev"]
       assert Floki.attribute(script, "async") == ["async"]
       assert html =~ ~s("enabled":false)
     end
 
     policy = Router.csp_opts(%{})
-    assert Keyword.fetch!(policy, :script_src_elem) =~ "https://cdn.glossia.ai"
-    assert Keyword.fetch!(policy, :connect_src) =~ "https://cdn.glossia.ai"
+    assert Keyword.fetch!(policy, :script_src_elem) =~ "https://glossia.ai"
+    assert Keyword.fetch!(policy, :connect_src) =~ "https://glossia.ai"
   end
 
   test "omits Glossia outside production and on self-hosted installations" do
@@ -68,7 +68,7 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
       stub(Tuist.Environment, :prod?, fn -> production? end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> hosted? end)
       html = render_component(&LayoutComponents.head_analytics_scripts/1, %{page_section: "dashboard"})
-      refute html =~ "cdn.glossia.ai"
+      refute html =~ "glossia.ai"
     end
   end
 
@@ -94,6 +94,6 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
       })
 
     assert html =~ ~s("enabled":false)
-    refute html =~ "cdn.glossia.ai"
+    refute html =~ "glossia.ai"
   end
 end

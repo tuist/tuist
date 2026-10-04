@@ -209,6 +209,9 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
     />
+    <%!-- Stylesheets a single page asks for (a font only it uses), so they
+    never load site-wide. --%>
+    <link :for={href <- assigns[:head_stylesheets] || []} href={href} rel="stylesheet" />
 
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="marketing" {assigns} />
@@ -217,7 +220,7 @@
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
-    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <TuistWeb.LayoutComponents.head_canonical_link {assigns} />
   </head>
   <body data-scrollable="true">
     <TuistWeb.GoogleOneTap.prompt current_user={assigns[:current_user]} />
