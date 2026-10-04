@@ -180,6 +180,23 @@ defmodule Tuist.ClickHouse.SchemaCloneTest do
       assert statement =~ "`labels` Map(String, String) AFTER `a`"
     end
 
+    test "keeps the source's default and codec, so rows already there read the same value" do
+      clauses = %{
+        "build_system" => SchemaClone.column_clause("DEFAULT", "'xcode'", ""),
+        "inserted_at" => SchemaClone.column_clause("DEFAULT", "now64()", "CODEC(Delta(8), ZSTD(1))")
+      }
+
+      positions = ["id", "build_system", "inserted_at"]
+
+      assert SchemaClone.add_column_statement("tuist", "t", "build_system LowCardinality(String)", positions, clauses) ==
+               "ALTER TABLE `tuist`.`t` ADD COLUMN IF NOT EXISTS `build_system` LowCardinality(String) DEFAULT 'xcode' AFTER `id`"
+
+      assert SchemaClone.add_column_statement("tuist", "t", "inserted_at DateTime64(6)", positions, clauses) ==
+               "ALTER TABLE `tuist`.`t` ADD COLUMN IF NOT EXISTS `inserted_at` DateTime64(6) DEFAULT now64() CODEC(Delta(8), ZSTD(1)) AFTER `build_system`"
+
+      assert SchemaClone.column_clause("", "", "") == ""
+    end
+
     test "quotes the table and column, so a name that needs it still works" do
       assert SchemaClone.add_column_statement("tuist", "order", "date Date", ["date"]) =~
                "ALTER TABLE `tuist`.`order` ADD COLUMN IF NOT EXISTS `date` Date FIRST"
