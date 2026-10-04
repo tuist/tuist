@@ -15,7 +15,7 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 - `scripts/` - Web component artifact generation
 - `types/` - Generated TypeScript declarations
 - `priv/static/` - Built assets (noora.js, noora.css)
-- `storybook/` - Phoenix Storybook app for component previews, deployed to the production cluster at storybook.noora.tuist.dev via `infra/helm/noora-storybook` and `.github/workflows/noora-storybook-deployment.yml`
+- `storybook/` - Phoenix Storybook app for component previews, deployed to the production cluster at storybook.noora.tuist.dev via `infra/helm/noora-storybook` and `.github/workflows/noora-storybook-deployment.yml`. Production uses bundled timezone data with tzdata's auto-updater disabled for its read-only release filesystem; refresh timezone data through dependency updates and redeploys.
 
 ## Development Commands
 

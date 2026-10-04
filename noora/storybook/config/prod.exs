@@ -11,5 +11,9 @@ config :noora_storybook, NooraStorybookWeb.Endpoint,
 # Do not print debug messages in production
 config :logger, level: :info
 
+# Releases run on a read-only filesystem. Refresh the bundled timezone data
+# through dependency updates and redeploys, not writes into the running release.
+config :tzdata, autoupdate: :disabled
+
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

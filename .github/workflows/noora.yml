@@ -98,6 +98,8 @@ jobs:
         run: mix deps.get
       - name: Run Elixir tests
         run: mix test
+      - name: Check Storybook production configuration
+        run: elixir -r storybook/test/test_helper.exs storybook/test/production_config_test.exs
       - name: Install JS dependencies
         run: aube install
       - name: Run JS tests
