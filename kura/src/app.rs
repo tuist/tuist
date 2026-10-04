@@ -304,6 +304,7 @@ async fn initialize_and_serve(
         account_identity: arc_swap::ArcSwap::from_pointee(crate::state::AccountIdentity::new(
             config.tenant_id.clone(),
         )),
+        served_by: crate::served_by::ServedBy::new(&config.region),
         config,
         _data_dir_lock: data_dir_lock,
         store,
@@ -569,7 +570,7 @@ async fn initialize_and_serve(
             tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)))
                 .await
                 .map_err(|error| format!("failed to bind gateway gRPC listener: {error}"))?;
-        let grpc_router = gateway_grpc_router(reapi_routes.clone());
+        let grpc_router = gateway_grpc_router(&state, reapi_routes.clone());
         let grpc_state = state.clone();
         let grpc_serving_config = gateway_grpc_serving_config(&state.config);
         let grpc_shutdown_rx = public_shutdown_rx.clone();
@@ -682,15 +683,19 @@ async fn initialize_and_serve(
 // would leak onto the plain-HTTP surface (e.g. `/_internal/status` probing must
 // 404). Override it with a protocol-aware fallback: gRPC requests keep the
 // Unimplemented status their clients expect, everything else gets a plain 404.
+// A fallback set after `merge` sits outside both routers' layers, so it names
+// the serving region itself.
 fn cohosted_router(state: SharedState, reapi_routes: axum::Router) -> axum::Router {
+    let served_by = state.served_by.clone();
     http::public_router(state)
         .merge(reapi_routes)
-        .fallback(cohosted_fallback)
+        .fallback(move |request| cohosted_fallback(served_by.clone(), request))
 }
 
 // Only the REAPI routes: plain HTTP requests get the co-hosted fallback's 404.
-fn gateway_grpc_router(reapi_routes: axum::Router) -> axum::Router {
-    reapi_routes.fallback(cohosted_fallback)
+fn gateway_grpc_router(state: &SharedState, reapi_routes: axum::Router) -> axum::Router {
+    let served_by = state.served_by.clone();
+    reapi_routes.fallback(move |request| cohosted_fallback(served_by.clone(), request))
 }
 
 // gRPC never takes the sendfile fast path, so connections go straight to hyper.
@@ -701,17 +706,22 @@ fn gateway_grpc_serving_config(config: &Config) -> crate::config::AcceleratedFil
     }
 }
 
-async fn cohosted_fallback(request: axum::extract::Request) -> axum::response::Response {
+async fn cohosted_fallback(
+    served_by: crate::served_by::ServedBy,
+    request: axum::extract::Request,
+) -> axum::response::Response {
     let is_grpc = request
         .headers()
         .get(axum::http::header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.starts_with("application/grpc"));
-    if is_grpc {
+    let mut response = if is_grpc {
         tonic::Status::unimplemented("").into_http()
     } else {
         axum::http::StatusCode::NOT_FOUND.into_response()
-    }
+    };
+    served_by.apply(&mut response);
+    response
 }
 
 // HTTP/1 + HTTP/2 tuning for the co-hosted HTTP+gRPC listeners (plaintext and
@@ -2118,15 +2128,27 @@ mod tests {
             "a trailers-only gRPC error names its region too"
         );
 
-        let http = reqwest::Client::new()
-            .get(format!("http://{addr}/up"))
-            .send()
-            .await
-            .expect("co-hosted port should answer the HTTP /up probe");
-        assert!(
-            http.headers().get("x-kura-region").is_none(),
-            "only the gRPC surface is stamped"
-        );
+        let http_client = reqwest::Client::new();
+        for (path, status) in [
+            ("/up", reqwest::StatusCode::OK),
+            // Unmatched paths reach the co-hosted fallback, outside the public
+            // router's layers.
+            ("/_internal/status", reqwest::StatusCode::NOT_FOUND),
+        ] {
+            let http = http_client
+                .get(format!("http://{addr}{path}"))
+                .send()
+                .await
+                .expect("co-hosted port should answer plain HTTP");
+            assert_eq!(http.status(), status, "{path}");
+            assert_eq!(
+                http.headers()
+                    .get("x-kura-region")
+                    .and_then(|value| value.to_str().ok()),
+                Some("us-central"),
+                "plain HTTP {path} names its region too"
+            );
+        }
 
         shutdown_tx.send(true).expect("signal shutdown");
         let _ = server.await;
@@ -2150,7 +2172,7 @@ mod tests {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let server = tokio::spawn(accelerated_file_serving::serve_public_http(
             listener,
-            gateway_grpc_router(crate::reapi::routes(state.clone())),
+            gateway_grpc_router(&state, crate::reapi::routes(state.clone())),
             state.clone(),
             gateway_grpc_serving_config(&state.config),
             shutdown_rx,

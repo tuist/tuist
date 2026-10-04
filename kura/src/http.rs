@@ -154,6 +154,10 @@ pub fn public_router(state: SharedState) -> Router {
             track_http_metrics,
         ))
         .layer(middleware::map_response(guard_response_stream_transport))
+        .layer(middleware::map_response_with_state(
+            state.clone(),
+            crate::served_by::stamp,
+        ))
         .with_state(state)
 }
 
@@ -9273,6 +9277,84 @@ mod tests {
             .expect("generated request id");
         assert!(!generated.is_empty());
         assert!(generated.len() <= 128);
+    }
+
+    // Not gated on authentication: the region is not secret, and a refused
+    // request is when a client most needs to know which region refused it.
+    #[tokio::test]
+    async fn public_responses_name_the_serving_region_even_when_refused() {
+        let auth: crate::auth::SharedAuth = Arc::new(
+            crate::auth::AuthEngine::new(
+                crate::auth::config::AuthConfig {
+                    base_url: "http://127.0.0.1:1".into(),
+                    connect_timeout: Duration::from_millis(50),
+                    request_timeout: Duration::from_millis(50),
+                    verifier: Some(crate::auth::tuist::JwtVerifier {
+                        algorithm: jsonwebtoken::Algorithm::HS256,
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys("region-test-secret"),
+                        issuer: None,
+                        audiences: Vec::new(),
+                    }),
+                    introspection: None,
+                    cache_max_entries: 16,
+                },
+                crate::metrics::Metrics::new("test".into(), "tenant".into()),
+            )
+            .expect("build the auth engine"),
+        );
+        let context = crate::test_support::test_context_with_auth(
+            |config| config.region = "us-central".into(),
+            Some(auth),
+        )
+        .await;
+        let app = public_router(context.state.clone());
+        let request = |uri: &str| {
+            Request::builder()
+                .uri(uri)
+                .body(Body::empty())
+                .expect("failed to build request")
+        };
+        let region = |response: &Response| {
+            response
+                .headers()
+                .get(crate::served_by::REGION_HEADER)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned)
+        };
+
+        let up = app
+            .clone()
+            .oneshot(request("/up"))
+            .await
+            .expect("request failed");
+        assert_eq!(up.status(), StatusCode::OK);
+        assert_eq!(region(&up).as_deref(), Some("us-central"));
+
+        let unauthenticated = app
+            .clone()
+            .oneshot(request(
+                "/api/cache/cas/hash?tenant_id=test-tenant&namespace_id=ios",
+            ))
+            .await
+            .expect("request failed");
+        assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(region(&unauthenticated).as_deref(), Some("us-central"));
+
+        assert!(context.state.runtime.request_drain());
+        let draining = app
+            .oneshot(request(
+                "/api/cache/cas/hash?tenant_id=test-tenant&namespace_id=ios",
+            ))
+            .await
+            .expect("request failed");
+        assert_eq!(draining.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(region(&draining).as_deref(), Some("us-central"));
+
+        let peer = internal_router(context.state.clone())
+            .oneshot(request("/_internal/status"))
+            .await
+            .expect("request failed");
+        assert_eq!(region(&peer), None, "only public client surfaces name it");
     }
 
     #[tokio::test]

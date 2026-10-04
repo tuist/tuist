@@ -191,6 +191,7 @@ where
         account_identity: arc_swap::ArcSwap::from_pointee(crate::state::AccountIdentity::new(
             config.tenant_id.clone(),
         )),
+        served_by: crate::served_by::ServedBy::new(&config.region),
         config,
         _data_dir_lock: data_dir_lock,
         store,

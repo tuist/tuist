@@ -26,6 +26,7 @@ use crate::{
     peer_tls::PeerClientFactory,
     reapi::SnapshotCache,
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
+    served_by::ServedBy,
     store::Store,
     usage::Usage,
     utils::TmpBudget,
@@ -104,6 +105,8 @@ impl AccountIdentity {
 
 pub struct AppState {
     pub config: Config,
+    /// `config.region` as the `x-kura-region` response header, built once.
+    pub served_by: ServedBy,
     pub _data_dir_lock: DataDirLock,
     pub store: Arc<Store>,
     pub io: IoController,
