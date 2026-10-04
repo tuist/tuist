@@ -8,8 +8,7 @@ defmodule Tuist.IngestRepo.Migrations.AddGitCommitShaIndexToTestRuns do
   table is ordered by project and run, so without the index each of those
   reads scanned the project's whole run history. Run ids are time-ordered,
   so the runs of a commit sit in few granules and the bloom filter skips the
-  rest, as `20260923130000_add_git_commit_sha_index_to_coverage_runs` does
-  for `coverage_runs`.
+  rest, as the one `coverage_runs` was created with does.
 
   `ADD INDEX` is metadata-only. `MATERIALIZE INDEX` builds it for existing
   parts as a background mutation and returns at once, so it does not block

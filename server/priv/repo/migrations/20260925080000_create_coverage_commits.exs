@@ -1,11 +1,15 @@
 defmodule Tuist.Repo.Migrations.CreateCoverageCommits do
   @moduledoc """
   A commit's coverage within a project (`Tuist.Tests.CoverageCommit`): the
-  totals over the union of its runs, what a comparison, a branch's history and
-  a pull request's gate read. It lives beside the commit graph so a branch's
-  commits and a baseline are range queries on the ref's positions, and it
-  outlives both the graph's window and the per-file detail in ClickHouse: the
-  ref, position and commit date are copies.
+  totals over the union of its runs, what a branch's history reads. It lives
+  beside the commit graph so a branch's commits are range queries on the
+  ref's positions, and it outlives both the graph's window and the per-file
+  detail in ClickHouse: the ref, position and commit date are copies.
+
+  `coverage_commit_completions` holds completion signals
+  (`tuist coverage complete`) for commits no run has folded yet: the signal
+  usually lands before the runs' coverage is processed, and the commit's
+  first fold applies it (`Tuist.Tests.Coverage.Commits.signal_complete/2`).
   """
   use Ecto.Migration
 
@@ -66,5 +70,14 @@ defmodule Tuist.Repo.Migrations.CreateCoverageCommits do
     create index(:coverage_commits, [:project_id, :ran_at])
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:coverage_commits, [:repository_id, :git_commit_sha])
+
+    create table(:coverage_commit_completions, primary_key: false) do
+      add :project_id, references(:projects, on_delete: :delete_all),
+        null: false,
+        primary_key: true
+
+      add :git_commit_sha, :string, null: false, primary_key: true
+      add :inserted_at, :timestamptz, null: false
+    end
   end
 end

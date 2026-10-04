@@ -14,6 +14,10 @@ defmodule Tuist.Repo.Migrations.CreateGitHistory do
   commit a ref owns carries the ref and its `position` on the ref's segment,
   so a branch's commits, and the nearest measured ancestor of one of them,
   are range queries rather than walks (`Tuist.GitHistory.advance_ref/5`).
+  `head_observed_at` is when the observation that last moved a ref was made
+  (a run's time for a fold, the client's for a branch head it saw): an older
+  one leaves the ref where it is, so neither a late report of a commit a
+  force-push rewrote nor a refold of an old commit moves it back.
   """
   use Ecto.Migration
 
@@ -38,6 +42,7 @@ defmodule Tuist.Repo.Migrations.CreateGitHistory do
       add :parent_ref_id, references(:git_refs, on_delete: :nilify_all)
       add :fork_position, :integer, null: false, default: 0
       add :head_sha, :string
+      add :head_observed_at, :timestamptz
       timestamps(type: :timestamptz)
     end
 
