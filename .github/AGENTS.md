@@ -64,6 +64,8 @@ restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
 ## Pull request quality
 
+`workflows/pr-quality-tests.yml` runs evaluator security/publication tests on pull requests without provider credentials. Keep it separate from the privileged publishing workflow.
+
 `workflows/pr-quality.yml` runs `scripts/pr-quality/run.mjs` using Jev and
 updates one advisory GitHub comment per publishing identity. Manual runs update
 the authenticated user’s comment; workflow runs update the bot’s comment. Setup and limitations live in
@@ -72,7 +74,7 @@ the authenticated user’s comment; workflow runs update the bot’s comment. Se
 `$GITHUB_ENV`; never expose `OP_SERVICE_ACCOUNT_TOKEN` (or `op run`) to the
 evaluator step, since this is a `pull_request_target` job. Keep execution on trusted base code; contributor commits may
 be fetched and diffed but never checked out or executed. Low scores are advisory;
-provider and input failures must not reuse previous scores. The two focused
+provider and input failures must not reuse previous scores. Preserve typed, sanitized failure codes and validated HTTP status numbers in the comment and `pr-quality-error.json`; never publish arbitrary exception messages or provider bodies. The two focused
 security ratings run with the quality checks. A focused concern triggers a
 separate Jev request to select candidate evidence from actual changed lines. Keep the no-issue option, validate selected locations, and
 distinguish documentation and security tests from malicious behavior. Preserve the

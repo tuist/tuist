@@ -121,8 +121,12 @@ limits can reject a large request rather than returning a partial review.
 Contributor instructions in the title or description can affect the focused
 ratings, but source evidence is limited to changed code and documentation.
 
-Failed evaluations replace the comment with a fixed failure message. Run logs
-never include provider error bodies. Before publishing, the script verifies
+Failed evaluations replace the comment with a failure message built from
+allowlisted diagnostic codes and validated HTTP status numbers. The artifact
+`pr-quality-error.json` records those diagnostics, while `pr-quality.json`
+remains null when no scores are available. Provider input-limit failures are
+identified explicitly; arbitrary exception messages, credentials, submitted
+source text, and provider error bodies are never copied into diagnostics. Before publishing, the script verifies
 that the pull request is still open and its head, base, title, and description
 match the reviewed input. Workflow concurrency cancels older runs.
 

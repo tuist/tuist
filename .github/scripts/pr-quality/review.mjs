@@ -16,6 +16,18 @@ const levels = [
   '10 — Exceptional; little meaningful improvement is available. Use rarely.',
 ];
 
+export class ReviewFailure extends Error {
+  constructor(code, status) {
+    const safeStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+    const inputLimit = code === 'input_limit';
+    super(inputLimit
+      ? 'The complete PR exceeds Jev’s input limit. Split the PR into smaller coherent changes; no partial review was accepted.'
+      : `Jev request failed${safeStatus ? ` (HTTP ${safeStatus})` : ''}. Check credentials, quota, input size, or service availability and rerun.`);
+    this.code = inputLimit ? 'input_limit' : 'request_failed';
+    this.status = safeStatus;
+  }
+}
+
 export function buildQuestions() {
   return Object.fromEntries(metrics.flatMap((metric) => [
     [`${metric.key}_applicable`, {
@@ -146,10 +158,9 @@ export async function review({ diff: completeDiff, task, repositoryContext, thre
   } catch (error) {
     // Never log SDK error bodies: providers may echo submitted code or credentials.
     if (error instanceof APIError && error.status === 400 && error.body?.detail?.error_type === 'max_tokens_exceeded') {
-      throw new Error('The complete PR exceeds Jev’s input limit. Split the PR into smaller coherent changes; no partial review was accepted.');
+      throw new ReviewFailure('input_limit', 400);
     }
-    const status = error instanceof APIError ? ` (HTTP ${error.status})` : '';
-    throw new Error(`Jev request failed${status}. Check credentials, quota, input size, or service availability and rerun.`);
+    throw new ReviewFailure('request_failed', error instanceof APIError ? error.status : undefined);
   }
   for (const rating of result.ratings) {
     if (['maliciousBehavior', 'promptInjection'].includes(rating.key) && !findings.some((finding) => finding.check === rating.label)) {
