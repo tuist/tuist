@@ -3,7 +3,9 @@ name: Coverage
 # Gathers Xcode code coverage from full test runs on main, so the coverage
 # trend has complete runs to plot. Pull request runs use selective testing and
 # the module cache, which leave tests unrun and product code uninstrumented, so
-# their coverage is partial and stays out of the trend.
+# their coverage is partial and stays out of the trend. The test targets link
+# TestCoverageAttribution, so each run also records which files every test
+# executed, and the last job tells the server the commit's runs are all in.
 #
 # Nothing depends on this workflow: it only runs after changes land on main, it
 # is not a required check, no deploy or release workflow waits on it, and
@@ -43,6 +45,8 @@ env:
   MISE_GITHUB_SLSA: 0
   # Xcode code coverage is in early access behind this client flag.
   TUIST_FEATURE_FLAG_COVERAGE: "1"
+  # Collects per-test evidence from the linked TestCoverageAttribution package.
+  TUIST_COVERAGE_EVIDENCE: "1"
 
 # One run at a time on main. A run in progress finishes so its coverage lands;
 # commits merged meanwhile queue behind it, and GitHub keeps only the newest.
@@ -123,3 +127,33 @@ jobs:
         run: tuist install --force-resolved-versions
       - name: Run tests with coverage
         run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+  # Only a complete commit joins the coverage trend. A CLI release older than
+  # `tuist coverage complete` skips the signal, and the commit stays in progress.
+  complete:
+    name: Complete Coverage
+    needs: [cli-unit-tests, app-tests]
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Signal that the commit's coverage is complete
+        run: |
+          if tuist coverage complete --help > /dev/null 2>&1; then
+            tuist coverage complete
+          else
+            echo "::notice::$(tuist version) has no 'tuist coverage complete'; the commit stays in progress until a release with it is pinned."
+          fi

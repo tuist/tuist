@@ -80,6 +80,10 @@ defmodule Tuist.Telemetry do
     [:tuist, :repo, :pool, :metrics]
   end
 
+  def event_name_coverage_publish do
+    [:tuist, :tests, :coverage, :publish]
+  end
+
   def event_name_test_case_run_flaky_correction do
     [:tuist, :tests, :test_case_run, :flaky_correction]
   end

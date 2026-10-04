@@ -16,6 +16,12 @@
   gap: var(--noora-spacing-5);
   min-height: 154px;
 
+  /* Its tooltip opens inside it, so while open the widget rises above the
+     widgets and cards that follow it, which would otherwise paint over it. */
+  &:has(.noora-tooltip [data-state="open"]) {
+    z-index: var(--noora-z-index-2);
+  }
+
   & [data-part="background"] {
     position: absolute;
     top: 0;

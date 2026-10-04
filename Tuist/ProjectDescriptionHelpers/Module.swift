@@ -259,6 +259,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
+                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -342,7 +343,7 @@ public enum Module: String, CaseIterable {
                 target(
                     name: unitTestsTargetName,
                     product: .unitTests,
-                    dependencies: unitTestDependencies,
+                    dependencies: unitTestDependencies + [.external(name: "TestCoverageAttribution")],
                     isTestingTarget: false
                 )
             )
@@ -2099,6 +2100,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: "TuistProcess"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
