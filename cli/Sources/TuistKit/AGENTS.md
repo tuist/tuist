@@ -12,6 +12,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
 
 ## Invariants
+- Swift flag deduplication must preserve top-level `-Werror` and `-Wwarning` pairs in their original order, including repetitions, in both ordinary and platform-conditioned build settings. Do not mistake a forwarded option such as `-Xcc -Werror` for a top-level warning-group flag.
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
 - `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
