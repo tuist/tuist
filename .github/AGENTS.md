@@ -78,7 +78,7 @@ the authenticated user’s comment; workflow runs update the bot’s comment. Se
 `$GITHUB_ENV`; never expose `OP_SERVICE_ACCOUNT_TOKEN` (or `op run`) to the
 evaluator step, since this is a `pull_request_target` job. Keep execution on trusted base code; contributor commits may
 be fetched and diffed but never checked out or executed. Low scores are advisory;
-provider and input failures must not reuse previous scores. Preserve typed, sanitized failure codes and validated HTTP status numbers in the comment and `pr-quality-error.json`; never publish arbitrary exception messages or provider bodies. The two focused
+provider and input failures must not reuse previous scores. Preserve typed, sanitized failure codes and validated HTTP status numbers in the comment and `pr-quality-error.json`; distinguish response/evidence validation, transport, timeout, and local input failures instead of collapsing them into request failures. Never publish arbitrary exception messages or provider bodies. The two focused
 security ratings run with the quality checks. A focused concern triggers a
 separate Jev request to select candidate evidence from actual changed lines. Keep the no-issue option, validate selected locations, and
 distinguish documentation and security tests from malicious behavior. Preserve the

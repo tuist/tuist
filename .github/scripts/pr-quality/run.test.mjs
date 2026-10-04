@@ -111,6 +111,25 @@ test('validates typed diagnostic fields again before saving them', async () => {
   assert.doesNotMatch(JSON.stringify(saved), /secret/);
 });
 
+test('publishes allowlisted validation and transport diagnostics without exception text', async () => {
+  for (const [code, message] of [
+    ['timeout', /60-second limit/], ['connection_failed', /transport/],
+    ['invalid_response', /quality answers/], ['invalid_evidence', /source evidence/],
+    ['unassessable', /could not assess/], ['no_reviewable_diff', /No reviewable/],
+    ['diff_too_large', /1 MB/], ['context_too_large', /64,000/],
+    ['binary_only', /binary files/], ['missing_credentials', /JEV_API_KEY is missing/],
+  ]) {
+    let saved;
+    const error = new ReviewFailure(code);
+    error.message = 'private-source';
+    const { options } = fixture({ evaluate: async () => { throw error; }, save: (value) => { saved = value; } });
+    assert.equal((await runReview(options)).failed, true);
+    assert.deepEqual(saved.failure, { code });
+    assert.match(saved.body, message);
+    assert.doesNotMatch(JSON.stringify(saved), /private-source/);
+  }
+});
+
 test('local report mode does not contact GitHub to publish', async () => {
   const { options } = fixture({ post: false, api: () => assert.fail('unexpected GitHub call') });
   assert.equal((await runReview(options)).published, false);

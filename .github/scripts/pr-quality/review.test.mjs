@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { separateBinaryChanges, validateDiff, buildQuestions, evaluateResponse, parseThreshold, review, summary } from './review.mjs';
+import { APIConnectionError, APITimeoutError } from '@typesafe-ai/sdk';
+import { classifyReviewError, separateBinaryChanges, validateDiff, buildQuestions, evaluateResponse, parseThreshold, review, summary } from './review.mjs';
 
 function response(score = 6, questions = buildQuestions()) {
   return { answers: Object.fromEntries(Object.entries(questions).map(([id, question]) => [id,
@@ -147,6 +148,51 @@ test('provider input limits fail closed without splitting or leaking error bodie
     },
   }), (error) => /Split the PR into smaller coherent changes/.test(error.message) && !error.message.includes('private'));
   assert.equal(calls, 1);
+});
+
+test('classifies connection and timeout failures without copying causes', () => {
+  for (const [error, code] of [
+    [new APIConnectionError('private connection detail'), 'connection_failed'],
+    [new APITimeoutError(60_000, { cause: new Error('private timeout detail') }), 'timeout'],
+  ]) {
+    const classified = classifyReviewError(error);
+    assert.equal(classified.code, code);
+    assert.doesNotMatch(classified.message, /private/);
+  }
+});
+
+test('classifies invalid quality responses and invalid evidence separately', async () => {
+  const input = { diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder' };
+  await assert.rejects(review({ ...input, fetch: async () => Response.json({ answers: {}, private: 'private response' }) }),
+    (error) => error.code === 'invalid_response' && !error.message.includes('private'));
+  let calls = 0;
+  await assert.rejects(review({ ...input, fetch: async (_url, options) => {
+    calls++;
+    return Response.json(calls === 1 ? response(5, JSON.parse(options.body).questions) : { answers: {} });
+  } }), (error) => error.code === 'invalid_evidence');
+  assert.equal(calls, 2);
+});
+
+test('classifies payload limits returned by a relay as well as the provider', async () => {
+  await assert.rejects(review({ diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder',
+    fetch: async () => Response.json({ private: 'private response' }, { status: 413 }),
+  }), (error) => error.code === 'input_limit' && error.status === 413 && !error.message.includes('private'));
+});
+
+test('classifies local input guards without contacting the provider', async () => {
+  let calls = 0;
+  for (const [extra, code] of [
+    [{ diff: '' }, 'no_reviewable_diff'],
+    [{ diff: diff + 'x'.repeat(1_000_000) }, 'diff_too_large'],
+    [{ diff: binaryDiff }, 'binary_only'],
+    [{ task: 'x'.repeat(64_001) }, 'context_too_large'],
+    [{ apiKey: '' }, 'missing_credentials'],
+  ]) {
+    await assert.rejects(review({ diff, task: '', repositoryContext: '', threshold: 7, apiKey: 'test-placeholder',
+      fetch: async () => { calls++; return Response.json({}); }, ...extra,
+    }), (error) => error.code === code);
+  }
+  assert.equal(calls, 0);
 });
 
 test('focused weakness hints need selected changed-line evidence', async () => {
