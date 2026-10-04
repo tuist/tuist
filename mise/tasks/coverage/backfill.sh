@@ -3,8 +3,10 @@
 #USAGE arg "<range>" help="Commits on main, as a revision range (e.g. abc123..def456) or a single commit"
 #USAGE flag "--dry-run" help="List the commits without dispatching anything"
 
-# Each commit runs the full test suites on its own macOS runners, for up to two
-# hours, and the runs proceed in parallel. Keep ranges small.
+# Each commit runs the full test suites on two macOS runners, for up to two
+# hours, and those runners are shared with pull request CI. So commits go one
+# at a time: the next is dispatched once the previous run finishes, and a range
+# of N commits takes up to 2N hours. Leave it running.
 #
 # The workflow tests the commit's sources with main's runner image and tools,
 # but its .xcode-version and local actions are the commit's own. Commits before
@@ -49,6 +51,14 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 for sha in "${commits[@]}"; do
-  gh workflow run coverage.yml --repo tuist/tuist --ref main -f sha="$sha"
+  output=$(gh workflow run coverage.yml --repo tuist/tuist --ref main -f sha="$sha")
+  url=$(grep -oE 'https://github.com/[^ ]+/actions/runs/[0-9]+' <<< "$output" | tail -1 || true)
+  if [[ -z "$url" ]]; then
+    echo "error: no run URL for $sha in: $output" >&2
+    exit 1
+  fi
+  echo "$(git rev-parse --short "$sha"): $url"
+  if ! gh run watch "${url##*/}" --repo tuist/tuist --interval 60 --exit-status > /dev/null; then
+    echo "  failed, continuing with the next commit"
+  fi
 done
-echo "Dispatched. Follow them with: gh run list --repo tuist/tuist --workflow coverage.yml"
