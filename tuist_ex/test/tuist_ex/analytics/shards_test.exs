@@ -37,6 +37,10 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert_raise Mix.Error, ~r/expects a shard number/, fn ->
       Shards.index([], environment(%{"TUIST_SHARD_INDEX" => "x"}))
     end
+
+    assert_raise Mix.Error, ~r/--shard-index expects a shard number/, fn ->
+      Shards.index([shard_index: -1], environment(%{}))
+    end
   end
 
   test "plans each test file as one unit, read without loading it", %{directory: directory} do

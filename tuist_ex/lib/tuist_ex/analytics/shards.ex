@@ -55,6 +55,9 @@ defmodule TuistEx.Analytics.Shards do
   """
   def index(options, environment \\ &System.get_env/1) do
     case Keyword.get(options, :shard_index) || environment.("TUIST_SHARD_INDEX") do
+      nil ->
+        nil
+
       index when is_integer(index) and index >= 0 ->
         index
 
@@ -64,8 +67,9 @@ defmodule TuistEx.Analytics.Shards do
           _ -> Mix.raise("TUIST_SHARD_INDEX expects a shard number, got: #{index}")
         end
 
-      _ ->
-        nil
+      # A negative `--shard-index`: running everything would be silently wrong.
+      index ->
+        Mix.raise("--shard-index expects a shard number, got: #{index}")
     end
   end
 
