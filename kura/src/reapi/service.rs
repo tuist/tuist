@@ -2938,7 +2938,12 @@ impl ByteStream for ReapiService {
                         complete: true,
                     }))
                 } else {
-                    Err(Status::not_found("blob not found"))
+                    // Partial staging is discarded on failure, so no resumable
+                    // offset exists. Bazel treats NOT_FOUND as terminal here;
+                    // UNIMPLEMENTED tells it to restart the Write from zero.
+                    Err(Status::unimplemented(
+                        "incomplete upload status is not supported; restart the write from offset zero",
+                    ))
                 }
             }
         }
@@ -4557,6 +4562,10 @@ fn parse_blob_resource_name_allocating(
         compressor,
     })
 }
+
+#[cfg(test)]
+#[path = "bytestream_recovery_tests.rs"]
+mod bytestream_recovery_tests;
 
 #[cfg(test)]
 mod tests {

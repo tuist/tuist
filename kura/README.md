@@ -540,6 +540,8 @@ POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 Usage delivery allows up to 3 seconds for connection setup, including DNS, within
 a 5-second total request deadline covering setup, upload, and response.
 
+ByteStream writes do not retain resumable partial uploads across requests. An interrupted upload must restart at offset zero. `QueryWriteStatus` still reports completed artifacts, but returns `UNIMPLEMENTED` when no completed blob is available, allowing clients such as Bazel to fall back to a full restart instead of treating `NOT_FOUND` as a terminal upload failure. Ordinary missing-blob reads and CAS existence checks retain their existing behavior. The [Bazel upload recovery fixture](test/e2e/bytestream-recovery/README.md) exercises this fallback with the real uploader.
+
 Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.

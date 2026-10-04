@@ -76,6 +76,12 @@ The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that a
 
 Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
 
+## ByteStream Upload Recovery
+
+ByteStream partial staging belongs to a live Write request and is removed on failure or cancellation. Kura does not retain upload sessions or resumable byte prefixes between requests. `QueryWriteStatus` can confirm a completed artifact, including deduplicated and chunked artifacts, but returns `UNIMPLEMENTED` when no completed blob is available. This explicitly signals unsupported partial-upload status so Bazel restarts the upload at offset zero. Returning `NOT_FOUND` there causes its uploader to stop recovery instead. Authorization and namespace checks still precede status lookup; missing Read and CAS results are unchanged.
+
+This fallback adds no retained staging, session metadata, memory budget, replication format, or ingress policy. It is node-local and safe during a rolling update, although requests handled by an older node retain the old failure behavior. The [interoperability fixture](../test/e2e/bytestream-recovery/README.md) exercises the real Bazel uploader through an interrupted write and verifies full read-back.
+
 ## Bazel Test-Artifact Delivery
 
 Kura decodes Bazel test-result and test-summary events from the Build Event Protocol. Those events carry attempt and overall target status, run, shard, attempt, duration, cache provenance, chronological sequence, and named output references, so Kura can recognize conventional `test.xml` and `test.log` outputs without reconstructing invocation context from action-cache traffic. It captures only those facts and artifact digests on the stream and sends them to a dedicated queue capped at 64 entries. A serial background worker reopens each available blob under a background-memory reservation that it retains through encoding and retrying delivery to Tuist.

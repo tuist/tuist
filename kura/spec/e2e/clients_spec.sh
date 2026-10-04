@@ -47,6 +47,13 @@ Describe 'actively supported protocol interoperability'
   BeforeAll 'setup_suite'
   AfterAll 'teardown_suite'
 
+  It 'recovers interrupted identity and compressed uploads with the real Bazel uploader'
+    When run bash "${PROJECT_ROOT}/test/e2e/bytestream-recovery/run.sh" "127.0.0.1:${KURA_US_CACHE_PORT}"
+    The status should be success
+    The output should include 'RECOVERY_PASS compressed=false writes=2 queries=1 offsets=[0, 0] verified_bytes=8388608'
+    The output should include 'RECOVERY_PASS compressed=true writes=2 queries=1 offsets=[0, 0] verified_bytes=8388608'
+  End
+
   It 'reuses Bazel remote cache entries across regions'
     marker="bazel-$(new_marker)"
     instance_name="bazel/${marker}"
