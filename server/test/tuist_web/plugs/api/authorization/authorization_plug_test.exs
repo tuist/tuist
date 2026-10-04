@@ -248,6 +248,75 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
                "message" => "#{account_handle} is not authorized to create cache"
              }
     end
+
+    test "shares a cached decision between tokens of the same account with the same permissions", %{cache: cache} do
+      # Given
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      calls = :counters.new(1, [])
+
+      opts =
+        AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
+
+      stub(Authorization, :authorize, fn :project_cache_create, _, _ ->
+        :counters.add(calls, 1, 1)
+        :ok
+      end)
+
+      conn =
+        :post
+        |> build_conn("/")
+        |> assign(:cache, cache)
+        |> assign(:selected_project, project)
+
+      # When
+      for _ <- 1..3 do
+        token = %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["ci"],
+          all_projects: false,
+          project_ids: [project.id]
+        }
+
+        refute conn |> assign(:current_subject, token) |> AuthorizationPlug.call(opts) |> Map.get(:halted)
+      end
+
+      # Then
+      assert :counters.get(calls, 1) == 1
+    end
+
+    test "doesn't share a cached decision between tokens of the same account with different permissions", %{
+      cache: cache
+    } do
+      # Given
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      opts =
+        AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
+
+      conn =
+        :post
+        |> build_conn("/")
+        |> assign(:cache, cache)
+        |> assign(:selected_project, project)
+
+      main_token = %AuthenticatedAccount{
+        account: project.account,
+        scopes: ["ci"],
+        all_projects: false,
+        project_ids: [project.id]
+      }
+
+      pull_request_token = %{main_token | withheld_scopes: %{"project:cache:write" => [project.id]}}
+
+      # When
+      main_conn = conn |> assign(:current_subject, main_token) |> AuthorizationPlug.call(opts)
+      pull_request_conn = conn |> assign(:current_subject, pull_request_token) |> AuthorizationPlug.call(opts)
+
+      # Then
+      refute main_conn.halted
+      assert pull_request_conn.halted
+      assert json_response(pull_request_conn, :forbidden)["message"] =~ "not authorized to create cache"
+    end
   end
 
   describe "authorization failure rate limiting" do

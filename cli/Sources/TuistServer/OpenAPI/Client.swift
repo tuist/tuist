@@ -6791,6 +6791,11 @@ public struct Client: APIProtocol {
     /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
     /// for a short-lived Tuist access token.
     ///
+    /// Projects and accounts can configure OIDC scope rules that require specific GitHub Actions
+    /// claims (`ref`, `job_workflow_ref`, `environment`) before the token can use a write scope.
+    /// When a rule doesn't match, the token keeps the matching read scope for that resource, and
+    /// the response carries a warning naming the withheld scope.
+    ///
     ///
     /// - Remark: HTTP `POST /api/auth/oidc/token`.
     /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)`.

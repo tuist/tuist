@@ -30,6 +30,11 @@
       selected={true}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
     />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "OIDC")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/oidc"}
+    />
   </.tab_menu_horizontal>
 
   <h2 data-part="subtitle">
