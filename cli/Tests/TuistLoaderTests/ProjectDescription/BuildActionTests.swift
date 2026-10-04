@@ -1,7 +1,6 @@
 import Path
+import ProjectDescription
 import Testing
-
-@testable import ProjectDescription
 
 struct BuildActionTests {
     @Test func buildAction_withPerTargetBuildForOptions() {
