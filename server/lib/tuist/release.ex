@@ -9,6 +9,7 @@ defmodule Tuist.Release do
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Tests.Coverage
 
   require Logger
 
@@ -21,7 +22,7 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags coverage_commits)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
@@ -352,6 +353,27 @@ defmodule Tuist.Release do
 
       raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
     end
+  end
+
+  @doc """
+  Sets the coverage tables' time-to-live to the retention now configured
+  (`TUIST_COVERAGE_FILE_RETENTION_DAYS`, `TUIST_COVERAGE_RUN_RETENTION_DAYS`).
+  The tables take it when they are created, so a change made afterwards only
+  applies once this runs:
+
+      bin/tuist eval "Tuist.Release.apply_coverage_retention()"
+  """
+  def apply_coverage_retention do
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(IngestRepo, fn _repo ->
+        for {table, days} <- Coverage.apply_retention() do
+          Logger.info("#{table}: rows expire #{days} days after insertion")
+        end
+      end)
+
+    :ok
   end
 
   def seed do

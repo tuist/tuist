@@ -2099,6 +2099,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: "TuistProcess"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
