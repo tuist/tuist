@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { APIConnectionError, APITimeoutError } from '@typesafe-ai/sdk';
+import { TypeSafeError, APIConnectionError, APITimeoutError } from '@typesafe-ai/sdk';
 import { classifyReviewError, separateBinaryChanges, validateDiff, buildQuestions, evaluateResponse, parseThreshold, review, summary } from './review.mjs';
 
 function response(score = 6, questions = buildQuestions()) {
@@ -154,6 +154,17 @@ test('classifies connection and timeout failures without copying causes', () => 
   for (const [error, code] of [
     [new APIConnectionError('private connection detail'), 'connection_failed'],
     [new APITimeoutError(60_000, { cause: new Error('private timeout detail') }), 'timeout'],
+  ]) {
+    const classified = classifyReviewError(error);
+    assert.equal(classified.code, code);
+    assert.doesNotMatch(classified.message, /private/);
+  }
+});
+
+test('does not blame the provider for SDK schema or local implementation errors', () => {
+  for (const [error, code] of [
+    [new TypeSafeError('private SDK detail'), 'client_error'],
+    [new TypeError('private implementation detail'), 'internal_error'],
   ]) {
     const classified = classifyReviewError(error);
     assert.equal(classified.code, code);

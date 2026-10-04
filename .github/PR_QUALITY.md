@@ -126,8 +126,9 @@ allowlisted diagnostic codes and validated HTTP status numbers. The artifact
 `pr-quality-error.json` records those diagnostics, while `pr-quality.json`
 remains null when no scores are available. Diagnostics distinguish local input
 guards, provider/relay input limits (the provider's token-limit response or HTTP
-413), HTTP failures, timeouts, transport failures, invalid quality answers,
-invalid source evidence, and an unassessable response. Arbitrary exception
+413), HTTP failures, timeouts, transport failures, SDK request-schema/local
+implementation failures, invalid quality answers, invalid source evidence, and
+an unassessable response. Arbitrary exception
 messages, credentials, submitted source text, and provider error bodies are never
 copied into diagnostics. Before publishing, the script verifies
 that the pull request is still open and its head, base, title, and description
