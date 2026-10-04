@@ -80,6 +80,6 @@ vendored evaluator and rubric license notices. Validate with
 `npm test --prefix .github/scripts/pr-quality` and
 `actionlint .github/workflows/pr-quality.yml` from the repository root.
 
-The Helm render job runs `infra/helm/test-production-errors.py` with pinned PyYAML to check CNPG extension reconciliation and Docker pull-through cache expiry. Noora CI also runs the dependency-free Storybook production-config test, since the root Noora test suite does not include Storybook tests.
+The Helm render job runs `infra/helm/test-production-errors.py` with pinned PyYAML to check CNPG extension reconciliation and Docker pull-through cache expiry. It also runs `infra/helm/test-staging-monitoring.py` against the rendered monitoring chart to preserve metrics on staging infrastructure roles without admitting unreachable nodes through wildcard tolerations. Noora CI also runs the dependency-free Storybook production-config test, since the root Noora test suite does not include Storybook tests.
 
 Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials.

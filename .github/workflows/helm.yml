@@ -135,6 +135,7 @@ jobs:
         run: |
           python -m pip install PyYAML==6.0.3
           python infra/helm/test-production-errors.py
+          python infra/helm/test-staging-monitoring.py
       - name: Install kubeconform
         run: |
           set -euo pipefail

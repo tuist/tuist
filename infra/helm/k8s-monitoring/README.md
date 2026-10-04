@@ -134,6 +134,26 @@ Plus the telemetry services themselves:
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+### Staging node-exporter readiness
+
+Staging uses explicit `NoSchedule` tolerations for its control-plane, stateful,
+stable-egress, runner-cache, Kura-cache, runner-tier, and rack-edge roles. Unlike
+a wildcard toleration, these do not admit `node.kubernetes.io/unreachable` or
+`node.kubernetes.io/not-ready` scheduling taints. Disconnected nodes therefore
+stop being desired exporter targets, and the normal Helm readiness wait still
+requires exporters on eligible nodes to be ready. The exporter returns when the
+node recovers; Node readiness remains visible through kube-state-metrics.
+
+Keep the list aligned when introducing another tainted staging role. Validate
+with `python3 infra/helm/test-staging-monitoring.py` (Helm and PyYAML required;
+the test downloads locked dependencies). Canary and production retain their
+existing configuration.
+
+This does not recover disconnected rack hardware. If both BER1 edges are off the
+tailnet, neither can relay access to the other's AMT interface. Restoring that
+rack's power/network or a working management path is a separate recovery step;
+do not delete its owned Nodes or Machines just to make a deployment green.
+
 ## Metrics aggregated downstream of this chart
 
 The Processor Service dashboard (`tuist-processor-service`) compares database

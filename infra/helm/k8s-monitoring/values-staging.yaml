@@ -27,6 +27,35 @@ k8s-monitoring:
               key: deployment.environment
               value: staging
 
+  telemetryServices:
+    node-exporter:
+      # A wildcard NoSchedule toleration also admits unreachable nodes. Keep
+      # host metrics on every staging role without making disconnected rack
+      # hardware a desired DaemonSet target that blocks the Helm readiness wait.
+      # When a node returns, its health taint clears and the exporter resumes.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/stateful
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/stable-egress
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/runner-tier
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/rack-edge
+          operator: Exists
+          effect: NoSchedule
+
   # Put the receiver on the tailnet. See values-production.yaml for the full
   # rationale. Staging needs it for the Mac mini fleet's host logs: tart-kubelet
   # writes to /var/log/tart-kubelet.log on the mini, nothing in the cluster can
