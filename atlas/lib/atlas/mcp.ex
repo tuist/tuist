@@ -10,6 +10,7 @@ defmodule Atlas.MCP do
   alias Atlas.MCP.OAuthSession
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Proxy.Server
+  alias Atlas.MCP.ServerConfiguration
   alias Atlas.Repo
   alias Atlas.Users
   alias Atlas.Users.User
@@ -27,6 +28,62 @@ defmodule Atlas.MCP do
   end
 
   def get_server(name), do: Proxy.fetch_server(name)
+
+  def list_server_configurations do
+    ServerConfiguration |> order_by(asc: :name) |> Repo.all()
+  end
+
+  def change_server_configuration(%ServerConfiguration{} = server, attrs \\ %{}) do
+    ServerConfiguration.changeset(server, attrs)
+  end
+
+  def create_server_configuration(attrs) do
+    changeset = ServerConfiguration.changeset(%ServerConfiguration{}, attrs)
+
+    changeset =
+      if Enum.any?(
+           Proxy.configured_servers(Application.get_env(:atlas, :mcp_proxy, [])),
+           &(&1.name == Ecto.Changeset.get_field(changeset, :name))
+         ) do
+        Ecto.Changeset.add_error(changeset, :name, "is reserved by deployment configuration")
+      else
+        changeset
+      end
+
+    changeset
+    |> Repo.insert()
+    |> audit_server_change("mcp_server.created")
+  end
+
+  def delete_server_configuration(id) do
+    case Repo.get(ServerConfiguration, id) do
+      nil ->
+        {:error, :not_found}
+
+      server ->
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete_all(:sessions, from(s in OAuthSession, where: s.server_name == ^server.name))
+        |> Ecto.Multi.delete(:server, server)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{server: deleted}} -> audit_server_change({:ok, deleted}, "mcp_server.deleted")
+          {:error, _, reason, _} -> {:error, reason}
+        end
+    end
+  end
+
+  defp audit_server_change({:ok, server} = result, action) do
+    Audit.record(action, %{
+      target_type: "mcp_server_configuration",
+      target_id: server.id,
+      target_label: server.name,
+      metadata: %{"server_name" => server.name}
+    })
+
+    result
+  end
+
+  defp audit_server_change(result, _action), do: result
 
   def get_oauth_session(%User{id: user_id}, server_name) when is_binary(server_name) do
     Repo.get_by(OAuthSession, user_id: user_id, server_name: server_name)

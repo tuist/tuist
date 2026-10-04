@@ -6,9 +6,15 @@ defmodule AtlasWeb.MCPLive do
 
   alias Atlas.MCP
   alias Atlas.MCP.OAuthSession
+  alias Atlas.MCP.ServerConfiguration
+  alias Atlas.Users
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, gettext("MCPs"))}
+    {:ok,
+     socket
+     |> assign(:page_title, gettext("MCPs"))
+     |> assign(:can_manage?, Users.has_scope?(socket.assigns.current_user, "admin:write"))
+     |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))}
   end
 
   def handle_params(_params, _uri, socket) do
@@ -16,8 +22,51 @@ defmodule AtlasWeb.MCPLive do
   end
 
   defp load_servers(socket) do
-    assign(socket, :servers, MCP.list_servers(socket.assigns.current_user))
+    configurations = MCP.list_server_configurations()
+
+    socket
+    |> assign(:servers, MCP.list_servers(socket.assigns.current_user))
+    |> assign(:configuration_ids, Map.new(configurations, &{&1.name, &1.id}))
   end
+
+  def handle_event("validate_server", %{"server" => attrs}, %{assigns: %{can_manage?: true}} = socket) do
+    changeset =
+      %ServerConfiguration{}
+      |> MCP.change_server_configuration(attrs)
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign_form(socket, changeset)}
+  end
+
+  def handle_event("create_server", %{"server" => attrs}, %{assigns: %{can_manage?: true}} = socket) do
+    case MCP.create_server_configuration(attrs) do
+      {:ok, _server} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Server added."))
+         |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
+         |> load_servers()}
+
+      {:error, changeset} ->
+        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+    end
+  end
+
+  def handle_event("delete_server", %{"id" => id}, %{assigns: %{can_manage?: true}} = socket) do
+    case MCP.delete_server_configuration(id) do
+      {:ok, _server} ->
+        {:noreply, socket |> put_flash(:info, gettext("Server removed.")) |> load_servers()}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not remove server."))}
+    end
+  end
+
+  def handle_event(_event, _params, socket) do
+    {:noreply, put_flash(socket, :error, gettext("You cannot manage servers."))}
+  end
+
+  defp assign_form(socket, changeset), do: assign(socket, :server_form, to_form(changeset, as: :server))
 
   def render(assigns) do
     ~H"""
@@ -74,6 +123,17 @@ defmodule AtlasWeb.MCPLive do
                     <:icon_right><.arrow_right /></:icon_right>
                   </.button>
                 </:button>
+                <:button :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}>
+                  <.button
+                    id={"mcp-remove-#{entry.server.name}"}
+                    phx-click="delete_server"
+                    phx-value-id={@configuration_ids[entry.server.name]}
+                    data-confirm={gettext("Remove this server and its saved connections?")}
+                    label={gettext("Remove")}
+                    size="small"
+                    variant="secondary"
+                  />
+                </:button>
               </.button_cell>
             </:col>
             <:empty_state>
@@ -84,6 +144,46 @@ defmodule AtlasWeb.MCPLive do
               />
             </:empty_state>
           </.table>
+        </.card_section>
+      </.card>
+
+      <.card
+        :if={@can_manage?}
+        title={gettext("Add server")}
+        icon="server"
+        data-part="add-server-card"
+      >
+        <.card_section>
+          <.form
+            id="mcp-server-form"
+            for={@server_form}
+            phx-change="validate_server"
+            phx-submit="create_server"
+          >
+            <.text_input id="mcp-server-name" field={@server_form[:name]} label={gettext("Name")} />
+            <.text_input id="mcp-server-url" field={@server_form[:url]} label={gettext("Server URL")} />
+            <.text_input
+              id="mcp-server-authorization-url"
+              field={@server_form[:authorization_url]}
+              label={gettext("Authorization URL")}
+            />
+            <.text_input
+              id="mcp-server-token-url"
+              field={@server_form[:token_url]}
+              label={gettext("Token URL")}
+            />
+            <.text_input
+              id="mcp-server-registration-url"
+              field={@server_form[:registration_url]}
+              label={gettext("Registration URL (optional)")}
+            />
+            <.text_input
+              id="mcp-server-scopes"
+              field={@server_form[:scope_list]}
+              label={gettext("OAuth scopes (space separated)")}
+            />
+            <.button id="mcp-server-create" type="submit" label={gettext("Add server")} />
+          </.form>
         </.card_section>
       </.card>
     </div>

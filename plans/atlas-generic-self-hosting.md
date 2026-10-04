@@ -195,3 +195,9 @@ Unrestricted-token access to privileged Tuist tools and which Condukt workflows 
 - Atlas's complete check passed: 2,504 tests, 5 skipped, 1 excluded. The first attempt exhausted the shared local database's connections; reducing Erlang schedulers to four made the check pass.
 
 Invitation policy, identity-provider claim verification, account recovery, optional-provider gating, and a supported minimal deployment remain outstanding.
+
+## Upstream proxy default slice
+
+- An unset or blank `MCP_PROXY_SERVERS` now configures no upstream tool servers. Tuist's managed production values explicitly select the existing Tuist, Grafana, and Sentry configuration with `tuist-managed`; standalone Compose and chart values continue to use `[]`.
+- Administrators can add ordinary OAuth upstreams at `/admin/mcps` while Atlas is running. Server definitions are persisted, read by tool discovery and invocation, and removed with their associated user sessions. Deployment-provided servers remain reserved and cannot be replaced through the page.
+- The managed preset is a compatibility step while Tuist-specific connector policy remains in runtime configuration. It does not complete the Phase 1 inventory or the broader connector separation. Production egress controls must prevent managed upstream requests from reaching private network targets after domain resolution.

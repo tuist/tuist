@@ -35,6 +35,17 @@ Atlas audit policy. The review workflow
 retains its GitHub report artifacts for 14 days and its published comment under
 GitHub's repository retention settings.
 
+### Atlas upstream server configuration
+
+Atlas stores administrator-managed upstream server names, endpoint and OAuth
+authorization addresses, requested scopes, read-only policy, and timestamps in
+`mcp_server_configurations`. These installation-level records contain no
+credentials. Per-user authorization tokens remain encrypted in
+`mcp_oauth_sessions` and are excluded from exports. Removing a managed server
+deletes its associated sessions. Export the server rows with the installation's
+configuration records when the request covers Atlas operations; retain them
+until an administrator removes them.
+
 ### Error Diagnostics
 
 - Failed ClickHouse reads attach the query template (up to 16,384 characters), repository name, and execution, decoding, and pool-wait timings to the existing error event under `extra.database_query`. Bound parameter values and query results are not included. Reports use the configured Sentry-compatible destination, including Hive, and its existing retention policy. Where an event is associated with an account or project through its existing context, its diagnostic data can be retrieved with that event for an export.
