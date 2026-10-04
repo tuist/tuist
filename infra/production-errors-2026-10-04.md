@@ -200,7 +200,8 @@ completed after narrowly scoped live repairs. A second deployment,
 replayed the committed chart fixes from `3a44cee6891c` without further manual
 patches. Application, registry, and codebase-search images reuse
 `sha-907b3c0d66c5`; platform configuration revision 498 and unrelated fleet/runtime
-pins were preserved. No canary or production deployment was dispatched.
+pins were preserved. At that stage, no canary or production deployment had
+been dispatched. The later canary follow-up is recorded below.
 
 Deployment blockers and recovery:
 
@@ -258,12 +259,99 @@ Live results on October 4, approximately 12:39–12:51 UTC:
   not expiry failures.
 - The cache's TTL scheduler started and deletion is enabled. Logs from
   **12:02–12:51 UTC** contain no error-level expiry/deletion failures. The
-  existing repository/tag-remover warning remains. No controlled expiry cycle,
-  S3-delete verification, or historical orphan cleanup was performed, so this
-  observation is not proof of a complete cache TTL cycle.
+  existing repository/tag-remover warning remains. At that point no controlled
+  expiry or S3-delete verification had been performed. The bounded follow-up
+  below verifies manifest-link deletion, not a complete seven-day TTL cycle
+  or historical orphan cleanup.
 
 Slack and Storybook's immutable-timezone configuration is covered locally and
 in CI, but their production-only deployment workflows were not run for staging.
 Before promotion, verify their deployed behavior, continue cache-expiry
 observation, and resolve the ClickHouse backup/restore risk. Staging success
 neither repairs the rack nor resolves the separate Atlas backlog.
+
+## Canary, backup preflight, and remaining promotion gates
+
+On October 4, canary deployment
+[37208296640](https://github.com/tuist/tuist/actions/runs/37208296640) succeeded
+using chart commit `02cf2c3b9534` and application/registry/codebase-search images
+`sha-907b3c0d66c5`. Existing canary Kura controller/runtime, CAPI, runner-controller,
+egress-tree-agent, and Linux runner pins were supplied explicitly rather than
+updated. The canary PostgreSQL cluster is **2/2 Ready**, healthy, with tracking
+`top` and the application `Database` CR applied. Application `/ready`, registry
+`/up`, and registry protocol availability return HTTP 200. The public
+`swiftlang/swift-syntax` metadata request returned 404; there was no pre-rollout
+baseline for that fixture, so it is not counted as a passing metadata smoke test
+or attributed to this change.
+
+The isolated canary PostgreSQL restore drill
+[37208293115](https://github.com/tuist/tuist/actions/runs/37208293115) passed.
+Production PostgreSQL is **3/3 Ready** with healthy/archiving conditions, and
+plugin-method daily backups from September 30 through October 4 completed.
+The latest recorded backup, `tuist-tuist-pg-daily-20261004030000`, completed at
+**03:49:48 UTC**, backup ID `20261004T030000`. Legacy top-level backup timestamps
+still show July 5 and do not represent the recent plugin backup records. These
+statuses do not establish production restorability.
+
+Production restore attempt
+[37208926877](https://github.com/tuist/tuist/actions/runs/37208926877) was rejected
+**before any steps executed** because production only accepts the `main` ref.
+The existing drill also constructed the wrong production namespace,
+`tuist-production`, instead of `tuist`. Its resolver fix and credential-free
+regressions are isolated in automation-only
+[PR #13804](https://github.com/tuist/tuist/pull/13804), alongside sanitized
+review-failure diagnostics. All 11 automation checks passed, including its live
+provider review on the initial automation revision. Follow-up regressions also
+make restore cleanup failures visible instead of silently retaining an active
+recovery cluster. Auto-merge is queued behind the required code-owner review;
+no review or environment protection was overridden. Once merged, the corrected
+drill can run from trusted main without promoting the application PR.
+
+The application PR's remaining failed check is the advisory provider review:
+no scores or findings were returned. Its trusted-base publisher discarded even
+safe HTTP status/input-limit diagnostics. The automation fix preserves only
+allowlisted codes and validated numeric statuses, keeps failed score reports
+null, and runs evaluator tests separately without provider credentials. Local
+verification covers **42 evaluator tests** and **three restore-workflow tests**,
+including response/evidence classification and cleanup-failure propagation. The
+underlying provider failure is not yet diagnosed; passing the smaller automation
+review is not evidence that the larger application review succeeded.
+
+### Bounded staging S3 manifest expiry test
+
+An isolated stock Distribution **2.8.3** cache used the staging mirror's existing
+credential references and a unique `docker-mirror/expiry-proof-4f47af8301`
+subprefix. The running mirror, its scheduler state, and existing cache objects
+were untouched. Only the fixture's persisted scheduler timestamps were advanced,
+and only after its cache process had stopped.
+
+- Warming an Alpine 3.22 OCI index and its Linux/amd64 manifest created two
+  scheduled manifest entries and verified their S3 revision links existed.
+- With deletion disabled, replaying those expired entries logged
+  `operation unsupported` and both revision links remained.
+- With deletion enabled, replaying the same fixture entries removed both actual
+  S3 revision-link objects, with no scheduler error in that replay's log.
+- The remaining **seven owned fixture objects** were deleted and the prefix
+  was verified empty. All diagnostic Pods and ConfigMaps were removed. An earlier
+  warm-up fixture's seven objects were also cleaned up; no existing backup or
+  mirror prefix was deleted.
+
+This proves bounded native manifest expiry and S3 link-delete permissions with
+**staging** credentials. It does not prove production credential permissions,
+seven days of operation, blob expiry, refetch behavior, removal of retained
+manifest-content blobs/tags, or cleanup of historical orphans. An exploratory
+cold config-blob request in the earlier isolated fixture returned HTTP 500 with
+Tigris `NoSuchBucket: Shadow bucket`; the manifest test excluded that unresolved
+blob-fetch path and is not evidence of a successful complete image pull.
+
+Production ClickHouse jobs remain failed after September 25's successful
+scheduled backup; no new restorable backup has been established and no existing
+archive path was cleaned up. Repair requires human-granted production elevation
+for a uniquely named full backup and isolated restore validation. Canary live
+SQL/exporter verification is also incomplete: the default human read tier denied
+`pods/proxy`, and the available Prometheus series aggregate away environment
+labels. Neither an alternate privileged identity nor an ad-hoc workflow was used
+to bypass that denial. Request scoped canary elevation for read-only SQL and
+exporter checks. Slack/Storybook production behavior and full production rollout
+remain unverified; the application PR must not be promoted merely because
+staging and canary deployments completed.
