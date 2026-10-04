@@ -198,8 +198,9 @@ defmodule TuistEx.Analytics.CompileReporter do
   # compiled. That is not a build. It matters once `mix compile` is aliased
   # to the Tuist task, because `mix test`, `mix run` and the like all compile
   # first and would each report an empty build.
+  # No compiler ran at all, as with `mix test --no-compile`, is the same.
   defp nothing_compiled?(statuses, files) do
-    files == [] and statuses != [] and Enum.all?(statuses, &(&1 == :noop))
+    files == [] and Enum.all?(statuses, &(&1 == :noop))
   end
 
   @impl true
@@ -223,9 +224,15 @@ defmodule TuistEx.Analytics.CompileReporter do
       message: string(diagnostic, :message),
       line: integer(diagnostic, [:position, :line]),
       column: integer(diagnostic, [:position, :column]),
-      compiler: Atom.to_string(compiler)
+      compiler: compiler_name(diagnostic, compiler)
     }
   end
+
+  # Diagnostics an umbrella returns carry the compiler that produced them.
+  defp compiler_name(%{compiler_name: name}, _compiler) when is_binary(name),
+    do: String.downcase(name)
+
+  defp compiler_name(_diagnostic, compiler), do: Atom.to_string(compiler)
 
   defp severity(diagnostic) do
     case Map.get(diagnostic, :severity) do

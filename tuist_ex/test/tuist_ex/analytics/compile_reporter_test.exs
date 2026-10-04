@@ -122,6 +122,7 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     assert_receive {:trace, ^reporter, :receive, {:machine_metric, %{cpu_usage_percent: 12.5}}},
                    2000
 
+    CompileReporter.record(reporter, :elixir, {:ok, []})
     :ok = CompileReporter.finish(reporter)
 
     assert_receive {:submitted, payload}, 2000
@@ -240,6 +241,44 @@ defmodule TuistEx.Analytics.CompileReporterTest do
     :ok = CompileReporter.finish(reporter)
 
     refute_receive {:submitted, _}, 200
+  end
+
+  test "reports nothing when no compiler ran" do
+    # `mix test --no-compile`, which every test shard runs.
+    parent = self()
+
+    reporter =
+      start(
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        sampler: nil
+      )
+
+    :ok = CompileReporter.finish(reporter)
+
+    refute_receive {:submitted, _}, 200
+  end
+
+  test "names a diagnostic after the compiler that produced it" do
+    # An umbrella's root hands over what its apps' compilers returned.
+    parent = self()
+
+    reporter =
+      start(
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        sampler: nil
+      )
+
+    diagnostic = %{
+      severity: :warning,
+      message: "unused",
+      file: "lib/a.ex",
+      compiler_name: "Erlang"
+    }
+
+    CompileReporter.record(reporter, :compile, {:noop, [diagnostic]})
+    :ok = CompileReporter.finish(reporter, [%{path: "lib/a.ex", compile_duration_ms: 1}])
+
+    assert_receive {:submitted, %{diagnostics: [%{compiler: "erlang"}]}}, 2000
   end
 
   test "reports a failure in a compiler other than Elixir's" do

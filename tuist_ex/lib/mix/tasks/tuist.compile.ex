@@ -48,6 +48,7 @@ defmodule Mix.Tasks.Tuist.Compile do
     compile_args = if user_profile?, do: compile_args, else: compile_args ++ ["--profile", "time"]
     profile = CompileProfile.new()
     installation = CompileProfile.install(profile, user_profile?)
+    code_path = :code.get_path()
 
     try do
       for compiler <- Enum.uniq(Mix.Task.Compiler.compilers() ++ [:elixir, :app]) do
@@ -61,7 +62,28 @@ defmodule Mix.Tasks.Tuist.Compile do
         end)
       end
 
-      Args.run_wrapped("compile", Mix.Tasks.Compile, compile_args)
+      result = Args.run_wrapped("compile", Mix.Tasks.Compile, compile_args)
+
+      # An umbrella's apps compile as projects of their own, where the hooks
+      # above are not registered. The root returns what they did, merged, but
+      # says `:ok` even when none of them compiled anything: whether one did
+      # is left to the files the compiler profiled.
+      with {status, diagnostics} <- result,
+           true <- Mix.Project.umbrella?() do
+        status = if status == :error, do: :error, else: :noop
+        CompileReporter.record(reporter, :compile, {status, diagnostics})
+      end
+
+      result
+    catch
+      # A failed compile raises. Without this an umbrella's would go
+      # unreported, since its apps' compilers never reached the hooks. An
+      # umbrella app that fails also leaves the code paths it pruned out,
+      # this package's and the ones it reports with among them.
+      kind, reason ->
+        Code.prepend_paths(code_path -- :code.get_path())
+        CompileReporter.record(reporter, :compile, {:error, []})
+        :erlang.raise(kind, reason, __STACKTRACE__)
     after
       CompileProfile.uninstall(installation)
       {files, steps} = profile_results(profile)
