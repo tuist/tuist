@@ -15,6 +15,7 @@ defmodule Tuist.MCP.Events.Workers.DeliveryWorker do
   alias Tuist.Accounts.User
   alias Tuist.MCP.Authorization
   alias Tuist.MCP.Events.Callback
+  alias Tuist.MCP.Events.Catalog
   alias Tuist.MCP.Events.Subscription
   alias Tuist.OAuth.Clients
   alias Tuist.Projects.Project
@@ -47,21 +48,21 @@ defmodule Tuist.MCP.Events.Workers.DeliveryWorker do
       credential_active?(subscription, user, resource, category)
   end
 
-  defp authorization_target(%Subscription{event_name: "ci_job.failed", account_id: account_id, project_id: nil}) do
-    {Repo.get(Account, account_id), :runners}
-  end
+  defp authorization_target(%Subscription{event_name: name, account_id: account_id, project_id: project_id}) do
+    case Catalog.target(name) do
+      {:account, :runners} when is_nil(project_id) ->
+        {Repo.get(Account, account_id), :runners}
 
-  defp authorization_target(%Subscription{event_name: name, account_id: account_id, project_id: project_id})
-       when name in ["test_case.marked_flaky", "build.failed", "test_run.failed"] and not is_nil(project_id) do
-    category = if name == "build.failed", do: :build, else: :test
+      {:project, category} when not is_nil(project_id) ->
+        case Repo.get(Project, project_id) do
+          %Project{account_id: ^account_id} = project -> {project, category}
+          _ -> {nil, category}
+        end
 
-    case Repo.get(Project, project_id) do
-      %Project{account_id: ^account_id} = project -> {project, category}
-      _ -> {nil, category}
+      _ ->
+        {nil, :test}
     end
   end
-
-  defp authorization_target(_subscription), do: {nil, :test}
 
   defp member?(user, %Project{} = project) do
     project = Repo.preload(project, account: :organization)

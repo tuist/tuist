@@ -29,7 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
-  alias Tuist.MCP.Events
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -570,7 +570,8 @@ defmodule Tuist.Tests do
         end
       end)
 
-      if test.status == "failure", do: Events.publish_failed_test_run(test.project_id, test.id)
+      if test.status == "failure",
+        do: Publisher.publish("test_run.failed", %{"project_id" => test.project_id, "test_run_id" => test.id}, test.id)
 
       {:ok, %{test | test_case_runs: test_case_runs}}
     end
@@ -897,7 +898,13 @@ defmodule Tuist.Tests do
 
           IngestRepo.insert_all(Test, [update_attrs])
 
-          if merged_status == "failure", do: Events.publish_failed_test_run(project_id, updated_test.id)
+          if merged_status == "failure",
+            do:
+              Publisher.publish(
+                "test_run.failed",
+                %{"project_id" => project_id, "test_run_id" => updated_test.id},
+                updated_test.id
+              )
 
           Tuist.Tasks.run_async(fn ->
             mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
@@ -1598,7 +1605,7 @@ defmodule Tuist.Tests do
   defp dispatch_mcp_events(events) do
     Enum.each(events, fn
       %{event_type: "marked_flaky", project_id: project_id, test_case_id: test_case_id, id: id} ->
-        Events.publish_marked_flaky(project_id, test_case_id, id)
+        Publisher.publish("test_case.marked_flaky", %{"project_id" => project_id, "test_case_id" => test_case_id}, id)
 
       _ ->
         :ok
@@ -4668,7 +4675,10 @@ defmodule Tuist.Tests do
 
     IngestRepo.insert_all(Test, updated_runs)
 
-    Enum.each(stale_runs, &Events.publish_failed_test_run(&1.project_id, &1.id))
+    Enum.each(
+      stale_runs,
+      &Publisher.publish("test_run.failed", %{"project_id" => &1.project_id, "test_run_id" => &1.id}, &1.id)
+    )
 
     sharded_runs = Enum.filter(stale_runs, & &1.shard_plan_id)
     shard_plan_ids = sharded_runs |> Enum.map(& &1.shard_plan_id) |> Enum.uniq()

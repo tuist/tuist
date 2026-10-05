@@ -9,6 +9,7 @@ defmodule Tuist.MCP.EventsTest do
   alias Tuist.Bazel
   alias Tuist.MCP.Events
   alias Tuist.MCP.Events.Callback
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.DeliveryWorker
   alias Tuist.MCP.Events.Workers.FanoutWorker
@@ -132,8 +133,13 @@ defmodule Tuist.MCP.EventsTest do
                  }
                })
 
-      assert %Subscription{event_name: ^name, account_id: account_id} = Repo.get!(Subscription, id)
+      subscription = Subscription |> Repo.get!(id) |> Repo.preload([:user, :account, :project, :account_token])
+      assert %Subscription{event_name: ^name, account_id: account_id} = subscription
       assert account_id == user.account.id
+      assert subscription.user.id == user.id
+      assert subscription.account.id == user.account.id
+      assert subscription.account_token.id == token.id
+      assert is_nil(subscription.project) == (name == "ci_job.failed")
     end
   end
 
@@ -194,7 +200,13 @@ defmodule Tuist.MCP.EventsTest do
     assert %Subscription{oauth_client_id: client_id} = Repo.get!(Subscription, id)
     assert client_id == client.id
 
-    assert :ok = Events.publish_failed_build(project.id, "xcode", Ecto.UUID.generate())
+    assert :ok =
+             Publisher.publish(
+               "build.failed",
+               %{"project_id" => project.id, "build_system" => "xcode", "build_id" => Ecto.UUID.generate()},
+               "xcode:sample"
+             )
+
     fanout_job = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
     assert :ok = FanoutWorker.perform(fanout_job)
 
@@ -230,7 +242,12 @@ defmodule Tuist.MCP.EventsTest do
     test_case_id = Ecto.UUID.generate()
     source_id = Ecto.UUID.generate()
 
-    assert :ok = Events.publish_marked_flaky(project.id, test_case_id, source_id)
+    assert :ok =
+             Publisher.publish(
+               "test_case.marked_flaky",
+               %{"project_id" => project.id, "test_case_id" => test_case_id},
+               source_id
+             )
 
     fanout_job = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
     assert :ok = FanoutWorker.perform(fanout_job)
@@ -289,9 +306,26 @@ defmodule Tuist.MCP.EventsTest do
     build_id = Ecto.UUID.generate()
     test_run_id = Ecto.UUID.generate()
 
-    assert :ok = Events.publish_failed_build(project.id, "xcode", build_id)
-    assert :ok = Events.publish_failed_test_run(project.id, test_run_id)
-    assert :ok = Events.publish_failed_ci_job(user.account.id, 42, 123)
+    assert :ok =
+             Publisher.publish(
+               "build.failed",
+               %{"project_id" => project.id, "build_system" => "xcode", "build_id" => build_id},
+               "xcode:#{build_id}"
+             )
+
+    assert :ok =
+             Publisher.publish(
+               "test_run.failed",
+               %{"project_id" => project.id, "test_run_id" => test_run_id},
+               test_run_id
+             )
+
+    assert :ok =
+             Publisher.publish(
+               "ci_job.failed",
+               %{"account_id" => user.account.id, "workflow_run_id" => 42, "workflow_job_id" => 123},
+               123
+             )
 
     fanout_jobs = Repo.all(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
     assert length(fanout_jobs) == 3
@@ -404,7 +438,12 @@ defmodule Tuist.MCP.EventsTest do
     project_id = ProjectsFixtures.project_fixture().id
     build_id = Ecto.UUID.generate()
 
-    assert :ok = Events.publish_failed_build(project_id, "xcode", build_id)
+    assert :ok =
+             Publisher.publish(
+               "build.failed",
+               %{"project_id" => project_id, "build_system" => "xcode", "build_id" => build_id},
+               "xcode:#{build_id}"
+             )
 
     refute Repo.exists?(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
   end
@@ -429,7 +468,13 @@ defmodule Tuist.MCP.EventsTest do
       })
       |> Repo.insert!()
 
-    assert :ok = Events.publish_failed_build(project.id, "xcode", Ecto.UUID.generate())
+    assert :ok =
+             Publisher.publish(
+               "build.failed",
+               %{"project_id" => project.id, "build_system" => "xcode", "build_id" => Ecto.UUID.generate()},
+               "xcode:sample"
+             )
+
     fanout_job = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
     assert :ok = FanoutWorker.perform(fanout_job)
 

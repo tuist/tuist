@@ -46,7 +46,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
-  alias Tuist.MCP.Events
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
@@ -1420,7 +1420,15 @@ defmodule Tuist.Runners.Jobs do
     broadcast_status_change(row.account_id, "completed")
 
     if conclusion == "failure" and row.status not in ["completed", "cancelled"] do
-      Events.publish_failed_ci_job(row.account_id, row.workflow_run_id, row.workflow_job_id)
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => row.account_id,
+          "workflow_run_id" => row.workflow_run_id,
+          "workflow_job_id" => row.workflow_job_id
+        },
+        row.workflow_job_id
+      )
     end
 
     {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
@@ -1442,9 +1450,13 @@ defmodule Tuist.Runners.Jobs do
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
 
     if conclusion == "failure" and (is_nil(previous) or previous.status not in ["completed", "cancelled"]) do
-      Events.publish_failed_ci_job(
-        Map.fetch!(attrs, :account_id),
-        Map.fetch!(attrs, :workflow_run_id),
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => Map.fetch!(attrs, :account_id),
+          "workflow_run_id" => Map.fetch!(attrs, :workflow_run_id),
+          "workflow_job_id" => Map.fetch!(attrs, :workflow_job_id)
+        },
         Map.fetch!(attrs, :workflow_job_id)
       )
     end

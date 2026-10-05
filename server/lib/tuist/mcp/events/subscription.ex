@@ -5,15 +5,19 @@ defmodule Tuist.MCP.Events.Subscription do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.User
+  alias Tuist.Projects.Project
   alias Tuist.Vault.Binary
 
   @primary_key {:id, :string, autogenerate: false}
   schema "mcp_event_subscriptions" do
-    field :user_id, :integer
-    field :account_token_id, Ecto.UUID
+    belongs_to :user, User
+    belongs_to :account_token, AccountToken, type: Ecto.UUID
     field :oauth_client_id, Ecto.UUID
-    field :account_id, :integer
-    field :project_id, :integer
+    belongs_to :account, Account
+    belongs_to :project, Project
     field :event_name, :string
     field :callback_url, Binary
     field :signing_secret, Binary

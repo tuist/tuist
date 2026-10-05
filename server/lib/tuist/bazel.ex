@@ -14,7 +14,7 @@ defmodule Tuist.Bazel do
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseTimeSeries
   alias Tuist.IngestRepo
-  alias Tuist.MCP.Events
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.ReapiCache
   alias Tuist.Repo
   alias Tuist.Tests.Sanitizer
@@ -79,7 +79,13 @@ defmodule Tuist.Bazel do
     |> Enum.filter(&(&1.command == "build" and &1.status == "failure"))
     |> Enum.group_by(& &1.project_id, & &1.invocation_id)
     |> Enum.each(fn {project_id, invocation_ids} ->
-      Events.publish_failed_builds(project_id, "bazel", invocation_ids)
+      Publisher.publish_batch(
+        "build.failed",
+        Enum.map(invocation_ids, fn id ->
+          {%{"project_id" => project_id, "build_system" => "bazel", "build_id" => id}, "bazel:#{id}"}
+        end),
+        %{"project_id" => project_id}
+      )
     end)
 
     result
