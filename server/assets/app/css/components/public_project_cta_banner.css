@@ -46,7 +46,10 @@
       transform: rotate(50deg);
       filter: blur(100px);
       border-radius: 1000px;
-      background: light-dark(oklch(53.2% 0.276 286.9 / 0.06), oklch(53.2% 0.276 286.9 / 0.2));
+      background: light-dark(
+        oklch(from var(--noora-purple-500) l c h / 0.06),
+        oklch(from var(--noora-purple-500) l c h / 0.2)
+      );
       width: 70%;
       min-width: 300px;
       height: 40cqw;
@@ -58,7 +61,10 @@
         transform: rotate(-15deg);
         filter: blur(80px);
         border-radius: 1000px;
-        background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.15));
+        background: light-dark(
+          oklch(from var(--noora-purple-500) l c h / 0.05),
+          oklch(from var(--noora-purple-500) l c h / 0.15)
+        );
         width: 80%;
         min-width: 250px;
         height: 25cqw;
@@ -73,7 +79,10 @@
       transform: rotate(-20deg);
       filter: blur(80px);
       border-radius: 1000px;
-      background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.12));
+      background: light-dark(
+        oklch(from var(--noora-purple-500) l c h / 0.05),
+        oklch(from var(--noora-purple-500) l c h / 0.12)
+      );
       width: 70%;
       min-width: 300px;
       height: 20cqw;

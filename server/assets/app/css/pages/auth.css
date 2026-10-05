@@ -219,7 +219,10 @@
       z-index: var(--noora-z-index-2);
       filter: blur(150px);
       border-radius: 1000px;
-      background: light-dark(oklch(53.2% 0.276 286.9 / 0.15), oklch(53.2% 0.276 286.9 / 0.3));
+      background: light-dark(
+        oklch(from var(--noora-purple-500) l c h / 0.15),
+        oklch(from var(--noora-purple-500) l c h / 0.3)
+      );
       width: 80%;
       height: 50%;
     }
@@ -232,7 +235,10 @@
       z-index: var(--noora-z-index-2);
       filter: blur(150px);
       border-radius: 1000px;
-      background: light-dark(oklch(54.2% 0.27 286.9 / 0.1), oklch(54.2% 0.27 286.9 / 0.15));
+      background: light-dark(
+        oklch(from var(--noora-purple-500) l c h / 0.1),
+        oklch(from var(--noora-purple-500) l c h / 0.15)
+      );
       width: 90%;
       height: 40%;
     }
@@ -363,7 +369,7 @@
     align-items: flex-start;
     background: radial-gradient(
         131.61% 140.32% at 0% 100%,
-        oklch(53.2% 0.276 286.9 / 0.04) 0%,
+        oklch(from var(--noora-purple-500) l c h / 0.04) 0%,
         oklch(100% 0 0 / 0) 100%
       ),
       var(--noora-surface-background-primary);
