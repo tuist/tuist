@@ -583,6 +583,14 @@ did not apply, count as refusals until a pass adopts the card. It is held in
 memory (`controllers/macos/rackcard_backoff.go`), so a new leader starts
 over.
 
+An adopted PDU whose administrator cannot log in for a new generation (a
+person holds the administrator's one session at the web UI, `AdminSessionBusy`,
+or changed its password, `AdminLoginRefused`) stays adopted at the
+generation it last converged: `Converged=False` carries the reason, and `Ready`
+follows the controller's account, so the hosts on it keep their power while
+the account reads the card. A refused administrator login waits its own
+backoff meanwhile, and the controller's account is still verified.
+
 One generation is one adoption pass, and so is a Secret recording other
 passwords than the derived ones. The reconciler wakes for a new generation,
 an annotation or a deletion, not for its own status writes, and before
@@ -736,10 +744,10 @@ accepted certificate, the login backoff (a refused or
 blocked login waits a minute, doubling to an hour, reset by a success, a new
 generation or an annotation; `AccountBlocked` is its own `Ready` and `Adopted`
 reason), `RootKeyMissing`, the logout when it goes `standalone`, and
-`AddressReserved=False`/`NoMAC` without a MAC. One difference
-in the backoff: an adopted switch whose administrator login is refused for a
-new generation keeps being observed as the controller's account, and only the
-administrator's logins wait. What differs otherwise:
+`AddressReserved=False`/`NoMAC` without a MAC, and an adopted card whose
+administrator cannot log in for a new generation staying observed as the
+controller's account while only the administrator's logins wait. What
+differs otherwise:
 
 1. **It identifies the switch before writing anything else.** Right after the
    administrator's login (which, on a factory card, is itself the forced

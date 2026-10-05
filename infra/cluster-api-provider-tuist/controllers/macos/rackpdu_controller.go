@@ -59,10 +59,9 @@ var rackPDUHost = func(pdu *infrav1.RackPDU) string {
 // RackPDUReconciler adopts each controller-managed RackPDU's card and keeps it
 // configured: it records the card's certificate at first contact and pins it,
 // derives the card's credentials from the root key, sets the administrator
-// password,
-// accepts the licence agreement, creates the controller's own account and
-// sets every outlet's startup state. Between generations it only reads, and
-// reports drift.
+// password, accepts the licence agreement, creates the controller's own
+// account and sets every outlet's startup state. Between generations it only
+// reads, and reports drift.
 type RackPDUReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
@@ -89,7 +88,11 @@ type RackPDUReconciler struct {
 	// derived from. Without it no card is adopted.
 	RootKeySecret types.NamespacedName
 
+	// loginBackoff holds off every contact with a card that refused a login
+	// the pass depends on; adminBackoff only the administrator's logins to an
+	// adopted card, whose controller's account is still verified meanwhile.
 	loginBackoff cardLoginBackoff
+	adminBackoff cardLoginBackoff
 }
 
 // rackPDUPredicate wakes the reconciler for a new generation, an annotation
@@ -198,16 +201,38 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 	// earlier build or root key set, and a certificate pinned anew (an
 	// accepted one) may be a card reset to its factory state: adopting moves
 	// either onto the derived passwords and the spec.
+	// An adopted card whose administrator cannot log in keeps being verified,
+	// so power follows the controller's account; Converged carries why the
+	// generation did not converge.
+	var notConverged *clusterv1.Condition
 	if !rackCardCredentialsCurrent(secret, passwords) || pinned != string(secret.Data[rackCardKeyFingerprint]) ||
 		((!pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation) && !r.adoptedAlready(ctx, pdu)) {
-		return r.adopt(ctx, pdu, secret, passwords, false)
+		if wait := r.adminBackoff.wait(pdu); wait > 0 && pdu.Status.Adopted {
+			if held := conditions.Get(pdu, RackPDUConvergedCondition); held != nil {
+				notConverged = held.DeepCopy()
+			}
+		} else {
+			res, err := r.adopt(ctx, pdu, secret, passwords, false)
+			if err == nil {
+				return res, nil
+			}
+			notConverged = &clusterv1.Condition{
+				Type: RackPDUConvergedCondition, Status: corev1.ConditionFalse, Severity: clusterv1.ConditionSeverityWarning,
+				Reason: eatonLoginReason(err), Message: fmt.Sprintf("generation %d did not converge: %v", pdu.Generation, err),
+			}
+		}
 	}
 	res, refused := r.verify(ctx, pdu, secret)
 	if refused {
 		// The controller's account no longer takes its password: a card reset
 		// to its factory state, or an account changed by hand. Adopting again
 		// remakes it, under the login backoff.
-		return r.adopt(ctx, pdu, secret, passwords, true)
+		res, _ := r.adopt(ctx, pdu, secret, passwords, true)
+		return res, nil
+	}
+	if notConverged != nil && notConverged.Status == corev1.ConditionFalse && conditions.IsTrue(pdu, clusterv1.ReadyCondition) {
+		pdu.Status.Message = notConverged.Message
+		conditions.Set(pdu, notConverged.DeepCopy())
 	}
 	return res, nil
 }
@@ -216,7 +241,9 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 // reads first and writes only what differs, so a pass interrupted anywhere is
 // finished by the next. afterRefusal is a pass started by the card refusing
 // the controller's password, which counts against the login backoff unless it
-// adopts the card.
+// adopts the card. On an adopted card whose administrator cannot log in, it
+// returns that login's error and changes nothing else: the controller's
+// account may still drive the card, so the caller verifies it.
 func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords, afterRefusal bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	login, err := openRackCardAdmin(ctx, r.Client, r.Recorder, pdu, r.cardOutlet(pdu, secret), secret, passwords, r.timeout())
@@ -225,6 +252,13 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 		if pdu.Status.Adopted && rackCardUnexpectedResponse(err) {
 			markRackCardUnexpected(pdu, err)
 			return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
+		}
+		if pdu.Status.Adopted && !afterRefusal {
+			if cardLoginRefused(err) {
+				r.adminBackoff.refused(pdu)
+			}
+			r.Recorder.Eventf(pdu, corev1.EventTypeWarning, eatonLoginReason(err), "Generation %d did not converge: %v", pdu.Generation, err)
+			return ctrl.Result{}, err
 		}
 		markRackCardNotAdopted(pdu, eatonLoginReason(err), err)
 		if cardLoginRefused(err) || afterRefusal {
@@ -283,6 +317,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 		markRackCardRotationNotApplied(pdu, login.RotationNotApplied)
 		return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
 	}
+	r.adminBackoff.succeeded(pdu)
 	r.loginBackoff.succeeded(pdu)
 	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 }
