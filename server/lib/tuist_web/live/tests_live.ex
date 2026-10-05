@@ -208,7 +208,10 @@ defmodule TuistWeb.TestsLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
-    duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
+
+    duration_scatter_group_by =
+      params["duration-scatter-group-by"] ||
+        if(schemes?(socket.assigns.selected_project), do: "scheme", else: "environment")
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -476,12 +479,18 @@ defmodule TuistWeb.TestsLive do
   defp scatter_name_label(value, _), do: scheme_value_label(value)
 
   defp test_run_tooltip_extra(meta, project) do
-    [
-      # Not "Scheme": Bazel, Gradle and Once each call this something else.
-      %{label: scheme_label(project), value: scheme_value_label(meta.scheme)},
-      %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
-      %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
-    ]
+    # Not "Scheme": Bazel, Gradle and Once each call this something else, and
+    # Mix has nothing of the kind, so its runs do not show one.
+    scheme =
+      if schemes?(project),
+        do: [%{label: scheme_label(project), value: scheme_value_label(meta.scheme)}],
+        else: []
+
+    scheme ++
+      [
+        %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
+        %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
+      ]
   end
 
   defp selective_testing_tooltip_extra(meta) do

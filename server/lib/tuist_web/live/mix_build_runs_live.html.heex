@@ -1,0 +1,114 @@
+<div id="gradle-build-runs">
+  <.card
+    title={dgettext("dashboard_builds", "Build Runs")}
+    icon="chart_column"
+    data-part="build-runs-card"
+  >
+    <.card_section data-part="build-runs-card-section">
+      <div :if={not Enum.empty?(@build_runs)} data-part="build-runs-table">
+        <.table
+          id="mix-build-runs-table"
+          rows={@build_runs}
+          row_navigate={
+            fn build ->
+              url(
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/mix-builds/#{build.id}"
+              )
+            end
+          }
+        >
+          <:col :let={build} label={dgettext("dashboard_builds", "Command")}>
+            <.project_with_tags_cell label="mix compile" tags={build.custom_tags || []} />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_builds", "Status")}>
+            <.status_badge_cell
+              :if={build.status == "success"}
+              label={dgettext("dashboard_builds", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={build.status == "failure"}
+              label={dgettext("dashboard_builds", "Failed")}
+              status="error"
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_builds", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={if(build.git_branch == "", do: "None", else: build.git_branch)}
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_builds", "Commit SHA")}>
+            <.text_cell label={TuistWeb.MixBuildRunsLive.format_sha(build.git_commit_sha)} />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_builds", "Built by")}>
+            <.build_ran_by_badge_cell build={build} />
+          </:col>
+          <:col
+            :let={build}
+            label={dgettext("dashboard_builds", "Duration")}
+            patch={TuistWeb.MixBuildRunsLive.column_patch_sort(assigns, "duration")}
+            sort_order={@build_runs_sort_by == "duration" && @build_runs_sort_order}
+          >
+            <.text_cell
+              label={
+                dgettext("dashboard_builds", "%{duration}s",
+                  duration: (build.duration_ms / 1000) |> Decimal.from_float() |> Decimal.round(1)
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_builds", "Warnings / Errors")}>
+            <.text_cell label={
+              "#{build.diagnostics_warning_count} / #{build.diagnostics_error_count}"
+            } />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_builds", "Elixir / OTP")}>
+            <.text_cell label={
+              if build.elixir_version == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: "#{build.elixir_version} / #{build.otp_version}"
+            } />
+          </:col>
+          <:col
+            :let={build}
+            label={dgettext("dashboard_builds", "Ran at")}
+            patch={TuistWeb.MixBuildRunsLive.column_patch_sort(assigns, "ran-at")}
+            sort_order={@build_runs_sort_by == "ran-at" && @build_runs_sort_order}
+          >
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@build_runs_page_count > 1}
+          current_page={@build_runs_page}
+          number_of_pages={@build_runs_page_count}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", to_string(page))}" end}
+        />
+      </div>
+      <div :if={Enum.empty?(@build_runs)} data-part="empty-build-runs">
+        <.empty_card_section
+          title={dgettext("dashboard_builds", "No data yet")}
+          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights/elixir"
+          data-part="empty-build-runs-table-card-section"
+        >
+          <:image>
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

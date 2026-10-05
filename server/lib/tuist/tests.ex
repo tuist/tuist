@@ -29,6 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -569,6 +570,19 @@ defmodule Tuist.Tests do
         end
       end)
 
+      if test.status == "failure",
+        do:
+          Publisher.publish(
+            "test_run.failed",
+            %{
+              "project_id" => test.project_id,
+              "test_run_id" => test.id,
+              "is_ci" => test.is_ci,
+              "git_branch" => test.git_branch || ""
+            },
+            test.id
+          )
+
       {:ok, %{test | test_case_runs: test_case_runs}}
     end
   end
@@ -894,6 +908,19 @@ defmodule Tuist.Tests do
 
           IngestRepo.insert_all(Test, [update_attrs])
 
+          if merged_status == "failure",
+            do:
+              Publisher.publish(
+                "test_run.failed",
+                %{
+                  "project_id" => project_id,
+                  "test_run_id" => updated_test.id,
+                  "is_ci" => updated_test.is_ci,
+                  "git_branch" => updated_test.git_branch || ""
+                },
+                updated_test.id
+              )
+
           Tuist.Tasks.run_async(fn ->
             mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
 
@@ -1040,11 +1067,16 @@ defmodule Tuist.Tests do
         shard_index: shard_index || 0,
         status: status,
         duration: duration || 0,
-        ran_at: Map.get(attrs, :ran_at, now),
+        ran_at: attrs |> Map.get(:ran_at, now) |> shard_run_ran_at(),
         inserted_at: now
       }
     ])
   end
+
+  # A client that reports when its run started sends a timestamp with a zone;
+  # the column holds a naive one.
+  defp shard_run_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
+  defp shard_run_ran_at(ran_at), do: ran_at
 
   defp mark_test_run_as_flaky(test, []), do: test
   defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky_ids), do: test
@@ -1492,7 +1524,7 @@ defmodule Tuist.Tests do
       updated_test_case = Map.merge(test_case, filtered_attrs)
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
-      record_test_case_events(test_case, event_types, actor_id, alert_id)
+      recorded_events = record_test_case_events(test_case, event_types, actor_id, alert_id)
       # Broadcast THIS call's update before fanning out to event-driven
       # automations. An automation action (e.g. change_state) re-enters
       # `update_test_case/3`, which will broadcast its own update; we want
@@ -1501,6 +1533,7 @@ defmodule Tuist.Tests do
       broadcast_test_case_update(updated_test_case, event_types)
       dispatch_event_driven_automations(test_case, event_types)
       dispatch_webhooks(updated_test_case, event_types, actor_id, alert_id)
+      dispatch_mcp_events(recorded_events)
 
       {:ok, updated_test_case}
     end
@@ -1558,7 +1591,7 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp record_test_case_events(_test_case, [], _actor_id, _alert_id), do: :ok
+  defp record_test_case_events(_test_case, [], _actor_id, _alert_id), do: []
 
   # `project_id` is denormalized onto the event so `test_case_states_mv` can
   # project it into `test_case_states`, whose reads are all project-scoped. A
@@ -1586,6 +1619,17 @@ defmodule Tuist.Tests do
     # cheap here — these events are emitted at most a few times per second
     # per test case.
     TestCaseEvent.Buffer.flush()
+    events
+  end
+
+  defp dispatch_mcp_events(events) do
+    Enum.each(events, fn
+      %{event_type: "marked_flaky", project_id: project_id, test_case_id: test_case_id, id: id} ->
+        Publisher.publish("test_case.marked_flaky", %{"project_id" => project_id, "test_case_id" => test_case_id}, id)
+
+      _ ->
+        :ok
+    end)
   end
 
   defp dispatch_event_driven_automations(test_case, event_types) do
@@ -4650,6 +4694,22 @@ defmodule Tuist.Tests do
       end)
 
     IngestRepo.insert_all(Test, updated_runs)
+
+    stale_runs
+    |> Enum.group_by(& &1.project_id)
+    |> Enum.each(fn {project_id, runs} ->
+      entries =
+        Enum.map(runs, fn run ->
+          {%{
+             "project_id" => project_id,
+             "test_run_id" => run.id,
+             "is_ci" => run.is_ci,
+             "git_branch" => run.git_branch || ""
+           }, run.id}
+        end)
+
+      Publisher.publish_batch("test_run.failed", entries, %{"project_id" => project_id})
+    end)
 
     sharded_runs = Enum.filter(stale_runs, & &1.shard_plan_id)
     shard_plan_ids = sharded_runs |> Enum.map(& &1.shard_plan_id) |> Enum.uniq()

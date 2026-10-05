@@ -1,6 +1,7 @@
 <div id="tests">
   <div data-part="filters">
     <.dropdown
+      :if={schemes?(@selected_project)}
       id="tests-analytics-scheme-dropdown"
       label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
       secondary_text={"#{scheme_label(@selected_project)}:"}
@@ -271,10 +272,15 @@
         id="test-duration"
         chart_type={@duration_chart_type}
         chart_type_event="select_duration_chart_type"
-        group_by_options={[
-          %{value: "scheme", label: scheme_label(@selected_project)},
-          %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
-        ]}
+        group_by_options={
+          Enum.filter(
+            [
+              %{value: "scheme", label: scheme_label(@selected_project)},
+              %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
+            ],
+            &(&1.value != "scheme" or schemes?(@selected_project))
+          )
+        }
         selected_group_by={@duration_scatter_group_by}
         group_by_query_param="duration-scatter-group-by"
         uri={@uri}
@@ -974,9 +980,7 @@
         }
       >
         <:col :let={test_run} label={scheme_label(@selected_project)}>
-          <.text_and_description_cell label={
-            (test_run.scheme !== "" && test_run.scheme) || dgettext("dashboard_tests", "Unknown")
-          } />
+          <.text_and_description_cell label={test_run_label(@selected_project, test_run.scheme)} />
         </:col>
         <:col :let={test_run} label="Status">
           <.status_badge_cell
