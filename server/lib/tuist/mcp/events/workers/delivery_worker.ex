@@ -37,34 +37,23 @@ defmodule Tuist.MCP.Events.Workers.DeliveryWorker do
     if byte_size(encoded) > 262_144 do
       {:discard, :payload_too_large}
     else
-      case Callback.post(subscription.callback_url, subscription.signing_secret, subscription.id, event_id, encoded) do
-        {:ok, %{status: status}} when status in 200..299 ->
-          reset_timeouts(subscription.id)
-          :ok
-
-        {:ok, %{status: 410}} ->
-          delete_subscription(subscription.id)
-
-        {:ok, %{status: 413}} ->
-          {:discard, :payload_rejected}
-
-        {:ok, %{status: status}} ->
-          {:error, {:callback_status, status}}
-
-        {:error, :timeout} ->
-          handle_timeout(subscription.id)
-
-        {:error, :overloaded} ->
-          {:snooze, 5}
-
-        {:error, :invalid_callback_url} ->
-          {:discard, :invalid_callback_url}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+      result = Callback.post(subscription.callback_url, subscription.signing_secret, subscription.id, event_id, encoded)
+      handle_response(result, subscription)
     end
   end
+
+  defp handle_response({:ok, %{status: status}}, subscription) when status in 200..299 do
+    reset_timeouts(subscription.id)
+    :ok
+  end
+
+  defp handle_response({:ok, %{status: 410}}, subscription), do: delete_subscription(subscription.id)
+  defp handle_response({:ok, %{status: 413}}, _subscription), do: {:discard, :payload_rejected}
+  defp handle_response({:ok, %{status: status}}, _subscription), do: {:error, {:callback_status, status}}
+  defp handle_response({:error, :timeout}, subscription), do: handle_timeout(subscription.id)
+  defp handle_response({:error, :overloaded}, _subscription), do: {:snooze, 5}
+  defp handle_response({:error, :invalid_callback_url}, _subscription), do: {:discard, :invalid_callback_url}
+  defp handle_response({:error, reason}, _subscription), do: {:error, reason}
 
   defp handle_timeout(id) do
     query =
