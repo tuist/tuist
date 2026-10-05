@@ -1,0 +1,79 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+# Default setup starts one run per push with no way to supersede it, so a bot
+# pushing ~100 commits in a few minutes queued hundreds of hosted jobs.
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    if: github.repository == 'tuist/tuist' && github.event.pull_request.user.login != 'glossia[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: go
+            build-mode: autobuild
+          - language: java-kotlin
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          dependency-caching: true
+
+      - name: Resolve build environment
+        id: resolve-environment
+        if: matrix.language == 'go'
+        uses: github/codeql-action/resolve-environment@v4
+        with:
+          language: go
+
+      - name: Setup Go
+        if: matrix.language == 'go' && fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
+          cache: false
+
+      - name: Autobuild
+        if: matrix.build-mode == 'autobuild'
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
