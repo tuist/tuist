@@ -221,7 +221,10 @@ defmodule TuistWeb.OnceRunLive do
               <div data-part="icon"><.alert_circle /></div>
             </div>
             <div
-              :if={@run.finalization == "lost" or is_binary(@run.cancellation_reason)}
+              :if={
+                @run.finalization == "lost" or
+                  (is_binary(@run.cancellation_reason) and @run.exit_status != 0)
+              }
               data-part="badge-warning"
             >
               <div data-part="icon"><.alert_hexagon /></div>
@@ -1227,8 +1230,8 @@ defmodule TuistWeb.OnceRunLive do
   defp run_status_label(%{finalization: "finalized", exit_status: 0}), do: dgettext("dashboard_builds", "Passed")
 
   # Checked before the failure clause: a cancelled run reports exit status 1.
-  defp run_status_label(%{finalization: "finalized", cancellation_reason: reason}) when is_binary(reason),
-    do: dgettext("dashboard_projects", "Cancelled")
+  defp run_status_label(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+       when is_binary(reason) and exit_status != 0, do: dgettext("dashboard_projects", "Cancelled")
 
   defp run_status_label(%{finalization: "finalized"}), do: dgettext("dashboard_builds", "Failed")
 
@@ -1239,7 +1242,10 @@ defmodule TuistWeb.OnceRunLive do
   defp run_status_label(_), do: dgettext("dashboard_projects", "Running")
 
   defp run_status_badge_color(%{finalization: "finalized", exit_status: 0}), do: "success"
-  defp run_status_badge_color(%{finalization: "finalized", cancellation_reason: reason}) when is_binary(reason), do: "warning"
+
+  defp run_status_badge_color(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+       when is_binary(reason) and exit_status != 0, do: "warning"
+
   defp run_status_badge_color(%{finalization: "finalized"}), do: "destructive"
   defp run_status_badge_color(%{finalization: "lost"}), do: "warning"
   defp run_status_badge_color(_), do: "primary"

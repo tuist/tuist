@@ -125,7 +125,9 @@ defmodule TuistWeb.OnceTestRunLive do
   def status(%{finalization: "lost"}), do: "interrupted"
   # A cancelled run reports exit status 1, so it has to be told apart before
   # the exit status decides it failed.
-  def status(%{finalization: "finalized", cancellation_reason: reason}) when is_binary(reason), do: "cancelled"
+  def status(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+      when is_binary(reason) and exit_status != 0, do: "cancelled"
+
   def status(%{exit_status: 0}), do: "success"
 
   def status(%{exit_status: nil, finalization: finalization}) do
