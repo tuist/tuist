@@ -40,7 +40,7 @@ defmodule TuistOps.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
       {:plug, "~> 1.18"},
-      {:postgrex, "~> 0.20"},
+      {:postgrex, "~> 0.22"},
       {:req, "~> 0.5"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:telemetry_metrics, "~> 1.0"},
