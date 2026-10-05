@@ -262,13 +262,13 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	}
 
 	markRackCardConverged(r.Recorder, pdu)
-	r.loginBackoff.succeeded(pdu)
 	if login.RotationNotApplied != nil {
-		// Managed on the password that works; the next try at moving it waits
-		// out the backoff, since each one is a refused derived login.
+		// Managed on the password that works; each try at moving it is a
+		// refused derived login, so the next waits out a growing backoff.
 		markRackCardRotationNotApplied(pdu, login.RotationNotApplied)
 		return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
 	}
+	r.loginBackoff.succeeded(pdu)
 	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 }
 

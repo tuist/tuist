@@ -440,3 +440,41 @@ func TestThePreviousAdminPasswordRecoversACard(t *testing.T) {
 		t.Fatalf("events = %v, want the rotation to name the previous password", h.events)
 	}
 }
+
+// A card that keeps ignoring the derived password is tried later and later:
+// 1m, 2m, 4m.
+func TestARotationNotAppliedGrowsTheBackoff(t *testing.T) {
+	t.Run("RackPDU", func(t *testing.T) {
+		adopted := rackPDU(func(p *infrav1.RackPDU) { p.Status.Adopted, p.Status.ObservedGeneration = true, 1 })
+		h := newPDUHarness(t, adopted)
+		onLegacyPasswords(h.card, eatontest.ProfileOperators)
+		h.card.IgnoreNewPasswordUnlessExpired = true
+		if err := h.r.Create(context.Background(), legacySecret("ber1-pdu-b-credentials", "tuist.dev/rack-pdu", "ber1-pdu-b", "192.168.0.16", h.card.Fingerprint())); err != nil {
+			t.Fatal(err)
+		}
+		now := h.clock()
+		for _, want := range []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute} {
+			if res := h.reconcile(); res.RequeueAfter != want {
+				t.Fatalf("requeue %s, want %s", res.RequeueAfter, want)
+			}
+			*now = now.Add(want)
+		}
+	})
+	t.Run("RackATS", func(t *testing.T) {
+		adopted := rackATS(func(a *infrav1.RackATS) { a.Status.Adopted, a.Status.ObservedGeneration = true, 1 })
+		h := newATSHarness(t, adopted)
+		onLegacyPasswords(h.card, eatontest.ProfileViewers)
+		h.card.IgnoreNewPasswordUnlessExpired = true
+		if err := h.r.Create(context.Background(), legacySecret(testATS+"-credentials", "tuist.dev/rack-ats", testATS, "192.168.0.14", h.card.Fingerprint())); err != nil {
+			t.Fatal(err)
+		}
+		now := h.clock()
+		for _, want := range []time.Duration{time.Minute, 2 * time.Minute, 4 * time.Minute} {
+			h.reconcile()
+			if wait := h.r.adminBackoff.wait(h.ats()); wait != want {
+				t.Fatalf("administrator backoff %s, want %s", wait, want)
+			}
+			*now = now.Add(want)
+		}
+	})
+}
