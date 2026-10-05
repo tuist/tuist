@@ -239,9 +239,12 @@ fleet_check_power() {
     ] + [
       ([$all[] | select(.role == "edge")], [$all[] | select(.role == "storage")],
        [$all[] | select(.role == "tor")]) |
-      [.[] | {name, ats: feeder} | select(.ats != null)] |
+      [.[] | {name, role, ats: feeder} | select(.ats != null)] |
       select(length == 2 and .[0].ats == .[1].ats) |
         "\(.[0].name) and \(.[1].name) both resolve to \(.[0].ats), so one transfer switch takes the pair"
+    ] + [
+      $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null) |
+        "\(.name): one of the \(.role) pair, but names no ats or pdu, so which transfer switch it shares cannot be checked"
     ] + [
       [$all[] | select(.mgmt_address != null)] | group_by(.mgmt_address)[] | select(length > 1) |
         "\(map(.name) | join(" and ")) share management address \(.[0].mgmt_address)"
