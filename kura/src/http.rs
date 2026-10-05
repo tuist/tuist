@@ -64,7 +64,8 @@ use crate::{
     utils::{
         BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyError,
         RequestBodyErrorKind, RequestBodyStaging, TempFileCleanup, TmpReservation,
-        action_cache_key, blob_key, module_key, now_ms, read_request_to_temp, temp_file_path,
+        action_cache_key, blob_key, discard_request_body, module_key, now_ms, read_request_to_temp,
+        temp_file_path,
     },
 };
 
@@ -574,6 +575,12 @@ pub struct BackfillEntriesPage {
     /// absent from an older peer's page.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub now: Option<u64>,
+    /// Ascending reads of the serving node's own region: the newest committed
+    /// version the read lists once the serving bound passes it, so the
+    /// requester can tell how far behind it is (D-37). Additive; absent from
+    /// an older peer's page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_version_ms: Option<u64>,
 }
 
 /// One backfill index tuple on the wire. `record_kind` is a
@@ -603,6 +610,7 @@ impl From<BackfillIndexPage> for BackfillEntriesPage {
                 .collect(),
             next_after: page.next_after.map(hex::encode),
             now: Some(now_ms()),
+            newest_version_ms: None,
         }
     }
 }
@@ -2677,8 +2685,10 @@ async fn internal_status(
 /// no longer resolves is a 404 (the requester's absent case).
 async fn internal_backfill_artifact(
     AxumPath(artifact_id): AxumPath<String>,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let manifest = match state
         .store
         .fetch_artifact_by_id_for_serving(&artifact_id)
@@ -2769,10 +2779,19 @@ async fn internal_backfill_artifact(
     }
 }
 
+/// A backfill request from a sibling mid-bootstrap is its only traffic until
+/// the backward pass ends, so it keeps that sibling's feed registration live.
+fn refresh_backfilling_sibling(state: &SharedState, params: &HashMap<String, String>) {
+    if let Some(peer) = params.get("peer").filter(|peer| !peer.is_empty()) {
+        state.store.sync_feed().refresh_consumer(peer);
+    }
+}
+
 async fn internal_backfill_entries(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let query = match BackfillEntriesQuery::from_params(&params) {
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
@@ -2840,8 +2859,21 @@ async fn internal_backfill_entries_ascending(
             }
         };
         let caught_up = page.entries.is_empty() && page.next_after.is_none();
+        let respond = |page| {
+            // Only a lag hint: a failed seed read leaves the field out.
+            let newest_version_ms = query
+                .origin_region
+                .as_deref()
+                .and_then(|origin| state.store.newest_listed_version(origin).ok())
+                .flatten();
+            Json(BackfillEntriesPage {
+                newest_version_ms,
+                ..BackfillEntriesPage::from(page)
+            })
+            .into_response()
+        };
         let Some(deadline) = deadline.filter(|_| caught_up) else {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            return respond(page);
         };
         let now = Instant::now();
         let deadline = if state.runtime.is_draining() {
@@ -2850,7 +2882,7 @@ async fn internal_backfill_entries_ascending(
             deadline
         };
         if now >= deadline {
-            return Json(BackfillEntriesPage::from(page)).into_response();
+            return respond(page);
         }
         let recheck = Duration::from_millis(SYNC_LONG_POLL_RECHECK_MS).min(deadline - now);
         let _ = tokio::time::timeout(recheck, notified).await;
@@ -3108,7 +3140,12 @@ fn backfill_unavailable_response(error: &str, message: &str) -> Response {
     response
 }
 
-async fn internal_backfill_bodies(State(state): State<SharedState>, request: Request) -> Response {
+async fn internal_backfill_bodies(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+    request: Request,
+) -> Response {
+    refresh_backfilling_sibling(&state, &params);
     let identity = request.extensions().get::<InternalPeerIdentity>().cloned();
     let peer_label = identity
         .as_ref()
@@ -4018,7 +4055,10 @@ async fn put_blob_artifact(
         .artifact_exists(producer, spec.namespace_id, spec.key)
         .await
     {
-        Ok(true) => return spec.existing_status.into_response(),
+        Ok(true) => {
+            discard_request_body(request, spec.max_bytes).await;
+            return spec.existing_status.into_response();
+        }
         Ok(false) => {}
         Err(error) => {
             return error_response(

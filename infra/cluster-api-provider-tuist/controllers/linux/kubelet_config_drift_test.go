@@ -127,7 +127,7 @@ func TestReconcileLinuxKubeletConfigDrift_NoOpWhenStamped(t *testing.T) {
 func TestNodeInternalIP(t *testing.T) {
 	node := &corev1.Node{}
 	node.Status.Addresses = []corev1.NodeAddress{
-		{Type: corev1.NodeHostName, Address: "tuist-tuist-dedibox-fleet-abc"},
+		{Type: corev1.NodeHostName, Address: "tuist-tuist-ovh-fleet-abc"},
 		{Type: corev1.NodeInternalIP, Address: "195.154.208.48"},
 	}
 	if got := nodeInternalIP(node); got != "195.154.208.48" {

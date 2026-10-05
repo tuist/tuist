@@ -28,6 +28,23 @@ defmodule Atlas.GTM.EmailTest do
       refute Map.has_key?(email.headers, "List-Unsubscribe-Post")
     end
 
+    test "copies the CC addresses stored on the delivery" do
+      email =
+        Email.direct(%{
+          delivery(%{"body_markdown" => "Hello."})
+          | cc_emails: ["cto@acme.example", "ops@acme.example"]
+        })
+
+      assert email.to == [{"Riley", "recipient@example.com"}]
+      assert email.cc == [{"", "cto@acme.example"}, {"", "ops@acme.example"}]
+    end
+
+    test "sends no CC when the delivery has none" do
+      email = Email.direct(delivery(%{"body_markdown" => "Hello."}))
+
+      assert email.cc == []
+    end
+
     test "carries a per-delivery provider idempotency key" do
       email = Email.direct(delivery(%{"body_markdown" => "Hello."}))
 

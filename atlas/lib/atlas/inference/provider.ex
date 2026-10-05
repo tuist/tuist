@@ -16,6 +16,7 @@ defmodule Atlas.Inference.Provider do
   schema "inference_providers" do
     field :key, :string
     field :base_url, :string
+    field :decision_path, :string
     field :api_key_ciphertext, :string, redact: true
     field :api_key, :string, virtual: true, redact: true
     field :timeout, :integer, default: 300_000
@@ -25,12 +26,13 @@ defmodule Atlas.Inference.Provider do
 
   def changeset(provider, attrs) do
     provider
-    |> cast(attrs, [:key, :base_url, :api_key, :timeout])
-    |> normalize_strings([:key, :base_url, :api_key])
+    |> cast(attrs, [:key, :base_url, :decision_path, :api_key, :timeout])
+    |> normalize_strings([:key, :base_url, :decision_path, :api_key])
     |> validate_required([:key, :base_url, :timeout])
     |> validate_format(:key, @key_format)
     |> validate_number(:timeout, greater_than: 0)
     |> validate_base_url()
+    |> validate_format(:decision_path, ~r/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/)
     |> put_encrypted_api_key()
     |> unique_constraint(:key)
   end

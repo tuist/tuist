@@ -132,6 +132,10 @@ green-field cluster.
 {{- .Values.rackFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-fleet")) -}}
 {{- end -}}
 
+{{- define "tuist.rackLinuxFleetName" -}}
+{{- .Values.rackLinuxFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-linux")) -}}
+{{- end -}}
+
 {{- define "tuist.buildersFleetName" -}}
 {{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
 {{- end -}}
@@ -658,8 +662,36 @@ License env vars. Resolves to one mutually exclusive source:
 {{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate $useExistingKey $useExistingCertificate) -}}
 {{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
 {{- end -}}
+{{- /*
+  Render BOTH the legacy, source-specific env names
+  (`TUIST_LICENSE_KEY` / `TUIST_LICENSE_CERTIFICATE_BASE64`) AND the
+  unified `TUIST_LICENSE` from the same Secret keys, so the server reads
+  the license whichever name a caller or operator keeps using.
+
+  The server's `Tuist.License.fetch_license/0` tries the legacy readers
+  first (`license_key`, `license_certificate_base64`) and falls through
+  to the unified `license_value` only when both come back nil. That
+  makes the legacy variables the authoritative fallback in production:
+  if a future bug on the `TUIST_LICENSE` dispatch regresses, the pod
+  still boots because the legacy env is also set.
+
+  The previous attempt at a single-env unification (#13750) left the
+  pods crashing on canary without a captured log, so we are relanding
+  the operator-facing unified name while keeping the belt-and-suspenders
+  legacy names until the dispatch path is proven end-to-end.
+*/}}
 {{- if or $useEsoKey $useInlineKey $useExistingKey }}
 - name: TUIST_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      {{- if $useExistingKey }}
+      name: {{ $existingSecret | quote }}
+      key: {{ get $existingKeys "key" | quote }}
+      {{- else }}
+      name: {{ ternary $esoSecret $appSecret $useEsoKey | quote }}
+      key: server-license-key
+      {{- end }}
+- name: TUIST_LICENSE
   valueFrom:
     secretKeyRef:
       {{- if $useExistingKey }}
@@ -672,6 +704,16 @@ License env vars. Resolves to one mutually exclusive source:
 {{- end }}
 {{- if or $useEsoCertificate $useInlineCertificate $useExistingCertificate }}
 - name: TUIST_LICENSE_CERTIFICATE_BASE64
+  valueFrom:
+    secretKeyRef:
+      {{- if $useExistingCertificate }}
+      name: {{ $existingSecret | quote }}
+      key: {{ get $existingKeys "certificateBase64" | quote }}
+      {{- else }}
+      name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
+      key: server-license-certificate-base64
+      {{- end }}
+- name: TUIST_LICENSE
   valueFrom:
     secretKeyRef:
       {{- if $useExistingCertificate }}
@@ -1034,7 +1076,37 @@ profile change reaches the server only through a restart.
       <replication_alter_partitions_sync>0</replication_alter_partitions_sync>
       <max_table_size_to_drop>1000000000000</max_table_size_to_drop>
       <max_partition_size_to_drop>1000000000000</max_partition_size_to_drop>
+
+      <!--
+        Inserts write on several threads and feed materialized views in
+        parallel, as Cloud's default profile has them (26.4 reports
+        `parallel_view_processing = true` and `max_insert_threads = 4`).
+        The open-source defaults are one thread and one view at a time, and
+        `test_case_runs` feeds about twenty views: production's backfill
+        copied it at 31 to 55 thousand rows a second on one core of 30,
+        against 300 to 800 thousand for tables without views. The same
+        default governs the application's own buffer flushes once this
+        server is the system of record.
+      -->
+      <parallel_view_processing>1</parallel_view_processing>
+      <max_insert_threads>4</max_insert_threads>
     </default>
+
+    <!--
+      The backup CronJobs' own user, so a backup is bounded by its own
+      budget rather than the application's. ClickHouse enforces
+      `max_memory_usage_for_user` on one tracker per user, and the
+      application sets that tracker's ceiling on every query it sends. A
+      backup running as `default` therefore shares the application's
+      budget, which production's nightly incremental outgrew at 10 GiB
+      against 8.
+    -->
+    <backup>
+      <profile>default</profile>
+{{- with .backup.maxMemoryUsageForUserBytes }}
+      <max_memory_usage_for_user>{{ . }}</max_memory_usage_for_user>
+{{- end }}
+    </backup>
   </profiles>
   <users>
     <default>
@@ -1046,6 +1118,68 @@ profile change reaches the server only through a restart.
       <quota>default</quota>
       <access_management>1</access_management>
     </default>
+    <backup>
+      <password>{{ .password }}</password>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+      <profile>backup</profile>
+      <quota>default</quota>
+    </backup>
   </users>
 </clickhouse>
 {{- end }}
+
+{{/*
+Resolve the effective Once events ingress config.
+
+Returns a YAML dict callers decode with `fromYaml`:
+    enabled, host, tlsSecretName, annotations, className, source
+
+Precedence:
+  - If BOTH `server.events.enabled` and `server.bazelEvents.enabled` are
+    true, fail: operators mid-migration must pick one key before
+    continuing so we don't silently keep the deprecated block alive.
+  - If `server.events.enabled` is true -> use `server.events` (source =
+    "server.events").
+  - Else if `server.bazelEvents.enabled` is true -> use
+    `server.bazelEvents` as the one-release deprecation path for
+    #13184 adopters (source = "server.bazelEvents").
+  - Else disabled.
+
+The returned `source` is used by callers to name the right key in
+`required`/`fail` error messages, so deprecated-key operators are not
+told to fix a key they are not using.
+*/}}
+{{- define "tuist.serverEventsConfig" -}}
+{{- $events := .Values.server.events | default dict -}}
+{{- $bazel := .Values.server.bazelEvents | default dict -}}
+{{- if and $events.enabled $bazel.enabled -}}
+{{- fail "server.events.enabled and server.bazelEvents.enabled are mutually exclusive; the `bazelEvents` key is a one-release alias for `events` (#13184 migration), remove it from your values before enabling `events`." -}}
+{{- end -}}
+{{- $effective := dict "enabled" false "host" "" "tlsSecretName" "" "annotations" dict "className" "" "source" "server.events" -}}
+{{- if $events.enabled -}}
+{{- $effective = dict "enabled" true "host" ($events.host | default "") "tlsSecretName" ($events.tlsSecretName | default "") "annotations" ($events.annotations | default dict) "className" ($events.className | default "") "source" "server.events" -}}
+{{- else if $bazel.enabled -}}
+{{- $effective = dict "enabled" true "host" ($bazel.host | default "") "tlsSecretName" ($bazel.tlsSecretName | default "") "annotations" ($bazel.annotations | default dict) "className" ($bazel.className | default "") "source" "server.bazelEvents" -}}
+{{- end -}}
+{{- toYaml $effective -}}
+{{- end -}}
+
+{{/*
+URL scheme the discovery doc should advertise for the Once events gRPC
+endpoint: `grpcs` when TLS terminates at the ingress (any
+`tlsSecretName` set), otherwise `grpc`. Keeps non-TLS self-hosted
+installs from advertising a scheme their ingress cannot serve.
+
+Takes the context root. Reads the same effective events config as the
+Deployment and Ingress templates.
+*/}}
+{{- define "tuist.serverEventsScheme" -}}
+{{- $events := include "tuist.serverEventsConfig" . | fromYaml -}}
+{{- if $events.tlsSecretName -}}
+grpcs
+{{- else -}}
+grpc
+{{- end -}}
+{{- end -}}

@@ -282,7 +282,7 @@ public struct BazelSetupCommandService {
                     "The remote cache is temporarily unavailable.",
                     takeaway: "Bazel builds run without the Tuist remote cache and build insights. \(rerun)"
                 )
-            case .noEndpointsAvailable, .invalidURL:
+            case .noEndpointsAvailable, .invalidURL, .forbidden:
                 .alert(
                     "No remote cache endpoint is available.",
                     takeaway: "Bazel builds run without the Tuist remote cache and build insights."

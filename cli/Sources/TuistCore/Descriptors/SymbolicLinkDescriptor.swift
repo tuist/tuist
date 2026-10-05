@@ -6,8 +6,8 @@ import Path
 /// or workspace.
 ///
 /// - seealso: `SideEffectDescriptor`
-public struct SymbolicLinkDescriptor: Equatable, CustomStringConvertible {
-    public enum State {
+public struct SymbolicLinkDescriptor: Equatable, CustomStringConvertible, Sendable {
+    public enum State: Sendable {
         case present
         case absent
     }

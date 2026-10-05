@@ -10,7 +10,10 @@ defmodule Atlas.Documents.Workers.ProcessDocument do
     # On the final attempt, let a failing classifier fall back to filename-only
     # metadata so the document still completes (text + embeddings) instead of
     # being retried forever and left stuck in "processing".
-    opts = [classify_fallback?: attempt >= max_attempts]
+    opts = [
+      classify_fallback?: attempt >= max_attempts,
+      invoice_extraction_final_attempt?: attempt >= max_attempts
+    ]
 
     case Documents.process_document(document_id, opts) do
       {:ok, _document} -> :ok

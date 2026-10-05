@@ -56,6 +56,8 @@ use crate::{
     },
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
+    memory::MemoryPressure,
+    metrics::shed_kind,
     state::SharedState,
     store::{
         ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
@@ -73,6 +75,23 @@ const DEFAULT_INSTANCE_NAME: &str = "default";
 // reader buffer.
 const BYTESTREAM_RESPONSE_LIVE_CHUNK_COUNT: usize = 2;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+
+fn record_materialization_rejection(state: &SharedState, kind: &'static str) {
+    state
+        .metrics
+        .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+    state.metrics.record_capacity_shed(kind);
+}
+
+/// A request that outgrows its own response budget is refused for its size,
+/// not for the pool, unless memory pressure is what shrank the budget.
+fn over_budget_shed_kind(state: &SharedState) -> &'static str {
+    if state.memory.pressure() == MemoryPressure::Normal {
+        shed_kind::REAPI_REQUEST_BUDGET
+    } else {
+        shed_kind::REAPI_MATERIALIZATION
+    }
+}
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
@@ -318,12 +337,14 @@ impl ReapiService {
             .memory
             .try_acquire_response_materialization(encoded_bytes)
             .map_err(|_| {
-                self.state
-                    .metrics
-                    .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
-                self.state
-                    .metrics
-                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+                let kind = if encoded_bytes.saturating_mul(2)
+                    > self.state.memory.reapi_materialization_limit_bytes()
+                {
+                    shed_kind::REAPI_REQUEST_BUDGET
+                } else {
+                    shed_kind::REAPI_MATERIALIZATION
+                };
+                record_materialization_rejection(&self.state, kind);
                 Status::resource_exhausted(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
                 ))
@@ -439,6 +460,115 @@ impl ReapiService {
         });
     }
 
+    // Direct-blob presence with FindMissingBlobs' lifetime extension: the client
+    // stops uploading and relies on the blob staying. Composite blobs are not
+    // consulted, because decoding a recipe runs before staging admission and is
+    // not charged to it; such writes, and failed lookups, upload normally.
+    async fn write_target_already_present(&self, resource: &BlobResource) -> bool {
+        let store = &self.state.store;
+        let present = if store.segment_ring_is_aging() {
+            store
+                .artifact_exists_extending_lifetime(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    RefreshTrigger::FindMissing,
+                )
+                .await
+        } else {
+            store
+                .artifact_exists(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                )
+                .await
+        };
+        present.unwrap_or_else(|error| {
+            tracing::debug!("bytestream write presence check failed: {error}");
+            false
+        })
+    }
+
+    // Reads a write of an already stored blob to completion without staging,
+    // decoding, hashing, or persisting it, and answers as a full write does.
+    // Answering early instead would make the server reset a stream the client
+    // is still sending on; h2 counts the resulting errors toward its per-
+    // connection rapid-reset limit and then closes the whole connection.
+    async fn discard_stored_write(
+        &self,
+        stream: &mut tonic::Streaming<bytestream::WriteRequest>,
+        mut first_chunk: bytestream::WriteRequest,
+        resource: BlobResource,
+    ) -> Result<Response<bytestream::WriteResponse>, Status> {
+        let wire_limit = match resource.compressor {
+            BlobCompressor::Identity => resource.size_bytes,
+            BlobCompressor::Zstd => compressed_wire_ceiling(resource.size_bytes),
+        };
+        let resource_name = std::mem::take(&mut first_chunk.resource_name);
+        let mut wire_received = 0_u64;
+        let mut stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
+        let mut next = Some(first_chunk);
+        let finished = loop {
+            let chunk = match next.take() {
+                Some(chunk) => chunk,
+                None => match tokio::time::timeout_at(stall_deadline, stream.message()).await {
+                    Ok(result) => match result? {
+                        Some(chunk) => chunk,
+                        None => break false,
+                    },
+                    Err(_elapsed) => {
+                        return Err(Status::deadline_exceeded(format!(
+                            "no upload progress within {}s; aborting stalled write",
+                            REAPI_WRITE_STALL_TIMEOUT.as_secs()
+                        )));
+                    }
+                },
+            };
+            if !chunk.resource_name.is_empty() && chunk.resource_name != resource_name {
+                // The first chunk's name was taken above, so it compares empty.
+                return Err(Status::invalid_argument("resource_name changed mid-stream"));
+            }
+            if chunk.write_offset < 0 || chunk.write_offset as u64 != wire_received {
+                return Err(Status::invalid_argument("unexpected write_offset"));
+            }
+            wire_received = wire_received.saturating_add(chunk.data.len() as u64);
+            if wire_received > wire_limit {
+                return Err(Status::invalid_argument(
+                    "write data exceeds the declared blob size",
+                ));
+            }
+            if !chunk.data.is_empty() {
+                stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
+            }
+            if chunk.finish_write {
+                break true;
+            }
+        };
+        if !finished {
+            return Err(Status::invalid_argument("write stream did not finish"));
+        }
+        if resource.compressor == BlobCompressor::Identity && wire_received != resource.size_bytes {
+            return Err(Status::invalid_argument(
+                "uploaded blob size did not match digest",
+            ));
+        }
+        // The discarded bytes were the client's only copy in this request, so
+        // a blob evicted while they streamed must not be acknowledged. The
+        // retry restarts through the staging path.
+        if !self.write_target_already_present(&resource).await {
+            return Err(Status::unavailable(
+                "blob was evicted during the upload; restart the write from offset zero",
+            ));
+        }
+        self.state
+            .metrics
+            .record_artifact_write(ArtifactProducer::Reapi, "already_present", 0);
+        Ok(Response::new(bytestream::WriteResponse {
+            committed_size: wire_received as i64,
+        }))
+    }
+
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
     // (write) removes a staged path on any error this returns. Small uploads stay
     // in their admitted memory and disarm that cleanup before any suspension can
@@ -521,6 +651,12 @@ impl ReapiService {
                     namespace_id: Some(&parsed_resource.namespace_id),
                 };
                 self.authorize_metadata(&metadata, write_spec).await?;
+                if self.write_target_already_present(&parsed_resource).await {
+                    cleanup.disarm();
+                    return self
+                        .discard_stored_write(&mut stream, chunk, parsed_resource)
+                        .await;
+                }
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
                 memory_payload = (parsed_resource.size_bytes <= SEGMENT_COPY_BUFFER_BYTES as u64
@@ -2546,6 +2682,9 @@ impl ByteStream for ReapiService {
                 "read_limit is not supported on compressed-blobs; leave it at 0 and consume the response stream",
             ));
         }
+        if resource.size_bytes == 0 && resource.hash() == EMPTY_BLOB_SHA256 {
+            return Ok(Response::new(Box::pin(tokio_stream::empty())));
+        }
         let manifest = match self
             .state
             .store
@@ -2914,7 +3053,12 @@ impl ByteStream for ReapiService {
                         complete: true,
                     }))
                 } else {
-                    Err(Status::not_found("blob not found"))
+                    // Partial staging is discarded on failure, so no resumable
+                    // offset exists. Bazel treats NOT_FOUND as terminal here;
+                    // UNIMPLEMENTED tells it to restart the Write from zero.
+                    Err(Status::unimplemented(
+                        "incomplete upload status is not supported; restart the write from offset zero",
+                    ))
                 }
             }
         }
@@ -3265,6 +3409,11 @@ async fn batch_read_one_atomic(
     digest: &reapi::Digest,
     budget: &AtomicMaterializationBudget<'_>,
 ) -> Result<Option<Vec<u8>>, Status> {
+    // FindMissingBlobs reports the empty blob present without it ever being
+    // stored, so it has to be served here too.
+    if is_empty_blob(digest) {
+        return Ok(Some(Vec::new()));
+    }
     let key = blob_key(&digest_key(digest)?);
     let manifest = state
         .store
@@ -3760,6 +3909,7 @@ async fn read_serving_bytes(
 struct MaterializationBudget<'a> {
     state: &'a SharedState,
     remaining_bytes: usize,
+    over_budget_kind: &'static str,
     held_permits: Vec<crate::memory::MemoryPermit>,
 }
 
@@ -3773,6 +3923,7 @@ struct MaterializationBudget<'a> {
 struct AtomicMaterializationBudget<'a> {
     state: &'a SharedState,
     remaining_bytes: AtomicUsize,
+    over_budget_kind: &'static str,
     /// Covers every claim below. Handed to the response so the bytes stay
     /// reserved for as long as the client is reading them.
     permit: Option<crate::memory::MemoryPermit>,
@@ -3853,6 +4004,7 @@ impl<'a> AtomicMaterializationBudget<'a> {
     /// what forced the per-blob claims this replaces.
     async fn reserve(state: &'a SharedState, wanted_bytes: u64) -> Result<Self, Status> {
         let budget_bytes = state.memory.reapi_response_budget_bytes();
+        let over_budget_kind = over_budget_shed_kind(state);
         let reserved_bytes = usize::try_from(wanted_bytes)
             .unwrap_or(usize::MAX)
             .min(budget_bytes);
@@ -3861,12 +4013,7 @@ impl<'a> AtomicMaterializationBudget<'a> {
             .reserve_response_materialization(reserved_bytes)
             .await
             .map_err(|()| {
-                state
-                    .metrics
-                    .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
-                state
-                    .metrics
-                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+                record_materialization_rejection(state, shed_kind::REAPI_MATERIALIZATION);
                 Status::resource_exhausted(
                     "batch read response was rejected because the REAPI response materialization pool did not free in time",
                 )
@@ -3874,6 +4021,7 @@ impl<'a> AtomicMaterializationBudget<'a> {
         Ok(Self {
             state,
             remaining_bytes: AtomicUsize::new(reserved_bytes),
+            over_budget_kind,
             permit,
         })
     }
@@ -3887,15 +4035,19 @@ impl<'a> AtomicMaterializationBudget<'a> {
     /// waits while holding part of the pool.
     fn claim(&self, size_bytes: u64, label: &str) -> Result<(), Status> {
         let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
-            self.reject(format!(
-                "{label} exceeds the maximum addressable REAPI materialization size"
-            ))
+            self.reject(
+                shed_kind::REAPI_REQUEST_BUDGET,
+                format!("{label} exceeds the maximum addressable REAPI materialization size"),
+            )
         })?;
         let limit_bytes = self.state.memory.reapi_materialization_limit_bytes();
         if requested_bytes > limit_bytes {
-            return Err(self.reject(format!(
-                "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
-            )));
+            return Err(self.reject(
+                shed_kind::REAPI_REQUEST_BUDGET,
+                format!(
+                    "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
+                ),
+            ));
         }
         // A blob larger than its declared digest, or one the request never
         // declared, lands here: the reservation was sized from what the client
@@ -3907,19 +4059,17 @@ impl<'a> AtomicMaterializationBudget<'a> {
             })
             .map(|_| ())
             .map_err(|remaining_bytes| {
-                self.reject(format!(
-                    "{label} needs {requested_bytes} bytes but only {remaining_bytes} bytes remain in the REAPI materialization budget"
-                ))
+                self.reject(
+                    self.over_budget_kind,
+                    format!(
+                        "{label} needs {requested_bytes} bytes but only {remaining_bytes} bytes remain in the REAPI materialization budget"
+                    ),
+                )
             })
     }
 
-    fn reject(&self, message: String) -> Status {
-        self.state
-            .metrics
-            .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
-        self.state
-            .metrics
-            .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+    fn reject(&self, kind: &'static str, message: String) -> Status {
+        record_materialization_rejection(self.state, kind);
         Status::resource_exhausted(message)
     }
 }
@@ -3929,48 +4079,61 @@ impl<'a> MaterializationBudget<'a> {
         Self {
             state,
             remaining_bytes: state.memory.reapi_response_budget_bytes(),
+            over_budget_kind: over_budget_shed_kind(state),
             held_permits: Vec::new(),
         }
     }
 
     fn claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
-        self.try_claim(size_bytes, label).inspect_err(|_| {
-            self.state
-                .metrics
-                .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
-            self.state
-                .metrics
-                .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+        self.admit(size_bytes, label).map_err(|(kind, status)| {
+            record_materialization_rejection(self.state, kind);
+            status
         })
     }
 
     // Optional inlining uses the same admission without recording a request failure.
     fn try_claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
+        self.admit(size_bytes, label).map_err(|(_, status)| status)
+    }
+
+    fn admit(&mut self, size_bytes: u64, label: &str) -> Result<(), (&'static str, Status)> {
         let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
-            Status::resource_exhausted(format!(
-                "{label} exceeds the maximum addressable REAPI materialization size"
-            ))
+            (
+                shed_kind::REAPI_REQUEST_BUDGET,
+                Status::resource_exhausted(format!(
+                    "{label} exceeds the maximum addressable REAPI materialization size"
+                )),
+            )
         })?;
         if requested_bytes > self.remaining_bytes {
-            return Err(Status::resource_exhausted(format!(
-                "{label} needs {requested_bytes} bytes but only {} bytes remain in the REAPI materialization budget",
-                self.remaining_bytes
-            )));
+            return Err((
+                self.over_budget_kind,
+                Status::resource_exhausted(format!(
+                    "{label} needs {requested_bytes} bytes but only {} bytes remain in the REAPI materialization budget",
+                    self.remaining_bytes
+                )),
+            ));
         }
         let limit_bytes = self.state.memory.reapi_materialization_limit_bytes();
         if requested_bytes > limit_bytes {
-            return Err(Status::resource_exhausted(format!(
-                "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
-            )));
+            return Err((
+                shed_kind::REAPI_REQUEST_BUDGET,
+                Status::resource_exhausted(format!(
+                    "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
+                )),
+            ));
         }
         let permit = self
             .state
             .memory
             .try_acquire_response_materialization(requested_bytes)
             .map_err(|_| {
-                Status::resource_exhausted(format!(
-                    "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
-                ))
+                (
+                    shed_kind::REAPI_MATERIALIZATION,
+                    Status::resource_exhausted(format!(
+                        "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
+                    )),
+                )
             })?;
         self.remaining_bytes -= requested_bytes;
         if let Some(permit) = permit {
@@ -4514,6 +4677,10 @@ fn parse_blob_resource_name_allocating(
         compressor,
     })
 }
+
+#[cfg(test)]
+#[path = "bytestream_recovery_tests.rs"]
+mod bytestream_recovery_tests;
 
 #[cfg(test)]
 mod tests {
@@ -6629,6 +6796,49 @@ mod tests {
             .get_action_result(get_request(empty_ref_action))
             .await
             .expect("an entry referencing the empty blob for stdout and a tree leaf still serves");
+    }
+
+    #[tokio::test]
+    async fn the_empty_blob_is_served_without_being_stored() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let empty = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let batch = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: "ios".into(),
+                digests: vec![empty.clone()],
+                acceptable_compressors: vec![reapi::compressor::Value::Zstd as i32],
+                digest_function: 0,
+            }))
+            .await
+            .expect("batch_read_blobs should succeed")
+            .into_inner();
+        assert_eq!(batch.responses.len(), 1);
+        let response = &batch.responses[0];
+        assert_eq!(response.status.as_ref().map(|status| status.code), Some(0));
+        assert_eq!(response.digest.as_ref(), Some(&empty));
+        assert!(response.data.is_empty());
+
+        let mut stream = service
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!("ios/blobs/{EMPTY_BLOB_SHA256}/0"),
+                read_offset: 0,
+                read_limit: 0,
+            }))
+            .await
+            .expect("reading the empty blob should succeed")
+            .into_inner();
+        let mut data = Vec::new();
+        while let Some(response) = stream.next().await {
+            data.extend(response.expect("stream response").data);
+        }
+        assert!(data.is_empty());
     }
 
     #[tokio::test]
@@ -9442,6 +9652,122 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cas_batch_reads_declaring_more_than_the_budget_are_served_on_an_idle_pod() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 512 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 640 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let bytes = b"present-bytes";
+        let present_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let missing_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"missing-bytes")),
+            size_bytes: 40 * 1024 * 1024,
+        };
+        let key = blob_key(&digest_key(&present_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("cas blob should persist");
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![present_digest, missing_digest],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("a batch larger than the budget should be admitted up to the budget");
+
+        let codes: Vec<_> = response
+            .get_ref()
+            .responses
+            .iter()
+            .map(|response| response.status.as_ref().map(|status| status.code))
+            .collect();
+        assert_eq!(codes, vec![Some(0), Some(tonic::Code::NotFound as i32)]);
+        assert_eq!(response.get_ref().responses[0].data, bytes);
+        assert_materialization_metrics(&context, 0, 0, 0);
+    }
+
+    #[tokio::test]
+    async fn cas_batch_reads_beyond_one_requests_budget_are_not_counted_as_pool_sheds() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let budget_bytes = context.state.memory.reapi_response_budget_bytes();
+        let blob_bytes = 1024 * 1024;
+        let blob_count = budget_bytes / blob_bytes + 4;
+        let mut digests = Vec::with_capacity(blob_count);
+        for index in 0..blob_count {
+            let mut bytes = vec![b'x'; blob_bytes];
+            bytes[..8].copy_from_slice(&(index as u64).to_le_bytes());
+            let digest = reapi::Digest {
+                hash: hex::encode(Sha256::digest(&bytes)),
+                size_bytes: bytes.len() as i64,
+            };
+            let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+            context
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    DEFAULT_INSTANCE_NAME,
+                    &key,
+                    "application/octet-stream",
+                    &bytes,
+                )
+                .await
+                .expect("cas blob should persist");
+            digests.push(digest);
+        }
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests,
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("batch read should return per-digest status");
+
+        let refused = response
+            .get_ref()
+            .responses
+            .iter()
+            .filter(|response| {
+                response.status.as_ref().map(|status| status.code)
+                    == Some(tonic::Code::ResourceExhausted as i32)
+            })
+            .count();
+        assert_eq!(refused, 4);
+        assert_materialization_metrics(&context, 0, 4, 0);
+    }
+
+    #[tokio::test]
     async fn a_third_concurrent_batch_read_waits_for_the_budget_instead_of_shedding() {
         let context = test_context(|config| {
             config.memory_soft_limit_bytes = 64 * 1024 * 1024;
@@ -9600,7 +9926,7 @@ mod tests {
                 .map(|status| status.code),
             Some(tonic::Code::ResourceExhausted as i32)
         );
-        assert_materialization_metrics(&context, 1, 0);
+        assert_materialization_metrics(&context, 1, 0, 0);
     }
 
     #[tokio::test]
@@ -9669,19 +9995,28 @@ mod tests {
             .expect_err("inline expansion should respect the materialization budget");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
-        assert_materialization_metrics(&context, 1, 0);
+        assert_materialization_metrics(&context, 0, 1, 0);
     }
 
-    fn assert_materialization_metrics(context: &TestContext, rejected: u64, fallbacks: u64) {
+    fn assert_materialization_metrics(
+        context: &TestContext,
+        pool_sheds: u64,
+        request_budget_sheds: u64,
+        fallbacks: u64,
+    ) {
         let rendered = context.state.metrics.render();
         for (series, expected) in [
             (
                 "kura_capacity_sheds_total_total{kind=\"reapi_materialization\"}",
-                rejected,
+                pool_sheds,
+            ),
+            (
+                "kura_capacity_sheds_total_total{kind=\"reapi_request_budget\"}",
+                request_budget_sheds,
             ),
             (
                 "kura_memory_actions_total_total{action=\"reapi_materialization_rejected\"}",
-                rejected,
+                pool_sheds + request_budget_sheds,
             ),
             ("kura_reapi_inline_fallbacks_total_total", fallbacks),
         ] {
@@ -9789,7 +10124,7 @@ mod tests {
         let output_files = &response.get_ref().output_files;
         assert_eq!(output_files[0].contents, first_bytes);
         assert_eq!(output_files[1].contents, second_bytes);
-        assert_materialization_metrics(&context, 0, 0);
+        assert_materialization_metrics(&context, 0, 0, 0);
     }
 
     #[tokio::test]
@@ -9840,7 +10175,7 @@ mod tests {
                 if explicit { large.clone() } else { Vec::new() }
             );
         }
-        assert_materialization_metrics(&context, 0, 0);
+        assert_materialization_metrics(&context, 0, 0, 0);
     }
 
     #[tokio::test]
@@ -9898,7 +10233,7 @@ mod tests {
         assert!(output_files[0].contents.is_empty());
         assert!(output_files[1].contents.is_empty());
         assert_eq!(output_files[2].contents, small_bytes);
-        assert_materialization_metrics(&context, 0, 2);
+        assert_materialization_metrics(&context, 0, 0, 2);
     }
 
     #[tokio::test]
@@ -9949,7 +10284,7 @@ mod tests {
             .await
             .unwrap();
         assert!(response.get_ref().output_files[0].contents.is_empty());
-        assert_materialization_metrics(&context, 0, 1);
+        assert_materialization_metrics(&context, 0, 0, 1);
         drop(response);
 
         let error = service
@@ -9957,7 +10292,7 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
-        assert_materialization_metrics(&context, 1, 1);
+        assert_materialization_metrics(&context, 1, 0, 1);
         drop((first, second));
 
         let response = service
@@ -9977,7 +10312,7 @@ mod tests {
                 .code,
             0
         );
-        assert_materialization_metrics(&context, 1, 1);
+        assert_materialization_metrics(&context, 1, 0, 1);
     }
 
     #[tokio::test]
@@ -10018,7 +10353,7 @@ mod tests {
             .expect_err("an explicitly listed over-budget file must fail the lookup");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
-        assert_materialization_metrics(&context, 1, 0);
+        assert_materialization_metrics(&context, 0, 1, 0);
     }
 
     #[tokio::test]

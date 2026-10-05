@@ -90,6 +90,27 @@ struct RunnerVolumeCommandTests {
         #expect(RunnerVolumeOutput.bytes(2_700_000_000, unmeasured: 1).hasSuffix("(partial)"))
     }
 
+    @Test func formatsBytesConsistentlyUnderConcurrentUse() async {
+        let values = [2_700_000_000, 1500, 42, 3_456_789, 20_000_000_000]
+        let expected = values.map { RunnerVolumeOutput.bytes($0) }
+
+        let mismatches = await withTaskGroup(of: [String].self) { group in
+            for _ in 0 ..< 64 {
+                group.addTask {
+                    (0 ..< 100).flatMap { _ in
+                        zip(values, expected).compactMap { value, expected in
+                            let formatted = RunnerVolumeOutput.bytes(value)
+                            return formatted == expected ? nil : "\(expected) -> \(formatted)"
+                        }
+                    }
+                }
+            }
+            return await group.reduce(into: []) { $0.append(contentsOf: $1) }
+        }
+
+        #expect(mismatches.isEmpty)
+    }
+
     @Test func formatsCacheOutcomesWithoutConfusingUnknownWithMiss() throws {
         var job = try decode(RunnerVolumeJobsPage.jobsPayloadPayload.self, """
         {"id":"use-id","workflow_job_id":1024,"workflow_run_id":500,

@@ -26,6 +26,71 @@ type stubMetricsClient struct {
 	calls int
 }
 
+func TestCPUObservationExcludesRebuildAndDonorTogether(t *testing.T) {
+	for _, scenario := range []string{"joining replica", "missing runtime sample", "terminating replica", "missing replica", "evacuating source", "unknown node"} {
+		t.Run(scenario, func(t *testing.T) {
+			instance, pods := instanceWithPods("cache-0", "cache-1")
+			instance.Spec.Replicas = ptr(int32(2))
+			before := &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 400, PeakMilli: 249, BucketPeaksMilli: []int32{249}, SamplesMilli: []int32{10, 20}, SampledAt: &metav1.Time{Time: time.Now().Add(-time.Minute)}}
+			before.ScheduleCapMilli = 250
+			before.ScheduleCapSetAt = &metav1.Time{Time: time.Now()}
+			instance.Status.CPUAutosize = before.DeepCopy()
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "source"}}
+			samples := map[string]runtimeStatus{}
+			for i := range pods {
+				pods[i].Spec.NodeName = node.Name
+				pods[i].Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}
+				samples[pods[i].Name] = runtimeStatus{Ready: true, BackfillInitialCycle: backfillCycleComplete}
+			}
+			switch scenario {
+			case "joining replica":
+				samples["cache-1"] = runtimeStatus{Ready: true, BackfillInitialCycle: "pending"}
+			case "missing runtime sample":
+				delete(samples, "cache-1")
+			case "terminating replica":
+				pods[1].DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			case "missing replica":
+				pods = pods[:1]
+			case "evacuating source":
+				node.Annotations = map[string]string{EvacuateNodeAnnotation: "true"}
+			case "unknown node":
+				pods[1].Spec.NodeName = "unknown"
+			}
+			scheme := runtime.NewScheme()
+			_ = clientgoscheme.AddToScheme(scheme)
+			metrics := &stubMetricsClient{usage: map[string]int64{"cache-0": 3000, "cache-1": 3000}}
+			r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build(), MetricsClient: metrics}
+			for range 12 {
+				r.observeSteadyCPUUsage(context.Background(), instance, pods, samples)
+			}
+			before.SamplesMilli = nil
+			if metrics.calls != 0 || !reflect.DeepEqual(instance.Status.CPUAutosize, before) {
+				t.Fatalf("maintenance changed reservations/history: calls=%d state=%+v", metrics.calls, instance.Status.CPUAutosize)
+			}
+		})
+	}
+}
+
+func TestCPUObservationResumesWithFreshWindowAndCountsRoutineReplication(t *testing.T) {
+	instance, pods := instanceWithPods("cache-0", "cache-1")
+	instance.Spec.Replicas = ptr(int32(2))
+	instance.Status.CPUAutosize = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: 400, PeakMilli: 249, BucketPeaksMilli: []int32{249}, SampledAt: &metav1.Time{Time: time.Now().Add(-time.Minute)}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "destination"}}
+	samples := map[string]runtimeStatus{}
+	for i := range pods {
+		pods[i].Spec.NodeName = node.Name
+		pods[i].Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}
+		samples[pods[i].Name] = runtimeStatus{Ready: true, BackfillInitialCycle: backfillCycleComplete, BackfillingPeers: 1}
+	}
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build(), MetricsClient: &stubMetricsClient{usage: map[string]int64{"cache-0": 300, "cache-1": 600}}}
+	r.observeSteadyCPUUsage(context.Background(), instance, pods, samples)
+	if got := instance.Status.CPUAutosize; !reflect.DeepEqual(got.SamplesMilli, []int32{600}) || got.RequestMilli != 400 {
+		t.Fatalf("expected a fresh sustained window, got %+v", got)
+	}
+}
+
 func (s *stubMetricsClient) PodCPUMilli(_ context.Context, _ string, _ map[string]string) (map[string]int64, error) {
 	s.calls++
 	if s.err != nil {

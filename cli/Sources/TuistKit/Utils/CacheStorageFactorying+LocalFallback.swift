@@ -10,10 +10,10 @@ extension CacheStorageFactorying {
     /// can't be used right now.
     ///
     /// Resolving the endpoint already waits a bounded time for a cache instance that is being
-    /// prepared. A remote cache that is still not ready after that, has no endpoint, or is
-    /// temporarily unreachable never fails the command: a cache miss is always safe, so the run continues on the local cache
-    /// and says why. Errors that waiting does not fix, such as rejected credentials or a malformed
-    /// endpoint, are rethrown.
+    /// prepared. A remote cache that is still not ready after that, has no endpoint, is not available
+    /// to the logged-in account, or is temporarily unreachable never fails the command: a cache miss
+    /// is always safe, so the run continues on the local cache and says why. Rejected credentials and
+    /// a malformed endpoint are rethrown.
     func cacheStorageFallingBackToLocal(config: Tuist) async throws -> CacheStoring {
         do {
             return try await cacheStorage(config: config)
@@ -40,6 +40,8 @@ extension CacheStorageFactorying {
             )
         case .noReachableEndpoints:
             return temporarilyUnavailableWarning
+        case let .forbidden(message):
+            return .alert("\(message)", takeaway: "This run uses the local cache.")
         case .invalidURL, nil:
             return ServerErrorClassifier.isTransient(error) ? temporarilyUnavailableWarning : nil
         }

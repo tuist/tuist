@@ -276,6 +276,53 @@ struct SettingsContentHasherCompilationCacheTests {
         #expect(try await subject.hash(settings: mainCheckout) == subject.hash(settings: worktree))
     }
 
+    @Test func hash_ignoresWarningsAsErrorsSettings() async throws {
+        // Given
+        let subject = makeSubject()
+        let local = settings(base: ["SWIFT_VERSION": .string("5")])
+        let ci = settings(base: [
+            "SWIFT_VERSION": .string("5"),
+            "SWIFT_TREAT_WARNINGS_AS_ERRORS": .string("YES"),
+            "GCC_TREAT_WARNINGS_AS_ERRORS": .string("YES"),
+            "SWIFT_TREAT_WARNINGS_AS_ERRORS[sdk=iphoneos*]": .string("YES"),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: ci) == subject.hash(settings: local))
+    }
+
+    @Test func hash_ignoresWarningsAsErrorsFlags() async throws {
+        // Given
+        let subject = makeSubject()
+        let local = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DFEATURE_FLAG"]),
+            "OTHER_CFLAGS": .array(["$(inherited)", "-DFEATURE_FLAG"]),
+        ])
+        let ci = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)",
+                "-warnings-as-errors",
+                "-Xfrontend", "-warnings-as-errors",
+                "-Werror", "ExistentialAny",
+                "-DFEATURE_FLAG",
+            ]),
+            "OTHER_CFLAGS": .array(["$(inherited)", "-Werror", "-Werror=unused-variable", "-DFEATURE_FLAG"]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: ci) == subject.hash(settings: local))
+    }
+
+    @Test func hash_keepsFlagFollowingClangWerror() async throws {
+        // Given
+        let subject = makeSubject()
+        let plain = settings(base: ["OTHER_CFLAGS": .array(["-Werror"])])
+        let withRealFlag = settings(base: ["OTHER_CFLAGS": .array(["-Werror", "-DFEATURE_FLAG"])])
+
+        // When / Then
+        #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
+    }
+
     /// Both sides of a mapping reach the built product: `/repo=/^shared` records
     /// `/^shared/Shared/main.swift` where `/repo/Shared=/^shared` records `/^shared/main.swift`.
     @Test func hash_keepsPrefixMappingValues() async throws {

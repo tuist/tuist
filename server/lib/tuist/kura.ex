@@ -362,17 +362,23 @@ defmodule Tuist.Kura do
   """
   def managed_cache_endpoint_urls(account, origin \\ nil)
 
-  def managed_cache_endpoint_urls(%Account{id: account_id}, origin) do
-    Server
-    |> where([s], s.account_id == ^account_id and s.status == :active)
-    |> where([s], s.region not in ^private_catalog_region_ids())
-    |> select([s], %{url: s.url, region: s.region})
-    |> Repo.all()
-    |> order_by_origin(origin)
+  def managed_cache_endpoint_urls(%Account{} = account, origin) do
+    account
+    |> managed_cache_endpoints(origin)
     |> Enum.map(& &1.url)
     # A warm handoff has the draining source and the promoted target on the
     # same deterministic customer URL for the length of the drain.
     |> Enum.uniq()
+  end
+
+  @doc "Public managed endpoints with the readiness projection, nearest the caller first."
+  def managed_cache_endpoints(%Account{id: account_id}, origin \\ nil) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status == :active)
+    |> where([s], s.region not in ^private_catalog_region_ids())
+    |> select([s], struct(s, [:url, :region, :move_phase, :stable_endpoint]))
+    |> Repo.all()
+    |> order_by_origin(origin)
   end
 
   defp order_by_origin(servers, nil), do: Enum.sort_by(servers, & &1.region)

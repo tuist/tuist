@@ -4,11 +4,13 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouse.Backfill
   alias Tuist.ClickHouse.Parity
   alias Tuist.ClickHouse.SchemaClone
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Tests.Coverage
 
   require Logger
 
@@ -21,8 +23,9 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags coverage_commits)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
+  @repair_settle_minutes 15
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
   # Column-level rather than table-level because every table below sits next to a
@@ -191,13 +194,59 @@ defmodule Tuist.Release do
   def backfill_clickhouse do
     load_app()
 
-    case Tuist.ClickHouse.Backfill.run() do
+    case Backfill.run() do
       {:ok, report} ->
-        Logger.info("ClickHouse backfill finished: #{inspect(report)}")
+        Logger.info("ClickHouse backfill finished: #{inspect(report, limit: :infinity)}")
         :ok
 
       {:error, reason} ->
         raise "ClickHouse backfill could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Copies onto the in-cluster server the rows it lacks between two UTC
+  instants, for every table with a time column. For a span the mirror is
+  known to have lost writes in; see `Tuist.ClickHouse.Backfill.run/1`.
+
+  Raises when a chunk fails, unlike `backfill_clickhouse/0`: a repair is run
+  for one known gap, and a Job that succeeds with part of it unfilled would
+  read as fixed. Running it again retries only the failed chunks.
+
+  The span has to end `#{@repair_settle_minutes}` minutes in the past. A
+  mirrored write can still be retrying for minutes after Cloud took it, and
+  one that lands after the repair copied the same row stores it twice.
+  """
+  def repair_clickhouse(from, to) do
+    window = clickhouse_repair_window(from, to)
+    load_app()
+
+    case Backfill.run(windows: [window]) do
+      {:ok, report} ->
+        Logger.info("ClickHouse repair finished: #{inspect(report, limit: :infinity)}")
+
+        case for({table, %{failed: failed}} when failed > 0 <- report, do: table) do
+          [] -> :ok
+          tables -> raise "ClickHouse repair left failed chunks in: #{Enum.join(Enum.sort(tables), ", ")}"
+        end
+
+      {:error, reason} ->
+        raise "ClickHouse repair could not start: #{inspect(reason)}"
+    end
+  end
+
+  @doc false
+  def clickhouse_repair_window(from, to, now \\ DateTime.utc_now()) do
+    with {:ok, from, _offset} <- DateTime.from_iso8601(from),
+         {:ok, to, _offset} <- DateTime.from_iso8601(to),
+         {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)},
+         :lt <- DateTime.compare(from, to),
+         true <- DateTime.compare(to, DateTime.add(now, -@repair_settle_minutes, :minute)) != :gt do
+      {from, to}
+    else
+      _ ->
+        raise ArgumentError,
+              "a ClickHouse repair needs two ISO 8601 instants, the first before the second and the second at least #{@repair_settle_minutes} minutes ago"
     end
   end
 
@@ -352,6 +401,27 @@ defmodule Tuist.Release do
 
       raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
     end
+  end
+
+  @doc """
+  Sets the coverage tables' time-to-live to the retention now configured
+  (`TUIST_COVERAGE_FILE_RETENTION_DAYS`, `TUIST_COVERAGE_RUN_RETENTION_DAYS`).
+  The tables take it when they are created, so a change made afterwards only
+  applies once this runs:
+
+      bin/tuist eval "Tuist.Release.apply_coverage_retention()"
+  """
+  def apply_coverage_retention do
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(IngestRepo, fn _repo ->
+        for {table, days} <- Coverage.apply_retention() do
+          Logger.info("#{table}: rows expire #{days} days after insertion")
+        end
+      end)
+
+    :ok
   end
 
   def seed do

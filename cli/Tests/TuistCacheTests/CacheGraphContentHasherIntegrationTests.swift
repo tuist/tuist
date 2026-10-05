@@ -65,6 +65,9 @@ struct ContentHashingIntegrationTests {
         given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 3, 0))
+        given(xcodeControllerMock)
+            .selectedBuildVersion()
+            .willReturn("15E204a")
         subject = CacheGraphContentHasher(contentHasher: CachedContentHasher())
     }
 
@@ -496,6 +499,36 @@ struct ContentHashingIntegrationTests {
         #expect(firstHashes[firstGraphTarget]?.hash != secondHashes[secondGraphTarget]?.hash)
     }
 
+    /// Xcode releases can ship the same compiler with different SDKs (e.g. Xcode 27.0 and 27.1 beta 1 both
+    /// ship `swiftlang-6.4.0.34.1`). Binaries built against one SDK fail to import under the other with
+    /// "SDK does not match", so the hashes must change with the Xcode build even when the compiler doesn't.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_changingXcodeBuildWithTheSameCompilerChangesHash() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let framework = makeFramework(sources: [source1])
+        let project = Project.test(
+            path: temporaryPath.appending(component: "project"),
+            settings: .default,
+            targets: [framework]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTarget = GraphTarget(path: project.path, target: framework, project: project)
+
+        // When
+        let firstHashes = try await contentHashes(for: graph, xcodeBuildVersion: "27A266a")
+        let secondHashes = try await contentHashes(for: graph, xcodeBuildVersion: "27A9269")
+
+        // Then
+        let firstHash = try #require(firstHashes[graphTarget])
+        let secondHash = try #require(secondHashes[graphTarget])
+        #expect(firstHash.hash != secondHash.hash)
+        #expect(firstHash.binaryCacheFingerprints != secondHash.binaryCacheFingerprints)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
@@ -608,8 +641,8 @@ struct ContentHashingIntegrationTests {
         )
 
         // Then
-        #expect(firstRun[framework1]?.hash == "ddb2a8a0a4663353ae43079cdf358016")
-        #expect(firstRun[framework2]?.hash == "bea9417f35911c3c83609e16fcfb8c36")
+        #expect(firstRun[framework1]?.hash == "5401f72a6d49669f3c66f5d65dd7ccf8")
+        #expect(firstRun[framework2]?.hash == "3bfe19159bb2b759cc9ecc30dbf9d0e7")
         #expect(firstRun[framework1]?.hash == secondRun[framework1]?.hash)
         #expect(firstRun[framework2]?.hash == secondRun[framework2]?.hash)
         #expect(firstRun[framework1]?.hash != firstRun[framework2]?.hash)
@@ -919,6 +952,20 @@ struct ContentHashingIntegrationTests {
     }
 
     // MARK: - Private helpers
+
+    private func contentHashes(for graph: Graph, xcodeBuildVersion: String) async throws -> [GraphTarget: TargetContentHash] {
+        let xcodeController = MockXcodeControlling()
+        given(xcodeController).selectedBuildVersion().willReturn(xcodeBuildVersion)
+        return try await XcodeController.$current.withValue(xcodeController) {
+            try await subject.contentHashes(
+                for: graph,
+                configuration: "Debug",
+                defaultConfiguration: nil,
+                excludedTargets: [],
+                destination: nil
+            )
+        }
+    }
 
     private func createTemporarySourceFile(
         on temporaryDirectoryPath: AbsolutePath,

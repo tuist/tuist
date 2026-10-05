@@ -88,17 +88,25 @@
       </:actions>
     </.date_picker>
   </div>
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @hit_rate_analytics,
+      @hit_rate_p50,
+      @hit_rate_p90,
+      @hit_rate_p99,
+      @latency_analytics,
+      @throughput_analytics,
+      @transfer_analytics
+    ]}
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
     <div data-part="widgets">
       <.percentile_dropdown_widget
-        loading={
-          !(@hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-              @hit_rate_p50.ok?)
-        }
+        loading={!ready?}
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@builds)} do
@@ -124,8 +132,7 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             dgettext("dashboard_cache", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -140,8 +147,7 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             %{
               avg:
                 dgettext("dashboard_cache", "%{hit_rate}%",
@@ -180,8 +186,7 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if ready? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend
@@ -191,10 +196,10 @@
           end
         }
         trend_label={@analytics_trend_label}
-        empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
+        empty={ready? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
       <.widget
-        loading={!@transfer_analytics.ok?}
+        loading={!ready?}
         title={
           case @selected_transfer_type do
             "downloads" -> dgettext("dashboard_cache", "Cache downloads")
@@ -210,20 +215,20 @@
           )
         }
         value={
-          if @transfer_analytics.ok?,
+          if ready?,
             do:
               ByteFormatter.format_bytes(
                 transfer_value(@transfer_analytics.result, @selected_transfer_type)
               )
         }
         id="widget-cache-transfer"
-        trend_value={if @transfer_analytics.ok?, do: @transfer_analytics.result.trend}
+        trend_value={if ready?, do: @transfer_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_transfer"
         selected={@analytics_selected_widget == "cache_transfer"}
-        empty={@transfer_analytics.ok? && @transfer_analytics.result.total == 0}
+        empty={ready? && @transfer_analytics.result.total == 0}
       >
         <:select>
           <.dropdown_item
@@ -237,7 +242,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Cache transfer")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @transfer_analytics.ok?,
+                {if ready?,
                   do: ByteFormatter.format_bytes(@transfer_analytics.result.total),
                   else: dgettext("dashboard", "N/A")}
               </span>
@@ -254,7 +259,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Downloads")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @transfer_analytics.ok?,
+                {if ready?,
                   do: ByteFormatter.format_bytes(@transfer_analytics.result.downloads.total),
                   else: dgettext("dashboard", "N/A")}
               </span>
@@ -271,7 +276,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Uploads")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @transfer_analytics.ok?,
+                {if ready?,
                   do: ByteFormatter.format_bytes(@transfer_analytics.result.uploads.total),
                   else: dgettext("dashboard", "N/A")}
               </span>
@@ -280,7 +285,7 @@
         </:select>
       </.widget>
       <.widget
-        loading={!@latency_analytics.ok?}
+        loading={!ready?}
         title={
           case @selected_latency_type do
             "read" -> dgettext("dashboard_cache", "Read latency")
@@ -296,20 +301,20 @@
           )
         }
         value={
-          if @latency_analytics.ok?,
+          if ready?,
             do:
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                 latency_value(@latency_analytics.result, @selected_latency_type)
               )
         }
         id="widget-cache-latency"
-        trend_value={if @latency_analytics.ok?, do: @latency_analytics.result.trend}
+        trend_value={if ready?, do: @latency_analytics.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_latency"
         selected={@analytics_selected_widget == "cache_latency"}
-        empty={@latency_analytics.ok? && @latency_analytics.result.total == 0}
+        empty={ready? && @latency_analytics.result.total == 0}
       >
         <:select>
           <.dropdown_item
@@ -323,7 +328,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Cache latency")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @latency_analytics.ok?,
+                {if ready?,
                   do:
                     Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                       @latency_analytics.result.total
@@ -343,7 +348,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Read")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @latency_analytics.ok?,
+                {if ready?,
                   do:
                     Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                       @latency_analytics.result.downloads.total
@@ -363,7 +368,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Write")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @latency_analytics.ok?,
+                {if ready?,
                   do:
                     Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                       @latency_analytics.result.uploads.total
@@ -375,7 +380,7 @@
         </:select>
       </.widget>
       <.widget
-        loading={!@throughput_analytics.ok?}
+        loading={!ready?}
         title={
           case @selected_throughput_type do
             "downloads" -> dgettext("dashboard_cache", "Download throughput")
@@ -391,20 +396,20 @@
           )
         }
         value={
-          if @throughput_analytics.ok?,
+          if ready?,
             do:
               Tuist.Utilities.ThroughputFormatter.format_throughput(
                 throughput_value(@throughput_analytics.result, @selected_throughput_type)
               )
         }
         id="widget-cache-throughput"
-        trend_value={if @throughput_analytics.ok?, do: @throughput_analytics.result.trend}
+        trend_value={if ready?, do: @throughput_analytics.result.trend}
         trend_type={:regular}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_throughput"
         selected={@analytics_selected_widget == "cache_throughput"}
-        empty={@throughput_analytics.ok? && @throughput_analytics.result.total == 0}
+        empty={ready? && @throughput_analytics.result.total == 0}
       >
         <:select>
           <.dropdown_item
@@ -418,7 +423,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Cache throughput")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @throughput_analytics.ok?,
+                {if ready?,
                   do:
                     Tuist.Utilities.ThroughputFormatter.format_throughput(
                       @throughput_analytics.result.total
@@ -438,7 +443,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Downloads")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @throughput_analytics.ok?,
+                {if ready?,
                   do:
                     Tuist.Utilities.ThroughputFormatter.format_throughput(
                       @throughput_analytics.result.downloads.total
@@ -458,7 +463,7 @@
               <span data-part="label">{dgettext("dashboard_cache", "Uploads")}</span>
               <span data-part="separator">-</span>
               <span data-part="value">
-                {if @throughput_analytics.ok?,
+                {if ready?,
                   do:
                     Tuist.Utilities.ThroughputFormatter.format_throughput(
                       @throughput_analytics.result.uploads.total
@@ -470,22 +475,27 @@
         </:select>
       </.widget>
     </div>
-    <.card_section :if={
-      (@analytics_selected_widget == "cache_hit_rate" and
-         (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
-            !@hit_rate_p50.ok?)) or
-        (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?)
-    }>
+    <.card_section
+      :if={
+        (@analytics_selected_widget == "cache_hit_rate" and
+           !ready?) or
+          (@analytics_selected_widget != "cache_hit_rate" and !ready?)
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
-    <.card_section :if={
-      @analytics_selected_widget == "cache_hit_rate" and
-        @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and @hit_rate_p50.ok? and
-        (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           (@transfer_analytics.ok? and @transfer_analytics.result.total != 0))
-    }>
+    <.card_section
+      :if={
+        @analytics_selected_widget == "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.avg_hit_rate != 0 or
+             @transfer_analytics.result.total != 0)
+      }
+      data-chart-frame="standard"
+    >
       <.chart_type_toggle
         id="cache-hit-rate"
         chart_type={@cache_hit_rate_chart_type}
@@ -499,14 +509,14 @@
         uri={@uri}
       />
       <div
-        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        :if={!@cache_hit_rate_chart.ok? && !@cache_hit_rate_chart.failed}
         data-part="analytics-chart"
       >
         <.skeleton_chart />
       </div>
       <div
         :if={
-          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.failed and
             @cache_hit_rate_chart.result == :line
         }
         data-part="analytics-chart"
@@ -649,12 +659,15 @@
         }
       />
     </.card_section>
-    <.card_section :if={
-      @analytics_selected_widget != "cache_hit_rate" and
-        @analytics_chart_data.ok? and
-        (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           @transfer_analytics.result.total != 0)
-    }>
+    <.card_section
+      :if={
+        @analytics_selected_widget != "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.avg_hit_rate != 0 or
+             @transfer_analytics.result.total != 0)
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.chart
           id="xcode-cache-analytics-chart"
@@ -742,10 +755,11 @@
     </.card_section>
     <.empty_card_section
       :if={
-        (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
-          @transfer_analytics.ok? and @transfer_analytics.result.total == 0
+        (ready? && @hit_rate_analytics.result.avg_hit_rate == 0) and
+          ready? and @transfer_analytics.result.total == 0
       }
       title={dgettext("dashboard_cache", "No data yet")}
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -762,7 +776,7 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
   <.card
     title={dgettext("dashboard_cache", "Recent Builds")}
     icon="dashboard"

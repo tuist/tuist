@@ -25,6 +25,32 @@ defmodule Tuist.Projects do
     Repo.aggregate(Project, :count, :id)
   end
 
+  def public_projects_count do
+    Repo.aggregate(public_projects_query(), :count, :id)
+  end
+
+  def public_project_handles(page, page_size) when page > 0 and page_size > 0 and page_size <= 1000 do
+    Repo.all(
+      from([p, a] in public_projects_query(),
+        order_by: p.id,
+        limit: ^page_size,
+        offset: ^((page - 1) * page_size),
+        select: %{account: a.name, project: p.name}
+      )
+    )
+  end
+
+  defp public_projects_query do
+    from(p in Project,
+      join: a in assoc(p, :account),
+      left_join: o in assoc(a, :organization),
+      where: p.visibility == :public,
+      where:
+        a.visibility == :public or is_nil(o.id) or not o.sso_enforced or
+          is_nil(o.sso_provider)
+    )
+  end
+
   def get_project_count_for_account(%Account{id: account_id}, opts \\ []) do
     query = from p in Project, where: p.account_id == ^account_id
     Repo.aggregate(maybe_filter_visibility(query, opts), :count, :id)

@@ -74,6 +74,35 @@ defmodule Atlas.MCP.Tools.SendAccountEmailTest do
     assert delivery.account_id == account.id
   end
 
+  test "copies other contacts at the organization on one email" do
+    account = insert_account!(%{billing: %{email: "billing@acme.example"}})
+
+    assert {:ok, %{delivery: delivery, duplicate: false}} =
+             execute_tool(SendAccountEmail, executive_mcp_conn(), %{
+               "account_key" => account.account_key,
+               "cc_emails" => ["cto@acme.example", "billing@acme.example", "ops@acme.example"],
+               "subject" => "Your Tuist pricing is changing",
+               "body_markdown" => @body
+             })
+
+    assert delivery.recipient_email == "billing@acme.example"
+    assert delivery.cc_emails == ["cto@acme.example", "ops@acme.example"]
+    assert DirectEmails.get_delivery(delivery.id).cc_emails == ["cto@acme.example", "ops@acme.example"]
+    assert [_job] = all_enqueued(worker: DeliverDirectEmail)
+  end
+
+  test "reports a malformed CC address" do
+    assert {:error, message} =
+             execute_tool(SendAccountEmail, executive_mcp_conn(), %{
+               "email" => "recipient@example.com",
+               "cc_emails" => ["not-an-address"],
+               "subject" => "A notice",
+               "body_markdown" => @body
+             })
+
+    assert message =~ "cc_emails contains an invalid email address: not-an-address"
+  end
+
   test "asks for an address when the account has no billing contact" do
     account = insert_account!()
 
