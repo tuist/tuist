@@ -144,8 +144,6 @@ spec:
             - name: config
               mountPath: /etc/rack-edge
               readOnly: true
-            - name: leases
-              mountPath: /var/lib/misc
         # The machines' addresses, advertised to the tailnet by both edges
         # through the node's own tailscaled, so the tailnet fails over between
         # them. tailscaled trusts its socket's caller by uid, and this runs as

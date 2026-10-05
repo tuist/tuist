@@ -2658,9 +2658,12 @@ STUB
     [[ "$output" == *"dhcp-host=bc:74:ea:be:0b:56,10.10.0.103,ber1-runner-b03,infinite"* ]]
     # both edges answer, so neither NAKs a request the machine sent the other
     [[ "$output" != *"dhcp-authoritative"* ]]
-    # its own process and lease file, one interface each, so both share port 67
+    # its own process, one interface each, so both share port 67
     [ "$(grep -c '^interface=' <<<"$output")" -eq 1 ]
-    [[ "$output" == *"dhcp-leasefile=/var/lib/misc/tuist-rack-machines.leases"* ]]
+    # and no lease file: a kept lease holds an address against a MAC the site
+    # no longer reserves it for, and dnsmasq refuses it to the one it now does
+    [[ "$output" == *$'\nleasefile-ro\n'* ]]
+    [[ "$output" != *"dhcp-leasefile"* ]]
     run fleet_edge_dhcp "$SITE_FILE"
     [[ "$output" == *"dhcp-authoritative"* ]]
     [[ "$output" != *"machines"* ]]
