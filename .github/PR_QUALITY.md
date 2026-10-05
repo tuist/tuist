@@ -16,7 +16,10 @@ step never receives the service-account token.
 The service account must have read access to that item. A separate GitHub
 secret for the Jev key is not needed. The workflow runs for opened, updated, reopened, edited, and ready
 pull requests. Drafts and bot authors are skipped. Review failures fail the job;
-low scores are advisory and do not fail it. Do not configure this workflow as a
+low scores are advisory and do not fail it. A pull request the evaluator cannot
+take as a whole (over the provider input limit or the 1 MB diff guard, context
+over 64,000 bytes, only binary files, or no reviewable diff) is skipped: the
+comment says why, and the job passes, since no rerun would change the outcome. Do not configure this workflow as a
 required merge check while assessing the usefulness of its scores.
 
 The script sends the title, description, complete three-dot text diff with 20

@@ -5,10 +5,22 @@ import { parseThreshold, review, reviewFailureMessage, sanitizeReviewFailure, su
 
 export const marker = '<!-- tuist-pr-quality -->';
 
+// A pull request the evaluator cannot take as a whole (too large, or nothing
+// it can read) is skipped rather than failed: nothing is wrong with the
+// review setup, and no rerun would change the outcome.
+const unreviewable = new Set(['input_limit', 'diff_too_large', 'context_too_large', 'binary_only', 'no_reviewable_diff']);
+
+export function skipped(failure) {
+  return unreviewable.has(failure?.code);
+}
+
 export function formatComment(report, pr, runUrl, failure) {
   const reason = reviewFailureMessage(failure);
+  const outcome = skipped(failure)
+    ? '⏭️ The review was skipped. No scores are available.'
+    : '⚠️ The review could not complete. No scores are available.';
   const details = report ? summary(report)
-    : `## Pull request quality\n\n⚠️ The review could not complete. No scores are available.\n\n${reason}\n\nReviewed commit: \`${pr.head.sha}\`.`;
+    : `## Pull request quality\n\n${outcome}\n\n${reason}\n\nReviewed commit: \`${pr.head.sha}\`.`;
   return `${marker}\n${details}${runUrl ? `\n\n[Workflow logs and report](${runUrl})` : ''}`;
 }
 
@@ -32,11 +44,12 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, baseU
     failure = sanitizeReviewFailure(error);
   }
   const body = formatComment(report, pr, runUrl, failure);
+  const failed = !report && !skipped(failure);
   save({ report, body, failure });
   if (post) {
     const current = await api(`pulls/${pr.number}`);
     if (current.state !== 'open' || current.head.sha !== pr.head.sha || current.base.sha !== pr.base.sha || current.title !== pr.title || current.body !== pr.body) {
-      return { failed: !report, published: false };
+      return { failed, published: false };
     }
     const comments = await api(`issues/${pr.number}/comments`, { paginate: true });
     const existing = comments.find((comment) => comment.user?.login === commentAuthor && comment.body?.startsWith(marker));
@@ -44,7 +57,7 @@ export async function runReview({ pr, git, api, evaluate = review, apiKey, baseU
       method: existing ? 'PATCH' : 'POST', body: { body },
     });
   }
-  return { failed: !report, published: post };
+  return { failed, published: post };
 }
 
 async function main() {

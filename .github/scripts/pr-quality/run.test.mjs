@@ -77,13 +77,14 @@ test('preserves sanitized provider status without copying provider error bodies'
   assert.doesNotMatch(calls.at(-1).options.body.body, /credential-and-source-text/);
 });
 
-test('reports provider input limits rather than accepting a partial review', async () => {
+test('skips a PR over the provider input limit rather than accepting a partial review', async () => {
   let saved;
   const { options } = fixture({
     evaluate: async () => { throw new ReviewFailure('input_limit', 400); },
     save: (value) => { saved = value; },
   });
-  assert.equal((await runReview(options)).failed, true);
+  assert.deepEqual(await runReview(options), { failed: false, published: true });
+  assert.match(saved.body, /review was skipped/);
   assert.deepEqual(saved.failure, { code: 'input_limit', status: 400 });
   assert.match(saved.body, /provider input limit/);
   assert.match(saved.body, /no partial review/);
@@ -124,7 +125,10 @@ test('publishes allowlisted validation and transport diagnostics without excepti
     const error = new ReviewFailure(code);
     error.message = 'private-source';
     const { options } = fixture({ evaluate: async () => { throw error; }, save: (value) => { saved = value; } });
-    assert.equal((await runReview(options)).failed, true);
+    const unreviewable = ['input_limit', 'diff_too_large', 'context_too_large', 'binary_only', 'no_reviewable_diff'].includes(code);
+    // Only a PR the evaluator cannot take is skipped; a broken review still fails the job.
+    assert.equal((await runReview(options)).failed, !unreviewable);
+    assert.match(saved.body, unreviewable ? /review was skipped/ : /could not complete/);
     assert.deepEqual(saved.failure, { code });
     assert.match(saved.body, message);
     assert.doesNotMatch(JSON.stringify(saved), /private-source/);
