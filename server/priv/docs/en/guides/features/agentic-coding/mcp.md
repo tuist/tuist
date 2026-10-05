@@ -394,15 +394,18 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 
 ### Events
 
-Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can call `events/list` to discover events and their payload schemas. Currently, Tuist offers one event:
+Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can call `events/list` to discover events and their payload schemas:
 
-| Event | When it is sent | Project filter |
-|-------|-----------------|----------------|
+| Event | When it is sent | Subscription filter |
+|-------|-----------------|---------------------|
 | `test_case.marked_flaky` | A test case changes from not flaky to flaky. | `account_handle`, `project_handle` |
+| `build.failed` | An Xcode, Gradle, or Bazel build finishes with a failure. | `account_handle`, `project_handle` |
+| `test_run.failed` | A test run finishes with a failure, including a merged sharded run or an abandoned run. | `account_handle`, `project_handle` |
+| `ci_job.failed` | A Tuist runner job completes with a failure. | `account_handle` |
 
-To subscribe, the client calls `events/subscribe` with the event name, its account and project handles in `arguments`, and a `webhook` delivery containing an `https://` callback URL and a `whsec_` signing secret. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return an object containing the same `challenge` value. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's project access or credential is removed.
+To subscribe, the client calls `events/subscribe` with the event name, the handles listed above in `arguments`, and a `webhook` delivery containing an `https://` callback URL and a `whsec_` signing secret. Project events require account membership and read access to the corresponding test or build data; runner job events require account membership and runner read access. Each user can keep up to 25 active subscriptions. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return an object containing the same `challenge` value. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's access or credential is removed.
 
-When the event occurs, Tuist sends the test case identifier and dashboard URL to the callback. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. The payload omits test names and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
+When an event occurs, Tuist sends its resource identifier and dashboard URL to the callback. Build events also include `build_system`; runner job events include both `workflow_job_id` and `workflow_run_id`. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. Tuist retries failed deliveries, so clients should use the stable `eventId` to discard duplicates. The payload omits test names, logs, and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
 
 ### Prompts
 

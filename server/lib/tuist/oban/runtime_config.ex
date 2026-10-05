@@ -15,6 +15,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   """
 
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
+  alias Tuist.MCP.Events.Workers.PruneExpiredSubscriptionsWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
@@ -38,7 +39,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
-    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker}
+    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
+    {"@daily", PruneExpiredSubscriptionsWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}

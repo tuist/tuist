@@ -46,6 +46,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
@@ -1418,11 +1419,16 @@ defmodule Tuist.Runners.Jobs do
 
     broadcast_status_change(row.account_id, "completed")
 
+    if conclusion == "failure" and row.status not in ["completed", "cancelled"] do
+      Events.publish_failed_ci_job(row.account_id, row.workflow_run_id, row.workflow_job_id)
+    end
+
     {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
   end
 
   defp record_completed_locked(attrs, conclusion) do
     now = DateTime.utc_now()
+    previous = if conclusion == "failure", do: Repo.get(WorkflowJob, Map.fetch!(attrs, :workflow_job_id))
 
     persist_completion!(Map.fetch!(attrs, :workflow_job_id), Map.fetch!(attrs, :account_id), conclusion, now)
     :ok = WorkflowJobs.record_completed(attrs, conclusion, now)
@@ -1434,6 +1440,15 @@ defmodule Tuist.Runners.Jobs do
     )
 
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
+
+    if conclusion == "failure" and (is_nil(previous) or previous.status not in ["completed", "cancelled"]) do
+      Events.publish_failed_ci_job(
+        Map.fetch!(attrs, :account_id),
+        Map.fetch!(attrs, :workflow_run_id),
+        Map.fetch!(attrs, :workflow_job_id)
+      )
+    end
+
     :ok
   end
 

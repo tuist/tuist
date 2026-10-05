@@ -570,6 +570,8 @@ defmodule Tuist.Tests do
         end
       end)
 
+      if test.status == "failure", do: Events.publish_failed_test_run(test.project_id, test.id)
+
       {:ok, %{test | test_case_runs: test_case_runs}}
     end
   end
@@ -894,6 +896,8 @@ defmodule Tuist.Tests do
             |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
           IngestRepo.insert_all(Test, [update_attrs])
+
+          if merged_status == "failure", do: Events.publish_failed_test_run(project_id, updated_test.id)
 
           Tuist.Tasks.run_async(fn ->
             mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
@@ -4663,6 +4667,8 @@ defmodule Tuist.Tests do
       end)
 
     IngestRepo.insert_all(Test, updated_runs)
+
+    Enum.each(stale_runs, &Events.publish_failed_test_run(&1.project_id, &1.id))
 
     sharded_runs = Enum.filter(stale_runs, & &1.shard_plan_id)
     shard_plan_ids = sharded_runs |> Enum.map(& &1.shard_plan_id) |> Enum.uniq()
