@@ -265,6 +265,39 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
       assert_changes_parity(project, "a", "c")
     end
 
+    test "wait for a pending write below them, so none is computed over a chain a cascade is still fixing", %{
+      project: project,
+      account: account
+    } do
+      # main: a → b → c → d; feature: f off d.
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("a", [], 0),
+        CoverageFixtures.commit("b", ["a"], 1),
+        CoverageFixtures.commit("c", ["b"], 2),
+        CoverageFixtures.commit("d", ["c"], 3),
+        CoverageFixtures.commit("f", ["d"], 4)
+      ])
+
+      z = [file("Sources/Y.swift", [1]), file("Sources/Z.swift", [1])]
+      measure(project, account, "a", [file("Sources/X.swift", [0, 0]) | z])
+      measure(project, account, "b", [file("Sources/X.swift", [1, 0]) | z])
+      measure(project, account, "c", [file("Sources/X.swift", [0, 0]) | z])
+      measure(project, account, "d", [file("Sources/X.swift", [0, 0]) | z])
+      measure(project, account, "f", [file("Sources/X.swift", [1, 0]) | z], %{git_branch: "feature"})
+      for sha <- ~w(a c d f), do: complete(project, sha)
+      settle()
+
+      # b completes: its write re-queues c, and f is written before c's job runs.
+      complete(project, "b")
+      Repo.delete_all(from(j in Oban.Job, where: j.worker == "Tuist.Tests.Coverage.Workers.DeltaWorker"))
+      Deltas.with_project_lock(project.id, fn -> Deltas.write(project, "b") end)
+      assert_enqueued(worker: DeltaWorker, args: %{project_id: project.id, git_commit_sha: "c"})
+      assert Deltas.with_project_lock(project.id, fn -> Deltas.write(project, "f") end) == :deferred
+
+      settle()
+      for sha <- ~w(a b c d f), do: assert_parity(project, sha)
+    end
+
     test "are rewritten, with the commit above, when a late run changes a complete commit", %{
       project: project,
       account: account

@@ -99,12 +99,50 @@ defmodule Tuist.Tests.Coverage.Deltas do
   rows it left at a place it no longer holds, and re-queues the commits
   above whatever changed unless `cascade: false`. Call it holding the
   project's lock (`with_project_lock/2`). Returns `{:ok, %{rows:, checkpoint:}}`,
-  `:skipped` when the commit has nothing to write, or `:unavailable` when its
-  runs' rows do not add up to its totals.
+  `:skipped` when the commit has nothing to write, `:unavailable` when its
+  runs' rows do not add up to its totals, or `:deferred` when a write is
+  still pending for a commit below it on its chain (only while cascading).
   """
   def write(%Project{} = project, sha, opts \\ []) do
     summary = Commits.summary(project.id, sha)
     place = summary && place(summary)
+
+    if (Keyword.get(opts, :cascade, true) and place) && pending_below?(project.id, sha, place),
+      do: :deferred,
+      else: write_at_place(project, sha, summary, place, opts)
+  end
+
+  # A pending write below a commit can be a cascade fixing a commit whose rows
+  # are stale for a moment; computing over the chain then would keep that
+  # moment, and the cascade, which stops where figures read the same again,
+  # would never come back to it.
+  defp pending_below?(project_id, sha, place) do
+    pending =
+      Repo.all(
+        from(j in Oban.Job,
+          where: j.worker == ^Oban.Worker.to_string(DeltaWorker) and j.state in ["available", "scheduled", "retryable"],
+          where: fragment("(?->>'project_id')::bigint = ?", j.args, ^project_id),
+          where: fragment("?->>'git_commit_sha' <> ?", j.args, ^sha),
+          select: fragment("?->>'git_commit_sha'", j.args)
+        )
+      )
+
+    pending != [] and
+      Repo.exists?(
+        from(c in CoverageCommit,
+          where: c.project_id == ^project_id and c.git_commit_sha in ^pending and c.complete,
+          where: ^below(chain(place, :below))
+        )
+      )
+  end
+
+  defp below(chain) do
+    Enum.reduce(chain, dynamic(false), fn %{ref_id: ref_id, hi: hi}, acc ->
+      dynamic([c], ^acc or (c.ref_id == ^ref_id and c.position <= ^hi))
+    end)
+  end
+
+  defp write_at_place(project, sha, summary, place, opts) do
     {moved, kept} = project.id |> rows_of(sha) |> Enum.split_with(&({&1.ref_id, &1.position} != place))
     retired = retire(moved)
 

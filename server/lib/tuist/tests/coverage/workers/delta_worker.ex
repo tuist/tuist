@@ -11,6 +11,8 @@ defmodule Tuist.Tests.Coverage.Workers.DeltaWorker do
   how `CommitWorker` once lost reports. A project's writes take turns, each
   waiting for the project's lock, on a queue of their own so a burst for one
   project (a rebuild of its refs) holds none of the `:default` queue's slots.
+  A write whose chain still has a write pending below it comes back after
+  that one.
   """
   use Oban.Worker,
     queue: :coverage_deltas,
@@ -39,6 +41,11 @@ defmodule Tuist.Tests.Coverage.Workers.DeltaWorker do
 
       project ->
         case Deltas.with_project_lock(project_id, fn -> Deltas.write(project, sha) end) do
+          # Another write below goes first; this one comes back after it.
+          :deferred ->
+            enqueue(project_id, sha)
+            :ok
+
           # The runs' rows may not have reached this replica yet, or a run
           # landed after the published fold, whose refold queues the commit
           # again. Past a few tries they are gone.
