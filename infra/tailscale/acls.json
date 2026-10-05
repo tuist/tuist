@@ -368,6 +368,27 @@
 			"ip":  ["tcp:22"],
 		},
 
+		// Staging cluster → ber1-pdu-b's REST API, which the operator adopts
+		// the card through and switches the rack Macs' outlets through (the
+		// RackPDU ber1-pdu-b), through the macmini-egress ProxyGroup. The PDU sits on the rack's
+		// management LAN; the edge holding the management address advertises
+		// it as a /32 and forwards to it with SNAT. HTTPS only.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["192.168.0.16/32"],
+			"ip":  ["tcp:443"],
+		},
+
+		// Staging cluster → ber1-ats-1 and ber1-ats-3's REST API, which the
+		// operator adopts each transfer switch's card through and reads its
+		// sources through every minute (the RackATS objects), through the
+		// macmini-egress ProxyGroup. Same path as the PDU above. HTTPS only.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["192.168.0.14/32", "192.168.0.15/32"],
+			"ip":  ["tcp:443"],
+		},
+
 		// Staging cluster → the BER1 rack's Linux nodes. SSH: the operator
 		// joins each one over its own tailnet address and keeps it converged
 		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
@@ -529,11 +550,16 @@
 	// rendered from the rack's inventory (infra/rack-switch-fleet), so
 	// racking a mini changes their routes and hand approval would be a step
 	// per mini per edge. Scoped to the segment, the tag can put nothing else
-	// into the tailnet's routing table.
+	// into the tailnet's routing table. On the management LAN, only the
+	// installed power devices' addresses are approved: ber1-ats-1,
+	// ber1-ats-3 and ber1-pdu-b.
 	"autoApprovers": {
 		"routes": {
-			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
-			"10.10.0.0/24":  ["tag:tuist-rack-edge"],
+			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
+			"10.10.0.0/24":    ["tag:tuist-rack-edge"],
+			"192.168.0.14/32": ["tag:tuist-rack-edge"],
+			"192.168.0.15/32": ["tag:tuist-rack-edge"],
+			"192.168.0.16/32": ["tag:tuist-rack-edge"],
 		},
 		// Tailscale Services the operator's ingress ProxyGroups advertise
 		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator
