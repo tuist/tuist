@@ -2201,13 +2201,15 @@ defmodule Tuist.Tests do
   defp passed_on_commit(_runs_on_commit, []), do: MapSet.new()
 
   defp passed_on_commit(runs_on_commit, test_case_ids) do
-    from(tcr in runs_on_commit,
-      where: tcr.status == "success",
-      where: tcr.test_case_id in ^test_case_ids,
-      distinct: true,
-      select: tcr.test_case_id
-    )
-    |> ClickHouseRepo.all()
+    test_case_ids
+    |> all_by_uuid_chunks(fn ids ->
+      from(tcr in runs_on_commit,
+        where: tcr.status == "success",
+        where: tcr.test_case_id in ^ids,
+        distinct: true,
+        select: tcr.test_case_id
+      )
+    end)
     |> MapSet.new()
   end
 
