@@ -385,6 +385,12 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            {{- if .Values.capi.vultrPrivateNetwork.enabled }}
+            - --vultr-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "vultr-private-network") }}
+            {{- end }}
+            {{- if .Values.capi.ovhPrivateNetwork.enabled }}
+            - --ovh-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
+            {{- end }}
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
             {{- end }}

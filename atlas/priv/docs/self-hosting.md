@@ -124,7 +124,7 @@ Bootstrap is a one-time setup step available to the operator of the installation
 
 You don't need to configure every integration to get Atlas running. Start with the workspace, then add the services required by the features you want to use. File workflows need compatible object storage; document search also needs a vector service and an embedding provider. Engineering error analytics uses [ClickHouse](https://clickhouse.com/docs).
 
-With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. Upstream tools start disabled through `MCP_PROXY_SERVERS=[]`, giving you a chance to configure your own connections before using them. Keep the development demo seeds out of an installation containing real data.
+With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. The default `MCP_PROXY_SERVERS=[]` leaves upstream tool servers unconfigured; you can [connect them later](/docs/mcps). Keep the development demo seeds out of an installation containing real data.
 
 With [Helm](https://helm.sh/docs/), inspect the available settings for the version you're running:
 
@@ -139,6 +139,8 @@ You can configure external services through the application Secret and environme
 Before putting real data into Atlas, decide how you'll back up [PostgreSQL](https://www.postgresql.org/docs/18/index.html) and any object storage you enable, and test restoring them into an isolated installation. Save the deployment configuration and credentials securely too. In particular, keep `ENCRYPTION_KEY` with your backups: without it, Atlas cannot decrypt saved integration credentials, even if you restore the database.
 
 Before an upgrade, take a fresh backup and read the release's migration notes. For [Compose](https://docs.docker.com/compose/), stop the application, change `ATLAS_VERSION` in `.env` to the new release, then pull the images and run migrations before starting it again:
+
+If an older installation relied on Atlas implicitly loading Tuist's upstream tool servers when `MCP_PROXY_SERVERS` was unset, set `MCP_PROXY_SERVERS=tuist-managed` before upgrading to preserve them. Tuist's managed production deployment already sets this value explicitly. See the [MCPs guide](/docs/mcps) for the new runtime configuration.
 
 ```sh
 docker compose stop atlas

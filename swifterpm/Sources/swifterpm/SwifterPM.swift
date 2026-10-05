@@ -239,7 +239,8 @@ public struct SwifterPM: Sendable {
                 scratchDir: scratch,
                 cacheRoot: cacheRoot,
                 mirrors: mirrors,
-                disableSandbox: request.disableSandbox
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation
             )
         }
 

@@ -233,6 +233,19 @@ k8s-monitoring:
           regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
           action = "drop"
         }
+        // The server's two exponential histograms grow each boundary by a
+        // factor of 2 (runs) and 2.15 (HTTP client requests) across 15
+        // boundaries, which is finer than any dashboard percentile needs.
+        // Dropping alternating buckets keeps each one at 9 buckets (a factor
+        // of about 4 and 4.6 apart) and removes roughly 2,800 production
+        // series.
+        // Scrapes normalize `le`, so these match the stored spelling.
+        write_relabel_config {
+          source_labels = ["__name__", "le"]
+          separator = ";"
+          regex = "tuist_runs_duration_milliseconds_bucket;(200.0|800.0|3200.0|12800.0|51200.0|204800.0|819200.0)|tuist_http_request_duration_nanoseconds_bucket;(4.3e\\+06|1.9876749e\\+07|9.1880276e\\+07|4.24716579e\\+08|1.96325239e\\+09|9.075134174e\\+09|4.1949807721e\\+10)"
+          action = "drop"
+        }
 
     grafana-cloud-logs:
       type: loki
@@ -320,12 +333,29 @@ k8s-monitoring:
                       - ^/_internal/backfill/entries$
                     enabled_regex_matching: true
                     invert_match: true
+                  # The kubelet propagates one trace context across a pod's
+                  # probes for as long as it keeps probing, so each node's
+                  # /ready spans (one a second) share a trace lasting tens of
+                  # minutes. Every decision window of that trace spans more
+                  # than 2s, which made healthy probes about half of all
+                  # stored spans. Like the long-poll exclusion, this fails the
+                  # policy when any span matches, but the kubelet's trace holds
+                  # only probe spans: application requests carry their own
+                  # trace context, so no real request shares that trace.
+                  - name: not-a-probe
+                    type: string_attribute
+                    key: http.route
+                    values:
+                      - ^/(up|ready|metrics|status/rollout)$
+                      - ^/_internal/status$
+                    enabled_regex_matching: true
+                    invert_match: true
             # Errors and traces slower than 2s are retained above. Keep a
             # smaller representative sample for healthy traffic to contain
             # trace ingestion and downstream service-graph cost. Healthy probe
             # traces (kubelet /up and /ready, metrics scrapes, rollout polls
             # and the peer /_internal/status health check) carry no diagnostic
-            # value, so they are only kept when they fail or run slow.
+            # value, so they are only kept when they fail.
             - name: healthy-sample
               type: and
               and:
@@ -694,6 +724,30 @@ k8s-monitoring:
 
       stage.label_drop {
         values = ["tmp_response_status"]
+      }
+
+      // Every Kura peer link logs an INFO line when a backfill pass starts and
+      // another when it completes, several times a second once pull
+      // replication is caught up. Each line repeats the full span context, so
+      // in October 2026 they were about 730 MB/hour, nearly all of Kura's log
+      // volume. Drop the start line, which carries nothing the completion does
+      // not. Sample 1% of routine completions, those that neither exhausted
+      // the capacity budget nor found absent entries; every other completion
+      // keeps its per-peer outcome. Warnings and errors from the same target
+      // are not matched and stay unsampled.
+      stage.match {
+        selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass started\"`"
+        action = "drop"
+        drop_counter_reason = "kura_backfill_pass_started"
+      }
+
+      stage.match {
+        selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass completed\"` |= `\"capacity_completed\":false` |= `\"absent\":0,`"
+
+        stage.sampling {
+          rate = 0.01
+          drop_counter_reason = "kura_backfill_pass_completed_sampling"
+        }
       }
 
   # Node journald → Loki. The in-guest runner vitals probe is blind to a
@@ -1262,6 +1316,28 @@ k8s-monitoring:
             regex = "up|scrape_samples_scraped|process_cpu_seconds_total|process_resident_memory_bytes|process_open_fds|process_max_fds|go_goroutines|go_gc_duration_seconds(_sum|_count)?|go_sched_latencies_seconds_(bucket|count|sum)|apiserver_current_inflight_requests|apiserver_flowcontrol_current_executing_requests|apiserver_flowcontrol_current_executing_seats|apiserver_flowcontrol_current_limit_seats|apiserver_flowcontrol_nominal_limit_seats|apiserver_flowcontrol_rejected_requests_total|apiserver_request_duration_seconds_(bucket|count|sum)|apiserver_request_terminations_total|apiserver_request_total|apiserver_admission_webhook_rejection_count"
             action = "keep"
           }
+          // The request latency alert excludes long-running WATCH and CONNECT
+          // requests and only compares p99 against one second, so their
+          // buckets and most boundaries far from one second carry nothing.
+          rule {
+            source_labels = ["__name__", "verb"]
+            separator = ";"
+            regex = "apiserver_request_duration_seconds_bucket;(WATCH|CONNECT)"
+            action = "drop"
+          }
+          rule {
+            source_labels = ["__name__", "le"]
+            separator = ";"
+            regex = "apiserver_request_duration_seconds_bucket;(0.005|0.025|0.05|0.2|0.6|1.25|2.0|4.0|5.0|6.0|8.0|15.0|20.0|30.0|45.0)"
+            action = "drop"
+          }
+          // Dropping these labels collapses many apiserver series into one
+          // label set per scrape, so Mimir rejects all but one sample of each
+          // as a duplicate timestamp while still billing every sample sent.
+          // That is only safe while Adaptive Metrics aggregates
+          // apiserver_request_total and apiserver_request_duration_seconds_bucket
+          // before storage; see "Metrics aggregated downstream of this chart"
+          // in README.md.
           rule {
             regex = "component|dry_run|group|resource|scope|subresource|version"
             action = "labeldrop"

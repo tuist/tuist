@@ -21,10 +21,13 @@ defmodule TuistWeb.OnceTestsLive do
   alias TuistWeb.Utilities.Query
 
   @recent_run_limit 40
+  @refresh_interval_ms 2_000
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     socket =
-      assign(socket, :head_title, "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist")
+      socket
+      |> assign(:head_title, "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist")
+      |> assign(:refresh_scheduled?, false)
 
     if connected?(socket) do
       OnceEvents.subscribe_project(project.id)
@@ -79,9 +82,19 @@ defmodule TuistWeb.OnceTestsLive do
     {:noreply, socket}
   end
 
+  # Runs broadcast several times each and CI starts them in bursts, so
+  # broadcasts inside one window coalesce into a single reload instead of
+  # re-running every card per broadcast. See `TuistWeb.OnceRunsLive`.
+  def handle_info({:run_updated, _run_id}, %{assigns: %{refresh_scheduled?: true}} = socket), do: {:noreply, socket}
+
   def handle_info({:run_updated, _run_id}, socket) do
+    Process.send_after(self(), :refresh, @refresh_interval_ms)
+    {:noreply, assign(socket, :refresh_scheduled?, true)}
+  end
+
+  def handle_info(:refresh, socket) do
     params = URI.decode_query(socket.assigns.uri.query || "")
-    handle_params(params, nil, socket)
+    handle_params(params, nil, assign(socket, :refresh_scheduled?, false))
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
