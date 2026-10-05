@@ -871,7 +871,7 @@ files no longer match it:
   infinite reservation, and a kept one holds an address against a MAC the site
   no longer reserves it for, so dnsmasq refuses it to the MAC that now has it
   (a mini replaced on its predecessor's address would get none).
-- `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
+- `tailnet-routes.sh`, run every 15 seconds by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
   /32 per machine on the machines segment, the same on both edges, and on the
   edge holding the edge address, a /32 per power device behind the edge (see
@@ -968,7 +968,9 @@ tailnet too. Three things make that path work, all rendered from the site:
   management prefix leads to the house network. `tailnet-routes.sh` adds the
   power /32s only when the node holds the edge address on the switch port, so
   after a failover they follow the master on the script's next run, within
-  five minutes.
+  15 seconds (`routesReapplySeconds`). At the management path's five minutes,
+  an edge deploy left the cluster with no remote power for that long
+  (measured 2026-10-05).
 - **The master translates what it forwards to them.** A power device
   configured by hand has whatever gateway it was given (`ber1-pdu-b`'s is the
   house router), so its reply to a tailnet address would leave on the wrong
