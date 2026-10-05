@@ -117,9 +117,6 @@ func TestPrivateReplicationQualificationDoesNotBlockStatefulSetUpdates(t *testin
 					}
 				}
 				r.PrivateReplication = true
-				if previouslyQualified && gap == "missing" {
-					instance.Spec.NodeSelector = map[string]string{"pool": "new-unqualified-pool"}
-				}
 				instance.Spec.Image = "new"
 				instance.Spec.Replicas = ptr(int32(3))
 				if err := r.reconcileStatefulSet(ctx, instance); err != nil {
@@ -174,5 +171,66 @@ func TestPrivateReplicationVultrRequiresCurrentBootAndConvergedRegion(t *testing
 	other.Annotations[privateNetworkLabel] = "other"
 	if _, _, err := privateReplicationDomain([]corev1.Node{ready, *other}); err == nil {
 		t.Fatal("accepted mixed routing domains")
+	}
+}
+
+func TestPrivateReplicationPoolChangeWithdrawsPreviousPolicy(t *testing.T) {
+	for _, destination := range []string{"empty", "canonical", "unqualified", "qualified"} {
+		t.Run(destination, func(t *testing.T) {
+			ctx := context.Background()
+			scheme := runtime.NewScheme()
+			if err := clientgoscheme.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			node := privateNode("old", "ovh://gra/old", "pn-test", "old-members")
+			instance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Name: "cache", Namespace: "test"}, Spec: kurav1alpha1.KuraInstanceSpec{Image: "old", NodeSelector: map[string]string{"pool": "cache"}}}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&node, instance).Build()
+			r := &KuraInstanceReconciler{Client: c, Scheme: scheme, PrivateReplication: true}
+			if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Delete(ctx, &node); err != nil {
+				t.Fatal(err)
+			}
+			if destination != "empty" {
+				next := privateNode("new", "hcloud://new", "", "")
+				next.Labels["pool"] = "new"
+				if destination == "unqualified" {
+					next.Spec.ProviderID = "ovh://gra/new"
+				}
+				if destination == "qualified" {
+					next = privateNode("new", "ovh://gra/new", "pn-new", "new-members")
+					next.Labels["pool"] = "new"
+				}
+				if err := c.Create(ctx, &next); err != nil {
+					t.Fatal(err)
+				}
+			}
+			instance.Spec.NodeSelector = map[string]string{"pool": "new"}
+			if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			sts := &appsv1.StatefulSet{}
+			if err := c.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+				t.Fatal(err)
+			}
+			wantSelector := map[string]string{"pool": "new"}
+			if destination == "qualified" {
+				wantSelector[privateNetworkLabel] = "pn-new"
+			}
+			if !reflect.DeepEqual(sts.Spec.Template.Spec.NodeSelector, wantSelector) {
+				t.Fatalf("pool change ignored: %v", sts.Spec.Template.Spec.NodeSelector)
+			}
+			env := sts.Spec.Template.Spec.Containers[0].Env
+			if got := hasEnvVar(env, peerTopologyEnv); got != (destination == "qualified") {
+				t.Fatalf("topology present=%t for %s", got, destination)
+			}
+			if got := sts.Spec.Template.Annotations[managedTopologyAnnotation] == "true"; got != (destination == "qualified") {
+				t.Fatalf("managed annotation present=%t for %s", got, destination)
+			}
+		})
 	}
 }
