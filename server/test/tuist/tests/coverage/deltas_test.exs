@@ -84,17 +84,18 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
     assert Deltas.files(project.id, sha) == raw
 
     for sort <- [{:coverage, :asc}, {:coverage, :desc}, {:path, :desc}], search <- ["", "a"], page <- [1, 2] do
-      {files, count} = Commits.list_files(project.id, sha, page, 2, sort: sort, search: search)
+      {files, count} = Commits.list_files(project.id, sha, page, 2, sort: sort, search: search, stored: false)
 
       assert Deltas.list_files(project.id, sha, page, 2, sort: sort, search: search) ==
                {Enum.map(files, &Map.take(&1, [:path, :covered_lines, :executable_lines])), count}
     end
 
-    assert Deltas.targets(project.id, sha) == Commits.targets(project.id, sha)
+    assert Deltas.targets(project.id, sha) == Commits.targets(project.id, sha, stored: false)
   end
 
   defp assert_changes_parity(project, from_sha, to_sha) do
-    assert Deltas.changed_files(project.id, from_sha, to_sha, 5) == Commits.changed_files(project.id, from_sha, to_sha, 5)
+    assert Deltas.changed_files(project.id, from_sha, to_sha, 5) ==
+             Commits.changed_files(project.id, from_sha, to_sha, 5, stored: false)
   end
 
   # The file's trend from the deltas against the raw one, over the commits.
@@ -103,7 +104,7 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
 
     raw =
       project
-      |> History.file_points(path, points)
+      |> History.file_points(path, points, stored: false)
       |> Map.new(&{&1.git_commit_sha, Map.take(&1, [:covered_lines, :executable_lines])})
 
     assert Deltas.file_figures(project.id, path, shas) == raw
@@ -600,6 +601,61 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
     for sha <- ~w(base head), do: assert_parity(project, sha)
   end
 
+  test "the coverage readers read a complete commit's stored figures, and the runs' rows for any other", %{
+    project: project,
+    account: account
+  } do
+    linear(account, ~w(a b c))
+    measure(project, account, "a", [file("Sources/A.swift", [1, 0, 0]), file("Sources/B.swift", [0, 0])])
+    measure(project, account, "b", [file("Sources/A.swift", [1, 1, 0]), file("Sources/B.swift", [0, 0])])
+    measure(project, account, "c", [file("Sources/A.swift", [1, 1, 1]), file("Sources/B.swift", [1, 0])])
+    for sha <- ~w(a b), do: complete(project, sha)
+    settle()
+
+    # A stored figure only the deltas hold: what the readers show is read from them.
+    [%{ref_id: ref_id}] = rows(project, "b")
+
+    position =
+      Repo.one(
+        from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == "b", select: c.position)
+      )
+
+    Tuist.IngestRepo.insert_all(CoverageFileDelta, [
+      %{
+        project_id: project.id,
+        ref_id: ref_id,
+        position: position,
+        path: "Sources/A.swift",
+        git_commit_sha: "b",
+        base_sha: "a",
+        kind: "delta",
+        covered_lines: 3,
+        executable_lines: 3,
+        commit_version: 0,
+        committed_at: NaiveDateTime.utc_now(),
+        row_version: System.os_time(:microsecond) + 1_000_000,
+        is_deleted: 0
+      }
+    ])
+
+    assert {[%{path: "Sources/A.swift", covered_lines: 3}], 2} =
+             Commits.list_files(project.id, "b", 1, 1, sort: {:path, :asc})
+
+    assert [%{path: "Sources/A.swift", covered_lines: 3, previous_covered_lines: 1}] =
+             Commits.changed_files(project.id, "a", "b", 5)
+
+    assert [%{git_commit_sha: "b", covered_lines: 3}] =
+             History.file_points(project, "Sources/A.swift", [%{git_commit_sha: "b"}])
+
+    # c is still in progress, and read from its runs.
+    assert Deltas.files(project.id, "c") == nil
+
+    assert {[%{path: "Sources/A.swift", covered_lines: 3}], 2} =
+             Commits.list_files(project.id, "c", 1, 1, sort: {:path, :asc})
+
+    assert Commits.targets(project.id, "c") == Commits.targets(project.id, "c", stored: false)
+  end
+
   test "a version whose runs' rows don't add up to its totals is not written, and reads stay raw", %{
     project: project,
     account: account
@@ -628,7 +684,7 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
 
     assert rows(project, "loose") == []
     assert Deltas.files(project.id, "loose") == nil
-    assert Deltas.targets(project.id, "loose") == Commits.targets(project.id, "loose")
+    assert Deltas.targets(project.id, "loose") == Commits.targets(project.id, "loose", stored: false)
   end
 
   test "the backfill writes the complete commits a branch already had, oldest first", %{

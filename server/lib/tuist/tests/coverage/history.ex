@@ -29,6 +29,7 @@ defmodule Tuist.Tests.Coverage.History do
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.CoverageCommit
 
   @doc """
@@ -157,13 +158,19 @@ defmodule Tuist.Tests.Coverage.History do
   its page reads it at that commit (`Commits.file_detail/4`): its lines
   merged over the commit's runs and, where coverage was carried into the
   commit, covered too by the skipped tests that covered them, so the trend
-  ends on the figure the page shows. Commits nothing was carried into are
-  read in one pass over their runs.
+  ends on the figure the page shows. Complete commits whose stored deltas
+  are current (`Tuist.Tests.Coverage.Deltas.file_figures/3`) are read from
+  the file's rows along their chain, the rest from their runs (all of them
+  with `stored: false`): commits nothing was carried into in one pass.
   """
-  def file_points(_project, _path, []), do: []
+  def file_points(project, path, points, opts \\ [])
 
-  def file_points(%Project{} = project, path, points) do
-    rows_by_sha = Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha))
+  def file_points(_project, _path, [], _opts), do: []
+
+  def file_points(%Project{} = project, path, points, opts) do
+    shas = Enum.map(points, & &1.git_commit_sha)
+    stored = if Keyword.get(opts, :stored, true), do: Deltas.file_figures(project.id, path, shas), else: %{}
+    rows_by_sha = project.id |> Commits.by_shas(shas) |> Map.drop(Map.keys(stored))
     {carried, measured} = Enum.split_with(rows_by_sha, fn {_sha, row} -> Commits.carried?(row) end)
 
     commit_of = for {sha, row} <- measured, id <- row.test_run_ids, into: %{}, do: {id, sha}
@@ -175,7 +182,7 @@ defmodule Tuist.Tests.Coverage.History do
       |> Map.new(fn {sha, rows} -> {sha, Coverage.detail(path, rows)} end)
 
     carried_files = Map.new(carried, fn {sha, _row} -> {sha, Commits.file_detail(project.id, sha, path)} end)
-    files = Map.merge(measured_files, carried_files)
+    files = measured_files |> Map.merge(carried_files) |> Map.merge(stored)
 
     Enum.flat_map(points, fn point ->
       case Map.get(files, point.git_commit_sha) do
