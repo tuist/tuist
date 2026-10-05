@@ -11821,6 +11821,7 @@ mod tests {
             cas_capacity_bytes: None,
             node_url: "http://127.0.0.1:7443".into(),
             peer_gateway_url: None,
+            peer_topology: None,
             peers: vec!["http://127.0.0.1:7443".into()],
             discovery_dns_name: None,
             global_discovery_dns_name: None,
