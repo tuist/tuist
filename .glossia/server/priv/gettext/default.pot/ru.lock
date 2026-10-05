@@ -1,0 +1,128 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "60b7254dba5b176ab3c442164c0e6c111523caf761cb30a8e65b62f8ed3bb347",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "de567f031b0b1b474cec76e179c03bf199e24838695aee2e7b1302394876d0d0",
+          "kind": "source",
+          "label": "server/priv/gettext/default.pot",
+          "metadata": {
+            "content_hash": "4f158895cb9d1030acda934eadca7e88f621fdefbfafe0ef5db7ad3a8c51bd85"
+          }
+        },
+        {
+          "children": [],
+          "hash": "0e9a06c9660397e9cb1b522a4ed5424269eb2fa89227503b16ba2ad9c319cbab",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "po",
+            "frontmatter_mode": "preserve",
+            "language": "Russian",
+            "locale": "ru",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "00e0cd97c8c4aaf6e83d3e5200dc6652cc1753062e1b504dc7c47ba18e305f19",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "9579643f45897a82884d1b30480694e6029202260f47529196bebbf4a44d9065"
+              }
+            },
+            {
+              "children": [],
+              "hash": "c31cdb7b00bba909eafb6e173aedca530fa259befe90e3b61c1a90fdc4416d25",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "7dae77818c12659f202b5d729dc0917e6e533cfeac8fec4f704c34a97b4ee311"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "912c779997215276f0dbb94685d5cdb87ed2d6d594e293f0d7eb95c4e8f62c12",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "60b7254dba5b176ab3c442164c0e6c111523caf761cb30a8e65b62f8ed3bb347",
+      "kind": "translation_input",
+      "label": "server/priv/gettext/default.pot",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "9646c8faca2f508a2c8e39c77f0a00e132c0cb9b01e9758691907959ced1257f",
+  "output_path": "server/priv/gettext/ru/LC_MESSAGES/default.po",
+  "po_units": {
+    "32bb24a806b05dbacb432e67f4f4afbea7c9c7f8d14f7bab3ac715b8bfbe5e7f": "605f764c01be1cbe1d9ca494cd031c60e1cef552ca3e2dcff98e8c1654eae538",
+    "5dce7d673b3c858af4116ef1ee3e1d00cbb61ca065ae271327f2dacb4c2c339d": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+    "70b12939f060ff6d72125513e6863927f4e807b06c74ebffa8274698240eec1e": "7d2e2897e57d538606c4f1e052d235d3af95d1f11eb01f8f3ed10e9433ce68a4",
+    "93404e9ec4be52f0127dd2140c37c3fe16f9756d79f3c85ccfd3e4e2bf1d0945": "358368ce700fbb1b81bcba24837cf75c2aaf2b0a54a065fae0b40e1dcc1b9ee3"
+  },
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "d5db040f9cf4393a3a878538dd3903aa9d8fc9f5",
+  "source_path": "server/priv/gettext/default.pot",
+  "translated_at": "2026-10-05T15:19:33.364454Z",
+  "translation_session_id": "01a10c94-277c-7eed-a04f-9eacd4f94850"
+}
