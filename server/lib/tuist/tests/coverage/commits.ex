@@ -15,7 +15,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   data (it depends on the pipeline and on what the changed files trigger), so
   the client says so with `signal_complete/2`, which pull request gates wait
   for. Totals are republished (`recompute/2`) a few seconds after each run
-  reports and on the signal, rewriting the commit's row one version up.
+  reports and on the signal, rewriting the commit's row one version up. A
+  complete commit's per-file figures are then stored as deltas
+  (`Tuist.Tests.Coverage.Deltas`).
 
   The row lives in PostgreSQL beside the commit graph. Folding a commit also
   advances the refs its runs reported (`Tuist.GitHistory.advance_ref/5`):
@@ -30,6 +32,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
@@ -105,7 +108,9 @@ defmodule Tuist.Tests.Coverage.Commits do
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
       advance_refs(project, sha, runs)
-      summary(project.id, sha)
+      summary = summary(project.id, sha)
+      if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
+      summary
     end
   end
 
@@ -981,9 +986,11 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc "The commit's files with the runs' reports merged, without line data, by path."
   def merged_files(project_id, sha, opts \\ []) do
+    settings = if Keyword.get(opts, :consistent, false), do: [settings: [select_sequential_consistency: 1]], else: []
+
     case run_ids(project_id, sha) do
       [] -> []
-      ids -> ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path))
+      ids -> ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path), settings)
     end
   end
 
@@ -1076,10 +1083,10 @@ defmodule Tuist.Tests.Coverage.Commits do
     opts = Keyword.put(opts, :excluded, excluded)
 
     if carried_commit?(project_id, from_sha, opts) or carried_commit?(project_id, to_sha, opts) do
-      before = Map.new(commit_files(project_id, from_sha, opts), &{&1.path, &1})
+      before = Map.new(final_files(project_id, from_sha, opts), &{&1.path, &1})
 
       project_id
-      |> commit_files(to_sha, opts)
+      |> final_files(to_sha, opts)
       |> Enum.flat_map(fn file ->
         case Map.get(before, file.path) do
           %{executable_lines: executable} = previous when executable > 0 and file.executable_lines > 0 ->
@@ -1145,8 +1152,15 @@ defmodule Tuist.Tests.Coverage.Commits do
       end
   end
 
-  defp commit_files(project_id, sha, opts),
-    do: carried_files(project_id, sha, opts) || merged_files(project_id, sha, excluded: Keyword.get(opts, :excluded))
+  @doc """
+  The commit's files as its pages show them, by path: what its runs measured
+  or, when coverage was carried into it (`carried?/1`), with that coverage
+  applied, as `list_files/5` reads them. `consistent: true` reads the runs'
+  rows as of every write so far (`select_sequential_consistency`).
+  """
+  def final_files(project_id, sha, opts \\ []),
+    do:
+      carried_files(project_id, sha, opts) || merged_files(project_id, sha, Keyword.take(opts, [:excluded, :consistent]))
 
   defp measured_changed_files(_project_id, [], _to_ids, _count, _excluded), do: []
   defp measured_changed_files(_project_id, _from_ids, [], _count, _excluded), do: []
@@ -1210,7 +1224,8 @@ defmodule Tuist.Tests.Coverage.Commits do
          true <- carried?(summary),
          %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
       excluded = Coverage.excluded(project_id, opts)
-      Reported.merged_files(project, sha, merged_files(project_id, sha, excluded: excluded), excluded: excluded)
+      measured = merged_files(project_id, sha, excluded: excluded, consistent: Keyword.get(opts, :consistent, false))
+      Reported.merged_files(project, sha, measured, excluded: excluded)
     else
       _ -> nil
     end
