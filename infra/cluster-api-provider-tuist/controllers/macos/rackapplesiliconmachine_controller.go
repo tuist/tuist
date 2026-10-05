@@ -800,6 +800,7 @@ func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 		VNCRelayHost:         r.egressHost(machine.Name),
 		NodeLabels:           rackMachineNodeLabels(machine),
 		KnownHostFingerprint: knownFingerprint,
+		ExpectedSerial:       host.Spec.Serial,
 	}, nil
 }
 
