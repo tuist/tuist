@@ -531,14 +531,20 @@ defmodule Tuist.MCP.EventsTest do
     assert :ok =
              Publisher.publish(
                "build.failed",
-               %{"project_id" => project.id, "build_system" => "xcode", "build_id" => build_id},
+               %{
+                 "project_id" => project.id,
+                 "build_system" => "xcode",
+                 "build_id" => build_id,
+                 "is_ci" => true,
+                 "git_branch" => "main"
+               },
                "xcode:#{build_id}"
              )
 
     assert :ok =
              Publisher.publish(
                "test_run.failed",
-               %{"project_id" => project.id, "test_run_id" => test_run_id},
+               %{"project_id" => project.id, "test_run_id" => test_run_id, "is_ci" => false, "git_branch" => "topic"},
                test_run_id
              )
 
@@ -589,11 +595,13 @@ defmodule Tuist.MCP.EventsTest do
 
     assert Enum.any?(delivered, fn body ->
              body["name"] == "build.failed" and body["data"]["build_id"] == build_id and
-               body["data"]["build_system"] == "xcode"
+               body["data"]["build_system"] == "xcode" and body["data"]["is_ci"] == true and
+               body["data"]["git_branch"] == "main"
            end)
 
     assert Enum.any?(delivered, fn body ->
-             body["name"] == "test_run.failed" and body["data"]["test_run_id"] == test_run_id
+             body["name"] == "test_run.failed" and body["data"]["test_run_id"] == test_run_id and
+               body["data"]["is_ci"] == false and body["data"]["git_branch"] == "topic"
            end)
 
     assert Enum.any?(delivered, fn body ->
@@ -623,10 +631,16 @@ defmodule Tuist.MCP.EventsTest do
     end
 
     {:ok, xcode_build} =
-      RunsFixtures.build_fixture(project_id: project.id, status: "failure")
+      RunsFixtures.build_fixture(project_id: project.id, status: "failure", is_ci: true, git_branch: "main")
 
     gradle_build_id =
-      GradleFixtures.build_fixture(project_id: project.id, account_id: user.account.id, status: "failure")
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        status: "failure",
+        is_ci: false,
+        git_branch: "local-fix"
+      )
 
     bazel_invocation_id = Ecto.UUID.generate()
 
@@ -642,19 +656,46 @@ defmodule Tuist.MCP.EventsTest do
         project_id: project.id,
         account_handle: user.account.name,
         project_handle: project.name,
+        is_ci: true,
+        git_branch: "release",
         cache_endpoint: "cache.tuist.dev"
       }
     ])
 
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id, status: "failure")
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        status: "failure",
+        is_ci: false,
+        git_branch: "local-test"
+      )
 
     args = Repo.all(from(job in Oban.Job, where: job.worker == ^inspect(FanoutWorker), select: job.args))
 
     assert Enum.any?(args, &(&1["event_name"] == "build.failed" and &1["build_id"] == xcode_build.id))
+    assert Enum.any?(args, &(&1["build_id"] == xcode_build.id and &1["is_ci"] == true and &1["git_branch"] == "main"))
     assert Enum.any?(args, &(&1["event_name"] == "build.failed" and &1["build_id"] == gradle_build_id))
+
+    assert Enum.any?(
+             args,
+             &(&1["build_id"] == gradle_build_id and &1["is_ci"] == false and &1["git_branch"] == "local-fix")
+           )
+
     assert Enum.any?(args, &(&1["event_name"] == "build.failed" and &1["build_id"] == bazel_invocation_id))
+
+    assert Enum.any?(
+             args,
+             &(&1["build_id"] == bazel_invocation_id and &1["is_ci"] == true and &1["git_branch"] == "release")
+           )
+
     assert Enum.any?(args, &(&1["event_name"] == "test_run.failed" and &1["test_run_id"] == test_run.id))
+
+    assert Enum.any?(
+             args,
+             &(&1["test_run_id"] == test_run.id and &1["is_ci"] == false and &1["git_branch"] == "local-test")
+           )
+
     assert Enum.all?(args, &(&1["project_id"] == project.id))
   end
 

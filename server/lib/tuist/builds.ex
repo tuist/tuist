@@ -167,7 +167,13 @@ defmodule Tuist.Builds do
         do:
           Publisher.publish(
             "build.failed",
-            %{"project_id" => build.project_id, "build_system" => "xcode", "build_id" => build.id},
+            %{
+              "project_id" => build.project_id,
+              "build_system" => "xcode",
+              "build_id" => build.id,
+              "is_ci" => build.is_ci,
+              "git_branch" => build.git_branch || ""
+            },
             "xcode:#{build.id}"
           )
 

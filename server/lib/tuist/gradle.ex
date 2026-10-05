@@ -67,7 +67,13 @@ defmodule Tuist.Gradle do
         do:
           Publisher.publish(
             "build.failed",
-            %{"project_id" => attrs.project_id, "build_system" => "gradle", "build_id" => build_id},
+            %{
+              "project_id" => attrs.project_id,
+              "build_system" => "gradle",
+              "build_id" => build_id,
+              "is_ci" => Map.get(attrs, :is_ci, false),
+              "git_branch" => Map.get(attrs, :git_branch) || ""
+            },
             "gradle:#{build_id}"
           )
 

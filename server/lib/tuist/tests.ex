@@ -571,7 +571,17 @@ defmodule Tuist.Tests do
       end)
 
       if test.status == "failure",
-        do: Publisher.publish("test_run.failed", %{"project_id" => test.project_id, "test_run_id" => test.id}, test.id)
+        do:
+          Publisher.publish(
+            "test_run.failed",
+            %{
+              "project_id" => test.project_id,
+              "test_run_id" => test.id,
+              "is_ci" => test.is_ci,
+              "git_branch" => test.git_branch || ""
+            },
+            test.id
+          )
 
       {:ok, %{test | test_case_runs: test_case_runs}}
     end
@@ -902,7 +912,12 @@ defmodule Tuist.Tests do
             do:
               Publisher.publish(
                 "test_run.failed",
-                %{"project_id" => project_id, "test_run_id" => updated_test.id},
+                %{
+                  "project_id" => project_id,
+                  "test_run_id" => updated_test.id,
+                  "is_ci" => updated_test.is_ci,
+                  "git_branch" => updated_test.git_branch || ""
+                },
                 updated_test.id
               )
 
@@ -4678,7 +4693,16 @@ defmodule Tuist.Tests do
     stale_runs
     |> Enum.group_by(& &1.project_id)
     |> Enum.each(fn {project_id, runs} ->
-      entries = Enum.map(runs, &{%{"project_id" => project_id, "test_run_id" => &1.id}, &1.id})
+      entries =
+        Enum.map(runs, fn run ->
+          {%{
+             "project_id" => project_id,
+             "test_run_id" => run.id,
+             "is_ci" => run.is_ci,
+             "git_branch" => run.git_branch || ""
+           }, run.id}
+        end)
+
       Publisher.publish_batch("test_run.failed", entries, %{"project_id" => project_id})
     end)
 

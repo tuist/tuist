@@ -77,12 +77,20 @@ defmodule Tuist.Bazel do
 
     invocations
     |> Enum.filter(&(&1.command == "build" and &1.status == "failure"))
-    |> Enum.group_by(& &1.project_id, & &1.invocation_id)
-    |> Enum.each(fn {project_id, invocation_ids} ->
+    |> Enum.group_by(& &1.project_id)
+    |> Enum.each(fn {project_id, failed_invocations} ->
       Publisher.publish_batch(
         "build.failed",
-        Enum.map(invocation_ids, fn id ->
-          {%{"project_id" => project_id, "build_system" => "bazel", "build_id" => id}, "bazel:#{id}"}
+        Enum.map(failed_invocations, fn invocation ->
+          data = %{
+            "project_id" => project_id,
+            "build_system" => "bazel",
+            "build_id" => invocation.invocation_id,
+            "is_ci" => Map.get(invocation, :is_ci, false),
+            "git_branch" => Map.get(invocation, :git_branch) || ""
+          }
+
+          {data, "bazel:#{invocation.invocation_id}"}
         end),
         %{"project_id" => project_id}
       )

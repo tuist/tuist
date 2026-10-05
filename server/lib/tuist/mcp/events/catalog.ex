@@ -19,9 +19,15 @@ defmodule Tuist.MCP.Events.Catalog do
         ]),
         descriptor("build.failed", "A build in the selected project failed.", project_schema(), [
           "build_id",
-          "build_system"
+          "build_system",
+          "is_ci",
+          "git_branch"
         ]),
-        descriptor("test_run.failed", "A test run in the selected project failed.", project_schema(), ["test_run_id"]),
+        descriptor("test_run.failed", "A test run in the selected project failed.", project_schema(), [
+          "test_run_id",
+          "is_ci",
+          "git_branch"
+        ]),
         descriptor(
           "ci_job.failed",
           "A continuous integration runner job in the selected account failed.",
@@ -59,7 +65,12 @@ defmodule Tuist.MCP.Events.Catalog do
       |> Enum.reduce(%{"account_handle" => %{"type" => "string"}, "url" => %{"type" => "string"}}, fn
         field, acc ->
           Map.put(acc, field, %{
-            "type" => if(field in ["workflow_job_id", "workflow_run_id"], do: "integer", else: "string")
+            "type" =>
+              cond do
+                field in ["workflow_job_id", "workflow_run_id"] -> "integer"
+                field == "is_ci" -> "boolean"
+                true -> "string"
+              end
           })
       end)
       |> then(fn props ->
