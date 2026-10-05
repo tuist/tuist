@@ -16,9 +16,11 @@ defmodule Tuist.Tests.Coverage.Deltas do
   coverage carried in for skipped tests applied) change from what the chain
   holds just below it: a row per changed path, and a tombstone
   (`executable_lines = 0`) per path below it the commit no longer has. When
-  the delta rows read since the chain's last checkpoint would reach the
-  commit's file count, it writes all of its files instead, a checkpoint, so
-  a read costs at most about two snapshots' rows.
+  the delta rows its ref holds since the ref's last checkpoint would reach
+  the commit's file count, it writes all of its files instead, a checkpoint.
+  A ref that forked reads from its parent's checkpoint until then, so a
+  short-lived branch stores no snapshot, and a read costs at most about
+  three snapshots' rows.
 
   Whatever changes the rows below a commit invalidates its own, so every
   write that changes rows re-queues the commits right above it: the next
@@ -418,7 +420,10 @@ defmodule Tuist.Tests.Coverage.Deltas do
 
   # What the chain holds per path, from its nearest checkpoint up, and how
   # many delta rows that took.
-  defp read_state(project_id, chain) do
+  # The delta rows counted are the commit's own ref's: a ref that forked reads
+  # its parent's checkpoint until its own deltas would cost as much, so a
+  # short-lived branch never stores a snapshot of its own.
+  defp read_state(project_id, [%{ref_id: own_ref} | _] = chain) do
     segments = from_checkpoint(project_id, chain, @consistent)
 
     rows =
@@ -427,7 +432,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
       else
         ClickHouseRepo.all(
           from(d in state_query(project_id, segments),
-            select_merge: %{delta_rows: fragment("countIf(? = 'delta')", d.kind)}
+            select_merge: %{delta_rows: fragment("countIf(? = 'delta' AND ? = ?)", d.kind, d.ref_id, ^own_ref)}
           ),
           settings: @consistent
         )
@@ -525,6 +530,20 @@ defmodule Tuist.Tests.Coverage.Deltas do
     else
       _ -> nil
     end
+  end
+
+  # Of the commits, the version and place each one's rows were last written
+  # for, by SHA, in one read: what `current/2` checks one commit at a time.
+  defp written_places(project_id, shas) do
+    from(t in CoverageCommitTarget,
+      hints: ["FINAL"],
+      where: t.project_id == ^project_id and t.git_commit_sha in ^shas,
+      distinct: true,
+      select: {t.git_commit_sha, t.commit_version, t.ref_id, t.position}
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.group_by(&elem(&1, 0), &Tuple.delete_at(&1, 0))
+    |> Map.new(fn {sha, written} -> {sha, Enum.max_by(written, &elem(&1, 0))} end)
   end
 
   # The targets rows of the commit's published version, the marker of a
@@ -698,13 +717,20 @@ defmodule Tuist.Tests.Coverage.Deltas do
   def file_figures(_project_id, _path, []), do: %{}
 
   def file_figures(project_id, path, shas) do
-    places =
+    written = written_places(project_id, shas)
+    parents = %{}
+
+    {places, _parents} =
       project_id
       |> Commits.by_shas(shas)
-      |> Enum.flat_map(fn {sha, summary} ->
-        case current(project_id, summary) do
-          nil -> []
-          place -> [{sha, chain(place, :at)}]
+      |> Enum.flat_map_reduce(parents, fn {sha, summary}, parents ->
+        with {ref_id, position} = place <- place(summary),
+             {version, ^ref_id, ^position} <- Map.get(written, sha),
+             true <- version == summary.version do
+          parents = Map.put_new_lazy(parents, ref_id, fn -> tl(chain({ref_id, 0}, :at)) end)
+          {[{sha, [%{ref_id: ref_id, hi: elem(place, 1)} | parents[ref_id]]}], parents}
+        else
+          _ -> {[], parents}
         end
       end)
 

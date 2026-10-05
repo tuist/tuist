@@ -174,6 +174,57 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
       for sha <- ~w(a b c), do: assert_parity(project, sha)
     end
 
+    test "on a branch read from the parent's checkpoint until the branch's own deltas reach the file count", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("a", [], 0),
+        CoverageFixtures.commit("b", ["a"], 1),
+        CoverageFixtures.commit("f1", ["b"], 2),
+        CoverageFixtures.commit("f2", ["f1"], 3)
+      ])
+
+      measure(project, account, "a", [
+        file("Sources/A.swift", [0, 0]),
+        file("Sources/B.swift", [0, 0]),
+        file("Sources/C.swift", [0, 0])
+      ])
+
+      measure(project, account, "b", [
+        file("Sources/A.swift", [1, 0]),
+        file("Sources/B.swift", [1, 0]),
+        file("Sources/C.swift", [0, 0])
+      ])
+
+      feature = %{git_branch: "feature"}
+
+      measure(
+        project,
+        account,
+        "f1",
+        [file("Sources/A.swift", [1, 0]), file("Sources/B.swift", [1, 0]), file("Sources/C.swift", [1, 0])],
+        feature
+      )
+
+      measure(
+        project,
+        account,
+        "f2",
+        [file("Sources/A.swift", [1, 1]), file("Sources/B.swift", [1, 1]), file("Sources/C.swift", [1, 0])],
+        feature
+      )
+
+      for sha <- ~w(a b f1 f2), do: complete(project, sha)
+      settle()
+
+      # b's two deltas are main's, not the branch's: f1 stays a delta.
+      assert [%{path: "Sources/C.swift", kind: "delta"}] = rows(project, "f1")
+      # f1's one delta and f2's two reach the three files.
+      assert project |> rows("f2") |> Enum.map(& &1.kind) |> Enum.uniq() == ["checkpoint"]
+      for sha <- ~w(a b f1 f2), do: assert_parity(project, sha)
+    end
+
     test "are compared with the commit completed below them, whatever order they completed in", %{
       project: project,
       account: account
