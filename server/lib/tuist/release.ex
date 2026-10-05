@@ -737,12 +737,18 @@ defmodule Tuist.Release do
       "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
       # Table-level REVOKE does not remove column-level privileges.
       "REVOKE ALL (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads FROM #{role}",
+      "REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions FROM #{role}",
       "GRANT CONNECT ON DATABASE #{database} TO #{role}",
       "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
       "GRANT SELECT ON TABLE #{read_tables} TO #{role}",
-      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}"
+      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}",
+      # Event publishing only checks whether an agent is subscribed and records
+      # fan-out dedup keys. Columns, not the table, so callback URLs and signing
+      # secrets stay out of reach.
+      "GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions TO #{role}",
+      "GRANT SELECT, INSERT ON TABLE #{quoted_schema}.mcp_event_job_keys TO #{role}"
     ]
   end
 
