@@ -1410,3 +1410,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Remove this server and its saved connections?"
 msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:103
+#, elixir-autogen, elixir-format
+msgid "Connect an upstream server using per-user authorization."
+msgstr ""

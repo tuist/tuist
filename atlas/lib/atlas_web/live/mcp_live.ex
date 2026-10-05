@@ -29,6 +29,20 @@ defmodule AtlasWeb.MCPLive do
     |> assign(:configuration_ids, Map.new(configurations, &{&1.name, &1.id}))
   end
 
+  def handle_event("open_server_modal", _params, %{assigns: %{can_manage?: true}} = socket) do
+    {:noreply,
+     socket
+     |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
+     |> push_event("open-modal", %{id: "add-mcp-server-modal"})}
+  end
+
+  def handle_event("close_server_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
+     |> push_event("close-modal", %{id: "add-mcp-server-modal"})}
+  end
+
   def handle_event("validate_server", %{"server" => attrs}, %{assigns: %{can_manage?: true}} = socket) do
     changeset =
       %ServerConfiguration{}
@@ -45,10 +59,14 @@ defmodule AtlasWeb.MCPLive do
          socket
          |> put_flash(:info, gettext("Server added."))
          |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
-         |> load_servers()}
+         |> load_servers()
+         |> push_event("close-modal", %{id: "add-mcp-server-modal"})}
 
       {:error, changeset} ->
-        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+        {:noreply,
+         socket
+         |> assign_form(Map.put(changeset, :action, :validate))
+         |> push_event("open-modal", %{id: "add-mcp-server-modal"})}
     end
   end
 
@@ -77,6 +95,88 @@ defmodule AtlasWeb.MCPLive do
           <p data-part="description">
             {gettext("Upstream MCP servers proxied through Atlas with shared or per-user sessions.")}
           </p>
+        </div>
+        <div :if={@can_manage?} data-part="actions">
+          <.modal
+            id="add-mcp-server-modal"
+            title={gettext("Add server")}
+            description={gettext("Connect an upstream server using per-user authorization.")}
+            header_type="icon"
+            header_size="large"
+            on_dismiss="close_server_modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={gettext("Add server")}
+                size="medium"
+                variant="primary"
+                phx-click="open_server_modal"
+                {attrs}
+              >
+                <:icon_left><.circle_plus /></:icon_left>
+              </.button>
+            </:trigger>
+            <:header_icon><.server /></:header_icon>
+
+            <.form
+              id="mcp-server-form"
+              for={@server_form}
+              phx-change="validate_server"
+              phx-submit="create_server"
+              data-part="form"
+            >
+              <.text_input id="mcp-server-name" field={@server_form[:name]} label={gettext("Name")} />
+              <.text_input
+                id="mcp-server-url"
+                field={@server_form[:url]}
+                label={gettext("Server URL")}
+              />
+              <.text_input
+                id="mcp-server-authorization-url"
+                field={@server_form[:authorization_url]}
+                label={gettext("Authorization URL")}
+              />
+              <.text_input
+                id="mcp-server-token-url"
+                field={@server_form[:token_url]}
+                label={gettext("Token URL")}
+              />
+              <.text_input
+                id="mcp-server-registration-url"
+                field={@server_form[:registration_url]}
+                label={gettext("Registration URL (optional)")}
+              />
+              <.text_input
+                id="mcp-server-scopes"
+                field={@server_form[:scope_list]}
+                label={gettext("OAuth scopes (space separated)")}
+              />
+            </.form>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    size="medium"
+                    type="button"
+                    phx-click="close_server_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    id="mcp-server-create"
+                    label={gettext("Add server")}
+                    size="medium"
+                    variant="primary"
+                    type="submit"
+                    form="mcp-server-form"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
         </div>
       </div>
 
@@ -144,46 +244,6 @@ defmodule AtlasWeb.MCPLive do
               />
             </:empty_state>
           </.table>
-        </.card_section>
-      </.card>
-
-      <.card
-        :if={@can_manage?}
-        title={gettext("Add server")}
-        icon="server"
-        data-part="add-server-card"
-      >
-        <.card_section>
-          <.form
-            id="mcp-server-form"
-            for={@server_form}
-            phx-change="validate_server"
-            phx-submit="create_server"
-          >
-            <.text_input id="mcp-server-name" field={@server_form[:name]} label={gettext("Name")} />
-            <.text_input id="mcp-server-url" field={@server_form[:url]} label={gettext("Server URL")} />
-            <.text_input
-              id="mcp-server-authorization-url"
-              field={@server_form[:authorization_url]}
-              label={gettext("Authorization URL")}
-            />
-            <.text_input
-              id="mcp-server-token-url"
-              field={@server_form[:token_url]}
-              label={gettext("Token URL")}
-            />
-            <.text_input
-              id="mcp-server-registration-url"
-              field={@server_form[:registration_url]}
-              label={gettext("Registration URL (optional)")}
-            />
-            <.text_input
-              id="mcp-server-scopes"
-              field={@server_form[:scope_list]}
-              label={gettext("OAuth scopes (space separated)")}
-            />
-            <.button id="mcp-server-create" type="submit" label={gettext("Add server")} />
-          </.form>
         </.card_section>
       </.card>
     </div>
