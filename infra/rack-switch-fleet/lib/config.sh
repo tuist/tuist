@@ -790,16 +790,15 @@ fleet_atses() {
 }
 
 # A PDU as a RackPDU object, which the CAPI provider's RackPDU controller
-# adopts once it is installed (managedBy: controller), and, for one it adopts,
-# a PushSecret that copies the administrator login the controller generated
-# into 1Password. Spec only, like the RackSwitch objects.
+# adopts once it is installed (managedBy: controller). Spec only, like the
+# RackSwitch objects.
 fleet_render_pdu() {
   fleet_render_power "$1" "$2" RackPDU
 }
 
 # A transfer switch as a RackATS object, which the CAPI provider's RackATS
 # controller adopts, keeps on its preferred source and observes once it is
-# installed, with the same PushSecret as a PDU.
+# installed.
 fleet_render_ats() {
   fleet_render_power "$1" "$2" RackATS
 }
@@ -810,34 +809,17 @@ fleet_render_power() {
     .site as $site |
     .nodes[] | select(.name == $n) |
     (.status == "installed") as $managed |
-    { "tuist.dev/site": $site, "tuist.dev/role": "power" } as $labels |
     {
       apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
       kind: $kind,
-      metadata: { name: .name, labels: $labels },
+      metadata: { name: .name, labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
       spec: ({ site: $site, model: .hardware }
         + (if .mac then { mac: .mac } else {} end)
         + { address: .mgmt_address }
         + (if $kind == "RackPDU" and .ats then { chain: .ats } else {} end)
         + { managedBy: (if $managed then "controller" else "standalone" end) }
         + (if $kind == "RackPDU" then { outletStateOnStartup: "on" } else { preferredSource: .preferred_source } end))
-    },
-    (if $managed then {
-      apiVersion: "external-secrets.io/v1alpha1",
-      kind: "PushSecret",
-      metadata: { name: "\(.name)-admin", labels: $labels },
-      spec: {
-        refreshInterval: "1h",
-        updatePolicy: "Replace",
-        deletionPolicy: "None",
-        secretStoreRefs: [{ name: "onepassword", kind: "ClusterSecretStore" }],
-        selector: { secret: { name: "\(.name)-credentials" } },
-        data: [
-          { match: { secretKey: "admin-username", remoteRef: { remoteKey: "\(.name) admin", property: "username" } } },
-          { match: { secretKey: "admin-password", remoteRef: { remoteKey: "\(.name) admin", property: "password" } } }
-        ]
-      }
-    } else empty end)
+    }
   ' "$site_file" | yq -P -p=json '(select(.kind == "RackPDU") | .spec.outletStateOnStartup) style="double"' -
 }
 

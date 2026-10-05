@@ -2766,16 +2766,17 @@ STUB
     [ "$(yq 'select(.kind == "RackPDU") | .spec.mac' <<<"$output")" = "00:20:85:b8:0e:3e" ]
     # quoted, or YAML 1.1 reads it as a boolean and the CRD refuses it
     [[ "$output" == *'outletStateOnStartup: "on"'* ]]
-    # the administrator login the controller generates reaches 1Password
-    [ "$(yq 'select(.kind == "PushSecret") | .spec.selector.secret.name' <<<"$output")" = "ber1-pdu-b-credentials" ]
-    [ "$(yq 'select(.kind == "PushSecret") | [.spec.data[].match.secretKey] | join(" ")' <<<"$output" | sed '/^$/d')" = "admin-username admin-password" ]
+    # the object alone: its passwords are derived from the root key, and nothing
+    # is pushed to 1Password
+    [ "$(yq '.kind' <<<"$output")" = "RackPDU" ]
+    [[ "$output" != *"PushSecret"* ]]
 
     # without a recorded MAC the object says nothing about one
     jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
     run fleet_render_pdu "$BATS_TEST_TMPDIR/nomac.json" ber1-pdu-b
     [ "$(yq 'select(.kind == "RackPDU") | .spec | has("mac")' <<<"$output")" = "false" ]
 
-    # a PDU not installed yet is standalone, with nothing pushed for it
+    # a PDU not installed yet is standalone
     jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
     run fleet_pdus "$BATS_TEST_TMPDIR/planned.json"
     [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
@@ -2837,8 +2838,9 @@ STUB
     # its recorded MAC, and nothing of a PDU's
     [ "$(yq 'select(.kind == "RackATS") | .spec.mac' <<<"$output")" = "00:20:85:a6:29:4d" ]
     [ "$(yq 'select(.kind == "RackATS") | .spec | (has("chain") or has("outletStateOnStartup"))' <<<"$output")" = "false" ]
-    [ "$(yq 'select(.kind == "PushSecret") | .spec.selector.secret.name' <<<"$output")" = "ber1-ats-3-credentials" ]
-    [ "$(yq 'select(.kind == "PushSecret") | [.spec.data[].match.remoteRef.remoteKey] | unique | join(" ")' <<<"$output" | sed '/^$/d')" = "ber1-ats-3 admin" ]
+    # the object alone, with nothing pushed to 1Password
+    [ "$(yq '.kind' <<<"$output")" = "RackATS" ]
+    [[ "$output" != *"PushSecret"* ]]
     run fleet_render_ats "$SITE_FILE" ber1-ats-1
     [ "$(yq 'select(.kind == "RackATS") | .spec.preferredSource' <<<"$output")" = "1" ]
 
@@ -2847,7 +2849,7 @@ STUB
     run fleet_render_ats "$BATS_TEST_TMPDIR/nomac.json" ber1-ats-3
     [ "$(yq 'select(.kind == "RackATS") | .spec | has("mac")' <<<"$output")" = "false" ]
 
-    # a transfer switch not installed yet is standalone, with nothing pushed for it
+    # a transfer switch not installed yet is standalone
     jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.mgmt_address = "192.168.0.19")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
     run fleet_atses "$BATS_TEST_TMPDIR/planned.json"
     [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
