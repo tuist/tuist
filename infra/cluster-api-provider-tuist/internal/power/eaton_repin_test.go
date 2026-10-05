@@ -86,6 +86,23 @@ func TestEatonRepinLogsTheOldSessionOut(t *testing.T) {
 	}
 }
 
+// A card that no longer knows the session, one reset to its factory state or
+// presenting a new certificate after a reset, answers its logout 401: nothing
+// holds the account, so changing the card's settings goes on.
+func TestEatonLogoutOfASessionTheCardForgotIsNotAnError(t *testing.T) {
+	card, e, outlet := eatonAgainst(t, 1)
+	if _, err := e.State(context.Background(), outlet); err != nil {
+		t.Fatalf("State: %v", err)
+	}
+	card.Expire()
+	card.RotateCertificate()
+	outlet.TLSFingerprint = card.Fingerprint()
+
+	if _, err := e.State(context.Background(), outlet); err != nil {
+		t.Fatalf("State after the card forgot the session: %v", err)
+	}
+}
+
 // A logout that does not reach the card is an error, not a silent stranded
 // session.
 func TestEatonFailedLogoutIsReported(t *testing.T) {

@@ -493,6 +493,11 @@ func (ep *eatonEndpoint) endSession(ctx context.Context, client *http.Client) er
 	if err != nil {
 		return fmt.Errorf("log out of %s: %w", ep.config.base, err)
 	}
+	// The card does not know the token: the session is already gone, as on a
+	// card reset to its factory state, and holds nothing.
+	if status == http.StatusUnauthorized {
+		return nil
+	}
 	if status < 200 || status > 299 {
 		return fmt.Errorf("log out of %s: %d: %s", ep.config.base, status, strings.TrimSpace(string(body)))
 	}
