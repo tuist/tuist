@@ -389,7 +389,8 @@
         }
       ],
       "mgmt_address": "192.168.0.15",
-      "preferred_source": 2
+      "preferred_source": 2,
+      "mac": "00:20:85:a6:29:4d"
     },
     {
       "name": "ber1-ats-3",

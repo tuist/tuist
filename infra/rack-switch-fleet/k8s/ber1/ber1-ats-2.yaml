@@ -8,6 +8,7 @@ metadata:
 spec:
   site: ber1
   model: eats16n
+  mac: 00:20:85:a6:29:4d
   address: 192.168.0.15
   managedBy: controller
   preferredSource: 2
