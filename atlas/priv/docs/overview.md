@@ -6,3 +6,5 @@
 Atlas is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/en-US/MPL/2.0/). Follow its development in the [source repository](https://github.com/tuist/tuist/tree/main/atlas).
 
 Run Atlas on your infrastructure with the [self-hosting guide](/docs/self-hosting).
+
+Connect other tool servers through Atlas with the [MCPs guide](/docs/mcps).
