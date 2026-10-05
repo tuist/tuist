@@ -26,7 +26,7 @@ Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your cl
 
 The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
 
-Clients that support Model Context Protocol events can subscribe to `test_case.marked_flaky` for a specific account and project. The client supplies a callback address and signing secret, and Tuist verifies the callback before saving the subscription. When a test case changes from not flaky to flaky, Tuist sends its identifier and dashboard link to the subscribed client. The client decides what action to take. Subscriptions expire after seven days by default, may be refreshed, and stop delivering when the user's project access or credential is removed. Event delivery uses signed webhooks and does not send test names or failure messages in the event payload; clients can fetch those details through the existing tools.
+Clients that support Model Context Protocol events can subscribe to project events. See [Events](#events) for the available event and delivery requirements.
 
 Clients that already support remote browser authentication can continue authenticating in the browser. Clients and agents that support `auth.md` can register anonymously, present a trusted provider identity assertion, or start a service-authenticated email claim. Registration returns a Tuist-signed identity assertion, which the agent exchanges at the standard token endpoint for a one-hour access token. Tuist publishes its public signing key and supports standard token revocation and provider security-event delivery.
 
@@ -391,6 +391,18 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_automation_alert` | Get an automation alert. | `alert_id` |
 | `list_automation_alert_revisions` | List the revision history for an automation alert. Action credentials are redacted. | `alert_id` |
 | `list_project_notification_alerts` | List project notification alert rules. Requires the same administrator permission as the dashboard settings page. Webhook addresses are redacted. | `account_handle`, `project_handle` |
+
+### Events
+
+Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can call `events/list` to discover events and their payload schemas. Currently, Tuist offers one event:
+
+| Event | When it is sent | Project filter |
+|-------|-----------------|----------------|
+| `test_case.marked_flaky` | A test case changes from not flaky to flaky. | `account_handle`, `project_handle` |
+
+To subscribe, the client calls `events/subscribe` with the event name, its account and project handles in `arguments`, and a `webhook` delivery containing an HTTPS callback URL and a `whsec_` signing secret. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return the same challenge in a JSON object. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's project access or credential is removed.
+
+When the event occurs, Tuist sends the test case identifier and dashboard URL to the callback. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. The payload omits test names and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
 
 ### Prompts
 
