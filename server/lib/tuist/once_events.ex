@@ -223,18 +223,7 @@ defmodule Tuist.OnceEvents do
     # skip them in `total_actions` / `cached_actions` / roll-up so
     # the Overview card's counters keep their user-facing meaning.
     synthetic? = action_attrs[:capability] == "_phase"
-
-    delta =
-      if synthetic? do
-        %{}
-      else
-        %{
-          total_actions: 1,
-          cached_actions: if(action_attrs[:was_cached], do: 1, else: 0),
-          executed_actions: if(action_attrs[:was_cached], do: 0, else: 1),
-          failed_actions: if(action_attrs[:result] == "failed", do: 1, else: 0)
-        }
-      end
+    delta = if synthetic?, do: %{}, else: action_rollup_delta(action_attrs)
 
     multi =
       Multi.new()
@@ -273,6 +262,20 @@ defmodule Tuist.OnceEvents do
     end
   end
 
+  defp action_rollup_delta(action_attrs) do
+    duration_ms = action_attrs[:duration_ms] || 0
+    {cached, executed} = if action_attrs[:was_cached], do: {1, 0}, else: {0, 1}
+
+    %{
+      total_actions: 1,
+      cached_actions: cached,
+      executed_actions: executed,
+      failed_actions: if(action_attrs[:result] == "failed", do: 1, else: 0),
+      cached_action_ms_total: cached * duration_ms,
+      executed_action_ms_total: executed * duration_ms
+    }
+  end
+
   @doc """
   Mark a run finalized. Idempotent; a late `RunCompleted` after
   `FINALIZATION_PENDING` still transitions to `finalized` within the dedup
@@ -291,10 +294,78 @@ defmodule Tuist.OnceEvents do
       )
 
     with {:ok, updated} <- Repo.update(changeset) do
+      updated = recompute_cache_rollups(updated)
       broadcast_project(updated.project_id, {:run_updated, updated.run_id})
       broadcast_run(updated, {:run_updated, updated.run_id})
       {:ok, updated}
     end
+  end
+
+  defp recompute_cache_rollups(%Run{id: id} = run) do
+    {:ok, rollups} = recount_cache_rollups(id)
+    struct(run, rollups)
+  end
+
+  @doc """
+  Recount the duration and cache event roll-ups of runs that reached a
+  terminal state in the last `within_seconds`.
+
+  The roll-ups are incremented as events land and recounted when a run
+  finalizes, but a pod still running code from before they existed projects
+  events without maintaining them, and when such a pod also finalizes the run
+  the recount never happens. That is the window of a deploy. Sweeping the runs
+  that finished in the last day from the hourly `ExpireStaleRunsWorker`, which
+  also covers runs it marks `lost`, settles them on the exact value even when
+  the first sweep after a rollout is hours late. Each recount locks and reads
+  one run through the `once_run_id` indexes, a few milliseconds at most.
+  """
+  def recount_recent_cache_rollups(within_seconds \\ 86_400) do
+    cutoff = DateTime.add(DateTime.utc_now(), -within_seconds, :second)
+
+    ids =
+      Run
+      |> where([r], r.finalization in ["finalized", "lost"] and r.finalized_at >= ^cutoff)
+      |> select([r], r.id)
+      |> Repo.all()
+
+    Enum.each(ids, &recount_cache_rollups/1)
+
+    {:ok, length(ids)}
+  end
+
+  # Replaces a run's duration and cache event roll-ups with the sums over its
+  # own rows.
+  #
+  # The run row is locked before anything is read. Every ingest inserts its
+  # action or cache event and increments the run in one transaction, so an
+  # ingest that committed first is in the sums, and one still in flight waits
+  # on the lock and adds its increment on top of the recount. Reading first
+  # and then writing could overwrite an increment committed in between.
+  defp recount_cache_rollups(id) do
+    Repo.transaction(fn ->
+      Repo.one(from(r in Run, where: r.id == ^id, select: r.id, lock: "FOR UPDATE"))
+
+      {cached_ms, executed_ms} =
+        Repo.one(
+          from(a in Action,
+            where: a.once_run_id == ^id and a.capability != "_phase",
+            select: {
+              coalesce(sum(fragment("case when ? then ? else 0 end", a.was_cached, a.duration_ms)), 0),
+              coalesce(sum(fragment("case when ? then 0 else ? end", a.was_cached, a.duration_ms)), 0)
+            }
+          )
+        )
+
+      rollups = [
+        cached_action_ms_total: to_integer(cached_ms),
+        executed_action_ms_total: to_integer(executed_ms),
+        cache_event_count: Repo.aggregate(from(e in CacheEvent, where: e.once_run_id == ^id), :count)
+      ]
+
+      Repo.update_all(from(r in Run, where: r.id == ^id), set: rollups)
+
+      rollups
+    end)
   end
 
   @doc """
@@ -330,7 +401,7 @@ defmodule Tuist.OnceEvents do
     bytes = Map.get(event_attrs, :bytes_transferred, 0)
     duration = Map.get(event_attrs, :duration_ms, 0)
 
-    run_delta =
+    kind_delta =
       case kind do
         "download" ->
           %{
@@ -353,6 +424,8 @@ defmodule Tuist.OnceEvents do
           %{}
       end
 
+    run_delta = Map.put(kind_delta, :cache_event_count, 1)
+
     multi =
       Multi.new()
       |> Multi.run(:event, fn repo, _ ->
@@ -365,7 +438,7 @@ defmodule Tuist.OnceEvents do
         {:ok, count}
       end)
       |> Multi.run(:rollup, fn repo, %{event: count} ->
-        if count == 1 and run_delta != %{} do
+        if count == 1 do
           repo.update_all(
             from(r in Run, where: r.id == ^run.id),
             inc: Map.to_list(run_delta),
