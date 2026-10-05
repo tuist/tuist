@@ -12,6 +12,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Kura.Workers.ArchiveInactiveInstancesWorker
   alias Tuist.Kura.Workers.ClaimSizingWorker
   alias Tuist.Marketing.Workers.CacheGlobeRefreshWorker
+  alias Tuist.MCP.Events.Workers.PruneExpiredSubscriptionsWorker
   alias Tuist.Oban.RuntimeConfig
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
@@ -142,6 +143,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert PruneExpiredSubscriptionsWorker in workers
         assert CoverageRetentionWorker in workers
 
         refute ExpireInteractiveSessionsWorker in workers

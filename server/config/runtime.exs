@@ -709,6 +709,7 @@ base_queues = [
   alert_evaluations: 1,
   vcs_comments: 20,
   webhooks: 20,
+  mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10
 ]
