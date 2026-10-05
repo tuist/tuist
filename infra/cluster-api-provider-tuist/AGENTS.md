@@ -770,14 +770,19 @@ administrator's logins wait. What differs otherwise:
 losing the active one would move the load rather than drop it. False reasons:
 `AlternateSourceNotGood`, `LoadNotPowered`. Unknown whenever the switch could
 not be read (unreachable, changed certificate, unsupported card, failed login),
-so nothing reads a stale observation as current. `RedundancyLost` and
+so nothing reads a stale observation as current, and reason
+`ActiveSourceUnrecognised` when the inputs were read but neither or both claim
+`status.supply`: the inputs are still reported, the active source is not. `RedundancyLost` and
 `RedundancyRestored` events mark its transitions.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `Redundant`,
 `CertificateChanged`, `AddressReserved`. `Adopted=False` reasons are the
 RackPDU's plus `UnsupportedCard`. `Converged=False` reason
 `PreferredSourceUnrecognised` is a card whose settings carry no preferred
-source the driver recognises; the message lists the keys it does carry. A
+source the driver recognises: no key it knows (the message lists the keys the
+settings carry), or one whose value it cannot read, such as `"A"` or a
+zero-based `0` (the message carries the value). The card is still adopted and
+observed; the preferred source is not written. A
 failed read is `Ready=False` with its own reason (`Unreachable`,
 `ControllerLoginFailed`, `AccountBlocked`, `ObservationFailed`),
 `Converged=Unknown` and `drift: unknown`, never drift. A standalone RackATS is
@@ -791,6 +796,8 @@ not observed either: `Redundant=Unknown`, reason `Standalone`.
 `capt_rackats_last_observed_timestamp_seconds`, and the counter
 `capt_rackats_observed_transfers_total{from,to}`. These exist only while the
 last read succeeded; `capt_rackats_observed` is 1 or 0 for whether it did.
+`capt_rackats_active_source` and `capt_rackats_redundant` are left out while
+the card does not say which source powers the load.
 The lifecycle is `capt_rackats_ready`, `capt_rackats_adopted`,
 `capt_rackats_drifted` and `capt_rackats_certificate_changed`. The transfer
 counter counts what the controller saw between reads a minute apart: a
@@ -842,8 +849,12 @@ the preferred source, which no collection shows (the driver recognises
 string ending in the number, or an `@id` reference, and writes the whole
 settings object back in the form it read); and that `viewers` may read all of
 it. Anything the driver does not recognise is reported with what the card
-answered, in `Adopted=False UnsupportedCard` or `Converged=False
-PreferredSourceUnrecognised`, never silently. `internal/power/eatontest`'s
+answered, never silently. Only what makes the card another device (no
+`powerDistributions/1`, a `specifications.type` other than `ats`, inputs other
+than 1 and 2) is `Adopted=False UnsupportedCard`; one field the driver cannot
+read is left out on its own (`Converged=False PreferredSourceUnrecognised`,
+`Redundant=Unknown ActiveSourceUnrecognised`, an input's voltage or frequency
+that is not a number), and the rest of the switch is still observed. `internal/power/eatontest`'s
 `NewATS` fakes the card as assumed above.
 
 **A second implementation**, if the rack's cards turn out not to serve the REST

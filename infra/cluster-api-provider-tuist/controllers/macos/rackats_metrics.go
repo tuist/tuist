@@ -96,17 +96,23 @@ func recordRackATSMetrics(ats *infrav1.RackATS) {
 	rackATSDrifted.With(labels).Set(flag(ats.Status.Drift == infrav1.RackCardDriftDrifted))
 	rackATSCertificateChanged.With(labels).Set(flag(conditions.IsTrue(ats, RackCardCertificateChangedCondition)))
 
+	// Observed is the last read succeeding, Ready; the active source and
+	// redundancy are reported only when that read said which source powers
+	// the load.
 	redundant := conditions.Get(ats, RackATSRedundantCondition)
-	observed := redundant != nil && redundant.Status != corev1.ConditionUnknown && ats.Status.LastObserved != nil
+	observed := ats.Status.LastObserved != nil && conditions.IsTrue(ats, clusterv1.ReadyCondition)
+	activeKnown := redundant != nil && redundant.Status != corev1.ConditionUnknown
 	rackATSObserved.With(labels).Set(flag(observed))
 	forgetRackATSObservation(ats.Name)
 	if !observed {
 		return
 	}
 	rackATSLastObserved.With(labels).Set(float64(ats.Status.LastObserved.Unix()))
-	rackATSActiveSource.With(labels).Set(float64(ats.Status.ActiveSource))
 	rackATSPreferredSource.With(labels).Set(float64(ats.Status.PreferredSource))
-	rackATSRedundant.With(labels).Set(flag(redundant.Status == corev1.ConditionTrue))
+	if activeKnown {
+		rackATSActiveSource.With(labels).Set(float64(ats.Status.ActiveSource))
+		rackATSRedundant.With(labels).Set(flag(redundant.Status == corev1.ConditionTrue))
+	}
 	for _, in := range ats.Status.Inputs {
 		source := fmt.Sprint(in.Source)
 		rackATSInputGood.WithLabelValues(ats.Name, ats.Spec.Site, source).Set(flag(in.State == infrav1.RackATSInputGood))

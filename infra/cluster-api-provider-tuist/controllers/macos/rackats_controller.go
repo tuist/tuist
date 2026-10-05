@@ -308,14 +308,20 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 	ats.Status.Card = obs.Card
 	ats.Status.Model, ats.Status.SerialNumber, ats.Status.FirmwareVersion = obs.CardModel, obs.CardSerial, obs.CardFirmware
 	ats.Status.DeviceModel, ats.Status.DeviceSerialNumber, ats.Status.DeviceFirmwareVersion = obs.DeviceModel, obs.DeviceSerial, obs.DeviceFirmware
-	ats.Status.ActiveSource = obs.Active
 	ats.Status.PreferredSource = obs.Preferred
 	ats.Status.Inputs = obs.Inputs
 	ats.Status.LastObserved = &now
-	if observedBefore {
-		r.recordTransfer(ats, previous, obs, now)
+	if obs.ActiveUnrecognised == "" {
+		ats.Status.ActiveSource = obs.Active
+		if observedBefore {
+			r.recordTransfer(ats, previous, obs, now)
+		}
+		r.markRedundancy(ats, obs)
+	} else {
+		// The inputs were read; which one powers the load was not, so neither
+		// it nor redundancy is claimed.
+		r.markUnobserved(ats, "ActiveSourceUnrecognised", "the card does not say which source powers the load: "+obs.ActiveUnrecognised)
 	}
-	r.markRedundancy(ats, obs)
 	conditions.MarkTrue(ats, clusterv1.ReadyCondition)
 
 	switch {

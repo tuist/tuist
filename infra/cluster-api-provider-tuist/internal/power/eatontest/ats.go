@@ -37,6 +37,9 @@ type ATS struct {
 	Settings     map[string]any
 	// Transfers counts every change of Active.
 	Transfers int
+	// EditInput, when set, changes an input as served, for a card that
+	// reports one oddly.
+	EditInput func(n int, input map[string]any)
 }
 
 // Source is one input of the switch.
@@ -198,10 +201,14 @@ func (a *ATS) input(n int) map[string]any {
 	case SourceMissing:
 		status["health"], status["inRange"], status["supplied"] = "critical", false, false
 	}
-	return map[string]any{
+	input := map[string]any{
 		"@id": fmt.Sprintf("%s/powerDistributions/1/inputs/%d", api, n), "id": strconv.Itoa(n),
 		"identification": map[string]any{"physicalName": fmt.Sprintf("Source %d", n)},
 		"measures":       map[string]any{"voltage": s.Voltage, "frequency": s.Frequency, "current": 0.5},
 		"status":         status,
 	}
+	if a.EditInput != nil {
+		a.EditInput(n, input)
+	}
+	return input
 }

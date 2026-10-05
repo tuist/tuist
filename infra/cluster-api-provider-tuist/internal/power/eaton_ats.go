@@ -89,6 +89,9 @@ type EatonATS struct {
 	Preferred int
 	// PreferredKey is the settings key Preferred was read from.
 	PreferredKey string
+	// PreferredUnrecognised is a preferred source under a key the driver knows
+	// in a form it cannot read, with the value the card answered.
+	PreferredUnrecognised string
 	// Settings is the switch's settings object, written back whole with a
 	// changed preferred source.
 	Settings map[string]any
@@ -105,8 +108,20 @@ func (a EatonATS) SettingsKeys() []string {
 }
 
 // Active is the source powering the load: the one input whose status.supply
-// is true. It is 0 when none is, and an error when both claim it.
+// is true. It is 0 when none is, and an error when both claim it or neither
+// reports it.
 func (a EatonATS) Active() (int, error) {
+	reported := false
+	for _, in := range a.Inputs {
+		reported = reported || in.Supplying != nil
+	}
+	if !reported {
+		detail := ""
+		if len(a.Inputs) > 0 {
+			detail = ": " + a.Inputs[0].detail()
+		}
+		return 0, fmt.Errorf("neither input reports status.supply, so which one powers the load cannot be read%s", detail)
+	}
 	active := 0
 	for _, in := range a.Inputs {
 		if in.Supplying == nil || !*in.Supplying {
@@ -256,26 +271,23 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 	if len(list.Members) != 2 {
 		return EatonATS{}, &EatonUnsupportedError{Seen: fmt.Sprintf("%q lists %d inputs, not 2", model, len(list.Members))}
 	}
-	sawSupply := false
 	for _, member := range list.Members {
 		n, err := strconv.Atoi(path.Base(member.ID))
 		if err != nil || n < 1 || n > 2 {
 			return EatonATS{}, &EatonUnsupportedError{Seen: fmt.Sprintf("input %q is not numbered 1 or 2", member.ID)}
 		}
+		// Each field is read on its own: one the driver cannot read is left out
+		// rather than losing the input.
 		var input struct {
-			Measures struct {
-				Voltage   *float64 `json:"voltage"`
-				Frequency *float64 `json:"frequency"`
-			} `json:"measures"`
-			Status map[string]any `json:"status"`
+			Measures map[string]any `json:"measures"`
+			Status   map[string]any `json:"status"`
 		}
 		if err := get(ctx, fmt.Sprintf("/powerDistributions/1/inputs/%d", n), &input); err != nil {
 			return EatonATS{}, err
 		}
-		in := EatonATSInput{Number: n, Voltage: input.Measures.Voltage, Frequency: input.Measures.Frequency, Status: input.Status}
+		in := EatonATSInput{Number: n, Voltage: eatonNumber(input.Measures["voltage"]), Frequency: eatonNumber(input.Measures["frequency"]), Status: input.Status}
 		if v, ok := input.Status["supply"].(bool); ok {
 			in.Supplying = &v
-			sawSupply = true
 		}
 		if v, ok := input.Status["supplied"].(bool); ok {
 			in.Supplied = &v
@@ -287,9 +299,6 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 		ats.Inputs = append(ats.Inputs, in)
 	}
 	sort.Slice(ats.Inputs, func(i, j int) bool { return ats.Inputs[i].Number < ats.Inputs[j].Number })
-	if !sawSupply {
-		return EatonATS{}, &EatonUnsupportedError{Seen: fmt.Sprintf("neither input of %q reports status.supply, so which one powers the load cannot be read: %s", model, ats.Inputs[0].detail())}
-	}
 
 	if err := get(ctx, "/powerDistributions/1/settings", &ats.Settings); err != nil {
 		return EatonATS{}, err
@@ -301,7 +310,8 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 		}
 		n, err := decodeEatonSource(value)
 		if err != nil {
-			return EatonATS{}, &EatonUnsupportedError{Seen: fmt.Sprintf("settings.%s is %v: %v", key, value, err)}
+			ats.PreferredUnrecognised = fmt.Sprintf("settings.%s is %v: %v", key, value, err)
+			break
 		}
 		ats.Preferred, ats.PreferredKey = n, key
 		break
@@ -313,6 +323,14 @@ func eatonATS(ctx context.Context, get eatonGetter) (EatonATS, error) {
 	}
 	ats.Card = identity
 	return ats, nil
+}
+
+// eatonNumber is v when the card answered a number, and nil otherwise.
+func eatonNumber(v any) *float64 {
+	if n, ok := v.(float64); ok {
+		return &n
+	}
+	return nil
 }
 
 // decodeEatonSource reads a source as a number, as a string ending in its

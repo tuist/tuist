@@ -52,6 +52,9 @@ type atsObservation struct {
 	DeviceModel, DeviceSerial, DeviceFirmware string
 	// Active is the source powering the load, 0 for neither.
 	Active int32
+	// ActiveUnrecognised, when set, is why the card's answer did not say which
+	// source powers the load: Active is not known.
+	ActiveUnrecognised string
 	// Preferred is the preferred source, 0 when the card reports none the
 	// implementation recognises, with PreferredDetail saying what it has.
 	Preferred       int32
@@ -192,16 +195,17 @@ func (c *eatonATSCard) Observe(ctx context.Context) (atsObservation, error) {
 		}
 		return atsObservation{}, eatonATSError(err)
 	}
-	active, err := state.Active()
-	if err != nil {
-		return atsObservation{}, &atsCardError{Reason: rackATSReasonUnsupported, Err: err}
-	}
+	// One field it cannot read leaves the rest of the observation standing.
+	active, activeErr := state.Active()
 	obs := atsObservation{
 		Card:      fmt.Sprintf("%s %s (%s, firmware %s) over /rest/mbdetnrs/2.0", c.Kind(), state.Card.Product, state.Card.Model, state.Card.Firmware),
 		CardModel: state.Card.Model, CardSerial: state.Card.Serial, CardFirmware: state.Card.Firmware,
 		DeviceModel: state.Model, DeviceSerial: state.Serial, DeviceFirmware: state.Firmware,
 		Active:    int32(active),
 		Preferred: int32(state.Preferred),
+	}
+	if activeErr != nil {
+		obs.ActiveUnrecognised = activeErr.Error()
 	}
 	if state.PreferredKey == "" {
 		obs.PreferredDetail = eatonPreferredUnrecognised(state)
@@ -231,6 +235,9 @@ func eatonATSError(err error) error {
 }
 
 func eatonPreferredUnrecognised(state power.EatonATS) string {
+	if state.PreferredUnrecognised != "" {
+		return "the card's preferred source is in a form the controller does not recognise: " + state.PreferredUnrecognised
+	}
 	return fmt.Sprintf("the card's settings carry no preferred source the controller recognises; they have %s",
 		strings.Join(state.SettingsKeys(), ", "))
 }

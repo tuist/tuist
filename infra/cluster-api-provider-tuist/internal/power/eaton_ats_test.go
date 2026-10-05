@@ -1,8 +1,13 @@
 package power
 
 import (
+	"context"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power/eatontest"
 )
 
 func TestEatonSourceIsReadAndWrittenInTheCardsForm(t *testing.T) {
@@ -65,5 +70,63 @@ func TestEatonATSActiveSource(t *testing.T) {
 	ats.Inputs[0].Supplying = &yes
 	if _, err := ats.Active(); err == nil {
 		t.Fatal("two inputs supplying the load read as one")
+	}
+}
+
+func atsAgainst(t *testing.T) (*eatontest.Card, *Eaton, Outlet) {
+	t.Helper()
+	card := eatontest.NewATS()
+	t.Cleanup(card.Close)
+	card.AddAccount(testUser, testPassword, eatontest.ProfileViewers)
+	return card, &Eaton{}, Outlet{Driver: DriverEaton, Host: card.URL(), Username: testUser, Password: testPassword, TLSFingerprint: card.Fingerprint()}
+}
+
+// A preferred source under a known key in a form the driver cannot read is
+// reported, like one under an unknown key, and the rest of the switch is
+// still read.
+func TestEatonATSReadsTheSwitchPastAPreferredSourceItCannotDecode(t *testing.T) {
+	for _, value := range []any{"A", 0} {
+		card, e, outlet := atsAgainst(t)
+		card.Mu.Lock()
+		card.ATS.Settings["preferredInput"] = value
+		card.Mu.Unlock()
+
+		ats, err := e.ATS(context.Background(), outlet)
+		if err != nil {
+			t.Fatalf("preferredInput %v: %v", value, err)
+		}
+		if ats.Preferred != 0 || ats.PreferredKey != "" || !strings.Contains(ats.PreferredUnrecognised, fmt.Sprintf("settings.preferredInput is %v", value)) {
+			t.Fatalf("preferredInput %v: preferred %d under %q, unrecognised %q", value, ats.Preferred, ats.PreferredKey, ats.PreferredUnrecognised)
+		}
+		if active, err := ats.Active(); err != nil || active != 1 || len(ats.Inputs) != 2 {
+			t.Fatalf("preferredInput %v: active %d, %v, %d inputs", value, active, err, len(ats.Inputs))
+		}
+	}
+}
+
+// An input field in a form the driver cannot read loses that field alone.
+func TestEatonATSReadsTheSwitchPastAnOddInputField(t *testing.T) {
+	card, e, outlet := atsAgainst(t)
+	card.Mu.Lock()
+	card.ATS.EditInput = func(n int, input map[string]any) {
+		delete(input["status"].(map[string]any), "supply")
+		if n == 2 {
+			input["measures"].(map[string]any)["voltage"] = "231.1 V"
+		}
+	}
+	card.Mu.Unlock()
+
+	ats, err := e.ATS(context.Background(), outlet)
+	if err != nil {
+		t.Fatalf("ATS: %v", err)
+	}
+	if _, err := ats.Active(); err == nil || !strings.Contains(err.Error(), "status.supply") {
+		t.Fatalf("Active = %v, want it to say no input reports status.supply", err)
+	}
+	if len(ats.Inputs) != 2 || ats.Inputs[0].Voltage == nil || ats.Inputs[1].Voltage != nil || ats.Preferred != 1 {
+		t.Fatalf("inputs %+v, preferred %d: want both inputs, the readable voltage only, and the preferred source", ats.Inputs, ats.Preferred)
+	}
+	if state, _ := ats.Inputs[1].State(); state != ATSInputGood {
+		t.Fatalf("input 2 is %s, want good from its status", state)
 	}
 }
