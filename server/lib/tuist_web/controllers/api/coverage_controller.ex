@@ -8,6 +8,7 @@ defmodule TuistWeb.API.CoverageController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Environment
   alias Tuist.Storage
   alias Tuist.Tests.Coverage
@@ -242,7 +243,9 @@ defmodule TuistWeb.API.CoverageController do
       })
   )
 
-  def complete_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
+  def complete_commit(conn, params), do: ReadRoute.primary(fn -> signal_commit_complete(conn, params) end)
+
+  defp signal_commit_complete(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
     case Commits.signal_complete(project, sha) do
       nil ->
         conn

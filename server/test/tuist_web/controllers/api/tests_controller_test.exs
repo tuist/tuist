@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
@@ -11,6 +12,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.InClusterReads
   alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/tests" do
@@ -717,6 +719,63 @@ defmodule TuistWeb.API.TestsControllerTest do
       [arg1, arg2] = test_case_run["arguments"]
       assert arg1["name"] == ".cardUser"
       assert arg2["name"] == ".cardAdmin"
+    end
+
+    test "creates the test run when the in-cluster ClickHouse cannot answer its reads", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_id = UUIDv7.generate()
+      InClusterReads.route_reads_in_cluster()
+
+      # The idempotency lookup the request makes before writing, routed.
+      assert_raise ArgumentError, fn -> Tests.get_test(test_id) end
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: test_id,
+            duration: 5000,
+            is_ci: false,
+            status: "success",
+            test_modules: [
+              %{
+                name: "MyTests",
+                status: "success",
+                duration: 5000,
+                test_suites: [],
+                test_cases: [%{name: "test_example", status: "success", duration: 100}]
+              }
+            ]
+          }
+        )
+
+      assert json_response(conn, 200)["id"] == test_id
+      assert {:ok, %Test{project_id: project_id}} = ReadRoute.primary(fn -> Tests.get_test(test_id) end)
+      assert project_id == project.id
+    end
+
+    test "returns an existing test run when the in-cluster ClickHouse cannot answer its reads", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      InClusterReads.route_reads_in_cluster()
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{id: test_run.id, duration: 1000, is_ci: false, status: "success", test_modules: []}
+        )
+
+      assert json_response(conn, 200)["id"] == test_run.id
     end
 
     test "returns preloaded test_case_runs when the test already exists", %{

@@ -1,10 +1,14 @@
 defmodule Tuist.ClickHouseRepoTest do
   use ExUnit.Case, async: false
+  use Mimic
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.ClickHouseRepo
   alias Tuist.SentryEventFilter
+  alias Tuist.Tests.Test
+  alias TuistTestSupport.InClusterReads
 
   test "a failed raw query enriches the original error event" do
     with_read_repo(fn ->
@@ -51,6 +55,26 @@ defmodule Tuist.ClickHouseRepoTest do
                max_threads: 2
              }
     end)
+  end
+
+  test "function preloads stay on the system of record inside a forced primary read" do
+    InClusterReads.route_reads_in_cluster()
+    test_pid = self()
+
+    # Two preloads at one level are what makes Ecto run them in tasks.
+    report = fn _ids ->
+      send(test_pid, {:read_from, ReadRoute.route(fn -> ClickHouseRepo.get_dynamic_repo() end)})
+      []
+    end
+
+    default = ClickHouseRepo.get_dynamic_repo()
+
+    ReadRoute.primary(fn ->
+      ClickHouseRepo.preload(%Test{id: UUIDv7.generate()}, test_case_runs: report, run_destinations: report)
+    end)
+
+    assert_received {:read_from, ^default}
+    assert_received {:read_from, ^default}
   end
 
   defp resource_settings(options \\ []) do

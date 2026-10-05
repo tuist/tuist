@@ -3,6 +3,7 @@ defmodule TuistWeb.API.TestsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.TestRunQuery
@@ -730,7 +731,9 @@ defmodule TuistWeb.API.TestsController do
     }
   )
 
-  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+  def create(conn, params), do: ReadRoute.primary(fn -> create_test_run(conn, params) end)
+
+  defp create_test_run(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     body_params = RemoteURL.strip_credentials_from_params(body_params)
 
     run_params =

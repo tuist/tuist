@@ -42,8 +42,13 @@ defmodule Tuist.ClickHouseRepo do
   def exists?(queryable, opts \\ []),
     do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
 
-  def preload(structs_or_struct_or_nil, preloads, opts \\ []),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end) end)
+  def preload(structs_or_struct_or_nil, preloads, opts \\ []) do
+    # Ecto runs sibling preloads in tasks, which do not inherit
+    # `ReadRoute.primary/1`, so a function preload there would be routed.
+    opts = if ReadRoute.primary?(), do: Keyword.put(opts, :in_parallel, false), else: opts
+
+    ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end) end)
+  end
 
   # Ecto.Repo `aggregate/3` is overloaded: third arg is `opts` for `:count`
   # and `field` for `:avg/:max/:min/:sum`. Pass through whatever the caller

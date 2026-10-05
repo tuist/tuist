@@ -32,7 +32,7 @@ For an environment, in order:
 3. `backfill`, with `--cutoff` set after the shadow-writes deploy finished rolling out.
 4. `parity`. If a table differs, fix the cause, run `backfill` again with a later cutoff, then `parity` again.
 5. `check-reads`. It refuses to run once reads have moved.
-6. `enable-reads`. `disable-reads` moves them back.
+6. `enable-reads`. `disable-reads` moves them back. Reads on ingest paths (API uploads and the workers that process them) stay on ClickHouse Cloud regardless, through `Tuist.ClickHouse.ReadRoute.primary/1`, so drift on the in-cluster server cannot fail a write.
 7. Make the in-cluster server the system of record: set `clickhouse.mode` to `managed` in the environment's values and deploy. Every workload then reads and writes it through `TUIST_CLICKHOUSE_URL`, and ClickHouse Cloud receives nothing. The launcher refuses every step from then on.
 
 Before step 7:

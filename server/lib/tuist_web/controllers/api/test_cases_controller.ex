@@ -3,6 +3,7 @@ defmodule TuistWeb.API.TestCasesController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.API.Responses
@@ -395,11 +396,16 @@ defmodule TuistWeb.API.TestCasesController do
     }
   )
 
-  def update(
-        %{assigns: %{selected_project: selected_project}, params: %{test_case_id: test_case_id}, body_params: body_params} =
-          conn,
-        _params
-      ) do
+  def update(conn, params), do: ReadRoute.primary(fn -> apply_test_case_update(conn, params) end)
+
+  defp apply_test_case_update(
+         %{
+           assigns: %{selected_project: selected_project},
+           params: %{test_case_id: test_case_id},
+           body_params: body_params
+         } = conn,
+         _params
+       ) do
     attrs = Map.take(body_params, [:state, :is_flaky])
 
     cond do

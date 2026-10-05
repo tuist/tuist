@@ -3,6 +3,7 @@ defmodule TuistWeb.API.CrashReportsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Tests
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -78,7 +79,9 @@ defmodule TuistWeb.API.CrashReportsController do
     }
   )
 
-  def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
+  def create(conn, params), do: ReadRoute.primary(fn -> create_crash_report(conn, params) end)
+
+  defp create_crash_report(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
     with {:ok, test_case_run} <-
            Tests.get_test_case_run_by_id(body_params.test_case_run_id,
              project_id: project.id

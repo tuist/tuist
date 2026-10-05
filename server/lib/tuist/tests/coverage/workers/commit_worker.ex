@@ -19,6 +19,7 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
@@ -61,7 +62,9 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"project_id" => project_id, "git_commit_sha" => sha}}) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(%Oban.Job{args: %{"project_id" => project_id, "git_commit_sha" => sha}}) do
     case Projects.get_project_by_id(project_id) do
       nil -> :ok
       project -> fold(project, sha)

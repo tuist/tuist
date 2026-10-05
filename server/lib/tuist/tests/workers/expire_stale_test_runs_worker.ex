@@ -8,10 +8,13 @@ defmodule Tuist.Tests.Workers.ExpireStaleTestRunsWorker do
   """
   use Oban.Worker
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Tests
 
   @impl Oban.Worker
-  def perform(_args) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(_args) do
     Tests.expire_stale_in_progress_test_runs()
   end
 end

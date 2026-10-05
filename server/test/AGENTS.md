@@ -25,6 +25,8 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - `processor_role_privileges_test.exs` runs profile publication and invalid-profile rejection with `ProcessorRole.as_processor/1`, using release-time PostgreSQL grants. Timeline regressions cover unavailable direct links, late profile publication, expired indexed steps and valid metrics-only builds.
 
+- `InClusterReads.route_reads_in_cluster/0` turns ClickHouse read routing on for the test process against an in-cluster server that cannot answer, so a routed read raises. Use it to prove ingest paths read through `ReadRoute.primary/1`. It registers a global name, so only `async: false` tests can call it.
+
 - GitLab runner tests reject unmocked HTTP requests; the Go executor uses a local fake coordinator for execution, artifacts and masked-log validation.
   Cache rename coverage must preserve account-ID archive keys and cross-account isolation while rejecting another account's attempt to claim a retained handle.
 

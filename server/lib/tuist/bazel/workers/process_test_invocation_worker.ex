@@ -13,6 +13,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorker do
     unique: [keys: [:project_id, :invocation_id], states: :incomplete, period: :infinity]
 
   alias Tuist.Bazel
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Projects
   alias Tuist.Tests.Sanitizer
 
@@ -21,7 +22,9 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorker do
   @invocation_retry_seconds 15
   @invocation_wait_minutes 15
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"project_id" => project_id, "invocation_id" => invocation_id}}) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(%Oban.Job{args: %{"project_id" => project_id, "invocation_id" => invocation_id}}) do
     case Bazel.get_test_invocation(project_id, invocation_id) do
       %{state: "pending"} = test_invocation ->
         process_pending_invocation(test_invocation)

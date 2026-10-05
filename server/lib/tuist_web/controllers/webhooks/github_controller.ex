@@ -2,6 +2,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
   alias Tuist.Bundles
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -453,7 +454,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp project_for_bundle(bundle_id) do
-    with project_id when is_integer(project_id) <- Bundles.get_bundle_project_id(bundle_id),
+    with project_id when is_integer(project_id) <- ReadRoute.primary(fn -> Bundles.get_bundle_project_id(bundle_id) end),
          %Project{} = project <- Projects.get_project_by_id(project_id) do
       {:ok, project}
     else

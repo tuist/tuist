@@ -225,6 +225,7 @@ defmodule Tuist do
       PubSub,
       KeyValueStore,
       ClickHouseRepo,
+      ClickHouse.ReadRoute,
       ClickHouseFlop,
       ClickHouseTimeSeries,
       Telemetry.QueryErrorContext,

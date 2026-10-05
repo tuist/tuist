@@ -26,6 +26,16 @@ defmodule Tuist.ClickHouse.ReadRoute do
   The pool is only in the supervision tree while a destination is configured,
   so the flag alone cannot route reads at a server that is not there: both
   conditions are required.
+
+  ## Reads that gate a write
+
+  ClickHouse Cloud stays the system of record until the migration finishes, so
+  the in-cluster server is allowed to be behind it, in schema or in data. A read
+  that only renders a page can live with that. A read on an ingest path cannot:
+  if it fails, the write behind it never happens, and the client gives up after
+  its retries. `primary/1` keeps every read made inside it on the system of
+  record, so ingest paths wrap their whole unit of work in it rather than
+  having to find each read that sits in front of a write.
   """
 
   alias Tuist.ClickHouseRepo
@@ -33,13 +43,14 @@ defmodule Tuist.ClickHouse.ReadRoute do
   alias Tuist.ShadowClickHouseRepo
 
   @instance ShadowClickHouseRepo
+  @primary {__MODULE__, :primary}
 
   @doc """
   Runs `fun` against the in-cluster ClickHouse when routing is on, and against
   the system of record otherwise.
   """
   def route(fun) do
-    if enabled?() do
+    if not primary?() and enabled?() do
       previous = ClickHouseRepo.get_dynamic_repo()
       ClickHouseRepo.put_dynamic_repo(@instance)
 
@@ -52,6 +63,25 @@ defmodule Tuist.ClickHouse.ReadRoute do
       fun.()
     end
   end
+
+  @doc """
+  Runs `fun` with every read inside it on the system of record, whether or not
+  routing is on.
+  """
+  def primary(fun) do
+    previous = Process.put(@primary, true)
+
+    try do
+      fun.()
+    after
+      if previous, do: Process.put(@primary, previous), else: Process.delete(@primary)
+    end
+  end
+
+  @doc """
+  Whether the calling process is inside `primary/1`.
+  """
+  def primary?, do: Process.get(@primary, false)
 
   @doc """
   Whether reads are being served by the in-cluster ClickHouse.

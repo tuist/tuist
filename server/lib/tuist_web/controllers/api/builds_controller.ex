@@ -5,6 +5,7 @@ defmodule TuistWeb.API.BuildsController do
   alias OpenApiSpex.Schema
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Storage
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
@@ -881,7 +882,9 @@ defmodule TuistWeb.API.BuildsController do
     }
   )
 
-  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+  def create(conn, params), do: ReadRoute.primary(fn -> create_build_run(conn, params) end)
+
+  defp create_build_run(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     body_params = RemoteURL.strip_credentials_from_params(body_params)
 
     run_params =

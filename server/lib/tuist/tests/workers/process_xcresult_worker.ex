@@ -28,6 +28,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       period: :infinity
     ]
 
+  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Processor.XCResultProcessor
@@ -76,7 +77,9 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @parse_timeout_backoff_seconds 900
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"test_run_id" => test_run_id}} = job) do
+  def perform(job), do: ReadRoute.primary(fn -> process_job(job) end)
+
+  defp process_job(%Oban.Job{args: %{"test_run_id" => test_run_id}} = job) do
     OpenTelemetry.Tracer.with_span "xcresult.process" do
       OpenTelemetry.Tracer.set_attribute("test_run_id", test_run_id)
       perform_job(job)
