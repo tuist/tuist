@@ -35,8 +35,10 @@ defmodule Tuist.Marketing.OpenGraph do
 
   # Text configuration: plain regular Inter in the primary label color on
   # the dark templates (neutral-light-50, #FDFDFD) — no weight, gradient
-  # or shadow treatment. Line height is 100% (one font size per line).
+  # or shadow treatment. Lines advance by @line_height (115% of the font
+  # size) so stacked lines breathe a little.
   @font_size 100
+  @line_height 115
   @text_options [
     font: "Inter Variable",
     font_weight: :normal,
@@ -82,11 +84,11 @@ defmodule Tuist.Marketing.OpenGraph do
       {x, y} =
         case layout do
           :left ->
-            {@left_x, @left_base_y + index * @font_size}
+            {@left_x, @left_base_y + index * @line_height}
 
           :center ->
-            block_top = div(@canvas_height - line_count * @font_size, 2)
-            {div(@canvas_width - Image.width(text), 2), block_top + index * @font_size}
+            block_top = div(@canvas_height - line_count * @line_height, 2)
+            {div(@canvas_width - Image.width(text), 2), block_top + index * @line_height}
         end
 
       Image.compose(image, text, x: x, y: y)
