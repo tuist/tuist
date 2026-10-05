@@ -261,7 +261,9 @@ struct GitHistoryServiceTests {
     }
 
     @Test(.withMockedEnvironment())
-    func uploadsTheBranchHeadWhenTheCheckoutListsNoCommits() async throws {
+    func neverMovesTheBranchToAHeadTheHistoryDoesNotList() async throws {
+        // A re-run of a commit older than the window lists nothing; the server would take an
+        // unknown head as the branch's new one.
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let gitController = MockGitControlling()
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
@@ -271,7 +273,7 @@ struct GitHistoryServiceTests {
             .willReturn(
                 GitHistory(
                     objectFormat: "sha1",
-                    headSHA: "head",
+                    headSHA: "old",
                     baseBranch: nil,
                     mergeBaseSHA: nil,
                     commits: [],
@@ -287,7 +289,20 @@ struct GitHistoryServiceTests {
             missingListingsService: missingListingsService,
             uploadListingService: uploadListingService
         )
-        given(uploadCommitsService)
+        given(missingListingsService)
+            .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+        let rerun = GitInfo(ref: "refs/heads/main", branch: "main", sha: "old", remoteURLOrigin: "git@github.com:acme/app.git")
+
+        let collected = await subject.collect(
+            gitInfo: rerun,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+
+        verify(uploadCommitsService)
             .uploadCommits(
                 fullHandle: .any,
                 serverURL: .any,
@@ -296,32 +311,7 @@ struct GitHistoryServiceTests {
                 commits: .any,
                 branchHeads: .any
             )
-            .willReturn(())
-        given(missingListingsService)
-            .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
-            .willReturn([])
-        let push = GitInfo(ref: "refs/heads/main", branch: "main", sha: "head", remoteURLOrigin: "git@github.com:acme/app.git")
-
-        let collected = await subject.collect(
-            gitInfo: push,
-            workingDirectory: workingDirectory,
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL
-        )
-        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
-
-        verify(missingCommitsService).findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .called(0)
-        verify(uploadCommitsService)
-            .uploadCommits(
-                fullHandle: .any,
-                serverURL: .any,
-                repositoryURL: .value("git@github.com:acme/app.git"),
-                objectFormat: .value("sha1"),
-                commits: .value([]),
-                branchHeads: .matching { $0.map(\.branch) == ["main"] && $0.map(\.sha) == ["head"] }
-            )
-            .called(1)
     }
 
     @Test(.withMockedEnvironment())

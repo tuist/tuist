@@ -246,6 +246,7 @@ public struct GitHistoryService: GitHistoryServicing {
         serverURL: URL
     ) async throws {
         let commits = collected.history.commits
+        guard !commits.isEmpty else { return }
         let batchSize = max(collected.settings.uploadBatchSize, 1)
 
         var missing = Set<String>()
@@ -266,11 +267,8 @@ public struct GitHistoryService: GitHistoryServicing {
             .sorted { $0.committedAt < $1.committedAt }
             .map { GitHistoryCommitPayload(sha: $0.sha, parents: $0.parents, committedAt: $0.committedAt) }
 
-        // Only a head read from the checkout: a fallback's may be empty or not the checkout's.
-        let branchHeads = collected.branch.flatMap { branch in
-            collected.payload.source == "client"
-                ? [GitHistoryBranchHead(branch: branch, sha: collected.history.headSHA, observedAt: collected.observedAt)]
-                : nil
+        let branchHeads = collected.branch.map {
+            [GitHistoryBranchHead(branch: $0, sha: collected.history.headSHA, observedAt: collected.observedAt)]
         } ?? []
 
         if toUpload.isEmpty {

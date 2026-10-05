@@ -28,7 +28,7 @@ enum GitHistoryParser {
                 current = sha
                 parents[sha] = []
             } else if line.hasPrefix("parent "), let current {
-                parents[current, default: []].append(String(line.dropFirst("parent ".count)))
+                parents[current]?.append(String(line.dropFirst("parent ".count)))
             }
         }
         return parents
