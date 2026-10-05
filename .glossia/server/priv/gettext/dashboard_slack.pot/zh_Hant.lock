@@ -1,0 +1,134 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "845650642a32441e39ff3204bb18bcc7c924d4996923a41b4327e676f66f245a",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "3a7498e178d7ac5bbbf1e85a48a996d202b73ed9737a836c805ff12dd3d2f871",
+          "kind": "source",
+          "label": "server/priv/gettext/dashboard_slack.pot",
+          "metadata": {
+            "content_hash": "098065977c748ad76e2a93fd47957ce349fa367204ebb4bb821bc3519f0cae74"
+          }
+        },
+        {
+          "children": [],
+          "hash": "814f27a46f07572e0b86a254ecc0e4419a522c4fd92668a2be9fda7333d47e14",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "po",
+            "frontmatter_mode": "preserve",
+            "language": "Chinese (Traditional)",
+            "locale": "zh_Hant",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "00e0cd97c8c4aaf6e83d3e5200dc6652cc1753062e1b504dc7c47ba18e305f19",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "9579643f45897a82884d1b30480694e6029202260f47529196bebbf4a44d9065"
+              }
+            },
+            {
+              "children": [],
+              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "c2a0e9efd4591e0fb5bcd477749419ee31b73918154459e2e7722fd0c9bb20c4",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "845650642a32441e39ff3204bb18bcc7c924d4996923a41b4327e676f66f245a",
+      "kind": "translation_input",
+      "label": "server/priv/gettext/dashboard_slack.pot",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "8f99e1b199d102de54b911bc8c6e05ac9fc1bec08c4dbee056d54e92ab51ec4b",
+  "output_path": "server/priv/gettext/zh_Hant/LC_MESSAGES/dashboard_slack.po",
+  "po_units": {
+    "0b35d7b1c8cfd06471c3eb2302f283c7b1cd3ddd9a9a0ad630290ff1e0cbb6c6": "a7b8178938eacd330f87f34722b58f6f9e9739f2f830953e0fa1f7a5b412e455",
+    "11c68738e30e69275bc6543df77287e311b192d76954c8f81534c917ccaf3a08": "b2e263e574535ba7fd47460cb60ce647a9ad39912b36049f57a6577b6eae6f7c",
+    "395f4dcb0b94e872b72da7592751a719a55fdefd7351ab0cea781c17081c4961": "f6adb81c7f533fda22186acb9169abed166338af70c037077d2948e423460e09",
+    "417a715d83b59962afd2584c2c920d23eb115378c9b425bd5e4bc0b397a13663": "c7a6447eb03620b6885965a25a67984bda51f05731d9ea7dbc79ca6a2a1f3810",
+    "5dce7d673b3c858af4116ef1ee3e1d00cbb61ca065ae271327f2dacb4c2c339d": "055539df4a0b804c58caf46c0cd2941af10d64c1395ddd8e50b5f55d945841e6",
+    "77492dc093039d12fdf922769b1446fe62cf6807555376055d22487a6c1cc59b": "2a452d566403fe818333aea279e3139763575a7f82cacf697b76ff42520e139f",
+    "9cec2f5f8e06454b93b643e7e1cb901ce49ea938c52b02b11cf22cad451406a1": "329d5738da54e5fd13c47348ea94ba53a2d0965d3737ba63b07ce8b8c057a990",
+    "b9cb81b4b5d76c63ecce217df233453a2a3d60708e936b179b720d179a0b5ba0": "8fb637b20f12a1a434a11b4741fa50dbfaf799de4ea46cf3cd8f5068ef06cd3e",
+    "cf9875fdd4687e474c004965609f58778d5a90e9c4532088330cde8634a2a665": "152add839cea572b2d9cea4579126627c019eac6d6e2c2c5ca936b3cd4179a67",
+    "ea28b8fa561d1cef01bc5246378ad78cfa09c10de4da9118d1cbbc3fb62a7548": "a0c7df47f4989cdd1d2aeef63e736ff79c3eac447fc39d82cf7319efa97d710c"
+  },
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "38a71df12d279f638146caf5846aeb1d4adbe532",
+  "source_path": "server/priv/gettext/dashboard_slack.pot",
+  "translated_at": "2026-10-05T13:01:19.073474Z",
+  "translation_session_id": "01a10bf9-e978-7a2b-8191-e90377eb357a"
+}
