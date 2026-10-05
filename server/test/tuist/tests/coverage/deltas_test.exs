@@ -369,6 +369,68 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
       assert_changes_parity(project, "a", "p2")
     end
 
+    test "give way to the commit a force-push puts in a rewritten commit's place", %{
+      project: project,
+      account: account
+    } do
+      repository_id = linear(account, ~w(a b c))
+
+      measure(project, account, "a", [
+        file("Sources/A.swift", [1, 0, 0]),
+        file("Sources/B.swift", [0, 0]),
+        file("Sources/Z.swift", [1])
+      ])
+
+      measure(project, account, "b", [
+        file("Sources/A.swift", [1, 1, 0]),
+        file("Sources/B.swift", [0, 0]),
+        file("Sources/Z.swift", [1])
+      ])
+
+      measure(project, account, "c", [
+        file("Sources/A.swift", [1, 1, 0]),
+        file("Sources/B.swift", [1, 0]),
+        file("Sources/Z.swift", [1])
+      ])
+
+      for sha <- ~w(a b c), do: complete(project, sha)
+      settle()
+      assert [%{path: "Sources/B.swift"}] = rows(project, "c")
+
+      # c is rewritten as c2, on top of b, in the same place.
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("c2", ["b"], 3)])
+      GitHistory.record_branch_head(repository_id, "main", "c2", "main")
+
+      measure(project, account, "c2", [
+        file("Sources/A.swift", [1, 1, 1]),
+        file("Sources/B.swift", [0, 0]),
+        file("Sources/Z.swift", [1])
+      ])
+
+      complete(project, "c2")
+      settle()
+
+      assert {_ref_id, position} = GitHistory.position(repository_id, "c2")
+
+      assert Repo.one(
+               from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == "c", select: c.ref_id)
+             ) == nil
+
+      assert rows(project, "c") == []
+      assert [%{path: "Sources/A.swift", covered_lines: 3}] = rows(project, "c2")
+
+      assert ClickHouseRepo.one(
+               from(d in CoverageFileDelta,
+                 hints: ["FINAL"],
+                 where: d.project_id == ^project.id and d.position == ^position,
+                 select: count()
+               )
+             ) == 1
+
+      assert_parity(project, "c2")
+      assert_changes_parity(project, "a", "c2")
+    end
+
     test "are rebuilt where a rebuild of the refs places their commits", %{project: project, account: account} do
       repository_id = linear(account, ~w(a b c))
       measure(project, account, "a", [file("Sources/A.swift", [1, 0, 0])])

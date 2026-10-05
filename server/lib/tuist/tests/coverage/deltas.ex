@@ -58,6 +58,9 @@ defmodule Tuist.Tests.Coverage.Deltas do
   require Logger
 
   @consistent [settings: [select_sequential_consistency: 1]]
+  # A filter on a column that differs between a key's versions (its kind, its
+  # commit) must see only the version `FINAL` keeps.
+  @final_filter [settings: [select_sequential_consistency: 1, optimize_move_to_prewhere_if_final: 0]]
   @insert_chunk_size 5_000
 
   @doc "Queues the commit's rows to be (re)written, a few seconds from now so close folds are written once."
@@ -123,12 +126,15 @@ defmodule Tuist.Tests.Coverage.Deltas do
 
   defp write_complete(project, summary, place, moved, kept) do
     case final_files(project, summary) do
+      # The targets last: they mark the files as written.
       {:ok, files} ->
-        write_targets(summary, place, files)
+        written =
+          if place,
+            do: write_files(project.id, summary, place, files),
+            else: {{:ok, %{rows: 0, checkpoint: false}}, false}
 
-        if place,
-          do: write_files(project.id, summary, place, files),
-          else: {{:ok, %{rows: 0, checkpoint: false}}, false}
+        write_targets(summary, place, files)
+        written
 
       # Kept where the commit now is, and tried again for its own figures.
       :unavailable when not is_nil(place) and moved != [] and kept == [] ->
@@ -277,7 +283,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
         hints: ["FINAL"],
         where: d.project_id == ^project_id and d.git_commit_sha == ^sha
       ),
-      @consistent
+      @final_filter
     )
   end
 
@@ -460,7 +466,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
           group_by: d.ref_id,
           select: {d.ref_id, max(d.position)}
         )
-        |> ClickHouseRepo.all(@consistent)
+        |> ClickHouseRepo.all(@final_filter)
         |> Map.new()
       end
 
