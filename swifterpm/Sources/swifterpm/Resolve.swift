@@ -338,7 +338,8 @@ enum PackageResolver {
         scratchDir: URL,
         cacheRoot: URL,
         mirrors: MirrorConfig,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation = .disabled
     ) async throws {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else { return }
@@ -352,18 +353,31 @@ enum PackageResolver {
         let manifest = try await ManifestLoader.dumpPackage(
             packageDir: packageDir, disableSandbox: disableSandbox
         )
-        var expectedIdentities = Set(
-            try ManifestParser.dependencies(manifest).map { mirrors.identity(of: $0) }
-        )
+        var dependencies = try ManifestParser.dependencies(manifest)
         let localPackages = try await ManifestFileSystemDependencyGraph.collect(
             rootPackageDir: packageDir,
             rootManifest: manifest,
             disableSandbox: disableSandbox
         )
         for localPackage in localPackages {
-            for dependency in try ManifestParser.dependencies(localPackage.manifest) {
-                expectedIdentities.insert(mirrors.identity(of: dependency))
+            dependencies.append(contentsOf: try ManifestParser.dependencies(localPackage.manifest))
+        }
+        var expectedIdentities = Set(dependencies.map { mirrors.identity(of: $0) })
+        let transformedIdentities = Set(resolved.pins.filter { pin in
+            switch scmToRegistryTransformation {
+            case .disabled:
+                false
+            case .replaceSCMWithRegistry:
+                PinKind.isRegistry(pin.kind)
+            case .useRegistryIdentityForSCM:
+                PinKind.isSourceControl(pin.kind) && MirrorConfig.isRegistryIdentity(pin.identity)
             }
+        }.map { $0.identity.lowercased() })
+        // The registry can map a source-control URL to an unrelated identity,
+        // and the pin may omit the original URL. Preserve transformed pins only
+        // while a reachable manifest still declares a source-control dependency.
+        if dependencies.contains(where: { $0.kind == .sourceControl }) {
+            expectedIdentities.formUnion(transformedIdentities)
         }
         var identitiesToInspect = Array(expectedIdentities)
         var inspectedIdentities = Set<String>()
@@ -390,6 +404,11 @@ enum PackageResolver {
                 return
             }
             for dependency in dependencies {
+                if dependency.kind == .sourceControl {
+                    for transformedIdentity in transformedIdentities where expectedIdentities.insert(transformedIdentity).inserted {
+                        identitiesToInspect.append(transformedIdentity)
+                    }
+                }
                 let dependencyIdentity = mirrors.identity(of: dependency)
                 if expectedIdentities.insert(dependencyIdentity).inserted {
                     identitiesToInspect.append(dependencyIdentity)

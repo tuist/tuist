@@ -642,7 +642,8 @@ enum CLIRunner {
                 scratchDir: scratch,
                 cacheRoot: cacheRoot,
                 mirrors: mirrors,
-                disableSandbox: cli.disableSandbox
+                disableSandbox: cli.disableSandbox,
+                scmToRegistryTransformation: try scmToRegistryTransformation(cli)
             )
         }
 
