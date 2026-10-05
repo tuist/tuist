@@ -57,10 +57,11 @@ defmodule Tuist.Tests.Coverage.Deltas do
 
   require Logger
 
-  @consistent [settings: [select_sequential_consistency: 1]]
-  # A filter on a column that differs between a key's versions (its kind, its
-  # commit) must see only the version `FINAL` keeps.
-  @final_filter [settings: [select_sequential_consistency: 1, optimize_move_to_prewhere_if_final: 0]]
+  # A write reads what every earlier write left; the pages read whatever the
+  # replica has. A filter on a column that differs between a key's versions
+  # (its kind, its commit) must see only the version `FINAL` keeps.
+  @consistent [select_sequential_consistency: 1]
+  @final_filter [optimize_move_to_prewhere_if_final: 0]
   @insert_chunk_size 5_000
 
   @doc "Queues the commit's rows to be (re)written, a few seconds from now so close folds are written once."
@@ -111,17 +112,19 @@ defmodule Tuist.Tests.Coverage.Deltas do
         else: {:skipped, false}
 
     if Keyword.get(opts, :cascade, true) do
-      if_result = if(changed?, do: [place], else: [])
-
-      if_result
-      |> Enum.concat(retired)
-      |> Enum.flat_map(&next_commits(project.id, &1))
-      |> Enum.uniq()
-      |> Enum.reject(&(&1 == sha))
-      |> Enum.each(&enqueue(project.id, &1))
+      places = if changed?, do: [place | retired], else: retired
+      cascade(project.id, places, [sha])
     end
 
     outcome
+  end
+
+  defp cascade(project_id, places, written) do
+    places
+    |> Enum.flat_map(&next_commits(project_id, &1))
+    |> Enum.uniq()
+    |> Enum.reject(&(&1 in written))
+    |> Enum.each(&enqueue(project_id, &1))
   end
 
   defp write_complete(project, summary, place, moved, kept) do
@@ -208,7 +211,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
 
     targets =
       summary.project_id
-      |> current_targets(summary.git_commit_sha)
+      |> current_targets(summary.git_commit_sha, @consistent)
       |> Enum.map(&Map.merge(&1, %{ref_id: elem(place, 0), position: elem(place, 1)}))
 
     insert(CoverageCommitTarget, targets)
@@ -228,7 +231,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
           hints: ["FINAL"],
           where: d.project_id == ^project_id and d.ref_id == ^ref_id and d.position == ^position
         ),
-        @consistent
+        settings: @consistent
       )
 
     if stored(existing) == stored(rows) do
@@ -283,7 +286,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
         hints: ["FINAL"],
         where: d.project_id == ^project_id and d.git_commit_sha == ^sha
       ),
-      @final_filter
+      settings: @consistent ++ @final_filter
     )
   end
 
@@ -291,7 +294,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
     {ref_id, position} = place || {0, 0}
 
     targets =
-      case targets_of(files) do
+      case Commits.targets_of(files) do
         # A marker, so the commit reads as written.
         [] -> [%{name: "", files_count: 0, covered_lines: 0, executable_lines: 0}]
         targets -> targets
@@ -316,30 +319,16 @@ defmodule Tuist.Tests.Coverage.Deltas do
     )
   end
 
-  defp targets_of(files) do
-    files
-    |> Enum.flat_map(fn file -> Enum.map(Map.get(file, :targets, []), &{&1, file}) end)
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Enum.map(fn {name, target_files} ->
-      %{
-        name: name,
-        files_count: length(target_files),
-        covered_lines: sum(target_files, :covered_lines),
-        executable_lines: sum(target_files, :executable_lines)
-      }
-    end)
-  end
-
   @target_fields ~w(project_id git_commit_sha target files_count covered_lines executable_lines commit_version ref_id position committed_at)a
 
-  defp current_targets(project_id, sha) do
+  defp current_targets(project_id, sha, settings) do
     rows =
       ClickHouseRepo.all(
         from(t in CoverageCommitTarget,
           hints: ["FINAL"],
           where: t.project_id == ^project_id and t.git_commit_sha == ^sha
         ),
-        @consistent
+        settings: settings
       )
 
     case rows do
@@ -430,7 +419,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
   # What the chain holds per path, from its nearest checkpoint up, and how
   # many delta rows that took.
   defp read_state(project_id, chain) do
-    segments = from_checkpoint(project_id, chain)
+    segments = from_checkpoint(project_id, chain, @consistent)
 
     rows =
       if segments == [] do
@@ -440,7 +429,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
           from(d in state_query(project_id, segments),
             select_merge: %{delta_rows: fragment("countIf(? = 'delta')", d.kind)}
           ),
-          @consistent
+          settings: @consistent
         )
       end
 
@@ -452,7 +441,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
 
   # The chain cut at its nearest checkpoint: the segments nearer than the
   # checkpoint whole, and the checkpoint's own from its position up.
-  defp from_checkpoint(project_id, chain) do
+  defp from_checkpoint(project_id, chain, settings) do
     chain = Enum.filter(chain, &(&1.hi >= 0))
 
     checkpoints =
@@ -466,7 +455,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
           group_by: d.ref_id,
           select: {d.ref_id, max(d.position)}
         )
-        |> ClickHouseRepo.all(@final_filter)
+        |> ClickHouseRepo.all(settings: settings ++ @final_filter)
         |> Map.new()
       end
 
@@ -542,7 +531,7 @@ defmodule Tuist.Tests.Coverage.Deltas do
   # write for it.
   defp written(project_id, summary) do
     project_id
-    |> current_targets(summary.git_commit_sha)
+    |> current_targets(summary.git_commit_sha, [])
     |> Enum.filter(&(&1.commit_version == summary.version))
   end
 
@@ -558,16 +547,13 @@ defmodule Tuist.Tests.Coverage.Deltas do
         nil
 
       place ->
-        ClickHouseRepo.all(
-          from(f in subquery(files_query(project_id, place)), order_by: f.path),
-          @consistent
-        )
+        ClickHouseRepo.all(from(f in subquery(files_query(project_id, place)), order_by: f.path))
     end
   end
 
   # The commit's files with executable lines, path and line totals.
   defp files_query(project_id, place) do
-    from(f in subquery(state_query(project_id, from_checkpoint(project_id, chain(place, :at)))),
+    from(f in subquery(state_query(project_id, from_checkpoint(project_id, chain(place, :at), []))),
       where: f.executable_lines > 0,
       select: %{path: f.path, covered_lines: f.covered_lines, executable_lines: f.executable_lines}
     )
@@ -585,14 +571,14 @@ defmodule Tuist.Tests.Coverage.Deltas do
         nil
 
       place ->
-        query = project_id |> files_query(place) |> subquery() |> search_paths(Keyword.get(opts, :search, ""))
+        query = project_id |> files_query(place) |> subquery() |> Commits.search_paths(Keyword.get(opts, :search, ""))
 
         [files, count] =
           Tuist.Tasks.parallel_tasks([
             fn ->
               ClickHouseRepo.all(
                 from(f in query,
-                  order_by: ^files_order(Keyword.get(opts, :sort, {:coverage, :asc})),
+                  order_by: ^Commits.files_order(Keyword.get(opts, :sort, {:coverage, :asc})),
                   limit: ^page_size,
                   offset: ^((page - 1) * page_size)
                 )
@@ -604,19 +590,6 @@ defmodule Tuist.Tests.Coverage.Deltas do
         {files, count}
     end
   end
-
-  defp search_paths(query, ""), do: from(f in query)
-
-  defp search_paths(query, search),
-    do: from(f in query, where: fragment("positionCaseInsensitiveUTF8(?, ?) > 0", f.path, ^search))
-
-  defp files_order({:path, direction}), do: [{direction, dynamic([f], f.path)}]
-
-  defp files_order({:coverage, direction}),
-    do: [
-      {direction, dynamic([f], fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines))},
-      {direction, dynamic([f], f.path)}
-    ]
 
   @doc """
   The commit's targets as `Commits.targets/3` lists them, least covered
@@ -784,22 +757,35 @@ defmodule Tuist.Tests.Coverage.Deltas do
   def backfill(%Project{} = project) do
     cutoff = DateTime.add(DateTime.utc_now(), -(Environment.coverage_retention_days().files - 1), :day)
 
-    from(c in CoverageCommit,
-      left_join: r in Ref,
-      on: r.id == c.ref_id,
-      where: c.project_id == ^project.id and c.complete and c.ran_at >= ^cutoff,
-      order_by: [asc: is_nil(c.ref_id), asc: not is_nil(r.parent_ref_id), asc: c.ref_id, asc: c.position],
-      select: c.git_commit_sha
-    )
-    |> Commits.comparable()
-    |> Repo.all()
-    |> Enum.reduce(%{written: 0, unavailable: 0}, fn sha, counts ->
-      case with_project_lock(project.id, fn -> write(project, sha, cascade: false) end) do
-        {:ok, _rows} -> Map.update!(counts, :written, &(&1 + 1))
-        :unavailable -> Map.update!(counts, :unavailable, &(&1 + 1))
-        :skipped -> counts
+    commits =
+      from(c in CoverageCommit,
+        left_join: r in Ref,
+        on: r.id == c.ref_id,
+        where: c.project_id == ^project.id and c.complete and c.ran_at >= ^cutoff,
+        order_by: [asc: is_nil(c.ref_id), asc: not is_nil(r.parent_ref_id), asc: c.ref_id, asc: c.position],
+        select: %{sha: c.git_commit_sha, ref_id: c.ref_id, position: c.position}
+      )
+      |> Commits.comparable()
+      |> Repo.all()
+
+    {counts, written} =
+      Enum.reduce(commits, {%{written: 0, unavailable: 0}, []}, fn commit, {counts, written} ->
+        case with_project_lock(project.id, fn -> write(project, commit.sha, cascade: false) end) do
+          {:ok, _rows} -> {Map.update!(counts, :written, &(&1 + 1)), [commit | written]}
+          :unavailable -> {Map.update!(counts, :unavailable, &(&1 + 1)), written}
+          :skipped -> {counts, written}
+        end
+      end)
+
+    # Commits that completed while it ran were written over a chain it has
+    # since filled in below them.
+    places =
+      for %{ref_id: ref_id} = commit <- written, not is_nil(ref_id), reduce: %{} do
+        acc -> Map.update(acc, ref_id, commit.position, &max(&1, commit.position))
       end
-    end)
+
+    cascade(project.id, Enum.to_list(places), Enum.map(written, & &1.sha))
+    counts
   end
 
   @doc "Backfills every project with complete commits (`backfill/1`), returning the counts by project id."

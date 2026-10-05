@@ -1010,7 +1010,8 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  defp targets_of(files) do
+  @doc false
+  def targets_of(files) do
     files
     |> Enum.flat_map(fn file -> Enum.map(file.targets, &{&1, file}) end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
@@ -1286,14 +1287,16 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  defp search_paths(query, ""), do: from(f in query)
+  @doc false
+  def search_paths(query, ""), do: from(f in query)
 
-  defp search_paths(query, search),
+  def search_paths(query, search),
     do: from(f in query, where: fragment("positionCaseInsensitiveUTF8(?, ?) > 0", f.path, ^search))
 
-  defp files_order({:path, direction}), do: [{direction, dynamic([f], f.path)}]
+  @doc false
+  def files_order({:path, direction}), do: [{direction, dynamic([f], f.path)}]
 
-  defp files_order({:coverage, direction}),
+  def files_order({:coverage, direction}),
     do: [
       {direction, dynamic([f], fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines))},
       {direction, dynamic([f], f.path)}

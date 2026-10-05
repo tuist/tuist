@@ -9,10 +9,11 @@ defmodule Tuist.Tests.Coverage.Workers.DeltaWorker do
   A request while one runs gets a job of its own, since what the running
   one read may predate it; uniqueness never reaches executing jobs, which is
   how `CommitWorker` once lost reports. A project's writes take turns, each
-  waiting for the project's lock.
+  waiting for the project's lock, on a queue of their own so a burst for one
+  project (a rebuild of its refs) holds none of the `:default` queue's slots.
   """
   use Oban.Worker,
-    queue: :default,
+    queue: :coverage_deltas,
     max_attempts: 5,
     unique: [keys: [:project_id, :git_commit_sha], states: [:available, :scheduled], period: :infinity]
 

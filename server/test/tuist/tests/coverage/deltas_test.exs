@@ -30,7 +30,14 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
   defp complete(project, sha), do: Commits.signal_complete(project, sha)
 
   # Runs every queued fold and delta write, and whatever they queue.
-  defp settle, do: Oban.drain_queue(queue: :default, with_scheduled: true, with_recursion: true, with_safety: false)
+  defp settle do
+    drain = &Oban.drain_queue(queue: &1, with_scheduled: true, with_recursion: true, with_safety: false)
+
+    # A refold queues a delta write, and a delta write can queue another.
+    fn -> drain.(:default).success + drain.(:coverage_deltas).success end
+    |> Stream.repeatedly()
+    |> Enum.find(&(&1 == 0))
+  end
 
   defp linear(account, shas) do
     CoverageFixtures.seed_history(
@@ -559,5 +566,47 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
     # Nothing changed, so a second pass rewrites nothing.
     assert Deltas.backfill(project) == %{written: 3, unavailable: 0}
     assert [%{path: "Sources/A.swift"}] = rows(project, "b")
+  end
+
+  test "the backfill re-queues the commits above what it wrote", %{project: project, account: account} do
+    linear(account, ~w(a b c))
+
+    measure(project, account, "a", [
+      file("Sources/A.swift", [1, 0, 0]),
+      file("Sources/B.swift", [0, 0]),
+      file("Sources/Z.swift", [1])
+    ])
+
+    measure(project, account, "b", [
+      file("Sources/A.swift", [1, 1, 0]),
+      file("Sources/B.swift", [0, 0]),
+      file("Sources/Z.swift", [0])
+    ])
+
+    measure(project, account, "c", [
+      file("Sources/A.swift", [1, 1, 0]),
+      file("Sources/B.swift", [1, 0]),
+      file("Sources/Z.swift", [1])
+    ])
+
+    for sha <- ~w(a b c), do: complete(project, sha)
+    Repo.delete_all(from(j in Oban.Job, where: j.worker == "Tuist.Tests.Coverage.Workers.DeltaWorker"))
+
+    # c is written by a live job before the backfill writes what is below it,
+    # and is not among the commits the backfill lists.
+    Deltas.with_project_lock(project.id, fn -> Deltas.write(project, "a", cascade: false) end)
+    Deltas.with_project_lock(project.id, fn -> Deltas.write(project, "c", cascade: false) end)
+    old = DateTime.add(DateTime.utc_now(), -200, :day)
+
+    Repo.update_all(from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == "c"),
+      set: [ran_at: old]
+    )
+
+    assert Deltas.backfill(project) == %{written: 2, unavailable: 0}
+    assert Deltas.files(project.id, "c") != raw_files(project, "c")
+    assert_enqueued(worker: DeltaWorker, args: %{project_id: project.id, git_commit_sha: "c"})
+    Oban.drain_queue(queue: :coverage_deltas, with_scheduled: true, with_recursion: true, with_safety: false)
+
+    assert_parity(project, "c")
   end
 end
