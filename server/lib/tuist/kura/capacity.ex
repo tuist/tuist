@@ -544,17 +544,21 @@ defmodule Tuist.Kura.Capacity do
   the way a new one is:
 
     * an instance with replicas placed grows the way the kura-controller
-      resizes it. The storage class cannot expand a volume, so the controller
-      deletes one replica's claim and pod, the StatefulSet recreates both, and
-      it moves on to the next ordinal only once that one is serving again. The
-      new claim is unbound until its pod is scheduled, so the rebuilt replica
-      lands on whichever node of the pool has room for everything it requests,
-      beside its sibling when that node does. This replays that sequence: each
-      replica below the new claim, in ordinal order, hands back what it holds
-      on its node, then needs one node with room for the new claim, which is
-      charged before the next replica's turn. A sibling not rebuilt yet keeps
-      its old reservation where it is. The instance is placeable when every
-      turn finds a node.
+      resizes it. The storage class cannot expand a volume, so for each replica
+      whose data claim is smaller than the new one the controller deletes the
+      claim and the pod, the StatefulSet recreates both, and it moves on to the
+      next ordinal only once that one is serving again. The new claim is
+      unbound until its pod is scheduled, so the rebuilt replica lands on
+      whichever node of the pool has room for everything it requests, beside
+      its sibling when that node does. A replica whose claim is already at
+      least the new size, left over from a shrink, keeps its volume and only
+      restarts at the new request, on the node that volume is bound to, once
+      the rebuilds are done. This replays that sequence: each replica below the
+      new request, rebuilt ones in ordinal order and then kept ones, hands back
+      what it holds on its node, then needs a node with room for the new
+      request, which is charged before the next replica's turn. A sibling
+      whose turn has not come keeps its old reservation where it is. The
+      instance is placeable when every turn finds a node.
     * an instance with nothing placed has to fit whole somewhere. Its
       replicas split across nodes if no single node takes them all, because
       the controller's affinity only prefers co-location.
@@ -577,11 +581,11 @@ defmodule Tuist.Kura.Capacity do
 
   `nil` for everything that stops the reading being trusted: a cluster that
   cannot be read, a node whose pods cannot be listed or whose allocatable
-  cannot be parsed, a region with no Ready, schedulable node, or an instance
-  with a replica on a node the scheduler places nothing on. All of them admit,
-  deliberately. A false refusal here stops every legitimate claim growth in the
-  region and produces nothing an operator would see, while the scheduler still
-  refuses to overfill a node.
+  cannot be parsed, a region with no Ready, schedulable node, an instance with a
+  replica on a node the scheduler places nothing on, or a replica whose data
+  claim cannot be read. All of them admit, deliberately. A false refusal here
+  stops every legitimate claim growth in the region and produces nothing an
+  operator would see, while the scheduler still refuses to overfill a node.
   """
   def placeable?(%Regions{} = region, %Server{} = server) do
     with handle when is_binary(handle) <- account_handle(server),
@@ -599,25 +603,60 @@ defmodule Tuist.Kura.Capacity do
       [] ->
         nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
 
-      [%{requests: requests} | _] = placed ->
-        request = Map.put(requests, @ephemeral_storage, claim)
-        unplaced = List.duplicate(%{node: nil, requests: %{}}, max(replicas - length(placed), 0))
-        rebuilt = Enum.filter(placed, &(Map.fetch!(&1.requests, @ephemeral_storage) < claim))
-
-        (unplaced ++ rebuilt)
-        |> Enum.reduce_while(Map.new(nodes, &{&1.name, &1}), fn replica, nodes ->
-          nodes = release(nodes, handle, replica)
-
-          case landing(nodes, handle, request) do
-            nil -> {:halt, :unplaceable}
-            name -> {:cont, charge(nodes, name, handle, request)}
-          end
-        end)
-        |> case do
-          :unplaceable -> false
-          _nodes -> true
+      placed ->
+        with %{} = volumes <- data_volume_bytes(placed) do
+          grows?(nodes, handle, placed, volumes, claim, replicas)
         end
     end
+  end
+
+  defp grows?(nodes, handle, [%{requests: requests} | _] = placed, volumes, claim, replicas) do
+    request = Map.put(requests, @ephemeral_storage, claim)
+    unplaced = List.duplicate(%{node: nil, requests: %{}}, max(replicas - length(placed), 0))
+
+    {kept, rebuilt} =
+      placed
+      |> Enum.filter(&(Map.fetch!(&1.requests, @ephemeral_storage) < claim))
+      |> Enum.split_with(&(Map.get(volumes, &1.volume, 0) >= claim))
+
+    (Enum.map(unplaced ++ rebuilt, &{:rebuilt, &1}) ++ Enum.map(kept, &{:kept, &1}))
+    |> Enum.reduce_while(Map.new(nodes, &{&1.name, &1}), fn {kind, replica}, nodes ->
+      nodes = release(nodes, handle, replica)
+
+      case landing(kind, replica, nodes, handle, request) do
+        nil -> {:halt, :unplaceable}
+        name -> {:cont, charge(nodes, name, handle, request)}
+      end
+    end)
+    |> case do
+      :unplaceable -> false
+      _nodes -> true
+    end
+  end
+
+  # What each replica's data claim asks for, by claim name, which is what the
+  # controller compares against the new claim to decide whether to replace the
+  # volume. A claim that does not exist is left out: the StatefulSet creates it
+  # unbound. `nil` when one cannot be read.
+  defp data_volume_bytes(placed) do
+    placed
+    |> Enum.map(& &1.volume)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce_while(%{}, fn volume, sizes ->
+      case Client.get_persistent_volume_claim(@namespace, volume, timeout: @read_timeout) do
+        {:ok, %{"spec" => %{"resources" => %{"requests" => %{"storage" => size}}}}} ->
+          case parse_quantity(size) do
+            bytes when is_integer(bytes) -> {:cont, Map.put(sizes, volume, bytes)}
+            nil -> {:halt, nil}
+          end
+
+        {:error, :not_found} ->
+          {:cont, sizes}
+
+        _ ->
+          {:halt, nil}
+      end
+    end)
   end
 
   # In the order the controller rebuilds them.
@@ -650,17 +689,22 @@ defmodule Tuist.Kura.Capacity do
             Map.update(
               node.kura_replicas,
               handle,
-              [%{ordinal: nil, requests: request}],
-              &[%{ordinal: nil, requests: request} | &1]
+              [%{ordinal: nil, volume: nil, requests: request}],
+              &[%{ordinal: nil, volume: nil, requests: request} | &1]
             )
       }
     end)
   end
 
-  # Where the scheduler puts a rebuilt replica: beside the account's other
-  # replicas when that node has room, as the controller's affinity prefers,
-  # and otherwise on the node with the most disk left.
-  defp landing(nodes, handle, request) do
+  # A kept replica restarts on the node its volume is bound to. A rebuilt one
+  # goes where the scheduler puts it: beside the account's other replicas when
+  # that node has room, as the controller's affinity prefers, and otherwise on
+  # the node with the most disk left.
+  defp landing(:kept, %{node: name}, nodes, _handle, request) do
+    if replicas_fitting(Map.fetch!(nodes, name), request) >= 1, do: name
+  end
+
+  defp landing(:rebuilt, _replica, nodes, handle, request) do
     nodes
     |> Map.values()
     |> Enum.filter(&(replicas_fitting(&1, request) >= 1))
@@ -991,7 +1035,7 @@ defmodule Tuist.Kura.Capacity do
         }
       } = pod
       when is_binary(account) ->
-        [{account, %{ordinal: pod_ordinal(pod), requests: replica_requests(pod)}}]
+        [{account, %{ordinal: pod_ordinal(pod), volume: data_volume(pod), requests: replica_requests(pod)}}]
 
       _pod ->
         []
@@ -1007,6 +1051,16 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp pod_ordinal(_pod), do: nil
+
+  # The claim the StatefulSet's `data` template made for this replica.
+  defp data_volume(%{"spec" => %{"volumes" => volumes}}) when is_list(volumes) do
+    Enum.find_value(volumes, fn
+      %{"name" => "data", "persistentVolumeClaim" => %{"claimName" => claim}} when is_binary(claim) -> claim
+      _volume -> nil
+    end)
+  end
+
+  defp data_volume(_pod), do: nil
 
   defp replica_requests(pod) do
     Map.new(@scheduled_resources, fn

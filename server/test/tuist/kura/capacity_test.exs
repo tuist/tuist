@@ -933,6 +933,33 @@ defmodule Tuist.Kura.CapacityTest do
         nil -> {:error, :not_found}
       end
     end)
+
+    stub_data_volumes_as_requested(boxes)
+  end
+
+  # Each replica's data volume at the size its pod requests, which is what a
+  # replica that has only ever grown holds.
+  defp stub_data_volumes_as_requested(boxes) do
+    boxes
+    |> Enum.flat_map(& &1.pods)
+    |> Enum.flat_map(fn
+      %{"spec" => %{"volumes" => [%{"persistentVolumeClaim" => %{"claimName" => claim}}]}} = pod ->
+        [{claim, get_in(pod, ["spec", "containers", Access.at(0), "resources", "requests", "ephemeral-storage"])}]
+
+      _pod ->
+        []
+    end)
+    |> Map.new()
+    |> stub_data_volumes()
+  end
+
+  defp stub_data_volumes(sizes) do
+    stub(Client, :get_persistent_volume_claim, fn "kura", name, _opts ->
+      case Map.fetch(sizes, name) do
+        {:ok, size} -> {:ok, %{"spec" => %{"resources" => %{"requests" => %{"storage" => size}}}}}
+        :error -> {:error, :not_found}
+      end
+    end)
   end
 
   # A box with room for many instances on every resource unless told otherwise,
@@ -1065,6 +1092,53 @@ defmodule Tuist.Kura.CapacityTest do
 
       assert Capacity.placeable?(region(), claim(account, "265Gi")) == true
       assert Capacity.placeable?(region(), claim(account, "266Gi")) == false
+    end
+
+    test "grows a replica in place when its volume is already large enough to keep" do
+      # Shrunk from 40Gi to 20Gi, the volumes stayed at 40Gi: the controller
+      # only replaces a volume smaller than the claim. Growing to 30Gi keeps
+      # both, so both replicas restart on the box their volumes are bound to,
+      # however much room the other box has.
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 100, [
+          neighbour_pod(50),
+          kura_pod(account, 20, ordinal: 0),
+          kura_pod(account, 20, ordinal: 1)
+        ]),
+        disk_box("empty", 100, [])
+      ])
+
+      stub_data_volumes(%{data_claim(account, 0) => "40Gi", data_claim(account, 1) => "40Gi"})
+
+      assert Capacity.placeable?(region(), claim(account, "25Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "30Gi")) == false
+    end
+
+    test "moves a replica whose retained volume is still smaller than the new claim" do
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 100, [
+          neighbour_pod(50),
+          kura_pod(account, 20, ordinal: 0),
+          kura_pod(account, 20, ordinal: 1)
+        ]),
+        disk_box("empty", 100, [])
+      ])
+
+      stub_data_volumes(%{data_claim(account, 0) => "40Gi", data_claim(account, 1) => "40Gi"})
+
+      assert Capacity.placeable?(region(), claim(account, "50Gi")) == true
+    end
+
+    test "is unknown when a replica's data volume cannot be read" do
+      account = placement_account()
+      stub_pool([disk_box("current", 100, [kura_pod(account, 20), kura_pod(account, 20)])])
+      stub(Client, :get_persistent_volume_claim, fn _namespace, _name, _opts -> {:error, :forbidden} end)
+
+      assert Capacity.placeable?(region(), claim(account, "30Gi")) == nil
     end
 
     test "lands a rebuilt replica only on a box with room for everything it requests" do
@@ -1274,17 +1348,25 @@ defmodule Tuist.Kura.CapacityTest do
     stub(Client, :list_pods_on_node, fn name, _opts ->
       {:ok, boxes |> Enum.find(%{pods: []}, &(&1.name == name)) |> Map.fetch!(:pods)}
     end)
+
+    stub_data_volumes_as_requested(boxes)
   end
 
   defp neighbour_pod(gib, opts \\ []), do: pool_pod(%{"ephemeral-storage" => "#{gib}Gi"}, opts)
 
   # A replica as the controller labels it, on whichever box the test lists it.
-  defp kura_pod(%Account{name: name}, gib, opts \\ []) do
+  defp kura_pod(%Account{name: name} = account, gib, opts \\ []) do
+    ordinal = Keyword.get_lazy(opts, :ordinal, fn -> System.unique_integer([:positive, :monotonic]) end)
+
     opts
     |> Keyword.get(:requests, %{})
     |> Map.put("ephemeral-storage", "#{gib}Gi")
     |> pool_pod(opts)
+    |> put_in(["spec", "volumes"], [
+      %{"name" => "data", "persistentVolumeClaim" => %{"claimName" => data_claim(account, ordinal)}}
+    ])
     |> Map.put("metadata", %{
+      "name" => "kura-#{String.downcase(name)}-#{ordinal}",
       "namespace" => "kura",
       "labels" => %{
         "app.kubernetes.io/managed-by" => "kura-controller",
@@ -1293,4 +1375,6 @@ defmodule Tuist.Kura.CapacityTest do
       }
     })
   end
+
+  defp data_claim(%Account{name: name}, ordinal), do: "data-kura-#{String.downcase(name)}-#{ordinal}"
 end
