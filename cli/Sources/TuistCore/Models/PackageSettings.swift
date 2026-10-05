@@ -4,7 +4,7 @@ import XcodeGraph
 /// Contains the description of custom SPM settings
 public struct PackageSettings: Equatable, Codable {
     /// The custom `Product` types to be used for SPM targets.
-    public let productTypes: [String: Product]
+    public var productTypes: [String: Product]
 
     /// The default product type (usually static framework)
     public let baseProductType: Product

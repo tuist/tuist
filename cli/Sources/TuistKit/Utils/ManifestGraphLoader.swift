@@ -137,7 +137,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
         let packageSettings: TuistCore.PackageSettings?
-        var hasPackageManifest = false
+        var packageManifestPath: AbsolutePath?
         let swiftPackageManagerScratchDirectory: AbsolutePath?
         var spmLintingIssues: [LintingIssue] = []
 
@@ -145,7 +145,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies || attributesCoverageToTests
         {
-            hasPackageManifest = true
+            packageManifestPath = packagePath
             let swiftPackageManagerArguments = config.project.generatedProject?.installOptions
                 .passthroughSwiftPackageManagerArguments ?? []
             swiftPackageManagerScratchDirectory = try await self.swiftPackageManagerScratchDirectory(
@@ -210,7 +210,8 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         if attributesCoverageToTests {
             localProjectsModels = try testCoverageAttributionLinker.link(
                 projects: localProjectsModels,
-                externalDependencies: hasPackageManifest ? dependenciesGraph.externalDependencies : nil
+                externalDependencies: dependenciesGraph.externalDependencies,
+                packageManifestPath: packageManifestPath
             )
         }
         let projectsModels = localProjectsModels + dependenciesGraph.externalProjects.values

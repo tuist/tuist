@@ -1,11 +1,12 @@
 import Foundation
+import Path
 import TuistCore
 import TuistLogging
 import XcodeGraph
 
 public enum TestCoverageAttributionLinkerError: FatalError, Equatable {
     case missingPackageManifest
-    case missingPackage
+    case missingPackage(packageManifestPath: AbsolutePath)
 
     public var type: ErrorType { .abort }
 
@@ -15,8 +16,8 @@ public enum TestCoverageAttributionLinkerError: FatalError, Equatable {
         switch self {
         case .missingPackageManifest:
             return "`testInsights.coverage.attributeToTests` links TestCoverageAttribution into your unit test targets, but the project has no `Tuist/Package.swift`. Create one that declares \(declaration) and run `tuist install`."
-        case .missingPackage:
-            return "`testInsights.coverage.attributeToTests` links TestCoverageAttribution into your unit test targets, but it is not an external dependency. Add \(declaration) to the dependencies of `Tuist/Package.swift` and run `tuist install`."
+        case let .missingPackage(packageManifestPath):
+            return "`testInsights.coverage.attributeToTests` links TestCoverageAttribution into your unit test targets, but it is not an external dependency. Add \(declaration) to the dependencies of \(packageManifestPath.pathString) and run `tuist install`."
         }
     }
 }
@@ -36,28 +37,20 @@ public struct TestCoverageAttributionLinker {
     /// Makes both of the package's targets dynamic frameworks. Linked statically into a test target that references
     /// nothing in the package, as XCTest-only targets do, the linker drops the observer.
     public func packageSettings(_ packageSettings: TuistCore.PackageSettings) -> TuistCore.PackageSettings {
-        TuistCore.PackageSettings(
-            productTypes: packageSettings.productTypes.merging(
-                [Self.productName: .framework, Self.observerTargetName: .framework],
-                uniquingKeysWith: { _, forced in forced }
-            ),
-            baseProductType: packageSettings.baseProductType,
-            productDestinations: packageSettings.productDestinations,
-            baseSettings: packageSettings.baseSettings,
-            expectedSignatures: packageSettings.expectedSignatures,
-            targetSettings: packageSettings.targetSettings,
-            projectOptions: packageSettings.projectOptions,
-            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
-        )
+        var packageSettings = packageSettings
+        packageSettings.productTypes[Self.productName] = .framework
+        packageSettings.productTypes[Self.observerTargetName] = .framework
+        return packageSettings
     }
 
     public func link(
         projects: [XcodeGraph.Project],
-        externalDependencies: [String: [XcodeGraph.TargetDependency]]?
+        externalDependencies: [String: [XcodeGraph.TargetDependency]],
+        packageManifestPath: AbsolutePath?
     ) throws -> [XcodeGraph.Project] {
-        guard let externalDependencies else { throw TestCoverageAttributionLinkerError.missingPackageManifest }
+        guard let packageManifestPath else { throw TestCoverageAttributionLinkerError.missingPackageManifest }
         guard let dependencies = externalDependencies[Self.productName] else {
-            throw TestCoverageAttributionLinkerError.missingPackage
+            throw TestCoverageAttributionLinkerError.missingPackage(packageManifestPath: packageManifestPath)
         }
         return projects.map { project in
             var project = project
