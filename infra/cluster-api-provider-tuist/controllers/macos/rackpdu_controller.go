@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -91,11 +92,17 @@ type RackPDUReconciler struct {
 	loginBackoff cardLoginBackoff
 }
 
-// rackPDUPredicate wakes the reconciler for a new generation and for an
-// annotation (tuist.dev/accept-certificate), not for its own status writes,
-// which would otherwise read the card again after every pass.
+// rackPDUPredicate wakes the reconciler for a new generation, an annotation
+// (tuist.dev/accept-certificate) and a deletion, not for its own status
+// writes, which would otherwise read the card again after every pass.
 func rackPDUPredicate() predicate.Predicate {
-	return predicate.Or(predicate.GenerationChangedPredicate{}, predicate.AnnotationChangedPredicate{})
+	return predicate.Or(
+		predicate.GenerationChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+		predicate.Funcs{UpdateFunc: func(e event.UpdateEvent) bool {
+			return e.ObjectNew != nil && !e.ObjectNew.GetDeletionTimestamp().IsZero()
+		}},
+	)
 }
 
 // adoptedAlready reports whether the API server records this generation as

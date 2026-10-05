@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -79,5 +81,32 @@ func TestRackPDUIgnoresItsOwnStatusWrites(t *testing.T) {
 	annotated.Annotations = map[string]string{AcceptCertificateAnnotation: "AB"}
 	if !p.Update(event.UpdateEvent{ObjectOld: old, ObjectNew: annotated}) {
 		t.Fatal("the accept-certificate annotation did not wake the reconciler")
+	}
+}
+
+// A deletion wakes the RackPDU reconciler on its own, whether or not the
+// controller manages the PDU, and the RackPDU is released.
+func TestARackPDUDeletionIsReconciledAndReleased(t *testing.T) {
+	for _, managedBy := range []infrav1.RackCardManagedBy{infrav1.RackCardManagedByController, infrav1.RackCardManagedByStandalone} {
+		old := rackPDU(func(p *infrav1.RackPDU) {
+			p.Spec.ManagedBy = managedBy
+			p.Finalizers = []string{RackPDUFinalizer}
+		})
+		deleting := old.DeepCopy()
+		now := metav1.Now()
+		deleting.DeletionTimestamp = &now
+		if !rackPDUPredicate().Update(event.UpdateEvent{ObjectOld: old, ObjectNew: deleting}) {
+			t.Fatalf("%s: a deletion did not wake the reconciler", managedBy)
+		}
+
+		h := newPDUHarness(t, old)
+		if err := h.r.Delete(context.Background(), h.pdu()); err != nil {
+			t.Fatal(err)
+		}
+		h.reconcile()
+		err := h.r.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: "ber1-pdu-b"}, &infrav1.RackPDU{})
+		if err == nil {
+			t.Fatalf("%s: the RackPDU was not released", managedBy)
+		}
 	}
 }
