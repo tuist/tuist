@@ -713,6 +713,30 @@ k8s-monitoring:
         values = ["tmp_response_status"]
       }
 
+      // Every Kura peer link logs an INFO line when a backfill pass starts and
+      // another when it completes, several times a second once pull
+      // replication is caught up. Each line repeats the full span context, so
+      // in October 2026 they were about 730 MB/hour, nearly all of Kura's log
+      // volume. Drop the start line, which carries nothing the completion does
+      // not. Sample 1% of routine completions, those that neither exhausted
+      // the capacity budget nor found absent entries; every other completion
+      // keeps its per-peer outcome. Warnings and errors from the same target
+      // are not matched and stay unsampled.
+      stage.match {
+        selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass started\"`"
+        action = "drop"
+        drop_counter_reason = "kura_backfill_pass_started"
+      }
+
+      stage.match {
+        selector = "{namespace=\"kura\", container=\"kura\"} |= `\"level\":\"INFO\"` |= `\"target\":\"kura::backfill::pass\"` |= `\"message\":\"backfill pass completed\"` |= `\"capacity_completed\":false` |= `\"absent\":0,`"
+
+        stage.sampling {
+          rate = 0.01
+          drop_counter_reason = "kura_backfill_pass_completed_sampling"
+        }
+      }
+
   # Node journald → Loki. The in-guest runner vitals probe is blind to a
   # host-side microVM teardown (kata-shim/qemu kill, containerd restart,
   # kernel OOM/segfault) — those land only in the worker node's journal,

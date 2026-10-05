@@ -289,7 +289,12 @@ Routine request logs are sampled before they leave the cluster. The pipeline kee
 emitted for Tuist requests with response codes from 200 through 399. Kura is
 sampled more aggressively: only 1 percent of ingress responses with codes from
 200 through 299 or 404 are retained. The standalone cache hosts keep the 10
-percent rate for their completion entries. Every warning, error, and unusual
+percent rate for their completion entries. Kura's INFO `backfill pass started`
+lines are dropped and 1 percent of routine `backfill pass completed` lines are
+kept (completions that exhausted the capacity budget or found absent entries
+are all kept):
+every peer link logs both several times a second, and in October 2026 they were
+about 730 MB/hour, nearly all of Kura's log volume. Every warning, error, and unusual
 response remains unsampled, and so does every Tuist completion entry carrying
 `atlas_operator_read_account_id` or `operator_grant_jti`: those are the server's
 record of operator access to customer data (`infra/log-review.md`), so do not
