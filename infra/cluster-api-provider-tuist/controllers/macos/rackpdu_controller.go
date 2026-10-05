@@ -200,7 +200,8 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 // finished by the next.
 func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	admin, how, err := openRackCardAdmin(ctx, r.Client, r.Recorder, pdu, r.cardOutlet(pdu, secret), secret, passwords, r.timeout())
+	login, err := openRackCardAdmin(ctx, r.Client, r.Recorder, pdu, r.cardOutlet(pdu, secret), secret, passwords, r.timeout())
+	admin := login.Session
 	if err != nil {
 		if pdu.Status.Adopted && rackCardUnexpectedResponse(err) {
 			markRackCardUnexpected(pdu, err)
@@ -217,7 +218,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 			logger.Error(err, "log the administrator out of the card")
 		}
 	}()
-	r.Recorder.Eventf(pdu, corev1.EventTypeNormal, "LoggedIn", "Logged in as %s %s", rackCardFactoryUser, how)
+	r.Recorder.Eventf(pdu, corev1.EventTypeNormal, "LoggedIn", "Logged in as %s %s", rackCardFactoryUser, login.How)
 
 	// What the card is, before anything else is written to it. The login may
 	// already have changed a factory card's administrator password: the card
@@ -255,6 +256,12 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 
 	markRackCardConverged(r.Recorder, pdu)
 	r.loginBackoff.succeeded(pdu)
+	if login.RotationNotApplied != nil {
+		// Managed on the password that works; the next try at moving it waits
+		// out the backoff, since each one is a refused derived login.
+		markRackCardRotationNotApplied(pdu, login.RotationNotApplied)
+		return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
+	}
 	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 }
 

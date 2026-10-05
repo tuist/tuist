@@ -236,6 +236,12 @@ func (r *RackATSReconciler) adopt(ctx context.Context, ats *infrav1.RackATS, car
 	}
 	r.loginBackoff.succeeded(ats)
 	r.adminBackoff.succeeded(ats)
+	if adoption.RotationNotApplied != nil {
+		// Observed on the password that works; the next try at moving it
+		// waits out the backoff, since each one is a refused derived login.
+		defer markRackCardRotationNotApplied(ats, adoption.RotationNotApplied)
+		r.adminBackoff.refused(ats)
+	}
 
 	if adoption.PreferredUnrecognised == "" {
 		markRackCardConverged(r.Recorder, ats)

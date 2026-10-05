@@ -274,8 +274,8 @@ func TestRackATSAdoptsAFactoryCardAndPrefersItsSource(t *testing.T) {
 	if after := h.writes(); len(after) != before {
 		t.Fatalf("passes at the same generation wrote %v", after[before:])
 	}
-	if n := h.adminLogins(); n != 1 {
-		t.Fatalf("the administrator logged in %d times for one generation", n)
+	if n := h.eventsMatching("LoggedIn"); n != 1 {
+		t.Fatalf("%d administrator logins for one generation", n)
 	}
 }
 
@@ -383,7 +383,7 @@ func TestRackATSReportsPreferredSourceDriftAndConvergesItOnANewGeneration(t *tes
 	h.update(func(a *infrav1.RackATS) { a.Generation = 2 })
 	h.reconcile()
 	h.assertAdopted(2)
-	if n := h.adminLogins(); n != 2 {
+	if n := h.eventsMatching("LoggedIn"); n != 2 {
 		t.Fatalf("%d administrator logins over two generations, want 2", n)
 	}
 	if h.gauge("drifted") != 0 {
@@ -677,7 +677,7 @@ func TestRackATSAdoptsOncePerGenerationPastAStaleCache(t *testing.T) {
 	h.reconcile()
 	h.r.Client = real
 
-	if n := h.adminLogins(); n != 1 {
+	if n := h.eventsMatching("LoggedIn"); n != 1 {
 		t.Fatalf("%d administrator logins for one generation, want 1", n)
 	}
 	if n := h.eventsMatching("Converged"); n != 1 {

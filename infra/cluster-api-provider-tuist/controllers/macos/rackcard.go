@@ -63,12 +63,15 @@ const (
 
 // Keys of the Secret the controller generates for each card.
 const (
-	rackCardKeyAdminUsername   = "admin-username"
-	rackCardKeyAdminPassword   = "admin-password"
-	rackCardKeyUsername        = "username"
-	rackCardKeyPassword        = "password"
-	rackCardKeyInitialPassword = "initial-password"
-	rackCardKeyFingerprint     = "tlsFingerprint"
+	rackCardKeyAdminUsername = "admin-username"
+	rackCardKeyAdminPassword = "admin-password"
+	// rackCardKeyAdminPasswordPrevious is the administrator password the card
+	// took before the one recorded, kept until the derived one takes alone.
+	rackCardKeyAdminPasswordPrevious = "admin-password-previous"
+	rackCardKeyUsername              = "username"
+	rackCardKeyPassword              = "password"
+	rackCardKeyInitialPassword       = "initial-password"
+	rackCardKeyFingerprint           = "tlsFingerprint"
 )
 
 // rackCard is a rack power device's object.
@@ -376,76 +379,171 @@ func asAdmin(o power.Outlet, username, password string) power.Outlet {
 	return o
 }
 
-// openRackCardAdmin logs in as the card's administrator, and leaves the card
-// on the derived administrator password. It tries, in order: the derived
-// password; the password the Secret records, when it is another (a card an
-// earlier build or an earlier root key set); the administrator password of
-// at most one other object's Secret for the same card address, one that
-// recorded setting it on a card presenting this certificate (an object that
-// logged in to a card of a kind it could not drive: the card forces the
-// change before it can be asked what it is); and the factory login. Each but
-// the first sets the derived password in the same request, the token
-// endpoint's newPassword, so the login that takes is also the rotation. The
-// Secret then records the derived password. It names which login took.
+// rackCardReasonRotationNotApplied is a card that took a login asking for the
+// derived administrator password and then refused that password.
+const rackCardReasonRotationNotApplied = "PasswordRotationNotApplied"
+
+// markRackCardRotationNotApplied reports a card managed on a password the
+// controller could not move it off: adopted in all but its password, so
+// Ready stays what the pass found.
+func markRackCardRotationNotApplied(obj rackCard, err error) {
+	obj.CardStatus().Message = err.Error()
+	conditions.MarkFalse(obj, RackCardAdoptedCondition, rackCardReasonRotationNotApplied, clusterv1.ConditionSeverityWarning, "%v", err)
+}
+
+// rackCardAdminLogin is the administrator's session on a card, and how it was
+// reached.
+type rackCardAdminLogin struct {
+	Session *power.EatonSession
+	How     string
+	// RotationNotApplied, when set, is a card that took a login asking for
+	// the derived password and then refused it: the session is on the
+	// password that worked, which the Secret keeps.
+	RotationNotApplied error
+}
+
+// rackCardRotationError is a card that took a login with the derived
+// password as newPassword, then refused the derived password.
+type rackCardRotationError struct {
+	from string
+	err  error
+}
+
+func (e *rackCardRotationError) Error() string {
+	return fmt.Sprintf("the card took %s with the derived administrator password as newPassword, then refused the derived password (%v); the card keeps the password that worked", e.from, e.err)
+}
+
+func (e *rackCardRotationError) Unwrap() error { return e.err }
+
+// openRackCardAdmin logs in as the card's administrator and moves the card
+// onto the derived administrator password. It tries, in order: the derived
+// password; the password the Secret records and the one it recorded before,
+// when they are others (a card an earlier build or an earlier root key set);
+// the administrator password of at most one other object's Secret for the
+// same card address, one that recorded setting it on a card presenting this
+// certificate (an object that logged in to a card of a kind it could not
+// drive: the card forces the change before it can be asked what it is); and
+// the factory login. Each but the first asks for the derived password in the
+// same request, the token endpoint's newPassword. A change is believed only
+// once a fresh login with the derived password takes: then the Secret records
+// it, keeping the password it replaced under admin-password-previous. A card
+// that refuses it keeps the password that worked, in the card and in the
+// Secret, and the login reports RotationNotApplied.
 func openRackCardAdmin(ctx context.Context, c client.Client, recorder record.EventRecorder, obj client.Object, card power.Outlet,
-	secret *corev1.Secret, passwords rackcard.Passwords, timeout time.Duration) (*power.EatonSession, string, error) {
-	session, err := power.OpenEatonSession(ctx, asAdmin(card, rackCardFactoryUser, passwords.Admin), "", timeout)
+	secret *corev1.Secret, passwords rackcard.Passwords, timeout time.Duration) (rackCardAdminLogin, error) {
+	open := func(password, newPassword string) (*power.EatonSession, error) {
+		return power.OpenEatonSession(ctx, asAdmin(card, rackCardFactoryUser, password), newPassword, timeout)
+	}
+	session, err := open(passwords.Admin, "")
 	if err == nil {
-		if err := recordRackCardAdmin(ctx, c, secret, passwords.Admin, "", ""); err != nil {
+		if err := recordRackCardAdmin(ctx, c, secret, rackCardAdminRecord{Password: passwords.Admin, DropPrevious: true}); err != nil {
 			_ = session.Close(ctx)
-			return nil, "", err
+			return rackCardAdminLogin{}, err
 		}
-		return session, "with the derived password", nil
+		return rackCardAdminLogin{Session: session, How: "with the derived password"}, nil
 	}
 	if !adminLoginRefused(err) {
-		return nil, "", err
+		return rackCardAdminLogin{}, err
 	}
 	failures := []string{fmt.Sprintf("the derived password: %v", err)}
 	tried := map[string]bool{passwords.Admin: true}
 
-	type candidate struct{ password, from string }
+	type candidate struct {
+		password, from string
+		mark           func(*corev1.Secret)
+	}
 	var candidates []candidate
-	if stored := string(secret.Data[rackCardKeyAdminPassword]); stored != "" && !tried[stored] {
-		tried[stored] = true
-		candidates = append(candidates, candidate{stored, fmt.Sprintf("the password Secret %s/%s records", secret.Namespace, secret.Name)})
+	for _, key := range []string{rackCardKeyAdminPassword, rackCardKeyAdminPasswordPrevious} {
+		if stored := string(secret.Data[key]); stored != "" && !tried[stored] {
+			tried[stored] = true
+			candidates = append(candidates, candidate{password: stored, from: fmt.Sprintf("the password Secret %s/%s records as %s", secret.Namespace, secret.Name, key)})
+		}
 	}
 	sibling, ok, err := rackCardMarkedSibling(ctx, c, secret, card.TLSFingerprint, tried)
 	if err != nil {
-		return nil, "", err
+		return rackCardAdminLogin{}, err
 	}
 	if ok {
-		candidates = append(candidates, candidate{string(sibling.Data[rackCardKeyAdminPassword]),
-			fmt.Sprintf("the administrator password another object set, from Secret %s/%s", sibling.Namespace, sibling.Name)})
+		candidates = append(candidates, candidate{
+			password: string(sibling.Data[rackCardKeyAdminPassword]),
+			from:     fmt.Sprintf("the administrator password another object set, from Secret %s/%s", sibling.Namespace, sibling.Name),
+			mark: func(s *corev1.Secret) {
+				markRackCardAdminSet(s, sibling.Annotations[rackCardAdminSetAnnotation], sibling.Annotations[rackCardAdminSetCertificateAnnotation])
+			},
+		})
 	}
-	setAt := func() string { return time.Now().UTC().Format(time.RFC3339) }
 	for _, cand := range candidates {
-		session, err := power.OpenEatonSession(ctx, asAdmin(card, rackCardFactoryUser, cand.password), passwords.Admin, timeout)
+		changed, err := open(cand.password, passwords.Admin)
 		if err != nil {
 			if !adminLoginRefused(err) {
-				return nil, "", err
+				return rackCardAdminLogin{}, err
 			}
 			failures = append(failures, fmt.Sprintf("%s: %v", cand.from, err))
 			continue
 		}
-		if err := recordRackCardAdmin(ctx, c, secret, passwords.Admin, setAt(), card.TLSFingerprint); err != nil {
-			_ = session.Close(ctx)
-			return nil, "", err
+		verified, err := proveRackCardAdmin(ctx, changed, open, passwords)
+		if err != nil && !adminLoginRefused(err) {
+			return rackCardAdminLogin{}, err
 		}
-		recorder.Eventf(obj, corev1.EventTypeNormal, "PasswordRotated",
-			"Moved the card's admin password onto the derived one; it was %s", cand.from)
-		return session, fmt.Sprintf("with %s, and moved it onto the derived password", cand.from), nil
+		if err == nil {
+			if err := recordRackCardAdmin(ctx, c, secret, rackCardAdminRecord{Password: passwords.Admin, Previous: cand.password,
+				SetOn: card.TLSFingerprint}); err != nil {
+				_ = verified.Close(ctx)
+				return rackCardAdminLogin{}, err
+			}
+			recorder.Eventf(obj, corev1.EventTypeNormal, "PasswordRotated",
+				"Moved the card's admin password onto the derived one; it was %s", cand.from)
+			return rackCardAdminLogin{Session: verified, How: fmt.Sprintf("with %s, and moved it onto the derived password", cand.from)}, nil
+		}
+
+		notApplied := &rackCardRotationError{from: cand.from, err: err}
+		again, err := open(cand.password, "")
+		if err != nil {
+			return rackCardAdminLogin{}, fmt.Errorf("%v, and then refused it too: %w", notApplied, err)
+		}
+		if string(secret.Data[rackCardKeyAdminPassword]) != cand.password {
+			if err := recordRackCardAdmin(ctx, c, secret, rackCardAdminRecord{Password: cand.password,
+				Previous: string(secret.Data[rackCardKeyAdminPassword]), Mark: cand.mark}); err != nil {
+				_ = again.Close(ctx)
+				return rackCardAdminLogin{}, err
+			}
+		}
+		recorder.Eventf(obj, corev1.EventTypeWarning, "PasswordRotationNotApplied", "%v", notApplied)
+		return rackCardAdminLogin{Session: again, How: fmt.Sprintf("with %s, which the card keeps", cand.from), RotationNotApplied: notApplied}, nil
 	}
 
-	factory := asAdmin(card, rackCardFactoryUser, rackCardFactoryPassword)
-	session, factoryErr := power.OpenEatonSession(ctx, factory, passwords.Admin, timeout)
+	changed, factoryErr := open(rackCardFactoryPassword, passwords.Admin)
 	if factoryErr != nil {
-		return nil, "", fmt.Errorf("%s; the factory login: %w", strings.Join(failures, "; "), factoryErr)
+		return rackCardAdminLogin{}, fmt.Errorf("%s; the factory login: %w", strings.Join(failures, "; "), factoryErr)
 	}
-	if err := recordRackCardAdmin(ctx, c, secret, passwords.Admin, setAt(), card.TLSFingerprint); err != nil {
-		_ = session.Close(ctx)
-		return nil, "", err
+	verified, err := proveRackCardAdmin(ctx, changed, open, passwords)
+	if err != nil && !adminLoginRefused(err) {
+		return rackCardAdminLogin{}, err
 	}
-	return session, "with the factory login, and set the derived password", nil
+	if err != nil {
+		// The factory password is public: nothing is recorded, and the card is
+		// not adopted on it.
+		notApplied := &rackCardRotationError{from: "the factory login", err: err}
+		recorder.Eventf(obj, corev1.EventTypeWarning, "PasswordRotationNotApplied", "%v", notApplied)
+		return rackCardAdminLogin{}, notApplied
+	}
+	if err := recordRackCardAdmin(ctx, c, secret, rackCardAdminRecord{Password: passwords.Admin,
+		Previous: string(secret.Data[rackCardKeyAdminPassword]), SetOn: card.TLSFingerprint}); err != nil {
+		_ = verified.Close(ctx)
+		return rackCardAdminLogin{}, err
+	}
+	return rackCardAdminLogin{Session: verified, How: "with the factory login, and set the derived password"}, nil
+}
+
+// proveRackCardAdmin logs out the session that asked for the derived
+// password, since the card allows one session per account, and logs in with
+// the derived password alone: the session, or the card's answer to it.
+func proveRackCardAdmin(ctx context.Context, changed *power.EatonSession, open func(password, newPassword string) (*power.EatonSession, error),
+	passwords rackcard.Passwords) (*power.EatonSession, error) {
+	if err := changed.Close(ctx); err != nil {
+		return nil, fmt.Errorf("log out before logging in with the derived password: %w", err)
+	}
+	return open(passwords.Admin, "")
 }
 
 func adminLoginRefused(err error) bool {
@@ -453,17 +551,51 @@ func adminLoginRefused(err error) bool {
 	return errors.As(err, &refused) && refused.Refused()
 }
 
-// recordRackCardAdmin records the card's administrator password in the
-// Secret, and, when at is set, that it was set on the card then, on the card
-// presenting fingerprint.
-func recordRackCardAdmin(ctx context.Context, c client.Client, secret *corev1.Secret, password, at, fingerprint string) error {
-	if string(secret.Data[rackCardKeyAdminPassword]) == password && string(secret.Data[rackCardKeyAdminUsername]) == rackCardFactoryUser && at == "" {
-		return nil
+// rackCardAdminRecord is an administrator password that took on the card, to
+// record in its Secret.
+type rackCardAdminRecord struct {
+	Password string
+	// Previous, when set, is kept as admin-password-previous: the password
+	// the card took before, so no write drops the last one known to work.
+	Previous string
+	// DropPrevious removes admin-password-previous, once Password took
+	// without it.
+	DropPrevious bool
+	// SetOn, when set, marks the Secret as having set Password, now, on the
+	// card presenting this certificate.
+	SetOn string
+	// Mark, when set, copies another Secret's mark.
+	Mark func(*corev1.Secret)
+}
+
+// recordRackCardAdmin records in the Secret an administrator password the
+// card took.
+func recordRackCardAdmin(ctx context.Context, c client.Client, secret *corev1.Secret, record rackCardAdminRecord) error {
+	before := map[string]string{}
+	for k, v := range secret.Data {
+		before[k] = string(v)
 	}
+	annotations := fmt.Sprint(secret.Annotations)
 	secret.Data[rackCardKeyAdminUsername] = []byte(rackCardFactoryUser)
-	secret.Data[rackCardKeyAdminPassword] = []byte(password)
-	if at != "" {
-		markRackCardAdminSet(secret, at, fingerprint)
+	secret.Data[rackCardKeyAdminPassword] = []byte(record.Password)
+	switch {
+	case record.Previous != "" && record.Previous != record.Password:
+		secret.Data[rackCardKeyAdminPasswordPrevious] = []byte(record.Previous)
+	case record.DropPrevious:
+		delete(secret.Data, rackCardKeyAdminPasswordPrevious)
+	}
+	if record.SetOn != "" {
+		markRackCardAdminSet(secret, time.Now().UTC().Format(time.RFC3339), record.SetOn)
+	}
+	if record.Mark != nil {
+		record.Mark(secret)
+	}
+	changed := len(before) != len(secret.Data) || annotations != fmt.Sprint(secret.Annotations)
+	for k, v := range secret.Data {
+		changed = changed || before[k] != string(v)
+	}
+	if !changed {
+		return nil
 	}
 	if err := c.Update(ctx, secret); err != nil {
 		return fmt.Errorf("record the card's administrator password in %s: %w", secret.Name, err)
@@ -576,7 +708,10 @@ func rackCardWrongKind(err error, secret *corev1.Secret) error {
 // eatonLoginReason names why the administrator could not log in.
 func eatonLoginReason(err error) string {
 	var refusal *power.EatonLoginError
+	var rotation *rackCardRotationError
 	switch {
+	case errors.As(err, &rotation):
+		return rackCardReasonRotationNotApplied
 	case errors.Is(err, power.ErrEatonConcurrentSession):
 		return "AdminSessionBusy"
 	case errors.As(err, &refusal) && refusal.Code == "AccountBlocked":

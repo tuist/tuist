@@ -502,16 +502,28 @@ reports `AddressReserved=False`, reason `NoMAC`.
    or the Secret records other passwords than the derived ones (a card an
    earlier build or an earlier root key set), as the administrator. The login
    is the first of these the card takes, with a `LoggedIn` event naming it:
-   the derived administrator password; the password the Secret records, when
-   it is another; the administrator password of the one marked sibling Secret
-   ("A card of the wrong kind" below); the factory `admin`/`admin`. Every one
-   but the first sends the derived password as `newPassword` in the same
-   token request, which is how the card answers its forced first-login change
-   and how a non-derived password is rotated, so the login that takes leaves
-   the card on the derived password; a rotation is a `PasswordRotated` event
-   naming the role and where the old password came from, and the Secret then
-   records the derived one. Then, reading first and writing only what
-   differs: accept the licence agreement for `admin`; make the controller's
+   the derived administrator password; the passwords the Secret records as
+   `admin-password` and `admin-password-previous`, when they are others; the
+   administrator password of the one marked sibling Secret ("A card of the
+   wrong kind" below); the factory `admin`/`admin`. Every one but the first
+   sends the derived password as `newPassword` in the same token request,
+   which is how the card answers its forced first-login change and how a
+   non-derived password is rotated. The change is not believed until it is
+   proved: that session is logged out (one session per account) and a fresh
+   login with the derived password alone must take. Only then does the Secret
+   record the derived password, keeping the one it replaced as
+   `admin-password-previous` until a later pass's derived login takes alone,
+   with a `PasswordRotated` event naming the role and where the old password
+   came from. A card that refuses the derived password after taking the
+   change keeps the password that worked, on the card and in the Secret: the
+   controller logs in with it again and goes on managing and observing the
+   card with it, with `Adopted=False` reason `PasswordRotationNotApplied`, a
+   Warning event of that name, `Ready` as the pass found it, and the next try
+   waiting out the login backoff. On the factory login the same refusal
+   records nothing (the factory password is public) and the card is not
+   adopted, with the same reason. So no Secret write drops the last
+   administrator password known to work. Then, reading first and writing
+   only what differs: accept the licence agreement for `admin`; make the controller's
    account in the `operators` profile (the least predefined profile holding
    `role-power-manager`) with its derived `controller-initial` password, which
    the card makes it change at its first login, so the driver logs in once
@@ -557,9 +569,10 @@ Secret is missing or shorter than 16 bytes; the message names it, and nothing
 is contacted or written until it is there), `Unreachable`, `AdminLoginRefused`
 (no password the controller knows works, the derived one, the Secret's, a
 sibling's or the factory one: someone changed it; factory-reset the card),
-`AdminSessionBusy` (the card
-allows one session per account and another holds the administrator's; it
-lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
+`PasswordRotationNotApplied` (the card took a login asking for the derived
+password and then refused it; see adoption above), `AdminSessionBusy` (the
+card allows one session per account and another holds the administrator's;
+it lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
 for any other reason, carried verbatim), `AccountBlocked`, `UnsupportedCard`
 (the card's `powerDistributions/1` is not `specifications.type: pdu`, see
 "A card of the wrong kind" below), `ConvergeFailed`.
@@ -648,7 +661,8 @@ base64(access_token:password). `internal/power/eatontest` is a fake card.
 factory login answers `newPassword` without anything else first; that the
 token endpoint takes `newPassword` on an account whose password has not expired,
 which rotating a card off a non-derived password relies on (the collection's
-"OAuth2/change password" request; the fake card takes it); whether the
+"OAuth2/change password" request; the fake card takes it, and a card that
+does not is kept on its old password as `PasswordRotationNotApplied`); whether the
 licence agreement gates the API before it is accepted; that `operators` may
 switch outlets and read their settings (the collection lists its roles, not
 what each allows); the exact refusal bodies; whether an account the
@@ -845,10 +859,13 @@ the Secret, looked at again every minute.
 **A card an earlier build adopted** holds random passwords that only its
 credentials Secret records. The Secret recording anything other than the
 derived passwords starts an adoption pass, generation or not: the derived
-administrator login is refused, the Secret's takes and rotates the card onto
-the derived password in the same request, and the controller's account, which
-does not take its derived password, is made again on it. Each is a
-`PasswordRotated` event, and the Secret then records the derived values.
+administrator login is refused, the Secret's takes and asks for the derived
+password in the same request, a fresh derived login proves it, and the
+controller's account, which does not take its derived password, is made again
+on it. Each is a `PasswordRotated` event, and the Secret then records the
+derived values, keeping the old administrator password as
+`admin-password-previous`. A card that does not apply the change stays on its
+old password, in the Secret too, reported as `PasswordRotationNotApplied`.
 
 **After losing the cluster** nothing is needed but the root key: a RackPDU or
 RackATS applied again has no Secret, logs in with the derived password, pins

@@ -40,6 +40,9 @@ type atsAdoption struct {
 	// PreferredUnrecognised, when not empty, is why the preferred source
 	// could not be set: the card reports none the implementation recognises.
 	PreferredUnrecognised string
+	// RotationNotApplied, when set, is a card that kept the administrator
+	// password the controller logged in with rather than the derived one.
+	RotationNotApplied error
 }
 
 // atsObservation is the switch as its card reported it.
@@ -103,16 +106,18 @@ func (c *eatonATSCard) Fingerprint(ctx context.Context) (string, error) {
 
 func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, error) {
 	logger := log.FromContext(ctx)
-	admin, how, err := openRackCardAdmin(ctx, c.r.Client, c.r.Recorder, c.ats, c.outlet(), c.secret, c.passwords, c.r.timeout())
+	login, err := openRackCardAdmin(ctx, c.r.Client, c.r.Recorder, c.ats, c.outlet(), c.secret, c.passwords, c.r.timeout())
 	if err != nil {
 		return atsAdoption{}, &atsCardError{Reason: eatonLoginReason(err), Err: err}
 	}
+	admin := login.Session
+	adopted := atsAdoption{RotationNotApplied: login.RotationNotApplied}
 	defer func() {
 		if err := admin.Close(ctx); err != nil {
 			logger.Error(err, "log the administrator out of the card")
 		}
 	}()
-	c.r.Recorder.Eventf(c.ats, corev1.EventTypeNormal, "LoggedIn", "Logged in as %s %s", rackCardFactoryUser, how)
+	c.r.Recorder.Eventf(c.ats, corev1.EventTypeNormal, "LoggedIn", "Logged in as %s %s", rackCardFactoryUser, login.How)
 
 	// What the card is, before anything else is written to it. The login may
 	// already have changed a factory card's administrator password: the card
@@ -148,10 +153,11 @@ func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, e
 	}
 
 	if state.PreferredKey == "" {
-		return atsAdoption{PreferredUnrecognised: eatonPreferredUnrecognised(state)}, nil
+		adopted.PreferredUnrecognised = eatonPreferredUnrecognised(state)
+		return adopted, nil
 	}
 	if state.Preferred == preferred {
-		return atsAdoption{}, nil
+		return adopted, nil
 	}
 	if err := admin.SetATSPreferredSource(ctx, state, preferred); err != nil {
 		return atsAdoption{}, fmt.Errorf("set the preferred source to %d: %w", preferred, err)
@@ -162,7 +168,7 @@ func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, e
 	if state.Preferred != preferred {
 		return atsAdoption{}, fmt.Errorf("the preferred source reads %d after being set to %d", state.Preferred, preferred)
 	}
-	return atsAdoption{}, nil
+	return adopted, nil
 }
 
 func (c *eatonATSCard) Observe(ctx context.Context) (atsObservation, error) {

@@ -105,6 +105,11 @@ type Card struct {
 	// LegacyWeb answers every request with an HTML 404, as a card that serves
 	// no REST API does.
 	LegacyWeb bool
+	// IgnoreNewPasswordUnlessExpired accepts a login that asks to change the
+	// password of an account whose password has not expired without changing
+	// it, as a card might whose token endpoint only honours newPassword at the
+	// forced first-login change.
+	IgnoreNewPasswordUnlessExpired bool
 
 	cert   tls.Certificate
 	server *httptest.Server
@@ -478,7 +483,7 @@ func (c *Card) login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if request.NewPassword != "" {
+	if request.NewPassword != "" && !(c.IgnoreNewPasswordUnlessExpired && !account.PasswordExpired) {
 		if !strongPassword(request.NewPassword) || request.NewPassword == request.Password {
 			answer(w, http.StatusBadRequest, `{"code":"InvalidPassword"}`)
 			return
@@ -486,7 +491,7 @@ func (c *Card) login(w http.ResponseWriter, r *http.Request) {
 		account.Password = request.NewPassword
 		account.PasswordExpired = false
 		c.Writes = append(c.Writes, "password "+account.Name)
-	} else if account.PasswordExpired {
+	} else if request.NewPassword == "" && account.PasswordExpired {
 		answer(w, http.StatusForbidden, `{"code":"ExpiredCredentials"}`)
 		return
 	}

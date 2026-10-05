@@ -109,8 +109,8 @@ func TestTheAdministratorLoginTriesOneMarkedSiblingAtMost(t *testing.T) {
 	h.reconcile()
 
 	h.assertAdopted(1)
-	if n := adminAttempts(h.card); n != 2 {
-		t.Fatalf("%d administrator login attempts, want its own password and the one marked sibling", n)
+	if n := adminAttempts(h.card); n != 3 {
+		t.Fatalf("%d administrator login attempts, want its derived password, the one marked sibling, and the derived password proving the change", n)
 	}
 	if h.eventsMatching("d-right-credentials") != 2 || h.eventsMatching("PasswordRotated") != 1 {
 		t.Fatalf("events = %v, want the login and the rotation to name the Secret it took the password from", h.events)
@@ -128,8 +128,8 @@ func TestTheAdministratorLoginSkipsAMarkForAnotherCertificate(t *testing.T) {
 	h.reconcile()
 
 	h.assertAdopted(1)
-	if n := adminAttempts(h.card); n != 2 {
-		t.Fatalf("%d administrator login attempts, want its own password and the factory login only", n)
+	if n := adminAttempts(h.card); n != 3 {
+		t.Fatalf("%d administrator login attempts, want its derived password, the factory login and the derived password proving the change", n)
 	}
 }
 

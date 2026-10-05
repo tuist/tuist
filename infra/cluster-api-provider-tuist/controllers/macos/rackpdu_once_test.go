@@ -51,7 +51,7 @@ func TestRackPDUAdoptsOncePerGeneration(t *testing.T) {
 	h.r.Client = &staleCache{Client: real, pdu: before}
 	h.reconcile()
 
-	if n := adminLogins(h); n != 1 {
+	if n := h.eventsMatching("LoggedIn"); n != 1 {
 		t.Fatalf("%d administrator logins for one generation, want 1", n)
 	}
 	if n := h.eventsMatching("Converged"); n != 1 {

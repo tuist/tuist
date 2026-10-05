@@ -318,3 +318,125 @@ func TestTheAdministratorLoginsOfAPassAreBoundedAndBackedOff(t *testing.T) {
 		t.Fatal("the Secret's administrator password was replaced while it was still the only other candidate")
 	}
 }
+
+// A card that takes a login asking for the derived password but keeps its
+// old one is not locked out: the Secret keeps the password that works, the
+// object says the rotation did not apply, and the card stays managed and
+// observed with it.
+func TestARotationTheCardDoesNotApplyKeepsTheWorkingPassword(t *testing.T) {
+	t.Run("RackATS", func(t *testing.T) {
+		adopted := rackATS(func(a *infrav1.RackATS) { a.Status.Adopted, a.Status.ObservedGeneration = true, 1 })
+		h := newATSHarness(t, adopted)
+		onLegacyPasswords(h.card, eatontest.ProfileViewers)
+		h.card.IgnoreNewPasswordUnlessExpired = true
+		if err := h.r.Create(context.Background(), legacySecret(testATS+"-credentials", "tuist.dev/rack-ats", testATS, "192.168.0.14", h.card.Fingerprint())); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		h.r.adminBackoff.now = func() time.Time { return now }
+
+		h.reconcile()
+
+		assertRotationNotApplied(t, h.ats(), h.secret(), h.card)
+		if h.eventsMatching("PasswordRotationNotApplied") != 1 || h.eventsMatching("Moved the card's admin password") != 0 {
+			t.Fatalf("events = %v, want PasswordRotationNotApplied and no admin rotation", h.events)
+		}
+		if h.gauge("observed") != 1 || !conditions.IsTrue(h.ats(), clusterv1.ReadyCondition) {
+			t.Fatal("the switch is not observed with the password that works")
+		}
+
+		// The next administrator pass, after its backoff, still gets in.
+		before := h.adminLogins()
+		h.reconcile()
+		if h.adminLogins() != before {
+			t.Fatal("logged the administrator in again inside the backoff")
+		}
+		now = now.Add(time.Hour)
+		h.reconcile()
+		if h.adminLogins() == before {
+			t.Fatal("the administrator did not log in after the backoff")
+		}
+		assertRotationNotApplied(t, h.ats(), h.secret(), h.card)
+	})
+	t.Run("RackPDU", func(t *testing.T) {
+		adopted := rackPDU(func(p *infrav1.RackPDU) { p.Status.Adopted, p.Status.ObservedGeneration = true, 1 })
+		h := newPDUHarness(t, adopted)
+		onLegacyPasswords(h.card, eatontest.ProfileOperators)
+		h.card.IgnoreNewPasswordUnlessExpired = true
+		if err := h.r.Create(context.Background(), legacySecret("ber1-pdu-b-credentials", "tuist.dev/rack-pdu", "ber1-pdu-b", "192.168.0.16", h.card.Fingerprint())); err != nil {
+			t.Fatal(err)
+		}
+
+		h.reconcile()
+
+		assertRotationNotApplied(t, h.pdu(), h.secret(), h.card)
+		if !conditions.IsTrue(h.pdu(), clusterv1.ReadyCondition) {
+			t.Fatalf("Ready = %+v; power still goes through the card", conditions.Get(h.pdu(), clusterv1.ReadyCondition))
+		}
+	})
+}
+
+func assertRotationNotApplied(t *testing.T, obj rackCard, secret *corev1.Secret, card *eatontest.Card) {
+	t.Helper()
+	if got := string(secret.Data["admin-password"]); got != "Legacy-admin-pass1" {
+		t.Fatalf("the Secret records %q, want the password the card still has", got)
+	}
+	if admin := card.Account("admin"); admin.Password != "Legacy-admin-pass1" {
+		t.Fatalf("setup: the card's administrator is on %q", admin.Password)
+	}
+	cond := conditions.Get(obj, RackCardAdoptedCondition)
+	if cond == nil || cond.Status != corev1.ConditionFalse || cond.Reason != "PasswordRotationNotApplied" {
+		t.Fatalf("Adopted = %+v, want False/PasswordRotationNotApplied", cond)
+	}
+}
+
+// A rotation the card took is proved with a fresh derived login before the
+// Secret records it, and the password it replaced is kept beside it.
+func TestAVerifiedRotationKeepsThePreviousPassword(t *testing.T) {
+	adopted := rackPDU(func(p *infrav1.RackPDU) { p.Status.Adopted, p.Status.ObservedGeneration = true, 1 })
+	h := newPDUHarness(t, adopted)
+	onLegacyPasswords(h.card, eatontest.ProfileOperators)
+	if err := h.r.Create(context.Background(), legacySecret("ber1-pdu-b-credentials", "tuist.dev/rack-pdu", "ber1-pdu-b", "192.168.0.16", h.card.Fingerprint())); err != nil {
+		t.Fatal(err)
+	}
+
+	h.reconcile()
+
+	h.assertAdopted()
+	secret := h.secret()
+	if string(secret.Data["admin-password"]) != pduPasswords().Admin || string(secret.Data["admin-password-previous"]) != "Legacy-admin-pass1" {
+		t.Fatalf("Secret admin-password %q, admin-password-previous %q", secret.Data["admin-password"], secret.Data["admin-password-previous"])
+	}
+	// The derived login, the Secret's with the change, then the derived
+	// login proving it.
+	h.card.Mu.Lock()
+	logins := strings.Join(h.card.LoginAttemptsBy, " ")
+	h.card.Mu.Unlock()
+	if !strings.HasPrefix(logins, "admin admin admin ") || adminAttempts(h.card) != 3 {
+		t.Fatalf("logins %q, want three administrator logins", logins)
+	}
+}
+
+// A card whose Secret records the derived password while the card still has
+// the one before it is reached with the previous password and rotated.
+func TestThePreviousAdminPasswordRecoversACard(t *testing.T) {
+	adopted := rackPDU(func(p *infrav1.RackPDU) { p.Status.Adopted, p.Status.ObservedGeneration = true, 1 })
+	h := newPDUHarness(t, adopted)
+	onLegacyPasswords(h.card, eatontest.ProfileOperators)
+	moved := legacySecret("ber1-pdu-b-credentials", "tuist.dev/rack-pdu", "ber1-pdu-b", "192.168.0.16", h.card.Fingerprint())
+	moved.Data["admin-password"] = []byte(pduPasswords().Admin)
+	moved.Data["admin-password-previous"] = []byte("Legacy-admin-pass1")
+	if err := h.r.Create(context.Background(), moved); err != nil {
+		t.Fatal(err)
+	}
+
+	h.reconcile()
+
+	h.assertAdopted()
+	if h.card.Account("admin").Password != pduPasswords().Admin {
+		t.Fatal("the card was not moved onto the derived password")
+	}
+	if !h.anyEvent("PasswordRotated", "admin-password-previous") {
+		t.Fatalf("events = %v, want the rotation to name the previous password", h.events)
+	}
+}
