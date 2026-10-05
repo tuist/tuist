@@ -474,10 +474,12 @@ node whose RackHost's `power.pdu` resolves to another transfer switch than its
 data link's ToR, or names a PDU the site does not have, fails the render. An
 outlet that is not on a RackPDU (a desk plug) is not held to a chain.
 
-An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`). The
-G4's printed labels run `A1` to `A24`, the letter being the PDU's one input;
-that the card's `n` is the label's number is not yet read off a card. The even
-outlets are hybrid C13/C19 sockets, so every outlet takes the minis' C14 cord.
+An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`), and
+it is the printed label's: outlet `n` reports `identification.physicalName`
+`An`, read off `ber1-pdu-b` on 2026-10-05, the letter being the PDU's one
+input. Its `measures` give each outlet's draw, which tells which outlets have
+a load without switching anything. The even outlets are hybrid C13/C19
+sockets, so every outlet takes the minis' C14 cord.
 
 **Cord colour is the chain.** Chain B's mini cords are blue, and chain A's are
 another colour, so a mini with one chain's cord on the other chain's ToR is
