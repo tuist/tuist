@@ -5572,6 +5572,78 @@ defmodule Tuist.TestsTest do
   end
 
   describe "cross-run flaky detection" do
+    test "does not mark a failure as flaky when the test only failed before on the commit" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "repeated_failure_#{System.unique_integer([:positive])}"
+
+      failing_run = fn ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [%{name: "testBroken", status: "failure", duration: 250}]
+            }
+          ]
+        )
+      end
+
+      {:ok, _first_test} = failing_run.()
+      {:ok, second_test} = failing_run.()
+
+      {[second_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      refute second_run.is_flaky
+      refute second_test.is_flaky
+    end
+
+    test "flags every failure of a run with more failures than fit in one lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_failures_#{System.unique_integer([:positive])}"
+      test_case_count = 5_000
+
+      run_with_status = fn status ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: for(i <- 1..test_case_count, do: %{name: "test#{i}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, _passing_test} = run_with_status.("success")
+      {:ok, failing_test} = run_with_status.("failure")
+
+      assert {:ok, %{is_flaky: true}} = Tests.get_test(failing_test.id)
+
+      assert ClickHouseRepo.aggregate(
+               from(tcr in TestCaseRun,
+                 where: tcr.test_run_id == ^failing_test.id and tcr.is_flaky == true
+               ),
+               :count
+             ) == test_case_count
+    end
+
     test "does not compare unrelated Bazel runs without commit metadata" do
       project = ProjectsFixtures.project_fixture(build_system: :bazel)
 
