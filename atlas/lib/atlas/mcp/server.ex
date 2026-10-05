@@ -50,6 +50,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateInsurancePolicy
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
+  alias Atlas.MCP.Tools.CreateMCPServer
   alias Atlas.MCP.Tools.CreateNote
   alias Atlas.MCP.Tools.CreatePOC
   alias Atlas.MCP.Tools.CreatePostmortem
@@ -68,6 +69,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeleteMCPServer
   alias Atlas.MCP.Tools.DeletePOC
   alias Atlas.MCP.Tools.DeletePOCTimelineEntry
   alias Atlas.MCP.Tools.DeletePostmortem
@@ -429,7 +431,10 @@ defmodule Atlas.MCP.Server do
     ReturnFinancing,
     TerminateFinancing
   ]
+  @admin_write_tools [CreateMCPServer, DeleteMCPServer]
   @admin_tools [
+    CreateMCPServer,
+    DeleteMCPServer,
     ListLicenses,
     CreateLicense,
     ExtendLicense,
@@ -460,6 +465,8 @@ defmodule Atlas.MCP.Server do
   ]
   @static_tools [
     GetMCPConnectionStatus,
+    CreateMCPServer,
+    DeleteMCPServer,
     GetNudgeAnalyticsStatus,
     ListEngineeringProjects,
     GetEngineeringProject,
@@ -835,6 +842,12 @@ defmodule Atlas.MCP.Server do
   # gating, granted by the same identity toggle. They are not executive-only.
   defp tool_group(tool_module) when tool_module in @tuist_server_tools, do: "observability"
   defp tool_group(_tool_module), do: "default"
+
+  defp admin_tool_allowed?(conn, tool_module) when tool_module in @admin_write_tools do
+    conn
+    |> Tool.current_user()
+    |> Atlas.Users.has_scope?("admin:write")
+  end
 
   defp admin_tool_allowed?(conn, tool_module) when tool_module in @admin_tools do
     conn

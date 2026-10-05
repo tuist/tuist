@@ -241,6 +241,35 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert has_element?(view, "#once-configuration-insights-type-dropdown")
   end
 
+  test "run broadcasts coalesce into one reload of the listing", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/build-runs")
+    render_async(view, 2_000)
+
+    for index <- 1..3 do
+      {:ok, _} =
+        OnceEvents.upsert_run(%{
+          project_id: project.id,
+          run_id: UUIDv7.generate(),
+          kind: "build",
+          command_display: "once build burst#{index}"
+        })
+    end
+
+    # Each start broadcasts, but none of them reloads the page by itself.
+    refute render(view) =~ "burst"
+
+    # The window's single reload brings every run in at once. It is driven
+    # here rather than waiting on the timer.
+    send(view.pid, :refresh)
+    html = render(view)
+    assert html =~ "burst1"
+    assert html =~ "burst3"
+  end
+
   test "the Build Runs listing has no date picker and is not period scoped", %{
     conn: conn,
     path: path,

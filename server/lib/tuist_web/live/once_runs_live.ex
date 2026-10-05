@@ -25,6 +25,7 @@ defmodule TuistWeb.OnceRunsLive do
   alias TuistWeb.Utilities.SHA
 
   @page_size 20
+  @refresh_interval_ms 2_000
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     # `summary_card?` is what makes the Builds page's card the Xcode shaped
@@ -60,6 +61,7 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:once_summary_card, summary_card?)
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
       |> assign(:available_filters, define_filters())
+      |> assign(:refresh_scheduled?, false)
 
     if connected?(socket) do
       OnceEvents.subscribe_project(project.id)
@@ -227,9 +229,22 @@ defmodule TuistWeb.OnceRunsLive do
     end
   end
 
+  # Every run broadcasts on the project topic when it starts, when it starts
+  # finalizing and when it finalizes, and CI starts runs in bursts, so
+  # reloading the listing and every analytics card per broadcast re-ran the
+  # whole page several times a second. Broadcasts inside one window coalesce
+  # into a single reload, the way `TuistWeb.OnceRunLive` refreshes.
+  def handle_info({:run_updated, _run_id}, %{assigns: %{refresh_scheduled?: true}} = socket), do: {:noreply, socket}
+
   def handle_info({:run_updated, _run_id}, socket) do
+    Process.send_after(self(), :refresh, @refresh_interval_ms)
+    {:noreply, assign(socket, :refresh_scheduled?, true)}
+  end
+
+  def handle_info(:refresh, socket) do
     socket =
       socket
+      |> assign(:refresh_scheduled?, false)
       |> assign(:analytics_load_keys, %{})
       |> assign(:analytics_date_params, nil)
 

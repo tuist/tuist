@@ -205,6 +205,37 @@ Restoring a label restores its cardinality. `node_memory_Cached_bytes` and
 `node_memory_MemFree_bytes` are 59 hosts each, so about 120 series and a dollar
 a month at the stack's measured rate.
 
+### The apiserver request rules are load-bearing for cost
+
+The control-plane collector drops `resource`, `scope`, `subresource` and the
+other per-API labels from `apiserver_request_total` and
+`apiserver_request_duration_seconds_bucket`. Without them, many series share
+one label set in a single scrape. Adaptive Metrics sums those samples when a
+rule aggregates the metric. Without a rule they go straight to storage, where
+Mimir keeps one sample per label set and timestamp and rejects the rest as
+`err-mimir-sample-duplicate-timestamp`. Rejected samples are still billed:
+Grafana Cloud charges for data points per minute, not only for stored series.
+
+On 2026-09-30 at about 17:50 UTC the rules for these two metrics disappeared
+(most likely through auto-apply, since the alerts started reading `cluster`).
+Ingested samples went from about 3,900/s to 7,100/s, duplicate-timestamp
+rejections from about 100/s to 2,500/s, and billable series from about 240k to
+447k with no change in active series. The rules were restored on 2026-10-05.
+They drop only `env`, `instance` and `k8s_cluster_name`, so the alerts keep
+`cluster`, `verb`, `code` and `le`:
+
+```json
+{"metric":"apiserver_request_duration_seconds_bucket","match_type":"exact","drop_labels":["env","instance","k8s_cluster_name"],"aggregations":["sum:counter"]}
+{"metric":"apiserver_request_total","match_type":"exact","drop_labels":["env","instance","k8s_cluster_name"],"aggregations":["sum:counter"]}
+```
+
+If either rule is missing, the same jump happens again. The fastest check is
+`grafanacloud_instance_samples_discarded_per_second{reason="new-value-for-timestamp"}`
+on the `grafanacloud-usage` data source, plus the
+`err-mimir-sample-duplicate-timestamp` lines in the
+`grafanacloud-tuist-usage-insights` Loki data source, which name the colliding
+series.
+
 ## Metrics scrape cadence
 
 Cluster and custom metrics jobs normally use a 60-second scrape interval. The
@@ -247,7 +278,14 @@ admission histograms, but drops alternating buckets so `histogram_quantile`
 continues to work with coarser boundaries.
 `kura_replication_request_duration_seconds` keeps every bucket: since pull
 replication it only times catch-up passes, is labelled by operation alone, and
-coarser buckets overstated its p99 by 50-75%. `_count` and `_sum` survive every reduction, so request rates and
+coarser buckets overstated its p99 by 50-75%. The server's
+`tuist_runs_duration_milliseconds` and `tuist_http_request_duration_nanoseconds`
+histograms grow each boundary by a factor of 2 and 2.15 respectively, so
+production keeps every other one (9 of 16, about 4 and 4.6 apart).
+The control-plane collector keeps 9 of the 24
+`apiserver_request_duration_seconds` boundaries, clustered around the
+one-second alert threshold, and drops WATCH and CONNECT buckets, which the
+alert excludes. `_count` and `_sum` survive every reduction, so request rates and
 mean latency remain intact. The production reduction targets the Kura fleet
 because it grew from 53 nodes / 17k series on September 1 to 344 nodes /
 roughly 120k series in the latest cardinality sample.
@@ -289,7 +327,12 @@ Routine request logs are sampled before they leave the cluster. The pipeline kee
 emitted for Tuist requests with response codes from 200 through 399. Kura is
 sampled more aggressively: only 1 percent of ingress responses with codes from
 200 through 299 or 404 are retained. The standalone cache hosts keep the 10
-percent rate for their completion entries. Every warning, error, and unusual
+percent rate for their completion entries. Kura's INFO `backfill pass started`
+lines are dropped and 1 percent of routine `backfill pass completed` lines are
+kept (completions that exhausted the capacity budget or found absent entries
+are all kept):
+every peer link logs both several times a second, and in October 2026 they were
+about 730 MB/hour, nearly all of Kura's log volume. Every warning, error, and unusual
 response remains unsampled, and so does every Tuist completion entry carrying
 `atlas_operator_read_account_id` or `operator_grant_jti`: those are the server's
 record of operator access to customer data (`infra/log-review.md`), so do not
@@ -304,9 +347,13 @@ exclusions:
   listing on `/_internal/backfill/entries`) are held open for up to 25 seconds
   by design, so they do not count as slow. They are still kept when they fail
   and still take part in the 5 percent sample.
-- Healthy probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and
-  Kura's peer `/_internal/status` health check) are not sampled. They are kept
-  only when they fail or take longer than two seconds.
+- Probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and Kura's
+  peer `/_internal/status` health check) are neither sampled nor treated as
+  slow. They are kept only when they fail. The latency policy measures the
+  trace, not the span, and the kubelet propagates one trace context across a
+  pod's probes, so Kura's one-second `/ready` probe forms a trace that lasts
+  tens of minutes. Before probes were excluded from the slow policy too, those
+  sub-millisecond spans were about half of every span stored.
 
 Both exclusions match on the `http.route` span attribute, so they apply to any
 service that reports one of those routes. Production runs

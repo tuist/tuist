@@ -173,6 +173,8 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
+  privateReplication:
+    enabled: false
   enabled: false
   stableDNS:
     enabled: false
@@ -1431,6 +1433,13 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  vultrPrivateNetwork:
+    enabled: false
+    regions: {}
+  ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
   # Workload kubeconfig CAPI core's cluster cache uses to reach this
   # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
   # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).

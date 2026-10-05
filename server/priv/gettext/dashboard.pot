@@ -85,7 +85,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
 #: lib/tuist_web/components/runs/ran_by_badge.ex:90
-#: lib/tuist_web/live/once_runs_live.ex:890
+#: lib/tuist_web/live/once_runs_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""

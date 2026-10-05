@@ -31,7 +31,15 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
+capi:
+  ovhPrivateNetwork:
+    enabled: true
+    vrackID: pn-2023588
+    cidr: 172.30.241.0/24
+
 kuraController:
+  privateReplication:
+    enabled: true
   stableDNS:
     enabled: true
     hostedZoneId: Z046862130S1WUMPV7Z3P
@@ -652,6 +660,22 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
+  # Already-prepared staging capacity for physical vRack/Cilium validation.
+  # The public ca-east cache and existing runner fleet retain their placement.
+  gra-runners-cache:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: kura-ovh-gra-runners
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-staging-gra-runners
+      offer: rise-1
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
   # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
   # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
