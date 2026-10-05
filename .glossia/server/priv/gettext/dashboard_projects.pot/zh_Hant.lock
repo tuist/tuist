@@ -1,16 +1,16 @@
 {
   "baseline_schema_version": 1,
-  "hash": "85fbf8a1a52a5c2aaa550fb15430480e3ffa9afc8969eb8bd68ba0c1a9f906a2",
+  "hash": "e56282f151f6698e2fed544c9496ec3b0823c8ebecaf05db795cf99b0773fc67",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "b81d2cf6a67155d25a68fb79e5d6fff4a40c9060278d58acf84c9d978323516e",
+          "hash": "0d0bb5e6543e06aadc70b53976db7ca8380e14deb0c61b467b0b5f00ec37318d",
           "kind": "source",
           "label": "server/priv/gettext/dashboard_projects.pot",
           "metadata": {
-            "content_hash": "a6204fcb8f25e000633090e0e5dd8089dde94faca459110e3f72576e777aec05"
+            "content_hash": "c95e198c172f14ea61591e9a2139b10d371d4705be68656911e7be43a90e66f3"
           }
         },
         {
@@ -90,14 +90,14 @@
           "metadata": {}
         }
       ],
-      "hash": "85fbf8a1a52a5c2aaa550fb15430480e3ffa9afc8969eb8bd68ba0c1a9f906a2",
+      "hash": "e56282f151f6698e2fed544c9496ec3b0823c8ebecaf05db795cf99b0773fc67",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_projects.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a178e834f84e3a63c3f6a6abfe46b19660624bf02efb37cb1fdc7bc201340a80",
+  "output_hash": "46b3f65f0df5e33ac813279f51763943f74dd8112e52196e1d47f412afb25ecf",
   "output_path": "server/priv/gettext/zh_Hant/LC_MESSAGES/dashboard_projects.po",
   "po_units": {
     "008faa9b484f9b53498a48b822e0f6eaa4c012aea18ee799fc5d395ee79b0430": "0adc769dbef6b630c09df47736b1ac68bb611942f761a5b16ee32bba633fed37",
@@ -587,6 +587,7 @@
     "de43dcaf4a710cff7a05839ea58d372e9ba04ea395bbfa97460fbae522f1aab8": "f7ab928ce8faa8425ae7f6f34feefa1b1bfab1ed701fe43491d0a6c4dcfc662a",
     "de6fef7cc4fc245eb9da5e4f652d94bb9151702db2396a94e30650f82ed45d5b": "f5a1fa1f6741c190ee1a56d90a5a3c6144ad679e417e7df82863b29398962126",
     "dec8ff9555315ca2a334d02a7690d78ca85ca70d5a54f91c6a558ffb5bd724f3": "8b53af6d715c3c5852a889a6d108292907448c450dc20f3c031f1cf6c937d69a",
+    "dfdc777252df789456b4ca09a21542b65963d2bf0dcec9eebaa30155203e25d3": "ad76a6e96a5b63d39747453ef2f6761e132752570f5832312b42f59289cb2a8e",
     "e046ef25c58e093585042fb25dae01983c8319d6bd95775e917e4ab191ef914d": "8d0d18f066bf38403e256b6c013854b61ddc4c8d6ca038ded74ebd79f4b1cda4",
     "e12018facfb4c29cee1b5d66f981fad971c4c5ffb6377e6c5410462a9d4dab7e": "2410e742ca2e4ed544c39a9cf7b596cad2eb8297fcfbb6b3bee48e7e54d98a0c",
     "e19883668759df015a61da91a4b9f76b6f7546bbb715e015583e944e3780744c": "a1eff67c59257fdc0a406ac8eb58947ef2486eba976cbf034eb980526b555be7",
@@ -663,8 +664,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "38a71df12d279f638146caf5846aeb1d4adbe532",
+  "source_commit_sha": "962703c2ef35e6acb75894f18986853f83ed9fb8",
   "source_path": "server/priv/gettext/dashboard_projects.pot",
-  "translated_at": "2026-10-05T12:58:44.237672Z",
-  "translation_session_id": "01a10bf9-e978-7a2b-8191-e90377eb357a"
+  "translated_at": "2026-10-05T13:24:15.426964Z",
+  "translation_session_id": "01a10c39-0740-7392-97a7-a77794d6392d"
 }
