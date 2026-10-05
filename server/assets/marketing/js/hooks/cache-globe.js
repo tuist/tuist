@@ -89,6 +89,7 @@ export const CacheGlobe = {
         if (this.regionLive?.[region] == null) return;
         this.regionLive[region] += weight;
         this.renderRegion(region);
+        this.sizeRegions();
       },
       options,
     );
@@ -145,13 +146,14 @@ export const CacheGlobe = {
     this.sync();
     this.setReel(this.el.querySelector("#globe-bytes"), this.formatBytes(this.data.bytes));
     this.el.querySelector("#globe-region-count").textContent = format.format(this.data.regions.length);
-    // Region cells re-sync to the measured five-minute counts; arrivals
-    // then carry them forward until the next snapshot.
+    // Region cells re-sync to the measured totals since midnight UTC;
+    // arrivals then carry them forward until the next snapshot.
     this.regionLive = {};
     for (const region of this.data.regions) {
-      this.regionLive[region.id] = this.data.downloads == null ? null : region.recent_downloads;
+      this.regionLive[region.id] = this.data.downloads == null ? null : region.downloads;
       this.renderRegion(region.id);
     }
+    this.sizeRegions();
     this.renderBreakdown();
     this.updateStatus();
   },
@@ -162,7 +164,7 @@ export const CacheGlobe = {
   // Snapshots land every 30 seconds. Nothing is invented:
   // the counter only ever moves at the measured rate, and a snapshot that
   // is ahead pulls it up straight away, while one that is behind lets the
-  // measurement catch up rather than winding the counter back.
+  // measurement catch up rather than winding the counter back within a UTC day.
   sync() {
     const downloads = this.data.downloads;
     const rate = this.data.recent_downloads == null ? null : this.data.recent_downloads / 5;
@@ -171,8 +173,11 @@ export const CacheGlobe = {
       this.renderDigits(downloads);
       return;
     }
+    const day = this.data.updated_at?.slice(0, 10);
+    if (this.live?.day !== day) this.live = null;
     const now = performance.now();
     this.live = {
+      day,
       value: Math.max(downloads, this.live?.value ?? 0),
       rate: this.live?.rate ?? rate,
       target: rate,
@@ -296,6 +301,17 @@ export const CacheGlobe = {
     const value = this.regionLive?.[id];
     const format = new Intl.NumberFormat(document.documentElement.lang || "en");
     this.setReel(row.querySelector('[data-part="value"]'), value == null ? "\u2014" : format.format(Math.round(value)));
+  },
+
+  sizeRegions() {
+    const format = new Intl.NumberFormat(document.documentElement.lang || "en");
+    const length = Math.max(
+      1,
+      ...Object.values(this.regionLive || {}).map((value) =>
+        value == null ? 1 : format.format(Math.round(value)).length,
+      ),
+    );
+    this.el.querySelector('[data-part="regions"]').style.setProperty("--count-length", String(length));
   },
 
   // Hit rate per cache. Missing observations keep a dash and an empty bar.

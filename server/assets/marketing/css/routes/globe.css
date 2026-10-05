@@ -511,8 +511,9 @@
 
   /* Serving regions strip: a legend cell then one cell per region, equal
      widths, hairlines between; the region name on the first line and the
-     five-minute count below. */
+     request count since midnight UTC below. */
   & > [data-part="stage"] > [data-part="regions"] {
+    --count-length: 1;
     display: grid;
     grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
@@ -561,6 +562,8 @@
     }
 
     & > [data-part="region"] {
+      container-type: inline-size;
+
       & > [data-part="name"] {
         color: var(--noora-surface-label-secondary);
         font: var(--font-label);
@@ -570,6 +573,9 @@
       & > [data-part="value"] {
         color: var(--noora-surface-label-primary);
         font: var(--font-figure);
+        /* Fit the complete daily total without abbreviating it. Reserve up
+           to one em per character, including locale-specific separators. */
+        font-size: min(calc(48 * var(--u)), calc(100cqw / var(--count-length)));
         font-variation-settings: var(--font-figure-shape);
         text-shadow: var(--figure-glow);
         white-space: nowrap;
