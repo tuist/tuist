@@ -204,6 +204,22 @@ rules:
     resources: ["rackswitches", "rackswitches/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
+# RackPDU and RackATS objects: a rack's PDUs and transfer switches, rendered
+# from the same site definition as RackSwitch and applied from git. Status is
+# the CAPI provider's alone, so only the objects themselves are writable here.
+# Deleting one leaves its credentials Secret behind, so it cannot strand a card.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-rackpower-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackpdus", "rackatses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
 # CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
 # CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env
 # equivalents) were invisible to every tier until now: `postgresql.cnpg.io` was
