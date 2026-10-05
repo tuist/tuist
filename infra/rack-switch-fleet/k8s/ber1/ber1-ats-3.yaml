@@ -1,7 +1,7 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: RackATS
 metadata:
-  name: ber1-ats-2
+  name: ber1-ats-3
   labels:
     tuist.dev/site: ber1
     tuist.dev/role: power
@@ -16,7 +16,7 @@ spec:
 apiVersion: external-secrets.io/v1alpha1
 kind: PushSecret
 metadata:
-  name: ber1-ats-2-admin
+  name: ber1-ats-3-admin
   labels:
     tuist.dev/site: ber1
     tuist.dev/role: power
@@ -29,15 +29,15 @@ spec:
       kind: ClusterSecretStore
   selector:
     secret:
-      name: ber1-ats-2-credentials
+      name: ber1-ats-3-credentials
   data:
     - match:
         secretKey: admin-username
         remoteRef:
-          remoteKey: ber1-ats-2 admin
+          remoteKey: ber1-ats-3 admin
           property: username
     - match:
         secretKey: admin-password
         remoteRef:
-          remoteKey: ber1-ats-2 admin
+          remoteKey: ber1-ats-3 admin
           property: password

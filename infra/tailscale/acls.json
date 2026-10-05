@@ -379,7 +379,7 @@
 			"ip":  ["tcp:443"],
 		},
 
-		// Staging cluster → ber1-ats-1 and ber1-ats-2's REST API, which the
+		// Staging cluster → ber1-ats-1 and ber1-ats-3's REST API, which the
 		// operator adopts each transfer switch's card through and reads its
 		// sources through every minute (the RackATS objects), through the
 		// macmini-egress ProxyGroup. Same path as the PDU above. HTTPS only.
@@ -552,7 +552,7 @@
 	// per mini per edge. Scoped to the segment, the tag can put nothing else
 	// into the tailnet's routing table. On the management LAN, only the
 	// installed power devices' addresses are approved: ber1-ats-1,
-	// ber1-ats-2 and ber1-pdu-b.
+	// ber1-ats-3 and ber1-pdu-b.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],

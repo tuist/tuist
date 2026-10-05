@@ -34,7 +34,7 @@ func rackPDU(mutate ...func(*infrav1.RackPDU)) *infrav1.RackPDU {
 	pdu := &infrav1.RackPDU{
 		ObjectMeta: metav1.ObjectMeta{Name: "ber1-pdu-b", Namespace: testNamespace, Generation: 1},
 		Spec: infrav1.RackPDUSpec{
-			Site: "ber1", Model: "evmafc20a", MAC: "00:20:85:d7:00:ca", Address: "192.168.0.16", Chain: "ber1-ats-2",
+			Site: "ber1", Model: "evmafc20a", MAC: "00:20:85:d7:00:ca", Address: "192.168.0.16", Chain: "ber1-ats-3",
 			ManagedBy: infrav1.RackCardManagedByController, OutletStateOnStartup: "on",
 		},
 	}

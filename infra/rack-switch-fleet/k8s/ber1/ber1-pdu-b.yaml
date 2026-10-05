@@ -9,7 +9,7 @@ spec:
   site: ber1
   model: evmafc20a
   address: 192.168.0.16
-  chain: ber1-ats-2
+  chain: ber1-ats-3
   managedBy: controller
   outletStateOnStartup: "on"
 ---

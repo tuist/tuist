@@ -377,8 +377,8 @@
       "name": "ber1-ats-2",
       "role": "power",
       "hardware": "eats16n",
-      "status": "installed",
-      "note": "Chain B: its C19 output feeds ber1-pdu-b and nothing else. Prefers feed B.",
+      "status": "planned",
+      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A. Bought and boxed; chain A exists only at the colo.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -388,16 +388,14 @@
           "purpose": "management"
         }
       ],
-      "mgmt_address": "192.168.0.15",
-      "preferred_source": 2,
-      "mac": "00:20:85:a6:29:4d"
+      "preferred_source": 1
     },
     {
       "name": "ber1-ats-3",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
-      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A. Bought and boxed; chain A exists only at the colo.",
+      "status": "installed",
+      "note": "Chain B: its C19 output feeds ber1-pdu-b and nothing else. Prefers feed B.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -407,7 +405,9 @@
           "purpose": "management"
         }
       ],
-      "preferred_source": 1
+      "mgmt_address": "192.168.0.15",
+      "preferred_source": 2,
+      "mac": "00:20:85:a6:29:4d"
     },
     {
       "name": "ber1-pdu-a",
@@ -424,7 +424,7 @@
           "purpose": "management"
         }
       ],
-      "ats": "ber1-ats-3"
+      "ats": "ber1-ats-2"
     },
     {
       "name": "ber1-pdu-b",
@@ -441,7 +441,7 @@
           "purpose": "management"
         }
       ],
-      "ats": "ber1-ats-2",
+      "ats": "ber1-ats-3",
       "mgmt_address": "192.168.0.16"
     },
     {

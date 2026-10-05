@@ -647,8 +647,8 @@ SNMP exporter; nothing polls the switches over SNMP.
 `k8s/<site>/<ats>.yaml`: its model, `mac` when recorded, address,
 `managedBy: controller` once `installed` (`standalone`, never contacted,
 before), and `preferredSource` from the node's `preferred_source`. Source 1 is
-feed A and source 2 feed B, so `ber1-ats-1` and `ber1-ats-3` prefer 1 and
-`ber1-ats-2` prefers 2. A standalone RackATS is `Ready=False`, reason
+feed A and source 2 feed B, so `ber1-ats-1` and `ber1-ats-2` prefer 1 and
+`ber1-ats-3` prefers 2. A standalone RackATS is `Ready=False`, reason
 `Standalone`, and has no metrics.
 
 **The lifecycle it shares with RackPDU** is `controllers/macos/rackcard.go`:

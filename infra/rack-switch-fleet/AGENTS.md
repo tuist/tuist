@@ -424,17 +424,17 @@ Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. `ber1-ats-1` is
 the critical layer and powers its loads from its own outlets: `ber1-mgmt`,
 `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs, the one-of-a-kind
 things everything else is recovered through. The other two each feed one PDU,
-and that ATS-plus-PDU pair is a chain: `ber1-ats-2` -> `ber1-pdu-b` (chain B)
-and `ber1-ats-3` -> `ber1-pdu-a` (chain A). A node or switch names the device its
+and that ATS-plus-PDU pair is a chain: `ber1-ats-2` -> `ber1-pdu-a` (chain A)
+and `ber1-ats-3` -> `ber1-pdu-b` (chain B). A node or switch names the device its
 cord goes into, `ats` or `pdu` and never both, and a PDU names its ATS, so every
 load resolves to exactly one transfer switch, the unit of failure.
 `fleet_check_power` enforces that shape and that the edges, the storage pair
 and the ToRs each resolve to two different ATSes. The cable schedule shows each
 hop as its own row.
 
-The prep bay runs `ber1-ats-1`, `ber1-ats-2` and `ber1-pdu-b`, which is the
+The prep bay runs `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
 critical layer plus one chain: enough to fail a chain and watch the rest of the
-rack report it. `ber1-ats-3` and `ber1-pdu-a` are `planned` until the colo.
+rack report it. `ber1-ats-2` and `ber1-pdu-a` are `planned` until the colo.
 
 Keep more loads off the critical ATS over time rather than adding to it: gear
 bought with two power supplies goes one cord to each chain's PDU and needs no
@@ -502,7 +502,7 @@ as a `RackATS` into `k8s/<site>/<ats>.yaml` by `fleet_render_ats` (both go
 through `fleet_render_power`): its site, model, `mac`, address, `managedBy`
 (controller once `installed`) and `preferredSource`, with the same `<ats>-admin`
 PushSecret for one the controller adopts. Today that is `ber1-ats-1` and
-`ber1-ats-2`; `ber1-ats-3` has no address until the colo. Neither has a `mac`
+`ber1-ats-3`; `ber1-ats-2` has no address until the colo. Neither has a `mac`
 recorded yet, so neither has a DHCP reservation, and both RackATSes report
 `AddressReserved=False`; the reservation rule is the PDUs', since both are
 installed power nodes behind the edge.
@@ -510,8 +510,8 @@ installed power nodes behind the edge.
 Every transfer switch carries `preferred_source`, 1 or 2: the source the
 switch powers the load from whenever it is good. Source 1 is feed A and
 source 2 feed B, so a transfer switch prefers the feed its chain is named for:
-`ber1-ats-1` (the critical layer) and `ber1-ats-3` (chain A) prefer 1,
-`ber1-ats-2` (chain B) prefers 2, which keeps the two chains on different feeds
+`ber1-ats-1` (the critical layer) and `ber1-ats-2` (chain A) prefer 1,
+`ber1-ats-3` (chain B) prefers 2, which keeps the two chains on different feeds
 while both are good. `fleet_check_power` refuses a transfer switch without one
 and any other node with one.
 
@@ -935,7 +935,7 @@ dnsmasq's own time is at the start of each line. On the node itself:
 The operator switches the minis' outlets through the PDUs' REST API, from a
 cluster Pod, through the egress ProxyGroup, so each installed power node with
 a `mgmt_address` whose management link is on a switch behind the edge (today
-`ber1-ats-1`, `ber1-ats-2` and `ber1-pdu-b`, on `ber1-mgmt`) is a /32 on the
+`ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, on `ber1-mgmt`) is a /32 on the
 tailnet too. Three things make that path work, all rendered from the site:
 
 - **Only the master advertises them.** `ber1-mgmt` is reached only through the
@@ -957,7 +957,7 @@ tailnet too. Three things make that path work, all rendered from the site:
   clamped like the switches'.
 - **The tailnet approves and grants only what the operator uses.**
   `infra/tailscale/acls.json` auto-approves the installed power devices'
-  /32s, `192.168.0.14` (`ber1-ats-1`), `192.168.0.15` (`ber1-ats-2`) and
+  /32s, `192.168.0.14` (`ber1-ats-1`), `192.168.0.15` (`ber1-ats-3`) and
   `192.168.0.16` (`ber1-pdu-b`), for `tag:tuist-rack-edge`, and grants the
   staging cluster `tcp:443` to each, which the RackPDU and RackATS
   controllers dial.
