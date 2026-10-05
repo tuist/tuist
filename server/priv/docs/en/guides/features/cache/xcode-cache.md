@@ -180,7 +180,7 @@ Compilation cache settings aren't part of <.localized_link href="/guides/feature
 > [!NOTE]
 > **Prefix mapping settings are hashed**
 >
-> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 
