@@ -2,32 +2,50 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, and Gradle cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, and Bazel cache."
 }
 ---
-# Cache {#cache}
+# 快取 {#cache}
 
-Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
+建置產物無法在不同環境間共享，導致你必須反覆重新建置相同的程式碼。Tuist 的快取功能可遠端共享產物，讓你的團隊與 CI 無需重複建置已建置過的內容，從而加速建置流程。
 
-Pick the caching solution that matches your build system:
+了解符合你的專案或部署模型的快取工作流程：
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Module cache"
-        details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
-        linkText="Set up module cache"
-        link="/guides/features/cache/module-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Xcode cache"
-        details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
-        linkText="Set up Xcode cache"
-        link="/guides/features/cache/xcode-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
-        title="Gradle cache"
-        details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
-        linkText="Set up Gradle cache"
-        link="/guides/features/cache/gradle-cache"/>
-</HomeCards>
+\<.home\_cards\>
+\<.home\_card
+title="模組快取"
+details="將個別模組以二進位檔形式快取，適用於使用 Tuist 產生之專案的專案。需要 Tuist 專案產生功能。"
+link="/guides/features/cache/module-cache"
+/\>
+\<.home\_card
+title="Xcode 快取"
+details="在不同環境間共享 Xcode 編譯產物。適用於任何 Xcode 專案，無需專案產生功能。"
+link="/guides/features/cache/xcode-cache"
+/\>
+\<.home\_card
+title="Gradle 快取"
+details="遠端共享 Gradle 建置快取產物。包含建置洞察功能，以提升效能可見度。"
+link="/guides/features/cache/gradle-cache"
+/\>
+\<.home\_card
+title="Bazel 快取"
+details="將 Bazel 指向 Tuist 的遠端執行 API 快取，以便在團隊與 CI 間共享動作輸出結果。"
+link="/guides/features/cache/bazel-cache"
+/\>
+\<.home\_card
+title="自行託管"
+details="在靠近 CI、辦公室或區域運算資源的位置執行快取節點，並將其連接至託管或自行託管的 Tuist。"
+link="/guides/features/cache/self-hosting"
+/\>
+\</.home\_cards\>
+
+> \[\!TIP\]
+> **在 Tuist Runners 上速度最快**
+> 
+> 在 \<.localized\_link href="/guides/features/runners"\>Tuist Runners\</.localized\_link\> 上，快取位於執行器的私有網路中，並與開發人員機器使用的相同快取共享，因此 CI 工作無需額外預熱即可獲得暖快取命中，無需單獨預熱 CI 快取。
+
+## 限制僅限 CI 上傳 {#restrict-uploads-to-ci}
+
+帳戶管理員可以將開發人員設定為唯讀權限，同時允許 CI 上傳快取產物。在 Tuist 中開啟帳戶的 **快取** 設定，並將 **快取上傳存取權** 設定為 **僅限 CI 與帳戶令牌**。設定完成後，透過登入工作階段驗證的成員仍可從快取下載，但上傳則需要 CI OIDC 驗證或具備快取寫入範圍（例如 `project:cache:write` 或 `ci`）的帳戶令牌。
+
+當 CI 是受信任的快取生產者，而本機機器僅應消費快取時，請使用此設定。此設定僅影響快取上傳授權。
