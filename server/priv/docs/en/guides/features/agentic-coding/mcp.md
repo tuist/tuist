@@ -400,7 +400,7 @@ Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can ca
 |-------|-----------------|----------------|
 | `test_case.marked_flaky` | A test case changes from not flaky to flaky. | `account_handle`, `project_handle` |
 
-To subscribe, the client calls `events/subscribe` with the event name, its account and project handles in `arguments`, and a `webhook` delivery containing an HTTPS callback URL and a `whsec_` signing secret. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return the same challenge in a JSON object. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's project access or credential is removed.
+To subscribe, the client calls `events/subscribe` with the event name, its account and project handles in `arguments`, and a `webhook` delivery containing an `https://` callback URL and a `whsec_` signing secret. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return an object containing the same `challenge` value. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's project access or credential is removed.
 
 When the event occurs, Tuist sends the test case identifier and dashboard URL to the callback. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. The payload omits test names and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
 
