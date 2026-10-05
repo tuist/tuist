@@ -1,9 +1,13 @@
 defmodule Tuist.MCP.Events.SubscriptionAuthorization do
   @moduledoc false
 
+  import Ecto.Query
+
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AgentAuthCredential
+  alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.MCP.Authorization
@@ -73,6 +77,26 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
   defp credential(_conn, _user, %AuthenticatedAccount{token_id: token_id}) when not is_nil(token_id),
     do: {:ok, %{account_token_id: token_id}}
 
+  defp credential(conn, %User{id: user_id}, %AuthenticatedAccount{
+         issued_by: %User{id: user_id},
+         agent_registration_id: registration_id
+       })
+       when is_binary(registration_id) do
+    with ["Bearer " <> token] <- Plug.Conn.get_req_header(conn, "authorization"),
+         {:ok, %{"agent_registration_id" => ^registration_id, "user_id" => ^user_id, "jti" => jti, "scopes" => scopes}} <-
+           Tuist.Guardian.decode_and_verify(token),
+         true <- "mcp" in scopes,
+         %AgentRegistration{status: :claimed, claimed_by_user_id: ^user_id} <-
+           Repo.get(AgentRegistration, registration_id),
+         %AgentAuthCredential{revoked_at: nil, expires_at: expires_at} <-
+           Repo.get_by(AgentAuthCredential, agent_registration_id: registration_id, jti: jti),
+         true <- DateTime.after?(expires_at, DateTime.utc_now()) do
+      {:ok, %{agent_registration_id: registration_id}}
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
   defp credential(conn, %User{id: user_id}, %AuthenticatedAccount{issued_by: %User{id: user_id}}) do
     with ["Bearer " <> token] <- Plug.Conn.get_req_header(conn, "authorization"),
          {:ok, %{"client_id" => client_id, "user_id" => ^user_id}} <- Tuist.Guardian.decode_and_verify(token),
@@ -134,6 +158,35 @@ defmodule Tuist.MCP.Events.SubscriptionAuthorization do
           :error ->
             false
         end
+
+      _ ->
+        false
+    end
+  end
+
+  defp credential_active?(%Subscription{agent_registration_id: registration_id}, user, resource, category)
+       when not is_nil(registration_id) do
+    now = DateTime.utc_now()
+
+    case Repo.get(AgentRegistration, registration_id) do
+      %AgentRegistration{status: :claimed, claimed_by_user_id: user_id} when user_id == user.id ->
+        active_credential? =
+          Repo.exists?(
+            from credential in AgentAuthCredential,
+              where: credential.agent_registration_id == ^registration_id,
+              where: is_nil(credential.revoked_at),
+              where: credential.expires_at > ^now
+          )
+
+        subject = %AuthenticatedAccount{
+          account: Repo.preload(user, :account).account,
+          scopes: ["mcp"],
+          all_projects: true,
+          issued_by: user,
+          agent_registration_id: registration_id
+        }
+
+        active_credential? and Authorization.authorize(subject, :read, resource, category)
 
       _ ->
         false

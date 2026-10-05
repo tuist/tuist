@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Events.Subscription do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
   alias Tuist.Vault.Binary
@@ -15,6 +16,7 @@ defmodule Tuist.MCP.Events.Subscription do
   schema "mcp_event_subscriptions" do
     belongs_to :user, User
     belongs_to :account_token, AccountToken, type: Ecto.UUID
+    belongs_to :agent_registration, AgentRegistration, type: Ecto.UUID
     field :oauth_client_id, Ecto.UUID
     belongs_to :oauth_grant, Boruta.Ecto.Token, type: Ecto.UUID
     belongs_to :account, Account
@@ -35,6 +37,7 @@ defmodule Tuist.MCP.Events.Subscription do
       :id,
       :user_id,
       :account_token_id,
+      :agent_registration_id,
       :oauth_client_id,
       :oauth_grant_id,
       :account_id,

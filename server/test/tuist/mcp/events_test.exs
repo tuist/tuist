@@ -5,6 +5,7 @@ defmodule Tuist.MCP.EventsTest do
   import Ecto.Query
 
   alias Boruta.Ecto.Token
+  alias Tuist.Accounts.AgentAuthCredential
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Bazel
@@ -22,6 +23,7 @@ defmodule Tuist.MCP.EventsTest do
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.AuthenticationPlug
 
   setup :set_mimic_from_context
 
@@ -105,6 +107,101 @@ defmodule Tuist.MCP.EventsTest do
     assert {:ok, %{}} = Events.unsubscribe(conn, params)
     assert Repo.get(Subscription, id) == nil
     assert {:ok, %{}} = Events.unsubscribe(conn, params)
+  end
+
+  test "a claimed auth.md agent can subscribe and keeps delivery across token rotation" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    project = ProjectsFixtures.project_fixture(account: user.account)
+
+    registration =
+      Repo.insert!(%AgentRegistration{
+        registration_type: :anonymous,
+        status: :claimed,
+        requested_credential_type: :access_token,
+        claim_token_hash: :crypto.strong_rand_bytes(32),
+        claim_token_expires_at: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second),
+        claimed_at: DateTime.truncate(DateTime.utc_now(), :second),
+        claimed_by_user_id: user.id
+      })
+
+    issue_token = fn ->
+      {:ok, bearer, claims} =
+        Tuist.Guardian.encode_and_sign(
+          user.account,
+          %{
+            "type" => "account",
+            "user_id" => user.id,
+            "agent_registration_id" => registration.id,
+            "scopes" => ["mcp"],
+            "all_projects" => true
+          },
+          token_type: "access_token",
+          ttl: {1, :hour}
+        )
+
+      credential =
+        %{agent_registration_id: registration.id, jti: claims["jti"], expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+        |> AgentAuthCredential.create_changeset()
+        |> Repo.insert!()
+
+      {bearer, credential}
+    end
+
+    authenticate = fn bearer ->
+      :post
+      |> Phoenix.ConnTest.build_conn("/mcp")
+      |> Plug.Conn.put_req_header("authorization", "Bearer #{bearer}")
+      |> AuthenticationPlug.call(AuthenticationPlug.init(:load_authenticated_subject))
+    end
+
+    {bearer, first_credential} = issue_token.()
+    conn = authenticate.(bearer)
+    assert conn.assigns.current_user.id == user.id
+
+    params = %{
+      "name" => "test_run.failed",
+      "arguments" => %{"account_handle" => user.account.name, "project_handle" => project.name},
+      "delivery" => %{
+        "mode" => "webhook",
+        "url" => "https://example.com/events",
+        "secret" => "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32))
+      }
+    }
+
+    expect(Callback, :verify, 2, fn _url, _secret, _id -> :ok end)
+    assert {:ok, %{"id" => id}} = Events.subscribe(conn, params)
+    assert %Subscription{agent_registration_id: registration_id} = Repo.get!(Subscription, id)
+    assert registration_id == registration.id
+
+    {rotated_bearer, rotated_credential} = issue_token.()
+
+    first_credential
+    |> AgentAuthCredential.revoke_changeset(DateTime.truncate(DateTime.utc_now(), :second))
+    |> Repo.update!()
+
+    rotated_conn = authenticate.(rotated_bearer)
+    assert {:ok, %{"id" => ^id}} = Events.subscribe(rotated_conn, params)
+
+    assert :ok =
+             Publisher.publish(
+               "test_run.failed",
+               %{"project_id" => project.id, "test_run_id" => Ecto.UUID.generate()},
+               id
+             )
+
+    fanout = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
+    assert :ok = FanoutWorker.perform(fanout)
+    delivery = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(DeliveryWorker))
+
+    expect(Callback, :post, fn _url, _secret, _id, _event_id, _body -> {:ok, %Req.Response{status: 200}} end)
+    assert :ok = DeliveryWorker.perform(delivery)
+
+    rotated_credential
+    |> AgentAuthCredential.revoke_changeset(DateTime.truncate(DateTime.utc_now(), :second))
+    |> Repo.update!()
+
+    assert :ok = DeliveryWorker.perform(delivery)
+    assert Repo.get(Subscription, id) == nil
   end
 
   test "an agent can subscribe to each failure event with the required scope" do

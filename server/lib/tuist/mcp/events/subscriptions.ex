@@ -119,7 +119,7 @@ defmodule Tuist.MCP.Events.Subscriptions do
   end
 
   defp subscription_id(user_id, credential, url, event_name, target) do
-    credential_id = credential[:oauth_grant_id] || credential[:account_token_id]
+    credential_id = credential[:oauth_grant_id] || credential[:account_token_id] || credential[:agent_registration_id]
     target_id = target[:project_id] || "account:#{target[:account_id]}"
     digest = :crypto.hash(:sha256, "#{user_id}:#{credential_id}:#{url}:#{event_name}:#{target_id}")
     "sub_" <> Base.url_encode64(digest, padding: false)
