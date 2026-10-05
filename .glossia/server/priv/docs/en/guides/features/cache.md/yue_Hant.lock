@@ -1,0 +1,122 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "460259354cb4b43a32205d9a0df9321f7931ecdb70978caa7da6d3f109328792",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "39705a81c4286f3845729c11c4db2c40ae97feaa1e3b6144c5c60b0a8045572c",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/features/cache.md",
+          "metadata": {
+            "content_hash": "c433dc003bb55c53d84fb45595157de91adda99bda13e7f2af7c407be32c62ad"
+          }
+        },
+        {
+          "children": [],
+          "hash": "615a01284f564143398adb36852712ea5be8937f06793dccf0b6cad1c5972997",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "preserve",
+            "language": "Cantonese (Traditional Chinese characters)",
+            "locale": "yue_Hant",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "cc723597b53f016e87decb817beb673d409f5032e7dae14a3006e62faa621131",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "2ee7e12ee0fd0b8aa5b100398d3a212b8095222ba456fb45a4b970e59dd5c84e"
+              }
+            },
+            {
+              "children": [],
+              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "6cb7336705b4234a660ef4c004b9b36af778fa131b23d3d79d952d72fb961147",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "460259354cb4b43a32205d9a0df9321f7931ecdb70978caa7da6d3f109328792",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/features/cache.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "50f3ff4805f36dfcbb1c285f7b39e84c6d57f2f09a2e55e1231ce6352ca93ca3",
+  "output_path": "server/priv/docs/yue_Hant/guides/features/cache.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "4f681bb8f54dcdb9803e4b7ed50364c2d90cbf93",
+  "source_path": "server/priv/docs/en/guides/features/cache.md",
+  "translated_at": "2026-10-05T17:29:51.013038Z",
+  "translation_session_id": "01a10d1c-7566-7345-b22e-0deebb30c126"
+}
