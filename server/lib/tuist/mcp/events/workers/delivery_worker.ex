@@ -28,7 +28,7 @@ defmodule Tuist.MCP.Events.Workers.DeliveryWorker do
         if authorized?(subscription) do
           deliver(subscription, event_id, body)
         else
-          Repo.delete(subscription)
+          {:ok, _subscription} = Repo.delete(subscription)
           :ok
         end
     end

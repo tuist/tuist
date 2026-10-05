@@ -122,24 +122,16 @@ defmodule Tuist.MCP.Events do
          %{"account_handle" => account_handle, "project_handle" => project_handle} = args
        )
        when is_binary(account_handle) and is_binary(project_handle) and map_size(args) == 2 do
-    subject = assigns[:current_subject]
-    user = assigns[:current_user] || (match?(%AuthenticatedAccount{}, subject) && subject.issued_by)
-    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
-
-    case {user, subject, project} do
-      {%User{} = user, %AuthenticatedAccount{} = subject, %Projects.Project{} = project} ->
-        if Authorization.authorize(user, :read, project, :test) and
-             Authorization.authorize(subject, :read, project, :test) do
-          case credential(conn, user, subject) do
-            {:ok, credential} -> {:ok, user, credential, project}
-            error -> error
-          end
-        else
-          {:error, :unauthorized}
-        end
-
-      _ ->
-        {:error, :unauthorized}
+    with %AuthenticatedAccount{} = subject <- assigns[:current_subject],
+         %User{} = user <- assigns[:current_user] || subject.issued_by,
+         %Projects.Project{} = project <-
+           Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
+         true <- Authorization.authorize(user, :read, project, :test),
+         true <- Authorization.authorize(subject, :read, project, :test),
+         {:ok, credential} <- credential(conn, user, subject) do
+      {:ok, user, credential, project}
+    else
+      _ -> {:error, :unauthorized}
     end
   end
 

@@ -79,6 +79,14 @@ defmodule Tuist.MCP.Transport.Stateless do
     header_name = get_req_header(conn, "mcp-name")
     expected_name = request_name(method, params)
 
+    with :ok <- validate_version_headers(header_version, body_version, header_method) do
+      validate_method_headers(header_method, method, header_name, expected_name)
+    end
+  end
+
+  defp validate_request(_conn, _request), do: {:error, -32_600, "Invalid Request"}
+
+  defp validate_version_headers(header_version, body_version, header_method) do
     cond do
       header_version == [] or header_method == [] ->
         {:error, -32_020, "Required MCP request header is missing"}
@@ -89,18 +97,18 @@ defmodule Tuist.MCP.Transport.Stateless do
       body_version != @protocol_version ->
         {:error, -32_022, "Unsupported protocol version"}
 
-      header_method != [method] ->
-        {:error, -32_020, "Mcp-Method does not match the request"}
-
-      expected_name && header_name != [expected_name] ->
-        {:error, -32_020, "Mcp-Name does not match the request"}
-
       true ->
         :ok
     end
   end
 
-  defp validate_request(_conn, _request), do: {:error, -32_600, "Invalid Request"}
+  defp validate_method_headers(header_method, method, header_name, expected_name) do
+    cond do
+      header_method != [method] -> {:error, -32_020, "Mcp-Method does not match the request"}
+      expected_name && header_name != [expected_name] -> {:error, -32_020, "Mcp-Name does not match the request"}
+      true -> :ok
+    end
+  end
 
   defp response_status(%{"error" => %{"code" => code}}) when code in [-32_022, -32_020], do: 400
   defp response_status(%{"error" => %{"code" => -32_601}}), do: 404

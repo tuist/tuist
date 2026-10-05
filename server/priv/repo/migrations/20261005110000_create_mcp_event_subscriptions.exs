@@ -21,6 +21,7 @@ defmodule Tuist.Repo.Migrations.CreateMcpEventSubscriptions do
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:mcp_event_subscriptions, [:project_id, :event_name])
 
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:mcp_event_subscriptions, :one_credential,
              check: "(account_token_id IS NOT NULL) <> (oauth_client_id IS NOT NULL)"
            )
