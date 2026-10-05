@@ -66,7 +66,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, "#coverage-detail [data-part='status']")
   end
 
-  test "says a figure is incomplete with a badge beside the status, not a banner", %{
+  test "says a figure is incomplete in the status once its pipeline finished, not in a banner", %{
     conn: conn,
     base: base,
     organization: organization,
@@ -77,19 +77,55 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       partial: true
     })
 
+    # More runs may still land, so it is in progress first.
     {:ok, lv, _html} = live(conn, base <> "/commits/a")
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "In Progress"
+
+    for sha <- ~w(a b), do: Commits.signal_complete(project, sha)
 
     # A selective run whose skipped tests nothing listed: their coverage is unknown.
-    assert has_element?(lv, "#coverage-detail [data-part='badges'] [data-part='incomplete']", "Incomplete")
+    {:ok, lv, _html} = live(conn, base <> "/commits/a")
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Incomplete"
     refute has_element?(lv, ".noora-alert")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
-    refute has_element?(lv, "#coverage-detail [data-part='incomplete']")
+    refute has_element?(lv, "#coverage-detail [data-part='status']")
 
-    # Lists say it where the change would be.
+    # Lists say it in the status, and have no change for it.
     {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
-    assert has_element?(lv, "#coverage-commit-change-a", "Incomplete")
-    refute has_element?(lv, "#coverage-commit-change-b")
+    assert has_element?(lv, "#coverage-commit-status-a", "Incomplete")
+    assert has_element?(lv, "#coverage-commit-status-b", "Complete")
+
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=incomplete")
+    assert has_element?(lv, "#coverage-commit-status-a")
+    refute has_element?(lv, "#coverage-commit-status-b")
+  end
+
+  test "lists a run from a dirty checkout as not counted, and says why the commit is incomplete", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    dirty =
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/C.swift", [1, 1])], %{
+        git_commit_sha: "b",
+        scheme: "AppTests",
+        git_dirty: true,
+        recompute: false
+      })
+
+    Commits.recompute(project, "b")
+    Commits.signal_complete(project, "b")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b")
+    status = lv |> element("#coverage-detail [data-part='badges']") |> render()
+    assert status =~ "Incomplete"
+    assert status =~ "uncommitted changes"
+    assert has_element?(lv, "#widget-coverage", "66.7%")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
+    assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Not counted")
   end
 
   test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{

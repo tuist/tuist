@@ -241,34 +241,30 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   attr :id, :string, required: true
-  attr :commit, :map, required: true, doc: "A commit row with its `change`."
+  attr :partial, :boolean, default: nil
+  attr :dirty, :boolean, default: false
 
   @doc """
-  A commit's change in a list, or, when its figure is incomplete
-  (`Tuist.Tests.Coverage.Commits.incomplete?/1`) and so has no change, an
-  Incomplete badge saying why.
+  Whether a run measured every test (Full) or selective testing left some out
+  (Partial), or, for a run from a dirty checkout, that it does not count;
+  nil for no run.
   """
-  def commit_change_cell(assigns) do
-    ~H"""
-    <.tooltip_badge_cell
-      :if={Commits.incomplete?(@commit)}
-      id={@id}
-      label={dgettext("dashboard_tests", "Incomplete")}
-      color="neutral"
-      description={incomplete_title(@commit)}
-    />
-    <.change_cell :if={not Commits.incomplete?(@commit)} delta={@commit.change} />
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :partial, :boolean, default: nil
-
-  @doc "Whether a run measured every test (Full) or selective testing left some out (Partial); nil for no run."
   def run_kind_cell(assigns) do
     ~H"""
     <.tooltip_badge_cell
-      :if={not is_nil(@partial)}
+      :if={@dirty}
+      id={@id}
+      label={dgettext("dashboard_tests", "Not counted")}
+      color="warning"
+      description={
+        dgettext(
+          "dashboard_tests",
+          "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage doesn't count."
+        )
+      }
+    />
+    <.tooltip_badge_cell
+      :if={not @dirty and not is_nil(@partial)}
       id={@id}
       label={
         if @partial,
@@ -395,8 +391,18 @@ defmodule TuistWeb.Coverage.Components do
   What the page says about a commit whose figure is incomplete
   (`Tuist.Tests.Coverage.Commits.incomplete?/1`).
   """
-  def incomplete_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
-      when skipped > carried do
+  def incomplete_title(commit) do
+    if :dirty_run_excluded in Commits.gap_reasons(commit),
+      do:
+        dgettext(
+          "dashboard_tests",
+          "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
+        ),
+      else: skipped_title(commit)
+  end
+
+  defp skipped_title(%{reported_kind: "partial", skipped_tests_count: skipped, carried_tests_count: carried})
+       when skipped > carried do
     dngettext(
       "dashboard_tests",
       "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher.",
@@ -406,7 +412,7 @@ defmodule TuistWeb.Coverage.Components do
     )
   end
 
-  def incomplete_title(_commit),
+  defp skipped_title(_commit),
     do:
       dgettext(
         "dashboard_tests",
@@ -414,21 +420,48 @@ defmodule TuistWeb.Coverage.Components do
       )
 
   @doc """
-  A commit's status in a list: `Not measured` when no run measured it (a
-  branch lists every commit on it), otherwise `Complete` or `In Progress` as its
-  pipeline signalled it finished or not.
+  A commit's status (`Tuist.Tests.Coverage.Commits.status/1`), in a list or
+  on its own page: `Not measured`, `In Progress`, `Incomplete` or `Complete`.
   """
-  def commit_status_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
-  def commit_status_label(commit), do: ref_status_label(commit)
+  def commit_status_label(commit) do
+    case Commits.status(commit) do
+      :not_measured -> dgettext("dashboard_tests", "Not measured")
+      :in_progress -> dgettext("dashboard_tests", "In Progress")
+      :incomplete -> dgettext("dashboard_tests", "Incomplete")
+      :complete -> dgettext("dashboard_tests", "Complete")
+    end
+  end
 
-  @doc "What a commit's status in a list means, for the status's tooltip."
-  def commit_status_title(%{measured: false}),
-    do: dgettext("dashboard_tests", "No run of this commit gathered coverage, so it has no figure of its own.")
+  @doc "What a commit's status means, for the status's tooltip."
+  def commit_status_title(commit) do
+    case Commits.status(commit) do
+      :not_measured ->
+        dgettext("dashboard_tests", "No run of this commit gathered coverage, so it has no figure of its own.")
 
-  def commit_status_title(commit), do: head_status_title(commit)
+      :in_progress ->
+        dgettext(
+          "dashboard_tests",
+          "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
+        )
 
-  def commit_status_color(%{measured: false}), do: "neutral"
-  def commit_status_color(commit), do: ref_status_color(commit)
+      :incomplete ->
+        incomplete_title(commit)
+
+      :complete ->
+        dgettext(
+          "dashboard_tests",
+          "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
+        )
+    end
+  end
+
+  def commit_status_color(commit) do
+    case Commits.status(commit) do
+      :in_progress -> "information"
+      :complete -> "success"
+      _status -> "neutral"
+    end
+  end
 
   @doc """
   When a point of a coverage series happened, for the chart's axis: the start
@@ -479,32 +512,6 @@ defmodule TuistWeb.Coverage.Components do
       dir -> dir
     end
   end
-
-  @doc """
-  A branch's state. Chaining is about a trend, which a
-  single head commit has none of, so a ref is either complete or still
-  waiting for its pipeline to say so.
-  """
-  def ref_status_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
-  def ref_status_label(_ref), do: dgettext("dashboard_tests", "In Progress")
-
-  @doc "What the status of the commit a page describes means, for its title."
-  def head_status_title(%{complete: true}),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
-      )
-
-  def head_status_title(_commit),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
-      )
-
-  def ref_status_color(%{complete: true}), do: "success"
-  def ref_status_color(_ref), do: "information"
 
   @brief_ranges 2
 

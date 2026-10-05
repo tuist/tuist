@@ -7,8 +7,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   code it measured, so the commit's figure merges them the way a run merges
   its shards: per path, a line is covered when any run covered it, and a file
   counts once however many schemes compiled it. Runs from a dirty checkout
-  measured code that is not the commit's and never contribute. Partial runs
-  do: what they observed is real; they only keep the scheme from counting as
+  measured code that is not the commit's and never contribute; a scheme only
+  they measured leaves the figure a lower bound. Partial runs do contribute:
+  what they observed is real; they only keep the scheme from counting as
   fully measured.
 
   Whether the commit's coverage pipeline has finished cannot be read off the
@@ -31,6 +32,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.ExcludedPaths
+  alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
@@ -61,26 +63,33 @@ defmodule Tuist.Tests.Coverage.Commits do
   def fully_carried?(_row), do: false
 
   @doc """
-  Whether the commit's figure is incomplete: some scheme ran selectively and
-  the coverage of some of the tests it skipped could not be determined
-  (`reported_kind` `partial`, or a selective run whose skipped tests nothing
-  could list), so the actual coverage may be higher. A figure whose skipped
-  tests were all carried forward is complete, as is one nothing skipped in.
+  Whether the commit's figure is incomplete, a lower bound (`reported_kind`
+  `partial`, `gap_reasons` saying why): the coverage of some skipped tests
+  could not be determined, a selective run's skipped tests could not be
+  listed, or a scheme's coverage only came from runs on a dirty checkout. The
+  fold decides it, so the actual coverage may be higher. A figure whose
+  skipped tests were all carried forward is complete, as is one nothing
+  skipped in.
   """
-  def incomplete?(%{reported_kind: "partial"}), do: true
-  def incomplete?(%{reported_kind: kind}) when kind in ~w(measured reported), do: false
-  def incomplete?(%{partial_schemes: schemes}), do: schemes not in [nil, []]
+  def incomplete?(%{reported_kind: kind}), do: kind == "partial"
   def incomplete?(_row), do: false
 
+  @doc "Why the commit's figure is a lower bound (`Tuist.Tests.Coverage.GapReasons`), none when it is whole."
+  def gap_reasons(row), do: GapReasons.decode(Map.get(row, :gap_reasons) || 0)
+
   @doc "Narrows a query over `CoverageCommit` to the commits whose figure is complete (`incomplete?/1`)."
-  def complete_figures(query) do
-    where(
-      query,
-      [c],
-      c.reported_kind in ["measured", "reported"] or
-        (c.reported_kind != "partial" and fragment("cardinality(?) = 0", c.partial_schemes))
-    )
-  end
+  def complete_figures(query), do: where(query, [c], c.reported_kind != "partial")
+
+  @doc """
+  A commit's status on a branch: `:not_measured` when no run gave it a figure
+  (`measured: false` in a branch's commit list), `:in_progress` until its
+  pipeline signals completion, then `:incomplete` when its figure is a lower
+  bound (`incomplete?/1`) and `:complete` otherwise. Only complete commits join
+  the trend and have a change.
+  """
+  def status(%{measured: false}), do: :not_measured
+  def status(%{complete: true} = row), do: if(incomplete?(row), do: :incomplete, else: :complete)
+  def status(_row), do: :in_progress
 
   @doc "Whether the commit already has a published coverage row."
   def measured?(_project_id, sha) when sha in [nil, ""], do: false
@@ -228,13 +237,55 @@ defmodule Tuist.Tests.Coverage.Commits do
       # none.
       runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
         clean = clean_runs(project.id, sha)
-        {carried_row(project, sha, previous, reported, clean, opts), clean}
+        {project |> carried_row(sha, previous, reported, clean, opts) |> lower_bound(project.id, sha), clean}
 
       runs == [] ->
         {nil, []}
 
       true ->
-        {measured_row(project, sha, runs, previous, reported, opts), runs}
+        {project |> measured_row(sha, runs, previous, reported, opts) |> lower_bound(project.id, sha), runs}
+    end
+  end
+
+  # Besides the gaps `Reported` finds, the figure is a lower bound when what a
+  # selective run skipped could not be listed (`observed` with a partial
+  # scheme), or when a scheme's coverage only came from runs on a dirty
+  # checkout: the pipeline set out to measure it, and no clean run of it did,
+  # not even one skipped whole. Settled on the built row, so the unmeasured
+  # files are still read the way the coverage was reached.
+  defp lower_bound(row, project_id, sha) do
+    row =
+      if row.reported_kind == "observed" and row.partial_schemes != [],
+        do: %{row | reported_kind: "partial"},
+        else: row
+
+    if dirty_only_scheme?(project_id, sha) do
+      reasons = GapReasons.decode(row.gap_reasons) ++ [:dirty_run_excluded]
+      %{row | reported_kind: "partial", gap_reasons: GapReasons.encode(reasons)}
+    else
+      row
+    end
+  end
+
+  defp dirty_only_scheme?(project_id, sha) do
+    covered = from(c in subquery(Coverage.run_totals_query(project_id, shas: [sha])), select: c.test_run_id)
+
+    dirty =
+      ClickHouseRepo.all(
+        from(t in Test,
+          where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.id in subquery(covered),
+          group_by: t.id,
+          having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true,
+          select: fragment("any(?)", t.scheme)
+        ),
+        settings: [select_sequential_consistency: 1]
+      )
+
+    if dirty == [] do
+      false
+    else
+      clean = project_id |> clean_runs(sha) |> MapSet.new(& &1.scheme)
+      Enum.any?(dirty, &(not MapSet.member?(clean, &1)))
     end
   end
 
@@ -329,6 +380,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         order_by: [asc: min(t.ran_at)],
         select: %{
           test_run_id: t.id,
+          scheme: fragment("any(?)", t.scheme),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
           git_branch: fragment("any(?)", t.git_branch),
           is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
@@ -742,7 +794,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   One page of the runs with coverage of a subject, newest first: a commit's
   (`{:commit, sha}`), or those that named a branch (`{:branch, name}`), run
   between `since` and `until`.
-  Runs from a dirty checkout are left out, as `runs/2` does.
+  Runs from a dirty checkout are left out, as `runs/2` does, unless
+  `dirty: true` lists them too, with `git_dirty` set, to show why a scheme
+  is missing from a figure.
 
   `search` keeps the schemes containing it, ignoring case; `scheme` as
   `{:== | :!=, name}` and `partial` as a boolean narrow them further. Pages
@@ -802,9 +856,9 @@ defmodule Tuist.Tests.Coverage.Commits do
     from(t in Test,
       where: t.project_id == ^project_id and t.id in subquery(covered_runs_query(project_id, scope, opts)),
       group_by: t.id,
-      having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false,
-      select: %{id: t.id, ran_at: min(t.ran_at)}
+      select: %{id: t.id, ran_at: min(t.ran_at), git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at)}
     )
+    |> run_dirty(Keyword.get(opts, :dirty, false))
     |> run_scope(scope)
     |> run_period(opts)
     |> run_scheme(Keyword.get(opts, :search, ""), Keyword.get(opts, :scheme))
@@ -836,6 +890,9 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp run_scope(query, {:commit, sha}), do: where(query, [t], t.git_commit_sha == ^sha)
   defp run_scope(query, {:branch, branch}), do: where(query, [t], t.git_branch == ^branch)
+
+  defp run_dirty(query, true), do: query
+  defp run_dirty(query, false), do: having(query, [t], fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == false)
 
   defp run_period(query, opts) do
     query = if since = Keyword.get(opts, :since), do: where(query, [t], t.ran_at >= ^since), else: query
@@ -898,7 +955,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     Enum.flat_map(rows, fn row ->
       case Map.get(totals, row.id) do
         nil -> []
-        total -> [Map.put(total, :ran_at, row.ran_at)]
+        total -> [Map.merge(total, %{ran_at: row.ran_at, git_dirty: row.git_dirty})]
       end
     end)
   end

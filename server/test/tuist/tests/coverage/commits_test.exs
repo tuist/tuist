@@ -97,9 +97,45 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     second = Commits.summary(project.id, "abc123")
     assert second.version > first.version
     assert second.inserted_at == first.inserted_at
+    # A clean run measured the dirty run's scheme, so the figure is whole.
+    refute Commits.incomplete?(second)
 
     assert Commits.recompute(project, "nothing-measured") == nil
     assert Commits.summary(project.id, "nothing-measured") == nil
+  end
+
+  test "a scheme only runs from a dirty checkout measured leaves the figure a lower bound, and its runs are listed on request",
+       %{project: project, account: account} do
+    # A dirty run schedules no fold, so it lands unseen until a clean run folds the commit.
+    dirty =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+        scheme: "AppTests",
+        git_dirty: true,
+        recompute: false
+      })
+
+    clean = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, summary.covered_lines, summary.executable_lines} == {["App"], 1, 2}
+    assert {summary.reported_kind, Commits.gap_reasons(summary)} == {"partial", [:dirty_run_excluded]}
+    assert Commits.status(summary) == :in_progress
+    assert Commits.status(Commits.signal_complete(project, "abc123")) == :incomplete
+
+    assert Enum.map(Commits.run_cursor_page(project.id, {:commit, "abc123"}).runs, &{&1.test_run_id, &1.git_dirty}) ==
+             [{clean.id, false}]
+
+    assert project.id
+           |> Commits.run_cursor_page({:commit, "abc123"}, dirty: true)
+           |> Map.fetch!(:runs)
+           |> Enum.map(&{&1.test_run_id, &1.git_dirty})
+           |> Enum.sort() == Enum.sort([{clean.id, false}, {dirty.id, true}])
+
+    # A clean run of the scheme makes the figure whole again.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{scheme: "AppTests"})
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, Commits.gap_reasons(summary)} == {["App", "AppTests"], []}
+    assert Commits.status(summary) == :complete
   end
 
   test "signals completion and keeps it across recomputes", %{project: project, account: account} do
