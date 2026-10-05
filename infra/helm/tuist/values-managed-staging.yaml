@@ -730,9 +730,9 @@ ovhFleets:
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
-# BER1 rack fleet: leased Mac minis (Z1UD001N2: 18-core CPU, 64 GB, 10GbE,
-# 2 TB), one three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the home prep bay,
-# behind the rack's two edges. Staging only.
+# BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
+# 10GbE, 2 TB), one three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the
+# home prep bay, behind the rack's two edges. Staging only.
 #
 # Each host is its own Machine, so the fleet is the hosts listed here; set a
 # host's `parked` to take it out.
@@ -1070,19 +1070,20 @@ runnersFleet:
   # would be silently discarded, because YAML resolves duplicate keys last-wins
   # and Helm never warns.
   #
-  # A fixed replica rather than autoscaling: the fleet allocator apportions
-  # guest slots across the macOS pools of ONE fleet, and this pool deliberately
-  # sits in another, so an explicit count keeps it out of that arithmetic. It
-  # costs the rack's single guest slot, which nothing else competes for.
+  # A fixed count rather than autoscaling: the fleet allocator apportions guest
+  # slots across the macOS pools of ONE fleet, and this pool deliberately sits
+  # in another, so an explicit count keeps it out of that arithmetic. Six is
+  # every guest slot in the rack, two per host, which nothing else competes
+  # for, so a load run reaches every slot at once.
   #
-  # The image is the 26.6 runner because the prototype host runs macOS 26.6 and
-  # a Tart guest cannot be newer than its host.
+  # A Tart guest cannot be newer than its host. The rack's hosts run macOS 27,
+  # so the 26.6 runner fits.
   pools:
     - name: ber1
       runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
       dispatchLabel: tuist-ber1-smoke
       fleetSelector: tuist-tuist-rack-fleet
-      replicas: 1
+      replicas: 6
       pod:
         cpuMilli: 6000
         memoryMB: 14336
