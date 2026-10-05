@@ -2,6 +2,7 @@ defmodule Tuist.PromExTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  alias Tuist.Accounts.PromExPlugin
   alias TuistCommon.PromExPhoenixPlugin
 
   describe "plugins/0" do
@@ -26,6 +27,34 @@ defmodule Tuist.PromExTest do
 
       assert tag_values(duration, "/pricing").path == "/pricing"
       assert tag_values(duration, "/api/projects").path == "/api/projects"
+    end
+  end
+
+  describe "plugins/0 outside web mode" do
+    for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
+      @mode mode
+      test "leaves out the control-plane pollers in #{@mode} mode" do
+        stub(Tuist.Environment, :mode, fn -> @mode end)
+
+        plugins = Tuist.PromEx.plugins()
+
+        refute PromExPlugin in plugins
+        refute Tuist.Kura.PromExPlugin in plugins
+        refute Tuist.Runners.PromExPlugin in plugins
+        refute Tuist.Kura.Rollouts.PromExPlugin in plugins
+        assert Tuist.Oban.PromExPlugin in plugins
+      end
+    end
+
+    test "keeps the control-plane pollers in web mode" do
+      stub(Tuist.Environment, :mode, fn -> :web end)
+
+      plugins = Tuist.PromEx.plugins()
+
+      assert PromExPlugin in plugins
+      assert Tuist.Kura.PromExPlugin in plugins
+      assert Tuist.Runners.PromExPlugin in plugins
+      assert Tuist.Kura.Rollouts.PromExPlugin in plugins
     end
   end
 

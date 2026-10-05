@@ -54,6 +54,18 @@ defmodule Tuist.PromEx do
 
   use PromEx, otp_app: :tuist
 
+  # Control-plane gauges polled from Postgres tables that only the web role can
+  # read. The processor and swift_registry_sync roles are denied these tables,
+  # so outside web mode the pollers only fail with 42501 on every boot.
+  alias Tuist.Accounts.PromExPlugin
+
+  @web_only_plugins [
+    PromExPlugin,
+    Tuist.Kura.PromExPlugin,
+    Tuist.Runners.PromExPlugin,
+    Tuist.Kura.Rollouts.PromExPlugin
+  ]
+
   @impl true
   def plugins do
     plugins =
@@ -70,7 +82,7 @@ defmodule Tuist.PromEx do
         Tuist.ClickHouse.PromExPlugin,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
-        Tuist.Accounts.PromExPlugin,
+        PromExPlugin,
         Tuist.Projects.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
         Tuist.Tests.PromExPlugin,
@@ -88,6 +100,8 @@ defmodule Tuist.PromEx do
         TuistCommon.HTTP.TransportPromExPlugin,
         TuistCommon.GitHub.PromExPlugin
       ]
+
+    plugins = if Tuist.Environment.mode() == :web, do: plugins, else: plugins -- @web_only_plugins
 
     plugins =
       if Tuist.Environment.tuist_hosted?() do
