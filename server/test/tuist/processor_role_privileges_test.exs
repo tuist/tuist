@@ -2,6 +2,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Ecto.Adapters.SQL
   alias Tuist.Bazel
   alias Tuist.Bazel.Profile
   alias Tuist.Bazel.ProfileUpload
@@ -10,6 +11,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   alias Tuist.Bazel.Workers.ProcessTestInvocationWorker
   alias Tuist.Builds.Workers.ProcessBuildWorker
   alias Tuist.MCP.Events.Subscription
+  alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Processor.BuildProcessor
   alias Tuist.Processor.XCResultProcessor
   alias Tuist.Tests.Workers.ProcessXcresultWorker
@@ -37,134 +39,39 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     %{account: account, project: project, build: build}
   end
 
-  test "the build ingestion path only reads and writes granted tables", %{
-    account: account,
-    project: project,
-    build: build
-  } do
-    stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
-
-    stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
-      consume.(%{
-        "duration" => 1200,
-        "status" => "success",
-        "targets" => [],
-        "issues" => [],
-        "files" => [],
-        "cacheable_tasks" => [],
-        "cas_outputs" => [],
-        "build_steps" => [],
-        "machine_metrics" => []
-      })
-    end)
-
-    job = %Oban.Job{
-      args: %{
-        "build_id" => build.id,
-        "storage_key" => @storage_key,
-        "account_id" => account.id,
-        "project_id" => project.id,
-        "xcode_cache_upload_enabled" => true
-      },
-      attempt: 1,
-      max_attempts: 5
-    }
-
-    assert :ok == ProcessorRole.as_processor(fn -> ProcessBuildWorker.perform(job) end)
+  test "the build ingestion path only reads and writes granted tables", context do
+    assert :ok == process_build_as_processor(context, "success")
   end
 
-  test "a failed build with a subscribed agent publishes its event with processor privileges", %{
-    account: account,
-    project: project,
-    build: build
-  } do
-    %{account: user_account} = user = AccountsFixtures.user_fixture(preload: [:account])
-    token = AccountsFixtures.account_token_fixture(account: user_account, scopes: ["mcp"])
+  test "a failed build publishes its event to a subscribed agent with processor privileges", context do
+    subscribe(context.project, "build.failed")
 
-    %Subscription{}
-    |> Subscription.changeset(%{
-      id: "sub_build_failed_#{Ecto.UUID.generate()}",
-      user_id: user.id,
-      account_token_id: token.id,
-      account_id: project.account_id,
-      project_id: project.id,
-      event_name: "build.failed",
-      callback_url: "https://example.com/events",
-      signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
-      refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
-    })
-    |> Repo.insert!()
-
-    stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
-
-    stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
-      consume.(%{
-        "duration" => 1200,
-        "status" => "failure",
-        "targets" => [],
-        "issues" => [],
-        "files" => [],
-        "cacheable_tasks" => [],
-        "cas_outputs" => [],
-        "build_steps" => [],
-        "machine_metrics" => []
-      })
-    end)
-
-    job = %Oban.Job{
-      args: %{
-        "build_id" => build.id,
-        "storage_key" => @storage_key,
-        "account_id" => account.id,
-        "project_id" => project.id,
-        "xcode_cache_upload_enabled" => true
-      },
-      attempt: 1,
-      max_attempts: 5
-    }
-
-    assert :ok == ProcessorRole.as_processor(fn -> ProcessBuildWorker.perform(job) end)
-    assert_enqueued(worker: Tuist.MCP.Events.Workers.FanoutWorker, args: %{"event_name" => "build.failed"})
+    assert :ok == process_build_as_processor(context, "failure")
+    assert_enqueued(worker: FanoutWorker, args: %{"event_name" => "build.failed"})
   end
 
-  test "the xcresult ingestion path only reads and writes granted tables", %{
-    account: account,
-    project: project
-  } do
-    stub(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+  test "the xcresult ingestion path only reads and writes granted tables", context do
+    assert :ok == process_xcresult_as_processor(context, "success")
+  end
 
-    stub(XCResultProcessor, :process_local, fn _path, _opts ->
-      {:ok,
-       %{
-         "test_plan_name" => "AppTests",
-         "status" => "success",
-         "duration" => 45,
-         "test_modules" => []
-       }}
-    end)
+  test "a failed test run publishes its event to a subscribed agent with processor privileges", context do
+    subscribe(context.project, "test_run.failed")
 
-    job = %Oban.Job{
-      args: %{
-        "test_run_id" => Ecto.UUID.generate(),
-        "storage_key" => "tuist/tests/test-xcresult.zip",
-        "account_id" => account.id,
-        "project_id" => project.id,
-        "account_handle" => "test-account",
-        "project_handle" => "test-project",
-        "is_ci" => false,
-        "git_branch" => "main",
-        "git_commit_sha" => "abc123",
-        "git_ref" => "refs/heads/main",
-        "macos_version" => "15.0",
-        "xcode_version" => "16.0",
-        "model_identifier" => "Mac15,3",
-        "scheme" => "App"
-      },
-      attempt: 1,
-      max_attempts: 20
-    }
+    assert :ok == process_xcresult_as_processor(context, "failure")
+    assert_enqueued(worker: FanoutWorker, args: %{"event_name" => "test_run.failed"})
+  end
 
-    assert :ok == ProcessorRole.as_processor(fn -> ProcessXcresultWorker.perform(job) end)
+  test "event publishing privileges exclude subscription secrets and dedup key rewrites" do
+    assert %{rows: [[false, false, false, false]]} =
+             ProcessorRole.as_processor(fn ->
+               SQL.query!(Repo, """
+               SELECT
+                 has_column_privilege(current_user, 'mcp_event_subscriptions', 'callback_url', 'SELECT'),
+                 has_column_privilege(current_user, 'mcp_event_subscriptions', 'signing_secret', 'SELECT'),
+                 has_table_privilege(current_user, 'mcp_event_job_keys', 'UPDATE'),
+                 has_table_privilege(current_user, 'mcp_event_job_keys', 'DELETE')
+               """)
+             end)
   end
 
   test "the Bazel profile processor can publish profiles and reject invalid uploads with deployed privileges", %{
@@ -282,7 +189,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   test "profile processor privileges exclude upload creation, deletion and identity changes" do
     assert %{rows: [[false, false, false, false, false]]} =
              ProcessorRole.as_processor(fn ->
-               Ecto.Adapters.SQL.query!(Repo, """
+               SQL.query!(Repo, """
                SELECT
                  has_table_privilege(current_user, 'bazel_profile_uploads', 'INSERT'),
                  has_table_privilege(current_user, 'bazel_profile_uploads', 'DELETE'),
@@ -291,5 +198,93 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
                  has_column_privilege(current_user, 'bazel_profile_uploads', 'inserted_at', 'UPDATE')
                """)
              end)
+  end
+
+  defp process_build_as_processor(%{account: account, project: project, build: build}, status) do
+    stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
+
+    stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
+      consume.(%{
+        "duration" => 1200,
+        "status" => status,
+        "targets" => [],
+        "issues" => [],
+        "files" => [],
+        "cacheable_tasks" => [],
+        "cas_outputs" => [],
+        "build_steps" => [],
+        "machine_metrics" => []
+      })
+    end)
+
+    job = %Oban.Job{
+      args: %{
+        "build_id" => build.id,
+        "storage_key" => @storage_key,
+        "account_id" => account.id,
+        "project_id" => project.id,
+        "xcode_cache_upload_enabled" => true
+      },
+      attempt: 1,
+      max_attempts: 5
+    }
+
+    ProcessorRole.as_processor(fn -> ProcessBuildWorker.perform(job) end)
+  end
+
+  defp process_xcresult_as_processor(%{account: account, project: project}, status) do
+    stub(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+    stub(XCResultProcessor, :process_local, fn _path, _opts ->
+      {:ok,
+       %{
+         "test_plan_name" => "AppTests",
+         "status" => status,
+         "duration" => 45,
+         "test_modules" => []
+       }}
+    end)
+
+    job = %Oban.Job{
+      args: %{
+        "test_run_id" => Ecto.UUID.generate(),
+        "storage_key" => "tuist/tests/test-xcresult.zip",
+        "account_id" => account.id,
+        "project_id" => project.id,
+        "account_handle" => "test-account",
+        "project_handle" => "test-project",
+        "is_ci" => false,
+        "git_branch" => "main",
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/heads/main",
+        "macos_version" => "15.0",
+        "xcode_version" => "16.0",
+        "model_identifier" => "Mac15,3",
+        "scheme" => "App"
+      },
+      attempt: 1,
+      max_attempts: 20
+    }
+
+    ProcessorRole.as_processor(fn -> ProcessXcresultWorker.perform(job) end)
+  end
+
+  defp subscribe(project, event_name) do
+    %{account: account} = user = AccountsFixtures.user_fixture(preload: [:account])
+    token = AccountsFixtures.account_token_fixture(account: account, scopes: ["mcp"])
+
+    %Subscription{}
+    |> Subscription.changeset(%{
+      id: "sub_#{Ecto.UUID.generate()}",
+      user_id: user.id,
+      account_token_id: token.id,
+      account_id: project.account_id,
+      project_id: project.id,
+      event_name: event_name,
+      callback_url: "https://example.com/events",
+      signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
+      refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
   end
 end

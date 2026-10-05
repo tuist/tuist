@@ -264,12 +264,15 @@ defmodule Tuist.ReleaseTest do
       assert Release.processor_role_grant_statements(role, database, schema) == [
                ~s(REVOKE ALL ON ALL TABLES IN SCHEMA "public" FROM "tuist_processor"),
                ~s|REVOKE ALL (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads FROM "tuist_processor"|,
+               ~s|REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE "public".mcp_event_subscriptions FROM "tuist_processor"|,
                ~s(GRANT CONNECT ON DATABASE "tuist" TO "tuist_processor"),
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
-               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries, "public".mcp_event_job_keys TO "tuist_processor"),
+               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
-               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits, "public".mcp_event_subscriptions TO "tuist_processor"),
-               ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|
+               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits TO "tuist_processor"),
+               ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|,
+               ~s|GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE "public".mcp_event_subscriptions TO "tuist_processor"|,
+               ~s(GRANT SELECT, INSERT ON TABLE "public".mcp_event_job_keys TO "tuist_processor")
              ]
     end
 
@@ -281,12 +284,12 @@ defmodule Tuist.ReleaseTest do
         |> File.read!()
 
       expected_read_grant =
-        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits, :"tuist_schema".mcp_event_subscriptions TO tuist_processor;)
+        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits TO tuist_processor;)
 
       assert occurrences(sql, expected_read_grant) == 1
 
       assert sql =~
-               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries, :"tuist_schema".mcp_event_job_keys TO tuist_processor;)
+               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries TO tuist_processor;)
 
       assert sql =~ ~s(REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;)
 
@@ -295,6 +298,14 @@ defmodule Tuist.ReleaseTest do
 
       assert sql =~
                ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE :"tuist_schema".bazel_profile_uploads TO tuist_processor;|
+
+      assert sql =~
+               ~s|REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE :"tuist_schema".mcp_event_subscriptions FROM tuist_processor;|
+
+      assert sql =~
+               ~s|GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE :"tuist_schema".mcp_event_subscriptions TO tuist_processor;|
+
+      assert sql =~ ~s(GRANT SELECT, INSERT ON TABLE :"tuist_schema".mcp_event_job_keys TO tuist_processor;)
     end
   end
 
