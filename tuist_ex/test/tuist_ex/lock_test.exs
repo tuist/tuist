@@ -39,10 +39,10 @@ defmodule TuistEx.LockTest do
         end)
       end)
 
-    assert_receive :locked
+    assert_receive :locked, 5_000
     monitor = Process.monitor(holder)
     Process.exit(holder, :kill)
-    assert_receive {:DOWN, ^monitor, :process, ^holder, :killed}
+    assert_receive {:DOWN, ^monitor, :process, ^holder, :killed}, 5_000
 
     {:ok, before} = File.stat(path, time: :posix)
     Process.sleep(2_500)

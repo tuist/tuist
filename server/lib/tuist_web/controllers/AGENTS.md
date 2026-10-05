@@ -30,7 +30,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Both runner log and finish endpoints select the provider from the verified report-token identity, retaining legacy Buildkite token compatibility.
 
 
-- Dashboard timeline JSON routes cover Xcode/Gradle build runs and Bazel invocations. Dispatch by the authorized project build system, scope the parent before reading metadata, omit machine samples and logs, and disable caching for every source.
+- Dashboard timeline JSON routes cover Xcode/Gradle/Mix build runs and Bazel invocations. Dispatch by the authorized project build system, scope the parent before reading metadata, omit machine samples and logs, and disable caching for every source.
 
 - Gradle timeline metadata requests disable sample-row loading at the source; dropping sample fields only after loading them does not avoid the query cost. Scalar bounds keep metadata aligned with bootstrap.
 

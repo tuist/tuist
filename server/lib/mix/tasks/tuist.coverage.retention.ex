@@ -18,7 +18,7 @@ defmodule Mix.Tasks.Tuist.Coverage.Retention do
   instead.
   """
   use Mix.Task
-  use Boundary, classify_to: Tuist.Mix
+  use Boundary, classify_to: Tuist.MixTasks
 
   alias Tuist.Tests.Coverage
 

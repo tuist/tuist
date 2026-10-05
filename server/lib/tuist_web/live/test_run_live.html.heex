@@ -45,10 +45,7 @@
           </div>
         </div>
         <h1 data-part="label">
-          {if(@run.scheme in [nil, ""],
-            do: dgettext("dashboard_tests", "Unknown"),
-            else: @run.scheme
-          )}
+          {test_run_label(@selected_project, @run.scheme)}
         </h1>
         <.badge
           :if={@run.is_flaky}
