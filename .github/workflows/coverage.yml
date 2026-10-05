@@ -52,9 +52,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Off: targets replayed from Xcode's compilation cache carry no coverage, so
-  # a cached build measures only what happened to compile fresh.
-  TUIST_ENABLE_CACHING: "false"
+  TUIST_ENABLE_CACHING: true
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
   # Xcode code coverage is in early access behind this client flag.
