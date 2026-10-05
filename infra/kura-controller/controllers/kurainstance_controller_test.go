@@ -92,6 +92,11 @@ func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
 			Name:  "kura",
 			Image: "ghcr.io/tuist/kura:0.5.2",
 		}}},
+		Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{
+			Type:               corev1.PodReady,
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.NewTime(time.Now().Add(-30 * time.Minute)),
+		}}},
 	}
 	oldReady := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-1", Namespace: instance.Namespace, Labels: podLabels},
@@ -144,6 +149,73 @@ func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
 	}
 	if got := gotInstance.Annotations[unreadyPodsReplacedForImageAnnotation]; got != instance.Spec.Image {
 		t.Fatalf("expected handled image annotation %q, got %q", instance.Spec.Image, got)
+	}
+}
+
+// The StatefulSet's rolling update replaces one replica while the other is
+// only briefly unready, for example during a node blip. Deleting that one as
+// well would leave the instance with no replica at all until both finish
+// terminating.
+func TestReplaceUnreadyPodsForImageChangeKeepsBrieflyUnreadyPods(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kura-tuist-eu-1",
+			Namespace: "kura",
+			Annotations: map[string]string{
+				unreadyPodsReplacedForImageAnnotation: "ghcr.io/tuist/kura:0.5.2",
+			},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+		},
+	}
+	brieflyUnready := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-0", Namespace: instance.Namespace, Labels: selectorLabels(instance)},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name:  "kura",
+			Image: "ghcr.io/tuist/kura:0.5.2",
+		}}},
+		Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{
+			Type:               corev1.PodReady,
+			Status:             corev1.ConditionFalse,
+			LastTransitionTime: metav1.NewTime(time.Now().Add(-20 * time.Second)),
+		}}},
+	}
+	sts := probeTestStatefulSet(instance, 2)
+	sts.Spec.Template.Spec.Containers = []corev1.Container{{Name: "kura", Image: instance.Spec.Image}}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, brieflyUnready).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: brieflyUnready.Name, Namespace: brieflyUnready.Namespace}, &corev1.Pod{}); err != nil {
+		t.Fatalf("expected the briefly unready pod to remain: %v", err)
+	}
+	gotInstance := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, gotInstance); err != nil {
+		t.Fatal(err)
+	}
+	if got := gotInstance.Annotations[unreadyPodsReplacedForImageAnnotation]; got != "ghcr.io/tuist/kura:0.5.2" {
+		t.Fatalf("expected the image to stay unhandled while a pod may still recover, got %q", got)
 	}
 }
 
