@@ -16,6 +16,8 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class TuistPrepareTestShardsFunctionalTest {
 
@@ -81,10 +83,45 @@ class TuistPrepareTestShardsFunctionalTest {
     }
 
     @Test
+    fun `configures subprojects when invoked by path with configuration on demand`() {
+        enableConfigurationOnDemand()
+
+        val result = runner(":tuistPrepareTestShards").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":tuistPrepareTestShards")?.outcome, result.output)
+        assertTrue(result.output.contains("Configured :docs"), result.output)
+        assertEquals(listOf("com.example.FooTest", "com.example.OtherTest"), plannedTestSuites())
+    }
+
+    @Test
+    fun `finds the selected test task when invoked by path with configuration on demand`() {
+        enableConfigurationOnDemand()
+
+        val result = runner(":tuistPrepareTestShards", "-PtuistShardTestTask=otherTest").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
+        assertEquals(listOf("com.example.OtherTest"), plannedTestSuites())
+    }
+
+    @Test
+    fun `leaves unrelated projects unconfigured with configuration on demand when sharding is not requested`() {
+        enableConfigurationOnDemand()
+
+        val result = runner(":app:compileTestJava").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileTestJava")?.outcome, result.output)
+        assertFalse(result.output.contains("Configured :docs"), result.output)
+    }
+
+    @Test
     fun `fails when no project has the selected test task`() {
         val result = runner("tuistPrepareTestShards", "-PtuistShardTestTask=missingTest").buildAndFail()
 
         assert(result.output.contains("No test task named 'missingTest'")) { result.output }
+    }
+
+    private fun enableConfigurationOnDemand() {
+        File(projectDir, "gradle.properties").writeText("org.gradle.configureondemand=true\n")
     }
 
     private fun plannedTestSuites(): List<String> {
@@ -117,7 +154,7 @@ class TuistPrepareTestShardsFunctionalTest {
             }
 
             rootProject.name = "sharding-fixture"
-            include(":app")
+            include(":app", ":docs")
             """.trimIndent()
         )
         File(projectDir, "build.gradle.kts").writeText("")
@@ -139,6 +176,9 @@ class TuistPrepareTestShardsFunctionalTest {
         )
         writeTestClass(app, "test", "FooTest")
         writeTestClass(app, "otherTest", "OtherTest")
+
+        val docs = File(projectDir, "docs").apply { mkdirs() }
+        File(docs, "build.gradle.kts").writeText("""println("Configured :docs")""")
     }
 
     private fun writeTestClass(projectDir: File, sourceSet: String, name: String) {

@@ -358,9 +358,12 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
 
             // Resolved lazily so the test tasks are realized and their class directories
             // set by the Java or Android plugin before they are read. The directories carry
-            // the compile tasks that produce them as build dependencies.
+            // the compile tasks that produce them as build dependencies. Subprojects are
+            // evaluated first because configuration on demand leaves them unconfigured when
+            // the task is requested by path.
             val testTaskName = providers.gradleProperty("tuistShardTestTask").orNull
             val rootProject = project
+            rootProject.subprojects.forEach { rootProject.evaluationDependsOn(it.path) }
             compiledTestClassDirectories.from(Callable { testClassDirectories(rootProject, testTaskName) })
 
             providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
