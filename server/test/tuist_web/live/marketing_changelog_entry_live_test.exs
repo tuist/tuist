@@ -37,6 +37,14 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
       assert [] == find(html, ~s(#marketing-changelog-entry [data-part="cta"]))
       assert [] == find(html, ~s(#marketing-changelog-entry [data-part="features-divider"]))
     end
+
+    @tag :locale
+    test "the breadcrumb links back to the changelog in the same locale", %{conn: conn, entry: entry} do
+      {:ok, _lv, html} = live(conn, "/ja/changelog/#{entry.id}")
+
+      assert ["/ja/changelog"] =
+               html |> find(~s([data-part="breadcrumb"] a)) |> Floki.attribute("href")
+    end
   end
 
   defp find(html, selector) do
