@@ -41,14 +41,13 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   Schedules the commit's totals to be republished after a run reported
-  coverage for it. Nothing is scheduled for a run without a commit or from a
-  dirty checkout.
+  coverage for it. Nothing is scheduled for a run without a commit. A run
+  from a dirty checkout schedules a fold too: it never counts, but a scheme
+  only it measured leaves the commit's figure a lower bound, whichever of the
+  commit's runs lands last.
   """
-  def enqueue_recompute(%Test{git_commit_sha: sha, git_dirty: dirty} = test) do
-    # `dirty` is what the client said, and a client that says nothing said the
-    # checkout was clean: negating it outright turns that into a crash after
-    # the run's coverage is already stored.
-    if is_binary(sha) and sha != "" and dirty != true,
+  def enqueue_recompute(%Test{git_commit_sha: sha} = test) do
+    if is_binary(sha) and sha != "",
       do: enqueue_recompute(test.project_id, sha),
       else: :skipped
   end

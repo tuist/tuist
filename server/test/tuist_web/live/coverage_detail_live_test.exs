@@ -107,15 +107,14 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     organization: organization,
     project: project
   } do
+    # Lands after the commit's clean run, and still folds it.
     dirty =
       CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/C.swift", [1, 1])], %{
         git_commit_sha: "b",
         scheme: "AppTests",
-        git_dirty: true,
-        recompute: false
+        git_dirty: true
       })
 
-    Commits.recompute(project, "b")
     Commits.signal_complete(project, "b")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
