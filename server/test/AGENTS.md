@@ -23,6 +23,8 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Private endpoint regressions should prove that old `lastReconciledAt` does not invalidate a fresh endpoint check, while repeatedly reading the same `endpointLastCheckedAt` cannot renew `last_ready_at`. Revision digest tests should cover order-independent CIDRs and reuse the module's canonical text hashing.
 
+- `processor_role_tables_test.exs` fails when a Postgres table is neither granted to the processor role in `Tuist.Release.processor_role_grant_statements/3` nor listed as untouched by the processors. Classify new tables there instead of waiting for a production `42501`.
+
 - `processor_role_privileges_test.exs` runs profile publication and invalid-profile rejection with `ProcessorRole.as_processor/1`, using release-time PostgreSQL grants. Timeline regressions cover unavailable direct links, late profile publication, expired indexed steps and valid metrics-only builds.
 
 - GitLab runner tests reject unmocked HTTP requests; the Go executor uses a local fake coordinator for execution, artifacts and masked-log validation.
