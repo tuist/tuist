@@ -1,4 +1,7 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -60,42 +63,54 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
             "FrameworkB",
         ])
     }
+}
 
-    func test_load_whenCoverageIsAttributedToTestsWithoutAPackageManifest() async throws {
+struct ManifestGraphLoaderCoverageAttributionIntegrationTests {
+    @Test(.inTemporaryDirectory)
+    func load_whenCoverageIsAttributedToTestsWithoutAPackageManifest() async throws {
         // Given
-        let path = try temporaryPath()
-        try await createFiles(["Sources/App.swift", "Tests/AppTests.swift"])
-        try """
-        import ProjectDescription
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
 
-        let tuist = Tuist(
-            testInsights: .testInsights(coverage: .coverage(attributeToTests: true)),
-            project: .tuist()
+            let tuist = Tuist(
+                testInsights: .testInsights(coverage: .coverage(attributeToTests: true)),
+                project: .tuist()
+            )
+            """,
+            at: path.appending(component: "Tuist.swift")
         )
-        """.write(to: path.appending(component: "Tuist.swift").url, atomically: true, encoding: .utf8)
-        try """
-        import ProjectDescription
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
 
-        let project = Project(
-            name: "App",
-            targets: [
-                .target(name: "App", destinations: .macOS, product: .app, bundleId: "dev.tuist.App", sources: ["Sources/**"]),
-                .target(
-                    name: "AppTests",
-                    destinations: .macOS,
-                    product: .unitTests,
-                    bundleId: "dev.tuist.AppTests",
-                    sources: ["Tests/**"],
-                    dependencies: [.target(name: "App")]
-                ),
-            ]
+            let project = Project(
+                name: "App",
+                targets: [
+                    .target(name: "App", destinations: .macOS, product: .framework, bundleId: "dev.tuist.App"),
+                    .target(
+                        name: "AppTests",
+                        destinations: .macOS,
+                        product: .unitTests,
+                        bundleId: "dev.tuist.AppTests",
+                        dependencies: [.target(name: "App")]
+                    ),
+                ]
+            )
+            """,
+            at: path.appending(component: "Project.swift")
         )
-        """.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
+        let subject = ManifestGraphLoader(
+            manifestLoader: ManifestLoader(),
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.load(path: path, disableSandbox: true) },
-            TestCoverageAttributionLinkerError.missingPackageManifest
-        )
+        await #expect(throws: TestCoverageAttributionLinkerError.missingPackageManifest) {
+            try await subject.load(path: path, disableSandbox: true)
+        }
     }
 }

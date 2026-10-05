@@ -26,7 +26,8 @@ struct TestCoverageAttributionLinkerTests {
         // When
         let got = try subject.link(
             projects: [project],
-            externalDependencies: ["TestCoverageAttribution": [attribution]]
+            externalDependencies: ["TestCoverageAttribution": [attribution]],
+            packageManifestPath: "/project/Tuist/Package.swift"
         )
 
         // Then
@@ -47,7 +48,8 @@ struct TestCoverageAttributionLinkerTests {
         // When
         let got = try subject.link(
             projects: [project],
-            externalDependencies: ["TestCoverageAttribution": [attribution]]
+            externalDependencies: ["TestCoverageAttribution": [attribution]],
+            packageManifestPath: "/project/Tuist/Package.swift"
         )
 
         // Then
@@ -56,13 +58,17 @@ struct TestCoverageAttributionLinkerTests {
 
     @Test func link_throwsWhenThereIsNoPackageManifest() {
         #expect(throws: TestCoverageAttributionLinkerError.missingPackageManifest) {
-            try subject.link(projects: [.test()], externalDependencies: nil)
+            try subject.link(projects: [.test()], externalDependencies: [:], packageManifestPath: nil)
         }
     }
 
     @Test func link_throwsWhenThePackageIsNotDeclared() {
-        #expect(throws: TestCoverageAttributionLinkerError.missingPackage) {
-            try subject.link(projects: [.test()], externalDependencies: ["Alamofire": []])
+        #expect(throws: TestCoverageAttributionLinkerError.missingPackage(packageManifestPath: "/project/Package.swift")) {
+            try subject.link(
+                projects: [.test()],
+                externalDependencies: ["Alamofire": []],
+                packageManifestPath: "/project/Package.swift"
+            )
         }
     }
 
