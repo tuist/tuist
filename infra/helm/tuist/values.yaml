@@ -1677,9 +1677,25 @@ rackFleet:
       publicKey: public-key
       sudoPassword: sudo-password
 
+  # The root key every rack power card's passwords (RackPDU, RackATS) are
+  # derived from, synced read-only from 1Password into `secretName` in the
+  # release namespace, which the operator reads as --rack-card-root-secret.
+  # Without it the operator adopts no card. A rebuilt cluster derives the same
+  # passwords from the same item, so it re-adopts the cards with nobody at the
+  # rack.
+  cardRootKey:
+    enabled: false
+    item: BER1_RACK_CARD_ROOT
+    field: key
+    secretName: rack-card-root
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+
   # Credentials of a smart plug that is not a RackPDU (a Shelly on a desk), if
-  # it has any. A RackPDU's credentials are generated and owned by its
-  # controller. A plug with no password needs none; leave disabled and omit
+  # it has any. A RackPDU's credentials are derived by its controller from
+  # `cardRootKey`. A plug with no password needs none; leave disabled and omit
   # `power.credentialsSecret` on the hosts.
   powerExternalSecret:
     enabled: false

@@ -767,6 +767,11 @@ rackFleet:
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
+  # The root key the rack's PDU and transfer switch cards' passwords are
+  # derived from.
+  cardRootKey:
+    enabled: true
+    item: BER1_RACK_CARD_ROOT
 
 rackLinuxFleet:
   enabled: true
