@@ -560,8 +560,8 @@ stale, because the controller acts on the other.
 So a racked mini has a node here for its cable, its ToR port and the MAC its
 address is reserved against, pointing at its `RackHost` for everything else,
 its address included. Not a second description of the machine.
-`ber1-runner-b01` to `b03`, one three-up tray of M5 Pro minis on ToR B ports 2 to 4,
-are the first.
+`ber1-runner-b01` to `b03`, one three-up tray of M5 Pro minis on ToR B ports
+2 to 4, are the first.
 
 ## The switches as Kubernetes objects
 
@@ -867,7 +867,10 @@ files no longer match it:
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
   is not authoritative, since both edges answer there (see "The machines
   segment" below). Each serves one interface, which is what lets the two share
-  port 67.
+  port 67. It keeps no lease file (`leasefile-ro`): every lease there is an
+  infinite reservation, and a kept one holds an address against a MAC the site
+  no longer reserves it for, so dnsmasq refuses it to the MAC that now has it
+  (a mini replaced on its predecessor's address would get none).
 - `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
   /32 per machine on the machines segment, the same on both edges, and on the
