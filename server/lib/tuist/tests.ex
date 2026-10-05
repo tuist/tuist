@@ -2132,11 +2132,10 @@ defmodule Tuist.Tests do
     do: {test_case_data, []}
 
   defp check_cross_run_flakiness(test, test_case_data) do
-    test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
     scheme = test.scheme || ""
 
     existing_runs =
-      get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id, scheme)
+      get_existing_ci_runs_for_commit(test_case_data, test.git_commit_sha, test.project_id, scheme)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       {data, flaky_failures} = resolve_cross_run_flaky_failures(data, existing_runs)
@@ -2172,15 +2171,12 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id, _scheme), do: {MapSet.new(), %{}}
-
   # Two narrow reads rather than every run on the commit: a commit CI re-runs
-  # continuously accumulates millions of runs, and grouping all of them by `id`
-  # held hundreds of MiB per ingestion until it timed out. Successes only need
-  # to exist, and `status` is in the sort key, so both reads stay in range.
-  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id, scheme) do
-    test_case_id_set = MapSet.new(test_case_ids)
-
+  # continuously accumulates a very large number of runs, and grouping all of
+  # them by `id` held hundreds of MiB per ingestion until it timed out. A run's
+  # `status` is in the table's sort key and never changes, so each read stays
+  # in range, and passes are only looked up for the test cases that failed now.
+  defp get_existing_ci_runs_for_commit(test_case_data, git_commit_sha, project_id, scheme) do
     runs_on_commit =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
@@ -2189,17 +2185,36 @@ defmodule Tuist.Tests do
         where: tcr.is_ci == true
       )
 
-    passed_test_case_ids =
-      from(tcr in runs_on_commit,
-        where: tcr.status == "success",
-        distinct: true,
-        select: tcr.test_case_id
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.filter(&MapSet.member?(test_case_id_set, &1))
-      |> MapSet.new()
+    failed_test_case_ids = test_case_ids_with_status(test_case_data, "failure")
+    passed_test_case_ids = test_case_ids_with_status(test_case_data, "success")
 
-    failures_by_test_case_id =
+    {passed_on_commit(runs_on_commit, failed_test_case_ids),
+     failures_on_commit(runs_on_commit, MapSet.new(passed_test_case_ids))}
+  end
+
+  defp test_case_ids_with_status(test_case_data, status) do
+    for %{status: ^status, test_case_id: test_case_id} <- test_case_data, not is_nil(test_case_id), uniq: true do
+      test_case_id
+    end
+  end
+
+  defp passed_on_commit(_runs_on_commit, []), do: MapSet.new()
+
+  defp passed_on_commit(runs_on_commit, test_case_ids) do
+    from(tcr in runs_on_commit,
+      where: tcr.status == "success",
+      where: tcr.test_case_id in ^test_case_ids,
+      distinct: true,
+      select: tcr.test_case_id
+    )
+    |> ClickHouseRepo.all()
+    |> MapSet.new()
+  end
+
+  defp failures_on_commit(runs_on_commit, test_case_id_set) do
+    if MapSet.size(test_case_id_set) == 0 do
+      %{}
+    else
       from(tcr in runs_on_commit,
         where: tcr.status == "failure",
         group_by: [tcr.id, tcr.test_case_id],
@@ -2212,8 +2227,7 @@ defmodule Tuist.Tests do
       |> ClickHouseRepo.all()
       |> Enum.filter(&MapSet.member?(test_case_id_set, &1.test_case_id))
       |> Enum.group_by(& &1.test_case_id)
-
-    {passed_test_case_ids, failures_by_test_case_id}
+    end
   end
 
   defp check_new_test_cases(test, test_case_data, default_branch) do
