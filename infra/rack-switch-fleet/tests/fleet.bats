@@ -563,6 +563,18 @@ STUB
     [[ "$output" == *"ber1-store-a and ber1-store-b both resolve to ber1-ats-1"* ]]
 }
 
+@test "a pair member with no transfer switch is rejected, not skipped" {
+    local site="$BATS_TEST_TMPDIR/unfed.json"
+    jq '(.nodes[] | select(.name == "ber1-edge-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats or pdu"* ]]
+    jq '(.nodes[] | select(.name == "ber1-store-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats or pdu"* ]]
+}
+
 @test "a cord goes into one power device, and a PDU hangs off a transfer switch" {
     local site="$BATS_TEST_TMPDIR/cord.json"
     jq '(.nodes[] | select(.name == "ber1-edge-b")).ats = "ber1-ats-2"' "$SITE_FILE" > "$site"
@@ -2878,6 +2890,24 @@ STUB
     rm -f "$FLEET_ROOT/k8s/ber1/ber1-ats-3.yaml.bak"
     [ "$status" -ne 0 ]
     [[ "$output" == *"stale: k8s/ber1/ber1-ats-3.yaml"* ]]
+}
+
+@test "render --check notices a RackPDU or RackATS object the site no longer has, and render removes it" {
+    local left="$FLEET_ROOT/k8s/ber1/ber1-pdu-renamed.yaml"
+    sed 's/name: ber1-pdu-b$/name: ber1-pdu-renamed/' "$FLEET_ROOT/k8s/ber1/ber1-pdu-b.yaml" > "$left"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render --check
+    local check_status="$status" check_output="$output"
+    RACK_SITE=ber1 run "$FLEET_ROOT/fleet.sh" render
+    local present=0
+    [ -e "$left" ] && present=1
+    rm -f "$left"
+    [ "$check_status" -ne 0 ]
+    [[ "$check_output" == *"stale: k8s/ber1/ber1-pdu-renamed.yaml belongs to a power device the site no longer has"* ]]
+    [ "$status" -eq 0 ]
+    [ "$present" -eq 0 ]
+    [[ "$output" == *"removed k8s/ber1/ber1-pdu-renamed.yaml"* ]]
+    # a switch's object in the same directory is not the power render's to remove
+    [ -e "$FLEET_ROOT/k8s/ber1/ber1-mgmt.yaml" ]
 }
 
 @test "the machines segment's addresses, members and machines are checked at render" {

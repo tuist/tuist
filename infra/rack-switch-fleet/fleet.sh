@@ -100,11 +100,29 @@ cmd_render() {
   return 0
 }
 
-# The site's RackPDU and RackATS objects, from the same site definition.
+# The site's RackPDU and RackATS objects, from the same site definition. An
+# object of a device the site no longer has (renamed or removed) is stale: the
+# workflow applies the whole directory, so leaving it would keep a second
+# object driving the same card.
 render_power() {
-  local check="$1" device kind target rendered status=0
+  local check="$1" device kind target rendered file status=0 expected=()
   rendered="$(mktemp)"
-  for device in $(fleet_pdus "$(site_file)" | sed 's/$/:pdu/'; fleet_atses "$(site_file)" | sed 's/$/:ats/'); do
+  local devices
+  devices="$(fleet_pdus "$(site_file)" | sed 's/$/:pdu/'; fleet_atses "$(site_file)" | sed 's/$/:ats/')"
+  for device in $devices; do expected+=("$(basename "$(k8s_path "${device%:*}")")"); done
+  for file in "$FLEET_ROOT/k8s/$SITE"/*.yaml; do
+    [ -e "$file" ] || continue
+    grep -qE '^kind: (RackPDU|RackATS)$' "$file" || continue
+    case " ${expected[*]} " in *" $(basename "$file") "*) continue;; esac
+    if (( check )); then
+      echo "stale: ${file#"$FLEET_ROOT"/} belongs to a power device the site no longer has" >&2
+      status=1
+    else
+      rm -f "$file"
+      echo "removed ${file#"$FLEET_ROOT"/}"
+    fi
+  done
+  for device in $devices; do
     kind="${device##*:}"
     device="${device%:*}"
     target="$(k8s_path "$device")"

@@ -429,8 +429,12 @@ and `ber1-ats-3` -> `ber1-pdu-b` (chain B). A node or switch names the device it
 cord goes into, `ats` or `pdu` and never both, and a PDU names its ATS, so every
 load resolves to exactly one transfer switch, the unit of failure.
 `fleet_check_power` enforces that shape and that the edges, the storage pair
-and the ToRs each resolve to two different ATSes. The cable schedule shows each
-hop as its own row.
+and the ToRs each resolve to two different ATSes; a member of one of those pairs
+that names no `ats` or `pdu` is an error of its own rather than skipped. The
+cable schedule shows each hop as its own row. `rack:fleet render` removes, and
+`render --check` reports, a `RackPDU`/`RackATS` object in `k8s/<site>/` whose
+device the site no longer has, since the workflow applies the whole directory
+and a renamed device would otherwise leave two objects driving one card.
 
 The prep bay runs `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
 critical layer plus one chain: enough to fail a chain and watch the rest of the
