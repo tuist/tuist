@@ -159,7 +159,8 @@
   }
 
   & input {
-    --border: 0px 1px 1px 0px
+    --border:
+      0px 1px 1px 0px
         light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.3)),
       0px 0px 0px 1px
         light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(54.9% 0 0 / 0.45)),
@@ -184,7 +185,8 @@
     }
 
     &:focus-visible {
-      --border: 0px 1px 1px 0px
+      --border:
+        0px 1px 1px 0px
           light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.2)),
         0px 0px 0px 1px
           light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(54.9% 0 0 / 0.3)),
@@ -203,14 +205,16 @@
     }
 
     &[data-error] {
-      --border: 0px 1px 1px 0px
+      --border:
+        0px 1px 1px 0px
           light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.2)),
         0px 0px 0px 1px light-dark(var(--noora-red-500), var(--noora-red-300)),
         0px 1px 3px 0px
           light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(0% 0 0 / 0.3));
 
       &:focus-visible {
-        --border: 0px 1px 1px 0px
+        --border:
+          0px 1px 1px 0px
             light-dark(
               oklch(21.7% 0.002 247.941 / 0.05),
               oklch(16.2% 0 0 / 0.2)
