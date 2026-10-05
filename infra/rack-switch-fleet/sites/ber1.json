@@ -370,7 +370,8 @@
         }
       ],
       "mgmt_address": "192.168.0.14",
-      "preferred_source": 1
+      "preferred_source": 1,
+      "mac": "00:20:85:a6:29:61"
     },
     {
       "name": "ber1-ats-2",
