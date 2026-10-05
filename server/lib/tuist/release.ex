@@ -22,8 +22,9 @@ defmodule Tuist.Release do
     bazel_test_invocations
     bazel_test_results
     bazel_test_summaries
+    mcp_event_job_keys
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags coverage_commits)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags coverage_commits mcp_event_subscriptions)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
   @repair_settle_minutes 15
 

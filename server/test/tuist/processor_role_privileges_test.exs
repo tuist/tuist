@@ -9,6 +9,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   alias Tuist.Bazel.Workers.ProcessProfileWorker
   alias Tuist.Bazel.Workers.ProcessTestInvocationWorker
   alias Tuist.Builds.Workers.ProcessBuildWorker
+  alias Tuist.MCP.Events.Subscription
   alias Tuist.Processor.BuildProcessor
   alias Tuist.Processor.XCResultProcessor
   alias Tuist.Tests.Workers.ProcessXcresultWorker
@@ -70,6 +71,60 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     }
 
     assert :ok == ProcessorRole.as_processor(fn -> ProcessBuildWorker.perform(job) end)
+  end
+
+  test "a failed build with a subscribed agent publishes its event with processor privileges", %{
+    account: account,
+    project: project,
+    build: build
+  } do
+    %{account: user_account} = user = AccountsFixtures.user_fixture(preload: [:account])
+    token = AccountsFixtures.account_token_fixture(account: user_account, scopes: ["mcp"])
+
+    %Subscription{}
+    |> Subscription.changeset(%{
+      id: "sub_build_failed_#{Ecto.UUID.generate()}",
+      user_id: user.id,
+      account_token_id: token.id,
+      account_id: project.account_id,
+      project_id: project.id,
+      event_name: "build.failed",
+      callback_url: "https://example.com/events",
+      signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
+      refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
+
+    stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
+
+    stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
+      consume.(%{
+        "duration" => 1200,
+        "status" => "failure",
+        "targets" => [],
+        "issues" => [],
+        "files" => [],
+        "cacheable_tasks" => [],
+        "cas_outputs" => [],
+        "build_steps" => [],
+        "machine_metrics" => []
+      })
+    end)
+
+    job = %Oban.Job{
+      args: %{
+        "build_id" => build.id,
+        "storage_key" => @storage_key,
+        "account_id" => account.id,
+        "project_id" => project.id,
+        "xcode_cache_upload_enabled" => true
+      },
+      attempt: 1,
+      max_attempts: 5
+    }
+
+    assert :ok == ProcessorRole.as_processor(fn -> ProcessBuildWorker.perform(job) end)
+    assert_enqueued(worker: Tuist.MCP.Events.Workers.FanoutWorker, args: %{"event_name" => "build.failed"})
   end
 
   test "the xcresult ingestion path only reads and writes granted tables", %{
