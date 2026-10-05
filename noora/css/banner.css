@@ -17,27 +17,27 @@
   );
   --noora-banner-error-background: light-dark(
     var(--noora-red-50),
-    oklch(58.7% 0.23 30.7 / 0.16)
+    var(--noora-alpha-red)
   );
   --noora-banner-error-border: var(--noora-red-500);
   --noora-banner-success-background: light-dark(
     var(--noora-green-50),
-    oklch(63.8% 0.19 143.8 / 0.16)
+    var(--noora-alpha-green)
   );
   --noora-banner-success-border: var(--noora-green-600);
   --noora-banner-warning-background: light-dark(
     var(--noora-orange-50),
-    oklch(71.9% 0.185 48.7 / 0.16)
+    var(--noora-alpha-orange)
   );
   --noora-banner-warning-border: var(--noora-orange-600);
   --noora-banner-information-background: light-dark(
     var(--noora-azure-50),
-    oklch(57% 0.127 238.5 / 0.16)
+    var(--noora-alpha-azure)
   );
   --noora-banner-information-border: var(--noora-azure-500);
   --noora-banner-grid-color: light-dark(
-    oklch(21.7% 0.002 247.941),
-    oklch(99.4% 0 0)
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
   );
   display: flex;
   position: relative;
