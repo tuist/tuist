@@ -72,5 +72,25 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
       assert Floki.find(document, ~s(meta[property="og:image:width"])) == []
       assert Floki.find(document, ~s(meta[property="og:image:height"])) == []
     end
+
+    test "captions the generated image with the entry date", %{conn: conn} do
+      entry = Enum.find(Changelog.get_entries(), &is_nil(Changelog.get_entry_image_source(&1)))
+      date = Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")
+
+      html =
+        conn
+        |> get("/changelog/#{entry.id}")
+        |> html_response(200)
+
+      document = Floki.parse_document!(html)
+
+      assert Floki.attribute(Floki.find(document, ~s(meta[property="og:image"])), "content") == [
+               Tuist.Environment.app_url(
+                 path: TuistWeb.Helpers.OpenGraph.image_path(:marketing_text, title: entry.title, caption: date)
+               )
+             ]
+
+      assert Floki.attribute(Floki.find(document, ~s(meta[property="og:image:width"])), "content") == ["1920"]
+    end
   end
 end

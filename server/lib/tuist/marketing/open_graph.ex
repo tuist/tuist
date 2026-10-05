@@ -11,10 +11,11 @@ defmodule Tuist.Marketing.OpenGraph do
   @doc """
   The title-on-template card for blog posts without a cover, changelog
   entries and newsletter issues: the title left-aligned on
-  `og_template.png`.
+  `og_template.png`. An optional `:caption` (for example the entry's
+  date) is drawn bottom-right, where the docs card shows its category.
   """
-  def generate_og_image_binary(title) do
-    generate(title, "og_template.png", :left)
+  def generate_og_image_binary(title, opts \\ []) do
+    generate(title, "og_template.png", :left, Keyword.get(opts, :caption))
   end
 
   @doc """
@@ -22,11 +23,12 @@ defmodule Tuist.Marketing.OpenGraph do
   on `og_marketing_template.png`.
   """
   def generate_title_card_binary(title) do
-    generate(title, "og_marketing_template.png", :center)
+    generate(title, "og_marketing_template.png", :center, nil)
   end
 
-  defp generate(title, template, layout) do
-    with {:ok, image} <- generate_image(title, template, layout) do
+  defp generate(title, template, layout, caption) do
+    with {:ok, image} <- generate_image(title, template, layout),
+         {:ok, image} <- compose_caption(image, caption) do
       Image.write(image, :memory, quality: 95, strip_metadata: false, suffix: ".jpg")
     end
   end
@@ -45,6 +47,12 @@ defmodule Tuist.Marketing.OpenGraph do
   @canvas_height 1080
   @left_x 85
   @left_base_y 450
+
+  # The caption mirrors the docs card's category: 58px, 77px from the
+  # right edge and 66px from the bottom, level with the wordmark.
+  @caption_font_size 58
+  @caption_right 77
+  @caption_bottom 66
 
   defp generate_image(title, template, layout) do
     lines =
@@ -81,6 +89,18 @@ defmodule Tuist.Marketing.OpenGraph do
             {div(@canvas_width - Image.width(text), 2), block_top + index * @font_size}
         end
 
+      Image.compose(image, text, x: x, y: y)
+    end
+  end
+
+  defp compose_caption(image, nil), do: {:ok, image}
+
+  defp compose_caption(image, caption) do
+    options = Keyword.put(@text_options, :font_size, @caption_font_size)
+
+    with {:ok, text} <- Image.Text.text(caption, options) do
+      x = @canvas_width - @caption_right - Image.width(text)
+      y = @canvas_height - @caption_bottom - Image.height(text)
       Image.compose(image, text, x: x, y: y)
     end
   end

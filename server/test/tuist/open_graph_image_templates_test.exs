@@ -93,4 +93,21 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
 
     assert {:ok, <<0xFF, 0xD8, _rest::binary>>} = spec.render.()
   end
+
+  test "keys and renders text-only images with a caption" do
+    assert {:ok, plain} = OpenGraphImageTemplates.spec(%{"template" => "marketing_text", "title" => "Release"})
+
+    assert {:ok, captioned} =
+             OpenGraphImageTemplates.spec(%{
+               "template" => "marketing_text",
+               "title" => "Release",
+               "caption" => "May 9, 2026"
+             })
+
+    refute plain.key == captioned.key
+    assert {:ok, <<0xFF, 0xD8, _rest::binary>>} = captioned.render.()
+
+    assert OpenGraphImageTemplates.spec(%{"template" => "marketing_text", "title" => "Release", "caption" => ""}) ==
+             :error
+  end
 end

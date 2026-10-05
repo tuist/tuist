@@ -29,9 +29,12 @@ defmodule Tuist.OpenGraphImageTemplates do
   end
 
   def spec(%{"template" => "marketing_text", "title" => title} = params) do
-    if allowed_keys?(params, ["template", "title"], []) and valid_text?(title, @max_title_length) do
+    caption = Map.get(params, "caption")
+
+    if allowed_keys?(params, ["template", "title"], ["caption"]) and valid_text?(title, @max_title_length) and
+         valid_optional_text?(caption, @max_title_length) do
       build_spec(params, marketing_text_asset_hash(), fn ->
-        OpenGraph.generate_og_image_binary(title)
+        OpenGraph.generate_og_image_binary(title, caption: caption)
       end)
     else
       :error
