@@ -11,6 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -25,6 +26,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackcard"
 )
 
 const (
@@ -55,7 +57,8 @@ var rackPDUHost = func(pdu *infrav1.RackPDU) string {
 
 // RackPDUReconciler adopts each controller-managed RackPDU's card and keeps it
 // configured: it records the card's certificate at first contact and pins it,
-// generates and owns the card's credentials, sets the administrator password,
+// derives the card's credentials from the root key, sets the administrator
+// password,
 // accepts the licence agreement, creates the controller's own account and
 // sets every outlet's startup state. Between generations it only reads, and
 // reports drift.
@@ -80,6 +83,10 @@ type RackPDUReconciler struct {
 	// so a cache that has not seen the last pass's status yet does not start
 	// another. Nil reads through Client.
 	APIReader client.Reader
+
+	// RootKeySecret is the Secret whose `key` every card's passwords are
+	// derived from. Without it no card is adopted.
+	RootKeySecret types.NamespacedName
 
 	loginBackoff cardLoginBackoff
 }
@@ -135,6 +142,17 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, nil
 	}
 
+	rootKey, err := loadRackCardRootKey(ctx, r.Client, r.RootKeySecret)
+	var missing *rackCardRootKeyError
+	if errors.As(err, &missing) {
+		markRackCardRootKeyMissing(pdu, err)
+		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
+	}
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	passwords := rackCardDerivedPasswords(rootKey, pdu.Spec.Site, pdu.Spec.MAC, pdu.Name)
+
 	controllerutil.AddFinalizer(pdu, RackPDUFinalizer)
 	controllerutil.RemoveFinalizer(pdu, legacyRackPDUFinalizer)
 	if r.egressConfig().enabled() {
@@ -143,17 +161,17 @@ func (r *RackPDUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 	}
 
-	secret, err := r.ensureSecret(ctx, pdu)
+	secret, err := r.ensureSecret(ctx, pdu, passwords)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	pdu.Status.CredentialsSecret = secret.Name
 	markRackCardAddress(pdu, pdu.Spec.MAC, pdu.Spec.Address)
 
-	return r.reconcileCard(ctx, pdu, secret)
+	return r.reconcileCard(ctx, pdu, secret, passwords)
 }
 
-func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) (ctrl.Result, error) {
+func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords) (ctrl.Result, error) {
 	if wait := r.loginBackoff.wait(pdu); wait > 0 {
 		return ctrl.Result{RequeueAfter: wait}, nil
 	}
@@ -168,8 +186,11 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, err
 	}
 
-	if (!pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation) && !r.adoptedAlready(ctx, pdu) {
-		return r.adopt(ctx, pdu, secret)
+	// A Secret recording other passwords than the derived ones is a card an
+	// earlier build or root key set: adopting moves it onto them.
+	if !rackCardCredentialsCurrent(secret, passwords) ||
+		((!pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation) && !r.adoptedAlready(ctx, pdu)) {
+		return r.adopt(ctx, pdu, secret, passwords)
 	}
 	return r.verify(ctx, pdu, secret), nil
 }
@@ -177,9 +198,9 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 // adopt converges the card to the spec, as its administrator: every step
 // reads first and writes only what differs, so a pass interrupted anywhere is
 // finished by the next.
-func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) (ctrl.Result, error) {
+func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	admin, how, err := openRackCardAdmin(ctx, r.Client, r.cardOutlet(pdu, secret), secret, r.timeout())
+	admin, how, err := openRackCardAdmin(ctx, r.Client, r.Recorder, pdu, r.cardOutlet(pdu, secret), secret, passwords, r.timeout())
 	if err != nil {
 		if pdu.Status.Adopted && rackCardUnexpectedResponse(err) {
 			markRackCardUnexpected(pdu, err)
@@ -220,7 +241,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 	}
 	if err == nil {
-		err = r.converge(ctx, pdu, secret, admin)
+		err = r.converge(ctx, pdu, secret, passwords, admin)
 	}
 	if err != nil {
 		pdu.Status.Message = err.Error()
@@ -237,7 +258,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, nil
 }
 
-func (r *RackPDUReconciler) converge(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, admin *power.EatonSession) error {
+func (r *RackPDUReconciler) converge(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords, admin *power.EatonSession) error {
 	accounts, err := admin.Accounts(ctx)
 	if err != nil {
 		return fmt.Errorf("list the card's accounts: %w", err)
@@ -245,14 +266,17 @@ func (r *RackPDUReconciler) converge(ctx context.Context, pdu *infrav1.RackPDU, 
 	if err := acceptEatonAdminLicence(ctx, admin, accounts, secret); err != nil {
 		return err
 	}
-	if err := ensureEatonControllerAccount(ctx, r.Recorder, pdu, admin, accounts, secret, rackPDUControllerProfile, func(ctx context.Context) error {
+	if err := ensureEatonControllerAccount(ctx, r.Recorder, pdu, admin, accounts, rackCardControllerAccount(passwords), rackPDUControllerProfile, func(ctx context.Context) error {
 		eaton, err := eatonDriver(r.Power)
 		if err != nil {
 			return err
 		}
-		_, err = eaton.Identification(ctx, r.cardOutlet(pdu, secret))
+		_, err = eaton.Identification(ctx, rackCardDerivedOutlet(rackPDUHost(pdu), rackPDUEgress(pdu).host(r.egressConfig()), secret, passwords))
 		return err
 	}); err != nil {
+		return err
+	}
+	if err := recordRackCardController(ctx, r.Client, secret, passwords); err != nil {
 		return err
 	}
 
@@ -368,8 +392,8 @@ func rackPDUSecretName(pdu *infrav1.RackPDU) string {
 }
 
 // ensureSecret makes the PDU's credentials Secret.
-func (r *RackPDUReconciler) ensureSecret(ctx context.Context, pdu *infrav1.RackPDU) (*corev1.Secret, error) {
-	return ensureRackCardSecret(ctx, r.Client, pdu, "tuist.dev/rack-pdu", pdu.Spec.Address)
+func (r *RackPDUReconciler) ensureSecret(ctx context.Context, pdu *infrav1.RackPDU, passwords rackcard.Passwords) (*corev1.Secret, error) {
+	return ensureRackCardSecret(ctx, r.Client, pdu, "tuist.dev/rack-pdu", pdu.Spec.Address, passwords)
 }
 
 func (r *RackPDUReconciler) timeout() time.Duration {

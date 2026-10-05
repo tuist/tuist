@@ -2,12 +2,14 @@ package macos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -22,6 +24,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackcard"
 )
 
 const (
@@ -77,6 +80,10 @@ type RackATSReconciler struct {
 	// another. Nil reads through Client.
 	APIReader client.Reader
 
+	// RootKeySecret is the Secret whose `key` every card's passwords are
+	// derived from. Without it no card is adopted.
+	RootKeySecret types.NamespacedName
+
 	// loginBackoff holds off every contact with a card that refused a login
 	// the pass depends on; adminBackoff only the administrator's logins to an
 	// adopted card, which is still observed meanwhile.
@@ -85,7 +92,7 @@ type RackATSReconciler struct {
 
 	// Card, when set, replaces the card a RackATS is spoken to through; tests
 	// set it.
-	Card func(r *RackATSReconciler, ats *infrav1.RackATS, secret *corev1.Secret) atsCard
+	Card func(r *RackATSReconciler, ats *infrav1.RackATS, secret *corev1.Secret, passwords rackcard.Passwords) atsCard
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackatses,verbs=get;list;watch;update;patch
@@ -126,6 +133,18 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	}
 	defer func() { recordRackATSMetrics(ats) }()
 
+	rootKey, err := loadRackCardRootKey(ctx, r.Client, r.RootKeySecret)
+	var missing *rackCardRootKeyError
+	if errors.As(err, &missing) {
+		markRackCardRootKeyMissing(ats, err)
+		r.markUnobserved(ats, "RootKeyMissing", err.Error())
+		return ctrl.Result{RequeueAfter: rackATSRetryInterval}, nil
+	}
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	passwords := rackCardDerivedPasswords(rootKey, ats.Spec.Site, ats.Spec.MAC, ats.Name)
+
 	controllerutil.AddFinalizer(ats, RackATSFinalizer)
 	controllerutil.RemoveFinalizer(ats, legacyRackATSFinalizer)
 	if wait := r.loginBackoff.wait(ats); wait > 0 {
@@ -137,14 +156,14 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 	}
 
-	secret, err := ensureRackCardSecret(ctx, r.Client, ats, "tuist.dev/rack-ats", ats.Spec.Address)
+	secret, err := ensureRackCardSecret(ctx, r.Client, ats, "tuist.dev/rack-ats", ats.Spec.Address, passwords)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	ats.Status.CredentialsSecret = secret.Name
 	markRackCardAddress(ats, ats.Spec.MAC, ats.Spec.Address)
 
-	card := r.card(ats, secret)
+	card := r.card(ats, secret, passwords)
 	presented, err := card.Fingerprint(ctx)
 	if err != nil {
 		markRackCardUnreachable(ats, err)
@@ -160,9 +179,12 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 	}
 
+	// A Secret recording other passwords than the derived ones is a card an
+	// earlier build or root key set: adopting moves it onto them.
 	var convergeErr error
-	if (!ats.Status.Adopted || ats.Status.ObservedGeneration != ats.Generation) &&
-		!rackCardAdoptedPastCache(ctx, r.APIReader, r.Client, ats, &infrav1.RackATS{}) {
+	if !rackCardCredentialsCurrent(secret, passwords) ||
+		((!ats.Status.Adopted || ats.Status.ObservedGeneration != ats.Generation) &&
+			!rackCardAdoptedPastCache(ctx, r.APIReader, r.Client, ats, &infrav1.RackATS{})) {
 		if wait := r.adminBackoff.wait(ats); wait > 0 {
 			convergeErr = fmt.Errorf("the administrator's login is held off for %s after the card refused it", wait.Round(time.Second))
 		} else {
@@ -378,11 +400,11 @@ func (r *RackATSReconciler) markUnsupported(ats *infrav1.RackATS, err error) tim
 	return rackATSUnsupportedInterval
 }
 
-func (r *RackATSReconciler) card(ats *infrav1.RackATS, secret *corev1.Secret) atsCard {
+func (r *RackATSReconciler) card(ats *infrav1.RackATS, secret *corev1.Secret, passwords rackcard.Passwords) atsCard {
 	if r.Card != nil {
-		return r.Card(r, ats, secret)
+		return r.Card(r, ats, secret, passwords)
 	}
-	return &eatonATSCard{r: r, ats: ats, secret: secret}
+	return &eatonATSCard{r: r, ats: ats, secret: secret, passwords: passwords}
 }
 
 // logOut ends the controller's session on the transfer switch's card.

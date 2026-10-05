@@ -60,13 +60,13 @@ func newPDUHarness(t *testing.T, objs ...runtime.Object) *pduHarness {
 			t.Fatalf("scheme: %v", err)
 		}
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
+	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(append(objs, testRootKeySecret())...).
 		WithStatusSubresource(&infrav1.RackPDU{}, &infrav1.RackATS{}).Build()
 	recorder := record.NewFakeRecorder(100)
 	eaton := &power.Eaton{SettleTimeout: time.Second, PollInterval: time.Millisecond}
 	return &pduHarness{t: t, card: card, recorder: recorder, r: &RackPDUReconciler{
 		Client: c, Scheme: scheme, Recorder: recorder, Timeout: 5 * time.Second,
-		Power: eatonRegistry(eaton),
+		Power: eatonRegistry(eaton), RootKeySecret: testRootKeyRef,
 	}}
 }
 
@@ -190,7 +190,7 @@ func TestRackPDUAdoptsAFactoryCard(t *testing.T) {
 // password changed, finds the card on its factory login and finishes.
 func TestRackPDUResumesBeforeThePasswordChanged(t *testing.T) {
 	h := newPDUHarness(t, rackPDU())
-	if _, err := h.r.ensureSecret(context.Background(), rackPDU()); err != nil {
+	if _, err := h.r.ensureSecret(context.Background(), rackPDU(), pduPasswords()); err != nil {
 		t.Fatal(err)
 	}
 	stored := h.secret().Data["admin-password"]
@@ -207,7 +207,7 @@ func TestRackPDUResumesBeforeThePasswordChanged(t *testing.T) {
 // stored password.
 func TestRackPDUResumesAfterThePasswordChanged(t *testing.T) {
 	h := newPDUHarness(t, rackPDU())
-	if _, err := h.r.ensureSecret(context.Background(), rackPDU()); err != nil {
+	if _, err := h.r.ensureSecret(context.Background(), rackPDU(), pduPasswords()); err != nil {
 		t.Fatal(err)
 	}
 	h.card.Mu.Lock()
@@ -218,14 +218,13 @@ func TestRackPDUResumesAfterThePasswordChanged(t *testing.T) {
 	h.reconcile()
 
 	h.assertAdopted()
-	if h.eventsMatching("with the managed password") != 1 || h.eventsMatching("factory") != 0 {
-		t.Fatalf("events = %v, want a login with the managed password", h.events)
+	if h.eventsMatching("with the derived password") != 1 || h.eventsMatching("factory") != 0 {
+		t.Fatalf("events = %v, want a login with the derived password", h.events)
 	}
 }
 
-// The Secret holds the only copy of the passwords set on the card, so it
-// outlives the RackPDU, and a RackPDU made again with the same name logs in
-// with them rather than being refused by a card nobody knows the password of.
+// The Secret outlives the RackPDU, keeping the pin, and a RackPDU made again
+// with the same name logs in with the derived password.
 func TestRackPDUCredentialsOutliveTheRackPDU(t *testing.T) {
 	h := newPDUHarness(t, rackPDU())
 	h.reconcile()
@@ -261,7 +260,7 @@ func TestRackPDUCredentialsOutliveTheRackPDU(t *testing.T) {
 	h.reconcile()
 
 	h.assertAdopted()
-	if h.eventsMatching("with the managed password") != 1 || h.eventsMatching("factory") != 0 {
+	if h.eventsMatching("with the derived password") != 1 || h.eventsMatching("factory") != 0 {
 		t.Fatalf("events = %v, want a login with the stored password", h.events)
 	}
 	for _, key := range []string{"admin-password", "password", "initial-password", "tlsFingerprint"} {
@@ -271,7 +270,8 @@ func TestRackPDUCredentialsOutliveTheRackPDU(t *testing.T) {
 	}
 }
 
-// A Secret an earlier build made with the RackPDU as its owner is released.
+// A Secret an earlier build made with the RackPDU as its owner is released,
+// and the card moved off the password it records.
 func TestRackPDUReleasesItsSecretFromAnOwner(t *testing.T) {
 	owned := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "ber1-pdu-b-credentials", Namespace: testNamespace,
 		OwnerReferences: []metav1.OwnerReference{{APIVersion: "infrastructure.cluster.x-k8s.io/v1alpha1", Kind: "RackPDU", Name: "ber1-pdu-b", UID: "u"}}},
@@ -284,7 +284,7 @@ func TestRackPDUReleasesItsSecretFromAnOwner(t *testing.T) {
 	h.reconcile()
 
 	h.assertAdopted()
-	if s := h.secret(); len(s.OwnerReferences) != 0 || string(s.Data["admin-password"]) != "Kept-admin-password1" {
+	if s := h.secret(); len(s.OwnerReferences) != 0 || string(s.Data["admin-password"]) != pduPasswords().Admin {
 		t.Fatalf("Secret = owners %+v, admin-password %q", s.OwnerReferences, s.Data["admin-password"])
 	}
 }
@@ -531,30 +531,5 @@ func TestRackPDUEgressServiceIsKeptAndDeletedWithIt(t *testing.T) {
 	h.reconcile()
 	if err := h.r.Get(context.Background(), key, svc); !apierrors.IsNotFound(err) {
 		t.Fatalf("egress Service after the RackPDU was deleted: %v", err)
-	}
-}
-
-func TestGeneratedCardPasswordsMeetTheCardsPolicy(t *testing.T) {
-	for range 200 {
-		p, err := generateCardPassword()
-		if err != nil {
-			t.Fatal(err)
-		}
-		var upper, lower, digit, special bool
-		for _, r := range p {
-			switch {
-			case r >= 'A' && r <= 'Z':
-				upper = true
-			case r >= 'a' && r <= 'z':
-				lower = true
-			case r >= '0' && r <= '9':
-				digit = true
-			default:
-				special = true
-			}
-		}
-		if len(p) != 24 || !upper || !lower || !digit || !special {
-			t.Fatalf("%q does not meet the policy", p)
-		}
 	}
 }

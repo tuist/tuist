@@ -112,8 +112,8 @@ func TestTheAdministratorLoginTriesOneMarkedSiblingAtMost(t *testing.T) {
 	if n := adminAttempts(h.card); n != 2 {
 		t.Fatalf("%d administrator login attempts, want its own password and the one marked sibling", n)
 	}
-	if h.eventsMatching("d-right-credentials") != 1 {
-		t.Fatalf("events = %v, want the login to name the Secret it took the password from", h.events)
+	if h.eventsMatching("d-right-credentials") != 2 || h.eventsMatching("PasswordRotated") != 1 {
+		t.Fatalf("events = %v, want the login and the rotation to name the Secret it took the password from", h.events)
 	}
 }
 

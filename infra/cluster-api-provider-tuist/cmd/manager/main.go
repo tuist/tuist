@@ -26,6 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
@@ -73,6 +74,7 @@ func main() {
 		probeAddr            string
 		enableLeaderElection bool
 		secretsNamespace     string
+		rackCardRootSecret   string
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
@@ -124,6 +126,8 @@ func main() {
 		"Single-leader election; required when running >1 replica")
 	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
 		"Namespace where the operator stores per-fleet SSH key Secrets")
+	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
+		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
 		"External API server URL Mac minis dial when joining (https://...). "+
@@ -692,6 +696,7 @@ func main() {
 		Power:            powerRegistry,
 		EgressNamespace:  egressNamespace,
 		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackPDUReconciler")
 		os.Exit(1)
@@ -704,6 +709,7 @@ func main() {
 		Power:            powerRegistry,
 		EgressNamespace:  egressNamespace,
 		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackATSReconciler")
 		os.Exit(1)

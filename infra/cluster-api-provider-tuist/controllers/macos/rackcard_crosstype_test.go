@@ -36,7 +36,7 @@ func TestARackATSOnAPDUCardLeavesItAdoptableByTheRackPDU(t *testing.T) {
 	t.Cleanup(func() { rackATSHost = previous })
 	t.Cleanup(func() { forgetRackATSMetrics(testATS) })
 	atsRecorder := record.NewFakeRecorder(100)
-	atsReconciler := &RackATSReconciler{Client: h.r.Client, Scheme: h.r.Scheme, Recorder: atsRecorder, Power: h.r.Power, Timeout: 5 * time.Second}
+	atsReconciler := &RackATSReconciler{Client: h.r.Client, Scheme: h.r.Scheme, Recorder: atsRecorder, Power: h.r.Power, Timeout: 5 * time.Second, RootKeySecret: testRootKeyRef}
 
 	if _, err := atsReconciler.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: testATS}}); err != nil {
 		t.Fatal(err)
@@ -56,8 +56,11 @@ func TestARackATSOnAPDUCardLeavesItAdoptableByTheRackPDU(t *testing.T) {
 	h.reconcile()
 
 	h.assertAdopted()
-	if h.eventsMatching(testATS+"-credentials") != 1 {
-		t.Fatalf("events = %v, want one naming the Secret the administrator password came from", h.events)
+	if h.eventsMatching(testATS+"-credentials") != 2 || h.eventsMatching("PasswordRotated") != 1 {
+		t.Fatalf("events = %v, want the login and the rotation naming the Secret the administrator password came from", h.events)
+	}
+	if h.card.Account("admin").Password != pduPasswords().Admin {
+		t.Fatal("the RackPDU did not move the card onto its derived administrator password")
 	}
 }
 
@@ -69,7 +72,7 @@ func TestARackPDUOnAnATSCardLeavesItAdoptableByTheRackATS(t *testing.T) {
 	rackPDUHost = func(*infrav1.RackPDU) string { return h.card.URL() }
 	t.Cleanup(func() { rackPDUHost = previous })
 	t.Cleanup(func() { forgetRackPDUMetrics("ber1-pdu-b") })
-	pduReconciler := &RackPDUReconciler{Client: h.r.Client, Scheme: h.r.Scheme, Recorder: record.NewFakeRecorder(100), Power: h.r.Power, Timeout: 5 * time.Second}
+	pduReconciler := &RackPDUReconciler{Client: h.r.Client, Scheme: h.r.Scheme, Recorder: record.NewFakeRecorder(100), Power: h.r.Power, Timeout: 5 * time.Second, RootKeySecret: testRootKeyRef}
 
 	if _, err := pduReconciler.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "ber1-pdu-b"}}); err != nil {
 		t.Fatal(err)

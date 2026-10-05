@@ -13,6 +13,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackcard"
 )
 
 // atsCard is one kind of transfer-switch management card. The RackATS
@@ -84,9 +85,10 @@ const (
 // eatonATSCard is a Network-M2 or Network-M3 card in an Eaton transfer
 // switch, over the REST API the rack's Eaton PDUs speak.
 type eatonATSCard struct {
-	r      *RackATSReconciler
-	ats    *infrav1.RackATS
-	secret *corev1.Secret
+	r         *RackATSReconciler
+	ats       *infrav1.RackATS
+	secret    *corev1.Secret
+	passwords rackcard.Passwords
 }
 
 func (c *eatonATSCard) Kind() string { return "eaton-mbdetnrs" }
@@ -101,7 +103,7 @@ func (c *eatonATSCard) Fingerprint(ctx context.Context) (string, error) {
 
 func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, error) {
 	logger := log.FromContext(ctx)
-	admin, how, err := openRackCardAdmin(ctx, c.r.Client, c.outlet(), c.secret, c.r.timeout())
+	admin, how, err := openRackCardAdmin(ctx, c.r.Client, c.r.Recorder, c.ats, c.outlet(), c.secret, c.passwords, c.r.timeout())
 	if err != nil {
 		return atsAdoption{}, &atsCardError{Reason: eatonLoginReason(err), Err: err}
 	}
@@ -131,14 +133,17 @@ func (c *eatonATSCard) Adopt(ctx context.Context, preferred int) (atsAdoption, e
 	if err := acceptEatonAdminLicence(ctx, admin, accounts, c.secret); err != nil {
 		return atsAdoption{}, err
 	}
-	if err := ensureEatonControllerAccount(ctx, c.r.Recorder, c.ats, admin, accounts, c.secret, rackATSControllerProfile, func(ctx context.Context) error {
+	if err := ensureEatonControllerAccount(ctx, c.r.Recorder, c.ats, admin, accounts, rackCardControllerAccount(c.passwords), rackATSControllerProfile, func(ctx context.Context) error {
 		eaton, err := eatonDriver(c.r.Power)
 		if err != nil {
 			return err
 		}
-		_, err = eaton.Identification(ctx, c.outlet())
+		_, err = eaton.Identification(ctx, rackCardDerivedOutlet(rackATSHost(c.ats), rackATSEgress(c.ats).host(c.r.egressConfig()), c.secret, c.passwords))
 		return err
 	}); err != nil {
+		return atsAdoption{}, err
+	}
+	if err := recordRackCardController(ctx, c.r.Client, c.secret, c.passwords); err != nil {
 		return atsAdoption{}, err
 	}
 

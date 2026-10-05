@@ -2,11 +2,10 @@ package macos
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -21,13 +20,16 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackcard"
 )
 
 // The lifecycle every rack power device's management card shares, whichever
-// device it is in: a RackPDU or a RackATS. Each is adopted on its factory
-// login, keeps an unowned credentials Secret written before first contact, is
-// pinned to the certificate it presented first, and reports drift rather than
-// writing over it between generations.
+// device it is in: a RackPDU or a RackATS. Each card's passwords are derived
+// from one root key (internal/rackcard), so a rebuilt cluster computes them
+// again. Each is adopted on its factory login, keeps an unowned credentials
+// Secret recording its passwords and pin, is pinned to the certificate it
+// presented first, and reports drift rather than writing over it between
+// generations.
 
 const (
 	RackCardAdoptedCondition            clusterv1.ConditionType = "Adopted"
@@ -80,11 +82,83 @@ func rackCardSecretName(name string) string {
 	return name + "-credentials"
 }
 
-// ensureRackCardSecret makes a card's credentials Secret, generating what it
-// lacks and never replacing what it has: it is written before any password
-// reaches the card, so a pass that stops after changing one finds it here.
-// labelKey names the device kind, e.g. tuist.dev/rack-pdu.
-func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Object, labelKey, address string) (*corev1.Secret, error) {
+// rackCardRootKeyKey is the root key Secret's key holding the key.
+const rackCardRootKeyKey = "key"
+
+// rackCardRootKeyError is the root key missing or unusable, which blocks every
+// adoption.
+type rackCardRootKeyError struct {
+	ref types.NamespacedName
+	err error
+}
+
+func (e *rackCardRootKeyError) Error() string {
+	return fmt.Sprintf("the rack card root key, Secret %s key %q, %v: no card's passwords can be derived, so no card is contacted", e.ref, rackCardRootKeyKey, e.err)
+}
+
+// loadRackCardRootKey reads the key every card's passwords are derived from.
+func loadRackCardRootKey(ctx context.Context, c client.Reader, ref types.NamespacedName) ([]byte, error) {
+	if ref.Name == "" {
+		return nil, &rackCardRootKeyError{ref: ref, err: errors.New("is not configured (--rack-card-root-secret)")}
+	}
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, ref, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, &rackCardRootKeyError{ref: ref, err: errors.New("does not exist")}
+		}
+		return nil, fmt.Errorf("read the rack card root key %s: %w", ref, err)
+	}
+	key, err := rackcard.ParseRootKey(secret.Data[rackCardRootKeyKey])
+	if err != nil {
+		return nil, &rackCardRootKeyError{ref: ref, err: err}
+	}
+	return key, nil
+}
+
+// rackCardDerivedPasswords are an object's card's passwords.
+func rackCardDerivedPasswords(rootKey []byte, site, mac, name string) rackcard.Passwords {
+	return rackcard.Derive(rootKey, site, rackcard.Identity(mac, name))
+}
+
+// markRackCardRootKeyMissing reports a card the controller does not contact
+// for want of the root key.
+func markRackCardRootKeyMissing(obj rackCard, err error) {
+	status := obj.CardStatus()
+	status.Message = err.Error()
+	status.Drift = infrav1.RackCardDriftUnknown
+	conditions.MarkFalse(obj, RackCardAdoptedCondition, "RootKeyMissing", clusterv1.ConditionSeverityError, "%v", err)
+	conditions.MarkFalse(obj, clusterv1.ReadyCondition, "RootKeyMissing", clusterv1.ConditionSeverityError, "%v", err)
+	conditions.MarkUnknown(obj, RackCardConvergedCondition, "RootKeyMissing", "%v", err)
+}
+
+// rackCardCredentialsCurrent reports whether the Secret records the derived
+// passwords: anything else is a card an earlier build or an earlier root key
+// set, which an adoption pass moves onto them.
+func rackCardCredentialsCurrent(secret *corev1.Secret, passwords rackcard.Passwords) bool {
+	for k, v := range rackCardDerivedData(passwords) {
+		if string(secret.Data[k]) != v {
+			return false
+		}
+	}
+	return true
+}
+
+func rackCardDerivedData(passwords rackcard.Passwords) map[string]string {
+	return map[string]string{
+		rackCardKeyAdminUsername:   rackCardFactoryUser,
+		rackCardKeyAdminPassword:   passwords.Admin,
+		rackCardKeyUsername:        rackCardControllerUser,
+		rackCardKeyPassword:        passwords.Controller,
+		rackCardKeyInitialPassword: passwords.ControllerInitial,
+	}
+}
+
+// ensureRackCardSecret makes a card's credentials Secret, the record of what
+// the card holds: the derived passwords for keys it lacks, and what it has
+// left as it is until the card is moved onto the derived passwords, since a
+// card an earlier build adopted is only reached with them. labelKey names the
+// device kind, e.g. tuist.dev/rack-pdu.
+func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Object, labelKey, address string, passwords rackcard.Passwords) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: obj.GetNamespace(), Name: rackCardSecretName(obj.GetName())}
 	err := c.Get(ctx, key, secret)
@@ -92,9 +166,8 @@ func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Objec
 	if err != nil && !create {
 		return nil, err
 	}
-	// Deliberately unowned: it holds the only copy of the passwords set on the
-	// card, so deleting or recreating the object must not collect it, or the
-	// card refuses every login until someone factory-resets it.
+	// Unowned, so deleting or recreating the object does not collect the pin
+	// and the record of a card not yet moved onto the derived passwords.
 	if create {
 		secret = &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace,
 			Labels: map[string]string{"app.kubernetes.io/managed-by": operatorName, labelKey: obj.GetName()}}}
@@ -119,19 +192,9 @@ func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Objec
 		owners = append(owners, ref)
 	}
 	secret.OwnerReferences = owners
-	for k, value := range map[string]func() (string, error){
-		rackCardKeyAdminUsername:   func() (string, error) { return rackCardFactoryUser, nil },
-		rackCardKeyAdminPassword:   generateCardPassword,
-		rackCardKeyUsername:        func() (string, error) { return rackCardControllerUser, nil },
-		rackCardKeyPassword:        generateCardPassword,
-		rackCardKeyInitialPassword: generateCardPassword,
-	} {
+	for k, v := range rackCardDerivedData(passwords) {
 		if len(secret.Data[k]) > 0 {
 			continue
-		}
-		v, err := value()
-		if err != nil {
-			return nil, err
 		}
 		secret.Data[k] = []byte(v)
 		changed = true
@@ -147,40 +210,6 @@ func ensureRackCardSecret(ctx context.Context, c client.Client, obj client.Objec
 		}
 	}
 	return secret, nil
-}
-
-// generateCardPassword makes a password the card's default policy accepts: 24
-// characters with upper and lower case letters, digits and a special
-// character.
-func generateCardPassword() (string, error) {
-	const (
-		upper   = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-		lower   = "abcdefghijkmnopqrstuvwxyz"
-		digits  = "23456789"
-		special = "-_.+=!#%"
-	)
-	classes := []string{upper, lower, digits, special}
-	all := upper + lower + digits
-	out := make([]byte, 24)
-	for i := range out {
-		set := all
-		if i < len(classes) {
-			set = classes[i]
-		}
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(set))))
-		if err != nil {
-			return "", err
-		}
-		out[i] = set[n.Int64()]
-	}
-	for i := len(out) - 1; i > 0; i-- {
-		j, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
-		if err != nil {
-			return "", err
-		}
-		out[i], out[j.Int64()] = out[j.Int64()], out[i]
-	}
-	return string(out), nil
 }
 
 // rackCardAdoptedPastCache reports whether the API server records obj's
@@ -327,70 +356,151 @@ func rackCardOutlet(host, dial string, secret *corev1.Secret) power.Outlet {
 	}
 }
 
+// rackCardDerivedOutlet is the card as the controller's account reaches it on
+// its derived passwords, which adoption moves the account onto before the
+// Secret records them.
+func rackCardDerivedOutlet(host, dial string, secret *corev1.Secret, passwords rackcard.Passwords) power.Outlet {
+	o := rackCardOutlet(host, dial, secret)
+	o.Username, o.Password, o.InitialPassword = rackCardControllerUser, passwords.Controller, passwords.ControllerInitial
+	return o
+}
+
+// rackCardControllerAccount is the controller's account as adoption makes it.
+func rackCardControllerAccount(passwords rackcard.Passwords) eatonControllerAccount {
+	return eatonControllerAccount{Username: rackCardControllerUser, InitialPassword: passwords.ControllerInitial}
+}
+
 // asAdmin is o logged in as username instead of the controller's account.
 func asAdmin(o power.Outlet, username, password string) power.Outlet {
 	o.Username, o.Password, o.InitialPassword = username, password, ""
 	return o
 }
 
-// openRackCardAdmin logs in as the card's administrator: with the Secret's
-// password; then with the administrator password of at most one other
-// object's Secret for the same card address, one that recorded setting it on
-// a card presenting this certificate (an object that logged in to a card of a
-// kind it could not drive: the card forces the change before it can be asked
-// what it is), recording it in this object's Secret; and otherwise with the
-// factory login, setting the Secret's password in the same request and
-// recording that it did. It names which.
-func openRackCardAdmin(ctx context.Context, c client.Client, card power.Outlet, secret *corev1.Secret, timeout time.Duration) (*power.EatonSession, string, error) {
-	managed := asAdmin(card, string(secret.Data[rackCardKeyAdminUsername]), string(secret.Data[rackCardKeyAdminPassword]))
-	session, err := power.OpenEatonSession(ctx, managed, "", timeout)
+// openRackCardAdmin logs in as the card's administrator, and leaves the card
+// on the derived administrator password. It tries, in order: the derived
+// password; the password the Secret records, when it is another (a card an
+// earlier build or an earlier root key set); the administrator password of
+// at most one other object's Secret for the same card address, one that
+// recorded setting it on a card presenting this certificate (an object that
+// logged in to a card of a kind it could not drive: the card forces the
+// change before it can be asked what it is); and the factory login. Each but
+// the first sets the derived password in the same request, the token
+// endpoint's newPassword, so the login that takes is also the rotation. The
+// Secret then records the derived password. It names which login took.
+func openRackCardAdmin(ctx context.Context, c client.Client, recorder record.EventRecorder, obj client.Object, card power.Outlet,
+	secret *corev1.Secret, passwords rackcard.Passwords, timeout time.Duration) (*power.EatonSession, string, error) {
+	session, err := power.OpenEatonSession(ctx, asAdmin(card, rackCardFactoryUser, passwords.Admin), "", timeout)
 	if err == nil {
-		return session, "with the managed password", nil
+		if err := recordRackCardAdmin(ctx, c, secret, passwords.Admin, "", ""); err != nil {
+			_ = session.Close(ctx)
+			return nil, "", err
+		}
+		return session, "with the derived password", nil
 	}
-	var refused *power.EatonLoginError
-	if !errors.As(err, &refused) || !refused.Refused() {
+	if !adminLoginRefused(err) {
 		return nil, "", err
 	}
+	failures := []string{fmt.Sprintf("the derived password: %v", err)}
+	tried := map[string]bool{passwords.Admin: true}
 
-	if sibling, ok, err := rackCardMarkedSibling(ctx, c, secret, card.TLSFingerprint); err != nil {
+	type candidate struct{ password, from string }
+	var candidates []candidate
+	if stored := string(secret.Data[rackCardKeyAdminPassword]); stored != "" && !tried[stored] {
+		tried[stored] = true
+		candidates = append(candidates, candidate{stored, fmt.Sprintf("the password Secret %s/%s records", secret.Namespace, secret.Name)})
+	}
+	sibling, ok, err := rackCardMarkedSibling(ctx, c, secret, card.TLSFingerprint, tried)
+	if err != nil {
 		return nil, "", err
-	} else if ok {
-		password := string(sibling.Data[rackCardKeyAdminPassword])
-		session, siblingErr := power.OpenEatonSession(ctx, asAdmin(card, string(secret.Data[rackCardKeyAdminUsername]), password), "", timeout)
-		if siblingErr == nil {
-			secret.Data[rackCardKeyAdminPassword] = []byte(password)
-			markRackCardAdminSet(secret, sibling.Annotations[rackCardAdminSetAnnotation], sibling.Annotations[rackCardAdminSetCertificateAnnotation])
-			if err := c.Update(ctx, secret); err != nil {
-				_ = session.Close(ctx)
-				return nil, "", fmt.Errorf("record the administrator password from %s in %s: %w", sibling.Name, secret.Name, err)
+	}
+	if ok {
+		candidates = append(candidates, candidate{string(sibling.Data[rackCardKeyAdminPassword]),
+			fmt.Sprintf("the administrator password another object set, from Secret %s/%s", sibling.Namespace, sibling.Name)})
+	}
+	setAt := func() string { return time.Now().UTC().Format(time.RFC3339) }
+	for _, cand := range candidates {
+		session, err := power.OpenEatonSession(ctx, asAdmin(card, rackCardFactoryUser, cand.password), passwords.Admin, timeout)
+		if err != nil {
+			if !adminLoginRefused(err) {
+				return nil, "", err
 			}
-			return session, fmt.Sprintf("with the administrator password another object set, from Secret %s/%s, and recorded it in %s",
-				sibling.Namespace, sibling.Name, secret.Name), nil
+			failures = append(failures, fmt.Sprintf("%s: %v", cand.from, err))
+			continue
 		}
-		if !errors.As(siblingErr, &refused) || !refused.Refused() {
-			return nil, "", siblingErr
+		if err := recordRackCardAdmin(ctx, c, secret, passwords.Admin, setAt(), card.TLSFingerprint); err != nil {
+			_ = session.Close(ctx)
+			return nil, "", err
 		}
+		recorder.Eventf(obj, corev1.EventTypeNormal, "PasswordRotated",
+			"Moved the card's admin password onto the derived one; it was %s", cand.from)
+		return session, fmt.Sprintf("with %s, and moved it onto the derived password", cand.from), nil
 	}
 
 	factory := asAdmin(card, rackCardFactoryUser, rackCardFactoryPassword)
-	session, factoryErr := power.OpenEatonSession(ctx, factory, string(secret.Data[rackCardKeyAdminPassword]), timeout)
+	session, factoryErr := power.OpenEatonSession(ctx, factory, passwords.Admin, timeout)
 	if factoryErr != nil {
-		return nil, "", fmt.Errorf("the managed password: %v; the factory login: %w", err, factoryErr)
+		return nil, "", fmt.Errorf("%s; the factory login: %w", strings.Join(failures, "; "), factoryErr)
 	}
-	markRackCardAdminSet(secret, time.Now().UTC().Format(time.RFC3339), card.TLSFingerprint)
-	if err := c.Update(ctx, secret); err != nil {
+	if err := recordRackCardAdmin(ctx, c, secret, passwords.Admin, setAt(), card.TLSFingerprint); err != nil {
 		_ = session.Close(ctx)
-		return nil, "", fmt.Errorf("record in %s that the administrator password is set: %w", secret.Name, err)
+		return nil, "", err
 	}
-	return session, "with the factory login, and set the managed password", nil
+	return session, "with the factory login, and set the derived password", nil
+}
+
+func adminLoginRefused(err error) bool {
+	var refused *power.EatonLoginError
+	return errors.As(err, &refused) && refused.Refused()
+}
+
+// recordRackCardAdmin records the card's administrator password in the
+// Secret, and, when at is set, that it was set on the card then, on the card
+// presenting fingerprint.
+func recordRackCardAdmin(ctx context.Context, c client.Client, secret *corev1.Secret, password, at, fingerprint string) error {
+	if string(secret.Data[rackCardKeyAdminPassword]) == password && string(secret.Data[rackCardKeyAdminUsername]) == rackCardFactoryUser && at == "" {
+		return nil
+	}
+	secret.Data[rackCardKeyAdminUsername] = []byte(rackCardFactoryUser)
+	secret.Data[rackCardKeyAdminPassword] = []byte(password)
+	if at != "" {
+		markRackCardAdminSet(secret, at, fingerprint)
+	}
+	if err := c.Update(ctx, secret); err != nil {
+		return fmt.Errorf("record the card's administrator password in %s: %w", secret.Name, err)
+	}
+	return nil
+}
+
+// recordRackCardController records the controller's account's derived
+// passwords in the Secret, once the card's account takes them.
+func recordRackCardController(ctx context.Context, c client.Client, secret *corev1.Secret, passwords rackcard.Passwords) error {
+	changed := false
+	for k, v := range map[string]string{
+		rackCardKeyUsername:        rackCardControllerUser,
+		rackCardKeyPassword:        passwords.Controller,
+		rackCardKeyInitialPassword: passwords.ControllerInitial,
+	} {
+		if string(secret.Data[k]) != v {
+			secret.Data[k] = []byte(v)
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	if err := c.Update(ctx, secret); err != nil {
+		return fmt.Errorf("record the controller's account's password in %s: %w", secret.Name, err)
+	}
+	return nil
 }
 
 // rackCardMarkedSibling is the one other credentials Secret for the card's
 // address whose administrator password may be tried on it: of those that
 // recorded setting the password on a card presenting this certificate, the
-// most recent. Every other Secret is skipped, so a card that blocks an
-// account after a few failed logins is never walked through leftovers.
-func rackCardMarkedSibling(ctx context.Context, c client.Client, secret *corev1.Secret, fingerprint string) (*corev1.Secret, bool, error) {
+// most recent, skipping passwords already tried. Every other Secret is
+// skipped, so a card that blocks an account after a few failed logins is
+// never walked through leftovers.
+func rackCardMarkedSibling(ctx context.Context, c client.Client, secret *corev1.Secret, fingerprint string, tried map[string]bool) (*corev1.Secret, bool, error) {
 	address := secret.Labels[rackCardAddressLabel]
 	if address == "" {
 		return nil, false, nil
@@ -404,7 +514,7 @@ func rackCardMarkedSibling(ctx context.Context, c client.Client, secret *corev1.
 	for i := range siblings.Items {
 		sibling := &siblings.Items[i]
 		password := string(sibling.Data[rackCardKeyAdminPassword])
-		if sibling.Name == secret.Name || password == "" || password == string(secret.Data[rackCardKeyAdminPassword]) {
+		if sibling.Name == secret.Name || password == "" || tried[password] {
 			continue
 		}
 		at, err := time.Parse(time.RFC3339, sibling.Annotations[rackCardAdminSetAnnotation])
@@ -497,13 +607,22 @@ func acceptEatonAdminLicence(ctx context.Context, admin *power.EatonSession, acc
 	return nil
 }
 
+// eatonControllerAccount is the controller's account as adoption makes it:
+// its name, and the password it is made with, which the card makes it change
+// at its first login.
+type eatonControllerAccount struct {
+	Username        string
+	InitialPassword string
+}
+
 // ensureEatonControllerAccount makes the controller's account exist,
 // unlocked, in profileName, with the licence accepted, and able to log in
-// with the Secret's password, which verify checks through the driver's
-// session; an account that cannot is made again.
+// with its derived password, which verify checks through the driver's
+// session; an account that cannot (one on a password an earlier build or an
+// earlier root key set) is made again on the derived password.
 func ensureEatonControllerAccount(ctx context.Context, recorder record.EventRecorder, obj client.Object, admin *power.EatonSession,
-	accounts []power.EatonAccount, secret *corev1.Secret, profileName string, verify func(context.Context) error) error {
-	username := string(secret.Data[rackCardKeyUsername])
+	accounts []power.EatonAccount, want eatonControllerAccount, profileName string, verify func(context.Context) error) error {
+	username := want.Username
 	profiles, err := admin.Profiles(ctx)
 	if err != nil {
 		return fmt.Errorf("list the card's profiles: %w", err)
@@ -525,9 +644,10 @@ func ensureEatonControllerAccount(ctx context.Context, recorder record.EventReco
 		}
 		account = nil
 	}
+	remade := false
 	for attempt := 0; ; attempt++ {
 		if account == nil {
-			created, err := admin.CreateAccount(ctx, username, profile.Ref, string(secret.Data[rackCardKeyInitialPassword]), "Tuist controller")
+			created, err := admin.CreateAccount(ctx, username, profile.Ref, want.InitialPassword, "Tuist controller")
 			if err != nil {
 				return fmt.Errorf("create the controller's account %s: %w", username, err)
 			}
@@ -548,16 +668,19 @@ func ensureEatonControllerAccount(ctx context.Context, recorder record.EventReco
 		err := verify(ctx)
 		var refused *power.EatonLoginError
 		if err == nil {
+			if remade {
+				recorder.Eventf(obj, corev1.EventTypeNormal, "PasswordRotated", "Moved the card's controller password onto the derived one, by making %s again", username)
+			}
 			return nil
 		}
 		if attempt > 0 || !errors.As(err, &refused) || !refused.Refused() {
 			return fmt.Errorf("log in as %s: %w", username, err)
 		}
 		if err := admin.DeleteAccount(ctx, account.ID); err != nil {
-			return fmt.Errorf("remove %s, which does not take the Secret's password: %w", username, err)
+			return fmt.Errorf("remove %s, which does not take its derived password: %w", username, err)
 		}
-		recorder.Eventf(obj, corev1.EventTypeWarning, "AccountRecreated", "%s did not take the Secret's password; making it again", username)
-		account = nil
+		recorder.Eventf(obj, corev1.EventTypeWarning, "AccountRecreated", "%s did not take its derived password; making it again", username)
+		account, remade = nil, true
 	}
 }
 

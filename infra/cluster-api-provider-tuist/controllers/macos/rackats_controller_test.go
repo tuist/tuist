@@ -70,13 +70,13 @@ func newATSHarness(t *testing.T, objs ...runtime.Object) *atsHarness {
 			t.Fatalf("scheme: %v", err)
 		}
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
+	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(append(objs, testRootKeySecret())...).
 		WithStatusSubresource(&infrav1.RackATS{}, &infrav1.RackPDU{}).Build()
 	recorder := record.NewFakeRecorder(100)
 	eaton := &power.Eaton{SettleTimeout: time.Second, PollInterval: time.Millisecond}
 	return &atsHarness{t: t, card: card, recorder: recorder, r: &RackATSReconciler{
 		Client: c, Scheme: scheme, Recorder: recorder, Timeout: 5 * time.Second,
-		Power: eatonRegistry(eaton),
+		Power: eatonRegistry(eaton), RootKeySecret: testRootKeyRef,
 	}}
 }
 
@@ -285,7 +285,7 @@ func TestRackATSAdoptsAFactoryCardAndPrefersItsSource(t *testing.T) {
 func TestRackATSResumesAnInterruptedAdoption(t *testing.T) {
 	for _, changed := range []bool{false, true} {
 		h := newATSHarness(t, rackATS())
-		if _, err := ensureRackCardSecret(context.Background(), h.r.Client, rackATS(), "tuist.dev/rack-ats", "192.168.0.14"); err != nil {
+		if _, err := ensureRackCardSecret(context.Background(), h.r.Client, rackATS(), "tuist.dev/rack-ats", "192.168.0.14", atsPasswords()); err != nil {
 			t.Fatal(err)
 		}
 		stored := string(h.secret().Data["admin-password"])
@@ -303,7 +303,7 @@ func TestRackATSResumesAnInterruptedAdoption(t *testing.T) {
 		}
 		want := "with the factory login"
 		if changed {
-			want = "with the managed password"
+			want = "with the derived password"
 		}
 		if h.eventsMatching(want) != 1 {
 			t.Fatalf("changed=%v: events = %v, want a login %s", changed, h.events, want)
