@@ -119,6 +119,10 @@ defmodule TuistWeb.OnceTestRunLive do
 
   # ---- Presentation helpers used by the template ----------------------
 
+  # `lost` comes first because an expired run never reports an exit status:
+  # Once stopped reporting (a killed process or a cancelled CI job) and the
+  # server gave up on it, so it is not in progress and never will be.
+  def status(%{finalization: "lost"}), do: "interrupted"
   def status(%{exit_status: 0}), do: "success"
 
   def status(%{exit_status: nil, finalization: finalization}) do
@@ -126,6 +130,19 @@ defmodule TuistWeb.OnceTestRunLive do
   end
 
   def status(_), do: "failure"
+
+  # An expired run's `finalized_at` is when the server gave up on it, which
+  # can be hours after it started.
+  def ran_at(%Run{finalization: "lost", started_at: %DateTime{} = started_at}), do: started_at
+  def ran_at(%Run{} = run), do: run.finalized_at || run.started_at
+
+  def empty_test_cases_title(run) do
+    if status(run) == "interrupted" do
+      dgettext("dashboard_tests", "Once stopped reporting before this run finished")
+    else
+      dgettext("dashboard_tests", "No test cases reported for this run")
+    end
+  end
 
   def display_label(%Run{command_display: cmd}) when is_binary(cmd) and cmd != "", do: cmd
   def display_label(%Run{run_id: run_id}), do: run_id

@@ -27,6 +27,17 @@ defmodule TuistWeb.OnceRunLiveTest do
     %{run: run, path: "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"}
   end
 
+  test "an expired run reads as interrupted rather than running", %{conn: conn, path: path, run: run} do
+    run |> Ecto.Changeset.change(finalization: "lost") |> Tuist.Repo.update!()
+
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-processing]")
+    assert render(view) =~ "Interrupted"
+    refute render(view) =~ "Running"
+  end
+
   test "search, filters and sorting preserve each other across pages and live updates", %{
     conn: conn,
     path: path,

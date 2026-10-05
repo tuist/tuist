@@ -44,6 +44,37 @@ defmodule TuistWeb.OnceTestRunLiveTest do
     assert row_count(view) == 5
   end
 
+  test "an expired run reads as interrupted and dates from its start", %{
+    project: project,
+    organization: organization,
+    conn: conn
+  } do
+    started_at = ~U[2026-10-05 06:51:41.735000Z]
+
+    {:ok, run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "test",
+        command_display: "once test",
+        started_at: started_at
+      })
+
+    run
+    |> Ecto.Changeset.change(finalization: "lost", finalized_at: ~U[2026-10-05 08:00:00.956432Z])
+    |> Tuist.Repo.update!()
+
+    {:ok, view, html} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs/#{run.run_id}")
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-processing]")
+    assert html =~ "Interrupted"
+    refute html =~ "In progress"
+    assert html =~ "Once stopped reporting before this run finished"
+    assert html =~ "06:51"
+    refute html =~ "08:00"
+  end
+
   test "the test targets tab lists the suite", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?tab=test-targets")
 

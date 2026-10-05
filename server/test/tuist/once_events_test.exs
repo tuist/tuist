@@ -870,7 +870,14 @@ defmodule Tuist.OnceEventsTest do
       |> where([r], r.id == ^run.id)
       |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
 
+    OnceEvents.subscribe_run(run.project_id, run.run_id)
+
     assert {:ok, 1} = OnceEvents.expire_stale_runs()
+
+    # Open run pages refresh on this, otherwise they keep rendering the run as
+    # in progress until someone reloads.
+    run_id = run.run_id
+    assert_receive {:run_updated, ^run_id}
 
     reloaded = OnceEvents.get_run(run.project_id, run.run_id)
     assert reloaded.finalization == "lost"

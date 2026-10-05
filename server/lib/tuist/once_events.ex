@@ -59,11 +59,19 @@ defmodule Tuist.OnceEvents do
     cutoff = DateTime.add(DateTime.utc_now(), -stale_after_seconds, :second)
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
 
-    {count, _} =
+    {count, expired} =
       Run
       |> where([r], r.finalization in ["active", "finalizing", "finalization_pending"])
       |> where([r], coalesce(r.heartbeat_at, r.started_at) < ^cutoff)
+      |> select([r], %{project_id: r.project_id, run_id: r.run_id})
       |> Repo.update_all(set: [finalization: "lost", finalized_at: now, updated_at: now])
+
+    # Without this an open run page keeps showing the run as in progress,
+    # because an expired run sends nothing else that would refresh it.
+    for run <- expired do
+      broadcast_project(run.project_id, {:run_updated, run.run_id})
+      broadcast_run(run, {:run_updated, run.run_id})
+    end
 
     {:ok, count}
   end
