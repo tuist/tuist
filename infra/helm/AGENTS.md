@@ -6,6 +6,7 @@ This node covers Helm assets under `infra/helm/`.
 - Umbrella and component charts for deploying Tuist services on Kubernetes
 - Values for embedded vs external infrastructure dependencies
 - Kubernetes manifests and helper templates for app services, data services, and observability
+- Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
@@ -88,6 +89,8 @@ This node covers Helm assets under `infra/helm/`.
 - Processor runtime dependencies: `processor/AGENTS.md`
 
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
+
+- The Once events listener (`once.events.v1`, gRPC on the server's port 4001) is served by `platform`'s `grpc-ingress-nginx` controller (`nginx-grpc` class), and its hosts are DNS-only with a cert-manager certificate. Do not move it to the main `nginx` class or turn Cloudflare proxying back on. The main controller keeps upstream keepalive off for the Bandit backends, which makes ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that header, and Cowboy resets the stream with PROTOCOL_ERROR (nginx logs `upstream rejected request with error 1`). Cloudflare answers gRPC to a proxied host with a 403. To check a change, send a gRPC-shaped request (`content-type: application/grpc`) to the host: a healthy listener answers HTTP 200 with a `grpc-status` header.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
 

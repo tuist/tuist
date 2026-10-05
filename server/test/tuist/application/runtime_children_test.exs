@@ -48,7 +48,7 @@ defmodule Tuist.Application.RuntimeChildrenTest do
       for mode <- Environment.modes(), mode != :web do
         assert RuntimeChildren.marketing_stats(mode) == [],
                "expected no Tuist.Marketing.Stats child for #{inspect(mode)} — " <>
-                 "it polls ClickHouse every 5 s only to feed the marketing LiveViews, " <>
+                 "it polls marketing stats only to feed the marketing LiveViews, " <>
                  "which non-web pods never serve"
       end
     end

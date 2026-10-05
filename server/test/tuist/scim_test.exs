@@ -266,6 +266,71 @@ defmodule Tuist.SCIMTest do
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
     end
 
+    test "patch_user/3 applies the most privileged role when the identity provider sends several", %{
+      organization: org
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-multi-role@example.com"})
+
+      ops = [
+        %{
+          "op" => "replace",
+          "path" => "roles",
+          "value" => [%{"value" => "Viewer"}, %{"value" => "Admin"}, %{"value" => "User"}]
+        }
+      ]
+
+      assert {:ok, _updated} = SCIM.patch_user(org, user.id, ops)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "patch_user/3 applies the most privileged of several JSON-encoded app role assignments", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-multi-assignment@example.com"})
+
+      ops = [
+        %{
+          "op" => "Add",
+          "path" => "roles",
+          "value" => [
+            %{"value" => ~s({"id":"18d14569-c3bd-439b-9a66-3a2aee01d14f","value":"Viewer","displayName":"Viewer"})},
+            %{"value" => ~s({"id":"06b07648-ecfe-589f-9d2f-6325724a46ee","value":"Admin","displayName":"Admin"})}
+          ]
+        }
+      ]
+
+      assert {:ok, _updated} = SCIM.patch_user(org, user.id, ops)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "patch_user/3 ignores unrecognized roles when picking the most privileged one", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-unknown-role@example.com", role: :viewer})
+
+      ops = [
+        %{
+          "op" => "replace",
+          "path" => "roles",
+          "value" => [%{"value" => "Owner"}, %{"value" => "User"}]
+        }
+      ]
+
+      assert {:ok, _updated} = SCIM.patch_user(org, user.id, ops)
+      assert %{name: "user"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "patch_user/3 keeps the current role when no sent role is recognized", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra-no-known-role@example.com", role: :admin})
+
+      ops = [
+        %{
+          "op" => "replace",
+          "path" => "roles",
+          "value" => [%{"value" => "Owner"}, %{"value" => "Billing"}]
+        }
+      ]
+
+      assert {:ok, _updated} = SCIM.patch_user(org, user.id, ops)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
     test "patch_user/3 returns a changeset when an email update conflicts", %{organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "rename@example.com"})
       _taken = user_fixture(email: "taken-rename@example.com")

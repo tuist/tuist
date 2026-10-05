@@ -20,7 +20,7 @@ defmodule Tuist.MCP.Components.Tools.CreateProject do
         },
         "build_system" => %{
           "type" => "string",
-          "enum" => ["xcode", "gradle", "bazel"],
+          "enum" => ["xcode", "gradle", "bazel", "once"],
           "description" => "The project's build system. Defaults to xcode."
         }
       },
@@ -33,7 +33,7 @@ defmodule Tuist.MCP.Components.Tools.CreateProject do
         "name" => %{"type" => "string"},
         "account_handle" => %{"type" => "string"},
         "full_handle" => %{"type" => "string"},
-        "build_system" => %{"type" => "string", "enum" => ["xcode", "gradle", "bazel"]},
+        "build_system" => %{"type" => "string"},
         "default_branch" => %{"type" => "string"}
       },
       "required" => [

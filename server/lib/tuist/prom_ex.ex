@@ -80,6 +80,7 @@ defmodule Tuist.PromEx do
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
         Tuist.License.PromExPlugin,
+        Tuist.OnceEvents.PromExPlugin,
         Tuist.Kura.PromExPlugin,
         Tuist.Runners.PromExPlugin,
         Tuist.Kura.Rollouts.PromExPlugin,

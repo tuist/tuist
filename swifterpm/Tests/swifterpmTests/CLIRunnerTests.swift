@@ -8,7 +8,7 @@ struct CLIRunnerTests {
         try await withTemporaryDirectory { root in
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
             let resolved = try await currentResolvedPins(packageDir: root)
-            try await ResolvedFile.write(packageDir: root, resolved: resolved)
+            try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
 
             try await CLIRunner.run(
                 CLI(
@@ -28,7 +28,8 @@ struct CLIRunnerTests {
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
             try await ResolvedFile.write(
                 packageDir: root,
-                resolved: await currentResolvedPins(packageDir: root)
+                resolved: await currentResolvedPins(packageDir: root),
+                mirrors: MirrorConfig()
             )
 
             try await CLIRunner.run(

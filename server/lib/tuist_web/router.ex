@@ -26,6 +26,7 @@ defmodule TuistWeb.Router do
   @public_robots_txt [train_ai: true, search: true, ai_input: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
+  @public_project_route_metadata %{public_project: true, robots_txt: false}
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -74,10 +75,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://glossia.ai https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
-      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
+      connect_src: "'self' https://glossia.ai https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
 
@@ -378,6 +379,8 @@ defmodule TuistWeb.Router do
     get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: @marketing_route_metadata
 
     get "/sitemap.xml", MarketingController, :sitemap, metadata: @marketing_route_metadata
+    get "/sitemap-projects.xml", TuistWeb.ProjectSitemapController, :index, metadata: %{robots_txt: false}
+    get "/sitemaps/projects/:page", TuistWeb.ProjectSitemapController, :show, metadata: %{robots_txt: false}
   end
 
   scope "/", TuistWeb.Marketing do
@@ -423,6 +426,11 @@ defmodule TuistWeb.Router do
 
         live Path.join(locale_path_prefix, "/cache"),
              TuistWeb.Marketing.MarketingCacheLive,
+             metadata: @marketing_route_metadata,
+             private: private
+
+        live Path.join(locale_path_prefix, "/globe"),
+             TuistWeb.Marketing.MarketingGlobeLive,
              metadata: @marketing_route_metadata,
              private: private
 
@@ -639,6 +647,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -719,6 +728,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -806,6 +816,20 @@ defmodule TuistWeb.Router do
           post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
+
+          scope "/coverage" do
+            get "/settings", CoverageController, :settings
+            post "/uploads", CoverageController, :create_upload
+            post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+          end
+
+          scope "/git-history" do
+            get "/settings", GitHistoryController, :settings
+            post "/commits/missing", GitHistoryController, :missing_commits
+            post "/commits", GitHistoryController, :upload_commits
+            post "/listings/missing", GitHistoryController, :missing_listings
+            post "/listings", GitHistoryController, :upload_listing
+          end
 
           scope "/shards" do
             post "/", ShardsController, :create
@@ -1305,7 +1329,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
-      live "/", PreviewLive
+      live "/", PreviewLive, metadata: @public_project_route_metadata
     end
   end
 
@@ -1424,39 +1448,60 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do
-      live "/tests", TestsLive
-      live "/tests/test-runs", TestRunsLive
-      live "/tests/test-runs/:test_run_id", TestRunLive
-      live "/tests/test-cases", TestCasesLive
-      live "/tests/test-cases/:test_case_id", TestCaseLive
-      live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive
-      live "/tests/flaky-tests", FlakyTestsLive
-      live "/tests/quarantined-tests", QuarantinedTestsLive
-      live "/tests/shards", ShardsLive
-      live "/module-cache", ModuleCacheLive
-      live "/module-cache/cache-runs", CacheRunsLive
-      live "/module-cache/generate-runs", GenerateRunsLive
-      live "/module-cache/modules", ModulesLive
-      live "/module-cache/modules/:module", ModuleCacheModuleLive
-      live "/xcode-cache", XcodeCacheLive
-      live "/gradle-cache", GradleCacheLive
-      live "/builds/tasks", GradleTasksLive, :tasks
-      live "/builds/tasks/:name", GradleTasksLive, :task
-      live "/bazel-cache", BazelCacheLive
+      live "/tests", TestsLive, metadata: @public_project_route_metadata
+      live "/tests/test-runs", TestRunsLive, metadata: @public_project_route_metadata
+      live "/tests/coverage", CoverageLive
+      live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
+      live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
+      live "/tests/coverage/files/*path", CoverageFileLive, :show
+      live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
+      live "/tests/test-cases", TestCasesLive, metadata: @public_project_route_metadata
+      live "/tests/test-cases/:test_case_id", TestCaseLive, metadata: @public_project_route_metadata
+      live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive, metadata: @public_project_route_metadata
+      live "/tests/flaky-tests", FlakyTestsLive, metadata: @public_project_route_metadata
+      live "/tests/quarantined-tests", QuarantinedTestsLive, metadata: @public_project_route_metadata
+      live "/tests/shards", ShardsLive, metadata: @public_project_route_metadata
+      live "/module-cache", ModuleCacheLive, metadata: @public_project_route_metadata
+      live "/module-cache/cache-runs", CacheRunsLive, metadata: @public_project_route_metadata
+      live "/module-cache/generate-runs", GenerateRunsLive, metadata: @public_project_route_metadata
+      live "/module-cache/modules", ModulesLive, metadata: @public_project_route_metadata
+      live "/module-cache/modules/:module", ModuleCacheModuleLive, metadata: @public_project_route_metadata
+      live "/xcode-cache", XcodeCacheLive, metadata: @public_project_route_metadata
+      live "/gradle-cache", GradleCacheLive, metadata: @public_project_route_metadata
+      live "/builds/tasks", GradleTasksLive, :tasks, metadata: @public_project_route_metadata
+      live "/builds/tasks/:name", GradleTasksLive, :task, metadata: @public_project_route_metadata
+      live "/bazel-cache", BazelCacheLive, metadata: @public_project_route_metadata
+      get "/once", RedirectPlug, to: "/once/builds"
+      get "/once/runs", RedirectPlug, to: "/once/build-runs"
+      live "/once/runs/:once_run_id", OnceRunLive, :overview, metadata: @public_project_route_metadata
+      live "/once/runs/:once_run_id/cache", OnceRunLive, :cache, metadata: @public_project_route_metadata
+      live "/once/builds", OnceRunsLive, :builds, metadata: @public_project_route_metadata
+      live "/once/build-runs", OnceRunsLive, :build_runs, metadata: @public_project_route_metadata
+      live "/once/tests", OnceTestsLive, metadata: @public_project_route_metadata
+      live "/once/test-runs", OnceRunsLive, :tests, metadata: @public_project_route_metadata
+      live "/once/test-runs/:once_run_id", OnceTestRunLive, metadata: @public_project_route_metadata
+
+      live "/once/test-runs/:once_run_id/test-cases/:case_id", OnceTestCaseRunLive,
+        metadata: @public_project_route_metadata
+
+      live "/once-cache", OnceCacheLive, metadata: @public_project_route_metadata
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
-      live "/invocations/:invocation_id", BazelBuildInvocationLive
-      live "/", OverviewLive
-      live "/analytics", OverviewLive
-      live "/bundles", BundlesLive
-      live "/bundles/:bundle_id", BundleLive
-      live "/builds", BuildsLive
-      live "/builds/build-runs", BuildRunsLive
-      live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
-      live "/builds/build-runs/:build_run_id", BuildRunLive
-      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
-      live "/previews", PreviewsLive
-      live "/runs/:run_id", RunDetailLive
+      live "/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
+      live "/", OverviewLive, metadata: @public_project_route_metadata
+      live "/analytics", OverviewLive, metadata: @public_project_route_metadata
+      live "/bundles", BundlesLive, metadata: @public_project_route_metadata
+      live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds", BuildsLive, metadata: @public_project_route_metadata
+      live "/builds/build-runs", BuildRunsLive, metadata: @public_project_route_metadata
+
+      live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive,
+        metadata: @public_project_route_metadata
+
+      live "/builds/build-runs/:build_run_id", BuildRunLive, metadata: @public_project_route_metadata
+      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
+      live "/previews", PreviewsLive, metadata: @public_project_route_metadata
+      live "/runs/:run_id", RunDetailLive, metadata: @public_project_route_metadata
       get "/runs/:run_id/download", RunsController, :download
       get "/runs/:run_id/download_session", RunsController, :download_session
       get "/builds/build-runs/:build_run_id/download", BuildController, :download

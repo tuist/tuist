@@ -65,7 +65,7 @@
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
     <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
-    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <TuistWeb.LayoutComponents.head_canonical_link {assigns} />
     <script
       :for={
         structured_data <-

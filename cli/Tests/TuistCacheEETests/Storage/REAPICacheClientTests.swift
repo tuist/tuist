@@ -48,6 +48,16 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test func baseConfigEnablesHTTP2KeepaliveToDetectWedgedConnections() throws {
+        let config = REAPITransport.baseConfig(authority: "cache.example.com:443")
+        let keepalive = try #require(config.connection.keepalive)
+        #expect(keepalive.time == .seconds(60))
+        #expect(keepalive.timeout == .seconds(20))
+        #expect(keepalive.allowWithoutCalls == false)
+        #expect(config.http2.authority == "cache.example.com:443")
+        #expect(config.http2.targetWindowSize == 32 * 1024 * 1024)
+    }
+
     @Test func proxySelectionHonorsBypassAndExplicitDisable() throws {
         let endpoint = GRPCEndpoint(host: "cache.example.com", explicitPort: 443, isTLS: true)
         #expect(try REAPITransport.proxyURL(
@@ -104,6 +114,80 @@ struct REAPICacheClientTests {
             await #expect(throws: CancellationError.self) {
                 try await client.downloadAvailableBlobs([digest: destination]) { _ in throw CancellationError() }
             }
+        }
+    }
+
+    /// The cache never stored the empty blob (it reports it present instead), so reading it would miss.
+    @Test(.inTemporaryDirectory) func synthesizesTheEmptyBlobInsteadOfReadingIt() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state), WireCapabilities(),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let batched = directory.appending(component: "batched").url
+            try Data("stale".utf8).write(to: batched)
+            let published = Mutex<[REAPI.Digest]>([])
+            let downloaded = try await client.downloadAvailableBlobs([REAPI.emptyBlob: batched]) { digest in
+                published.withLock { $0.append(digest) }
+            }
+            #expect(downloaded == [REAPI.emptyBlob])
+            #expect(published.withLock { $0 } == [REAPI.emptyBlob])
+            #expect(try Data(contentsOf: batched).isEmpty)
+            let streamed = directory.appending(component: "streamed").url
+            try await client.downloadBlob(REAPI.emptyBlob, to: streamed)
+            #expect(try Data(contentsOf: streamed).isEmpty)
+            #expect(await state.readCalls == 0)
+            #expect(await state.readOffsets.isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func restoresAnOutputWithAnEmptyFileTheCacheNeverStored() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireActions(state: state), WireCAS(state: state, reportsEmptyBlobWithoutStoringIt: true),
+            WireBytes(state: state), WireCapabilities(),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            func storage(_ name: String) -> BinaryCacheStorage {
+                BinaryCacheStorage(
+                    selectiveTestsStorage: NoBinaryFallback(),
+                    local: BinaryCacheLocalStore(directory: directory.appending(components: name, "Binaries")),
+                    remote: client
+                )
+            }
+            let bundle = directory.appending(component: "Shared.bundle")
+            try await FileSystem().makeDirectory(at: bundle)
+            try Data().write(to: bundle.appending(component: "empty.txt").url)
+            let target = CacheStorableItem(name: "Shared", hash: "exact")
+            _ = try await storage("producer").store([target: [bundle]], cacheCategory: .binaries)
+            #expect(await state.blobs[REAPI.emptyBlob] == nil)
+
+            let restored = try #require(try await storage("reader").fetch([target], cacheCategory: .binaries).values.first)
+            #expect(try Data(contentsOf: restored.appending(component: "empty.txt").url).isEmpty)
         }
     }
 
@@ -455,11 +539,16 @@ struct REAPICacheClientTests {
     /// The production guards with their seconds scaled down: a message is still allowed the time
     /// it takes at `slowestBytesPerSecond`, which is what keeps a slow transfer from being cut,
     /// but a test does not wait minutes to watch a stalled one give up.
-    private static func impatientGuards(base: Duration = .seconds(5)) -> REAPICacheClient.TransferGuards {
+    private static func impatientGuards(
+        base: Duration = .seconds(5),
+        batchBase: Duration = .milliseconds(300)
+    ) -> REAPICacheClient.TransferGuards {
         var guards = REAPICacheClient.TransferGuards()
         guards.idleTimeout = .milliseconds(200)
         guards.slowestBytesPerSecond = 512 * 1024
         guards.baseAllowance = base
+        guards.batchBaseAllowance = batchBase
+        guards.batchSlowestBytesPerSecond = 512 * 1024
         return guards
     }
 
@@ -640,7 +729,7 @@ struct REAPICacheClientTests {
 
     /// A batch read cannot resume or be watched for idleness, so its deadline is the only thing that
     /// notices a hung server. Spending it three times over is most of a build.
-    @Test(.inTemporaryDirectory) func doesNotSpendAByteSizedDeadlineThreeTimes() async throws {
+    @Test(.inTemporaryDirectory) func retriesABatchReadThatBlowsItsDeadline() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
         let body = Self.blob(4096)
@@ -659,13 +748,167 @@ struct REAPICacheClientTests {
             let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
                 accountHandle: "account", instanceName: "project",
-                guards: Self.impatientGuards(base: .milliseconds(300))
+                guards: Self.impatientGuards(batchBase: .milliseconds(100))
             ) { "token" }
             let destination = directory.appending(component: "batched").url
 
             #expect(try await client.downloadAvailableBlobs([digest: destination]).isEmpty)
 
-            #expect(await state.readCalls == 1)
+            // Two attempts (initial + one retry): a batch deadline is cheap under `batchAllowance`
+            // and the retry can land on a different connection via the selector cooldown, but we
+            // cap at two to avoid tripling load on a server that is slow for its own reasons.
+            #expect(await state.readCalls == 2)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func statsAccountForEveryDigestInABatchThatGaveUpOnRetries() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        var blobs: [REAPI.Digest: URL] = [:]
+        for index in 0 ..< 4 {
+            let body = Self.blob(1024)
+            let digest = REAPI.digest(body)
+            await state.put(body, digest: digest)
+            blobs[digest] = directory.appending(component: "blob-\(index)").url
+        }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, readDelay: .seconds(2)),
+            WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let stats = REAPIStats()
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(batchBase: .milliseconds(100)),
+                stats: stats
+            ) { "token" }
+
+            let successful = try await client.downloadAvailableBlobs(blobs)
+
+            // Every digest the client could not serve shows up in `batchDownloadDigestsLost`,
+            // not as a silent miss. Combined with `digestsNotFoundOnServerAreNotCountedAsLost`
+            // below, this proves the caller can tell "fewer stalls" from "stalls turned into
+            // silent misses that look like misses".
+            let snapshot = stats.snapshot
+            #expect(successful.isEmpty)
+            #expect(snapshot.batchDownloadDigestsLost == blobs.count)
+            #expect(snapshot.batchDownloadFailures >= 1)
+            #expect(snapshot.streamDownloadDigestsLost == 0)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [0, -1]) func rejectsNonPositiveDownloadConcurrency(value: Int) async throws {
+        var guards = REAPICacheClient.TransferGuards.default
+        guards.downloadConcurrency = value
+        // 0 would make `transfer` enqueue nothing and silently return an empty set (100% miss);
+        // negative would trap on `0 ..< maxConcurrentTasks`. Reject at construction time so the
+        // misconfiguration surfaces before any work begins.
+        await #expect(throws: REAPICacheError.self) {
+            _ = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: 1, isTLS: false),
+                accountHandle: "account",
+                instanceName: "project",
+                guards: guards
+            ) { "token" }
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func streamDownloadFailuresAreRecordedInStats() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(4096)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        // Stream read keeps breaking after 8 KiB with no progress; the client gives up with an
+        // RPC error. The error is not `.notFound`, so the digest is accounted for in stats as
+        // a stream-path network loss, matching how batch failures are accounted for.
+        await state.plan(
+            [.cut(after: 1024), .cut(after: 0), .cut(after: 0), .cut(after: 0), .cut(after: 0), .complete],
+            for: digest
+        )
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let stats = REAPIStats()
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(),
+                stats: stats
+            ) { "token" }
+            try await client.validateCapabilities()
+            let destination = directory.appending(component: "streamed").url
+
+            #expect(try await client.downloadAvailableBlobs([digest: destination]).isEmpty)
+
+            let snapshot = stats.snapshot
+            #expect(snapshot.streamDownloadFailures == 1)
+            #expect(snapshot.streamDownloadDigestsLost == 1)
+            #expect(snapshot.batchDownloadDigestsLost == 0)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func digestsNotFoundOnServerAreNotCountedAsLost() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        // Four digests; the server only has two of them, so the other two come back as
+        // `NOT_FOUND` on the batch response. A NOT_FOUND is a legitimate miss, not a stall:
+        // nothing is counted in `batchDownloadDigestsLost`, and `successful` names the two
+        // the server did serve.
+        var blobs: [REAPI.Digest: URL] = [:]
+        var served: [REAPI.Digest] = []
+        for index in 0 ..< 4 {
+            let body = Self.blob(1024)
+            let digest = REAPI.digest(body)
+            if index < 2 {
+                await state.put(body, digest: digest)
+                served.append(digest)
+            }
+            blobs[digest] = directory.appending(component: "blob-\(index)").url
+        }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state),
+            WireBytes(state: state),
+            WireCapabilities(maximumBatchBytes: 2 * 1024),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let stats = REAPIStats()
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(),
+                stats: stats
+            ) { "token" }
+
+            let successful = try await client.downloadAvailableBlobs(blobs)
+
+            #expect(successful == Set(served))
+            let snapshot = stats.snapshot
+            #expect(snapshot.batchDownloadFailures == 0)
+            #expect(snapshot.batchDownloadDigestsLost == 0)
+            #expect(snapshot.streamDownloadDigestsLost == 0)
         }
     }
 
@@ -845,6 +1088,8 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     let state: WireCache
     var compressReads = true
     var readDelay: Duration = .zero
+    /// Like Kura before it served the empty blob: reported present by convention, but never stored.
+    var reportsEmptyBlobWithoutStoringIt = false
     func batchUpdateBlobs(
         request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
         context _: ServerContext
@@ -911,7 +1156,9 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
         #expect(request.digestFunction == .sha256)
         await state.recordMissingQuery()
         let present = await state.blobs
-        return .with { $0.missingBlobDigests = request.blobDigests.filter { present[$0] == nil } }
+        return .with { $0.missingBlobDigests = request.blobDigests.filter {
+            present[$0] == nil && !(reportsEmptyBlobWithoutStoringIt && $0 == REAPI.emptyBlob)
+        } }
     }
 }
 

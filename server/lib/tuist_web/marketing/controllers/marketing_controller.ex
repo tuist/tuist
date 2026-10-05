@@ -684,6 +684,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/cache",
     "/tests",
     "/compute",
+    "/globe",
     "/previews",
     "/download",
     "/about",
@@ -695,7 +696,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     page_entries =
       Enum.map(Pages.get_pages(), &sitemap_entry(&1.slug, &1.last_updated))
 
-    post_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
+    post_entries = post_sitemap_entries()
 
     case_study_entries =
       for locale <- Localization.all_locales(),
@@ -1072,5 +1073,18 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   defp put_resp_header_server(conn, _opts) do
     put_resp_header(conn, "server", "Bandit")
+  end
+
+  defp post_sitemap_entries do
+    blog_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
+
+    changelog_entries =
+      for locale <- Localization.all_locales(), entry <- Changelog.get_entries() do
+        "/changelog/#{entry.id}"
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(entry.date)
+      end
+
+    blog_entries ++ changelog_entries
   end
 end

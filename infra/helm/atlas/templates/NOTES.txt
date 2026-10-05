@@ -1,0 +1,10 @@
+Atlas uses the application Secret {{ include "atlas.appSecretName" . }}.
+{{- if not .Values.postgres.enabled }}
+Supply DATABASE_URL, SECRET_KEY_BASE, GUARDIAN_SECRET_KEY, and ENCRYPTION_KEY.
+{{- end }}
+Configure Google credentials and env.ATLAS_ALLOWED_EMAIL_DOMAIN before signing in.
+
+Self-hosting guide: https://{{ .Values.host }}/docs/self-hosting
+{{- if not .Values.ingress.enabled }}
+Ingress is disabled. Expose the service through an encrypted reverse proxy.
+{{- end }}

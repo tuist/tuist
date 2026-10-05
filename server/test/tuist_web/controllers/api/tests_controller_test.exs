@@ -2,6 +2,8 @@ defmodule TuistWeb.API.TestsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
@@ -329,6 +331,124 @@ defmodule TuistWeb.API.TestsControllerTest do
         )
 
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
+    end
+
+    test "schedules the publication of uploaded coverage under the run's own key", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      run_id = UUIDv7.generate()
+      key = "#{user.account.name}/#{project.name}/runs/#{run_id}/coverage.ndjson.deflate"
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: run_id,
+        duration: 1000,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        xcode_coverage_storage_key: key,
+        xcode_coverage_partial: true
+      })
+      |> json_response(:ok)
+
+      assert_enqueued(
+        worker: Tuist.Tests.Workers.PublishCoverageWorker,
+        args: %{test_run_id: run_id, storage_key: key, partial: true}
+      )
+    end
+
+    @tag :tmp_dir
+    test "never reads a server-side file a client names in xcode_coverage", %{
+      conn: conn,
+      user: user,
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      path = Path.join(tmp_dir, "coverage.ndjson")
+
+      File.write!(
+        path,
+        JSON.encode!(%{
+          "path" => "Sources/Secret.swift",
+          "git_blob_id" => "secret1",
+          "targets" => ["App"],
+          "covered_lines" => 1,
+          "executable_lines" => 1,
+          "line_numbers" => [1],
+          "execution_counts" => [1],
+          "functions" => []
+        }) <> "\n"
+      )
+
+      run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: run_id,
+        duration: 1000,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        xcode_coverage: %{partial: false, files: [], path: path}
+      })
+      |> json_response(:ok)
+
+      assert Tuist.ClickHouseRepo.all(
+               from(f in Tuist.Tests.CoverageFile, where: f.test_run_id == ^run_id, select: f.path)
+             ) == []
+    end
+
+    test "rejects coverage evidence and changed files past their size limits", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      body = %{duration: 1000, is_ci: false, test_modules: [], status: "success"}
+
+      evidence = %{
+        paths: ["Sources/A.swift"],
+        scopes: [%{kind: "target", module: "AppTests", files: [0], lines: [List.duplicate(1, 200_002)]}]
+      }
+
+      changed_file = %{
+        path: "Sources/A.swift",
+        status: "modified",
+        hunks: List.duplicate(%{start: 1, end: 2}, 1_001)
+      }
+
+      for oversized <- [%{coverage_evidence: evidence}, %{changed_files: [changed_file]}] do
+        assert conn
+               |> put_req_header("content-type", "application/json")
+               |> post("/api/projects/#{user.account.name}/#{project.name}/tests", Map.merge(body, oversized))
+               |> json_response(:bad_request)
+      end
+    end
+
+    test "rejects a coverage storage key that is not the run's", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          test_modules: [],
+          status: "success",
+          xcode_coverage_storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "xcode_coverage_storage_key"
     end
 
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
@@ -972,6 +1092,66 @@ defmodule TuistWeb.API.TestsControllerTest do
           "stress_known_count" => 40
         }
       )
+    end
+
+    test "keeps the run's Git history once the processor replaces a remotely processed run", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: test_run_id,
+        duration: 0,
+        is_ci: true,
+        status: "processing",
+        test_modules: [],
+        git_branch: "feature",
+        git_commit_sha: String.duplicate("a", 40),
+        git_remote_url_origin: "https://github.com/tuist/app",
+        base_branch: "main",
+        merge_base_sha: String.duplicate("b", 40),
+        is_pull_request: true,
+        pull_request_number: 42,
+        git_object_format: "sha1",
+        history_source: "none",
+        history_fallback_reason: "shallow clone",
+        git_dirty: true,
+        execution_mode: "serial"
+      })
+      |> json_response(:ok)
+
+      [job] = all_enqueued(worker: ProcessXcresultWorker)
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(Tuist.Processor.XCResultProcessor, :process_local, fn _path, _opts ->
+        {:ok, %{"status" => "success", "duration" => 10, "test_modules" => []}}
+      end)
+
+      assert :ok = perform_job(ProcessXcresultWorker, job.args)
+
+      {:ok, run} = Tests.get_test(test_run_id)
+
+      assert %{
+               status: "success",
+               base_branch: "main",
+               merge_base_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+               is_pull_request: true,
+               pull_request_number: 42,
+               git_object_format: "sha1",
+               history_source: "none",
+               history_fallback_reason: "shallow clone",
+               git_dirty: true,
+               execution_mode: "serial"
+             } = run
+
+      assert run.git_repository_id == Tuist.GitHistory.repository_id(user.account.id, "https://github.com/tuist/app")
+      assert run.git_repository_id > 0
     end
 
     test "passes a locally processed run's coverage on", %{conn: conn, user: user, project: project} do
