@@ -161,6 +161,7 @@ type KuraInstanceReconciler struct {
 
 	OTLPTracesEndpoint  string
 	Environment         string
+	PrivateReplication  bool
 	RuntimeStatusClient RuntimeStatusClient
 	PeerDNSResolver     PeerDNSResolver
 	PeerPathProber      PeerPathProber
@@ -3346,9 +3347,13 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 			return err
 		}
 		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
+		previousTemplate := sts.Spec.Template.DeepCopy()
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
 		sts.Spec.Template.Spec.Tolerations = tolerations
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
+		if err := r.configurePrivateReplication(ctx, instance, &sts.Spec.Template, previousTemplate); err != nil {
+			return err
+		}
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {

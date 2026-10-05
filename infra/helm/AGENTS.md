@@ -11,6 +11,21 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
+- `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
+  provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
+  state out of Helm-owned data. Production qualifies Chicago only; Santiago is
+  VPC-only until separately qualified. Multiple qualified domains require a
+  tested explicit cross-domain runtime policy. Self-hosted defaults stay off.
+
+- `capi.ovhPrivateNetwork` declares the environment's provisioned vRack and
+  reserved CIDR. `kuraController.privateReplication` consumes Node route
+  attestations; both default off for self-hosting. Address reservations are
+  controller-owned and must not be placed in Helm-owned data or garbage-collected
+  with a Machine. See `../kura-controller/private-network-provisioning.md`.
+  Managed staging, canary and production enable both settings for their own
+  provisioned OVH vRack. Runtime publication still waits for matching host route
+  attestations; this does not enable topology for other providers.
+
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
   on September 28, 2026: no fleet values, templates, provider implementation,

@@ -40,6 +40,15 @@ Configure sharding via Gradle project properties:
 | `-PtuistShardMax=<N>` | Maximum number of shards (default: 2) |
 | `-PtuistShardMin=<N>` | Minimum number of shards |
 | `-PtuistShardMaxDuration=<MS>` | Target maximum duration per shard in milliseconds |
+| `-PtuistShardTestTask=<NAME>` | Test task whose tests are sharded, for example `testDebugUnitTest`. Defaults to every test task in the build |
+
+Android projects with multiple build variants have one unit test task per variant. Set `-PtuistShardTestTask` to the variant your shards run so only its tests are compiled and planned:
+
+```sh
+./gradlew tuistPrepareTestShards \
+  -PtuistShardMax=5 \
+  -PtuistShardTestTask=testDebugUnitTest
+```
 
 The shard reference is automatically derived from CI environment variables (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, etc.) or can be set explicitly via the `TUIST_SHARD_REFERENCE` environment variable.
 
@@ -50,6 +59,8 @@ Each shard runner executes its assigned tests using the standard `test` task. Wh
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
+
+If you set `-PtuistShardTestTask` in the build phase, run that same task in each shard, for example `./gradlew testDebugUnitTest`.
 
 ## Continuous integration {#continuous-integration}
 

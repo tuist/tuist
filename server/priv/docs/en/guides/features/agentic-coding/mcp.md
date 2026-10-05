@@ -24,6 +24,10 @@ For clients that support plugin installation, use the <.localized_link href="/gu
 
 Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
 
+The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
+
+Clients that support Model Context Protocol events can subscribe to project events. See [Events](#events) for the available event and delivery requirements.
+
 Clients that already support remote browser authentication can continue authenticating in the browser. Clients and agents that support `auth.md` can register anonymously, present a trusted provider identity assertion, or start a service-authenticated email claim. Registration returns a Tuist-signed identity assertion, which the agent exchanges at the standard token endpoint for a one-hour access token. Tuist publishes its public signing key and supports standard token revocation and provider security-event delivery.
 
 An unauthenticated agent should read the `WWW-Authenticate` header returned by the Model Context Protocol endpoint, fetch the protected-resource metadata, fetch the authorization-server metadata, and follow its `agent_auth.skill` URL. Tuist also returns the same local `auth_md` URL in the unauthorized response body so language-model-driven clients can discover the flow without relying on a native client integration. The deployment-local document is the source of truth for endpoint names, request bodies, claim polling, and assertion exchange.
@@ -396,6 +400,21 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_automation_alert` | Get an automation alert. | `alert_id` |
 | `list_automation_alert_revisions` | List the revision history for an automation alert. Action credentials are redacted. | `alert_id` |
 | `list_project_notification_alerts` | List project notification alert rules. Requires the same administrator permission as the dashboard settings page. Webhook addresses are redacted. | `account_handle`, `project_handle` |
+
+### Events
+
+Clients using the stateless `2026-07-28` Model Context Protocol lifecycle can call `events/list` to discover events and their payload schemas:
+
+| Event | When it is sent | Subscription filter |
+|-------|-----------------|---------------------|
+| `test_case.marked_flaky` | A test case changes from not flaky to flaky. | `account_handle`, `project_handle` |
+| `build.failed` | A local or continuous integration Xcode, Gradle, or Bazel build finishes with a failure. | `account_handle`, `project_handle` |
+| `test_run.failed` | A local or continuous integration test run finishes with a failure, including a merged sharded run or an abandoned run. | `account_handle`, `project_handle` |
+| `ci_job.failed` | A Tuist runner job completes with a failure. | `account_handle` |
+
+To subscribe, the client calls `events/subscribe` with the event name, the handles listed above in `arguments`, and a `webhook` delivery containing an `https://` callback URL and a `whsec_` signing secret. Project events require account membership and read access to the corresponding test or build data; runner job events require account membership and runner read access. Claimed [`auth.md`](https://workos.com/auth-md) access tokens, claimed account tokens, and browser authorization grants can create subscriptions; delivery stops when the associated credential is no longer active. Each user can keep up to 25 active subscriptions. Tuist sends a verification challenge to the callback before saving the subscription. The callback must return an object containing the same `challenge` value. The subscription lasts seven days by default, can be refreshed by subscribing again, and stops delivering when the user's access or credential is removed. The optional `ttlMs` is capped between one hour and 30 days. Tuist retries a timed-out callback and unsubscribes it after at least three consecutive timeouts spanning five minutes; subscribe again after restoring the callback.
+
+When an event occurs, Tuist sends its resource identifier and dashboard URL to the callback. Build and test run failures also include `is_ci` and `git_branch`, so clients can ignore local failures or filter by branch. Build events include `build_system`; runner job events include both `workflow_job_id` and `workflow_run_id`. The request includes a subscription identifier and [Standard Webhooks](https://www.standardwebhooks.com/) signature headers so the client can verify its origin. Tuist retries failed deliveries, so clients should use the stable `eventId` to discard duplicates. The payload omits test names, logs, and failure messages; the client can fetch those details through the tools above and decide whether to notify a team or start debugging. Clients can stop delivery with `events/unsubscribe`.
 
 ### Prompts
 

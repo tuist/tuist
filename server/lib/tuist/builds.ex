@@ -18,6 +18,7 @@ defmodule Tuist.Builds do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.KeyValueStore
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -161,6 +162,20 @@ defmodule Tuist.Builds do
           :xcode_build_created
         )
       end
+
+      if build.status == "failure",
+        do:
+          Publisher.publish(
+            "build.failed",
+            %{
+              "project_id" => build.project_id,
+              "build_system" => "xcode",
+              "build_id" => build.id,
+              "is_ci" => build.is_ci,
+              "git_branch" => build.git_branch || ""
+            },
+            "xcode:#{build.id}"
+          )
 
       {:ok, build}
     else

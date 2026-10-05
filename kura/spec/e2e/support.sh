@@ -623,6 +623,9 @@ DNS.1 = kura-us.kura.internal
 DNS.2 = kura-eu.kura.internal
 DNS.3 = kura-ap.kura.internal
 DNS.4 = kura-ring.kura.internal
+DNS.5 = private-us.kura.internal
+DNS.6 = private-eu.kura.internal
+DNS.7 = private-ap.kura.internal
 EOF
 
   openssl genrsa -out "${KURA_MTLS_CERT_DIR}/ca.key" 2048 >/dev/null 2>&1

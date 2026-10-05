@@ -14,6 +14,7 @@ defmodule Tuist.Bazel do
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseTimeSeries
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.ReapiCache
   alias Tuist.Repo
   alias Tuist.Tests.Sanitizer
@@ -72,7 +73,30 @@ defmodule Tuist.Bazel do
         }
       end)
 
-    IngestRepo.insert_all(Invocation, entries)
+    result = IngestRepo.insert_all(Invocation, entries)
+
+    invocations
+    |> Enum.filter(&(&1.command == "build" and &1.status == "failure"))
+    |> Enum.group_by(& &1.project_id)
+    |> Enum.each(fn {project_id, failed_invocations} ->
+      Publisher.publish_batch(
+        "build.failed",
+        Enum.map(failed_invocations, fn invocation ->
+          data = %{
+            "project_id" => project_id,
+            "build_system" => "bazel",
+            "build_id" => invocation.invocation_id,
+            "is_ci" => Map.get(invocation, :is_ci, false),
+            "git_branch" => Map.get(invocation, :git_branch) || ""
+          }
+
+          {data, "bazel:#{invocation.invocation_id}"}
+        end),
+        %{"project_id" => project_id}
+      )
+    end)
+
+    result
   end
 
   def create_invocation_logs([]), do: {0, nil}
