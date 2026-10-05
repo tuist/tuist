@@ -87,6 +87,8 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > **Prefix mapping on Xcode 27 and later**
 >
 > On Xcode 27 and later, `tuist setup cache` also prints `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. They make compilation cache keys independent of where the project and `DerivedData` live. Add them as user-defined build settings. Enabling them changes every cache key, so the next build populates the cache again. `tuist generate` sets them for you when `enableCaching` is on.
+>
+> The compiler also writes the mapped paths into the code coverage data, and Xcode can't resolve them, so a coverage report would leave out every source compiled with prefix mapping. The printed settings, along with the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` ones, turn prefix mapping off in builds that gather code coverage. `tuist generate` does the same. Those builds still use the compilation cache, but their cache keys depend on the project and `DerivedData` paths.
 
 > [!NOTE]
 > **Generated Projects**

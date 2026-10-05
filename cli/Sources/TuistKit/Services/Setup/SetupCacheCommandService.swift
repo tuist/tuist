@@ -503,12 +503,15 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         else { return "" }
         return """
 
-        SWIFT_ENABLE_PREFIX_MAPPING=YES
+        SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))
         SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES
-        CLANG_ENABLE_PREFIX_MAPPING=YES
+        CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))
         CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES
+        TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES
+        TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES
+        TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO
 
-        The four *_PREFIX_MAPPING settings make cache keys independent of where the project and DerivedData live, so artifacts are reusable across machines and CI. They are Xcode 27+ only, are not exposed by Xcode (add them as user-defined build settings), and enabling them changes every cache key — the next build re-populates the cache from cold, once.
+        The four *_PREFIX_MAPPING settings make cache keys independent of where the project and DerivedData live, so artifacts are reusable across machines and CI. They are Xcode 27+ only, are not exposed by Xcode (add them as user-defined build settings), and enabling them changes every cache key — the next build re-populates the cache from cold, once. The TUIST_PREFIX_MAPPING_FOR_COVERAGE_* settings turn prefix mapping off in builds that gather code coverage, whose reports would otherwise leave out every source compiled with it.
         """
     }
 
