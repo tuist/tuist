@@ -33,6 +33,10 @@ defmodule Atlas.MCP do
     ServerConfiguration |> order_by(asc: :name) |> Repo.all()
   end
 
+  def get_server_configuration_by_name(name) when is_binary(name) do
+    Repo.get_by(ServerConfiguration, name: name)
+  end
+
   def change_server_configuration(%ServerConfiguration{} = server, attrs \\ %{}) do
     ServerConfiguration.changeset(server, attrs)
   end
