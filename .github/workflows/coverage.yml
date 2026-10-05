@@ -10,6 +10,13 @@ name: Coverage
 # Nothing depends on this workflow: it only runs after changes land on main, it
 # is not a required check, no deploy or release workflow waits on it, and
 # notify-failure.yml does not list it.
+#
+# Dispatched with a `sha`, it collects an earlier commit on main instead, to
+# backfill commits that had no run. Dispatch one at a time: each holds two
+# macOS runners for up to two hours. The commit's sources are tested with this
+# workflow's tools, because an older pin of the CLI may not upload coverage at
+# all, but its .xcode-version is its own, so commits before the move to Xcode 27
+# (f834b57656) cannot run on this image.
 on:
   push:
     branches:
@@ -34,6 +41,11 @@ on:
       - "Package.swift"
       - "Package.resolved"
   workflow_dispatch:
+    inputs:
+      sha:
+        description: A commit on main to collect coverage for, instead of main's head
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -50,13 +62,48 @@ env:
 
 # One run at a time on main. A run in progress finishes so its coverage lands;
 # commits merged meanwhile queue behind it, and GitHub keeps only the newest.
+# A backfill gets a group of its own, or each one dispatched would cancel the
+# one queued before it.
 concurrency:
-  group: coverage-${{ github.ref }}
+  group: coverage-${{ inputs.sha || github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # The commit to collect. A backfilled one must be on main: the CLI labels the
+  # run with the branch it was dispatched from, so a commit from anywhere else
+  # would be reported as main's.
+  commit:
+    name: Resolve Commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          if [ -z "$SHA" ]; then
+            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Dispatch a backfill from main, so its runs are labelled with main."
+            exit 1
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq .sha)
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$GITHUB_SHA" --jq .status)
+          if [ "$status" != "ahead" ] && [ "$status" != "identical" ]; then
+            echo "::error::$sha is not on main."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   cli-unit-tests:
     name: CLI Unit Tests
+    needs: commit
     runs-on: tuist-macos-27-0
     timeout-minutes: 120
     if: github.repository == 'tuist/tuist'
@@ -71,7 +118,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.commit.outputs.sha }}
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - name: Use this workflow's tools
+        if: needs.commit.outputs.sha != github.sha
+        # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
+        # the older commit's, hidden from git: a run on a dirty checkout keeps
+        # its coverage off the commit. The scripts matter: an older
+        # cache_ee_env.sh turns the compilation cache back on.
+        run: |
+          git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
       - name: Initialize TuistCacheEE submodule
         run: bash mise/tasks/cli/ee.sh
       - uses: actions/cache/restore@v4
@@ -98,6 +158,7 @@ jobs:
 
   app-tests:
     name: App Tests
+    needs: commit
     runs-on: tuist-macos-27-0
     timeout-minutes: 60
     if: github.repository == 'tuist/tuist'
@@ -108,6 +169,16 @@ jobs:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+      - name: Use this workflow's tools
+        if: needs.commit.outputs.sha != github.sha
+        run: |
+          git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -132,7 +203,7 @@ jobs:
   # `tuist coverage complete` skips the signal, and the commit stays in progress.
   complete:
     name: Complete Coverage
-    needs: [cli-unit-tests, app-tests]
+    needs: [commit, cli-unit-tests, app-tests]
     runs-on: tuist-macos-27-0
     timeout-minutes: 15
     if: github.repository == 'tuist/tuist'
@@ -143,6 +214,16 @@ jobs:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+      - name: Use this workflow's tools
+        if: needs.commit.outputs.sha != github.sha
+        run: |
+          git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"

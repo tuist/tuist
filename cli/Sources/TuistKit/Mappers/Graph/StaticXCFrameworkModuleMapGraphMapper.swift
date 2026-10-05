@@ -684,8 +684,18 @@ extension SettingsDictionary {
             case let .string(value):
                 settings[key] = .string(value)
             case let .array(value):
+                func isWarningGroupFlag(at index: Int) -> Bool {
+                    (value[index] == "-Werror" || value[index] == "-Wwarning") &&
+                        (index == 0 || !value[index - 1].isFlagWithArgument)
+                }
                 var seen = Set<String>()
-                let value = value.enumerated().filter {
+                let uniqueFlags = value.enumerated().filter {
+                    // Preserve ordered warning overrides, but leave forwarded options such as -Xcc -Werror alone.
+                    if isWarningGroupFlag(at: $0.offset) ||
+                        ($0.offset > 0 && isWarningGroupFlag(at: $0.offset - 1))
+                    {
+                        return true
+                    }
                     if $0.element.isFlagWithArgument {
                         if value.endIndex > $0.offset + 1 {
                             return !seen.contains($0.element + value[$0.offset + 1])
@@ -706,7 +716,7 @@ extension SettingsDictionary {
                     }
                 }
                 settings[key] = .array(
-                    value.map(\.element)
+                    uniqueFlags.map(\.element)
                 )
             }
         }
