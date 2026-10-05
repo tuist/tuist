@@ -32,4 +32,31 @@ struct TuistManifestMapperTests {
         // Then
         #expect(got.xcodeCache.storeSizeLimit == nil)
     }
+
+    @Test func from_mapsTheCoverageAttributionToTests() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let manifest = ProjectDescription.Config(
+            testInsights: .testInsights(coverage: .coverage(attributeToTests: true)),
+            project: .tuist(generationOptions: .options())
+        )
+
+        // When
+        let got = try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
+
+        // Then
+        #expect(got.testInsights.coverage == TuistConfig.Tuist.TestInsights.Coverage(upload: true, attributeToTests: true))
+    }
+
+    @Test func from_leavesTheCoverageAttributionToTestsOffByDefault() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let manifest = ProjectDescription.Config(project: .tuist(generationOptions: .options()))
+
+        // When
+        let got = try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
+
+        // Then
+        #expect(got.testInsights.coverage.attributeToTests == false)
+    }
 }

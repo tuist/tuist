@@ -60,4 +60,42 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
             "FrameworkB",
         ])
     }
+
+    func test_load_whenCoverageIsAttributedToTestsWithoutAPackageManifest() async throws {
+        // Given
+        let path = try temporaryPath()
+        try await createFiles(["Sources/App.swift", "Tests/AppTests.swift"])
+        try """
+        import ProjectDescription
+
+        let tuist = Tuist(
+            testInsights: .testInsights(coverage: .coverage(attributeToTests: true)),
+            project: .tuist()
+        )
+        """.write(to: path.appending(component: "Tuist.swift").url, atomically: true, encoding: .utf8)
+        try """
+        import ProjectDescription
+
+        let project = Project(
+            name: "App",
+            targets: [
+                .target(name: "App", destinations: .macOS, product: .app, bundleId: "dev.tuist.App", sources: ["Sources/**"]),
+                .target(
+                    name: "AppTests",
+                    destinations: .macOS,
+                    product: .unitTests,
+                    bundleId: "dev.tuist.AppTests",
+                    sources: ["Tests/**"],
+                    dependencies: [.target(name: "App")]
+                ),
+            ]
+        )
+        """.write(to: path.appending(component: "Project.swift").url, atomically: true, encoding: .utf8)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.load(path: path, disableSandbox: true) },
+            TestCoverageAttributionLinkerError.missingPackageManifest
+        )
+    }
 }

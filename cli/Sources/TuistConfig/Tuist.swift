@@ -37,9 +37,11 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public struct TestInsights: Equatable, Hashable, Sendable {
         public struct Coverage: Equatable, Hashable, Sendable {
             public let upload: Bool
+            public let attributeToTests: Bool
 
-            public init(upload: Bool = true) {
+            public init(upload: Bool = true, attributeToTests: Bool = false) {
                 self.upload = upload
+                self.attributeToTests = attributeToTests
             }
         }
 

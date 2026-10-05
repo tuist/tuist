@@ -45,7 +45,10 @@ extension TuistConfig.Tuist {
             storeSizeLimit: manifest.xcodeCache.storeSizeLimit?.bytes
         )
         let testInsights = TuistConfig.Tuist.TestInsights(
-            coverage: .init(upload: manifest.testInsights.coverage.upload)
+            coverage: .init(
+                upload: manifest.testInsights.coverage.upload,
+                attributeToTests: manifest.testInsights.coverage.attributeToTests
+            )
         )
         let urlString = manifest.url
 

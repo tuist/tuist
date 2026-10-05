@@ -2160,6 +2160,62 @@ struct GenerateAcceptanceTestAppWithBuildableFolderMembership {
     }
 }
 
+struct GenerateAcceptanceTestFrameworkWithTestCoverageAttribution {
+    @Test(.withFixture("generated_framework_with_test_coverage_attribution"), .inTemporaryDirectory)
+    func framework_with_test_coverage_attribution() async throws {
+        let fileSystem = FileSystem()
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(pathString: fixturePath.appending(component: "Calculator.xcodeproj").pathString)
+        func links(_ targetName: String) throws -> Bool {
+            try TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj).frameworksBuildPhase()?.files?
+                .contains(where: { $0.file?.nameOrPath == "TestCoverageAttribution.framework" }) == true
+        }
+        #expect(try links("Calculator") == false)
+        #expect(try links("CalculatorTests"))
+        #expect(try links("CalculatorSwiftTestingTests"))
+
+        for (testTarget, testName) in [("CalculatorTests", "test_add"), ("CalculatorSwiftTestingTests", "subtract")] {
+            let attributionDirectory = temporaryDirectory.appending(components: "attribution", testTarget)
+            try await fileSystem.makeDirectory(at: attributionDirectory)
+            var environment = Environment.current.variables
+            environment["TEST_RUNNER_TEST_COVERAGE_ATTRIBUTION_DIR"] = attributionDirectory.pathString
+
+            try await CommandRunner().runAndWait(
+                arguments: [
+                    "/usr/bin/xcodebuild",
+                    "test",
+                    "-workspace",
+                    fixturePath.appending(component: "Calculator.xcworkspace").pathString,
+                    "-scheme",
+                    "Calculator",
+                    "-only-testing:\(testTarget)",
+                    "-destination",
+                    "platform=macOS",
+                    "-enableCodeCoverage",
+                    "YES",
+                    "-derivedDataPath",
+                    temporaryDirectory.appending(component: "DerivedData").pathString,
+                    "CODE_SIGNING_ALLOWED=NO",
+                    "CODE_SIGNING_REQUIRED=NO",
+                    "CODE_SIGN_IDENTITY=",
+                ],
+                environment: environment
+            )
+
+            let processDirectories = try await fileSystem.glob(directory: attributionDirectory, include: ["*/records.bin"])
+                .collect()
+            let records = try #require(processDirectories.first, "\(testTarget) recorded no coverage attribution")
+            let data = try await fileSystem.readFile(at: records)
+            #expect(data.range(of: Data(testName.utf8)) != nil, "\(testTarget) didn't record \(testName)")
+        }
+    }
+}
+
 private enum AcceptanceTestError: Error {
     case missingProduct
     case missingResource
