@@ -70,7 +70,7 @@ defmodule TuistWeb.OnceTestRunLiveTest do
     refute has_element?(view, "[data-part=badge-processing]")
     assert html =~ "Interrupted"
     refute html =~ "In progress"
-    assert render_async(view) =~ "Once stopped reporting before this run finished"
+    assert render_async(view, 2_000) =~ "Once stopped reporting before this run finished"
     assert html =~ "06:51"
     refute html =~ "08:00"
   end
@@ -97,7 +97,7 @@ defmodule TuistWeb.OnceTestRunLiveTest do
     assert has_element?(view, "[data-part=badge-warning]")
     refute has_element?(view, "[data-part=badge-failure]")
     assert html =~ "Cancelled"
-    assert render_async(view) =~ "The run was cancelled before it reported any test cases"
+    assert render_async(view, 2_000) =~ "The run was cancelled before it reported any test cases"
   end
 
   test "the test targets tab lists the suite", %{conn: conn, path: path} do
