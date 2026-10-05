@@ -454,7 +454,9 @@ tailnet's routing table.
 
 The rack is zero touch: shipping a PDU is racking and cabling it. Everything
 after that is the RackPDU controller's (`controllers/macos/rackpdu_controller.go`),
-and nobody makes an account, a 1Password item or a certificate pin by hand.
+and nobody makes an account, a password or a certificate pin by hand. The one
+thing provisioned once per environment is the root key the cards' passwords
+are derived from ("Rack card passwords" below).
 
 **Where the object comes from.** `infra/rack-switch-fleet` renders one `RackPDU`
 per Eaton Rack PDU G4 (`evmafc20a`) node with a management address into
@@ -476,15 +478,18 @@ reports `AddressReserved=False`, reason `NoMAC`.
    of the card and deletes the Service. Every path to the card dials it.
 2. **The credentials Secret** `<name>-credentials`, labelled
    `tuist.dev/rack-pdu=<name>`: `admin-username` (`admin`), `admin-password`,
-   `username` (`tuist-controller`), `password`, `initial-password`, all
-   generated to the card's default password policy, and `tlsFingerprint`. Keys
-   it lacks are generated; keys it has are never replaced. It is written before
-   any password reaches the card. It is deliberately not owned by the RackPDU,
-   and nothing deletes it: it holds the only copy of the passwords set on the
-   card, so deleting or recreating the RackPDU must not collect it, or the card
-   refuses every login until someone factory-resets it. A RackPDU made again
-   under the same name picks it up and logs in with it. Retiring a PDU for good
-   is deleting the Secret by hand after its RackPDU.
+   `username` (`tuist-controller`), `password`, `initial-password` and
+   `tlsFingerprint`. It records what the card holds, for people with cluster
+   access and for the power paths, which read the controller's account from
+   it; the passwords themselves are derived from the root key, so the Secret
+   is not their only copy. Keys it lacks are filled with the derived values;
+   keys it has are left until the card is moved onto the derived passwords,
+   since a card an earlier build adopted is only reached with what the Secret
+   records. It is not owned by the RackPDU, so deleting or recreating the
+   RackPDU keeps the pin. Nothing needs it to exist: a RackPDU without one (a
+   rebuilt cluster) logs in with the derived passwords, pins the certificate
+   the card presents at that first contact, and writes the Secret again.
+   Retiring a PDU for good is deleting the Secret by hand after its RackPDU.
 3. **The certificate, trust on first use.** The card's leaf certificate is read
    without trusting anything. At first contact its SHA-256 is recorded in the
    Secret and `status.tlsFingerprint`, and every later connection is pinned to
@@ -493,22 +498,32 @@ reports `AddressReserved=False`, reason `NoMAC`.
    warning event, and no writes, until `tuist.dev/accept-certificate=<the new
    SHA-256>` names it; the controller pins it and clears the annotation, and
    clears an annotation naming any other certificate with a warning.
-4. **Adoption**, when the card is not adopted or the spec's generation moved,
-   as the administrator: log in with the Secret's password, and when the card
-   refuses it, with the factory `admin`/`admin`, setting the Secret's password
-   in the same request (the card's forced first-login change), with an event
-   naming which. Then, reading first and writing only what differs: accept the
-   licence agreement for `admin`; make the controller's account in the
-   `operators` profile (the least predefined profile holding
-   `role-power-manager`) with `initial-password`, which the card makes it
-   change at its first login, so the driver logs in once with it and sets
-   `password`; accept its licence agreement; set every outlet's
-   `stateOnStartup` to `spec.outletStateOnStartup` (default `on`, so a Mac
-   comes back after a power loss) and read it back; read the card's model,
-   serial, firmware and outlet count into status; log the administrator out.
-   A controller account that does not take the Secret's password is deleted
-   and made again. Every step is idempotent, so a pass stopped anywhere is
-   finished by the next.
+4. **Adoption**, when the card is not adopted, the spec's generation moved,
+   or the Secret records other passwords than the derived ones (a card an
+   earlier build or an earlier root key set), as the administrator. The login
+   is the first of these the card takes, with a `LoggedIn` event naming it:
+   the derived administrator password; the password the Secret records, when
+   it is another; the administrator password of the one marked sibling Secret
+   ("A card of the wrong kind" below); the factory `admin`/`admin`. Every one
+   but the first sends the derived password as `newPassword` in the same
+   token request, which is how the card answers its forced first-login change
+   and how a non-derived password is rotated, so the login that takes leaves
+   the card on the derived password; a rotation is a `PasswordRotated` event
+   naming the role and where the old password came from, and the Secret then
+   records the derived one. Then, reading first and writing only what
+   differs: accept the licence agreement for `admin`; make the controller's
+   account in the `operators` profile (the least predefined profile holding
+   `role-power-manager`) with its derived `controller-initial` password, which
+   the card makes it change at its first login, so the driver logs in once
+   with it and sets the derived `controller` password; accept its licence
+   agreement; record both in the Secret; set every outlet's `stateOnStartup`
+   to `spec.outletStateOnStartup` (default `on`, so a Mac comes back after a
+   power loss) and read it back; read the card's model, serial, firmware and
+   outlet count into status; log the administrator out. A controller account
+   that does not take its derived password (one an earlier build made) is
+   deleted and made again on it, with `AccountRecreated` and
+   `PasswordRotated` naming the controller role. Every step is idempotent, so
+   a pass stopped anywhere is finished by the next.
 5. **Between generations it only reads**, every 10 minutes, as the
    controller's account through the driver's session: the outlets' startup
    state and that the account can still log in. Drift is reported
@@ -519,14 +534,15 @@ reports `AddressReserved=False`, reason `NoMAC`.
    with `Converged` Unknown and drift `unknown`. A card that answers
    `AccountBlocked` is `Ready=False`, reason `AccountBlocked`.
 
-A refused login, the controller's account's or the administrator's managed
-and factory pair, is not retried every minute: a card may block an account
-after repeated failures. The wait doubles from a minute up to an hour and
+A refused login, the controller's account's or the administrator's (at
+most four attempts a pass, as above), is not retried every minute: a card may
+block an account after repeated failures. The wait doubles from a minute up to an hour and
 starts over on a success, a new generation or a change to the RackPDU's
 annotations (any annotation will do to retry at once). It is held in memory
 (`controllers/macos/rackcard_backoff.go`), so a new leader starts over.
 
-One generation is one adoption pass. The reconciler wakes for a new generation
+One generation is one adoption pass, and so is a Secret recording other
+passwords than the derived ones. The reconciler wakes for a new generation
 or an annotation, not for its own status writes, and before adopting it reads
 the RackPDU past the manager's cache, whose copy can lag the status the last
 pass wrote. A RackPDU switched to `managedBy: standalone` is `Ready=False`,
@@ -536,9 +552,12 @@ and stops contacting it. A logout that cannot reach the card is a
 `LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
-`AddressReserved`. `Adopted=False` reasons: `Unreachable`, `AdminLoginRefused`
-(neither the Secret's nor the factory password works: someone changed it, or
-the Secret was lost; factory-reset the card), `AdminSessionBusy` (the card
+`AddressReserved`. `Adopted=False` reasons: `RootKeyMissing` (the root key
+Secret is missing or shorter than 16 bytes; the message names it, and nothing
+is contacted or written until it is there), `Unreachable`, `AdminLoginRefused`
+(no password the controller knows works, the derived one, the Secret's, a
+sibling's or the factory one: someone changed it; factory-reset the card),
+`AdminSessionBusy` (the card
 allows one session per account and another holds the administrator's; it
 lapses after an hour idle), `FirstLoginBlocked` (the card refused the login
 for any other reason, carried verbatim), `AccountBlocked`, `UnsupportedCard`
@@ -557,17 +576,20 @@ the password. Every credentials Secret carries the label
 `tuist.dev/rack-card-address=<address>`, and one whose password was set at a
 card's forced first-login change records when and on which certificate
 (`tuist.dev/rack-card-admin-set`, `tuist.dev/rack-card-admin-set-certificate`).
-The administrator login tries, after the object's own password and before the
-factory one, the password of at most one other Secret: of those with the same
-address label whose recorded certificate is the one the card presents now, the
-most recent. Unmarked Secrets and marks for another certificate (a replaced
-card, leftovers of deleted objects) are never tried, so a card that blocks an
+The administrator login tries, after the object's derived password and the one
+its Secret records and before the factory one, the password of at most one
+other Secret: of those with the same address label whose recorded certificate
+is the one the card presents now, the most recent, skipping a password already
+tried. Unmarked Secrets and marks for another certificate (a replaced card,
+leftovers of deleted objects) are never tried, so a card that blocks an
 account after a few failures is not walked through them; these attempts count
-against the login backoff like any other. The password that works is recorded,
-with its mark, in the object's own Secret, and the `LoggedIn` event names where
-it came from. So the object of the right kind adopts the card without anyone
-at it, and the wrong one stays `UnsupportedCard` until its site definition is
-fixed.
+against the login backoff like any other. The login that works rotates the
+card onto the object's own derived password, which its Secret records with a
+fresh mark; the `LoggedIn` and `PasswordRotated` events name the Secret the old
+password came from. So the object of the right kind adopts the card without
+anyone at it, and the wrong one stays `UnsupportedCard` until its site
+definition is fixed. When both objects carry the same `spec.mac` they derive
+the same administrator password, and the right one's first login simply takes.
 
 `UnsupportedCard` is for a card the object has not adopted. An adopted card
 that answers unlike its API (a page or a missing login, as a card restarting
@@ -588,10 +610,10 @@ or upgrading can) keeps `Adopted=True` and is `Ready=False`, reason
 - `capt_rackpdu_adopted == 0` for an hour on a `controller` PDU: adoption is
   stuck; read `Adopted`'s reason.
 
-**The administrator login for people** reaches 1Password through the
-PushSecret `<name>-admin` rendered beside the RackPDU, as the item
-`<name> admin` in the `onepassword` store's vault. Without it, it is the
-Secret's `admin-username`/`admin-password`, read with a JIT kubectl elevation.
+**The administrator login for people** is `admin` with the password
+`mise run rack:card-password <name>` prints ("Rack card passwords" below), or
+the Secret's `admin-username`/`admin-password`, read with a JIT kubectl
+elevation.
 
 **RackHost outlets.** `RackHost.spec.power` is `{pdu: <RackPDU>, outlet: "<n>"}`
 on the rack: the outlet's 1-based number on the PDU, the driver `eaton`, the
@@ -623,7 +645,10 @@ state. Account changes use the reauthentication token the card requires,
 base64(access_token:password). `internal/power/eatontest` is a fake card.
 
 **Unverified on a real G4**, since the controller has not met one: that the
-factory login answers `newPassword` without anything else first; whether the
+factory login answers `newPassword` without anything else first; that the
+token endpoint takes `newPassword` on an account whose password has not expired,
+which rotating a card off a non-derived password relies on (the collection's
+"OAuth2/change password" request; the fake card takes it); whether the
 licence agreement gates the API before it is accepted; that `operators` may
 switch outlets and read their settings (the collection lists its roles, not
 what each allows); the exact refusal bodies; whether an account the
@@ -656,14 +681,15 @@ the egress Service (`rackats-<name>`), the finalizer `tuist.dev/rackats`,
 held on every controller-managed RackATS so deleting it logs the
 controller's session out of the card and deletes the Service (an object an
 earlier build held with `tuist.dev/rackats-egress` is moved to it, and let go
-on delete either way), the unowned `<name>-credentials` Secret (labelled
-`tuist.dev/rack-ats=<name>`, the same keys, written before first contact and
-outliving the object), trust on first use with `tuist.dev/accept-certificate`,
-the managed-then-factory administrator login, the login backoff (a refused or
+on delete either way), the root key and the passwords derived from it, the
+unowned `<name>-credentials` Secret (labelled `tuist.dev/rack-ats=<name>`, the
+same keys, outliving the object), trust on first use with
+`tuist.dev/accept-certificate`, the administrator login and its rotation onto
+the derived password, the login backoff (a refused or
 blocked login waits a minute, doubling to an hour, reset by a success, a new
 generation or an annotation; `AccountBlocked` is its own `Ready` and `Adopted`
-reason), the logout when it goes `standalone`, `AddressReserved=False`/`NoMAC`
-without a MAC, and the PushSecret `<name>-admin` to 1Password. One difference
+reason), `RootKeyMissing`, the logout when it goes `standalone`, and
+`AddressReserved=False`/`NoMAC` without a MAC. One difference
 in the backoff: an adopted switch whose administrator login is refused for a
 new generation keeps being observed as the controller's account, and only the
 administrator's logins wait. What differs otherwise:
@@ -783,6 +809,66 @@ and it needs SNMP enabled and a v3 user given a password, which on a factory
 Network-M2 is the REST API's or the web UI's to do: either the REST
 implementation enables it during adoption, or that step is a person at the
 web UI, a zero-touch gap.
+
+### Rack card passwords
+
+Every PDU and transfer switch card's passwords are derived from one root key,
+so nothing set on a card exists only in the cluster: a cluster rebuilt from
+nothing computes the same passwords and adopts the cards again with nobody at
+the rack (`internal/rackcard`):
+
+```
+password = "Rc7-" + base62(HMAC-SHA256(rootKey, "tuist-rack-card/v1|" + site + "|" + identity + "|" + role))
+```
+
+`site` is `spec.site`; `identity` is `spec.mac` in lower case, or `name:` and
+the object's name when no MAC is recorded; `role` is `admin` (the card's
+`admin`), `controller` (`tuist-controller`) or `controller-initial` (what
+`tuist-controller` is made with). base62 writes the digest, read as a
+big-endian integer, as its 20 least significant base-62 digits over
+`0-9A-Za-z`, least significant first. The fixed prefix holds an upper and a
+lower case letter, a digit and a special character, so every 24-character
+password meets the card's default policy. Golden vectors computed outside Go
+pin it (`internal/rackcard/derive_test.go`); changing any part of it changes
+every card's passwords, which only the rotation below survives.
+
+**The root key** is the 1Password item `BER1_RACK_CARD_ROOT`, field `key`, in
+the environment's vault (`tuist-k8s-staging` for staging), at least 16 bytes;
+make it once with `openssl rand -hex 32`. The tuist chart's
+`rackFleet.cardRootKey` renders an ExternalSecret from the read-only
+`onepassword` store into the Secret `rack-card-root` in the release namespace,
+which the operator reads as `--rack-card-root-secret` in `--secrets-namespace`.
+The value is used as stored, without a trailing newline. Without it no card is
+contacted: `Adopted=False` and `Ready=False`, reason `RootKeyMissing`, naming
+the Secret, looked at again every minute.
+
+**A card an earlier build adopted** holds random passwords that only its
+credentials Secret records. The Secret recording anything other than the
+derived passwords starts an adoption pass, generation or not: the derived
+administrator login is refused, the Secret's takes and rotates the card onto
+the derived password in the same request, and the controller's account, which
+does not take its derived password, is made again on it. Each is a
+`PasswordRotated` event, and the Secret then records the derived values.
+
+**After losing the cluster** nothing is needed but the root key: a RackPDU or
+RackATS applied again has no Secret, logs in with the derived password, pins
+the certificate the card presents at that first contact (trust on first use
+again, so a card swapped meanwhile is taken as it is), and writes the Secret.
+
+**For a person**, `mise run rack:card-password <device> [--role admin|controller]`
+pipes `op read 'op://<vault>/BER1_RACK_CARD_ROOT/key'` into
+`cmd/rack-card-password`, which looks the device's MAC up in
+`infra/rack-switch-fleet/sites/<site>.json` and prints the password. The vault
+comes from the site's `kubernetes.namespace` (`tuist-<env>` reads
+`tuist-k8s-<env>`) or `--vault`. The key is never printed.
+
+**Rotating the root key** is changing the item's value on a live cluster. Once
+ESO syncs it, every object derives new passwords, its Secret no longer records
+them, and its next pass rotates the card from the old ones the Secret records,
+with `PasswordRotated` for both roles. A card that is unreachable meanwhile
+keeps the old passwords in its Secret and is rotated when it answers. Keep the
+old value until every RackPDU and RackATS is Ready again after its rotation:
+a card whose Secret is lost before then is only reached with the old key.
 
 ### Before the machines segment is advertised as one prefix
 
@@ -1461,7 +1547,7 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rack_os_update.go        # tuist.dev/os-update and os-reinstall: macOS updates
 │   │   ├── rackhost_controller.go   # physical inventory: power, quarantine expiry
 │   │   ├── rackhost_power.go        # a host's outlet through its RackPDU
-│   │   ├── rackcard.go              # what RackPDU and RackATS share: Secret, pin, egress Service, Eaton admin login, logout, release
+│   │   ├── rackcard.go              # what RackPDU and RackATS share: root key, Secret, pin, egress Service, Eaton admin login and rotation, logout, release
 │   │   ├── rackcard_backoff.go      # refused logins back off, one minute doubling to an hour
 │   │   ├── rackpdu_controller.go    # RackPDU: adoption, outlets' startup state, drift
 │   │   ├── rackats_controller.go    # RackATS: adoption, preferred source, observation, drift
@@ -1486,6 +1572,7 @@ infra/cluster-api-provider-tuist/
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
+│   ├── rackcard/     # a rack power card's passwords, derived from the root key
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
 │   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
@@ -1498,6 +1585,7 @@ infra/cluster-api-provider-tuist/
 ├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
 ├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
+├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
 ├── Dockerfile      # cross-builds the darwin/arm64 host artifacts (tart-kubelet,

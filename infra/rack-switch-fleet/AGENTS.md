@@ -478,14 +478,18 @@ model, `mac`, address, `chain` (its `ats`), `managedBy: controller` once the
 node is `installed` (`standalone`, never contacted, before), and
 `outletStateOnStartup: "on"`. There is no revision: the spec is small, and the
 controller converges on `metadata.generation`. What the controller does with
-it (adopting the card on its factory login, generating and owning its
-credentials, pinning its certificate on first use, reporting drift) is
+it (adopting the card on its factory login, deriving its passwords from the
+rack card root key, pinning its certificate on first use, reporting drift) is
 "RackPDU" in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
-A controller-managed PDU also gets a PushSecret, `<pdu>-admin`, which copies
-the administrator login the controller generated (`admin-username`,
-`admin-password` of `<pdu>-credentials`) into the `onepassword` store's vault
-as the item `<pdu> admin`, for a person who needs the web UI.
+Nothing is rendered beside the object for its passwords. A card's passwords
+are derived from the root key in 1Password (`BER1_RACK_CARD_ROOT`) and the
+node's `mac` (or its name, without one), so recording a MAC after a card was
+adopted changes its passwords, and the controller rotates the card onto the
+new ones at its next pass. A person who needs the web UI runs
+`mise run rack:card-password <device>`, which reads the MAC from this
+directory's site definition; see "Rack card passwords" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
 A power node may carry `mac`, its management card's MAC in lower case, like a
 switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
@@ -500,9 +504,9 @@ rendered all the same, gets no reservation, and its RackPDU reports
 Each transfer switch (`eats16n`) with a `mgmt_address` is rendered the same way
 as a `RackATS` into `k8s/<site>/<ats>.yaml` by `fleet_render_ats` (both go
 through `fleet_render_power`): its site, model, `mac`, address, `managedBy`
-(controller once `installed`) and `preferredSource`, with the same `<ats>-admin`
-PushSecret for one the controller adopts. Today that is `ber1-ats-1` and
-`ber1-ats-3`; `ber1-ats-2` has no address until the colo. Neither has a `mac`
+(controller once `installed`) and `preferredSource`, and its card's passwords
+are derived the same way. The ones the controller adopts today are
+`ber1-ats-1` and `ber1-ats-3`; `ber1-ats-2` has no address until the colo. Neither has a `mac`
 recorded yet, so neither has a DHCP reservation, and both RackATSes report
 `AddressReserved=False`; the reservation rule is the PDUs', since both are
 installed power nodes behind the edge.
