@@ -75,9 +75,18 @@ defmodule TuistWeb.OnceTestRunLiveTest do
     refute html =~ "08:00"
   end
 
-  test "a cancelled run reads as cancelled rather than failed", %{project: project, organization: organization, conn: conn} do
+  test "a cancelled run reads as cancelled rather than failed", %{
+    project: project,
+    organization: organization,
+    conn: conn
+  } do
     {:ok, run} =
-      OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate(), kind: "test", command_display: "once test"})
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "test",
+        command_display: "once test"
+      })
 
     run
     |> Ecto.Changeset.change(finalization: "finalized", exit_status: 1, cancellation_reason: "SIGINT")
