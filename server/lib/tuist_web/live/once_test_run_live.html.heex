@@ -24,7 +24,7 @@
             <.alert_circle />
           </div>
         </div>
-        <div :if={status(@run) == "interrupted"} data-part="badge-warning">
+        <div :if={status(@run) in ["interrupted", "cancelled"]} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
           </div>
@@ -61,6 +61,13 @@
                 :if={status(@run) == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status(@run) == "cancelled"}
+                label={dgettext("dashboard_tests", "Cancelled")}
+                color="warning"
                 style="fill"
                 size="large"
               />

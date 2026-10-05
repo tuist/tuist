@@ -123,6 +123,9 @@ defmodule TuistWeb.OnceTestRunLive do
   # Once stopped reporting (a killed process or a cancelled CI job) and the
   # server gave up on it, so it is not in progress and never will be.
   def status(%{finalization: "lost"}), do: "interrupted"
+  # A cancelled run reports exit status 1, so it has to be told apart before
+  # the exit status decides it failed.
+  def status(%{finalization: "finalized", cancellation_reason: reason}) when is_binary(reason), do: "cancelled"
   def status(%{exit_status: 0}), do: "success"
 
   def status(%{exit_status: nil, finalization: finalization}) do
@@ -137,10 +140,10 @@ defmodule TuistWeb.OnceTestRunLive do
   def ran_at(%Run{} = run), do: run.finalized_at || run.started_at
 
   def empty_test_cases_title(run) do
-    if status(run) == "interrupted" do
-      dgettext("dashboard_tests", "Once stopped reporting before this run finished")
-    else
-      dgettext("dashboard_tests", "No test cases reported for this run")
+    case status(run) do
+      "interrupted" -> dgettext("dashboard_tests", "Once stopped reporting before this run finished")
+      "cancelled" -> dgettext("dashboard_tests", "The run was cancelled before it reported any test cases")
+      _ -> dgettext("dashboard_tests", "No test cases reported for this run")
     end
   end
 

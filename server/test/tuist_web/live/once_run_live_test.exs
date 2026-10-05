@@ -38,6 +38,18 @@ defmodule TuistWeb.OnceRunLiveTest do
     refute render(view) =~ "Running"
   end
 
+  test "a cancelled run reads as cancelled rather than failed", %{conn: conn, path: path, run: run} do
+    run
+    |> Ecto.Changeset.change(finalization: "finalized", exit_status: 1, cancellation_reason: "SIGTERM")
+    |> Tuist.Repo.update!()
+
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-failure]")
+    assert render(view) =~ "Cancelled"
+  end
+
   test "search, filters and sorting preserve each other across pages and live updates", %{
     conn: conn,
     path: path,

@@ -212,12 +212,18 @@ defmodule TuistWeb.OnceRunLive do
               <div data-part="icon"><.circle_check /></div>
             </div>
             <div
-              :if={@run.finalization == "finalized" and @run.exit_status not in [nil, 0]}
+              :if={
+                @run.finalization == "finalized" and @run.exit_status not in [nil, 0] and
+                  is_nil(@run.cancellation_reason)
+              }
               data-part="badge-failure"
             >
               <div data-part="icon"><.alert_circle /></div>
             </div>
-            <div :if={@run.finalization == "lost"} data-part="badge-warning">
+            <div
+              :if={@run.finalization == "lost" or is_binary(@run.cancellation_reason)}
+              data-part="badge-warning"
+            >
               <div data-part="icon"><.alert_hexagon /></div>
             </div>
             <div :if={@run.finalization not in ["finalized", "lost"]} data-part="badge-processing">
@@ -1220,6 +1226,10 @@ defmodule TuistWeb.OnceRunLive do
 
   defp run_status_label(%{finalization: "finalized", exit_status: 0}), do: dgettext("dashboard_builds", "Passed")
 
+  # Checked before the failure clause: a cancelled run reports exit status 1.
+  defp run_status_label(%{finalization: "finalized", cancellation_reason: reason}) when is_binary(reason),
+    do: dgettext("dashboard_projects", "Cancelled")
+
   defp run_status_label(%{finalization: "finalized"}), do: dgettext("dashboard_builds", "Failed")
 
   # `lost` is terminal: Once stopped reporting (a killed process or a
@@ -1229,6 +1239,7 @@ defmodule TuistWeb.OnceRunLive do
   defp run_status_label(_), do: dgettext("dashboard_projects", "Running")
 
   defp run_status_badge_color(%{finalization: "finalized", exit_status: 0}), do: "success"
+  defp run_status_badge_color(%{finalization: "finalized", cancellation_reason: reason}) when is_binary(reason), do: "warning"
   defp run_status_badge_color(%{finalization: "finalized"}), do: "destructive"
   defp run_status_badge_color(%{finalization: "lost"}), do: "warning"
   defp run_status_badge_color(_), do: "primary"

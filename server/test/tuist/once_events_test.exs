@@ -82,7 +82,21 @@ defmodule Tuist.OnceEventsTest do
 
   test "decoded failed run result remains failed", %{run: run} do
     project(run, %RunCompleted{result: :RUN_RESULT_FAILED, wall_ms: 123})
-    assert %{exit_status: 1, wall_ms: 123, finalization: "finalized"} = OnceEvents.get_run(run.project_id, run.run_id)
+    assert %{exit_status: 1, wall_ms: 123, finalization: "finalized", cancellation_reason: nil} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a cancelled run keeps why it was cancelled", %{run: run} do
+    project(run, %RunCompleted{result: :RUN_RESULT_CANCELLED, cancellation_reason: "SIGTERM", wall_ms: 40})
+
+    assert %{exit_status: 1, cancellation_reason: "SIGTERM", finalization: "finalized"} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a cancelled run without a reason is still recorded as cancelled", %{run: run} do
+    project(run, %RunCompleted{result: :RUN_RESULT_CANCELLED, wall_ms: 40})
+
+    assert %{cancellation_reason: "cancelled"} = OnceEvents.get_run(run.project_id, run.run_id)
   end
 
   test "search and filters apply before pagination and remain run scoped", %{run: run} do
