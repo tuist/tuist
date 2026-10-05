@@ -65,7 +65,7 @@ defmodule Tuist.OnceEvents.Projector do
            OnceEvents.finalize_run(run, %{
              finalization: "finalized",
              exit_status: run_result_exit(completed.result),
-             cancellation_reason: nil_if_empty(completed.cancellation_reason),
+             cancellation_reason: cancellation_reason(completed),
              wall_ms: completed.wall_ms,
              finalized_at: DateTime.utc_now()
            }) do
@@ -355,6 +355,16 @@ defmodule Tuist.OnceEvents.Projector do
 
   defp run_result_exit(result) when result in [1, :RUN_RESULT_SUCCEEDED], do: 0
   defp run_result_exit(_), do: 1
+
+  # `exit_status` collapses every unsuccessful result to 1, so the reason is
+  # what tells a cancelled run apart from a failed one. A client that cancels
+  # without naming why still gets one.
+  defp cancellation_reason(%RunCompleted{result: result, cancellation_reason: reason})
+       when result in [3, :RUN_RESULT_CANCELLED] do
+    nil_if_empty(reason) || "cancelled"
+  end
+
+  defp cancellation_reason(%RunCompleted{}), do: nil
 
   defp from_epoch_ms(ms) when is_integer(ms) and ms > 0 do
     case DateTime.from_unix(ms, :millisecond) do

@@ -6668,6 +6668,38 @@ Triage follows the payload:
 Content blockers cannot explain a total outage; the collector is same-origin
 precisely so no blocklist matches it.
 
+### Metrics samples rejected as duplicate timestamps
+
+Unlike every other rule here, this one queries the `grafanacloud-usage` data
+source, which carries Grafana Cloud's own metering of the stack.
+
+```promql
+sum(
+  grafanacloud_instance_samples_discarded_per_second{
+    id="1774467",
+    reason="new-value-for-timestamp"
+  }
+) > 500
+```
+
+- Pending period: 1 hour
+- Summary: `Grafana Cloud is rejecting {{ $values.A.Value }} metric samples per second as duplicate timestamps`
+
+Mimir keeps one sample per series and timestamp and rejects the rest, but
+Grafana Cloud bills every data point it receives. The healthy baseline is
+about 100 per second. From 2026-09-30 to 2026-10-05 it ran at about 2,500 per
+second, which doubled billable series from about 240k to 447k without any
+change in active series.
+
+The usual cause is the Adaptive Metrics dependency described in "The apiserver
+request rules are load-bearing for cost" in `README.md`: the rule for
+`apiserver_request_total` or `apiserver_request_duration_seconds_bucket` is
+gone, so the control-plane collector's colliding series reach storage. Read
+the colliding series from the `err-mimir-sample-duplicate-timestamp` lines in
+the `grafanacloud-tuist-usage-insights` Loki data source, then restore the
+rule. Any other series named there means a new relabel rule in this chart is
+collapsing distinct series into one label set.
+
 ## Useful investigation queries
 
 Current Kubernetes requests in flight:

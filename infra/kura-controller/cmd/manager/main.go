@@ -43,6 +43,7 @@ func main() {
 	var stableDrain time.Duration
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
+	var privateReplication bool
 	var connectivityDiagnosticsInstances string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
@@ -54,6 +55,7 @@ func main() {
 	flag.StringVar(&publicTLSDNSNames, "public-tls-dns-names", "", "Comma-separated names for the shared wildcard Certificate the controller maintains (e.g. *.kura.tuist.dev); leave empty to manage that Certificate elsewhere")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
+	flag.BoolVar(&privateReplication, "private-replication", false, "Derive OVH peer topology from converged private host routes")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
 
 	flag.StringVar(&stableZone, "stable-dns-zone-id", "", "Delegated cache.tuist.dev Route53 hosted zone; empty disables stable DNS")
@@ -118,6 +120,7 @@ func main() {
 		PublicTLSSecretName:              publicTLSSecretName,
 		OTLPTracesEndpoint:               otlpTracesEndpoint,
 		Environment:                      deploymentEnvironment,
+		PrivateReplication:               privateReplication,
 		MetricsClient:                    metricsClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
 	}

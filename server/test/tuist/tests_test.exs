@@ -9,6 +9,8 @@ defmodule Tuist.TestsTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Subscription
+  alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Repo
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests
@@ -9882,8 +9884,24 @@ defmodule Tuist.TestsTest do
   describe "update_test_case/3 with event creation" do
     test "creates marked_flaky event when is_flaky changes from false to true" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      token = AccountsFixtures.account_token_fixture(account: user.account, scopes: ["mcp"])
+
+      %Subscription{}
+      |> Subscription.changeset(%{
+        id: "sub_marked_flaky_#{Ecto.UUID.generate()}",
+        user_id: user.id,
+        account_token_id: token.id,
+        account_id: user.account.id,
+        project_id: project.id,
+        event_name: "test_case.marked_flaky",
+        callback_url: "https://example.com/events",
+        signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
+        refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+      })
+      |> Repo.insert!()
+
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
       IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
@@ -9900,6 +9918,7 @@ defmodule Tuist.TestsTest do
       assert length(events) == 1
       assert hd(events).event_type == "marked_flaky"
       assert hd(events).actor_id == user.account.id
+      assert_enqueued(worker: FanoutWorker, args: %{"project_id" => project.id, "test_case_id" => test_case.id})
     end
 
     test "creates unmarked_flaky event when is_flaky changes from true to false" do

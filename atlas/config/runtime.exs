@@ -491,6 +491,9 @@ end
 # optional headers, bearer_token or OAuth fields, and receive_timeout.
 case System.get_env("MCP_PROXY_SERVERS") do
   value when value in [nil, ""] ->
+    config :atlas, :mcp_proxy, servers: []
+
+  "tuist-managed" ->
     if config_env() in [:dev, :prod] do
       grafana_headers =
         case System.get_env("GRAFANA_MCP_STACK_URL") do

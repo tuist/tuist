@@ -74,8 +74,9 @@ defmodule AtlasWeb.DocsControllerTest do
   test "overview links to published guides and keeps page-copy controls", %{conn: conn} do
     document = conn |> get("/docs") |> html_response(200) |> LazyHTML.from_document()
     assert Enum.empty?(LazyHTML.query(document, "#docs-nav-tabs, [data-part=hero-cards]"))
-    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a")) == 2
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a")) == 3
     assert Enum.count(LazyHTML.query(document, "#docs-sidebar a[href='/docs']")) == 1
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar a[href='/docs/mcps']")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-sidebar a[href='/docs/self-hosting']")) == 1
     assert Enum.count(LazyHTML.query(document, "[data-part=admonition][data-status=information]")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-copy-dropdown")) == 1

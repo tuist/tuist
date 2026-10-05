@@ -359,6 +359,8 @@ defmodule Tuist.Application do
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,
+          {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},
+          {Task.Supervisor, name: Tuist.MCP.Events.DeliverySupervisor, max_children: 20},
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
           Cache,

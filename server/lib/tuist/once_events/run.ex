@@ -46,6 +46,11 @@ defmodule Tuist.OnceEvents.Run do
     field :cached_actions, :integer, default: 0
     field :executed_actions, :integer, default: 0
     field :failed_actions, :integer, default: 0
+    # Summed `duration_ms` of the run's real (non-`_phase`) actions, split by
+    # cache outcome. With the counters above they give the cache analytics
+    # their latency averages without reading `once_actions`.
+    field :cached_action_ms_total, :integer, default: 0
+    field :executed_action_ms_total, :integer, default: 0
 
     field :cache_bytes_downloaded, :integer, default: 0
     field :cache_bytes_uploaded, :integer, default: 0
@@ -54,6 +59,8 @@ defmodule Tuist.OnceEvents.Run do
     field :cache_action_read_ms_total, :integer, default: 0
     field :cache_action_write_count, :integer, default: 0
     field :cache_action_write_ms_total, :integer, default: 0
+    # Every `once_cache_events` row of the run, whatever its kind.
+    field :cache_event_count, :integer, default: 0
 
     # Test roll-ups incremented as `TestCaseCompleted` events land
     # (see `OnceEvents.ingest_test_case_run/2`). Present on every

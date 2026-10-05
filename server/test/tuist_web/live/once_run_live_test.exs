@@ -27,6 +27,41 @@ defmodule TuistWeb.OnceRunLiveTest do
     %{run: run, path: "/#{organization.account.name}/#{project.name}/once/runs/#{run.run_id}"}
   end
 
+  test "an expired run reads as interrupted rather than running", %{conn: conn, path: path, run: run} do
+    run |> Ecto.Changeset.change(finalization: "lost") |> Tuist.Repo.update!()
+
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-processing]")
+    assert render(view) =~ "Interrupted"
+    refute render(view) =~ "Running"
+  end
+
+  test "a cancelled run reads as cancelled rather than failed", %{conn: conn, path: path, run: run} do
+    run
+    |> Ecto.Changeset.change(finalization: "finalized", exit_status: 1, cancellation_reason: "SIGTERM")
+    |> Tuist.Repo.update!()
+
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "[data-part=badge-warning]")
+    refute has_element?(view, "[data-part=badge-failure]")
+    assert render(view) =~ "Cancelled"
+  end
+
+  test "a passed run that carries a cancellation reason still reads as passed", %{conn: conn, path: path, run: run} do
+    run
+    |> Ecto.Changeset.change(finalization: "finalized", exit_status: 0, cancellation_reason: "SIGTERM")
+    |> Tuist.Repo.update!()
+
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "[data-part=badge-success]")
+    refute has_element?(view, "[data-part=badge-warning]")
+    refute render(view) =~ "Cancelled"
+  end
+
   test "search, filters and sorting preserve each other across pages and live updates", %{
     conn: conn,
     path: path,
@@ -97,6 +132,33 @@ defmodule TuistWeb.OnceRunLiveTest do
     assert has_element?(view, "#once-actions-table tbody tr:first-child", "compiler-9")
     render_patch(view, path <> "?page=999&search=compiler-59")
     assert row_count(view) == 1
+  end
+
+  test "the Overview tab does not query the Cache tab", %{conn: conn, path: path} do
+    reject(&OnceEvents.cache_detail_metrics/1)
+    reject(&OnceEvents.count_cache_events/2)
+    reject(&OnceEvents.list_cache_events/2)
+
+    {:ok, view, _} = live(conn, path)
+    assert row_count(view) == 50
+
+    send(view.pid, :refresh)
+    assert row_count(view) == 50
+  end
+
+  test "switching to the Cache tab loads it and stops querying the actions", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path)
+    assert row_count(view) == 50
+
+    reject(&OnceEvents.count_actions/2)
+    reject(&OnceEvents.list_actions/2)
+
+    render_patch(view, path <> "/cache")
+    assert has_element?(view, "#once-cache-search")
+    assert has_element?(view, "#once-cache-table")
+
+    send(view.pid, :refresh)
+    assert has_element?(view, "#once-cache-table")
   end
 
   defp row_count(view),

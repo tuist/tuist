@@ -11,6 +11,7 @@ defmodule AtlasWeb.DocsHTML do
   @pages (for {slug, title, category, section, description} <- [
                 {"", "Overview", "Overview", "Atlas",
                  "Built at Tuist to maximize value per employee: shared organizational context for people, agents, and bots."},
+                {"mcps", "MCPs", "Guides", "Atlas", "Configure upstream MCP servers in Atlas."},
                 {"self-hosting", "Self-hosting", "Guides", "Self-hosting",
                  "Deploy Atlas with Docker Compose or Helm on your own infrastructure."}
               ] do

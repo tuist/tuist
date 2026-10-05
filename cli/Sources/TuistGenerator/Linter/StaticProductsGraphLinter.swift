@@ -172,6 +172,8 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         graphTraverser: GraphTraversing,
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> [StaticDependencyWarning] {
+        guard linkedBy.count > 1 else { return [] }
+
         if shouldSkipDependency(staticProduct, configGeneratedProjectOptions: configGeneratedProjectOptions) {
             return []
         }

@@ -786,6 +786,185 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func pruningKeepsRegistryPinsThatReplacedSourceControlDependencies() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: "https://example.invalid/Direct.git",
+                dependencyName: "Direct"
+            )
+            let direct = ResolvedPin(
+                identity: "example.direct",
+                kind: "registry",
+                location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let orphan = ResolvedPin(
+                identity: "orphan",
+                kind: "remoteSourceControl",
+                location: "https://example.invalid/Orphan.git",
+                state: .init(branch: nil, revision: "abc", version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            try await fileSystem.makeDirectory(at: directSource.absolutePath, options: [.createTargetParentDirectories])
+            try await writeMinimalPackageManifest(at: directSource, name: "Direct")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, orphan], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheRoot: root.appendingPathComponent("cache"),
+                mirrors: MirrorConfig(),
+                disableSandbox: true,
+                scmToRegistryTransformation: .replaceSCMWithRegistry
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["example.direct"])
+        }
+    }
+
+    @Test
+    func pruningFollowsTransitiveRegistryReplacement() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [
+                    .package(id: "example.direct", from: "1.0.0"),
+                ])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+            let direct = ResolvedPin(
+                identity: "example.direct", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let transitive = ResolvedPin(
+                identity: "example.transitive", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            let transitiveSource = scratch.appendingPathComponent("registry/downloads/example/transitive/1.0.0")
+            try await fileSystem.makeDirectory(at: directSource.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "Direct", dependencies: [
+                    .package(url: "https://example.invalid/Transitive.git", from: "1.0.0"),
+                ])
+                """,
+                to: directSource.appendingPathComponent("Package.swift")
+            )
+            try await writeMinimalPackageManifest(at: transitiveSource, name: "Transitive")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, transitive], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package, scratchDir: scratch,
+                cacheRoot: root.appendingPathComponent("cache"), mirrors: MirrorConfig(),
+                disableSandbox: true, scmToRegistryTransformation: .replaceSCMWithRegistry
+            )
+
+            #expect(Set(try await ResolvedFile.read(packageDir: package).pins.map(\.identity))
+                == ["example.direct", "example.transitive"])
+        }
+    }
+
+    @Test
+    func pruningDropsUnreachableRegistryPinWithoutItsManifest() async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("App")
+            try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [
+                    .package(id: "example.direct", from: "1.0.0"),
+                ])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+            let direct = ResolvedPin(
+                identity: "example.direct", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let orphan = ResolvedPin(
+                identity: "example.orphan", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: "1.0.0")
+            )
+            let sourceOrphan = ResolvedPin(
+                identity: "source-orphan", kind: "remoteSourceControl",
+                location: "https://example.invalid/SourceOrphan.git",
+                state: .init(branch: nil, revision: "abc", version: "1.0.0")
+            )
+            let scratch = root.appendingPathComponent("scratch")
+            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            try await writeMinimalPackageManifest(at: directSource, name: "Direct")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, orphan, sourceOrphan], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package, scratchDir: scratch,
+                cacheRoot: root.appendingPathComponent("cache"), mirrors: MirrorConfig(),
+                disableSandbox: true, scmToRegistryTransformation: .replaceSCMWithRegistry
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["example.direct"])
+        }
+    }
+
+    @Test
+    func pruningKeepsSourceControlPinsWithRegistryIdentities() async throws {
+        try await withTemporaryDirectory { root in
+            let location = "https://example.invalid/Direct.git"
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: location, dependencyName: "Direct")
+            let direct = ResolvedPin(
+                identity: "example.direct", kind: "remoteSourceControl", location: location,
+                state: .init(branch: nil, revision: "abc", version: "1.0.0")
+            )
+            let orphan = ResolvedPin(
+                identity: "orphan", kind: "remoteSourceControl",
+                location: "https://example.invalid/Orphan.git",
+                state: .init(branch: nil, revision: "def", version: "1.0.0")
+            )
+            let cachedSource = try Cache.sourcePath(root: root.appendingPathComponent("cache"), pin: direct)
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Direct")
+            try await ResolvedFile.write(
+                packageDir: package,
+                resolved: .init(originHash: "stale", pins: [direct, orphan], version: 3),
+                mirrors: MirrorConfig()
+            )
+
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package, scratchDir: root.appendingPathComponent("scratch"),
+                cacheRoot: root.appendingPathComponent("cache"), mirrors: MirrorConfig(),
+                disableSandbox: true, scmToRegistryTransformation: .useRegistryIdentityForSCM
+            )
+
+            #expect(try await ResolvedFile.read(packageDir: package).pins.map(\.identity) == ["example.direct"])
+        }
+    }
+
     private func resolveIgnoringAmbientMirrorConfig(
         package: URL,
         cache: URL,

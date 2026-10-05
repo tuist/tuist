@@ -40,8 +40,13 @@ defmodule TuistWeb.OnceRunLive do
            run: run,
            available_filters: define_filters(),
            cache: OnceEvents.cache_summary(run),
-           cache_detail_metrics: OnceEvents.cache_detail_metrics(run),
+           # Filled by `load_cache/1` when the Cache tab is the one shown.
+           cache_detail_metrics: nil,
            cache_events: [],
+           actions: [],
+           action_count: 0,
+           total_pages: 1,
+           page: 1,
            cache_current_page: 1,
            cache_total_pages: 1,
            refresh_scheduled?: false,
@@ -86,8 +91,7 @@ defmodule TuistWeb.OnceRunLive do
        cache_sort_by: one_of(query["cache_sort_by"], @cache_sort_fields, "observed"),
        cache_sort_order: one_of(query["cache_sort_order"], ["asc"], "desc")
      )
-     |> load_actions()
-     |> load_cache()}
+     |> load_tab()}
   end
 
   # Called from the render, where the cache assigns are only present once
@@ -177,11 +181,17 @@ defmodule TuistWeb.OnceRunLive do
      socket
      |> assign(:run, run || socket.assigns.run)
      |> assign(:refresh_scheduled?, false)
-     |> load_actions()
-     |> load_cache()}
+     |> load_tab()}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
+
+  # Each tab renders only its own data, so only that tab's queries run. The
+  # Overview used to compute the Cache tab's page, count and detail metrics on
+  # every load and every refresh, and the reverse, although neither was shown.
+  # Switching tabs is a patch, which runs `handle_params/3` and loads the other.
+  defp load_tab(%{assigns: %{live_action: :cache}} = socket), do: load_cache(socket)
+  defp load_tab(socket), do: load_actions(socket)
 
   defp schedule_refresh(%{assigns: %{refresh_scheduled?: true}} = socket), do: {:noreply, socket}
 
@@ -212,12 +222,24 @@ defmodule TuistWeb.OnceRunLive do
               <div data-part="icon"><.circle_check /></div>
             </div>
             <div
-              :if={@run.finalization == "finalized" and @run.exit_status not in [nil, 0]}
+              :if={
+                @run.finalization == "finalized" and @run.exit_status not in [nil, 0] and
+                  is_nil(@run.cancellation_reason)
+              }
               data-part="badge-failure"
             >
               <div data-part="icon"><.alert_circle /></div>
             </div>
-            <div :if={@run.finalization != "finalized"} data-part="badge-processing">
+            <div
+              :if={
+                @run.finalization == "lost" or
+                  (is_binary(@run.cancellation_reason) and @run.exit_status != 0)
+              }
+              data-part="badge-warning"
+            >
+              <div data-part="icon"><.alert_hexagon /></div>
+            </div>
+            <div :if={@run.finalization not in ["finalized", "lost"]} data-part="badge-processing">
               <div data-part="icon"><.circle_dashed /></div>
             </div>
             <h1 data-part="label">{run_title(@run)}</h1>
@@ -1183,7 +1205,9 @@ defmodule TuistWeb.OnceRunLive do
     dgettext("dashboard_projects", "No actions match your search or filters")
   end
 
-  defp empty_title(%{run: %{finalization: "finalized"}}), do: dgettext("dashboard_projects", "No actions recorded")
+  defp empty_title(%{run: %{finalization: finalization}}) when finalization in ["finalized", "lost"],
+    do: dgettext("dashboard_projects", "No actions recorded")
+
   defp empty_title(_), do: dgettext("dashboard_projects", "Waiting for actions…")
 
   defp redacted_command?(run), do: String.contains?(run.command_display || "", "⟨opaque⟩")
@@ -1215,12 +1239,25 @@ defmodule TuistWeb.OnceRunLive do
 
   defp run_status_label(%{finalization: "finalized", exit_status: 0}), do: dgettext("dashboard_builds", "Passed")
 
+  # Checked before the failure clause: a cancelled run reports exit status 1.
+  defp run_status_label(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+       when is_binary(reason) and exit_status != 0, do: dgettext("dashboard_projects", "Cancelled")
+
   defp run_status_label(%{finalization: "finalized"}), do: dgettext("dashboard_builds", "Failed")
+
+  # `lost` is terminal: Once stopped reporting (a killed process or a
+  # cancelled CI job) and the server expired the run, so it will never finish.
+  defp run_status_label(%{finalization: "lost"}), do: dgettext("dashboard_projects", "Interrupted")
 
   defp run_status_label(_), do: dgettext("dashboard_projects", "Running")
 
   defp run_status_badge_color(%{finalization: "finalized", exit_status: 0}), do: "success"
+
+  defp run_status_badge_color(%{finalization: "finalized", cancellation_reason: reason, exit_status: exit_status})
+       when is_binary(reason) and exit_status != 0, do: "warning"
+
   defp run_status_badge_color(%{finalization: "finalized"}), do: "destructive"
+  defp run_status_badge_color(%{finalization: "lost"}), do: "warning"
   defp run_status_badge_color(_), do: "primary"
 
   # (Above is for the fill Badge which accepts destructive/primary; the
