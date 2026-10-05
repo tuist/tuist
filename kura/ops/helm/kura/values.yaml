@@ -161,6 +161,17 @@ config:
     # Pin this to false during the reader-first phase of an existing fleet's
     # rolling upgrade, then remove the override after every node is recipe-aware.
     blobChunkingEnabled: true
+    # When an acknowledged content upload is durable. `per_write` (default)
+    # syncs every upload's manifest. `action_result` writes the manifest after
+    # its bytes are durable but lets the next synced write (the action result
+    # that references it) make it durable, with a 50 ms background flush as the
+    # bound: a durable action result still implies durable outputs uploaded to
+    # the same node, but only there. Enable it only where a build's uploads and
+    # results reach one node; a crash can lose uploads acknowledged in the last
+    # ~50 ms (a cache miss). Siblings
+    # only replicate an upload once it is durable. Saves one metadata flush per
+    # upload.
+    casDurability: per_write
   backfill:
     # Share of the age-ordered segment ring (counted from the newest) whose
     # boundary segment's seal-time age stat bounds how far back a backfill

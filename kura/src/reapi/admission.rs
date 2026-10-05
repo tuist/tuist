@@ -136,6 +136,9 @@ impl GrpcWriteReservation {
         let staging_budget_bytes = self.transient_capacity_bytes.saturating_sub(decode_bytes);
         let desired_window_bytes = declared_or_max_bytes.min(FOREGROUND_STAGING_WINDOW_BYTES);
         let window_bytes = desired_window_bytes.min(staging_budget_bytes.saturating_div(2));
+        if window_bytes == 0 && declared_or_max_bytes != 0 {
+            return Err(());
+        }
         let window_was_clamped = window_bytes < desired_window_bytes;
         let staging_bytes = window_bytes.saturating_mul(2);
         let requested_bytes = decode_bytes.saturating_add(staging_bytes);
@@ -193,19 +196,20 @@ impl GrpcWriteAdmission {
     pub(super) fn try_configure_staging(
         &self,
         declared_or_max_bytes: u64,
-    ) -> Result<FileCachePolicy, Status> {
+    ) -> Result<(FileCachePolicy, u64), Status> {
         let mut reservation = self
             .reservation
             .lock()
             .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
-        reservation
+        let policy = reservation
             .try_configure_staging(declared_or_max_bytes)
             .map_err(|_| {
                 self.metrics.record_staging_rejected();
                 Status::resource_exhausted(
                     "server is limiting concurrent ByteStream staging; retry the write",
                 )
-            })
+            })?;
+        Ok((policy, reservation.stream_staging_bytes / 2))
     }
 }
 
@@ -769,7 +773,7 @@ mod tests {
         admission
             .try_grow_decode(256 * 1024, 0)
             .expect("the first chunk's decode buffers should fit");
-        let policy = admission
+        let (policy, _) = admission
             .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
             .expect("a full-window write must be admitted on a 32 MiB budget");
         // Bounded, not Foreground: the window is narrower than the upload, so
@@ -781,6 +785,30 @@ mod tests {
             memory.transient_reserved_bytes(),
             memory.transient_capacity_bytes()
         );
+    }
+
+    #[test]
+    fn clamped_staging_exposes_the_exact_admitted_window() {
+        let mebibyte = 1024 * 1024;
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "acme".into());
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            256 * mebibyte,
+            32 * mebibyte,
+            200 * mebibyte,
+        );
+        memory.observe(32 * mebibyte);
+        let admission = GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics())
+            .expect("initial admission should fit");
+        let window = 16 * 1024;
+        let decode_bytes = memory.foreground_transient_capacity_bytes() - 2 * window;
+        admission.try_grow_decode(decode_bytes / 2, 0).unwrap();
+        let (policy, admitted) = admission
+            .try_configure_staging(FOREGROUND_STAGING_WINDOW_BYTES)
+            .expect("the remaining staging window should fit");
+        assert_eq!(policy, FileCachePolicy::Bounded);
+        assert_eq!(admitted, window);
+        assert_eq!(memory.transient_reserved_bytes(), decode_bytes + 2 * window);
     }
 
     // The clamp must not shrink a window the budget can afford, or every node

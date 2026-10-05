@@ -35,7 +35,7 @@ use crate::{
         producer::ArtifactProducer,
         segment_location_record::SegmentLocationRecord,
     },
-    config::Config,
+    config::{Config, ReapiCasDurability},
     constants::{
         ACTION_CACHE_TRUNK_SCAN_FACTOR, BACKFILL_APPLY_GROUP_RECORDS,
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
@@ -48,15 +48,15 @@ use crate::{
         ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
         ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
         ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS,
-        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
-        SYNC_FEED_TRIM_BATCH_ROWS,
+        ROCKSDB_RECYCLE_LOG_FILE_NUM, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
+        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS,
+        SEGMENT_FREE_SPACE_MARGIN, SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
         FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
     },
-    io::{IoController, PersistentFile},
+    io::{IoController, PersistentFile, run_blocking_file_operation as run_segment_file_operation},
     memory::{MemoryController, MemoryPressure, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
@@ -222,8 +222,14 @@ pub struct Store {
     positioned_segment_writes_enabled: AtomicBool,
     #[cfg(test)]
     direct_small_uploads_enabled: AtomicBool,
-    segment_writers_ahead_of_durability: AtomicU64,
+    segment_writers_ahead_of_durability: DurabilityWriters,
     pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
+    /// Feed tickets of deferred client content manifests, with the WAL
+    /// sequence a flush must cover before they may be served. Committing a
+    /// ticket lets siblings read its row; a row a crash could still erase
+    /// would let the restarted node reuse its feed seq for another write
+    /// that a sibling, already past that seq, would never pull.
+    deferred_feed_tickets: StdMutex<Vec<(u64, Vec<SyncFeedTicket>)>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
     /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`; it is a field rather than the
     /// constant read inline so tests can drive the chunk boundary without
@@ -241,6 +247,11 @@ pub struct Store {
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
     write_thread_observer: Arc<StdMutex<Option<Arc<dyn Fn(std::thread::ThreadId) + Send + Sync>>>>,
+    /// Called with a deferred manifest's WAL sequence while its publication
+    /// still holds the deferred-ticket lock, before the tickets are queued.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    deferred_publication_observer: StdMutex<Option<Arc<dyn Fn(u64) + Send + Sync>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -329,7 +340,7 @@ pub struct Store {
     // individual sync, then one flush covers every completed write through the
     // captured sequence. Each caller still returns only after its sequence is
     // durable. Backfill retains its explicit batch-end barrier.
-    wal_writers_ahead_of_durability: AtomicU64,
+    wal_writers_ahead_of_durability: DurabilityWriters,
     wal_pending_seq: AtomicU64,
     wal_durable_seq: AtomicU64,
     wal_fsync_lock: Mutex<()>,
@@ -337,6 +348,8 @@ pub struct Store {
     wal_sync_write_count: AtomicU64,
     wal_deferred_write_count: AtomicU64,
     wal_flush_count: AtomicU64,
+    /// See [`ReapiCasDurability::ActionResult`].
+    defer_client_cas_manifest_sync: bool,
     failpoints: Arc<FailpointSet>,
 }
 
@@ -611,27 +624,56 @@ pub(crate) enum ApplyDurability {
 const SEGMENT_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
 const WAL_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
 
+/// Writers that have started an append (or metadata write) but not yet
+/// published its durability sequence. A group-commit leader waits briefly for
+/// them so one sync covers their records too.
+#[derive(Default)]
+struct DurabilityWriters {
+    count: AtomicU64,
+    drained: tokio::sync::Notify,
+}
+
+impl DurabilityWriters {
+    fn ahead(&self) -> u64 {
+        self.count.load(Ordering::Acquire)
+    }
+
+    /// Waits until no writer is in flight, or `max_wait` elapses. Returns
+    /// immediately when nobody is ahead, so a lone writer never pays the
+    /// batching delay, and as soon as the last in-flight writer publishes
+    /// instead of always sleeping for the whole window.
+    async fn wait_for_drain(&self, max_wait: Duration) {
+        let deadline = tokio::time::Instant::now() + max_wait;
+        loop {
+            let drained = self.drained.notified();
+            tokio::pin!(drained);
+            drained.as_mut().enable();
+            if self.ahead() == 0 {
+                return;
+            }
+            if tokio::time::timeout_at(deadline, drained).await.is_err() {
+                return;
+            }
+        }
+    }
+}
+
 struct PendingDurabilityWriter<'a> {
-    count: &'a AtomicU64,
+    writers: &'a DurabilityWriters,
 }
 
 impl<'a> PendingDurabilityWriter<'a> {
-    fn new(count: &'a AtomicU64) -> Self {
-        count.fetch_add(1, Ordering::AcqRel);
-        Self { count }
+    fn new(writers: &'a DurabilityWriters) -> Self {
+        writers.count.fetch_add(1, Ordering::AcqRel);
+        Self { writers }
     }
 }
 
 impl Drop for PendingDurabilityWriter<'_> {
     fn drop(&mut self) {
-        self.count.fetch_sub(1, Ordering::AcqRel);
-    }
-}
-
-fn run_segment_file_operation<T>(operation: impl FnOnce() -> T) -> T {
-    match tokio::runtime::Handle::current().runtime_flavor() {
-        tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(operation),
-        _ => operation(),
+        if self.writers.count.fetch_sub(1, Ordering::AcqRel) == 1 {
+            self.writers.drained.notify_waiters();
+        }
     }
 }
 
@@ -1244,6 +1286,17 @@ impl Store {
         options.set_max_background_jobs(config.rocksdb_max_background_jobs);
         options.set_bytes_per_sync(ROCKSDB_BYTES_PER_SYNC);
         options.set_wal_bytes_per_sync(ROCKSDB_WAL_BYTES_PER_SYNC);
+        // Bound the WAL at the memtable budget it backs: past it, RocksDB
+        // flushes the column families pinning the oldest WAL so it becomes
+        // obsolete. Without a bound, low-volume families keep every WAL alive
+        // and nothing is ever reused. Obsolete WALs are then recycled: every
+        // request-path write waits for a WAL sync, and overwriting a recycled
+        // file is a data-only sync, while appending to a fresh one also
+        // commits its growing size to the file-system journal (ext4: 4.1 ms
+        // vs 8.1 ms per fdatasync). Recycling is compatible with the default
+        // point-in-time WAL recovery mode.
+        options.set_max_total_wal_size(config.rocksdb_write_buffer_manager_bytes as u64);
+        options.set_recycle_log_file_num(ROCKSDB_RECYCLE_LOG_FILE_NUM);
         options.set_write_buffer_manager(&rocksdb_write_buffer_manager);
 
         let cfs = vec![
@@ -1422,14 +1475,17 @@ impl Store {
             positioned_segment_writes_enabled: AtomicBool::new(true),
             #[cfg(test)]
             direct_small_uploads_enabled: AtomicBool::new(true),
-            segment_writers_ahead_of_durability: AtomicU64::new(0),
+            segment_writers_ahead_of_durability: DurabilityWriters::default(),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
+            deferred_feed_tickets: StdMutex::new(Vec::new()),
             startup_recovery: None,
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
             eviction_commits: Arc::new(StdMutex::new(EvictionCommitLog::default())),
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
+            #[cfg(test)]
+            deferred_publication_observer: StdMutex::new(None),
             action_cache_generations: StdMutex::new(HashMap::new()),
             action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
                 ACTION_CACHE_REMOVAL_LOG_MAX,
@@ -1462,13 +1518,15 @@ impl Store {
             newest_listed_version_seeded: AtomicBool::new(false),
             sync_feed: Arc::new(sync_feed),
             sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
-            wal_writers_ahead_of_durability: AtomicU64::new(0),
+            wal_writers_ahead_of_durability: DurabilityWriters::default(),
             wal_pending_seq: AtomicU64::new(0),
             wal_durable_seq: AtomicU64::new(0),
             wal_fsync_lock: Mutex::new(()),
             wal_sync_write_count: AtomicU64::new(0),
             wal_deferred_write_count: AtomicU64::new(0),
             wal_flush_count: AtomicU64::new(0),
+            defer_client_cas_manifest_sync: config.reapi_cas_durability
+                == ReapiCasDurability::ActionResult,
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -2001,14 +2059,57 @@ impl Store {
             size,
             &mut feed,
         )?;
+        // Under `ReapiCasDurability::ActionResult` a client's content manifest
+        // enters the WAL without its own sync. Its bytes are already durable,
+        // so the byte-before-metadata order holds; the WAL is synced in
+        // order, so the next synced write (the action result that references
+        // this blob) makes the manifest durable too.
+        let durability = if self.defer_client_cas_manifest_sync
+            && spec.producer == ArtifactProducer::Reapi
+            && spec.server_stamped
+            && spec.key.starts_with("blob/")
+        {
+            ApplyDurability::DeferredBatch
+        } else {
+            ApplyDurability::Sync
+        };
         self.write_batch_with_segment_pins(
             batch,
             "manifest batch",
-            ApplyDurability::Sync,
+            durability,
             vec![location.pin.clone()],
         )
         .await?;
-        commit_sync_feed_tickets(feed);
+        if durability == ApplyDurability::DeferredBatch {
+            // Every WAL flush whose captured target reaches this sequence
+            // starts after the write above, so it covers the row. Publishing
+            // the sequence and queuing its tickets under one lock closes the
+            // gap between them: a flush that captured this sequence commits
+            // tickets only after taking this lock, so it finds them queued
+            // rather than stranding them behind a durable sequence that no
+            // later flush would ever need to pass.
+            let mut deferred = self
+                .deferred_feed_tickets
+                .lock()
+                .expect("deferred feed tickets lock poisoned");
+            let seq = self.wal_pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+            #[cfg(test)]
+            {
+                let observer = self
+                    .deferred_publication_observer
+                    .lock()
+                    .expect("deferred publication observer lock poisoned")
+                    .clone();
+                if let Some(observer) = observer {
+                    observer(seq);
+                }
+            }
+            if !feed.is_empty() {
+                deferred.push((seq, feed));
+            }
+        } else {
+            commit_sync_feed_tickets(feed);
+        }
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
         Ok(manifest)
@@ -3161,7 +3262,12 @@ impl Store {
             self.memory.should_reclaim_file_cache(),
             self.memory.foreground_transient_reserved_bytes(),
         );
-        if self.positioned_segment_writes_enabled() && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES {
+        // A preloaded body no larger than one drop interval would be copied
+        // without any intermediate cache release, so a single positioned
+        // write is equivalent and avoids the exclusive segment barrier.
+        if self.positioned_segment_writes_enabled()
+            && bytes.len() as u64 <= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+        {
             // Dropping dirty pages needs a sync first, so dropping here would
             // turn a deferred batch back into one fsync per record; a deferred
             // batch releases its staged ranges once, after its phase-2 fsync.
@@ -3431,7 +3537,7 @@ impl Store {
         // single group-commit fsync rather than serializing one fsync each.
         let pending_writer =
             PendingDurabilityWriter::new(&self.segment_writers_ahead_of_durability);
-        let (location, evicted_segments, durability_seq) = {
+        let location_and_drop = {
             let _exclusive = self.segment_write_barrier.write().await;
             let mut writer = self.segment_write_lock.lock().await;
             let (segment, evicted_segments) = self
@@ -3573,59 +3679,22 @@ impl Store {
                     self.memory.should_reclaim_file_cache(),
                     self.memory.foreground_transient_reserved_bytes(),
                 );
-            if drop_final_range {
-                let destination = writer
-                    .file
-                    .take()
-                    .expect("active segment writer should hold a file");
-                run_segment_file_operation(|| destination.sync_data()).map_err(|error| {
-                    format!("failed to sync segment {}: {error}", segment_path.display())
-                })?;
-                drop(destination);
-                if let Err(error) = self
-                    .io
-                    .drop_cached_pages(
-                        &segment_path,
-                        offset.saturating_add(advised_through),
-                        copied - advised_through,
-                    )
-                    .await
-                {
-                    self.io
-                        .metrics()
-                        .record_memory_action("segment_file_cache_drop_failed");
-                    tracing::warn!(
-                        path = %segment_path.display(),
-                        "failed to release segment file cache: {error}"
-                    );
-                    if file_cache_policy.drop_failure_is_fatal() {
-                        return Err(format!(
-                            "failed to bound segment file cache for {}: {error}",
-                            segment_path.display()
-                        ));
-                    }
-                }
-                if let Some(source_path) = source_cache_path
-                    && let Err(error) = self
-                        .io
-                        .drop_cached_pages(source_path, advised_through, copied - advised_through)
-                        .await
-                {
-                    self.io
-                        .metrics()
-                        .record_memory_action("source_file_cache_drop_failed");
-                    tracing::warn!("failed to release source file cache: {error}");
-                    if file_cache_policy.drop_failure_is_fatal() {
-                        return Err(format!(
-                            "failed to bound source file cache while appending {}: {error}",
-                            segment_path.display()
-                        ));
-                    }
-                }
-                writer.file = Some(Arc::new(
-                    self.io.open_persistent_append_file(&segment_path).await?,
-                ));
-            }
+            // The final range is released after the shared group-commit fsync
+            // below has made it clean, like positioned writes do, instead of
+            // syncing the segment here while every other appender waits on
+            // the exclusive barrier.
+            let final_range_drop = drop_final_range.then(|| {
+                (
+                    Arc::clone(
+                        writer
+                            .file
+                            .as_ref()
+                            .expect("active segment writer should hold a file"),
+                    ),
+                    segment_path.clone(),
+                    advised_through,
+                )
+            });
             writer.len = offset.saturating_add(copied);
             writer.len_unknown = false;
 
@@ -3638,12 +3707,57 @@ impl Store {
                 },
                 evicted_segments,
                 durability_seq,
+                final_range_drop,
             )
         };
+        let (location, evicted_segments, durability_seq, final_range_drop) = location_and_drop;
         drop(pending_writer);
 
         if durability == ApplyDurability::Sync {
             self.ensure_segment_durable(durability_seq).await?;
+        }
+
+        if let Some((file, segment_path, advised_through)) = final_range_drop {
+            let range_offset = location.offset.saturating_add(advised_through);
+            let range_len = size.saturating_sub(advised_through);
+            if let Err(error) =
+                run_segment_file_operation(|| file.drop_cached_pages(range_offset, range_len))
+            {
+                self.io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop_failed");
+                tracing::warn!(
+                    path = %segment_path.display(),
+                    "failed to release segment file cache: {error}"
+                );
+                if file_cache_policy.drop_failure_is_fatal() {
+                    return Err(format!(
+                        "failed to bound segment file cache for {}: {error}",
+                        segment_path.display()
+                    ));
+                }
+            } else {
+                self.io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop");
+            }
+            if let Some(source_path) = source_cache_path
+                && let Err(error) = self
+                    .io
+                    .drop_cached_pages(source_path, advised_through, size - advised_through)
+                    .await
+            {
+                self.io
+                    .metrics()
+                    .record_memory_action("source_file_cache_drop_failed");
+                tracing::warn!("failed to release source file cache: {error}");
+                if file_cache_policy.drop_failure_is_fatal() {
+                    return Err(format!(
+                        "failed to bound source file cache while appending {}: {error}",
+                        segment_path.display()
+                    ));
+                }
+            }
         }
 
         Ok((location, evicted_segments, durability_seq))
@@ -3668,12 +3782,9 @@ impl Store {
         if self.durable_seq.load(Ordering::Acquire) >= seq {
             return Ok(());
         }
-        let writers_ahead = self
-            .segment_writers_ahead_of_durability
-            .load(Ordering::Acquire);
-        if writers_ahead > 0 {
-            tokio::time::sleep(SEGMENT_DURABILITY_GROUP_COMMIT_DELAY).await;
-        }
+        self.segment_writers_ahead_of_durability
+            .wait_for_drain(SEGMENT_DURABILITY_GROUP_COMMIT_DELAY)
+            .await;
         self.hit_failpoint(FailpointName::BeforeSegmentFsync)
             .await?;
         // Taking the exclusive segment barrier inside the fsync lock lets
@@ -3687,7 +3798,7 @@ impl Store {
     /// Fsyncs the current active segment file and returns the append sequence
     /// covered by that barrier.
     async fn fsync_active_segment(&self) -> Result<u64, String> {
-        let _exclusive = self.segment_write_barrier.write().await;
+        let exclusive = self.segment_write_barrier.write().await;
         let writer = self.segment_write_lock.lock().await;
         let target = self.pending_seq.load(Ordering::Acquire);
         let snapshot = self.segment_state_snapshot();
@@ -3698,6 +3809,14 @@ impl Store {
         if writer.segment_id.as_deref() == Some(active.segment_id.as_str())
             && let Some(file) = writer.file.as_ref()
         {
+            // Every range up to `target` finished its write before the
+            // exclusive barrier was granted, so syncing a retained handle after
+            // releasing the barrier still covers that prefix. Releasing first
+            // lets new appends land while the device flushes instead of
+            // stalling every writer for the duration of the sync.
+            let file = Arc::clone(file);
+            drop(writer);
+            drop(exclusive);
             self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
             run_segment_file_operation(|| file.sync_data())
                 .map_err(|error| format!("failed to sync segment {}: {error}", path.display()))?;
@@ -9356,9 +9475,9 @@ impl Store {
         if self.wal_durable_seq.load(Ordering::Acquire) >= seq {
             return Ok(());
         }
-        if self.wal_writers_ahead_of_durability.load(Ordering::Acquire) > 0 {
-            tokio::time::sleep(WAL_DURABILITY_GROUP_COMMIT_DELAY).await;
-        }
+        self.wal_writers_ahead_of_durability
+            .wait_for_drain(WAL_DURABILITY_GROUP_COMMIT_DELAY)
+            .await;
         #[cfg(test)]
         self.hit_failpoint(FailpointName::BeforeWalFsync).await?;
         let target = self.wal_pending_seq.load(Ordering::Acquire);
@@ -9369,7 +9488,60 @@ impl Store {
             .map_err(|error| format!("failed to flush WAL: {error}"))?;
         self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
         self.wal_durable_seq.store(target, Ordering::Release);
+        self.commit_durable_feed_tickets(target);
         Ok(())
+    }
+
+    /// Commits the feed tickets of deferred manifests a WAL flush through
+    /// `target` made durable.
+    fn commit_durable_feed_tickets(&self, target: u64) {
+        let durable = {
+            let mut pending = self
+                .deferred_feed_tickets
+                .lock()
+                .expect("deferred feed tickets lock poisoned");
+            if pending.is_empty() {
+                return;
+            }
+            let (durable, waiting): (Vec<_>, Vec<_>) =
+                pending.drain(..).partition(|(seq, _)| *seq <= target);
+            *pending = waiting;
+            durable
+        };
+        for (_, tickets) in durable {
+            commit_sync_feed_tickets(tickets);
+        }
+    }
+
+    /// The WAL sequence that covers every deferred client content manifest
+    /// published so far, or `None` when nothing waits for a flush. A
+    /// manifest's sequence is published before its upload is acknowledged, so
+    /// a target captured when a request arrives covers every upload the
+    /// client saw acknowledged before sending it.
+    pub(crate) fn deferred_client_manifest_target(&self) -> Option<u64> {
+        if !self.defer_client_cas_manifest_sync {
+            return None;
+        }
+        let pending = self.wal_pending_seq.load(Ordering::Acquire);
+        (pending > self.wal_durable_seq.load(Ordering::Acquire)).then_some(pending)
+    }
+
+    /// Makes the deferred manifests covered by a captured target durable,
+    /// joining the shared WAL group flush. A synced write after the capture
+    /// already covers it, so this returns without flushing again.
+    pub(crate) async fn ensure_deferred_client_manifests_durable(
+        &self,
+        target: Option<u64>,
+    ) -> Result<(), String> {
+        match target {
+            Some(target) => self.ensure_wal_durable(target).await,
+            None => Ok(()),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn has_deferred_client_manifests(&self) -> bool {
+        self.deferred_client_manifest_target().is_some()
     }
 
     /// The deferred batch's phase-4 durability barrier: one synced WAL flush
@@ -9883,10 +10055,295 @@ impl AccessOrder {
     }
 }
 
+const ACCESS_PAGE_SLOTS: usize = 128;
+
+/// One page index entry plus its free-list entry.
+const ACCESS_INDEX_ENTRY_BYTES: usize =
+    std::mem::size_of::<AccessPage>() + std::mem::size_of::<usize>();
+
+/// Recency bookkeeping charged to every cached manifest row. Packing keeps
+/// the page index within twice the rows plus one page, so a row may retain
+/// two slots. Both index vectors grow by doubling and shrink when packed, so
+/// together they hold at most `rows / 32 + 4` entries each: a row's share of
+/// them is a thirty-second of an index entry.
+const MANIFEST_RECENCY_BYTES_PER_ROW: usize = 2 * std::mem::size_of::<AccessLink>()
+    + ACCESS_INDEX_ENTRY_BYTES.div_ceil(ACCESS_PAGE_SLOTS / 4);
+
+/// Recency bookkeeping that does not scale with rows: the one page of slots
+/// packing may leave beyond twice the rows, and the index entries' fixed
+/// slack. It is deducted from the cache's byte limit before rows are admitted.
+const MANIFEST_RECENCY_FIXED_BYTES: usize =
+    ACCESS_PAGE_SLOTS * std::mem::size_of::<AccessLink>() + 4 * ACCESS_INDEX_ENTRY_BYTES;
+
+/// Exact LRU order using reusable, directly indexed slots. A page is 4 KiB
+/// on 64-bit platforms; empty pages are released rather than retaining a
+/// hash table whose tombstones can grow its allocation during eviction.
+struct LinkedAccessOrder {
+    pages: Vec<AccessPage>,
+    free_pages: Vec<usize>,
+    head: u64,
+    tail: u64,
+    len: usize,
+}
+
+struct AccessPage {
+    slots: Option<Box<[AccessLink; ACCESS_PAGE_SLOTS]>>,
+    free_head: usize,
+    occupied: usize,
+}
+
+struct AccessLink {
+    key: Option<Arc<str>>,
+    previous: u64,
+    next: u64,
+}
+
+impl LinkedAccessOrder {
+    fn new() -> Self {
+        Self {
+            pages: Vec::new(),
+            free_pages: Vec::new(),
+            head: 0,
+            tail: 0,
+            len: 0,
+        }
+    }
+
+    #[cfg(test)]
+    fn allocated_pages(&self) -> usize {
+        self.pages
+            .iter()
+            .filter(|page| page.slots.is_some())
+            .count()
+    }
+
+    /// Heap bytes the recency order currently retains: allocated slot pages
+    /// plus the capacity of both index vectors.
+    #[cfg(test)]
+    fn retained_bytes(&self) -> usize {
+        self.allocated_pages() * ACCESS_PAGE_SLOTS * std::mem::size_of::<AccessLink>()
+            + self.pages.capacity() * std::mem::size_of::<AccessPage>()
+            + self.free_pages.capacity() * std::mem::size_of::<usize>()
+    }
+
+    fn node_mut(&mut self, id: u64) -> &mut AccessLink {
+        let index = usize::try_from(id - 1).expect("LRU slot must fit usize");
+        &mut self.pages[index / ACCESS_PAGE_SLOTS]
+            .slots
+            .as_mut()
+            .expect("LRU page must exist")[index % ACCESS_PAGE_SLOTS]
+    }
+
+    fn allocate(&mut self, key: Arc<str>) -> u64 {
+        let page_index = match self.free_pages.last().copied() {
+            Some(index) => index,
+            None => {
+                let index = self.pages.len();
+                self.pages.push(AccessPage {
+                    slots: None,
+                    free_head: 0,
+                    occupied: 0,
+                });
+                self.free_pages.push(index);
+                index
+            }
+        };
+        let page = &mut self.pages[page_index];
+        if page.slots.is_none() {
+            page.slots = Some(Box::new(std::array::from_fn(|index| AccessLink {
+                key: None,
+                previous: 0,
+                next: (index + 1) as u64,
+            })));
+        }
+        let slots = page.slots.as_mut().expect("LRU page must exist");
+        let slot = page.free_head;
+        page.free_head = slots[slot].next as usize;
+        slots[slot] = AccessLink {
+            key: Some(key),
+            previous: self.tail,
+            next: 0,
+        };
+        page.occupied += 1;
+        if page.occupied == ACCESS_PAGE_SLOTS {
+            self.free_pages.pop();
+        }
+        self.len += 1;
+        (page_index * ACCESS_PAGE_SLOTS + slot) as u64 + 1
+    }
+
+    fn touch(&mut self, key: Arc<str>, previous: Option<u64>) -> u64 {
+        if let Some(id) = previous {
+            let tail = self.tail;
+            let entry = self.node_mut(id);
+            entry.key = Some(key);
+            if id == tail {
+                return id;
+            }
+            let previous = entry.previous;
+            let next = entry.next;
+            entry.previous = tail;
+            entry.next = 0;
+            if previous == 0 {
+                self.head = next;
+            } else {
+                self.node_mut(previous).next = next;
+            }
+            self.node_mut(next).previous = previous;
+            self.node_mut(self.tail).next = id;
+            self.tail = id;
+            return id;
+        }
+        let id = self.allocate(key);
+        if self.tail == 0 {
+            self.head = id;
+        } else {
+            self.node_mut(self.tail).next = id;
+        }
+        self.tail = id;
+        id
+    }
+
+    fn unlink(&mut self, id: u64) -> Option<Arc<str>> {
+        let index = usize::try_from(id.checked_sub(1)?).ok()?;
+        let page_index = index / ACCESS_PAGE_SLOTS;
+        let slot = index % ACCESS_PAGE_SLOTS;
+        let entry = &mut self.pages.get_mut(page_index)?.slots.as_mut()?[slot];
+        let key = entry.key.take()?;
+        let previous = entry.previous;
+        let next = entry.next;
+        if previous == 0 {
+            self.head = next;
+        } else {
+            self.node_mut(previous).next = next;
+        }
+        if next == 0 {
+            self.tail = previous;
+        } else {
+            self.node_mut(next).previous = previous;
+        }
+        let page = &mut self.pages[page_index];
+        if page.occupied == ACCESS_PAGE_SLOTS {
+            self.free_pages.push(page_index);
+        }
+        let entry = &mut page.slots.as_mut().expect("LRU page must exist")[slot];
+        entry.previous = 0;
+        entry.next = page.free_head as u64;
+        page.free_head = slot;
+        page.occupied -= 1;
+        if page.occupied == 0 {
+            page.slots = None;
+            page.free_head = 0;
+        }
+        self.len -= 1;
+        if self.len == 0 {
+            self.pages.clear();
+            self.pages.shrink_to_fit();
+            self.free_pages.clear();
+            self.free_pages.shrink_to_fit();
+        }
+        Some(key)
+    }
+
+    fn forget(&mut self, id: u64) {
+        self.unlink(id);
+    }
+
+    fn pop_lru(&mut self) -> Option<Arc<str>> {
+        self.unlink(self.head)
+    }
+}
+
+#[cfg(test)]
+mod linked_access_order_tests {
+    use std::{
+        collections::{HashMap, VecDeque},
+        sync::Arc,
+    };
+
+    use super::{ACCESS_PAGE_SLOTS, LinkedAccessOrder};
+
+    #[test]
+    fn preserves_exact_lru_order_across_touches_removals_and_evictions() {
+        let mut order = LinkedAccessOrder::new();
+        let mut ids = HashMap::new();
+        let mut expected = VecDeque::new();
+        for step in 0..4_000 {
+            let key: Arc<str> =
+                Arc::from(format!("key-{}", step * 17 % (3 * ACCESS_PAGE_SLOTS + 1)));
+            if let Some(position) = expected.iter().position(|entry| entry == &key) {
+                expected.remove(position);
+            }
+            let previous = ids.remove(&key);
+            if step % 7 == 0 {
+                if let Some(id) = previous {
+                    order.forget(id);
+                }
+            } else {
+                let id = order.touch(key.clone(), previous);
+                ids.insert(key.clone(), id);
+                expected.push_back(key);
+            }
+            if step % 11 == 0 {
+                let oldest = expected.pop_front();
+                assert_eq!(order.pop_lru(), oldest);
+                if let Some(oldest) = oldest {
+                    ids.remove(&oldest);
+                }
+            }
+            assert_eq!(order.len, ids.len());
+            assert_eq!(order.len, expected.len());
+        }
+        while let Some(key) = expected.pop_front() {
+            assert_eq!(order.pop_lru(), Some(key));
+        }
+        assert!(order.pop_lru().is_none());
+        assert_eq!((order.head, order.tail), (0, 0));
+    }
+
+    #[test]
+    fn touches_reuse_existing_nodes_and_preserve_eviction_order() {
+        let mut order = LinkedAccessOrder::new();
+        let first = order.touch(Arc::from("first"), None);
+        let second = order.touch(Arc::from("second"), None);
+        assert_eq!(order.touch(Arc::from("first"), Some(first)), first);
+        assert_ne!(first, second);
+        assert_eq!(order.pages.len(), 1);
+        assert_eq!(order.len, 2);
+        assert_eq!(order.pop_lru().as_deref(), Some("second"));
+        assert_eq!(order.pop_lru().as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn empty_pages_release_storage_and_reuse_only_dead_slots() {
+        let mut order = LinkedAccessOrder::new();
+        let ids: Vec<_> = (0..3 * ACCESS_PAGE_SLOTS)
+            .map(|index| order.touch(Arc::from(index.to_string()), None))
+            .collect();
+        for &id in &ids[..ACCESS_PAGE_SLOTS] {
+            order.forget(id);
+        }
+        assert!(order.pages[0].slots.is_none());
+        assert_eq!(order.len, 2 * ACCESS_PAGE_SLOTS);
+        let reused = order.touch(Arc::from("new"), None);
+        assert_eq!(reused, ids[0]);
+        assert_ne!(reused, 0);
+        assert!(order.pages[0].slots.is_some());
+        for index in ACCESS_PAGE_SLOTS..3 * ACCESS_PAGE_SLOTS {
+            assert_eq!(order.pop_lru().as_deref(), Some(index.to_string().as_str()));
+        }
+        assert_eq!(order.pop_lru().as_deref(), Some("new"));
+        assert!(order.pages.is_empty());
+        assert!(order.free_pages.is_empty());
+        assert_eq!(order.pages.capacity(), 0);
+        assert_eq!(order.free_pages.capacity(), 0);
+    }
+}
+
 struct ManifestCache {
     entries: HashMap<Arc<str>, CachedManifest>,
     total_bytes: usize,
-    access: AccessOrder,
+    access: LinkedAccessOrder,
     max_bytes: usize,
 }
 
@@ -9983,7 +10440,7 @@ impl ManifestCache {
         Self {
             entries: HashMap::new(),
             total_bytes: 0,
-            access: AccessOrder::new(),
+            access: LinkedAccessOrder::new(),
             max_bytes,
         }
     }
@@ -10014,10 +10471,11 @@ impl ManifestCache {
 
     fn insert_retained(&mut self, manifest: Arc<ArtifactManifest>) -> ManifestCacheInsertResult {
         let size_bytes = estimated_manifest_bytes(&manifest);
-        if size_bytes > self.max_bytes {
+        if size_bytes > row_budget_bytes(self.max_bytes) {
             if let Some(removed) = self.entries.remove(manifest.artifact_id.as_str()) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 self.access.forget(removed.access_order);
+                self.pack_sparse_recency_pages();
             }
             return ManifestCacheInsertResult::Oversized;
         }
@@ -10054,11 +10512,15 @@ impl ManifestCache {
                 self.access.forget(removed.access_order);
             }
         }
+        self.pack_sparse_recency_pages();
     }
 
+    /// Trims the cache so its rows and their recency bookkeeping fit
+    /// `target_bytes`.
     fn trim_to(&mut self, target_bytes: usize) -> usize {
+        let row_budget = row_budget_bytes(target_bytes);
         let mut evicted = 0_usize;
-        while self.total_bytes > target_bytes {
+        while self.total_bytes > row_budget {
             let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
@@ -10067,8 +10529,43 @@ impl ManifestCache {
                 evicted += 1;
             }
         }
+        self.pack_sparse_recency_pages();
         evicted
     }
+
+    /// A hot survivor in every page can otherwise pin the entire recency arena
+    /// after pressure trimming, and released pages keep their index entries.
+    /// Repack only when the page index covers more than twice the live rows
+    /// plus one page, keeping exact order and rewriting handles together with
+    /// their owning cache rows, and shrink the index to what it now holds.
+    fn pack_sparse_recency_pages(&mut self) {
+        if self.access.pages.len().saturating_mul(ACCESS_PAGE_SLOTS)
+            <= self
+                .access
+                .len
+                .saturating_mul(2)
+                .saturating_add(ACCESS_PAGE_SLOTS)
+        {
+            return;
+        }
+        let mut packed = LinkedAccessOrder::new();
+        while let Some(key) = self.access.pop_lru() {
+            let id = packed.touch(key.clone(), None);
+            self.entries
+                .get_mut(key.as_ref())
+                .expect("LRU key must have a cached manifest")
+                .access_order = id;
+        }
+        packed.pages.shrink_to_fit();
+        packed.free_pages.shrink_to_fit();
+        self.access = packed;
+    }
+}
+
+/// Bytes of a manifest cache limit left for rows once the recency
+/// bookkeeping that does not scale with rows is set aside.
+fn row_budget_bytes(limit_bytes: usize) -> usize {
+    limit_bytes.saturating_sub(MANIFEST_RECENCY_FIXED_BYTES)
 }
 
 impl ExistenceCache {
@@ -10159,8 +10656,11 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         .map(str::len)
         .unwrap_or(0);
     // The artifact id has one allocation inside the manifest and one shared
-    // by the HashMap key and AccessOrder's BTreeMap value. The retained
-    // manifest has one allocation header for its reference counts.
+    // by the HashMap key and the access-order value. The retained manifest
+    // has one allocation header for its reference counts. Each row also
+    // carries the recency bookkeeping it may retain (two slots and a share of
+    // the page index), charged against the same byte budget rather than
+    // expanding it.
     manifest.artifact_id.len().saturating_mul(2)
         + manifest.namespace_id.len()
         + manifest.key.len()
@@ -10172,6 +10672,7 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         + optional_content_sha256
         + std::mem::size_of::<ArtifactManifest>()
         + std::mem::size_of::<usize>() * 2
+        + MANIFEST_RECENCY_BYTES_PER_ROW
 }
 
 pub const DISK_FULL_MARKER: &str = "disk_full";
@@ -10365,6 +10866,7 @@ fn rocksdb_column_family_options(
     block_based.set_block_cache(block_cache);
     block_based.set_cache_index_and_filter_blocks(true);
     block_based.set_pin_l0_filter_and_index_blocks_in_cache(true);
+    block_based.set_bloom_filter(10.0, false);
     options.set_block_based_table_factory(&block_based);
     options
 }
@@ -11837,6 +12339,7 @@ mod tests {
             },
             action_cache_eviction_cascade_enabled: true,
             reapi_blob_chunking_enabled: true,
+            reapi_cas_durability: crate::config::ReapiCasDurability::PerWrite,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -13071,6 +13574,287 @@ mod tests {
             newly_stored, 1,
             "exactly one concurrent persist of a missing key should report it as newly stored"
         );
+    }
+
+    #[tokio::test]
+    async fn action_result_cas_durability_defers_only_client_content_manifests() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
+        });
+        let body = b"content upload".to_vec();
+
+        // A client content upload: bytes durable, manifest deferred.
+        let (sync_before, deferred_before, flush_before) = store.wal_write_counts();
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/abc/14",
+                "application/octet-stream",
+                &body,
+            )
+            .await
+            .expect("content upload should persist");
+        let (sync_after, deferred_after, flush_after) = store.wal_write_counts();
+        assert_eq!(deferred_after, deferred_before + 1);
+        assert_eq!(sync_after, sync_before);
+        assert_eq!(flush_after, flush_before);
+
+        // Other producers and keys keep per-write durability.
+        let (_, deferred_before, flush_before) = store.wal_write_counts();
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Gradle,
+                "ios",
+                "gradle-key",
+                "application/octet-stream",
+                &body,
+            )
+            .await
+            .expect("gradle upload should persist");
+        let (_, deferred_after, flush_after) = store.wal_write_counts();
+        assert_eq!(deferred_after, deferred_before);
+        assert!(flush_after > flush_before);
+
+        // The explicit sync every action result runs joins the WAL flush for a
+        // deferred manifest, and costs nothing once no manifest waits.
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/def/14",
+                "application/octet-stream",
+                &body,
+            )
+            .await
+            .expect("second content upload should persist");
+        assert!(store.has_deferred_client_manifests());
+        let (_, _, flush_before) = store.wal_write_counts();
+        store
+            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
+            .await
+            .expect("deferred manifests should sync");
+        let (_, _, flush_after) = store.wal_write_counts();
+        assert!(flush_after > flush_before);
+        assert!(!store.has_deferred_client_manifests());
+        store
+            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
+            .await
+            .expect("a sync with nothing deferred should succeed");
+        assert_eq!(store.wal_write_counts().2, flush_after);
+
+        drop(store);
+        let reopened = reopen_store(&config);
+        let manifest = reopened
+            .fetch_artifact(ArtifactProducer::Reapi, "ios", "blob/abc/14")
+            .await
+            .expect("fetch after reopen")
+            .expect("deferred manifest survives a clean reopen");
+        assert_eq!(read_manifest_bytes(&reopened, &manifest).await, body);
+    }
+
+    #[tokio::test]
+    async fn deferred_content_feed_rows_are_served_only_once_durable() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
+        });
+        store.sync_feed_activate().await.expect("activate the feed");
+        let head_before = store.sync_feed().head();
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/feed/4",
+                "application/octet-stream",
+                b"feed",
+            )
+            .await
+            .expect("content upload should persist");
+        assert_eq!(
+            store.sync_feed().head(),
+            head_before,
+            "a sibling must not read a row a crash could still erase"
+        );
+        assert!(store.has_deferred_client_manifests());
+
+        store
+            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
+            .await
+            .expect("flush deferred manifests");
+        assert!(store.sync_feed().head() > head_before);
+        assert!(!store.has_deferred_client_manifests());
+    }
+
+    // A flush that captures a deferred manifest's sequence while that
+    // sequence is still being published must still commit its feed ticket.
+    // The flush runs entirely inside the publication window: it captures the
+    // sequence, makes it durable, and only then reaches the ticket queue. If
+    // the tickets could be queued after that queue was drained, the durable
+    // sequence would already cover them, nothing would ever flush for them
+    // again, and the feed head would stay pinned below them.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn deferred_publication_racing_a_flush_still_commits_its_feed_ticket() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
+        });
+        let store = Arc::new(store);
+        store.sync_feed_activate().await.expect("activate the feed");
+        let head_before = store.sync_feed().head();
+
+        let (published_tx, mut published_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel::<()>();
+        let resume_rx = StdMutex::new(resume_rx);
+        *store.deferred_publication_observer.lock().unwrap() = Some(Arc::new(move |seq| {
+            published_tx
+                .send(seq)
+                .expect("the test should observe the publication");
+            resume_rx
+                .lock()
+                .unwrap()
+                .recv()
+                .expect("the test should resume the publication");
+        }));
+
+        let upload = tokio::spawn({
+            let store = Arc::clone(&store);
+            async move {
+                store
+                    .persist_artifact_from_bytes_and_replicate(
+                        ArtifactProducer::Reapi,
+                        "ios",
+                        "blob/race/4",
+                        "application/octet-stream",
+                        b"race",
+                    )
+                    .await
+                    .map(drop)
+            }
+        });
+        let seq = published_rx
+            .recv()
+            .await
+            .expect("the upload should publish its sequence");
+        *store.deferred_publication_observer.lock().unwrap() = None;
+
+        let target = store.deferred_client_manifest_target();
+        assert!(target.is_some_and(|target| target >= seq));
+        let flush = tokio::spawn({
+            let store = Arc::clone(&store);
+            async move { store.ensure_deferred_client_manifests_durable(target).await }
+        });
+        while store.wal_durable_seq.load(Ordering::Acquire) < seq {
+            tokio::task::yield_now().await;
+        }
+        resume_tx.send(()).expect("the publication should resume");
+
+        upload
+            .await
+            .expect("upload task should finish")
+            .expect("content upload should persist");
+        flush
+            .await
+            .expect("flush task should finish")
+            .expect("deferred manifests should sync");
+        assert!(!store.has_deferred_client_manifests());
+        assert!(
+            store
+                .deferred_feed_tickets
+                .lock()
+                .expect("deferred feed tickets lock poisoned")
+                .is_empty(),
+            "the racing flush must commit the ticket it made durable"
+        );
+        assert!(
+            store.sync_feed().head() > head_before,
+            "the durable row must become readable without another write"
+        );
+    }
+
+    // An action result captures the deferred target before its own synced
+    // write; that write covers the target, so acknowledging the result costs
+    // no further flush even when newer deferred uploads arrived meanwhile.
+    #[tokio::test]
+    async fn captured_deferred_target_needs_no_flush_after_a_synced_write() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
+        });
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/output/6",
+                "application/octet-stream",
+                b"output",
+            )
+            .await
+            .expect("output upload should persist");
+        let target = store.deferred_client_manifest_target();
+        assert!(target.is_some());
+
+        let (_, _, flush_before) = store.wal_write_counts();
+        store
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/result/6",
+                "application/x-protobuf",
+                b"result",
+                None,
+                None,
+            )
+            .await
+            .expect("action result should persist");
+        assert_eq!(store.wal_write_counts().2, flush_before + 1);
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/later/5",
+                "application/octet-stream",
+                b"later",
+            )
+            .await
+            .expect("a later upload should persist");
+        assert!(store.has_deferred_client_manifests());
+
+        store
+            .ensure_deferred_client_manifests_durable(target)
+            .await
+            .expect("the captured target is already durable");
+        assert_eq!(
+            store.wal_write_counts().2,
+            flush_before + 1,
+            "the result's own synced write covered the captured outputs"
+        );
+        assert!(
+            store.has_deferred_client_manifests(),
+            "a later upload is left to the next synced write or the background bound"
+        );
+    }
+
+    #[tokio::test]
+    async fn per_write_cas_durability_syncs_every_content_manifest() {
+        let (_temp_dir, _config, store) = temp_store();
+        let (_, deferred_before, flush_before) = store.wal_write_counts();
+        store
+            .persist_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/def/5",
+                "application/octet-stream",
+                b"bytes",
+            )
+            .await
+            .expect("content upload should persist");
+        let (_, deferred_after, flush_after) = store.wal_write_counts();
+        assert_eq!(deferred_after, deferred_before);
+        assert!(flush_after > flush_before);
+        assert_eq!(store.deferred_client_manifest_target(), None);
+        store
+            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
+            .await
+            .expect("no-op under per-write durability");
+        assert_eq!(store.wal_write_counts().2, flush_after);
     }
 
     #[tokio::test]
@@ -14943,6 +15727,196 @@ mod tests {
             tombstones,
             vec![("android".to_owned(), 200), ("ios".to_owned(), 100)]
         );
+    }
+
+    #[test]
+    fn manifest_cache_packs_sparse_recency_pages_after_trim_or_removal() {
+        for remove_keys in [false, true] {
+            let mut cache = ManifestCache::new(1024 * 1024);
+            for index in 0..4 * ACCESS_PAGE_SLOTS {
+                cache.insert(ArtifactManifest {
+                    artifact_id: format!("artifact-{index:03}"),
+                    producer: ArtifactProducer::Xcode,
+                    namespace_id: "namespace".into(),
+                    key: "key".into(),
+                    content_type: "application/octet-stream".into(),
+                    inline: false,
+                    blob_path: None,
+                    segment_id: Some("segment".into()),
+                    segment_offset: Some(1024),
+                    size: 512 * 1024,
+                    version_ms: 100,
+                    created_at_ms: 90,
+                    branch: None,
+                    origin_region: None,
+                    content_sha256: None,
+                });
+            }
+            let hot: Vec<_> = (0..4)
+                .map(|page| {
+                    cache
+                        .get(&format!("artifact-{:03}", page * ACCESS_PAGE_SLOTS))
+                        .expect("hot manifest should be cached")
+                })
+                .collect();
+            let size_bytes = cache.entries.values().next().unwrap().size_bytes;
+            if remove_keys {
+                let removed: Vec<_> = (0..4 * ACCESS_PAGE_SLOTS)
+                    .filter(|index| index % ACCESS_PAGE_SLOTS != 0)
+                    .map(|index| format!("artifact-{index:03}"))
+                    .collect();
+                cache.remove_many(&removed);
+            } else {
+                assert_eq!(
+                    cache.trim_to(MANIFEST_RECENCY_FIXED_BYTES + 4 * size_bytes),
+                    4 * ACCESS_PAGE_SLOTS - 4
+                );
+            }
+            assert_eq!(cache.len(), 4);
+            assert_eq!(cache.total_bytes(), 4 * size_bytes);
+            assert_eq!(cache.access.allocated_pages(), 1);
+            assert_eq!(cache.access.pages.len(), 1);
+            assert_eq!(cache.access.pages.capacity(), 1);
+            for retained in hot {
+                let cached = cache
+                    .get(&retained.artifact_id)
+                    .expect("updated handle must work");
+                assert!(Arc::ptr_eq(&retained, &cached));
+            }
+            for page in 0..4 {
+                assert_eq!(
+                    cache.trim_to(MANIFEST_RECENCY_FIXED_BYTES + (3 - page) * size_bytes),
+                    1
+                );
+                assert!(
+                    cache
+                        .get(&format!("artifact-{:03}", page * ACCESS_PAGE_SLOTS))
+                        .is_none()
+                );
+            }
+            assert_eq!(cache.access.allocated_pages(), 0);
+            assert_eq!(cache.access.retained_bytes(), 0);
+            assert_eq!(cache.len(), 0);
+            assert_eq!(cache.total_bytes(), 0);
+        }
+    }
+
+    fn recency_test_manifest(artifact_id: String) -> ArtifactManifest {
+        ArtifactManifest {
+            artifact_id,
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+            origin_region: None,
+            content_sha256: None,
+        }
+    }
+
+    /// The recency order's actual heap (slot pages and both index vectors'
+    /// capacity) fits what the cache charges for it, and rows plus the fixed
+    /// headroom fit the configured limit.
+    fn assert_recency_fits_its_charge(cache: &ManifestCache) {
+        assert!(
+            cache.access.retained_bytes()
+                <= cache.len() * MANIFEST_RECENCY_BYTES_PER_ROW + MANIFEST_RECENCY_FIXED_BYTES,
+            "{} recency bytes retained for {} rows ({} pages indexed, capacity {}/{})",
+            cache.access.retained_bytes(),
+            cache.len(),
+            cache.access.pages.len(),
+            cache.access.pages.capacity(),
+            cache.access.free_pages.capacity(),
+        );
+        assert!(
+            cache.access.pages.len() * ACCESS_PAGE_SLOTS <= 2 * cache.len() + ACCESS_PAGE_SLOTS
+        );
+        assert!(cache.total_bytes() + MANIFEST_RECENCY_FIXED_BYTES <= cache.max_bytes);
+    }
+
+    // The per-row estimate charges two recency slots, which is only a bound if
+    // every mutation leaves allocated slots within twice the live rows plus
+    // one page, however sparse the survivors.
+    #[test]
+    fn manifest_cache_retains_no_more_recency_slots_than_it_charges() {
+        let mut cache = ManifestCache::new(64 * 1024 * 1024);
+        let id = |index: usize| format!("artifact-{index:04}");
+        for index in 0..8 * ACCESS_PAGE_SLOTS {
+            cache.insert(recency_test_manifest(id(index)));
+        }
+        assert_recency_fits_its_charge(&cache);
+        for stride in [2, 3, 5, 7] {
+            let removed: Vec<_> = (0..8 * ACCESS_PAGE_SLOTS)
+                .filter(|index| index % stride != 0)
+                .map(id)
+                .collect();
+            cache.remove_many(&removed);
+            assert_recency_fits_its_charge(&cache);
+        }
+        let survivor = cache.total_bytes() / cache.len().max(1);
+        cache.trim_to(MANIFEST_RECENCY_FIXED_BYTES + survivor * 3);
+        assert_eq!(cache.len(), 3);
+        assert_recency_fits_its_charge(&cache);
+        assert!(
+            cache.total_bytes() >= cache.len() * MANIFEST_RECENCY_BYTES_PER_ROW,
+            "each row must carry the recency bookkeeping it may retain"
+        );
+    }
+
+    // Dense growth, whole-page removal (which releases pages without leaving
+    // any sparse one), churn and emptying all keep the recency order inside
+    // its charge. Whole-page removal is the case where the index would
+    // otherwise keep every historical page entry.
+    #[test]
+    fn manifest_cache_recency_bookkeeping_fits_its_byte_limit() {
+        let rows = 64 * ACCESS_PAGE_SLOTS;
+        let mut cache = ManifestCache::new(8 * 1024 * 1024);
+        let id = |index: usize| format!("artifact-{index:05}");
+        for index in 0..rows {
+            cache.insert(recency_test_manifest(id(index)));
+            if index % ACCESS_PAGE_SLOTS == 0 {
+                assert_recency_fits_its_charge(&cache);
+            }
+        }
+        assert_eq!(cache.len(), rows, "the dense fill fits the limit");
+        assert_recency_fits_its_charge(&cache);
+
+        let peak_pages = cache.access.pages.len();
+        for page in 0..48 {
+            let removed: Vec<_> = (page * ACCESS_PAGE_SLOTS..(page + 1) * ACCESS_PAGE_SLOTS)
+                .map(id)
+                .collect();
+            cache.remove_many(&removed);
+            assert_recency_fits_its_charge(&cache);
+        }
+        assert_eq!(cache.len(), 16 * ACCESS_PAGE_SLOTS);
+        assert!(
+            cache.access.pages.capacity() < peak_pages,
+            "the page index must not retain its historical peak"
+        );
+
+        for step in 0..rows {
+            cache.insert(recency_test_manifest(id(rows + step)));
+            if step % 3 != 0 {
+                cache.remove_many(&[id(48 * ACCESS_PAGE_SLOTS + step)]);
+            }
+            if step % ACCESS_PAGE_SLOTS == 0 {
+                assert_recency_fits_its_charge(&cache);
+            }
+        }
+        assert_recency_fits_its_charge(&cache);
+
+        let remaining: Vec<_> = cache.entries.keys().map(|key| key.to_string()).collect();
+        cache.remove_many(&remaining);
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache.access.retained_bytes(), 0);
     }
 
     #[test]
@@ -18757,6 +19731,50 @@ mod tests {
         .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
         DB::open_cf_descriptors(&Options::default(), config.data_dir.join("rocksdb"), cfs)
             .expect("failed to open data dir as a foreign binary")
+    }
+
+    #[test]
+    fn metadata_filters_preserve_unfiltered_ssts_and_rollback_reads() {
+        let (_temp, config, store) = temp_store();
+        drop(store);
+        {
+            let db = open_foreign_db(&config);
+            let cf = db.cf_handle(ROCKSDB_CF_KEY_VALUE).unwrap();
+            db.put_cf(&cf, b"filter-test/legacy", b"legacy value")
+                .unwrap();
+            db.flush_cf(&cf).unwrap();
+        }
+        {
+            let store = reopen_store(&config);
+            let cf = store.cf(ROCKSDB_CF_KEY_VALUE);
+            assert_eq!(
+                store.db.get_cf(cf, b"filter-test/legacy").unwrap(),
+                Some(b"legacy value".to_vec())
+            );
+            assert!(
+                store
+                    .db
+                    .get_cf(cf, b"filter-test/absent")
+                    .unwrap()
+                    .is_none()
+            );
+            store
+                .db
+                .put_cf(cf, b"filter-test/filtered", b"filtered value")
+                .unwrap();
+            store.db.flush_cf(cf).unwrap();
+        }
+        let db = open_foreign_db(&config);
+        let cf = db.cf_handle(ROCKSDB_CF_KEY_VALUE).unwrap();
+        assert_eq!(
+            db.get_cf(&cf, b"filter-test/legacy").unwrap(),
+            Some(b"legacy value".to_vec())
+        );
+        assert_eq!(
+            db.get_cf(&cf, b"filter-test/filtered").unwrap(),
+            Some(b"filtered value".to_vec())
+        );
+        assert!(db.get_cf(&cf, b"filter-test/absent").unwrap().is_none());
     }
 
     /// Opens the data dir the way the release predecessor to the one that

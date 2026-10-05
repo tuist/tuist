@@ -135,6 +135,8 @@ spec:
               value: {{ ternary "true" "false" (dig "actionCache" "evictionCascadeEnabled" true .Values.config) | quote }}
             - name: KURA_REAPI_BLOB_CHUNKING_ENABLED
               value: {{ ternary "true" "false" (dig "reapi" "blobChunkingEnabled" true .Values.config) | quote }}
+            - name: KURA_REAPI_CAS_DURABILITY
+              value: {{ dig "reapi" "casDurability" "per_write" .Values.config | quote }}
             {{- /*
             Ignored by this chart's app version, which has no walker to select,
             but rendered unconditionally so a node-by-node upgrade works: a
