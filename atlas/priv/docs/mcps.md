@@ -1,27 +1,52 @@
-Atlas can bring tools from other [Model Context Protocol servers](https://modelcontextprotocol.io/docs/learn/architecture) into its authenticated tool endpoint. An administrator adds a server once, and each person connects their own account to it. Atlas then makes the permitted upstream tools available alongside its own tools. A fresh installation starts with no upstream servers.
+Atlas can bring tools from other [Model Context Protocol servers](https://modelcontextprotocol.io/docs/learn/architecture) into its authenticated tool endpoint. An administrator adds a server once, and each person authorizes Atlas to use that server on their behalf. Atlas then offers the permitted upstream tools alongside its own tools. A fresh installation starts with no upstream servers.
 
-## Add a server
+## What this feature does
 
-Sign in with `admin:write` access and open `/admin/mcps`. Select **Add server** to open the form. Give the server a name, its public `https://` tool address, and its authorization and token endpoint addresses. The registration endpoint and requested authorization scopes are optional. Select **Add server** again to save it. Atlas lists the server immediately, without a restart.
+Atlas acts as a proxy between a tool client and the external server. It discovers the external server's tools for the current person and forwards permitted calls using that person's saved authorization. Servers added through Atlas expose only tools that the upstream marks as read-only. If the upstream marks no tools as read-only, Atlas exposes none; this classification comes from the upstream itself.
 
-Servers added in Atlas use per-user [Open Authorization 2.0](https://oauth.net/2/). They expose only tools that the upstream marks as read-only. A server that marks no tools as read-only exposes none; Atlas relies on the upstream's own classification.
+The server definition is shared across the workspace, while authorization is separate for each person. An administrator can add or remove a definition without restarting Atlas. Removing it also deletes the saved authorization sessions for that server.
 
-## Connect your account
+## When to use it
 
-Find the server on `/admin/mcps` and select **Connect**. Complete the upstream's authorization flow to give Atlas access on your behalf. Each person has a separate saved session. If authorization expires or is revoked, use **Reconnect** on the same page.
+Use this when your team wants to reach tools from another service through Atlas, with each person's own access to that service. For example, an external service can provide search or diagnostics tools to an agent already connected to Atlas. Add the server in Atlas when its tool endpoint supports per-user authorization and you only need its read-only tools.
 
-## Manage servers with tools
+If the connection needs shared credentials, custom request headers, or a privileged identity header, configure it at deployment instead. Those options are intentionally unavailable to runtime-managed servers.
 
-Authenticated clients with `admin:write` access can use `create_mcp_server` and `delete_mcp_server` instead of the page. Creation takes the server name and addresses, plus an optional array of scopes; deletion takes the name. Administrators with `admin:read` access can inspect the page but cannot add or remove servers, and these management tools are not available to them.
+## Permissions
 
-## Remove a server
+The `/admin/mcps` dashboard requires `admin:read` to open. Adding and removing servers requires `admin:write`; the corresponding management tools require that same write scope. Each person who uses a server must authorize their own upstream session. The connection route requires an authenticated Atlas account.
 
-Select **Remove** on `/admin/mcps`, or call `delete_mcp_server`. Removal also deletes every person's saved authorization session for that server. If you add the server again, each person must connect again.
+## Ways to manage servers
 
-Servers supplied by deployment configuration cannot be removed from the page or with the tool. Shared credentials, custom request headers, and privileged identity headers are deployment settings rather than administrator-managed options.
+The `/admin/mcps` dashboard lists configured upstream servers and each person's connection status. Administrators with write access can use **Add server** to enter the server's public `https://` tool address and authorization and token endpoints. The registration endpoint and requested scopes are optional. **Remove** deletes a runtime-managed server and all its saved sessions. **Connect** starts per-user [Open Authorization 2.0](https://oauth.net/2/); **Reconnect** repeats it when needed.
 
-## Deployment configuration
+Tool clients can send [Model Context Protocol requests](https://modelcontextprotocol.io/specification/2025-06-18/basic) to Atlas's authenticated `/mcp` endpoint. The server-management tools are available only with `admin:write`. These are the currently supported operations:
 
-The `MCP_PROXY_SERVERS` deployment setting can provide upstream servers that need options unavailable in the page. An unset or empty value starts with none; the default for a new self-hosted installation is `[]`. Servers added in Atlas are stored separately and work alongside deployment-configured servers. Their names cannot duplicate a deployment-configured name.
+| Operation | Dashboard | Tool call |
+| --- | --- | --- |
+| Create | **Add server** | `create_mcp_server` with `name`, `url`, `authorization_url`, `token_url`, and optional `registration_url` and `scopes` |
+| Read | Server list and connection status | `get_mcp_connection_status` with `server` checks one permitted server's live connection and tools; there is no tool for reading saved server definitions |
+| Update | No edit action | No update tool; remove and add the server again, which requires users to reconnect |
+| Delete | **Remove** | `delete_mcp_server` with `name` |
 
-Tuist's managed production deployment explicitly sets `MCP_PROXY_SERVERS=tuist-managed` to retain its Tuist, Grafana, and Sentry connections. An older installation that depended on those servers appearing when the setting was unset must set this value before upgrading. Other installations can keep `[]` and add servers in Atlas as needed.
+For tool clients, create and delete are `tools/call` requests sent to `POST /mcp`. For example, a create request has this shape:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_mcp_server",
+    "arguments": {
+      "name": "example",
+      "url": "https://tools.example.org/mcp",
+      "authorization_url": "https://tools.example.org/oauth/authorize",
+      "token_url": "https://tools.example.org/oauth/token",
+      "scopes": ["tools:read"]
+    }
+  }
+}
+```
+
+The delete call uses the same request envelope with `"name": "delete_mcp_server"` and `"arguments": {"name": "example"}`. Atlas does not expose separate create, read, update, and delete web routes for these definitions. Deployment-configured servers are read-only in the dashboard and management tools; they can include shared credentials or headers that runtime-managed servers cannot set.
