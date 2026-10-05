@@ -1,0 +1,122 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "8193b1a752d7b21be6607b603dd94e9c7352747a73195febbb1db2e58744f0bf",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "e748c6f9a0c0f1b69c1f2400dfa57dca54d049e7bf4d05981e5b69d272c3e88b",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/install-tuist.md",
+          "metadata": {
+            "content_hash": "d8fb7fabb1366ab2c2f1bc70cbb47e79eb2c3f5b4ff37d5036244377964913b2"
+          }
+        },
+        {
+          "children": [],
+          "hash": "615a01284f564143398adb36852712ea5be8937f06793dccf0b6cad1c5972997",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "preserve",
+            "language": "Cantonese (Traditional Chinese characters)",
+            "locale": "yue_Hant",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "cc723597b53f016e87decb817beb673d409f5032e7dae14a3006e62faa621131",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "2ee7e12ee0fd0b8aa5b100398d3a212b8095222ba456fb45a4b970e59dd5c84e"
+              }
+            },
+            {
+              "children": [],
+              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "6cb7336705b4234a660ef4c004b9b36af778fa131b23d3d79d952d72fb961147",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "8193b1a752d7b21be6607b603dd94e9c7352747a73195febbb1db2e58744f0bf",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/install-tuist.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "6d9976e0c3a01819141d3c7ceaf6117247f884a0f1bd560d29c7a93a843c48fd",
+  "output_path": "server/priv/docs/yue_Hant/guides/install-tuist.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "236b08e0483ee332c38b1ee8ed1a3d7694fb7dd5",
+  "source_path": "server/priv/docs/en/guides/install-tuist.md",
+  "translated_at": "2026-10-05T16:03:33.727917Z",
+  "translation_session_id": "01a10ccc-f039-7533-9c2e-30e51dd94e66"
+}
