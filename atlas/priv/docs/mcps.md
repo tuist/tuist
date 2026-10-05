@@ -1,4 +1,4 @@
-Atlas can bring tools from other [Model Context Protocol servers](https://modelcontextprotocol.io/docs/learn/architecture) into its authenticated tool endpoint. An administrator adds a server once, and each person authorizes Atlas to use that server on their behalf. Atlas then offers the permitted upstream tools alongside its own tools. A fresh installation starts with no upstream servers.
+Atlas can bring tools from other [MCP servers](https://modelcontextprotocol.io/docs/learn/architecture) into its authenticated tool endpoint. An administrator adds a server once, and each person authorizes Atlas to use that server on their behalf. Atlas then offers the permitted upstream tools alongside its own tools. A fresh installation starts with no upstream servers.
 
 ## How Atlas proxies tools
 
@@ -18,9 +18,9 @@ The `/admin/mcps` dashboard requires `admin:read` to open. Adding, editing, and 
 
 ## Configure and connect servers
 
-The `/admin/mcps` dashboard lists configured upstream servers and each person's connection status. Administrators with write access can use **Add server** to enter the server's public `https://` tool address and authorization and token endpoints. The registration endpoint and requested scopes are optional. **Edit** opens the same form with the saved settings. Saving changed settings disconnects all users of that server, who must reconnect; saving the form without changes preserves their connections. **Remove** deletes a runtime-managed server and all its saved sessions. **Connect** starts per-user [Open Authorization 2.0](https://oauth.net/2/); **Reconnect** repeats it when needed.
+The `/admin/mcps` dashboard lists configured upstream servers and each person's connection status. Administrators with write access can use **Add server** to enter the server's public `https://` tool address and authorization and token endpoints. The registration endpoint and requested scopes are optional. **Edit** opens the same form with the saved settings. Saving changed settings disconnects all users of that server, who must reconnect; saving the form without changes preserves their connections. **Remove** deletes a runtime-managed server and all its saved sessions. **Connect** starts per-user [OAuth 2.0](https://oauth.net/2/); **Reconnect** repeats it when needed.
 
-Tool clients can send [Model Context Protocol requests](https://modelcontextprotocol.io/specification/2025-06-18/basic) to Atlas's authenticated `/mcp` endpoint. The server-management tools are available only with `admin:write`. These are the currently supported operations:
+Tool clients can send [MCP requests](https://modelcontextprotocol.io/specification/2025-06-18/basic) to Atlas's authenticated `/mcp` endpoint. The server-management tools are available only with `admin:write`. These are the currently supported operations:
 
 | Operation | Dashboard | Tool call |
 | --- | --- | --- |
