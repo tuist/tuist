@@ -7,6 +7,11 @@ metadata:
   labels:
     {{- include "rack-edge.labels" . | nindent 4 }}
 spec:
+  # One edge at a time, and the second only once the first has held its pod
+  # for longer than keepalived's minute before the preferred edge takes the
+  # addresses back. Without it a rollout restarted both edges about 15 s apart
+  # (2026-10-05), and every rack node lost its path to the cluster twice.
+  minReadySeconds: 90
   selector:
     matchLabels:
       app.kubernetes.io/name: rack-edge
