@@ -31,7 +31,7 @@ bazel_dep(name = "rules_rs", version = "0.0.108")
 # resolved feature set enables here). lz4 comes from the BCR @lz4 module: it's linked into lz4-sys
 # (replacing lz4-sys's own build script) and its headers are fed to rocksdb's build script (see the
 # librocksdb-sys annotation below for why rules_rs can't propagate them automatically).
-bazel_dep(name = "lz4", version = "1.10.0.bcr.1")
+bazel_dep(name = "lz4", version = "1.10.0.bcr.2")
 
 # Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024). Each arch
 # is built natively on a runner of that arch; the C/C++ for the -sys crates (rocksdb, aws-lc,
