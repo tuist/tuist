@@ -17,7 +17,7 @@ defmodule TuistWeb.WellKnownController do
   @agent_auth_identity_path "/agent/identity"
   @agent_auth_claim_path "/agent/identity/claim"
   @agent_auth_events_path "/agent/event/notify"
-  @mcp_protocol_version "2025-06-18"
+  @mcp_protocol_version "2026-07-28"
 
   def api_catalog(conn, _params) do
     origin = RequestOrigin.from_conn(conn)

@@ -29,6 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
+  alias Tuist.MCP.Events
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -1492,7 +1493,7 @@ defmodule Tuist.Tests do
       updated_test_case = Map.merge(test_case, filtered_attrs)
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
-      record_test_case_events(test_case, event_types, actor_id, alert_id)
+      recorded_events = record_test_case_events(test_case, event_types, actor_id, alert_id)
       # Broadcast THIS call's update before fanning out to event-driven
       # automations. An automation action (e.g. change_state) re-enters
       # `update_test_case/3`, which will broadcast its own update; we want
@@ -1501,6 +1502,7 @@ defmodule Tuist.Tests do
       broadcast_test_case_update(updated_test_case, event_types)
       dispatch_event_driven_automations(test_case, event_types)
       dispatch_webhooks(updated_test_case, event_types, actor_id, alert_id)
+      dispatch_mcp_events(recorded_events)
 
       {:ok, updated_test_case}
     end
@@ -1558,7 +1560,7 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp record_test_case_events(_test_case, [], _actor_id, _alert_id), do: :ok
+  defp record_test_case_events(_test_case, [], _actor_id, _alert_id), do: []
 
   # `project_id` is denormalized onto the event so `test_case_states_mv` can
   # project it into `test_case_states`, whose reads are all project-scoped. A
@@ -1586,6 +1588,17 @@ defmodule Tuist.Tests do
     # cheap here — these events are emitted at most a few times per second
     # per test case.
     TestCaseEvent.Buffer.flush()
+    events
+  end
+
+  defp dispatch_mcp_events(events) do
+    Enum.each(events, fn
+      %{event_type: "marked_flaky", project_id: project_id, test_case_id: test_case_id, id: id} ->
+        Events.publish_marked_flaky(project_id, test_case_id, id)
+
+      _ ->
+        :ok
+    end)
   end
 
   defp dispatch_event_driven_automations(test_case, event_types) do
