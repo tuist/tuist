@@ -725,6 +725,14 @@ func (c Config) WithPerHost(p PerHost) Config {
 // empty per-host substitution is well-formed; none slice or index a value
 // that must be non-empty.
 func HostConfigHash(cfg Config) string {
+	return sha256Hex([]byte(hostConfigMaterial(cfg)))
+}
+
+// hostConfigMaterial is what HostConfigHash digests. The digest lands in
+// Machine status, which the read-only tier can see, so this must hold no
+// secret: the per-host credentials are stripped below and nothing else
+// carries one.
+func hostConfigMaterial(cfg Config) string {
 	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
 	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
 	// and the embedded binaries are kept. Stripping is an empty overlay
@@ -737,17 +745,17 @@ func HostConfigHash(cfg Config) string {
 	// (a) Rendered scripts, concatenated in a fixed order. A
 	// label prefixes each so two scripts can't alias into one
 	// another's bytes and hide a change.
+	// A malformed canonical CIDR can't render a script. Fold the inputs the
+	// renderer rejected instead, so the hash stays deterministic and
+	// distinct rather than panicking. The error's text is left out: the
+	// material is built from Config values only.
 	firewall, err := renderVMEgressFirewallScript(cfg)
 	if err != nil {
-		// A malformed canonical CIDR can't render a script. Fold the
-		// error text in instead so the hash stays deterministic and
-		// distinct rather than panicking — the operator already
-		// validates these inputs before they reach a host.
-		firewall = "ERROR:" + err.Error()
+		firewall = fmt.Sprintf("ERROR:%q", []string{cfg.VMKuraEgressCIDR, cfg.VMClusterDNSIP, cfg.VMCachePNCIDR})
 	}
 	sshGuard, err := renderSSHIngressGuardScript(cfg)
 	if err != nil {
-		sshGuard = "ERROR:" + err.Error()
+		sshGuard = fmt.Sprintf("ERROR:%q", cfg.SSHIngressAllowCIDRs)
 	}
 	for _, part := range []struct{ name, script string }{
 		{"firewall", firewall},
@@ -799,7 +807,7 @@ func HostConfigHash(cfg Config) string {
 		b.WriteByte('\x00')
 	}
 
-	return sha256Hex([]byte(b.String()))
+	return b.String()
 }
 
 // SetHostname makes the macOS hostname match the CR name, so
