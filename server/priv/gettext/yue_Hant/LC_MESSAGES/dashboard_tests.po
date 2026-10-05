@@ -92,7 +92,7 @@ msgstr "由 Tuist 自動執行"
 msgid "Average"
 msgstr "平均"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:146
+#: lib/tuist_web/live/once_test_run_live.html.heex:165
 #: lib/tuist_web/live/test_run_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Average duration of all test cases."
@@ -108,7 +108,7 @@ msgstr "在指定期間內，個別測試案例執行的平均持續時間。"
 msgid "Average duration of test runs during a given period."
 msgstr "在指定期間內，測試運行的平均持續時間。"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:145
+#: lib/tuist_web/live/once_test_run_live.html.heex:164
 #: lib/tuist_web/live/test_run_live.ex:1280
 #: lib/tuist_web/live/test_run_live.ex:1337
 #: lib/tuist_web/live/test_run_live.html.heex:421
@@ -233,7 +233,7 @@ msgstr "指令持續時間"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:421
 #: lib/tuist_web/live/coverage_live.html.heex:73
-#: lib/tuist_web/live/once_test_run_live.html.heex:105
+#: lib/tuist_web/live/once_test_run_live.html.heex:124
 #: lib/tuist_web/live/test_case_run_live.html.heex:179
 #: lib/tuist_web/live/test_run_live.html.heex:345
 #, elixir-autogen, elixir-format
@@ -268,9 +268,9 @@ msgid "Download result"
 msgstr "下載結果"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:109
-#: lib/tuist_web/live/once_test_run_live.html.heex:77
-#: lib/tuist_web/live/once_test_run_live.html.heex:193
-#: lib/tuist_web/live/once_test_run_live.html.heex:290
+#: lib/tuist_web/live/once_test_run_live.html.heex:96
+#: lib/tuist_web/live/once_test_run_live.html.heex:212
+#: lib/tuist_web/live/once_test_run_live.html.heex:309
 #: lib/tuist_web/live/once_tests_live.html.heex:515
 #: lib/tuist_web/live/shards_live.html.heex:609
 #: lib/tuist_web/live/test_case_live.ex:300
@@ -346,9 +346,9 @@ msgstr "預期失敗：%{message}"
 
 #: lib/tuist_web/live/once_test_case_run_live.ex:80
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:88
-#: lib/tuist_web/live/once_test_run_live.html.heex:57
-#: lib/tuist_web/live/once_test_run_live.html.heex:207
-#: lib/tuist_web/live/once_test_run_live.html.heex:279
+#: lib/tuist_web/live/once_test_run_live.html.heex:62
+#: lib/tuist_web/live/once_test_run_live.html.heex:226
+#: lib/tuist_web/live/once_test_run_live.html.heex:298
 #: lib/tuist_web/live/once_tests_live.html.heex:506
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:420
 #: lib/tuist_web/live/shards_live.ex:32
@@ -427,7 +427,7 @@ msgstr "失敗測試案例運行"
 msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
 msgstr "失敗測試案例運行代表在指定期間內個別測試案例執行失敗的次數。"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:131
+#: lib/tuist_web/live/once_test_run_live.html.heex:150
 #: lib/tuist_web/live/test_run_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Failed test cases"
@@ -525,7 +525,7 @@ msgstr "不穩定測試"
 msgid "Flaky runs"
 msgstr "不穩定執行次數"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:137
+#: lib/tuist_web/live/once_test_run_live.html.heex:156
 #: lib/tuist_web/live/test_run_live.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Flaky test cases"
@@ -824,7 +824,7 @@ msgstr "未找到任何測試模組"
 msgid "No test suites found"
 msgstr "未找到任何測試套件"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:132
+#: lib/tuist_web/live/once_test_run_live.html.heex:151
 #: lib/tuist_web/live/test_run_live.html.heex:405
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that failed."
@@ -846,9 +846,9 @@ msgstr "概覽"
 
 #: lib/tuist_web/live/once_test_case_run_live.ex:79
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:81
-#: lib/tuist_web/live/once_test_run_live.html.heex:50
-#: lib/tuist_web/live/once_test_run_live.html.heex:202
-#: lib/tuist_web/live/once_test_run_live.html.heex:273
+#: lib/tuist_web/live/once_test_run_live.html.heex:55
+#: lib/tuist_web/live/once_test_run_live.html.heex:221
+#: lib/tuist_web/live/once_test_run_live.html.heex:292
 #: lib/tuist_web/live/once_tests_live.html.heex:501
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:415
 #: lib/tuist_web/live/shards_live.ex:31
@@ -937,7 +937,7 @@ msgstr "已隔離測試"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:541
 #: lib/tuist_web/live/coverage_live.html.heex:139
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:120
-#: lib/tuist_web/live/once_test_run_live.html.heex:90
+#: lib/tuist_web/live/once_test_run_live.html.heex:109
 #: lib/tuist_web/live/once_tests_live.html.heex:525
 #: lib/tuist_web/live/shards_live.html.heex:625
 #: lib/tuist_web/live/test_case_live.html.heex:943
@@ -1057,7 +1057,7 @@ msgstr "信號"
 
 #: lib/tuist_web/live/once_test_case_run_live.ex:81
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:95
-#: lib/tuist_web/live/once_test_run_live.html.heex:212
+#: lib/tuist_web/live/once_test_run_live.html.heex:231
 #: lib/tuist_web/live/quarantined_tests_live.ex:64
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:372
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:425
@@ -1106,8 +1106,8 @@ msgstr "排序方式："
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:438
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:78
-#: lib/tuist_web/live/once_test_run_live.html.heex:47
-#: lib/tuist_web/live/once_test_run_live.html.heex:199
+#: lib/tuist_web/live/once_test_run_live.html.heex:52
+#: lib/tuist_web/live/once_test_run_live.html.heex:218
 #: lib/tuist_web/live/once_tests_live.html.heex:498
 #: lib/tuist_web/live/shards_live.ex:27
 #: lib/tuist_web/live/shards_live.html.heex:580
@@ -1169,8 +1169,8 @@ msgstr "測試用例執行次數"
 msgid "Test Case: %{name}"
 msgstr "測試案例：%{name}"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:156
-#: lib/tuist_web/live/once_test_run_live.html.heex:171
+#: lib/tuist_web/live/once_test_run_live.html.heex:175
+#: lib/tuist_web/live/once_test_run_live.html.heex:190
 #: lib/tuist_web/live/test_case_live.html.heex:3
 #: lib/tuist_web/live/test_cases_live.ex:24
 #: lib/tuist_web/live/test_cases_live.html.heex:497
@@ -1191,7 +1191,7 @@ msgstr "測試類別"
 msgid "Test Classes"
 msgstr "測試類別"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:39
+#: lib/tuist_web/live/once_test_run_live.html.heex:44
 #: lib/tuist_web/live/test_run_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Test Details"
@@ -1237,7 +1237,7 @@ msgstr "測試套件"
 msgid "Test Suites"
 msgstr "測試套件"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:187
+#: lib/tuist_web/live/once_test_run_live.html.heex:206
 #: lib/tuist_web/live/test_cases_live.ex:70
 #: lib/tuist_web/live/test_run_live.html.heex:1169
 #: lib/tuist_web/live/test_run_live.html.heex:1177
@@ -1270,8 +1270,8 @@ msgstr "測試案例運行"
 msgid "Test case runs represents the total number of individual test case executions during a given period."
 msgstr "測試案例運行代表在指定期間內個別測試案例執行的總次數。"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:125
-#: lib/tuist_web/live/once_test_run_live.html.heex:270
+#: lib/tuist_web/live/once_test_run_live.html.heex:144
+#: lib/tuist_web/live/once_test_run_live.html.heex:289
 #: lib/tuist_web/live/test_cases_live.ex:329
 #: lib/tuist_web/live/test_cases_live.html.heex:232
 #: lib/tuist_web/live/test_run_live.ex:1272
@@ -1372,7 +1372,7 @@ msgstr "模組總數"
 msgid "Total modules represents the total number of testable modules."
 msgstr "模組總數代表可測試模組的總數量。"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:126
+#: lib/tuist_web/live/once_test_run_live.html.heex:145
 #: lib/tuist_web/live/test_run_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Total number of test cases executed."
@@ -1408,9 +1408,9 @@ msgstr "Tuist 版本"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:161
 #: lib/tuist_web/helpers/test_labels.ex:47
-#: lib/tuist_web/live/once_test_run_live.html.heex:73
-#: lib/tuist_web/live/once_test_run_live.html.heex:101
-#: lib/tuist_web/live/once_test_run_live.html.heex:109
+#: lib/tuist_web/live/once_test_run_live.html.heex:92
+#: lib/tuist_web/live/once_test_run_live.html.heex:120
+#: lib/tuist_web/live/once_test_run_live.html.heex:128
 #: lib/tuist_web/live/shards_live.html.heex:570
 #: lib/tuist_web/live/shards_live.html.heex:577
 #: lib/tuist_web/live/test_case_live.html.heex:990
@@ -1643,7 +1643,7 @@ msgstr "測試耗時在各分片間的分布均勻程度。100% 表示完全均�
 
 #: lib/tuist_web/live/coverage/components.ex:489
 #: lib/tuist_web/live/coverage_detail_live.ex:337
-#: lib/tuist_web/live/once_test_run_live.html.heex:84
+#: lib/tuist_web/live/once_test_run_live.html.heex:103
 #: lib/tuist_web/live/shards_live.ex:33
 #: lib/tuist_web/live/shards_live.html.heex:593
 #: lib/tuist_web/live/shards_live.html.heex:621
@@ -1653,7 +1653,7 @@ msgstr "測試耗時在各分片間的分布均勻程度。100% 表示完全均�
 msgid "In Progress"
 msgstr "進行中"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:64
+#: lib/tuist_web/live/once_test_run_live.html.heex:83
 #: lib/tuist_web/live/test_run_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "In progress"
@@ -2045,8 +2045,8 @@ msgstr "測試目標"
 #: lib/tuist_web/helpers/test_labels.ex:19
 #: lib/tuist_web/helpers/test_labels.ex:23
 #: lib/tuist_web/helpers/test_labels.ex:24
-#: lib/tuist_web/live/once_test_run_live.html.heex:162
-#: lib/tuist_web/live/once_test_run_live.html.heex:252
+#: lib/tuist_web/live/once_test_run_live.html.heex:181
+#: lib/tuist_web/live/once_test_run_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Test Targets"
 msgstr "測試目標"
@@ -2229,7 +2229,7 @@ msgstr "測試至少執行過一次的可執行程式碼行數佔檔案總可執
 #: lib/tuist_web/live/coverage_detail_live.ex:407
 #: lib/tuist_web/live/coverage_detail_live.html.heex:222
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:37
-#: lib/tuist_web/live/once_test_run_live.html.heex:264
+#: lib/tuist_web/live/once_test_run_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Target"
 msgstr "目標"
@@ -2270,27 +2270,27 @@ msgstr "嘗試"
 msgid "Case id"
 msgstr "案例 ID"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:98
+#: lib/tuist_web/live/once_test_run_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Host"
 msgstr "主機"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:231
+#: lib/tuist_web/live/once_test_run_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "No test cases reported for this run"
 msgstr "此運行沒有報告測試案例"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:306
+#: lib/tuist_web/live/once_test_run_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No test targets reported for this run"
 msgstr "此運行沒有報告測試目標"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:139
+#: lib/tuist_web/live/once_test_run_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed."
 msgstr "通過和失敗的測試案例數量。"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:71
+#: lib/tuist_web/live/once_test_run_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Once version"
 msgstr "一次性版本"
@@ -2303,7 +2303,7 @@ msgstr "一次性版本"
 msgid "Run"
 msgstr "運行"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:118
+#: lib/tuist_web/live/once_test_run_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Run id"
 msgstr "運行 ID"
@@ -2323,7 +2323,7 @@ msgstr "尚未報告測試覆蓋率。"
 msgid "Test run"
 msgstr "測試運行"
 
-#: lib/tuist_web/live/once_test_run_live.html.heex:114
+#: lib/tuist_web/live/once_test_run_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Test suites"
 msgstr "測試套件"
@@ -2599,3 +2599,23 @@ msgstr[1] "部分測試已跳過，其中 %{count} 個測試的覆蓋率無法�
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
 msgstr "部分測試已跳過，且其覆蓋率無法完全確定，因此實際覆蓋率可能更高。"
+
+#: lib/tuist_web/live/once_test_run_live.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Interrupted"
+msgstr "已中斷"
+
+#: lib/tuist_web/live/once_test_run_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Once stopped reporting before this run finished"
+msgstr "在此運行完成前已停止報告"
+
+#: lib/tuist_web/live/once_test_run_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "已取消"
+
+#: lib/tuist_web/live/once_test_run_live.ex:147
+#, elixir-autogen, elixir-format
+msgid "The run was cancelled before it reported any test cases"
+msgstr "運行在報告任何測試用例之前已被取消"
