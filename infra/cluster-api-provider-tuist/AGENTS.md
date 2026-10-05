@@ -137,6 +137,14 @@ or re-baked binary rolls to existing hosts on the next reconcile, not only on a
 tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
 survive `UpdateTartKubelet`).
 
+The hash is an unkeyed SHA-256 stamped on Machine status, which the read-only
+`view` tier can read, so its material (`hostConfigMaterial`) must never carry a
+credential. Every credential (sudo password, SSH key, kubeconfig, Tailscale
+auth key and state, runner registration token) is a `PerHost` field and is
+stripped; a credential added to the fleet-wide part of `Config` would need a
+keyed digest instead. A renderer that rejects its input is folded in as that
+input, never as error text.
+
 Terminal-failed CRs are excluded from the drift loop, but the exclusion
 expires. It lifts on either a new `HostConfigHash` (compared against
 `Status.FailedHostConfigHash`, not the last-applied one — a broken config never

@@ -26,6 +26,9 @@ defmodule TuistWeb.BuildRunsLive do
         Project.gradle_project?(project) ->
           TuistWeb.GradleBuildRunsLive.assign_mount(socket)
 
+        Project.mix_project?(project) ->
+          TuistWeb.MixBuildRunsLive.assign_mount(socket)
+
         true ->
           TuistWeb.XcodeBuildRunsLive.assign_mount(socket)
       end
@@ -46,6 +49,9 @@ defmodule TuistWeb.BuildRunsLive do
 
       Project.gradle_project?(project) ->
         {:noreply, TuistWeb.GradleBuildRunsLive.assign_handle_params(socket, params)}
+
+      Project.mix_project?(project) ->
+        {:noreply, TuistWeb.MixBuildRunsLive.assign_handle_params(socket, params)}
 
       true ->
         {:noreply, TuistWeb.XcodeBuildRunsLive.assign_handle_params(socket, params)}
