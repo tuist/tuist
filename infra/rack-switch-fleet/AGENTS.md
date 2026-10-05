@@ -560,7 +560,7 @@ stale, because the controller acts on the other.
 So a racked mini has a node here for its cable, its ToR port and the MAC its
 address is reserved against, pointing at its `RackHost` for everything else,
 its address included. Not a second description of the machine.
-`ber1-runner-b01` to `b03`, one three-up tray of M5 Pros on ToR B ports 2 to 4,
+`ber1-runner-b01` to `b03`, one three-up tray of 18-core, 64 GB minis on ToR B ports 2 to 4,
 are the first.
 
 ## The switches as Kubernetes objects

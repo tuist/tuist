@@ -730,8 +730,8 @@ ovhFleets:
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
-# BER1 rack fleet: leased M5 Pro minis (18 cores / 64 GB / 10GbE / 2 TB), one
-# three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the home prep bay,
+# BER1 rack fleet: leased Mac minis (Z1UD001N2: 18-core CPU, 64 GB, 10GbE,
+# 2 TB), one three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the home prep bay,
 # behind the rack's two edges. Staging only.
 #
 # Each host is its own Machine, so the fleet is the hosts listed here; set a
@@ -783,7 +783,7 @@ rackFleet:
     # values-managed-production.yaml), so a rack runner is the runner customers
     # already get: two 6 vCPU / 14 GB guests, both dimensions binding at two.
     # Apple's licence caps a host at two macOS guests, so the rest of the
-    # M5 Pro goes to the host.
+    # mini goes to the host.
     hostCPU: 12
     hostMemoryMB: 28672
     guestCapacity: 2
