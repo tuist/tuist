@@ -730,16 +730,12 @@ ovhFleets:
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
-# BER1 rack fleet: the prototype M1 mini, the first hardware we own to join a
-# cluster, on ber1-tor-b behind the rack's two edges. Staging only.
+# BER1 rack fleet: leased M5 Pro minis (18 cores / 64 GB / 10GbE / 2 TB), one
+# three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the home prep bay,
+# behind the rack's two edges. Staging only.
 #
 # Each host is its own Machine, so the fleet is the hosts listed here; set a
 # host's `parked` to take it out.
-#
-# Every remaining difference from the rack is marked FORCED and names the
-# physical fact that causes it: a refurb M1 with 16 GB and a 256 GB disk, not
-# racked. None of them is a preference, and none should be
-# copied into the rack's values.
 rackFleet:
   enabled: true
   site: ber1
@@ -751,43 +747,51 @@ rackFleet:
   sshIngressAllowCIDRs:
     - 10.10.0.2/32
     - 10.10.0.3/32
+  # Each address is the host's reservation on the machines segment, which the
+  # edges' DHCP hands it against the MAC recorded in the site definition, and
+  # which both edges advertise to the tailnet as a /32. Each outlet is on the
+  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
+  # definition and its controller adopts. A host's outlet and its ToR port are
+  # on the same chain, which the site's render checks.
   hosts:
-    - name: ber1-proto-01
-      serial: C07FC05JQ6NY
-      # Its reservation on the machines segment, which the edges' DHCP hands it
-      # against the MAC recorded in the site definition, and which both edges
-      # advertise to the tailnet as a /32.
+    - name: ber1-runner-b01
+      serial: JC332QMX73
       address: 10.10.0.101
-      # FORCED (no rack): no shelf or positionU. In the rack these carry the
-      # physical location a hands-on tech needs to find the box.
-      rack: proto
-      # Outlet 1 of the RackPDU ber1-pdu-b, which infra/rack-switch-fleet
-      # renders from the site definition and its controller adopts.
+      rack: prep
+      shelf: tray-b1
       power:
         pdu: ber1-pdu-b
         outlet: "1"
+    - name: ber1-runner-b02
+      serial: CRXK0M2VFY
+      address: 10.10.0.102
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "2"
+    - name: ber1-runner-b03
+      serial: K9YLWQHQM2
+      address: 10.10.0.103
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "3"
   machine:
-    # FORCED (M1, 16 GB): a refurb M1 bought to prove the plumbing. The rack is
-    # leased M5 Pro minis at 18 cores / 64 GB / 2 TB, so every number in this
-    # block goes up and guestCapacity stops being 1.
-    #
-    # M1, 8 cores / 16 GB. The advertised memory is the box's RAM minus the
-    # ~2 GB Virtualization.framework reserves for the host, below which
-    # `tart run` fails with `memorySize > maximumAllowedMemorySize`.
-    hostCPU: 8
-    hostMemoryMB: 14336
-    guestCapacity: 1
+    # The production M4 Pro hosts' shape (macosFleet.machineGroups m4 in
+    # values-managed-production.yaml), so a rack runner is the runner customers
+    # already get: two 6 vCPU / 14 GB guests, both dimensions binding at two.
+    # Apple's licence caps a host at two macOS guests, so the rest of the
+    # M5 Pro goes to the host.
+    hostCPU: 12
+    hostMemoryMB: 28672
+    guestCapacity: 2
     # guests x 2 + 1: a Pod stays bound to its Node after it finishes, so each
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
-    maxPods: 3
-    # FORCED (256 GB disk): cache volumes OFF. A 2 TB rack mini runs the fleet's
-    # normal quota; this is only zero because the prototype's disk is 256 GB.
-    # The goldens alone do not leave
-    # room for the fleet's normal quota, and the point of this host is to
-    # validate the plumbing, not runner shapes. An explicit 0 is distinguishable
-    # from unset, which would inherit the fleet's non-zero global.
-    runnerCacheVolumeGiB: 0
+    maxPods: 5
+    runnerCacheVolumeGiB: 240
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH

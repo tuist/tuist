@@ -704,6 +704,29 @@ fleet_check_rack_hosts() {
   done < <(jq -r '.nodes[]? | select(.rack_host != null) | "\(.name)\t\(.rack_host)"' "$site_file")
   rm -f "$known"
 
+  # A mini's outlet is its RackHost's and its ToR port is this file's, so this
+  # is the one place both halves meet. They have to resolve to the same
+  # transfer switch: crossed, any one ATS failure takes the whole fleet, half
+  # the minis losing power and the other half their ToR.
+  local outlets crossed
+  outlets="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.power.pdu // "")}] | from_entries' "$values" 2>/dev/null)" || outlets='{}'
+  crossed="$(jq -r --argjson outlets "$outlets" '
+    ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    ([.nodes[]?, .devices[]] | map({key: .name, value: (if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end)}) | from_entries) as $feeder |
+    .nodes[]? | select(.rack_host != null) | . as $node |
+    ($outlets[$node.rack_host] // "") as $pdu | select($pdu != "") |
+    if ($pdus | has($pdu) | not) then
+      "\($node.name): RackHost \($node.rack_host) is on \($pdu), which is not a PDU in this site"
+    else
+      $pdus[$pdu] as $ats |
+      $node.links[]? | select(.purpose == "data" and .switch != null) |
+      .switch as $tor | $feeder[$tor] as $tor_ats |
+      select($tor_ats != null and $tor_ats != $ats) |
+        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats); a mini and its ToR must lose power together"
+    end
+  ' "$site_file")"
+  [ -n "$crossed" ] && bad="$bad$crossed"$'\n'
+
   if [ -n "$bad" ]; then
     echo "error: node references into the cluster inventory are wrong:" >&2
     printf '%s' "$bad" | sed '/^$/d;s/^/  /' >&2

@@ -91,6 +91,11 @@
         "media": "rj45",
         "note": "The SENSOR port: feeds and powers the RS485 (Modbus) chain of environmental probes, which run probe to probe over RJ45 cables."
       }
+    },
+    "outlets": {
+      "count": 24,
+      "labels": "A1 to A24",
+      "sockets": "Odd outlets C13, even outlets hybrid C13/C19, so every outlet takes a C14 plug and the even ones a C20 too."
     }
   },
   "emp-gen2": {

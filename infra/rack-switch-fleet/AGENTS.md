@@ -364,10 +364,9 @@ driver, a wedged mini in the colo has no remote recovery at all. Having the data
 say the hardware declares no out-of-band interface keeps that dependency
 visible.
 
-There are no minis in the site definition yet and there will eventually be forty
-or more, split A/B across the ToRs. They are the bulk of this rack, so the tests
-pin this rule down with a fixture mini rather than waiting for the first real
-one.
+There will eventually be forty or more minis, split A/B across the ToRs. They
+are the bulk of this rack, so the tests pin this rule down with a fixture mini
+as well as the site's own.
 
 Separate trap, same port: a host OS that bridges the LM port or changes its MAC
 kills AMT silently. That is not something this repository can check, but it does
@@ -464,14 +463,25 @@ disagree.
 
 Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
 provider (see "RackPDU objects" below), and a RackHost names its outlet as
-`power: {pdu: <name>, outlet: "<n>"}`; `ber1-proto-01` is on outlet 1 of
-`ber1-pdu-b`. And whoever extends the chart side
-should carry the A/B property across: a mini's outlet and its ToR must land on
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b03` are on
+outlets 1 to 3 of `ber1-pdu-b`. And a mini's outlet and its ToR must land on
 the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
 its switch lose power together. Crossed, any one ATS failure takes the whole
 fleet: half the minis lose power and the other half lose their ToR. This file
 records which chain a node is on (`ats`/`pdu`), but not the outlet, which stays
-the RackHost's.
+the RackHost's, so `fleet_check_rack_hosts` checks it where the two meet: a
+node whose RackHost's `power.pdu` resolves to another transfer switch than its
+data link's ToR, or names a PDU the site does not have, fails the render. An
+outlet that is not on a RackPDU (a desk plug) is not held to a chain.
+
+An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`). The
+G4's printed labels run `A1` to `A24`, the letter being the PDU's one input;
+that the card's `n` is the label's number is not yet read off a card. The even
+outlets are hybrid C13/C19 sockets, so every outlet takes the minis' C14 cord.
+
+**Cord colour is the chain.** Chain B's mini cords are blue, and chain A's are
+another colour, so a mini with one chain's cord on the other chain's ToR is
+visible at a glance.
 
 ### RackPDU objects
 
@@ -547,8 +557,9 @@ stale, because the controller acts on the other.
 
 So a racked mini has a node here for its cable, its ToR port and the MAC its
 address is reserved against, pointing at its `RackHost` for everything else,
-its address included. Not a second description of the machine. `ber1-proto-01`
-is the first.
+its address included. Not a second description of the machine.
+`ber1-runner-b01` to `b03`, one three-up tray of M5 Pros on ToR B ports 2 to 4,
+are the first.
 
 ## The switches as Kubernetes objects
 
