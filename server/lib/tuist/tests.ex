@@ -2154,53 +2154,66 @@ defmodule Tuist.Tests do
     {data, []}
   end
 
-  defp resolve_cross_run_flaky_failures(data, existing_runs) do
-    existing = Map.get(existing_runs, data.test_case_id, [])
-    {existing_successes, existing_failures} = Enum.split_with(existing, &(to_string(&1.status) == "success"))
-
+  defp resolve_cross_run_flaky_failures(data, {passed_test_case_ids, failures_by_test_case_id}) do
     cond do
       # This run failed and the test already passed on the commit: the current
       # failure is the flake. Earlier failures were already flagged when their
       # passing sibling arrived, so there is nothing to back-mark.
-      data.status == "failure" and existing_successes != [] ->
+      data.status == "failure" and MapSet.member?(passed_test_case_ids, data.test_case_id) ->
         {%{data | is_flaky: true}, []}
 
       # This run passed and the test already failed on the commit: those earlier
       # failures are now proven flaky, so back-mark them.
-      data.status == "success" and existing_failures != [] ->
-        {data, Enum.reject(existing_failures, & &1.is_flaky)}
+      data.status == "success" ->
+        {data, failures_by_test_case_id |> Map.get(data.test_case_id, []) |> Enum.reject(& &1.is_flaky)}
 
       true ->
         {data, []}
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id, _scheme), do: %{}
+  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id, _scheme), do: {MapSet.new(), %{}}
 
+  # Two narrow reads rather than every run on the commit: a commit CI re-runs
+  # continuously accumulates millions of runs, and grouping all of them by `id`
+  # held hundreds of MiB per ingestion until it timed out. Successes only need
+  # to exist, and `status` is in the sort key, so both reads stay in range.
   defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id, scheme) do
     test_case_id_set = MapSet.new(test_case_ids)
 
-    query =
+    runs_on_commit =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.scheme == ^scheme,
-        where: tcr.is_ci == true,
+        where: tcr.is_ci == true
+      )
+
+    passed_test_case_ids =
+      from(tcr in runs_on_commit,
+        where: tcr.status == "success",
+        distinct: true,
+        select: tcr.test_case_id
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.filter(&MapSet.member?(test_case_id_set, &1))
+      |> MapSet.new()
+
+    failures_by_test_case_id =
+      from(tcr in runs_on_commit,
+        where: tcr.status == "failure",
         group_by: [tcr.id, tcr.test_case_id],
         select: %{
           id: tcr.id,
           test_case_id: tcr.test_case_id,
-          status: fragment("argMax(?, ?)", tcr.status, tcr.inserted_at),
           is_flaky: fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at)
         }
       )
+      |> ClickHouseRepo.all()
+      |> Enum.filter(&MapSet.member?(test_case_id_set, &1.test_case_id))
+      |> Enum.group_by(& &1.test_case_id)
 
-    query
-    |> ClickHouseRepo.all()
-    |> Enum.filter(fn run ->
-      to_string(run.status) in ["success", "failure"] and run.test_case_id in test_case_id_set
-    end)
-    |> Enum.group_by(& &1.test_case_id)
+    {passed_test_case_ids, failures_by_test_case_id}
   end
 
   defp check_new_test_cases(test, test_case_data, default_branch) do
