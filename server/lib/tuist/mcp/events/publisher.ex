@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Events.Publisher do
   import Ecto.Query
 
   alias Tuist.MCP.Events.Catalog
+  alias Tuist.MCP.Events.Queue
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Repo
@@ -22,7 +23,13 @@ defmodule Tuist.MCP.Events.Publisher do
 
   def publish_batch(name, entries, target) when is_list(entries) and is_map(target) do
     if Catalog.supported?(name) and active_subscriptions?(name, target) do
-      Enum.each(entries, fn {data, source_id} -> enqueue(name, data, source_id) end)
+      jobs =
+        Enum.map(entries, fn {data, source_id} ->
+          args = data |> Map.put("event_name", name) |> Map.put("source_id", to_string(source_id))
+          {Queue.key(["fanout", name, target, to_string(source_id)]), FanoutWorker.new(args)}
+        end)
+
+      log_enqueue_result(Queue.enqueue(jobs))
     end
 
     :ok
@@ -38,11 +45,15 @@ defmodule Tuist.MCP.Events.Publisher do
 
   defp enqueue(name, data, source_id) do
     args = data |> Map.put("event_name", name) |> Map.put("source_id", to_string(source_id))
+    key = Queue.key(["fanout", name, Map.take(data, ["project_id", "account_id"]), to_string(source_id)])
+    [{key, FanoutWorker.new(args)}] |> Queue.enqueue() |> log_enqueue_result()
+  end
 
-    case Oban.insert(FanoutWorker.new(args)) do
-      {:ok, _job} -> :ok
-      {:error, reason} -> Logger.warning("MCP event fan-out could not be queued: #{inspect(reason)}")
-    end
+  defp log_enqueue_result(:ok), do: :ok
+
+  defp log_enqueue_result({:error, reason}) do
+    Logger.warning("MCP event fan-out could not be queued: #{inspect(reason)}")
+    :ok
   end
 
   defp active_subscriptions?(name, data) do

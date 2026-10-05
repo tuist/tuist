@@ -16,12 +16,15 @@ defmodule Tuist.MCP.Events.Subscription do
     belongs_to :user, User
     belongs_to :account_token, AccountToken, type: Ecto.UUID
     field :oauth_client_id, Ecto.UUID
+    belongs_to :oauth_grant, Boruta.Ecto.Token, type: Ecto.UUID
     belongs_to :account, Account
     belongs_to :project, Project
     field :event_name, :string
     field :callback_url, Binary
     field :signing_secret, Binary
     field :refresh_before, :utc_datetime
+    field :consecutive_timeouts, :integer, default: 0
+    field :first_timeout_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -33,6 +36,7 @@ defmodule Tuist.MCP.Events.Subscription do
       :user_id,
       :account_token_id,
       :oauth_client_id,
+      :oauth_grant_id,
       :account_id,
       :project_id,
       :event_name,

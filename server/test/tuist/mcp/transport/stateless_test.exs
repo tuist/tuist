@@ -35,8 +35,16 @@ defmodule Tuist.MCP.Transport.StatelessTest do
   test "advertises only event types that can be delivered" do
     response = request("events/list")
 
-    assert [%{"name" => "test_case.marked_flaky", "delivery" => ["webhook"]}] =
-             result_body(response)["result"]["events"]
+    events = result_body(response)["result"]["events"]
+
+    assert Enum.sort(Enum.map(events, & &1["name"])) == [
+             "build.failed",
+             "ci_job.failed",
+             "test_case.marked_flaky",
+             "test_run.failed"
+           ]
+
+    assert Enum.all?(events, &(&1["delivery"] == ["webhook"]))
   end
 
   test "rejects a method header that differs from the request" do

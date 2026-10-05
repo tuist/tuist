@@ -4675,10 +4675,12 @@ defmodule Tuist.Tests do
 
     IngestRepo.insert_all(Test, updated_runs)
 
-    Enum.each(
-      stale_runs,
-      &Publisher.publish("test_run.failed", %{"project_id" => &1.project_id, "test_run_id" => &1.id}, &1.id)
-    )
+    stale_runs
+    |> Enum.group_by(& &1.project_id)
+    |> Enum.each(fn {project_id, runs} ->
+      entries = Enum.map(runs, &{%{"project_id" => project_id, "test_run_id" => &1.id}, &1.id})
+      Publisher.publish_batch("test_run.failed", entries, %{"project_id" => project_id})
+    end)
 
     sharded_runs = Enum.filter(stale_runs, & &1.shard_plan_id)
     shard_plan_ids = sharded_runs |> Enum.map(& &1.shard_plan_id) |> Enum.uniq()

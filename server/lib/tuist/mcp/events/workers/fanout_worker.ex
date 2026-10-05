@@ -2,18 +2,21 @@ defmodule Tuist.MCP.Events.Workers.FanoutWorker do
   @moduledoc false
 
   use Oban.Worker,
-    queue: :webhooks,
-    max_attempts: 5,
-    unique: [keys: [:event_name, :project_id, :account_id, :source_id], states: :all, period: {31, :days}]
+    queue: :mcp_events,
+    max_attempts: 5
 
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.MCP.Events.Payload
+  alias Tuist.MCP.Events.Queue
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.DeliveryWorker
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  @impl Oban.Worker
+  def timeout(_job), do: to_timeout(second: 30)
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -25,31 +28,46 @@ defmodule Tuist.MCP.Events.Workers.FanoutWorker do
         :ok
 
       {scope, data} ->
-        scope
-        |> subscriptions(name, now)
-        |> Enum.reduce_while(:ok, fn subscription, _acc ->
-          event_id =
-            "evt_" <>
-              Base.url_encode64(:crypto.hash(:sha256, "#{subscription.id}:#{args["source_id"]}"), padding: false)
+        enqueue_subscriptions(scope, name, args["source_id"], Payload.data(name, args, data), now, nil)
+    end
+  end
 
-          body = %{
-            "eventId" => event_id,
-            "name" => name,
-            "timestamp" => DateTime.to_iso8601(now),
-            "data" => Payload.data(name, args, data),
-            "cursor" => nil
-          }
+  defp enqueue_subscriptions(scope, name, source_id, data, now, cursor) do
+    query = subscriptions(scope, name, now)
+    query = if cursor, do: where(query, [s], s.id > ^cursor), else: query
 
-          result =
-            %{"subscription_id" => subscription.id, "event_id" => event_id, "body" => body}
-            |> DeliveryWorker.new()
-            |> Oban.insert()
+    ids = Repo.all(from s in query, order_by: [asc: s.id], limit: 100, select: s.id)
 
-          case result do
-            {:ok, _job} -> {:cont, :ok}
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
-        end)
+    case ids do
+      [] ->
+        :ok
+
+      _ ->
+        jobs =
+          Enum.map(ids, fn id ->
+            event_id = "evt_" <> Base.url_encode64(:crypto.hash(:sha256, "#{id}:#{source_id}"), padding: false)
+
+            body = %{
+              "eventId" => event_id,
+              "name" => name,
+              "timestamp" => DateTime.to_iso8601(now),
+              "data" => data,
+              "cursor" => nil
+            }
+
+            key = Queue.key(["delivery", id, event_id])
+            {key, DeliveryWorker.new(%{"subscription_id" => id, "event_id" => event_id, "body" => body})}
+          end)
+
+        case Queue.enqueue(jobs) do
+          :ok ->
+            if length(ids) == 100,
+              do: enqueue_subscriptions(scope, name, source_id, data, now, List.last(ids)),
+              else: :ok
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 
@@ -68,18 +86,14 @@ defmodule Tuist.MCP.Events.Workers.FanoutWorker do
   end
 
   defp subscriptions({:project, project_id}, name, now) do
-    Repo.all(
-      from s in Subscription,
-        where: s.project_id == ^project_id and s.event_name == ^name and s.refresh_before > ^now
-    )
+    from s in Subscription,
+      where: s.project_id == ^project_id and s.event_name == ^name and s.refresh_before > ^now
   end
 
   defp subscriptions({:account, account_id}, name, now) do
-    Repo.all(
-      from s in Subscription,
-        where:
-          s.account_id == ^account_id and is_nil(s.project_id) and s.event_name == ^name and
-            s.refresh_before > ^now
-    )
+    from s in Subscription,
+      where:
+        s.account_id == ^account_id and is_nil(s.project_id) and s.event_name == ^name and
+          s.refresh_before > ^now
   end
 end

@@ -4,6 +4,7 @@ defmodule Tuist.MCP.EventsTest do
 
   import Ecto.Query
 
+  alias Boruta.Ecto.Token
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Bazel
@@ -59,6 +60,15 @@ defmodule Tuist.MCP.EventsTest do
     {:ok, token, _claims} =
       Tuist.Guardian.encode_and_sign(user.account, claims, token_type: "access_token", ttl: {1, :hour})
 
+    Repo.insert!(%Token{
+      type: "access_token",
+      value: token,
+      refresh_token: Ecto.UUID.generate(),
+      client_id: client.id,
+      sub: to_string(user.id),
+      scope: "project:tests:read"
+    })
+
     subject = %AuthenticatedAccount{
       account: user.account,
       scopes: ["project:tests:read"],
@@ -74,6 +84,7 @@ defmodule Tuist.MCP.EventsTest do
 
     params = %{
       "name" => "test_case.marked_flaky",
+      "ttlMs" => 1,
       "arguments" => %{"account_handle" => user.account.name, "project_handle" => project.name},
       "delivery" => %{
         "mode" => "webhook",
@@ -84,7 +95,9 @@ defmodule Tuist.MCP.EventsTest do
 
     expect(Callback, :verify, 2, fn "https://example.com/events", _secret, _id -> :ok end)
 
-    assert {:ok, %{"id" => id}} = Events.subscribe(conn, params)
+    assert {:ok, %{"id" => id, "refreshBefore" => refresh_before}} = Events.subscribe(conn, params)
+    assert {:ok, refresh_before, _offset} = DateTime.from_iso8601(refresh_before)
+    assert DateTime.diff(refresh_before, DateTime.utc_now()) > 3500
     assert %Subscription{oauth_client_id: client_id, account_token_id: nil} = Repo.get!(Subscription, id)
     assert client_id == client.id
 
@@ -174,31 +187,34 @@ defmodule Tuist.MCP.EventsTest do
       |> Plug.Conn.put_req_header("authorization", "Bearer #{bearer}")
       |> Plug.Conn.assign(:current_subject, subject)
 
-    Repo.insert!(%Boruta.Ecto.Token{
-      type: "access_token",
-      value: Ecto.UUID.generate(),
-      refresh_token: Ecto.UUID.generate(),
-      client_id: client.id,
-      sub: to_string(user.id),
-      scope: "project:builds:read",
-      expires_at: System.system_time(:second) - 60
-    })
+    original_grant =
+      Repo.insert!(%Token{
+        type: "access_token",
+        value: bearer,
+        refresh_token: Ecto.UUID.generate(),
+        client_id: client.id,
+        sub: to_string(user.id),
+        scope: "project:builds:read",
+        expires_at: System.system_time(:second) - 60
+      })
 
-    expect(Callback, :verify, fn _url, _secret, _id -> :ok end)
+    expect(Callback, :verify, 2, fn _url, _secret, _id -> :ok end)
 
-    assert {:ok, %{"id" => id}} =
-             Events.subscribe(conn, %{
-               "name" => "build.failed",
-               "arguments" => %{"account_handle" => user.account.name, "project_handle" => project.name},
-               "delivery" => %{
-                 "mode" => "webhook",
-                 "url" => "https://example.com/events",
-                 "secret" => "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32))
-               }
-             })
+    params = %{
+      "name" => "build.failed",
+      "arguments" => %{"account_handle" => user.account.name, "project_handle" => project.name},
+      "delivery" => %{
+        "mode" => "webhook",
+        "url" => "https://example.com/events",
+        "secret" => "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32))
+      }
+    }
 
-    assert %Subscription{oauth_client_id: client_id} = Repo.get!(Subscription, id)
+    assert {:ok, %{"id" => id}} = Events.subscribe(conn, params)
+
+    assert %Subscription{oauth_client_id: client_id, oauth_grant_id: grant_id} = Repo.get!(Subscription, id)
     assert client_id == client.id
+    assert grant_id == original_grant.id
 
     assert :ok =
              Publisher.publish(
@@ -212,10 +228,51 @@ defmodule Tuist.MCP.EventsTest do
 
     stub(SSRFGuard, :pin, fn _url -> {:ok, "https://203.0.113.10/events", "example.com"} end)
     stub(SSRFGuard, :connect_options, fn _host -> [] end)
-    expect(Req, :post, fn _url, _options -> {:ok, %Req.Response{status: 200}} end)
+    expect(Req, :post, 2, fn _url, _options -> {:ok, %Req.Response{status: 200}} end)
 
     delivery_job = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(DeliveryWorker))
     assert :ok = DeliveryWorker.perform(delivery_job)
+
+    {:ok, rotated_bearer, _claims} =
+      Tuist.Guardian.encode_and_sign(user.account, claims, token_type: "access_token", ttl: {1, :hour})
+
+    rotated_grant =
+      Repo.insert!(%Token{
+        type: "access_token",
+        value: rotated_bearer,
+        previous_token: bearer,
+        refresh_token: Ecto.UUID.generate(),
+        client_id: client.id,
+        sub: to_string(user.id),
+        scope: "project:builds:read"
+      })
+
+    original_grant
+    |> Ecto.Changeset.change(refresh_token_revoked_at: DateTime.utc_now())
+    |> Repo.update!()
+
+    rotated_conn = Plug.Conn.put_req_header(conn, "authorization", "Bearer #{rotated_bearer}")
+    assert {:ok, %{"id" => ^id}} = Events.subscribe(rotated_conn, params)
+    assert Repo.aggregate(Subscription, :count, :id) == 1
+
+    assert :ok = DeliveryWorker.perform(delivery_job)
+
+    Repo.insert!(%Token{
+      type: "access_token",
+      value: Ecto.UUID.generate(),
+      refresh_token: Ecto.UUID.generate(),
+      client_id: client.id,
+      sub: to_string(user.id),
+      scope: "project:builds:read"
+    })
+
+    rotated_grant
+    |> Ecto.Changeset.change(refresh_token_revoked_at: DateTime.utc_now())
+    |> Repo.update!()
+
+    assert :ok = DeliveryWorker.perform(delivery_job)
+    assert Repo.get(Subscription, id) == nil
+    assert {:ok, %{}} = Events.unsubscribe(rotated_conn, params)
   end
 
   test "a published flaky test event reaches the signed callback" do
@@ -277,6 +334,74 @@ defmodule Tuist.MCP.EventsTest do
     end)
 
     assert :ok = DeliveryWorker.perform(delivery_job)
+
+    expect(Callback, :post, fn _url, _secret, _id, _event_id, _body -> {:error, :timeout} end)
+    assert {:error, :timeout} = DeliveryWorker.perform(delivery_job)
+    assert Repo.get!(Subscription, subscription.id).consecutive_timeouts == 1
+
+    expect(Callback, :post, fn _url, _secret, _id, _event_id, _body -> {:ok, %Req.Response{status: 200}} end)
+    assert :ok = DeliveryWorker.perform(delivery_job)
+    assert Repo.get!(Subscription, subscription.id).consecutive_timeouts == 0
+
+    expect(Callback, :post, 4, fn _url, _secret, _id, _event_id, _body -> {:error, :timeout} end)
+    assert {:error, :timeout} = DeliveryWorker.perform(delivery_job)
+    assert {:error, :timeout} = DeliveryWorker.perform(delivery_job)
+    assert {:error, :timeout} = DeliveryWorker.perform(delivery_job)
+    assert Repo.get!(Subscription, subscription.id).consecutive_timeouts == 3
+
+    Repo.update_all(from(s in Subscription, where: s.id == ^subscription.id),
+      set: [first_timeout_at: DateTime.add(DateTime.utc_now(), -301, :second)]
+    )
+
+    assert :ok = DeliveryWorker.perform(delivery_job)
+    assert Repo.get(Subscription, subscription.id) == nil
+    assert :ok = DeliveryWorker.perform(delivery_job)
+  end
+
+  test "fan-out queues every subscriber across pagination boundaries" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    project = ProjectsFixtures.project_fixture(account: user.account)
+    token = claimed_token_fixture(user)
+    secret = "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32))
+
+    for number <- 1..101 do
+      %Subscription{}
+      |> Subscription.changeset(%{
+        id: "sub_page_#{number}",
+        user_id: user.id,
+        account_token_id: token.id,
+        account_id: user.account.id,
+        project_id: project.id,
+        event_name: "build.failed",
+        callback_url: "https://example.com/events/#{number}",
+        signing_secret: secret,
+        refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+      })
+      |> Repo.insert!()
+    end
+
+    build_id = Ecto.UUID.generate()
+
+    assert :ok =
+             Publisher.publish(
+               "build.failed",
+               %{"project_id" => project.id, "build_system" => "xcode", "build_id" => build_id},
+               "xcode:#{build_id}"
+             )
+
+    fanout = Repo.one!(from job in Oban.Job, where: job.worker == ^inspect(FanoutWorker))
+    assert :ok = FanoutWorker.perform(fanout)
+    assert :ok = FanoutWorker.perform(fanout)
+    assert Repo.aggregate(from(job in Oban.Job, where: job.worker == ^inspect(DeliveryWorker)), :count, :id) == 101
+
+    assert :ok =
+             Publisher.publish(
+               "build.failed",
+               %{"project_id" => project.id, "build_system" => "xcode", "build_id" => build_id},
+               "xcode:#{build_id}"
+             )
+
+    assert Repo.aggregate(from(job in Oban.Job, where: job.worker == ^inspect(FanoutWorker)), :count, :id) == 1
   end
 
   test "failed builds, test runs, and runner jobs reach signed callbacks" do
@@ -340,6 +465,8 @@ defmodule Tuist.MCP.EventsTest do
 
     stub(SSRFGuard, :connect_options, fn "example.com" -> [] end)
 
+    test_process = self()
+
     expect(Req, :post, 3, fn "https://203.0.113.10/events", options ->
       headers = Map.new(options[:headers])
       body = options[:body]
@@ -347,7 +474,7 @@ defmodule Tuist.MCP.EventsTest do
       assert headers["webhook-signature"] ==
                Callback.sign(headers["webhook-id"], headers["webhook-timestamp"], body, secret)
 
-      send(self(), {:delivered, JSON.decode!(body)})
+      send(test_process, {:delivered, JSON.decode!(body)})
       {:ok, %Req.Response{status: 200}}
     end)
 

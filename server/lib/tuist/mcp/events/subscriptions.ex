@@ -13,6 +13,7 @@ defmodule Tuist.MCP.Events.Subscriptions do
   require Logger
 
   @default_ttl_ms 7 * 24 * 60 * 60 * 1_000
+  @minimum_ttl_ms 60 * 60 * 1_000
   @maximum_ttl_ms 30 * 24 * 60 * 60 * 1_000
   @maximum_subscriptions_per_user 25
 
@@ -99,7 +100,7 @@ defmodule Tuist.MCP.Events.Subscriptions do
 
   defp save_subscription(attrs) do
     Repo.transaction(fn ->
-      Repo.one!(from user in User, where: user.id == ^attrs.user_id, select: user.id, lock: "FOR UPDATE")
+      Repo.one!(from user in User, where: user.id == ^attrs.user_id, select: user.id, lock: "FOR NO KEY UPDATE")
 
       if subscription_available?(attrs.user_id, attrs.id) do
         case %Subscription{}
@@ -118,12 +119,12 @@ defmodule Tuist.MCP.Events.Subscriptions do
   end
 
   defp subscription_id(user_id, credential, url, event_name, target) do
-    credential_id = credential[:oauth_client_id] || credential[:account_token_id]
+    credential_id = credential[:oauth_grant_id] || credential[:account_token_id]
     target_id = target[:project_id] || "account:#{target[:account_id]}"
     digest = :crypto.hash(:sha256, "#{user_id}:#{credential_id}:#{url}:#{event_name}:#{target_id}")
     "sub_" <> Base.url_encode64(digest, padding: false)
   end
 
-  defp requested_ttl(ttl) when is_integer(ttl) and ttl > 0, do: min(ttl, @maximum_ttl_ms)
+  defp requested_ttl(ttl) when is_integer(ttl) and ttl > 0, do: ttl |> min(@maximum_ttl_ms) |> max(@minimum_ttl_ms)
   defp requested_ttl(_ttl), do: @default_ttl_ms
 end
