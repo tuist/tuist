@@ -414,7 +414,7 @@
       "role": "power",
       "hardware": "evmafc20a",
       "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain A. Carries the chain A minis and the RS485 sensor chain on its USB port. The second PDU, ordered 2026-09-24.",
+      "note": "Eaton Rack PDU G4 on chain A. Carries the chain A minis and the RS485 sensor chain on its SENSOR port. The second PDU, ordered 2026-09-24.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -442,7 +442,8 @@
         }
       ],
       "ats": "ber1-ats-3",
-      "mgmt_address": "192.168.0.16"
+      "mgmt_address": "192.168.0.16",
+      "mac": "00:20:85:b8:0e:3e"
     },
     {
       "name": "ber1-env-inlet",
@@ -510,7 +511,7 @@
     "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it.",
     "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
     "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs. One ATS is the critical layer and powers its loads directly; each of the other two feeds one PDU, and that pair is a chain. A node names the device its cord goes into, `ats` or `pdu`, never both, and a PDU names its ATS, so every node resolves to exactly one transfer switch. A mini and its ToR must resolve to the same one: chain A minis on ToR A, chain B minis on ToR B. Crossed, any one ATS failure takes the whole fleet, half losing power and the other half its switch. The paired nodes (edges, storage, ToRs) resolve to different ones. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
-    "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links.",
+    "sensors": "Environmental probes are not on the network. They chain off a PDU's SENSOR port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links.",
     "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT. On ber1-mgmt, ports 41-45 are the power appliances: ber1-ats-1 to ber1-ats-3 on 41-43, ber1-pdu-a on 44 and ber1-pdu-b on 45."
   },
   "kubernetes": {

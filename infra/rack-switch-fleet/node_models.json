@@ -87,15 +87,15 @@
         "speed": "1G",
         "out_of_band": "native"
       },
-      "usb": {
-        "media": "usb",
-        "note": "Feeds an RS485 sensor chain through a USB converter, and powers it."
+      "sensor": {
+        "media": "rj45",
+        "note": "The SENSOR port: feeds and powers the RS485 (Modbus) chain of environmental probes, which run probe to probe over RJ45 cables."
       }
     }
   },
   "emp-gen2": {
     "product": "Eaton EMP Gen 2 environmental probe",
-    "note": "No Ethernet at all. It hangs off a PDU's USB port through a USB-to-RS485 converter and draws its power over that link, so it occupies no switch port and has no management link. Its identity on the bus is a Modbus address, not a NIC.",
+    "note": "No Ethernet at all. It hangs off a PDU's SENSOR port over an RJ45 cable carrying RS485 (Modbus), chained probe to probe, and draws its power over that link, so it occupies no switch port and has no management link. Its identity on the bus is a Modbus address, not a NIC.",
     "bus": "rs485",
     "interfaces": {}
   }
