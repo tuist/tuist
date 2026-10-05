@@ -320,12 +320,29 @@ k8s-monitoring:
                       - ^/_internal/backfill/entries$
                     enabled_regex_matching: true
                     invert_match: true
+                  # The kubelet propagates one trace context across a pod's
+                  # probes for as long as it keeps probing, so each node's
+                  # /ready spans (one a second) share a trace lasting tens of
+                  # minutes. Every decision window of that trace spans more
+                  # than 2s, which made healthy probes about half of all
+                  # stored spans. Like the long-poll exclusion, this fails the
+                  # policy when any span matches, but the kubelet's trace holds
+                  # only probe spans: application requests carry their own
+                  # trace context, so no real request shares that trace.
+                  - name: not-a-probe
+                    type: string_attribute
+                    key: http.route
+                    values:
+                      - ^/(up|ready|metrics|status/rollout)$
+                      - ^/_internal/status$
+                    enabled_regex_matching: true
+                    invert_match: true
             # Errors and traces slower than 2s are retained above. Keep a
             # smaller representative sample for healthy traffic to contain
             # trace ingestion and downstream service-graph cost. Healthy probe
             # traces (kubelet /up and /ready, metrics scrapes, rollout polls
             # and the peer /_internal/status health check) carry no diagnostic
-            # value, so they are only kept when they fail or run slow.
+            # value, so they are only kept when they fail.
             - name: healthy-sample
               type: and
               and:

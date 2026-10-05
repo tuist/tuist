@@ -304,9 +304,13 @@ exclusions:
   listing on `/_internal/backfill/entries`) are held open for up to 25 seconds
   by design, so they do not count as slow. They are still kept when they fail
   and still take part in the 5 percent sample.
-- Healthy probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and
-  Kura's peer `/_internal/status` health check) are not sampled. They are kept
-  only when they fail or take longer than two seconds.
+- Probe traces (`/up`, `/ready`, `/metrics`, `/status/rollout` and Kura's
+  peer `/_internal/status` health check) are neither sampled nor treated as
+  slow. They are kept only when they fail. The latency policy measures the
+  trace, not the span, and the kubelet propagates one trace context across a
+  pod's probes, so Kura's one-second `/ready` probe forms a trace that lasts
+  tens of minutes. Before probes were excluded from the slow policy too, those
+  sub-millisecond spans were about half of every span stored.
 
 Both exclusions match on the `http.route` span attribute, so they apply to any
 service that reports one of those routes. Production runs
