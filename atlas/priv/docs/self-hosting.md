@@ -124,7 +124,7 @@ Bootstrap is a one-time setup step available to the operator of the installation
 
 You don't need to configure every integration to get Atlas running. Start with the workspace, then add the services required by the features you want to use. File workflows need compatible object storage; document search also needs a vector service and an embedding provider. Engineering error analytics uses [ClickHouse](https://clickhouse.com/docs).
 
-With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. Upstream tools start disabled through `MCP_PROXY_SERVERS=[]`, giving you a chance to configure your own connections before using them. Keep the development demo seeds out of an installation containing real data.
+With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. `MCP_PROXY_SERVERS=[]` starts with no deployment-configured upstream tool servers; you can add your own after signing in. Keep the development demo seeds out of an installation containing real data.
 
 With [Helm](https://helm.sh/docs/), inspect the available settings for the version you're running:
 
@@ -133,6 +133,18 @@ helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION
 ```
 
 You can configure external services through the application Secret and environment values. If you'd prefer the chart to manage [PostgreSQL](https://www.postgresql.org/docs/18/index.html), its bundled database configuration requires [CloudNativePG](https://cloudnative-pg.io/documentation/). Managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/), as do the chart's bundled vector storage and backup secret synchronization. These are choices you can make later; they're not prerequisites for the base installation.
+
+## Connect upstream tool servers
+
+Atlas can expose tools from upstream [Model Context Protocol servers](https://modelcontextprotocol.io/docs/learn/architecture) through its own authenticated `/mcp` endpoint. A fresh installation has no upstream servers. An administrator with `admin:write` access can add one at `/admin/mcps`: select **Add server**, enter a name and the server's public `https://` address, then provide its authorization and token endpoint addresses. The registration endpoint and requested authorization scopes are optional. Choose **Add server** to save it; the new server appears immediately, without restarting Atlas.
+
+Each person who needs that server selects **Connect** on the same page and completes the upstream's [Open Authorization 2.0](https://oauth.net/2/) flow. Atlas keeps each person's authorization session separately. When a session expires or is revoked, the page offers **Reconnect**. Only tools that the upstream marks as read-only are exposed from servers added in Atlas. A server that does not mark any tools as read-only will expose none, and Atlas relies on the upstream's own classification.
+
+The `create_mcp_server` and `delete_mcp_server` tools provide the same add and remove operations to authenticated tool clients with `admin:write` access. Creation takes the same addresses and an optional array of scopes; deletion takes the server name. Administrators with `admin:read` access can inspect the page but cannot add or remove servers, and these management tools are not available to them.
+
+Removing a server from the page or with `delete_mcp_server` removes its saved authorization sessions for all users. Re-adding it requires each user to connect again. Names supplied by deployment configuration cannot be removed through the page or tools. Shared credentials, custom request headers, and privileged identity headers remain deployment settings rather than administrator-managed options.
+
+If you are upgrading an installation that relied on Atlas implicitly loading Tuist's upstream servers when `MCP_PROXY_SERVERS` was unset, set `MCP_PROXY_SERVERS=tuist-managed` before upgrading to preserve those servers. Tuist's managed production deployment already sets this value explicitly. Other installations can keep `MCP_PROXY_SERVERS=[]` and add servers at runtime, or supply a server list through deployment configuration when they need options that the page does not offer.
 
 ## Backups and upgrades
 
