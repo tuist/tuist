@@ -87,6 +87,7 @@ Put the before/after numbers for all four axes in the pull request description, 
 - Keep `LICENSE.md`, `CLA.md`, and `cla/` aligned with root licensing and contribution policy changes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
+- ByteStream partial staging is request-owned, not resumable session state. Missing completed-upload status signals `UNIMPLEMENTED` so Bazel can restart; keep this contract and completed-artifact queries covered by the real uploader fixture in `test/e2e/bytestream-recovery/`. A Write of an already stored direct blob is drained, not answered early: early answers reset streams the client is still sending on and exhaust h2's per-connection error-reset budget (GOAWAY `too_many_internal_resets`)
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
 - When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
   `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That

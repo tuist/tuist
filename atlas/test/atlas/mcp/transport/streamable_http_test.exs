@@ -1,5 +1,5 @@
 defmodule Atlas.MCP.Transport.StreamableHTTPTest do
-  use ExUnit.Case, async: true
+  use Atlas.DataCase, async: true
   use Mimic
 
   import Plug.Conn

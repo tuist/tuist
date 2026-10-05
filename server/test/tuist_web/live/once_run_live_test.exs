@@ -99,6 +99,33 @@ defmodule TuistWeb.OnceRunLiveTest do
     assert row_count(view) == 1
   end
 
+  test "the Overview tab does not query the Cache tab", %{conn: conn, path: path} do
+    reject(&OnceEvents.cache_detail_metrics/1)
+    reject(&OnceEvents.count_cache_events/2)
+    reject(&OnceEvents.list_cache_events/2)
+
+    {:ok, view, _} = live(conn, path)
+    assert row_count(view) == 50
+
+    send(view.pid, :refresh)
+    assert row_count(view) == 50
+  end
+
+  test "switching to the Cache tab loads it and stops querying the actions", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path)
+    assert row_count(view) == 50
+
+    reject(&OnceEvents.count_actions/2)
+    reject(&OnceEvents.list_actions/2)
+
+    render_patch(view, path <> "/cache")
+    assert has_element?(view, "#once-cache-search")
+    assert has_element?(view, "#once-cache-table")
+
+    send(view.pid, :refresh)
+    assert has_element?(view, "#once-cache-table")
+  end
+
   defp row_count(view),
     do: view |> render() |> Floki.parse_fragment!() |> Floki.find("#once-actions-table tbody tr") |> length()
 

@@ -40,8 +40,13 @@ defmodule TuistWeb.OnceRunLive do
            run: run,
            available_filters: define_filters(),
            cache: OnceEvents.cache_summary(run),
-           cache_detail_metrics: OnceEvents.cache_detail_metrics(run),
+           # Filled by `load_cache/1` when the Cache tab is the one shown.
+           cache_detail_metrics: nil,
            cache_events: [],
+           actions: [],
+           action_count: 0,
+           total_pages: 1,
+           page: 1,
            cache_current_page: 1,
            cache_total_pages: 1,
            refresh_scheduled?: false,
@@ -86,8 +91,7 @@ defmodule TuistWeb.OnceRunLive do
        cache_sort_by: one_of(query["cache_sort_by"], @cache_sort_fields, "observed"),
        cache_sort_order: one_of(query["cache_sort_order"], ["asc"], "desc")
      )
-     |> load_actions()
-     |> load_cache()}
+     |> load_tab()}
   end
 
   # Called from the render, where the cache assigns are only present once
@@ -177,11 +181,17 @@ defmodule TuistWeb.OnceRunLive do
      socket
      |> assign(:run, run || socket.assigns.run)
      |> assign(:refresh_scheduled?, false)
-     |> load_actions()
-     |> load_cache()}
+     |> load_tab()}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
+
+  # Each tab renders only its own data, so only that tab's queries run. The
+  # Overview used to compute the Cache tab's page, count and detail metrics on
+  # every load and every refresh, and the reverse, although neither was shown.
+  # Switching tabs is a patch, which runs `handle_params/3` and loads the other.
+  defp load_tab(%{assigns: %{live_action: :cache}} = socket), do: load_cache(socket)
+  defp load_tab(socket), do: load_actions(socket)
 
   defp schedule_refresh(%{assigns: %{refresh_scheduled?: true}} = socket), do: {:noreply, socket}
 
