@@ -442,7 +442,7 @@ func openRackCardAdmin(ctx context.Context, c client.Client, recorder record.Eve
 		}
 		return rackCardAdminLogin{Session: session, How: "with the derived password"}, nil
 	}
-	if !adminLoginRefused(err) {
+	if !loginPasswordRefused(err) {
 		return rackCardAdminLogin{}, err
 	}
 	failures := []string{fmt.Sprintf("the derived password: %v", err)}
@@ -475,14 +475,14 @@ func openRackCardAdmin(ctx context.Context, c client.Client, recorder record.Eve
 	for _, cand := range candidates {
 		changed, err := open(cand.password, passwords.Admin)
 		if err != nil {
-			if !adminLoginRefused(err) {
+			if !loginPasswordRefused(err) {
 				return rackCardAdminLogin{}, err
 			}
 			failures = append(failures, fmt.Sprintf("%s: %v", cand.from, err))
 			continue
 		}
 		verified, err := proveRackCardAdmin(ctx, changed, open, passwords)
-		if err != nil && !adminLoginRefused(err) {
+		if err != nil && !loginPasswordRefused(err) {
 			return rackCardAdminLogin{}, err
 		}
 		if err == nil {
@@ -517,7 +517,7 @@ func openRackCardAdmin(ctx context.Context, c client.Client, recorder record.Eve
 		return rackCardAdminLogin{}, fmt.Errorf("%s; the factory login: %w", strings.Join(failures, "; "), factoryErr)
 	}
 	verified, err := proveRackCardAdmin(ctx, changed, open, passwords)
-	if err != nil && !adminLoginRefused(err) {
+	if err != nil && !loginPasswordRefused(err) {
 		return rackCardAdminLogin{}, err
 	}
 	if err != nil {
@@ -546,7 +546,7 @@ func proveRackCardAdmin(ctx context.Context, changed *power.EatonSession, open f
 	return open(passwords.Admin, "")
 }
 
-func adminLoginRefused(err error) bool {
+func loginPasswordRefused(err error) bool {
 	var refused *power.EatonLoginError
 	return errors.As(err, &refused) && refused.Refused()
 }

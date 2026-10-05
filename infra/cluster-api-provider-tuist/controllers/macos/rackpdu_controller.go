@@ -189,23 +189,35 @@ func (r *RackPDUReconciler) reconcileCard(ctx context.Context, pdu *infrav1.Rack
 	}
 	pdu.Status.Reachable = true
 
+	pinned := string(secret.Data[rackCardKeyFingerprint])
 	if blocked, err := pinRackCardCertificate(ctx, r.Client, r.Recorder, pdu, secret, presented); err != nil || blocked {
 		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, err
 	}
 
 	// A Secret recording other passwords than the derived ones is a card an
-	// earlier build or root key set: adopting moves it onto them.
-	if !rackCardCredentialsCurrent(secret, passwords) ||
+	// earlier build or root key set, and a certificate pinned anew (an
+	// accepted one) may be a card reset to its factory state: adopting moves
+	// either onto the derived passwords and the spec.
+	if !rackCardCredentialsCurrent(secret, passwords) || pinned != string(secret.Data[rackCardKeyFingerprint]) ||
 		((!pdu.Status.Adopted || pdu.Status.ObservedGeneration != pdu.Generation) && !r.adoptedAlready(ctx, pdu)) {
-		return r.adopt(ctx, pdu, secret, passwords)
+		return r.adopt(ctx, pdu, secret, passwords, false)
 	}
-	return r.verify(ctx, pdu, secret), nil
+	res, refused := r.verify(ctx, pdu, secret)
+	if refused {
+		// The controller's account no longer takes its password: a card reset
+		// to its factory state, or an account changed by hand. Adopting again
+		// remakes it, under the login backoff.
+		return r.adopt(ctx, pdu, secret, passwords, true)
+	}
+	return res, nil
 }
 
 // adopt converges the card to the spec, as its administrator: every step
 // reads first and writes only what differs, so a pass interrupted anywhere is
-// finished by the next.
-func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords) (ctrl.Result, error) {
+// finished by the next. afterRefusal is a pass started by the card refusing
+// the controller's password, which counts against the login backoff unless it
+// adopts the card.
+func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret, passwords rackcard.Passwords, afterRefusal bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	login, err := openRackCardAdmin(ctx, r.Client, r.Recorder, pdu, r.cardOutlet(pdu, secret), secret, passwords, r.timeout())
 	admin := login.Session
@@ -215,7 +227,7 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 			return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
 		}
 		markRackCardNotAdopted(pdu, eatonLoginReason(err), err)
-		if cardLoginRefused(err) {
+		if cardLoginRefused(err) || afterRefusal {
 			return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
 		}
 		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
@@ -258,6 +270,9 @@ func (r *RackPDUReconciler) adopt(ctx context.Context, pdu *infrav1.RackPDU, sec
 			markRackCardNotAdopted(pdu, "ConvergeFailed", err)
 		}
 		r.Recorder.Eventf(pdu, corev1.EventTypeWarning, "ConvergeFailed", "%v", err)
+		if afterRefusal {
+			return ctrl.Result{RequeueAfter: r.loginBackoff.refused(pdu)}, nil
+		}
 		return ctrl.Result{RequeueAfter: rackPDURetryInterval}, nil
 	}
 
@@ -328,8 +343,9 @@ func (r *RackPDUReconciler) converge(ctx context.Context, pdu *infrav1.RackPDU, 
 }
 
 // verify reads the card as the controller's account, which the power paths
-// use, and reports drift without writing.
-func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) ctrl.Result {
+// use, and reports drift without writing. It reports whether the card refused
+// the account's password, which only adopting the card again can mend.
+func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, secret *corev1.Secret) (ctrl.Result, bool) {
 	eaton, err := eatonDriver(r.Power)
 	var outlets []power.EatonOutletSettings
 	if err == nil {
@@ -341,16 +357,18 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 		// Nothing on the card was read, so this says nothing about drift.
 		if rackCardUnexpectedResponse(err) {
 			markRackCardUnexpected(pdu, err)
-			return ctrl.Result{RequeueAfter: rackPDURetryInterval}
+			return ctrl.Result{RequeueAfter: rackPDURetryInterval}, false
 		}
 		reason, retry := "Unreachable", rackPDURetryInterval
 		var refusal *power.EatonLoginError
+		refused := loginPasswordRefused(err)
 		if errors.As(err, &refusal) {
 			reason = "ControllerLoginFailed"
 			if refusal.Code == "AccountBlocked" {
 				reason = "AccountBlocked"
 			}
-			if cardLoginRefused(err) {
+			// A refused password is counted by the adoption pass it starts.
+			if cardLoginRefused(err) && !refused {
 				retry = r.loginBackoff.refused(pdu)
 			}
 		}
@@ -358,7 +376,7 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 		pdu.Status.Message = fmt.Sprintf("the controller's account cannot read the card: %v", err)
 		conditions.MarkFalse(pdu, clusterv1.ReadyCondition, reason, clusterv1.ConditionSeverityWarning, "%v", err)
 		conditions.MarkUnknown(pdu, RackPDUConvergedCondition, reason, "%s", pdu.Status.Message)
-		return ctrl.Result{RequeueAfter: retry}
+		return ctrl.Result{RequeueAfter: retry}, refused
 	}
 	r.loginBackoff.succeeded(pdu)
 	pdu.Status.OutletCount = len(outlets)
@@ -368,12 +386,12 @@ func (r *RackPDUReconciler) verify(ctx context.Context, pdu *infrav1.RackPDU, se
 	conditions.MarkTrue(pdu, clusterv1.ReadyCondition)
 	if wrong := outletsNotStarting(outlets, pdu.Spec.OutletStateOnStartup); len(wrong) > 0 {
 		markRackCardDrift(r.Recorder, pdu, fmt.Sprintf("outlets %s do not start %s", strings.Join(wrong, ", "), pdu.Spec.OutletStateOnStartup))
-		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}
+		return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, false
 	}
 	pdu.Status.Drift = infrav1.RackCardDriftNone
 	pdu.Status.Message = "converged"
 	conditions.MarkTrue(pdu, RackPDUConvergedCondition)
-	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}
+	return ctrl.Result{RequeueAfter: rackPDUResyncInterval}, false
 }
 
 // cardOutlet is the card as the power paths reach it: its egress Service when

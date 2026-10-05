@@ -496,8 +496,10 @@ reports `AddressReserved=False`, reason `NoMAC`.
    it. A card presenting another certificate (a replacement, a factory reset,
    or something else at the address) sets `CertificateChanged=True`, one
    warning event, and no writes, until `tuist.dev/accept-certificate=<the new
-   SHA-256>` names it; the controller pins it and clears the annotation, and
-   clears an annotation naming any other certificate with a warning.
+   SHA-256>` names it; the controller pins it, clears the annotation and adopts
+   the card again (a card that presents a new certificate may have been reset
+   to its factory state), and clears an annotation naming any other
+   certificate with a warning.
 4. **Adoption**, when the card is not adopted, the spec's generation moved,
    or the Secret records other passwords than the derived ones (a card an
    earlier build or an earlier root key set), as the administrator. The login
@@ -540,27 +542,35 @@ reports `AddressReserved=False`, reason `NoMAC`.
    controller's account through the driver's session: the outlets' startup
    state and that the account can still log in. Drift is reported
    (`drift: drifted`, `Converged=False` reason `Drifted`, one warning event)
-   and not written over; a new generation converges it. An account that cannot
-   log in, or a card that does not answer, is not drift, since nothing was
-   read: it is `Ready=False`, reason `ControllerLoginFailed` or `Unreachable`,
-   with `Converged` Unknown and drift `unknown`. A card that answers
+   and not written over; a new generation converges it. An account whose
+   password the card refuses starts an adoption pass at once: a card reset to
+   its factory state (admin back to `admin`/`admin`, the account gone) is
+   adopted again through the factory login, and an account whose password
+   someone changed is made again, either way with the spec reapplied. An
+   account that still cannot log in, or a card that does not answer, is not
+   drift, since nothing was read: it is `Ready=False`, reason
+   `ControllerLoginFailed`, `AdminLoginRefused` or `Unreachable`, with
+   `Converged` Unknown and drift `unknown`. A card that answers
    `AccountBlocked` is `Ready=False`, reason `AccountBlocked`.
 
 A refused login, the controller's account's or the administrator's (at
 most four attempts a pass, as above), is not retried every minute: a card may
-block an account after repeated failures. The wait doubles from a minute up to an hour and
-starts over on a success, a new generation or a change to the RackPDU's
-annotations (any annotation will do to retry at once). It is held in memory
-(`controllers/macos/rackcard_backoff.go`), so a new leader starts over.
+block an account after repeated failures. The wait doubles from a minute up to
+an hour and starts over on a success, a new generation or a change to the
+RackPDU's annotations (any annotation will do to retry at once). An adoption
+pass started by a refused controller login, and one whose rotation the card
+did not apply, count as refusals until a pass adopts the card. It is held in
+memory (`controllers/macos/rackcard_backoff.go`), so a new leader starts
+over.
 
 One generation is one adoption pass, and so is a Secret recording other
-passwords than the derived ones. The reconciler wakes for a new generation
-or an annotation, not for its own status writes, and before adopting it reads
-the RackPDU past the manager's cache, whose copy can lag the status the last
-pass wrote. A RackPDU switched to `managedBy: standalone` is `Ready=False`,
-reason `Standalone`, and the controller logs its session out of the card (so a
-person can log in with the account, and the card's one session for it is free)
-and stops contacting it. A logout that cannot reach the card is a
+passwords than the derived ones. The reconciler wakes for a new generation,
+an annotation or a deletion, not for its own status writes, and before
+adopting it reads the RackPDU past the manager's cache, whose copy can lag
+the status the last pass wrote. A RackPDU switched to `managedBy: standalone`
+is `Ready=False`, reason `Standalone`, and the controller logs its session out
+of the card (so a person can log in with the account, and the card's one
+session for it is free) and stops contacting it. A logout that cannot reach the card is a
 `LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
@@ -651,7 +661,9 @@ the next leader is not refused; a crashed operator's session holds the account
 until the card's hour of inactivity ends it. When the credentials or the pin
 change, the old session is logged out first, through a client pinned to the new
 certificate when the old one cannot connect, and a logout that still fails is
-reported rather than dropped. `Set` reads the outlet first, does
+reported rather than dropped. A logout the card answers 401 (it no longer
+knows the session, as after a factory reset) is done: nothing holds the
+account. `Set` reads the outlet first, does
 nothing when it is already in the requested state, refuses an outlet whose
 `specifications.switchable` is false, and returns once the outlet reads the new
 state. Account changes use the reauthentication token the card requires,
@@ -699,7 +711,8 @@ on delete either way), the root key and the passwords derived from it, the
 unowned `<name>-credentials` Secret (labelled `tuist.dev/rack-ats=<name>`, the
 same keys, outliving the object), trust on first use with
 `tuist.dev/accept-certificate`, the administrator login and its rotation onto
-the derived password, the login backoff (a refused or
+the derived password, adopting again after a refused controller login or an
+accepted certificate, the login backoff (a refused or
 blocked login waits a minute, doubling to an hour, reset by a success, a new
 generation or an annotation; `AccountBlocked` is its own `Ready` and `Adopted`
 reason), `RootKeyMissing`, the logout when it goes `standalone`, and

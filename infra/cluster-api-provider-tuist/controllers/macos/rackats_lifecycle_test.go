@@ -41,6 +41,8 @@ func TestRackATSBacksOffRefusedControllerLogins(t *testing.T) {
 	}
 	h.card.Mu.Unlock()
 	h.card.Expire()
+	// The administrator too, or adopting again would remake the account.
+	setAccountPassword(h.card, "admin", "Somebody-else2")
 	now := h.clock()
 
 	res := h.reconcile()
@@ -66,6 +68,7 @@ func TestRackATSBacksOffRefusedControllerLogins(t *testing.T) {
 	}
 
 	// A new generation starts over, and adopting makes the account again.
+	setAccountPassword(h.card, "admin", atsPasswords().Admin)
 	h.update(func(a *infrav1.RackATS) { a.Generation = 2 })
 	h.reconcile()
 	h.assertAdopted(1)

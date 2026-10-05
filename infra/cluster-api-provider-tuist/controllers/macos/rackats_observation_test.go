@@ -73,6 +73,7 @@ func TestRackATSConvergedIsUnknownWhenTheCardCannotBeRead(t *testing.T) {
 		}
 		h.card.Mu.Unlock()
 		h.card.Expire()
+		setAccountPassword(h.card, "admin", "Somebody-else2")
 		h.reconcile()
 		if cond := h.condition(RackCardConvergedCondition); cond == nil || cond.Status != corev1.ConditionUnknown {
 			t.Fatalf("Converged = %+v, want Unknown", cond)
@@ -101,6 +102,7 @@ func TestRackATSMessagesNameTheCard(t *testing.T) {
 	}
 	h.card.Mu.Unlock()
 	h.card.Expire()
+	setAccountPassword(h.card, "admin", "Somebody-else2")
 	h.reconcile()
 
 	message := conditions.GetMessage(h.ats(), clusterv1.ReadyCondition)

@@ -181,6 +181,24 @@ func (c *Card) RotateCertificate() {
 	c.cert = cert
 }
 
+// FactoryReset puts the card back to its factory state, as the reset button
+// does: only admin/admin, expired; no sessions; every outlet starting in "last
+// known state". The certificate is kept; RotateCertificate replaces it.
+func (c *Card) FactoryReset() {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	c.Accounts = map[string]*Account{
+		"0": {ID: "0", Name: "admin", Password: "admin", Profile: ProfileAdministrators, Enabled: true, PasswordExpired: true},
+	}
+	c.sessions = map[string]*session{}
+	for _, o := range c.Outlets {
+		o.Settings["stateOnStartup"] = "last known state"
+	}
+	if c.ATS != nil {
+		c.ATS.Settings[c.ATS.PreferredKey] = 1
+	}
+}
+
 // AddAccount adds a ready account: licence accepted, password not expired.
 func (c *Card) AddAccount(name, password, profile string) {
 	c.Mu.Lock()

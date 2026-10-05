@@ -431,40 +431,29 @@ func TestRackPDUReportsDriftAndConvergesItOnANewGeneration(t *testing.T) {
 	}
 }
 
-// A controller account that no longer takes the Secret's password is made
-// again on the next generation.
+// A controller account that no longer takes its password is made again at
+// once, and a login nobody can make is not drift: nothing on the card was
+// read.
 func TestRackPDURemakesAControllerAccountThatLostItsPassword(t *testing.T) {
 	h := newPDUHarness(t, rackPDU())
 	h.reconcile()
-	h.card.Mu.Lock()
-	for _, a := range h.card.Accounts {
-		if a.Name == "tuist-controller" {
-			a.Password = "Somebody-else1"
-		}
-	}
-	h.card.Mu.Unlock()
-	h.card.Expire()
+	setAccountPassword(h.card, "tuist-controller", "Somebody-else1")
 
-	h.reconcile()
-	// A login that fails is not drift: nothing on the card was read.
-	pdu0 := h.pdu()
-	ready := conditions.Get(pdu0, clusterv1.ReadyCondition)
-	if ready == nil || ready.Status == corev1.ConditionTrue || ready.Reason != "ControllerLoginFailed" {
-		t.Fatalf("Ready = %+v, want False/ControllerLoginFailed", ready)
-	}
-	if pdu0.Status.Drift != infrav1.RackCardDriftUnknown || conditions.GetReason(pdu0, RackPDUConvergedCondition) == "Drifted" || h.eventsMatching("Drifted") != 0 {
-		t.Fatalf("a login failure was reported as drift: %+v", pdu0.Status)
-	}
-
-	pdu := h.pdu()
-	pdu.Generation = 2
-	if err := h.r.Update(context.Background(), pdu); err != nil {
-		t.Fatal(err)
-	}
 	h.reconcile()
 	h.assertAdopted()
-	if h.eventsMatching("AccountRecreated") != 1 {
+	if h.eventsMatching("AccountRecreated") != 1 || h.eventsMatching("Drifted") != 0 {
 		t.Fatalf("events = %v", h.events)
+	}
+
+	setAccountPassword(h.card, "tuist-controller", "Somebody-else1")
+	setAccountPassword(h.card, "admin", "Somebody-else2")
+	h.reconcile()
+	pdu := h.pdu()
+	if conditions.IsTrue(pdu, clusterv1.ReadyCondition) {
+		t.Fatal("a card nobody can log in to is Ready")
+	}
+	if pdu.Status.Drift != infrav1.RackCardDriftUnknown || conditions.GetReason(pdu, RackPDUConvergedCondition) == "Drifted" || h.eventsMatching("Drifted") != 0 {
+		t.Fatalf("a login failure was reported as drift: %+v", pdu.Status)
 	}
 }
 

@@ -171,6 +171,7 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{RequeueAfter: rackATSRetryInterval}, nil
 	}
 	ats.Status.Reachable = true
+	pinned := string(secret.Data[rackCardKeyFingerprint])
 	if presented != "" {
 		blocked, err := pinRackCardCertificate(ctx, r.Client, r.Recorder, ats, secret, presented)
 		if err != nil || blocked {
@@ -180,11 +181,15 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	}
 
 	// A Secret recording other passwords than the derived ones is a card an
-	// earlier build or root key set: adopting moves it onto them.
+	// earlier build or root key set, and a certificate pinned anew (an
+	// accepted one) may be a card reset to its factory state: adopting moves
+	// either onto the derived passwords and the spec.
 	var convergeErr error
-	if !rackCardCredentialsCurrent(secret, passwords) ||
+	adopting := false
+	if !rackCardCredentialsCurrent(secret, passwords) || pinned != string(secret.Data[rackCardKeyFingerprint]) ||
 		((!ats.Status.Adopted || ats.Status.ObservedGeneration != ats.Generation) &&
 			!rackCardAdoptedPastCache(ctx, r.APIReader, r.Client, ats, &infrav1.RackATS{})) {
+		adopting = true
 		if wait := r.adminBackoff.wait(ats); wait > 0 {
 			convergeErr = fmt.Errorf("the administrator's login is held off for %s after the card refused it", wait.Round(time.Second))
 		} else {
@@ -195,7 +200,21 @@ func (r *RackATSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			convergeErr = err
 		}
 	}
-	res := r.observe(ctx, ats, card)
+	res, refused := r.observe(ctx, ats, card)
+	if refused && !adopting && r.adminBackoff.wait(ats) == 0 {
+		// The controller's account no longer takes its password: a card reset
+		// to its factory state, or an account changed by hand. Adopting again
+		// remakes it, under the administrator's login backoff.
+		adopted, done, err := r.adopt(ctx, ats, card)
+		if done {
+			return adopted, nil
+		}
+		if err == nil {
+			res, _ = r.observe(ctx, ats, card)
+		} else if !cardLoginRefused(err) {
+			r.adminBackoff.refused(ats)
+		}
+	}
 	if convergeErr != nil {
 		ats.Status.Message = fmt.Sprintf("generation %d did not converge: %v", ats.Generation, convergeErr)
 		conditions.MarkFalse(ats, RackCardConvergedCondition, atsReason(convergeErr, "ConvergeFailed"), clusterv1.ConditionSeverityWarning, "%s", ats.Status.Message)
@@ -261,15 +280,16 @@ func (r *RackATSReconciler) adopt(ctx context.Context, ats *infrav1.RackATS, car
 
 // observe reads the switch as the controller's account: which source powers
 // the load, each source's state, and the preferred source, which is reported
-// when it drifts and not written over.
-func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, card atsCard) ctrl.Result {
+// when it drifts and not written over. It reports whether the card refused the
+// account's password, which only adopting the card again can mend.
+func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, card atsCard) (ctrl.Result, bool) {
 	obs, err := card.Observe(ctx)
 	now := metav1.Now()
 	ats.Status.LastVerified = &now
 	if err != nil {
 		reason := atsReason(err, "ObservationFailed")
 		if reason == rackATSReasonUnsupported {
-			return ctrl.Result{RequeueAfter: r.markUnsupported(ats, err)}
+			return ctrl.Result{RequeueAfter: r.markUnsupported(ats, err)}, false
 		}
 		ats.Status.Drift = infrav1.RackCardDriftUnknown
 		ats.Status.Message = fmt.Sprintf("the controller's account cannot read the transfer switch: %v", err)
@@ -280,7 +300,7 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 		if cardLoginRefused(err) {
 			retry = r.loginBackoff.refused(ats)
 		}
-		return ctrl.Result{RequeueAfter: retry}
+		return ctrl.Result{RequeueAfter: retry}, loginPasswordRefused(err)
 	}
 	r.loginBackoff.succeeded(ats)
 
@@ -310,7 +330,7 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 		ats.Status.Message = "converged"
 		conditions.MarkTrue(ats, RackCardConvergedCondition)
 	}
-	return ctrl.Result{RequeueAfter: rackATSObserveInterval}
+	return ctrl.Result{RequeueAfter: rackATSObserveInterval}, false
 }
 
 // recordTransfer notes a change of the source powering the load, with an

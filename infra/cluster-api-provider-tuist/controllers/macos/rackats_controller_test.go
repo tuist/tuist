@@ -601,6 +601,7 @@ func TestRackATSControllerLoginFailureIsNotDrift(t *testing.T) {
 	}
 	h.card.Mu.Unlock()
 	h.card.Expire()
+	setAccountPassword(h.card, "admin", "Somebody-else2")
 
 	h.reconcile()
 

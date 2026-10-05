@@ -36,11 +36,13 @@ func TestRackPDUBacksOffRefusedControllerLogins(t *testing.T) {
 	}
 	h.card.Mu.Unlock()
 	h.card.Expire()
+	// The administrator too, or adopting again would remake the account.
+	setAccountPassword(h.card, "admin", "Somebody-else2")
 	now := h.clock()
 
 	res := h.reconcile()
-	if reason := conditions.GetReason(h.pdu(), clusterv1.ReadyCondition); reason != "ControllerLoginFailed" || res.RequeueAfter != time.Minute {
-		t.Fatalf("first refusal: Ready reason %q, requeue %s; want ControllerLoginFailed after 1m", reason, res.RequeueAfter)
+	if reason := conditions.GetReason(h.pdu(), clusterv1.ReadyCondition); reason != "AdminLoginRefused" || res.RequeueAfter != time.Minute {
+		t.Fatalf("first refusal: Ready reason %q, requeue %s; want AdminLoginRefused after 1m", reason, res.RequeueAfter)
 	}
 
 	attempts := loginAttempts(h)
@@ -63,6 +65,7 @@ func TestRackPDUBacksOffRefusedControllerLogins(t *testing.T) {
 	}
 
 	// A new generation starts over, and adopting makes the account again.
+	setAccountPassword(h.card, "admin", pduPasswords().Admin)
 	pdu := h.pdu()
 	pdu.Generation = 2
 	if err := h.r.Update(context.Background(), pdu); err != nil {
