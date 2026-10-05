@@ -39,6 +39,29 @@ fn tuning(app: &SharedState, source: PassSource) -> BackfillPassTuning {
     tuning
 }
 
+fn has_preferred_remote_donor(app: &SharedState, peer: &str) -> bool {
+    !app.prefers_peer(peer)
+        && app
+            .peer_views
+            .load()
+            .iter()
+            .any(|view| view.region != app.config.region && app.prefers_peer(&view.url))
+}
+
+async fn wait_for_preferred_donor(
+    app: &SharedState,
+    peer: &str,
+    cancel: &CancellationToken,
+    source: &PassSource,
+) {
+    if matches!(source, PassSource::PeerIndex) && has_preferred_remote_donor(app, peer) {
+        tokio::select! {
+            _ = cancel.cancelled() => {}
+            _ = tokio::time::sleep(Duration::from_millis(200)) => {}
+        }
+    }
+}
+
 async fn run_pass(
     app: &SharedState,
     peer: &str,
@@ -46,6 +69,7 @@ async fn run_pass(
     source: PassSource,
     window: BackfillWindow,
 ) -> BackfillPassOutcome {
+    wait_for_preferred_donor(app, peer, cancel, &source).await;
     let guard = app.backfill_claims.register_pass();
     run_backfill_pass_with_tuning(app, peer, window, guard, cancel, tuning(app, source)).await
 }
@@ -73,8 +97,7 @@ async fn request_page(
         url.push_str(&format!("&wait={}", app.config.sync_long_poll_secs));
     }
     let response = app
-        .client()
-        .get(&url)
+        .peer_request(reqwest::Method::GET, peer, &url)?
         .send()
         .await
         .map_err(|error| format!("region listing request failed: {error}"))?;
@@ -396,6 +419,61 @@ pub async fn run(
         if page.next_after.is_some() {
             after = page.next_after;
         }
+    }
+}
+
+#[cfg(test)]
+mod topology_tests {
+    use super::*;
+    use crate::{peer_topology::PeerTopology, sync::roles::PeerView, test_support::test_context};
+
+    #[tokio::test]
+    async fn only_backward_passes_yield_to_healthy_remote_private_donors() {
+        let own = PeerTopology {
+            provider: "ovh".into(),
+            private_network: Some("verified".into()),
+            private_url: Some("https://private.example:7443".into()),
+        };
+        let ctx = test_context(|config| {
+            config.region = "local".into();
+            config.peer_topology = Some(own.clone());
+        })
+        .await;
+        tokio::time::pause();
+        let preferred = "https://preferred.example:7443";
+        let other = "https://cross-provider.example:7443";
+        let cancel = CancellationToken::new();
+        for (region, healthy, source, target, expected_ms) in [
+            ("remote", true, PassSource::PeerIndex, other, 200),
+            ("remote", true, PassSource::Entries(vec![]), other, 0),
+            ("local", true, PassSource::PeerIndex, other, 0),
+            ("remote", false, PassSource::PeerIndex, other, 0),
+            ("remote", true, PassSource::PeerIndex, preferred, 0),
+        ] {
+            ctx.state.apply_peer_views(vec![PeerView {
+                url: preferred.into(),
+                region: region.into(),
+                topology: Some(own.clone()),
+                private_healthy: healthy,
+                serving: true,
+                draining: false,
+            }]);
+            let start = tokio::time::Instant::now();
+            wait_for_preferred_donor(&ctx.state, target, &cancel, &source).await;
+            if expected_ms == 0 {
+                assert_eq!(start.elapsed(), Duration::ZERO);
+            } else {
+                // Tokio rounds timer deadlines up to its next millisecond tick.
+                assert!(
+                    (Duration::from_millis(200)..=Duration::from_millis(201))
+                        .contains(&start.elapsed())
+                );
+            }
+        }
+        cancel.cancel();
+        let start = tokio::time::Instant::now();
+        wait_for_preferred_donor(&ctx.state, other, &cancel, &PassSource::PeerIndex).await;
+        assert_eq!(start.elapsed(), Duration::ZERO);
     }
 }
 

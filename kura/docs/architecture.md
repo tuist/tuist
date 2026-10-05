@@ -2,6 +2,22 @@
 
 This document explains how Kura works, starting from a very high level and going deeper as you read on. Skim the first sections for an overview; read further for the runtime, replication, and rollout details.
 
+Optional provider-aware replication keeps canonical peer identities and persisted
+watermarks separate from transport endpoints. Membership status advertises the
+provider and a deployment-verified private routing domain. All pull requests
+select a private HTTPS endpoint for matching providers/domains, report unsupported
+same-provider routes, and retain mTLS cross-provider links. Preference is bounded:
+healthy compatible donors win otherwise equivalent remote-region selection, while
+published coverage and sibling feeds remain intact. Only remote backward passes
+give healthy preferred donors in remote regions 200 ms to claim shared bodies;
+forward pages and local sibling donors never trigger that delay. Public status
+discovery retains its existing timeout and observation semantics. Private-probe
+health is separate from advertised serving/draining state, affects only remote
+donor ranking and preference, and never changes the local gateway election.
+Provider-only configuration is rejected; different same-provider domains remain
+fail-closed without public data fallback. See the
+[network qualification and rollout plan](../../infra/kura-controller/private-replication.md).
+
 ## What Kura Is
 
 Kura is a Rust service that builds **low-latency cache meshes**. A mesh is a small set of Kura nodes that each serve cache traffic from local disk and replicate writes to one another in the background. Clients (Bazel, Buck2, Xcode, Gradle, Tuist Module Cache, Nx, Metro) talk to whichever node is closest. Reads come back fast because they are local; writes propagate to peers asynchronously.

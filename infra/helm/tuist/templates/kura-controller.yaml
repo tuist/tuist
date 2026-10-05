@@ -360,6 +360,9 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            {{- if .Values.kuraController.privateReplication.enabled }}
+            - --private-replication=true
+            {{- end }}
             {{- if .Values.kuraController.stableDNS.enabled }}
             - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}
             - --stable-dns-owner={{ required "kuraController.stableDNS.ownerId is required" .Values.kuraController.stableDNS.ownerId }}

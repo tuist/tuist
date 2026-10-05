@@ -77,8 +77,7 @@ fn unsupported_route(status: StatusCode) -> bool {
 
 async fn request_head(app: &SharedState, peer: &str) -> Result<SyncForwardHead, String> {
     let response = app
-        .client()
-        .get(forward_url(app, peer, None))
+        .peer_request(reqwest::Method::GET, peer, &forward_url(app, peer, None))?
         .send()
         .await
         .map_err(|error| format!("sync head request failed: {error}"))?;
@@ -98,8 +97,11 @@ async fn request_forward(
     after: SyncPosition,
 ) -> Result<Forward, String> {
     let response = app
-        .client()
-        .get(forward_url(app, peer, Some(after)))
+        .peer_request(
+            reqwest::Method::GET,
+            peer,
+            &forward_url(app, peer, Some(after)),
+        )?
         .send()
         .await
         .map_err(|error| format!("sync forward request failed: {error}"))?;

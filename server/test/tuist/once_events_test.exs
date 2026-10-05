@@ -82,7 +82,22 @@ defmodule Tuist.OnceEventsTest do
 
   test "decoded failed run result remains failed", %{run: run} do
     project(run, %RunCompleted{result: :RUN_RESULT_FAILED, wall_ms: 123})
-    assert %{exit_status: 1, wall_ms: 123, finalization: "finalized"} = OnceEvents.get_run(run.project_id, run.run_id)
+
+    assert %{exit_status: 1, wall_ms: 123, finalization: "finalized", cancellation_reason: nil} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a cancelled run keeps why it was cancelled", %{run: run} do
+    project(run, %RunCompleted{result: :RUN_RESULT_CANCELLED, cancellation_reason: "SIGTERM", wall_ms: 40})
+
+    assert %{exit_status: 1, cancellation_reason: "SIGTERM", finalization: "finalized"} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a cancelled run without a reason is still recorded as cancelled", %{run: run} do
+    project(run, %RunCompleted{result: :RUN_RESULT_CANCELLED, wall_ms: 40})
+
+    assert %{cancellation_reason: "cancelled"} = OnceEvents.get_run(run.project_id, run.run_id)
   end
 
   test "search and filters apply before pagination and remain run scoped", %{run: run} do
@@ -870,7 +885,14 @@ defmodule Tuist.OnceEventsTest do
       |> where([r], r.id == ^run.id)
       |> Tuist.Repo.update_all(set: [started_at: stale, heartbeat_at: stale])
 
+    OnceEvents.subscribe_run(run.project_id, run.run_id)
+
     assert {:ok, 1} = OnceEvents.expire_stale_runs()
+
+    # Open run pages refresh on this, otherwise they keep rendering the run as
+    # in progress until someone reloads.
+    run_id = run.run_id
+    assert_receive {:run_updated, ^run_id}
 
     reloaded = OnceEvents.get_run(run.project_id, run.run_id)
     assert reloaded.finalization == "lost"
