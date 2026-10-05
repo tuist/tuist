@@ -245,7 +245,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert get_resp_header(conn, "cache-control") == ["public, max-age=3600"]
       refute Map.has_key?(response, "$schema")
       assert response["version"] == "1.0"
-      assert response["protocolVersion"] == "2025-06-18"
+      assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
       assert response["serverInfo"]["title"] == "Tuist"
