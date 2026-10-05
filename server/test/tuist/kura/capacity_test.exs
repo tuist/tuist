@@ -1025,18 +1025,67 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
     end
 
-    test "refuses a raise the instance's own box cannot take, however empty its siblings are" do
-      # The 2026-09-11 refusal: the region had hundreds of gibibytes free on
-      # another box, and both replicas were pinned by their local volumes to
-      # the one that could not hold them at the new size.
+    test "rebuilds a replica onto another box when its own cannot hold both at the new size" do
+      # The resize replaces each volume with a fresh, unbound one, so the
+      # rebuilt replica schedules wherever there is room. Here the first one
+      # cannot stay (137 + 64 < 256), lands on the new box, and the second
+      # follows it there.
       account = placement_account()
 
       stub_pool([
-        disk_box("roomy", 800, []),
-        disk_box("pinned", 100, [kura_pod(account, 30), kura_pod(account, 30)])
+        disk_box("current", 745, [neighbour_pod(480), kura_pod(account, 64), kura_pod(account, 64)]),
+        disk_box("new", 745, [])
       ])
 
-      assert Capacity.placeable?(region(), claim(account, "60Gi")) == false
+      assert Capacity.placeable?(region(), claim(account, "256Gi")) == true
+    end
+
+    test "refuses a raise no box can take a rebuilt replica for" do
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 745, [neighbour_pod(480), kura_pod(account, 64), kura_pod(account, 64)]),
+        disk_box("small", 300, [neighbour_pod(100)])
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "256Gi")) == false
+    end
+
+    test "charges each rebuilt replica where it landed before placing the next" do
+      # 565 GiB are free across both boxes once the old replicas are handed
+      # back, which covers two 266Gi replicas in aggregate. The first can only
+      # land on the other box, and neither what it leaves there nor the 265 GiB
+      # the second hands back on its own box takes the second.
+      account = placement_account()
+
+      stub_pool([
+        disk_box("current", 745, [neighbour_pod(480), kura_pod(account, 64), kura_pod(account, 64)]),
+        disk_box("other", 400, [neighbour_pod(100)])
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "265Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "266Gi")) == false
+    end
+
+    test "lands a rebuilt replica only on a box with room for everything it requests" do
+      # Disk to spare on the other box, but none of the egress the replica
+      # reserves: the scheduler would leave it Pending there.
+      account = placement_account()
+      egress = %{"tuist.dev/egress-mbps" => "500"}
+
+      stub_pool([
+        disk_box("current", 745, [
+          neighbour_pod(480),
+          kura_pod(account, 64, requests: egress),
+          kura_pod(account, 64, requests: egress)
+        ]),
+        pool_box("full-egress",
+          allocatable: %{"ephemeral-storage" => "745Gi"},
+          pods: [pool_pod(%{"tuist.dev/egress-mbps" => "1200"})]
+        )
+      ])
+
+      assert Capacity.placeable?(region(), claim(account, "256Gi")) == false
     end
 
     test "counts every workload on the node against it, in any namespace" do
@@ -1088,7 +1137,8 @@ defmodule Tuist.Kura.CapacityTest do
 
     test "does not charge a box for a replica its sibling box holds" do
       # The affinity only prefers co-location, so an account can straddle two
-      # boxes. Each rebuilds its own replica, and box-1 has room for one 30Gi.
+      # boxes. box-1 has room for one 30Gi, and box-2 for two 50Gi once its
+      # own replica is handed back.
       account = placement_account()
 
       stub_pool([
@@ -1096,8 +1146,8 @@ defmodule Tuist.Kura.CapacityTest do
         disk_box("box-2", 100, [kura_pod(account, 20)])
       ])
 
-      assert Capacity.placeable?(region(), claim(account, "30Gi")) == true
-      assert Capacity.placeable?(region(), claim(account, "31Gi")) == false
+      assert Capacity.placeable?(region(), claim(account, "50Gi")) == true
+      assert Capacity.placeable?(region(), claim(account, "51Gi")) == false
     end
 
     test "weighs the account's replicas against the same reading their node was measured in" do
@@ -1230,7 +1280,9 @@ defmodule Tuist.Kura.CapacityTest do
 
   # A replica as the controller labels it, on whichever box the test lists it.
   defp kura_pod(%Account{name: name}, gib, opts \\ []) do
-    %{"ephemeral-storage" => "#{gib}Gi"}
+    opts
+    |> Keyword.get(:requests, %{})
+    |> Map.put("ephemeral-storage", "#{gib}Gi")
     |> pool_pod(opts)
     |> Map.put("metadata", %{
       "namespace" => "kura",

@@ -24,11 +24,11 @@ defmodule Tuist.Kura.Capacity do
       reading over every resource the pod requests, because the scheduler
       declines per node and the resource that binds differs by region, and the
       region-level headroom `Tuist.Kura.Admission` creates instances against.
-    * whether a particular instance can be placed or grown where it already
+    * whether a particular instance can be placed, or grown from where it
       is (`placeable?/2`), so admission refuses a claim the scheduler will not
       be able to honour rather than leaving a replica Pending and its rolling
-      rebuild deadlocked. Per node again, and counting back what the
-      instance's own replicas release, because a resize replaces them.
+      rebuild stalled. Per node again, replaying the rebuild one replica at a
+      time, each handing back what it holds before its replacement is placed.
 
   Reservations rather than live usage on purpose. A freshly provisioned
   instance holds almost nothing and fills over days, so a region full of new
@@ -538,34 +538,36 @@ defmodule Tuist.Kura.Capacity do
   The region totals above cannot answer this. They compare one sum against
   another, and the scheduler places each replica whole on one node, so a
   region with room to spare in aggregate can have no node that takes a
-  replica. On 2026-09-11 one did: 646 GiB of headroom spread over three boxes
-  with 649, 143 and 117 GiB free, and an instance whose two replicas their
-  local volumes pinned to the 117.
+  replica.
 
   Two questions, because an instance that is already running is not placed
   the way a new one is:
 
-    * every box the instance's replicas sit on has to hold them at the new
-      size. A local volume pins its pod to its box, and neither side of that
-      will yield: the claim does not release while the pod references it, and
-      the pod does not schedule while the claim pins it. What the replicas
-      reserve today is counted back, because the rebuild hands it in before
-      asking for the replacement. Leaving it out would refuse resizes that
-      plainly fit.
+    * an instance with replicas placed grows the way the kura-controller
+      resizes it. The storage class cannot expand a volume, so the controller
+      deletes one replica's claim and pod, the StatefulSet recreates both, and
+      it moves on to the next ordinal only once that one is serving again. The
+      new claim is unbound until its pod is scheduled, so the rebuilt replica
+      lands on whichever node of the pool has room for everything it requests,
+      beside its sibling when that node does. This replays that sequence: each
+      replica below the new claim, in ordinal order, hands back what it holds
+      on its node, then needs one node with room for the new claim, which is
+      charged before the next replica's turn. A sibling not rebuilt yet keeps
+      its old reservation where it is. The instance is placeable when every
+      turn finds a node.
     * an instance with nothing placed has to fit whole somewhere. Its
       replicas split across nodes if no single node takes them all, because
       the controller's affinity only prefers co-location.
 
-  A box is charged for every replica the region declares that no other box
-  holds, not only for the ones it holds right now. A rollout replaces replicas
-  one at a time, and the one between deletion and recreation is in no pod list
-  while its volume is still bringing it back to the box it left. Read without
-  it, a box mid-rollout looks like it only has to hold what is left, and admits
-  a raise the returning replica cannot fit beside its sibling.
+  A replica the region declares that no node holds takes its turn first, with
+  nothing to hand back. It is either the one a resize already rebuilt, waiting
+  for a node, which the controller finishes before touching another, or one a
+  rollout is recreating, which needs the new claim somewhere before the resize
+  is done either way.
 
   One reading, per node, of everything scheduled there at its effective
   request, whoever owns it: the one `room_for?/2` reads. The account's own
-  replicas are picked out of those same pods, so what is counted back is
+  replicas are picked out of those same pods, so what is handed back is
   always something that reading already charged to the node. Read against what
   the node makes allocatable rather than against the pressure line the region
   reads against, because this answers what the scheduler will do; holding it
@@ -593,18 +595,79 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp fits?(nodes, handle, claim, replicas) do
-    case for(%{kura_replicas: %{^handle => placed}} = node <- nodes, do: {node, placed}) do
+    case placed_replicas(nodes, handle) do
       [] ->
         nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
 
-      boxes ->
-        placed_count = boxes |> Enum.map(fn {_node, %{count: count}} -> count end) |> Enum.sum()
+      [%{requests: requests} | _] = placed ->
+        request = Map.put(requests, @ephemeral_storage, claim)
+        unplaced = List.duplicate(%{node: nil, requests: %{}}, max(replicas - length(placed), 0))
+        rebuilt = Enum.filter(placed, &(Map.fetch!(&1.requests, @ephemeral_storage) < claim))
 
-        Enum.all?(boxes, fn {node, %{count: count, bytes: bytes}} ->
-          returning = max(count, replicas - (placed_count - count))
+        (unplaced ++ rebuilt)
+        |> Enum.reduce_while(Map.new(nodes, &{&1.name, &1}), fn replica, nodes ->
+          nodes = release(nodes, handle, replica)
 
-          disk_available(node) + bytes >= returning * claim
+          case landing(nodes, handle, request) do
+            nil -> {:halt, :unplaceable}
+            name -> {:cont, charge(nodes, name, handle, request)}
+          end
         end)
+        |> case do
+          :unplaceable -> false
+          _nodes -> true
+        end
+    end
+  end
+
+  # In the order the controller rebuilds them.
+  defp placed_replicas(nodes, handle) do
+    nodes
+    |> Enum.flat_map(fn %{name: name, kura_replicas: replicas} ->
+      replicas |> Map.get(handle, []) |> Enum.map(&Map.put(&1, :node, name))
+    end)
+    |> Enum.sort_by(& &1.ordinal)
+  end
+
+  defp release(nodes, _handle, %{node: nil}), do: nodes
+
+  defp release(nodes, handle, %{node: name, requests: requests} = replica) do
+    Map.update!(nodes, name, fn node ->
+      %{
+        node
+        | reserved: Map.merge(node.reserved, requests, fn _resource, reserved, amount -> reserved - amount end),
+          kura_replicas: Map.update!(node.kura_replicas, handle, &List.delete(&1, Map.delete(replica, :node)))
+      }
+    end)
+  end
+
+  defp charge(nodes, name, handle, request) do
+    Map.update!(nodes, name, fn node ->
+      %{
+        node
+        | reserved: Map.merge(node.reserved, request, fn _resource, reserved, amount -> reserved + amount end),
+          kura_replicas:
+            Map.update(
+              node.kura_replicas,
+              handle,
+              [%{ordinal: nil, requests: request}],
+              &[%{ordinal: nil, requests: request} | &1]
+            )
+      }
+    end)
+  end
+
+  # Where the scheduler puts a rebuilt replica: beside the account's other
+  # replicas when that node has room, as the controller's affinity prefers,
+  # and otherwise on the node with the most disk left.
+  defp landing(nodes, handle, request) do
+    nodes
+    |> Map.values()
+    |> Enum.filter(&(replicas_fitting(&1, request) >= 1))
+    |> Enum.sort_by(&{Map.get(&1.kura_replicas, handle, []) == [], -disk_available(&1), &1.name})
+    |> case do
+      [%{name: name} | _] -> name
+      [] -> nil
     end
   end
 
@@ -908,10 +971,11 @@ defmodule Tuist.Kura.Capacity do
   end
 
   # The region's cache replicas among a node's pods, by the account they serve:
-  # how many, and what they reserve at their effective request. Picked out of
-  # the same pods the node's reservation is summed from, so what a rebuild hands
-  # back is always something that reading already charged. Another region's
-  # instance of the same account on this box is a neighbour like any other.
+  # each one's StatefulSet ordinal and what it reserves at its effective
+  # request. Picked out of the same pods the node's reservation is summed from,
+  # so what a rebuild hands back is always something that reading already
+  # charged. Another region's instance of the same account on this box is a
+  # neighbour like any other.
   defp kura_replicas(pods, region_id) do
     pods
     |> Enum.reject(&terminal?/1)
@@ -927,13 +991,28 @@ defmodule Tuist.Kura.Capacity do
         }
       } = pod
       when is_binary(account) ->
-        [{account, pod_requested(pod, @ephemeral_storage)}]
+        [{account, %{ordinal: pod_ordinal(pod), requests: replica_requests(pod)}}]
 
       _pod ->
         []
     end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Map.new(fn {account, requests} -> {account, %{count: length(requests), bytes: Enum.sum(requests)}} end)
+  end
+
+  defp pod_ordinal(%{"metadata" => %{"name" => name}}) when is_binary(name) do
+    case name |> String.split("-") |> List.last() |> Integer.parse() do
+      {ordinal, ""} -> ordinal
+      _ -> nil
+    end
+  end
+
+  defp pod_ordinal(_pod), do: nil
+
+  defp replica_requests(pod) do
+    Map.new(@scheduled_resources, fn
+      @pods -> {@pods, 1}
+      resource -> {resource, pod_requested(pod, resource)}
+    end)
   end
 
   # Ready and not cordoned: the scheduler places on neither.
