@@ -2275,7 +2275,7 @@ msgstr ""
 msgid "Host"
 msgstr ""
 
-#: lib/tuist_web/live/once_test_run_live.ex:146
+#: lib/tuist_web/live/once_test_run_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "No test cases reported for this run"
 msgstr ""
@@ -2605,7 +2605,7 @@ msgstr ""
 msgid "Interrupted"
 msgstr ""
 
-#: lib/tuist_web/live/once_test_run_live.ex:144
+#: lib/tuist_web/live/once_test_run_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Once stopped reporting before this run finished"
 msgstr ""
@@ -2615,7 +2615,7 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: lib/tuist_web/live/once_test_run_live.ex:145
+#: lib/tuist_web/live/once_test_run_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "The run was cancelled before it reported any test cases"
 msgstr ""
