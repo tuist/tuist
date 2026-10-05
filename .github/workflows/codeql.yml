@@ -13,8 +13,8 @@ on:
 permissions:
   contents: read
 
-# Default setup starts one run per push with no way to supersede it, so a bot
-# pushing ~100 commits in a few minutes queued hundreds of hosted jobs.
+# Replaces default setup, which cannot supersede runs on rapid pushes. On main,
+# a newer pending run still replaces an older pending one.
 concurrency:
   group: codeql-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
