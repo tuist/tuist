@@ -124,13 +124,16 @@ jobs:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
-        # main's mise.toml and mise.lock over the older commit's, hidden from
-        # git: a run on a dirty checkout keeps its coverage off the commit.
+        # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
+        # the older commit's, hidden from git: a run on a dirty checkout keeps
+        # its coverage off the commit. The scripts matter: an older
+        # cache_ee_env.sh turns the compilation cache back on.
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
-          git show "$GITHUB_SHA:mise.toml" > mise.toml
-          git show "$GITHUB_SHA:mise.lock" > mise.lock
-          git update-index --skip-worktree mise.toml mise.lock
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
       - name: Initialize TuistCacheEE submodule
         run: bash mise/tasks/cli/ee.sh
       - uses: actions/cache/restore@v4
@@ -174,9 +177,10 @@ jobs:
         if: needs.commit.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
-          git show "$GITHUB_SHA:mise.toml" > mise.toml
-          git show "$GITHUB_SHA:mise.lock" > mise.lock
-          git update-index --skip-worktree mise.toml mise.lock
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -218,9 +222,10 @@ jobs:
         if: needs.commit.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
-          git show "$GITHUB_SHA:mise.toml" > mise.toml
-          git show "$GITHUB_SHA:mise.lock" > mise.lock
-          git update-index --skip-worktree mise.toml mise.lock
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
