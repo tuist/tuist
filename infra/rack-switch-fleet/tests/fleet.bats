@@ -2653,9 +2653,9 @@ STUB
     [[ "$output" == *"dhcp-range=set:machines,10.10.0.0,static,255.255.255.0,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:machines,option:router,10.10.0.1"* ]]
     [[ "$output" == *"dhcp-option=tag:machines,option:dns-server,1.1.1.1,8.8.8.8"* ]]
-    [[ "$output" == *"dhcp-host=bc:74:ea:be:0b:56,10.10.0.101,ber1-runner-b01,infinite"* ]]
+    [[ "$output" == *"dhcp-host=bc:74:ea:b7:76:b0,10.10.0.101,ber1-runner-b01,infinite"* ]]
     [[ "$output" == *"dhcp-host=bc:74:ea:b2:96:1d,10.10.0.102,ber1-runner-b02,infinite"* ]]
-    [[ "$output" == *"dhcp-host=bc:74:ea:b7:76:b0,10.10.0.103,ber1-runner-b03,infinite"* ]]
+    [[ "$output" == *"dhcp-host=bc:74:ea:be:0b:56,10.10.0.103,ber1-runner-b03,infinite"* ]]
     # both edges answer, so neither NAKs a request the machine sent the other
     [[ "$output" != *"dhcp-authoritative"* ]]
     # its own process and lease file, one interface each, so both share port 67
@@ -2670,7 +2670,7 @@ STUB
     yq '(.rackFleet.hosts[] | select(.name == "ber1-runner-b01")).address = "10.10.0.150"' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"dhcp-host=bc:74:ea:be:0b:56,10.10.0.150,ber1-runner-b01,infinite"* ]]
+    [[ "$output" == *"dhcp-host=bc:74:ea:b7:76:b0,10.10.0.150,ber1-runner-b01,infinite"* ]]
     # a site without the segment serves nothing there
     jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
     run fleet_edge_machines_dhcp "$BATS_TEST_TMPDIR/nomachines.json"

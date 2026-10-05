@@ -500,7 +500,7 @@
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
-          "mac": "bc:74:ea:be:0b:56"
+          "mac": "bc:74:ea:b7:76:b0"
         }
       ]
     },
@@ -534,7 +534,7 @@
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
-          "mac": "bc:74:ea:b7:76:b0"
+          "mac": "bc:74:ea:be:0b:56"
         }
       ]
     }

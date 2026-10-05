@@ -755,7 +755,7 @@ rackFleet:
   # on the same chain, which the site's render checks.
   hosts:
     - name: ber1-runner-b01
-      serial: JC332QMX73
+      serial: K9YLWQHQM2
       address: 10.10.0.101
       rack: prep
       shelf: tray-b1
@@ -771,7 +771,7 @@ rackFleet:
         pdu: ber1-pdu-b
         outlet: "2"
     - name: ber1-runner-b03
-      serial: K9YLWQHQM2
+      serial: JC332QMX73
       address: 10.10.0.103
       rack: prep
       shelf: tray-b1
