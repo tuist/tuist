@@ -48,8 +48,8 @@ kuraController:
   telemetry:
     deploymentEnvironment: staging
 
-# Shared per-node egress HTB tree on the kura bare-metal pools. Both staging
-# boxes advertise tuist.dev/egress-mbps (1000), and the staging regions set
+# Shared per-node egress HTB tree on the surviving OVH ca-east pool. Its
+# box advertises tuist.dev/egress-mbps (1000), and the staging region sets
 # egress_burst_mbps, so the controller renders the tuist.dev/egress-class pod
 # annotation the agent consumes. The image tag is resolved at deploy time
 # from the highest reachable egress-tree-agent@<semver> tag; pin an in-flight
@@ -57,7 +57,7 @@ kuraController:
 # input.
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-ca-east]
+  nodePools: [kura-ca-east]
 
 registry:
   publicHost: registry-staging.tuist.dev
@@ -139,18 +139,10 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # `eu-west` is the public region, now on the Dedibox bare-metal
-      # `kura-dedibox` pool (the eu-west cutover). `scw-fr-par-runners` is the
-      # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
-      # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
-      # the Macs' cache traffic never crosses the WAN. Linux runners have no
-      # private cache region: the former `hetzner-staging-runners` lived on the
-      # Hetzner ccx13 `kura` pool the cutover deleted, no customers used the
-      # staging Linux runner cache, and the region spec is gone with the pool.
-      # `ca-east` (Canada East / OVHcloud BHS) is
-      # the OVH bare-metal validation region — a geographic id; OVH is an
-      # implementation detail behind it (ovhFleet below, replicas 1).
-      value: eu-west,scw-fr-par-runners,ca-east
+      # Public validation uses the existing OVH ca-east fleet. Retire the
+      # Dedibox EU-West instances before the later fleet-retirement change.
+      # Preserve the Scaleway private cache beside the Mac mini fleet.
+      value: scw-fr-par-runners,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -302,10 +294,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build-staging.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events-staging.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events-staging.tuist.dev as GRPC end-to-end, so
+  # Once CLIs that discover the host via `/.well-known/once` can stream
+  # live run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   autoscaling:
     enabled: false
@@ -601,41 +599,6 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
-# adopts a pre-ordered Dedibox carrying the tuist-staging tag (the env boundary,
-# since all Dedibox share the org's default project) and self-joins it. The tag
-# is the env pool marker, not a workload one — the node is dedicated to Kura by
-# its taint + pool label, not by this name. Prereqs met: the DEDIBOX_SCW_API
-# 1Password item exists, and Start-9-M sd-188785 (DC5) is delivered and tagged.
-dediboxFleet:
-  enabled: true
-  machine:
-    # Exact tag match (not a prefix), so this is the shared pool tag every
-    # staging Dedibox carries; per-box identity is the server id, not the tag.
-    # Dedibox tags are console-only (the API tag-set 500s on these legacy boxes),
-    # so this stays kura-scoped to match what's set on sd-188785 — the generic
-    # tuist-staging rename waits on either a console retag or a working tag API.
-    adoptTag: tuist-kura-staging
-    # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
-    # Ubuntu 24.04 with SSH keys, unlike the Atom SKUs. Only sold in DC5/AMS1.
-    offer: Start-9-M
-    datacenter: DC5
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
-    # (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 1000
-  scaleway:
-    externalSecrets:
-      # 1Password item with the default-project Dedibox IAM key (secret-key +
-      # project-id), readable by the staging ClusterSecretStore.
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (the live key was extracted into this
-  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
-
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
@@ -654,7 +617,6 @@ ovhFleet:
   # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
   # /dedicated/server/*/reinstall (the release path reinstalls a released box).
   # replicas: 1 so the reconciler claims the box and self-joins it. The eu-west
-  # Dedibox path is the validated twin.
   enabled: true
   replicas: 1
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
@@ -666,9 +628,8 @@ ovhFleet:
   machine:
     # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
     # boundary — one OVH account holds every env's boxes). Prefix match (case-
-    # sensitive). The pre-ordered BHS box is named `tuist-kura-ovh-staging`, the
-    # kura-scoped per-env marker (mirrors the Dedibox fleet's `tuist-kura-staging`
-    # tag); canary/prod boxes use `tuist-kura-ovh-<env>`. The operator orders a
+    # sensitive). The BHS box uses the `tuist-kura-ovh-staging` prefix;
+    # canary/prod boxes use their own per-env prefixes. The operator orders a
     # SYS-1 in BHS, names it accordingly, and scales the fleet; the controller
     # claims a free match, installs the OS, and joins it.
     adoptDisplayNamePrefix: tuist-kura-ovh-staging
@@ -1151,12 +1112,10 @@ runnersController:
 # virtio-fs.
 runnersFleetLinux:
   enabled: true
-  # Staging validation of local custom cache volumes (PR #13488).
+  # Follow the controller's matching agent release, as production does.
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
-    image:
-      tag: sha-a1c278970fe8
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux

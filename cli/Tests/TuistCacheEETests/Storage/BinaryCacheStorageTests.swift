@@ -349,6 +349,9 @@ struct BinaryCacheStorageTests {
             ], cacheCategory: .binaries)
         }
         #expect(error?.failures.map(\.item.hash).sorted() == ["failed", "invalid"])
+        let reason = try #require(error?.failures.first { $0.item.hash == "failed" }?.reason)
+        #expect(reason.hasPrefix("1 of "))
+        #expect(reason.hasSuffix(" blobs could not be uploaded: Injected rejection"))
         #expect(await remote.actions.count == 1)
         let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
             .fetch([healthy], cacheCategory: .binaries).values.first)
@@ -535,10 +538,13 @@ actor MemoryREAPICache: REAPICacheStoring {
         return actions[digest]
     }
 
-    func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
+    func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
         let accepted = incoming.filter { !rejected.contains($0.key) }
         try await uploadBlobs(accepted)
-        return Set(accepted.keys)
+        return REAPIBlobUpload(
+            available: Set(accepted.keys),
+            failures: Dictionary(uniqueKeysWithValues: incoming.keys.filter(rejected.contains).map { ($0, "Injected rejection") })
+        )
     }
 
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws { actions[digest] = result }

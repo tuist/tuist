@@ -311,7 +311,7 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
     private func connectToServer(
         named projectHandle: String,
         answers: InitPromptAnswers?,
-        buildSystem: Components.Schemas.Project.build_systemPayload
+        buildSystem: ServerProjectBuildSystem
     ) async throws -> String? {
         // Server integration is assumed opted-in for the interactive flow;
         // agents can opt out with `--no-server` at the CLI, which surfaces here

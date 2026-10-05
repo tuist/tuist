@@ -1,0 +1,79 @@
+<main id="docs-page-layout" data-part="page">
+  <textarea id="docs-page-markdown" hidden readonly>{@page.markdown}</textarea>
+  <nav
+    id="docs-mobile-toc"
+    data-state="closed"
+    data-part="mobile-toc"
+    aria-label="Table of contents"
+  >
+    <a :for={heading <- @page.headings} href={"##{heading.id}"} data-part="mobile-toc-item">
+      {heading.title}
+    </a>
+  </nav>
+  <div id="docs-layout" data-part="docs-layout">
+    <nav id="docs-sidebar" data-part="docs-sidebar" aria-label="Documentation navigation">
+      <div data-part="sidebar-scroll">
+        <div
+          :for={
+            section <-
+              @pages
+              |> Enum.map(& &1.section)
+              |> Enum.uniq()
+          }
+          data-part="nav-section"
+        >
+          <.line_divider data-part="line-divider" />
+          <div data-part="content-divider"><span>{section}</span></div>
+          <div data-part="nav-items">
+            <a
+              :for={
+                page <-
+                  Enum.filter(@pages, &(&1.section == section))
+              }
+              href={if(page.slug == "", do: ~p"/docs", else: ~p"/docs/#{page.slug}")}
+              data-part="nav-link"
+              aria-current={if(page.slug == @slug, do: "page")}
+            >
+              <.tab_menu_vertical
+                data-part="nav-tab"
+                label={page.title}
+                data-selected={page.slug == @slug}
+              />
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div id="docs-content" data-part="docs-content" tabindex="-1">
+      <div data-part="mobile-copy">
+        <.page_copy id="docs-mobile-copy-dropdown" slug={@slug} />
+      </div>
+      <div :if={@slug == ""} id="docs-overview" data-part="overview">
+        <section data-part="hero">
+          <h1>Your operations, on auto-pilot</h1>
+          <p>
+            {@page.introduction}
+          </p>
+        </section>
+      </div>
+      <article data-part="documentation">
+        <h1 :if={@slug != ""}>{@page.title}</h1>
+        <div data-part="prose">{raw(@page.html)}</div>
+      </article>
+      <footer data-part="page-footer">
+        <span>Atlas documentation</span><a href="https://github.com/tuist/tuist/tree/main/atlas">View source on GitHub →</a>
+      </footer>
+    </div>
+    <aside id="docs-toc" data-part="docs-toc" aria-label="On this page">
+      <div data-part="toc-actions"><.page_copy id="docs-copy-dropdown" slug={@slug} /></div>
+      <div :if={@page.headings != []} data-part="toc-header">
+        <.icon name="news" /><span>On this page</span>
+      </div>
+      <ul :if={@page.headings != []} data-part="list">
+        <li :for={heading <- @page.headings} data-part="item">
+          <a href={"##{heading.id}"}>{heading.title}</a>
+        </li>
+      </ul>
+    </aside>
+  </div>
+</main>

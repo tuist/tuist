@@ -274,7 +274,7 @@ server:
     # unreachable from runner pods (its host is a cluster node IP, which
     # the runner egress policy's ipBlock rules never match under
     # Cilium). Tier 1 takes over once the Linux runners get a node-local
-    # Kura region on Dedibox.
+    # Kura region on OVH.
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
     # Operator project-access grants. The public key verifies grants
@@ -349,10 +349,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events.tuist.dev as GRPC end-to-end, so Once
+  # CLIs that discover the host via `/.well-known/once` can stream live
+  # run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
@@ -636,6 +642,9 @@ clickhouse:
       tags: tag:tuist-k8s-production
     backup:
       enabled: true
+      # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
+      # 2026-09-27 and grows with the dataset.
+      maxMemoryUsageForUserBytes: "25769803776"
     # Step 4 for production: mirror every ClickHouse write onto the in-cluster
     # server as well as Cloud.
     #
@@ -974,52 +983,6 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
-# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
-# (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
-# merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
-# box is delivered + tagged tuist-kura-production; an enabled fleet with no
-# adoptable box hangs helm --wait.
-#
-# eu-west is a shared public region, so its capacity is the sum of its boxes
-# and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
-# ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
-# allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
-# 4096 MiB) while the 2x1 TB NVMe would hold eight.
-#
-# Every box in this fleet must be in the same datacenter: Dedibox adoption
-# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which prefix-match it. The offer is left unset, so the tag and the
-# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
-# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
-# and nothing reports why.
-#
-# Raise replicas only once each box reports `installed`. Prep is
-# `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
-# which lays down the mirrored root plus the separate XFS /data that carries the
-# per-account project quota, then tags the box into the pool.
-dediboxFleet:
-  enabled: true
-  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
-  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
-  replicas: 3
-  machine:
-    adoptTag: tuist-kura-production
-    datacenter: DC5
-    os: ubuntu_24.04
-    # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
-    # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
-    egressBudgetMbps: 1000
-  scaleway:
-    externalSecrets:
-      item: DEDIBOX_SCW_API
-  # Own the fleet SSH key from 1Password (generated fresh into this item).
-  sshExternalSecret:
-    enabled: true
-    item: DEDIBOX_FLEET_SSH
-
 # Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
 # all have no presence there, which is what put a fourth provider in the fleet.
 vultrFleet:
@@ -1118,10 +1081,9 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # EU West migration: keep the existing pool selector while OVH and Dedibox
-  # coexist. Hosts must be installed, verified and marked before adoption.
-  # All three installs are requested and adoption markers verified. Confirm
-  # installation before the production deploy arrives; evacuate separately.
+  # Public EU West runs on these three OVH nodes after the September 28 move.
+  # Keep the historical pool name: live KuraInstances, local PVs and gateways
+  # still select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
     replicas: 3
@@ -1501,7 +1463,7 @@ runnersFleet:
   # `--atomic` rolls production back. That is the case the orphan-reclaim
   # comment in controllers/macos/orphan_reclaimer.go and the kura
   # cold-start note in cluster-api-provider-tuist/AGENTS.md describe;
-  # kura-fleet, ovh-fleet and dedibox-fleet have the same shape.
+  # kura-fleet and ovh-fleet have the same shape.
   #
   # The other reason to park first is money: Scaleway bills a mini under
   # Apple's 24h floor whether or not this controller ever adopts it.

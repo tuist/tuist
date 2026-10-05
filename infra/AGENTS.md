@@ -34,6 +34,8 @@ assumed one that was not there.
 
 ## Layout
 
+The standalone Atlas chart in `helm/atlas/` uses external PostgreSQL and an existing application Secret by default. Its `values-managed-production.yaml` overlay explicitly sets `ATLAS_ALLOWED_EMAIL_DOMAIN=tuist.dev`. Keep the organization admission policy in deployment configuration as Atlas decoupling proceeds.
+
 ### `helm/tuist/` — main Tuist Helm chart
 Umbrella chart for the server, cache, processor, auxiliary public server-owned workloads, and optional embedded infrastructure (Postgres, ClickHouse, object storage, observability). Used by:
 - **Self-hosters** — `helm install tuist infra/helm/tuist` with their own `values.yaml`. `managedSecrets: false` (the default) keeps behavior self-hosted: DATABASE_URL / S3 / etc. come from values directly.
@@ -241,6 +243,14 @@ Concrete rules for agents:
 - **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
 - **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's policy response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
 - The elevated `tuist-fleet-unwedge` role may delete a Kubernetes Node only after confirming that it is orphaned and its Cluster API Machine and infrastructure are already gone. Live fleet replacement must continue through Machine deletion so the owning controller recreates the host.
+- `tuist-fleet-unwedge` also permits patching an existing `OVHDedicatedMachine`
+  to repair diagnosed spec drift, such as a missing `egressBudgetMbps` already
+  declared by the reviewed fleet template. Compare the live Machine and template
+  first, patch only the intended field, and verify provider reconciliation and
+  Node capacity afterwards. This grant is resource-level, not field-level; it
+  does not authorize unrelated spec/metadata changes. It grants no OVH template
+  or status writes. Staging needs no elevation; canary/production still require
+  human elevation whose intent covers the repair.
 - The elevated `tuist-volume-decommission` role may delete a PersistentVolume only after confirming it is Released with no live claim. For a node-local (`scw-local-nvme`) PV, also confirm the node its `kubernetes.io/hostname` affinity names is gone, since deleting the PV skips the local-path teardown and would leak the directory on a live box. For an `hcloud-volumes` PV, patch `persistentVolumeReclaimPolicy` to `Delete` before deleting, or the backing block volume is stranded with nothing pointing at it.
 
 ### Forensic trail

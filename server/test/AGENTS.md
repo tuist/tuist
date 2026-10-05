@@ -3,8 +3,10 @@
 This directory contains ExUnit tests for the Tuist Server.
 
 ## Testing Guidelines
+- Search-indexing coverage verifies crawlable public project HTML, noindex for sensitive routes and failures, query-free canonical URLs, and bounded public-only project sitemaps. Keep private-project authorization unchanged.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
+- Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout. When adopting shared analytics cards, update page tests to assert the shared failure state and successful recovery; keep separate coverage for optional-result failures that must leave required content visible.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.
@@ -51,3 +53,7 @@ This directory contains ExUnit tests for the Tuist Server.
   region with unique AWS tags, and unsupported survivors must block retirement.
 - Kura rename regressions cover stable workload/peer identity with migrating client endpoints, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment, usage attribution and signed analytics ingestion through original/intermediate/current account handles. Endpoint migration defaults off even for already-renamed accounts; test actor isolation, independence from the rename flag, preserved deployed hosts/aliases on image updates, observation failures, paused expiry, and readiness-delayed publication after opt-in. Migration SQL tests use transaction-local shadow tables. URL-expiry coverage checks the exact 90-day boundary, independent deadlines, rename-back, automatic manifest reconciliation, and signup/rename refusal even after a client URL expires.
 - Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.
+
+- Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.
+
+- Verify analytics transitions locally with headless Chrome, not just the settled page: capture before and after screenshots, measure section bounds, and check that chart and table elements remain mounted during refresh. Cover empty and populated sibling pages across build systems, narrow viewports and both themes. Initial renders must tolerate partially completed required results; optional requests must not delay the whole card, and failed loads must leave filter controls usable.

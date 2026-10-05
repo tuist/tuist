@@ -1,0 +1,41 @@
+{{- $events := include "tuist.serverEventsConfig" . | fromYaml }}
+{{- if and .Values.server.enabled $events.enabled }}
+{{- $serviceName := include "tuist.componentName" (dict "root" . "component" "server") }}
+{{- $hostField := printf "%s.host" $events.source }}
+{{- $grpc := .Values.server.eventsGrpc.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server-events") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  annotations:
+    {{- with $events.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $grpc }}
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    {{- end }}
+spec:
+  {{- with $events.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if $events.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ required (printf "%s is required when its ingress is enabled" $hostField) $events.host | quote }}
+      secretName: {{ $events.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ required (printf "%s is required when its ingress is enabled" $hostField) $events.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $serviceName }}
+                port:
+                  name: {{ ternary "grpc" "http" $grpc }}
+{{- end }}

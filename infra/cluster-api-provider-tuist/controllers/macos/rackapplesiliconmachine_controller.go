@@ -125,6 +125,9 @@ type RackAppleSiliconMachineReconciler struct {
 	// down; zero means defaultPowerCycleSettle. See the RackHost reconciler's
 	// field for why this is not operator-facing.
 	PowerCycleSettle time.Duration
+
+	// osUpdateDial opens the SSH side of an in-place macOS update; nil dials the host.
+	osUpdateDial osUpdateDialFunc
 }
 
 func (r *RackAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
@@ -222,6 +225,13 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// An OS update's deadline holds however early the rest of this reconcile
+	// returns: a bootstrap or a push that keeps failing must not keep health-check
+	// remediation off past it.
+	if _, err := r.expireOSUpdate(ctx, machine); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Stage 0: the host this machine is.
 	host, result, err := r.hostOf(ctx, machine)
 	if err != nil || host == nil {
@@ -270,6 +280,19 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		knownFingerprint = bootstrapCreds.HostFingerprint
 	}
 
+	osUpdate := &osUpdateContext{
+		machine:          machine,
+		host:             host,
+		sshKey:           sshKey,
+		sudoPassword:     sudoPassword,
+		knownFingerprint: knownFingerprint,
+	}
+	if osUpdateRunsFirst(machine) {
+		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
+			return result, updateErr
+		}
+	}
+
 	// Bootstrap previously succeeded but the Node is gone: re-running bootstrap
 	// reloads launchd and tart-kubelet re-registers. Flipping the condition
 	// False lets the stage below drive the repair.
@@ -310,6 +333,13 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		// perspective, the same shape as a first-try success.
 		machine.Status.BootstrapAttempts = 0
 		machine.Status.BootstrapRebootIssued = false
+		// The tailnet state a reinstall kept has been restored; don't hold a
+		// device's keys any longer than that.
+		if bootstrapCreds != nil && len(bootstrapCreds.TailscaleState) > 0 {
+			if err := r.CredentialsManager.SetMachineTailscaleState(ctx, machine.Name, nil); err != nil {
+				logger.Error(err, "drop the restored tailnet state; will retry on the next bootstrap")
+			}
+		}
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Bootstrapped",
 			"%s joined the cluster as Node %s", host.Name, machine.Name)
 		logger.Info("bootstrap complete", "host", host.Name, "address", host.Spec.Address)
@@ -340,6 +370,11 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 	machine.Status.Ready = true
 	if !terminalPhasePinned(machine.Status.FailureReason) {
 		machine.Status.Phase = "Ready"
+	}
+	if osUpdatePending(machine) {
+		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
+			return result, updateErr
+		}
 	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
@@ -743,8 +778,17 @@ func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 	if err != nil {
 		return bootstrap.PerHost{}, &prepError{"TailscaleAuthKeyUnavailable", fmt.Errorf("get tailscale auth key: %w", err)}
 	}
+	machineCreds, err := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name)
+	if err != nil {
+		return bootstrap.PerHost{}, &prepError{"MachineCredentialsUnavailable", err}
+	}
+	var tailscaleState []byte
+	if machineCreds != nil {
+		tailscaleState = machineCreds.TailscaleState
+	}
 
 	return bootstrap.PerHost{
+		TailscaleState:       tailscaleState,
 		IP:                   r.dialTarget(host),
 		SSHUser:              host.Spec.SSHUser,
 		UserPassword:         sudoPassword,

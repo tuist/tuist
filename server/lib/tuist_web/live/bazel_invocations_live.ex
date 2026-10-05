@@ -248,8 +248,10 @@ defmodule TuistWeb.BazelInvocationsLive do
           </:actions>
         </.date_picker>
       </div>
-      <.card
+      <.async_card
+        :let={ready?}
         :if={@bazel_show_analytics}
+        results={[@invocation_analytics, @invocation_summary]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="bazel-invocation-analytics-card"
@@ -257,23 +259,23 @@ defmodule TuistWeb.BazelInvocationsLive do
         <div data-part="widgets">
           <.widget
             id="bazel-total-invocations"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={metric_title(@bazel_resource_kind, :total)}
             legend_color="primary"
             description={
               dgettext("dashboard_projects", "Completed Bazel commands in the retained data window.")
             }
-            value={if @invocation_summary.ok?, do: @invocation_summary.result.total}
-            trend_value={if @invocation_summary.ok?, do: @invocation_summary.result.total_trend}
+            value={if ready?, do: @invocation_summary.result.total}
+            trend_value={if ready?, do: @invocation_summary.result.total_trend}
             trend_label={@analytics_trend_label}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
             phx_click="select_widget"
             phx_value_widget="total-builds"
             selected={@analytics_selected_widget == "total-builds"}
           />
           <.widget
             id="bazel-success-rate"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={metric_title(@bazel_resource_kind, :success_rate)}
             legend_color="primary"
             description={
@@ -282,36 +284,34 @@ defmodule TuistWeb.BazelInvocationsLive do
                 "The share of completed commands with a zero exit code."
               )
             }
-            value={if @invocation_summary.ok?, do: success_rate(@invocation_summary.result)}
-            trend_value={
-              if @invocation_summary.ok?, do: @invocation_summary.result.success_rate_trend
-            }
+            value={if ready?, do: success_rate(@invocation_summary.result)}
+            trend_value={if ready?, do: @invocation_summary.result.success_rate_trend}
             trend_label={@analytics_trend_label}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
             phx_click="select_widget"
             phx_value_widget="build-success-rate"
             selected={@analytics_selected_widget == "build-success-rate"}
           />
           <.widget
             id="bazel-failed-invocations"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={metric_title(@bazel_resource_kind, :failed)}
             legend_color="destructive"
             description={
               dgettext("dashboard_projects", "Completed commands with a nonzero exit code.")
             }
-            value={if @invocation_summary.ok?, do: @invocation_summary.result.failed}
-            trend_value={if @invocation_summary.ok?, do: @invocation_summary.result.failed_trend}
+            value={if ready?, do: @invocation_summary.result.failed}
+            trend_value={if ready?, do: @invocation_summary.result.failed_trend}
             trend_label={@analytics_trend_label}
             trend_type={:inverse}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
             phx_click="select_widget"
             phx_value_widget="failed-builds"
             selected={@analytics_selected_widget == "failed-builds"}
           />
           <.percentile_dropdown_widget
             id="bazel-invocation-duration"
-            loading={!@invocation_summary.ok?}
+            loading={!ready?}
             title={duration_title(@selected_duration_type, @bazel_resource_kind)}
             description={
               dgettext(
@@ -320,13 +320,13 @@ defmodule TuistWeb.BazelInvocationsLive do
               )
             }
             value={
-              if @invocation_summary.ok?,
+              if ready?,
                 do:
                   DateFormatter.format_duration_from_milliseconds(
                     duration_value(@invocation_summary.result, @selected_duration_type)
                   )
             }
-            metrics={if @invocation_summary.ok?, do: duration_metrics(@invocation_summary.result)}
+            metrics={if ready?, do: duration_metrics(@invocation_summary.result)}
             selected_type={@selected_duration_type}
             legend_color={duration_legend_color(@selected_duration_type)}
             event_name="select_duration_type"
@@ -334,23 +334,28 @@ defmodule TuistWeb.BazelInvocationsLive do
             phx_value_widget="build-duration"
             selected={@analytics_selected_widget == "build-duration"}
             trend_value={
-              if @invocation_summary.ok?,
+              if ready?,
                 do: duration_trend(@invocation_summary.result, @selected_duration_type)
             }
             trend_label={@analytics_trend_label}
             trend_type={:inverse}
-            empty={@invocation_summary.ok? && @invocation_summary.result.total == 0}
+            empty={ready? && @invocation_summary.result.total == 0}
           />
         </div>
-        <.card_section :if={!@invocation_analytics.ok?} data-part="analytics-card-chart-section">
+        <.card_section
+          :if={!ready?}
+          data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
+        >
           <.skeleton_chart />
         </.card_section>
         <.card_section
           :if={
-            @invocation_analytics.ok? &&
+            ready? &&
               analytics_has_data?(@invocation_analytics.result, @analytics_selected_widget)
           }
           data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
         >
           <.chart
             id="bazel-builds-analytics-chart"
@@ -369,11 +374,12 @@ defmodule TuistWeb.BazelInvocationsLive do
         </.card_section>
         <.empty_card_section
           :if={
-            @invocation_analytics.ok? &&
+            ready? &&
               !analytics_has_data?(@invocation_analytics.result, @analytics_selected_widget)
           }
           title={dgettext("dashboard_projects", "No Bazel invocations in this period")}
           data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
         >
           <:image>
             <img
@@ -390,13 +396,16 @@ defmodule TuistWeb.BazelInvocationsLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
 
-      <.card
+      <.async_card
+        :let={ready?}
         :if={@bazel_show_analytics && @bazel_resource_kind == :builds}
+        results={[@configuration_insights_analytics]}
         title={dgettext("dashboard_builds", "Configuration Insights")}
         icon="device_laptop"
         data-part="configuration-insights-card"
+        chart_frame="small"
       >
         <:actions>
           <.dropdown
@@ -414,18 +423,21 @@ defmodule TuistWeb.BazelInvocationsLive do
             </.dropdown_item>
           </.dropdown>
         </:actions>
-        <.card_section :if={!@configuration_insights_analytics.ok?}>
-          <div data-part="configuration-insights-chart-skeleton">
-            <.skeleton_legend />
-            <.skeleton_chart />
-          </div>
+        <.card_section
+          :if={!ready?}
+          data-chart-frame="small"
+          data-part="configuration-insights-card-chart-section"
+        >
+          <.skeleton_legend />
+          <.skeleton_chart height="84px" />
         </.card_section>
         <.card_section
           :if={
-            @configuration_insights_analytics.ok? &&
+            ready? &&
               not Enum.empty?(@configuration_insights_analytics.result)
           }
           data-part="configuration-insights-card-chart-section"
+          data-chart-frame="small"
         >
           <.legend title={dgettext("dashboard_builds", "Build duration")} style="secondary" />
           <.chart
@@ -452,10 +464,11 @@ defmodule TuistWeb.BazelInvocationsLive do
         </.card_section>
         <.empty_card_section
           :if={
-            @configuration_insights_analytics.ok? &&
+            ready? &&
               Enum.empty?(@configuration_insights_analytics.result)
           }
           title={dgettext("dashboard_builds", "No data yet")}
+          data-chart-frame="small"
         >
           <:image>
             <img
@@ -472,7 +485,7 @@ defmodule TuistWeb.BazelInvocationsLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
       <.card
         title={@bazel_resource}
         icon="subtask"

@@ -87,6 +87,21 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > **Prefix mapping on Xcode 27 and later**
 >
 > On Xcode 27 and later, `tuist setup cache` also prints `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. They make compilation cache keys independent of where the project and `DerivedData` live. Add them as user-defined build settings. Enabling them changes every cache key, so the next build populates the cache again. `tuist generate` sets them for you when `enableCaching` is on.
+>
+> The compiler also writes the mapped paths into the code coverage data, and Xcode can't resolve them, so a coverage report would leave out every source compiled with prefix mapping. The printed settings, along with the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` ones, turn prefix mapping off in builds that gather code coverage. `tuist generate` does the same. Those builds still use the compilation cache, but their cache keys depend on the project and `DerivedData` paths.
+>
+> When you pass these settings to `xcodebuild` on the command line, single-quote the values that contain `$(...)`, as with `OTHER_SWIFT_FLAGS` above. Otherwise the shell expands them to empty strings and prefix mapping is turned off:
+>
+> ```
+> xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
+>     'SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     'CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO
+> ```
 
 > [!NOTE]
 > **Generated Projects**
@@ -178,7 +193,7 @@ Compilation cache settings aren't part of <.localized_link href="/guides/feature
 > [!NOTE]
 > **Prefix mapping settings are hashed**
 >
-> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 

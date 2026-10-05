@@ -59,7 +59,7 @@ spec:
                         VultrMachineSpec is the desired state of one Vultr bare-metal server backing
                         a customer-facing Kura cache region. It joins as an ordinary Linux worker Node
                         via the provider-generated self-join cloud-init, and it adopts a pre-ordered
-                        server rather than ordering one inline, like the OVH and Dedibox kinds.
+                        server rather than ordering one inline, like the OVH kind.
 
                         Vultr is here because South America has no OVH, Scaleway or Hetzner presence,
                         and it differs from the other Linux kinds in two ways that shape this type.
@@ -69,7 +69,7 @@ spec:
                         querying the label `tuist-kura-vultr-production` returns nothing for a box
                         labelled `tuist-kura-vultr-production-sa-west`. So there is no server-side
                         equivalent of the OVH displayName prefix, and the fleet marker is a tag, which
-                        is the Dedibox shape.
+                        provides the exact pool membership marker.
 
                         The install cannot produce the disk layout. Vultr exposes no partitioning
                         control and its installer offers only RAID 1 across both disks or no RAID,

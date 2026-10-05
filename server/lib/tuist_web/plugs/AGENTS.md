@@ -3,6 +3,7 @@
 This area owns Plug middleware for request processing.
 
 ## Responsibilities
+- `PublicPageHeaderPlug` keeps public-response classification separate from indexing. Project indexing overrides noindex only for opted-in public project HTML on hosted production; redirects and failures reset it. Public-account indexing retains its separate existing policy. Settings and download routes must remain non-indexable even under a public project.
 - Implement request/response middleware (auth, analytics, rate limiting).
 - Handle cross-cutting response negotiation, such as alternate agent-friendly representations.
 - Enforce cross-cutting concerns before controllers/LiveViews.

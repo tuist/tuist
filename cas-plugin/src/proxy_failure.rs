@@ -17,6 +17,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
+use crate::proxy_proto::STORE_STALL_ERROR;
+
 static CLAIM: ReportClaim = ReportClaim::new();
 
 /// Whether this failed lookup is the one that reports the failure, claiming the report
@@ -33,13 +35,20 @@ pub fn proxy_answered() {
     CLAIM.release();
 }
 
-/// The warning's text, which swift-build prefixes with `CAS error: `.
+/// The warning's text, which swift-build prefixes with `CAS error: `. A proxy
+/// that answers but cannot use the store is running, so its advice is about the
+/// store access it is waiting on, not about starting the proxy.
 pub fn message(socket_path: &str, error: &str) -> String {
+    let advice = if error.contains(STORE_STALL_ERROR) {
+        "Give tuist-cas-proxy access to that directory (System Settings > Privacy & Security > \
+         Full Disk Access), or check endpoint-security software on this Mac."
+    } else {
+        "Run `tuist setup cache` if the proxy is not running."
+    };
     format!(
         "The Tuist Xcode cache proxy at {socket_path} failed ({error}). Compilations that \
          needed it used the local cache only, without remote cache hits. Their uploads are \
-         kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if \
-         the proxy is not running."
+         kept on disk and sent once the proxy is reachable again. {advice}"
     )
 }
 
@@ -140,6 +149,18 @@ mod tests {
         );
         assert!(message.contains("/Users/me/.local/state/tuist/cas-proxy.sock"));
         assert!(message.contains("proxy connect: refused"));
+        assert!(!message.contains('\n'));
+    }
+
+    #[test]
+    fn a_stalled_store_is_explained_instead_of_suggesting_setup() {
+        let message = message(
+            "/Users/me/.local/state/tuist/cas-proxy.sock",
+            &format!("proxy error: {STORE_STALL_ERROR}: opening the store at /dd/plugin has not returned after 12s"),
+        );
+        assert!(message.contains("opening the store at /dd/plugin"));
+        assert!(message.contains("Full Disk Access"));
+        assert!(!message.contains("tuist setup cache"), "the proxy is running");
         assert!(!message.contains('\n'));
     }
 }

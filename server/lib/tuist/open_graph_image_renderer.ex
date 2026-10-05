@@ -47,7 +47,15 @@ defmodule Tuist.OpenGraphImageRenderer do
 
   def render(html, fallback_title) do
     run_render(fallback_title, fn ->
-      Carta.render(@pool, html, width: 1920, height: 1080, quality: 95)
+      # Carta opens separate browser connections for the viewport override and
+      # screenshot. Chrome clears the override when that connection closes.
+      # Keep sizing, navigation and capture together in one browser session.
+      BrowseChrome.checkout(@pool, fn browser ->
+        case BrowseChrome.Chrome.capture(browser, html, width: 1920, height: 1080, quality: 95) do
+          {:ok, _image} = result -> {result, :ok}
+          {:error, _reason} = result -> {result, :remove}
+        end
+      end)
     end)
   end
 

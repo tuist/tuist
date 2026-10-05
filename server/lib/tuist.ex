@@ -7,7 +7,9 @@ defmodule Tuist do
   if it comes from the database, an external API or others.
   """
   use Boundary,
-    deps: [],
+    # `Once` holds the generated `once.events.v1` protobuf and gRPC modules
+    # that `Tuist.OnceEvents` projects from.
+    deps: [Once],
     exports: [
       # Marketing
       # -----
@@ -99,6 +101,13 @@ defmodule Tuist do
       Bazel.ProfileUpload,
       Bazel.Action,
       Bazel.Timeline,
+      OnceEvents,
+      OnceEvents.Analytics,
+      OnceEvents.CacheAnalytics,
+      OnceEvents.Run,
+      OnceEvents.Action,
+      OnceEvents.TestCaseRun,
+      OnceEvents.TestSuiteRun,
       ReapiCache,
       ReapiCache.CacheEvent,
       CacheActionItems,
@@ -122,7 +131,15 @@ defmodule Tuist do
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
-      Tests.XcodeCoverage,
+      Tests.Enumeration,
+      Tests.Coverage,
+      Tests.Coverage.Commits,
+      Tests.Coverage.Evidence,
+      Tests.Coverage.ExcludedPaths,
+      Tests.Coverage.History,
+      Tests.Coverage.Report,
+      Tests.Coverage.Workers.CommitWorker,
+      Tests.CoverageCommit,
       Tests.TestRunStressCandidate,
       Shards,
       Shards.Analytics,
@@ -166,6 +183,13 @@ defmodule Tuist do
       Xcode.XcodeGraph,
       Xcode.XcodeProject,
       Xcode.XcodeTarget,
+      GitHistory,
+      GitHistory.Ref,
+      GitHistory.Commit,
+      GitHistory.CommitFile,
+      GitHistory.CommitListing,
+      GitHistory.CommitParent,
+      GitHistory.Repository,
       VCS.GitHubAppInstallation,
       VCS.RemoteURL,
       Alerts,

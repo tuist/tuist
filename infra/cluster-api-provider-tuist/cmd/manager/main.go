@@ -46,7 +46,6 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/macos"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
-	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/dedibox"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
@@ -909,43 +908,6 @@ func main() {
 			os.Exit(1)
 		}
 		setupLog.Info("Vultr machine reconciler enabled")
-	}
-
-	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same
-	// shape as OVH (install-on-claim, monthly contract). Talks raw HTTP to the
-	// Scaleway Dedibox API (the SDK client is broken) with a DEFAULT-project IAM
-	// key — every Dedibox in the org shares the default project, so it adopts by
-	// per-fleet tag, not by project. Gated on its dedicated DEDIBOX_SCW_SECRET_KEY
-	// so it stays dormant until an env opts in.
-	if os.Getenv("DEDIBOX_SCW_SECRET_KEY") != "" {
-		dediboxClient, err := dedibox.NewClientFromEnv()
-		if err != nil {
-			setupLog.Error(err, "dedibox client")
-			os.Exit(1)
-		}
-		// Register the fleet bootstrap SSH key in the Dedibox (org default)
-		// project via the Dedibox client — a Dedibox install only accepts keys
-		// from the server's project, not the per-env project the shared Scaleway
-		// client uses for the macOS/Elastic Metal kinds.
-		dediboxCreds := *credsManager
-		dediboxCreds.SSHKeyRegistrar = dediboxClient.RegisterSSHKey
-		if err := (&linux.DediboxMachineReconciler{
-			Client:             mgr.GetClient(),
-			APIReader:          mgr.GetAPIReader(),
-			Scheme:             mgr.GetScheme(),
-			DediboxClient:      dediboxClient,
-			Recorder:           mgr.GetEventRecorderFor("dediboxmachine-controller"),
-			CredentialsManager: &dediboxCreds,
-			Kubeconfig:         kubeconfigBuilder,
-			KubernetesMinor:    "v1.34",
-			DefaultDatacenter:  "dc3",
-			DefaultOS:          "ubuntu_24.04",
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "setup DediboxMachineReconciler")
-			os.Exit(1)
-		}
-		failoverMovers["dedibox"] = shared.DediboxFailoverMover{Client: dediboxClient, Zones: dedibox.Zones()}
-		setupLog.Info("Dedibox machine reconciler enabled")
 	}
 
 	// Failover-IP placement: keep each region's public peer failover IP routed to

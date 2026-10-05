@@ -35,9 +35,9 @@ alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
-alias Ueberauth.Strategy.Google
 
 # Configure the mailer
 #
@@ -117,7 +117,10 @@ config :atlas, Oban,
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
-       {"* * * * *", ErrorsSummaryWorker}
+       {"* * * * *", ErrorsSummaryWorker},
+       # Weekly digest of inbound emails the classifier silenced so
+       # the team stays aware of what was filtered.
+       {"0 9 * * 1", SupportInboxWeeklyDigest}
      ]},
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
@@ -207,6 +210,7 @@ config :esbuild,
   atlas: [
     args: [
       "js/app.js",
+      "js/docs.js",
       "--bundle",
       "--target=es2022",
       "--outdir=../priv/static/assets/js",
@@ -234,10 +238,7 @@ config :logger, :default_formatter,
 
 config :mdex_native, syntax_highlighter: :lumis
 
-# An operator grant is a live bearer that arrives as a query parameter on the
-# redirect back from ops. Phoenix logs request and LiveView event parameters,
-# so name it here rather than rely on the log level being high enough.
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "operator_grant"]
+config :phoenix, :filter_parameters, ["password", "token", "secret", "key"]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
@@ -247,13 +248,5 @@ config :req_llm, receive_timeout: llm_receive_timeout
 # tzdata 1.1.3 ships 2025a data, but its runtime updater crashes on IANA
 # 2026b under OTP 29 because it passes 24:00 transitions to :calendar.
 config :tzdata, :autoupdate, :disabled
-
-# Sign-in is restricted to the `tuist.dev` Google Workspace. The `hd`
-# parameter scopes Google's account picker to that hosted domain, but
-# it's only a hint — the callback re-validates the email domain server-side.
-config :ueberauth, Ueberauth,
-  providers: [
-    google: {Google, [default_scope: "email profile", hd: "tuist.dev"]}
-  ]
 
 import_config "#{config_env()}.exs"

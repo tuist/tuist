@@ -277,6 +277,16 @@
 			//        logs reach neither kubectl nor Loki.
 			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
+		{
+			// The in-cluster ClickHouse as a Tailscale Service, served by
+			// the `tailnet-ingress` ProxyGroup rather than a standalone
+			// proxy (clickhouse.managed.tailscale.proxyGroup). A Service is
+			// addressed by its own VIP, which the tag grant above does not
+			// cover, so the xcresult processor needs this one to connect.
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-clickhouse-production"],
+			"ip":  ["tcp:8123"],
+		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
 		// through the cluster-side subnet-router Connector
@@ -550,6 +560,14 @@
 			"192.168.0.14/32": ["tag:tuist-rack-edge"],
 			"192.168.0.15/32": ["tag:tuist-rack-edge"],
 			"192.168.0.16/32": ["tag:tuist-rack-edge"],
+		},
+		// Tailscale Services the operator's ingress ProxyGroups advertise
+		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator
+		// creates the Service when a Kubernetes Service opts in, and its
+		// proxies re-advertise it on every restart, so hand approval would
+		// take it offline on each rollout.
+		"services": {
+			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
 		},
 	},
 

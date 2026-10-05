@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  getNooraChartTheme,
   prepareChartOptions,
   rangeBarTooltipFormatter,
   tooltipSeries,
@@ -23,6 +24,31 @@ describe("tooltipSeries", () => {
 
     expect(html).not.toContain("0ms");
     expect(html).toContain("—");
+  });
+});
+
+describe("tooltip titles", () => {
+  const title = (dateFormat, date) => {
+    const html = getNooraChartTheme({
+      colors: ["#000"],
+      tooltip: { dateFormat },
+    }).tooltip.formatter([
+      { name: date, color: "#000", seriesName: "Coverage", value: [date, 50] },
+    ]);
+    // Intl separates a range with thin spaces.
+    return html
+      .match(/<span data-part="title">(.*?)<\/span>/)[1]
+      .replace(/\s/gu, " ");
+  };
+
+  it("titles a point by the calendar period it stands for, in UTC", () => {
+    expect(title("day", "2026-09-07T00:00:00.000000Z")).toBe("Sep 7, 2026");
+    expect(title("week", "2026-09-07T00:00:00.000000Z")).toBe(
+      "Sep 7 – 13, 2026",
+    );
+    expect(title("month", "2026-09-01T00:00:00.000000Z")).toBe(
+      "September 2026",
+    );
   });
 });
 

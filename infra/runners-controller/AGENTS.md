@@ -1299,3 +1299,13 @@ dependency. Manual branch image builds publish only commit tags; `latest` is
 reserved for main.
 
 - Cache-enabled Linux pods run a descriptor-based mount broker in the existing privileged DinD sidecar. The runner and Docker job containers retain their existing privileges and separate PID namespaces; only their pod-scoped work socket and cache subtree are shared. Update the cache revision when changing this wiring and validate against the matching runner image.
+
+Cache-agent metrics use a separate port 9091, annotated for Alloy discovery and
+allowed only from the observability namespace. Keep acquisition on 8090 scoped
+to runner pods. Low-cardinality phase/source/result counters and histograms cover
+restoration, publication and bounded prefetch; never label metrics with lease IDs,
+cache keys, paths or signed URLs. Non-production retains these metrics for recovery
+drills. See `cache-volumes.md` for queries and rollout evidence.
+The September 28 repeat-CI and recovery drill results are recorded in
+`cache-volume-validation.md`; distinguish measured workload gains from prefetch
+behavior that still needs production observation.
