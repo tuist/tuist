@@ -83,14 +83,14 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
          %{
            severity: :warning,
            file: "lib/greeter.ex",
-           source: Greeter,
+           stacktrace: [{Greeter, :greet, 1, [file: ~c"lib/greeter.ex", line: 12]}],
            message: "unused variable name",
            position: {12, 5}
          },
          %{
            severity: :error,
            file: "lib/greeter.ex",
-           source: Greeter,
+           stacktrace: [{Greeter, :greet, 1, [file: ~c"lib/greeter.ex", line: 20]}],
            message: "undefined function greet/1",
            position: 20
          }
@@ -184,7 +184,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     end
 
     # Without a sampler, so the test hands the reporter a known sample itself.
-    reporter = reporter(environment: environment, tag: "release")
+    reporter = reporter(environment: environment, project_config: [tags: ["release"]])
 
     send(reporter, {:machine_metric, MachineMetrics.sample(fn -> 1_700_000_000.0 end)})
     CompileReporter.record(reporter, :elixir, {:ok, []})
