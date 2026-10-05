@@ -1415,3 +1415,36 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Connect an upstream server using per-user authorization."
 msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:234
+#, elixir-autogen, elixir-format
+msgid "Changing server settings disconnects all saved user connections."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:118
+#, elixir-autogen, elixir-format
+msgid "Could not update server."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "Edit server"
+msgstr ""
+
+#: lib/atlas_web/live/admin/roles_live.ex:333
+#: lib/atlas_web/live/hardware_show_live.ex:252
+#: lib/atlas_web/live/mcp_live.ex:266
+#: lib/atlas_web/live/tasks_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:44
+#, elixir-autogen, elixir-format
+msgid "Server not found."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:108
+#, elixir-autogen, elixir-format
+msgid "Server updated."
+msgstr ""

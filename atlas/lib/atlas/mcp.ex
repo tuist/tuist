@@ -37,26 +37,59 @@ defmodule Atlas.MCP do
     Repo.get_by(ServerConfiguration, name: name)
   end
 
+  def get_server_configuration(id), do: Repo.get(ServerConfiguration, id)
+
   def change_server_configuration(%ServerConfiguration{} = server, attrs \\ %{}) do
     ServerConfiguration.changeset(server, attrs)
   end
 
   def create_server_configuration(attrs) do
-    changeset = ServerConfiguration.changeset(%ServerConfiguration{}, attrs)
-
-    changeset =
-      if Enum.any?(
-           Proxy.configured_servers(Application.get_env(:atlas, :mcp_proxy, [])),
-           &(&1.name == Ecto.Changeset.get_field(changeset, :name))
-         ) do
-        Ecto.Changeset.add_error(changeset, :name, "is reserved by deployment configuration")
-      else
-        changeset
-      end
-
-    changeset
+    %ServerConfiguration{}
+    |> ServerConfiguration.changeset(attrs)
+    |> reject_deployment_name()
     |> Repo.insert()
     |> audit_server_change("mcp_server.created")
+  end
+
+  def update_server_configuration(id, attrs) do
+    case Repo.get(ServerConfiguration, id) do
+      nil ->
+        {:error, :not_found}
+
+      server ->
+        changeset = server |> ServerConfiguration.changeset(attrs) |> reject_deployment_name()
+        updated = Ecto.Changeset.apply_changes(changeset)
+
+        changed? =
+          Enum.any?([:name, :url, :authorization_url, :token_url, :registration_url, :scopes], fn field ->
+            Map.get(server, field) != Map.get(updated, field)
+          end)
+
+        multi = Ecto.Multi.new() |> Ecto.Multi.update(:server, changeset)
+
+        multi =
+          if changed? do
+            Ecto.Multi.delete_all(multi, :sessions, from(s in OAuthSession, where: s.server_name == ^server.name))
+          else
+            multi
+          end
+
+        case Repo.transaction(multi) do
+          {:ok, %{server: updated}} -> audit_server_change({:ok, updated}, "mcp_server.updated")
+          {:error, :server, reason, _} -> {:error, reason}
+        end
+    end
+  end
+
+  defp reject_deployment_name(changeset) do
+    if Enum.any?(
+         Proxy.configured_servers(Application.get_env(:atlas, :mcp_proxy, [])),
+         &(&1.name == Ecto.Changeset.get_field(changeset, :name))
+       ) do
+      Ecto.Changeset.add_error(changeset, :name, "is reserved by deployment configuration")
+    else
+      changeset
+    end
   end
 
   def delete_server_configuration(id) do

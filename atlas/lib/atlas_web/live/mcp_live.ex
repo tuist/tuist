@@ -14,6 +14,7 @@ defmodule AtlasWeb.MCPLive do
      socket
      |> assign(:page_title, gettext("MCPs"))
      |> assign(:can_manage?, Users.has_scope?(socket.assigns.current_user, "admin:write"))
+     |> assign(:editing_server, nil)
      |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))}
   end
 
@@ -32,8 +33,25 @@ defmodule AtlasWeb.MCPLive do
   def handle_event("open_server_modal", _params, %{assigns: %{can_manage?: true}} = socket) do
     {:noreply,
      socket
+     |> assign(:editing_server, nil)
      |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
      |> push_event("open-modal", %{id: "add-mcp-server-modal"})}
+  end
+
+  def handle_event("open_edit_server_modal", %{"id" => id}, %{assigns: %{can_manage?: true}} = socket) do
+    case MCP.get_server_configuration(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("Server not found."))}
+
+      server ->
+        server = %{server | scope_list: Enum.join(server.scopes, " ")}
+
+        {:noreply,
+         socket
+         |> assign(:editing_server, server)
+         |> assign_form(MCP.change_server_configuration(server))
+         |> push_event("open-modal", %{id: "edit-mcp-server-modal"})}
+    end
   end
 
   def handle_event("close_server_modal", _params, socket) do
@@ -43,9 +61,17 @@ defmodule AtlasWeb.MCPLive do
      |> push_event("close-modal", %{id: "add-mcp-server-modal"})}
   end
 
+  def handle_event("close_edit_server_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_server, nil)
+     |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
+     |> push_event("close-modal", %{id: "edit-mcp-server-modal"})}
+  end
+
   def handle_event("validate_server", %{"server" => attrs}, %{assigns: %{can_manage?: true}} = socket) do
     changeset =
-      %ServerConfiguration{}
+      (socket.assigns.editing_server || %ServerConfiguration{})
       |> MCP.change_server_configuration(attrs)
       |> Map.put(:action, :validate)
 
@@ -70,6 +96,29 @@ defmodule AtlasWeb.MCPLive do
     end
   end
 
+  def handle_event(
+        "update_server",
+        %{"server" => attrs},
+        %{assigns: %{can_manage?: true, editing_server: %ServerConfiguration{} = server}} = socket
+      ) do
+    case MCP.update_server_configuration(server.id, attrs) do
+      {:ok, _server} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Server updated."))
+         |> assign(:editing_server, nil)
+         |> assign_form(MCP.change_server_configuration(%ServerConfiguration{}))
+         |> load_servers()
+         |> push_event("close-modal", %{id: "edit-mcp-server-modal"})}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not update server."))}
+    end
+  end
+
   def handle_event("delete_server", %{"id" => id}, %{assigns: %{can_manage?: true}} = socket) do
     case MCP.delete_server_configuration(id) do
       {:ok, _server} ->
@@ -85,6 +134,32 @@ defmodule AtlasWeb.MCPLive do
   end
 
   defp assign_form(socket, changeset), do: assign(socket, :server_form, to_form(changeset, as: :server))
+
+  attr :form, :any, required: true
+  attr :prefix, :string, required: true
+
+  defp server_fields(assigns) do
+    ~H"""
+    <.text_input id={"#{@prefix}-name"} field={@form[:name]} label={gettext("Name")} />
+    <.text_input id={"#{@prefix}-url"} field={@form[:url]} label={gettext("Server URL")} />
+    <.text_input
+      id={"#{@prefix}-authorization-url"}
+      field={@form[:authorization_url]}
+      label={gettext("Authorization URL")}
+    />
+    <.text_input id={"#{@prefix}-token-url"} field={@form[:token_url]} label={gettext("Token URL")} />
+    <.text_input
+      id={"#{@prefix}-registration-url"}
+      field={@form[:registration_url]}
+      label={gettext("Registration URL (optional)")}
+    />
+    <.text_input
+      id={"#{@prefix}-scopes"}
+      field={@form[:scope_list]}
+      label={gettext("OAuth scopes (space separated)")}
+    />
+    """
+  end
 
   def render(assigns) do
     ~H"""
@@ -125,32 +200,7 @@ defmodule AtlasWeb.MCPLive do
               phx-submit="create_server"
               data-part="form"
             >
-              <.text_input id="mcp-server-name" field={@server_form[:name]} label={gettext("Name")} />
-              <.text_input
-                id="mcp-server-url"
-                field={@server_form[:url]}
-                label={gettext("Server URL")}
-              />
-              <.text_input
-                id="mcp-server-authorization-url"
-                field={@server_form[:authorization_url]}
-                label={gettext("Authorization URL")}
-              />
-              <.text_input
-                id="mcp-server-token-url"
-                field={@server_form[:token_url]}
-                label={gettext("Token URL")}
-              />
-              <.text_input
-                id="mcp-server-registration-url"
-                field={@server_form[:registration_url]}
-                label={gettext("Registration URL (optional)")}
-              />
-              <.text_input
-                id="mcp-server-scopes"
-                field={@server_form[:scope_list]}
-                label={gettext("OAuth scopes (space separated)")}
-              />
+              <.server_fields form={@server_form} prefix="mcp-server" />
             </.form>
 
             <:footer>
@@ -172,6 +222,52 @@ defmodule AtlasWeb.MCPLive do
                     variant="primary"
                     type="submit"
                     form="mcp-server-form"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+
+          <.modal
+            id="edit-mcp-server-modal"
+            title={gettext("Edit server")}
+            description={gettext("Changing server settings disconnects all saved user connections.")}
+            header_type="icon"
+            header_size="large"
+            on_dismiss="close_edit_server_modal"
+          >
+            <:trigger :let={attrs}><button type="button" hidden {attrs}></button></:trigger>
+            <:header_icon><.server /></:header_icon>
+
+            <.form
+              id="mcp-server-edit-form"
+              for={@server_form}
+              phx-change="validate_server"
+              phx-submit="update_server"
+              data-part="form"
+            >
+              <.server_fields form={@server_form} prefix="mcp-server-edit" />
+            </.form>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    size="medium"
+                    type="button"
+                    phx-click="close_edit_server_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    id="mcp-server-update"
+                    label={gettext("Save changes")}
+                    size="medium"
+                    variant="primary"
+                    type="submit"
+                    form="mcp-server-edit-form"
                   />
                 </:action>
               </.modal_footer>
@@ -222,6 +318,16 @@ defmodule AtlasWeb.MCPLive do
                   >
                     <:icon_right><.arrow_right /></:icon_right>
                   </.button>
+                </:button>
+                <:button :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}>
+                  <.button
+                    id={"mcp-edit-#{entry.server.name}"}
+                    phx-click="open_edit_server_modal"
+                    phx-value-id={@configuration_ids[entry.server.name]}
+                    label={gettext("Edit")}
+                    size="small"
+                    variant="secondary"
+                  />
                 </:button>
                 <:button :if={@can_manage? && Map.has_key?(@configuration_ids, entry.server.name)}>
                   <.button
