@@ -209,6 +209,81 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoiceTest do
              payload.line_items
   end
 
+  test "forwards prepaid runner terms and echoes them back on the line item" do
+    account =
+      insert_account!(%{
+        account_key: "customer:mcp-prepaid",
+        name: "MCP Prepaid",
+        currency: "USD",
+        stripe_customer_id: "cus_mcp_prepaid"
+      })
+
+    insert_order_form!(account, %{attributes: %{"signed" => true}})
+
+    StripeClient.put_create_draft_invoice(fn {_customer_id, attrs, _opts} ->
+      assert [line_item] = attrs.line_items
+      assert line_item.metadata["tuist_prepaid_runners"] == "macos"
+      assert line_item.metadata["tuist_prepaid_runners_funding_ratio_bp"] == "14000"
+      assert line_item.metadata["tuist_prepaid_runners_term"] == "yearly"
+
+      {:ok,
+       %Stripe.Invoice{
+         id: "in_mcp_prepaid",
+         status: "draft",
+         amount_value: Decimal.new("8000.00"),
+         amount_currency: "USD",
+         customer_id: "cus_mcp_prepaid"
+       }}
+    end)
+
+    assert {:ok, payload} =
+             execute_tool(CreateStripeDraftInvoice, executive_mcp_conn(), %{
+               "account_id" => account.id,
+               "line_items" => [
+                 %{
+                   "description" => "Prepaid Tuist Runners minutes",
+                   "amount" => "8000.00",
+                   "currency" => "USD",
+                   "prepaid_runners" => %{
+                     "platforms" => ["macos"],
+                     "funding_ratio_bp" => 14_000,
+                     "term" => "yearly"
+                   }
+                 }
+               ]
+             })
+
+    assert [%{prepaid_runners: %{platforms: ["macos"], funding_ratio_bp: 14_000, term: "yearly"}}] =
+             payload.line_items
+  end
+
+  test "explains which prepaid runner term was rejected" do
+    account =
+      insert_account!(%{
+        account_key: "customer:mcp-prepaid-invalid",
+        name: "MCP Prepaid Invalid",
+        currency: "USD",
+        stripe_customer_id: "cus_mcp_prepaid_invalid"
+      })
+
+    insert_order_form!(account, %{attributes: %{"signed" => true}})
+
+    assert {:error, message} =
+             execute_tool(CreateStripeDraftInvoice, executive_mcp_conn(), %{
+               "account_id" => account.id,
+               "line_items" => [
+                 %{
+                   "description" => "Prepaid Tuist Runners minutes",
+                   "amount" => "8000.00",
+                   "currency" => "USD",
+                   "prepaid_runners" => %{"platforms" => ["macos"], "term" => "annual"}
+                 }
+               ]
+             })
+
+    assert message =~ "term"
+  end
+
   defp insert_order_form!(account, attrs) do
     document_type = Documents.upsert_document_type("order_form")
 

@@ -567,6 +567,171 @@ defmodule Atlas.Accounts.StripeDraftInvoiceTest do
     assert [%{amount_cents: 1_620_000}] = result.line_items
   end
 
+  test "create marks a caller-supplied line as prepaid runner minutes for the Tuist server" do
+    account =
+      insert_account!(%{
+        account_key: "customer:prepaid-runners",
+        name: "Prepaid Runners Customer",
+        currency: "USD",
+        stripe_customer_id: "cus_prepaid_runners"
+      })
+
+    insert_order_form!(account, %{
+      title: "Prepaid Runners Signed Order Form",
+      attributes: %{"signed" => true}
+    })
+
+    StripeClient.put_create_draft_invoice(fn {_customer_id, attrs, _opts} ->
+      assert [prepaid, seats] = attrs.line_items
+
+      assert %{
+               amount_cents: 800_000,
+               period_start: ~D[2027-01-01],
+               period_end: ~D[2028-01-01],
+               prepaid_runners: %{platforms: ["macos"], funding_ratio_bp: 14_000, term: "yearly"}
+             } = prepaid
+
+      assert prepaid.metadata["tuist_prepaid_runners"] == "macos"
+      assert prepaid.metadata["tuist_prepaid_runners_funding_ratio_bp"] == "14000"
+      assert prepaid.metadata["tuist_prepaid_runners_term"] == "yearly"
+
+      refute Enum.any?(Map.keys(seats.metadata), &String.starts_with?(&1, "tuist_prepaid_runners"))
+      assert seats[:prepaid_runners] == nil
+
+      {:ok,
+       %Stripe.Invoice{
+         id: "in_prepaid_runners",
+         status: "draft",
+         amount_value: Decimal.new("9000.00"),
+         amount_currency: "USD",
+         customer_id: "cus_prepaid_runners"
+       }}
+    end)
+
+    assert {:ok, _result} =
+             Accounts.create_stripe_draft_invoice_from_latest_signed_order_form(account,
+               line_items: [
+                 %{
+                   "description" => "Prepaid Tuist Runners minutes",
+                   "amount" => "8000.00",
+                   "currency" => "USD",
+                   "period_start" => "2027-01-01",
+                   "period_end" => "2028-01-01",
+                   "prepaid_runners" => %{
+                     "platforms" => ["macos"],
+                     "funding_ratio_bp" => 14_000,
+                     "term" => "yearly"
+                   }
+                 },
+                 %{"description" => "Tuist SaaS", "amount" => "1000.00", "currency" => "USD"}
+               ]
+             )
+  end
+
+  test "create leaves the prepaid ratio and term to the Tuist server's defaults when omitted" do
+    account =
+      insert_account!(%{
+        account_key: "customer:prepaid-defaults",
+        name: "Prepaid Defaults Customer",
+        currency: "USD",
+        stripe_customer_id: "cus_prepaid_defaults"
+      })
+
+    insert_order_form!(account, %{attributes: %{"signed" => true}})
+
+    StripeClient.put_create_draft_invoice(fn {_customer_id, attrs, _opts} ->
+      assert [line_item] = attrs.line_items
+      assert line_item.metadata["tuist_prepaid_runners"] == "linux,macos"
+      refute Map.has_key?(line_item.metadata, "tuist_prepaid_runners_funding_ratio_bp")
+      refute Map.has_key?(line_item.metadata, "tuist_prepaid_runners_term")
+
+      {:ok, %Stripe.Invoice{id: "in_prepaid_defaults", status: "draft", customer_id: "cus_prepaid_defaults"}}
+    end)
+
+    assert {:ok, _result} =
+             Accounts.create_stripe_draft_invoice_from_latest_signed_order_form(account,
+               line_items: [
+                 %{
+                   "description" => "Prepaid Tuist Runners minutes",
+                   "amount" => "500.00",
+                   "currency" => "USD",
+                   "prepaid_runners" => %{"platforms" => ["macos", "linux", "macos"]}
+                 }
+               ]
+             )
+  end
+
+  test "create rejects prepaid runner terms the Tuist server would refuse to grant" do
+    account =
+      insert_account!(%{
+        account_key: "customer:prepaid-invalid",
+        name: "Prepaid Invalid Customer",
+        currency: "USD",
+        stripe_customer_id: "cus_prepaid_invalid"
+      })
+
+    insert_order_form!(account, %{attributes: %{"signed" => true}})
+
+    cases = [
+      {%{"platforms" => []}, %{}, :platforms},
+      {%{"platforms" => ["windows"]}, %{}, :platforms},
+      {%{"platforms" => "macos"}, %{}, :platforms},
+      {%{"platforms" => ["macos"], "funding_ratio_bp" => 9_999}, %{}, :funding_ratio_bp},
+      {%{"platforms" => ["macos"], "funding_ratio_bp" => 20_001}, %{}, :funding_ratio_bp},
+      {%{"platforms" => ["macos"], "funding_ratio_bp" => "14k"}, %{}, :funding_ratio_bp},
+      {%{"platforms" => ["macos"], "term" => "annual"}, %{}, :term},
+      {%{"platforms" => ["macos"], "term" => "yearly"}, %{"period_start" => "2027-01-01", "period_end" => "2028-01-02"},
+       :period},
+      {"macos", %{}, :prepaid_runners}
+    ]
+
+    for {prepaid_runners, period, field} <- cases do
+      line_item =
+        Map.merge(
+          %{
+            "description" => "Prepaid Tuist Runners minutes",
+            "amount" => "500.00",
+            "currency" => "USD",
+            "prepaid_runners" => prepaid_runners
+          },
+          period
+        )
+
+      assert {:error, {:invalid_prepaid_runners, ^field}} =
+               Accounts.create_stripe_draft_invoice_from_latest_signed_order_form(account, line_items: [line_item]),
+             "expected #{inspect(prepaid_runners)} with #{inspect(period)} to be rejected on #{field}"
+    end
+  end
+
+  test "edit attaches caller-supplied prepaid runner lines with their metadata" do
+    account =
+      insert_account!(%{
+        account_key: "customer:prepaid-edit",
+        name: "Prepaid Edit Customer",
+        currency: "USD",
+        stripe_customer_id: "cus_prepaid_edit"
+      })
+
+    StripeClient.put_add_invoice_items(fn {"in_prepaid_edit", [line_item], _opts} ->
+      assert line_item.metadata["tuist_prepaid_runners"] == "macos"
+      assert line_item.metadata["tuist_prepaid_runners_term"] == "monthly"
+
+      {:ok, %Stripe.Invoice{id: "in_prepaid_edit", status: "draft", customer_id: "cus_prepaid_edit"}}
+    end)
+
+    assert {:ok, _result} =
+             Accounts.edit_stripe_draft_invoice(account, "in_prepaid_edit", %{
+               line_items: [
+                 %{
+                   "description" => "Prepaid Tuist Runners minutes",
+                   "amount" => "500.00",
+                   "currency" => "USD",
+                   "prepaid_runners" => %{"platforms" => ["macos"], "term" => "monthly"}
+                 }
+               ]
+             })
+  end
+
   test "create rejects caller-supplied line items missing a description" do
     account =
       insert_account!(%{
