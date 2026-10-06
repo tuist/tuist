@@ -6,9 +6,11 @@ use std::{
     time::Instant,
 };
 
+use bazel_remote_apis::google::{protobuf, rpc};
 use bytes::Bytes;
 use futures_util::future::BoxFuture;
 use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
+use prost::Message;
 use tonic::{
     Status,
     codegen::{Body as HttpBody, Service, http},
@@ -49,6 +51,35 @@ pub(super) const CAS_SPLICE_BLOB_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob";
 pub(super) const BUILD_EVENT_STREAM_PATH: &str =
     "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream";
+// The remote-apis crate vendors Status but not google.rpc.RetryInfo.
+#[derive(Clone, PartialEq, Message)]
+struct RetryInfo {
+    #[prost(message, optional, tag = "1")]
+    retry_delay: Option<protobuf::Duration>,
+}
+
+fn write_admission_rejected(message: &str) -> Status {
+    let retry = RetryInfo {
+        retry_delay: Some(protobuf::Duration {
+            seconds: crate::backpressure::retry_after_seconds(10) as i64,
+            nanos: 0,
+        }),
+    };
+    let details = rpc::Status {
+        code: tonic::Code::ResourceExhausted as i32,
+        message: message.to_owned(),
+        details: vec![protobuf::Any {
+            type_url: "type.googleapis.com/google.rpc.RetryInfo".to_owned(),
+            value: retry.encode_to_vec(),
+        }],
+    };
+    Status::with_details(
+        tonic::Code::ResourceExhausted,
+        message,
+        Bytes::from(details.encode_to_vec()),
+    )
+}
+
 #[derive(Clone)]
 pub(super) struct GrpcWriteAdmission {
     reservation: std::sync::Arc<std::sync::Mutex<GrpcWriteReservation>>,
@@ -184,7 +215,7 @@ impl GrpcWriteAdmission {
             .try_grow_decode(encoded_message_bytes, decoded_structural_bytes)
             .map_err(|_| {
                 self.metrics.record_decode_rejected();
-                Status::resource_exhausted(
+                write_admission_rejected(
                     "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
             })
@@ -202,7 +233,7 @@ impl GrpcWriteAdmission {
             .try_configure_staging(declared_or_max_bytes)
             .map_err(|_| {
                 self.metrics.record_staging_rejected();
-                Status::resource_exhausted(
+                write_admission_rejected(
                     "server is limiting concurrent ByteStream staging; retry the write",
                 )
             })
@@ -386,7 +417,7 @@ pub(super) async fn reject_overloaded_grpc_writes(
         state
             .metrics
             .record_memory_action("grpc_write_rejected_critical");
-        return grpc_status_response(Status::resource_exhausted(
+        return grpc_status_response(write_admission_rejected(
             "server is shedding writes due to memory pressure; retry the write",
         ));
     }
@@ -420,7 +451,7 @@ pub(super) async fn admit_grpc_write_decode(
     ) {
         Ok(admission) => admission,
         Err(()) => {
-            return grpc_status_response(Status::resource_exhausted(
+            return grpc_status_response(write_admission_rejected(
                 "server is limiting concurrent remote-execution write decoding; retry the write",
             ));
         }
@@ -591,6 +622,46 @@ mod tests {
             "METRIC write_admission_metrics_clone_speedup_ratio={:.6}",
             speedups[median]
         );
+    }
+
+    #[test]
+    fn rejected_write_admission_has_bounded_standard_retry_info_and_releases_memory() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let mib = 1024 * 1024;
+        let memory =
+            MemoryController::with_runtime_limit(metrics.clone(), 1024 * mib, 256 * mib, 512 * mib);
+        memory.observe(mib);
+        let held = memory
+            .try_reserve_foreground_memory(memory.transient_capacity_bytes() - 2 * mib)
+            .unwrap();
+        let admission =
+            GrpcWriteAdmission::new(&memory, 2, metrics.grpc_write_admission_metrics()).unwrap();
+        admission.try_grow_decode(mib, 0).unwrap();
+        let staging_error = admission.try_configure_staging(64 * mib).unwrap_err();
+        let decode_error = admission.try_grow_decode(2 * mib, 0).unwrap_err();
+        for error in [staging_error, decode_error] {
+            assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+            let status = rpc::Status::decode(error.details()).unwrap();
+            assert_eq!(status.code, tonic::Code::ResourceExhausted as i32);
+            assert_eq!(status.message, error.message());
+            assert_eq!(status.details.len(), 1);
+            assert_eq!(
+                status.details[0].type_url,
+                "type.googleapis.com/google.rpc.RetryInfo"
+            );
+            let retry = RetryInfo::decode(status.details[0].value.as_slice()).unwrap();
+            let delay = retry.retry_delay.unwrap();
+            assert!((1..=10).contains(&delay.seconds));
+            assert_eq!(delay.nanos, 0);
+        }
+        // Failed growth keeps only the already-owned decode permit, never a waiter.
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            memory.transient_capacity_bytes()
+        );
+        drop(admission);
+        drop(held);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
     }
 
     #[test]
