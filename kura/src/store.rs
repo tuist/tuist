@@ -291,6 +291,10 @@ pub struct Store {
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Arc<Mutex<()>>; ARTIFACT_WRITE_LOCK_STRIPES],
+    // The WAL sequence of the latest inline write committed under each stripe.
+    // Inline writes release the stripe before their flush, so a later writer
+    // of the same key can read a row that is not durable yet.
+    artifact_write_durability_seqs: [AtomicU64; ARTIFACT_WRITE_LOCK_STRIPES],
     namespace_locks: [RwLock<()>; NAMESPACE_LOCK_STRIPES],
     // Artifacts served from an Old-generation segment queue here for background
     // promotion into the current segment instead of refreshing inline on the
@@ -1497,6 +1501,7 @@ impl Store {
             ),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             artifact_write_locks: std::array::from_fn(|_| Arc::new(Mutex::new(()))),
+            artifact_write_durability_seqs: std::array::from_fn(|_| AtomicU64::new(0)),
             namespace_locks: std::array::from_fn(|_| RwLock::new(())),
             promotion_queue: StdMutex::new(PromotionQueue::default()),
             promotion_notify: Notify::new(),
@@ -2895,17 +2900,19 @@ impl Store {
         // build committed `main`, and overwrite it with the `feature` tag it
         // precomputed, and with a newer version, so nothing downstream rejects
         // it. The key then leaves the trunk baseline it had just joined.
-        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
+        let stripe = self.artifact_write_lock_index(&artifact_id);
+        let _write_guard = self.artifact_write_locks[stripe].lock().await;
 
         let existing = match self.inline_apply_precheck(&artifact_id, &spec).await? {
             InlineApplyPrecheck::Ignored { outcome } => {
                 // The row that decided this may belong to a writer that has
                 // released the locks and is still waiting for its WAL flush;
                 // acknowledging before then could report a row a crash loses.
+                let decided_by =
+                    self.artifact_write_durability_seqs[stripe].load(Ordering::Acquire);
                 drop(_write_guard);
                 drop(_namespace_guard);
-                self.ensure_wal_durable(self.wal_pending_seq.load(Ordering::Acquire))
-                    .await?;
+                self.ensure_wal_durable(decided_by).await?;
                 return Ok(outcome);
             }
             InlineApplyPrecheck::Proceed { existing } => existing,
@@ -2936,6 +2943,9 @@ impl Store {
                 Vec::new(),
             )
             .await?;
+        if let Some(durability_seq) = durability_seq {
+            self.artifact_write_durability_seqs[stripe].fetch_max(durability_seq, Ordering::AcqRel);
+        }
         self.note_inline_manifest_committed(&manifest, wrote_action_cache_index);
         // The row is in the memtable, so the next writer of this key reads it
         // and a namespace delete's snapshot sees it; the WAL is ordered, so
@@ -21844,6 +21854,86 @@ mod tests {
             stale_apply.await.expect("stale apply should complete"),
             ArtifactApplyOutcome::IgnoredStale
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn an_ignored_apply_does_not_wait_for_an_unrelated_pending_write() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let stripe = |key: &str| {
+            store.artifact_write_lock_index(&artifact_storage_id(
+                ArtifactProducer::Xcode,
+                &store.tenant_id,
+                "ns",
+                key,
+            ))
+        };
+        let durable = "durable-key".to_string();
+        let pending = (0..)
+            .map(|i| format!("pending-key-{i}"))
+            .find(|key| stripe(key) != stripe(&durable))
+            .expect("some key should use another stripe");
+        store
+            .persist_inline_artifact_from_bytes_and_replicate(
+                ArtifactProducer::Xcode,
+                "ns",
+                &durable,
+                "application/json",
+                b"{}",
+                None,
+                None,
+            )
+            .await
+            .expect("durable write should persist");
+
+        let reached = Arc::new(Notify::new());
+        let resume = Arc::new(Notify::new());
+        store.failpoints().set_once(
+            FailpointName::BeforeWalFsync,
+            FailpointAction::Pause {
+                reached: reached.clone(),
+                resume: resume.clone(),
+            },
+        );
+        let pending_write = {
+            let store = store.clone();
+            tokio::spawn(async move {
+                store
+                    .persist_inline_artifact_from_bytes_and_replicate(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &pending,
+                        "application/json",
+                        b"{}",
+                        None,
+                        None,
+                    )
+                    .await
+                    .expect("pending write should persist")
+            })
+        };
+        reached.notified().await;
+
+        let outcome = tokio::time::timeout(
+            Duration::from_millis(200),
+            store.apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ns",
+                &durable,
+                "application/json",
+                b"{}",
+                1,
+                None,
+                None,
+            ),
+        )
+        .await
+        .expect("an apply ignored on a durable row must not wait for another key's flush")
+        .expect("stale apply should be ignored");
+        assert_eq!(outcome, ArtifactApplyOutcome::IgnoredStale);
+
+        resume.notify_one();
+        pending_write.await.expect("pending write should complete");
     }
 
     #[tokio::test]
