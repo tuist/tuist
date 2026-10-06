@@ -37,8 +37,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `overlapped`: an ancestor run recorded the test only as overlapping
     another test of its process (Swift Testing running in parallel), so
     nothing could be attributed to it.
-  - `dirty_run_excluded`: a scheme's coverage only came from runs on a dirty
-    checkout, which measured code that is not the commit's and never count.
+  - `dirty_run_excluded`: a scheme's coverage only came from CI runs on a
+    dirty checkout, which measured code that is not the commit's and never
+    count.
   """
   import Bitwise
 

@@ -125,7 +125,7 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
 
   @doc "Republishes the run's commit coverage, as the `CommitWorker` does after a run reports."
   def recompute_commit(run) do
-    if run.git_commit_sha not in [nil, ""] do
+    if run.git_commit_sha not in [nil, ""] and (run.git_dirty != true or run.is_ci) do
       Commits.recompute(Projects.get_project_by_id(run.project_id), run.git_commit_sha)
     end
   end

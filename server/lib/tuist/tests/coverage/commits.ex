@@ -41,13 +41,13 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   Schedules the commit's totals to be republished after a run reported
-  coverage for it. Nothing is scheduled for a run without a commit. A run
-  from a dirty checkout schedules a fold too: it never counts, but a scheme
-  only it measured leaves the commit's figure a lower bound, whichever of the
-  commit's runs lands last.
+  coverage for it. Nothing is scheduled for a run without a commit, or for a
+  local run from a dirty checkout. A CI run from a dirty checkout schedules a
+  fold too: it never counts, but a scheme only it measured leaves the
+  commit's figure a lower bound, whichever of the commit's runs lands last.
   """
-  def enqueue_recompute(%Test{git_commit_sha: sha} = test) do
-    if is_binary(sha) and sha != "",
+  def enqueue_recompute(%Test{git_commit_sha: sha, git_dirty: dirty, is_ci: ci} = test) do
+    if is_binary(sha) and sha != "" and (dirty != true or ci == true),
       do: enqueue_recompute(test.project_id, sha),
       else: :skipped
   end
@@ -65,7 +65,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   Whether the commit's figure is incomplete, a lower bound (`reported_kind`
   `partial`, `gap_reasons` saying why): the coverage of some skipped tests
   could not be determined, a selective run's skipped tests could not be
-  listed, or a scheme's coverage only came from runs on a dirty checkout. The
+  listed, or a scheme's coverage only came from CI runs on a dirty checkout. The
   fold decides it, so the actual coverage may be higher. A figure whose
   skipped tests were all carried forward is complete, as is one nothing
   skipped in.
@@ -248,9 +248,10 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # Besides the gaps `Reported` finds, the figure is a lower bound when what a
   # selective run skipped could not be listed (`observed` with a partial
-  # scheme), or when a scheme's coverage only came from runs on a dirty
+  # scheme), or when a scheme's coverage only came from CI runs on a dirty
   # checkout: the pipeline set out to measure it, and no clean run of it did,
-  # not even one skipped whole. Settled on the built row, so the unmeasured
+  # not even one skipped whole. A local run measures what a developer tried,
+  # not what the pipeline owes the commit. Settled on the built row, so the unmeasured
   # files are still read the way the coverage was reached.
   defp lower_bound(row, project_id, sha) do
     row =
@@ -272,7 +273,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     dirty =
       ClickHouseRepo.all(
         from(t in Test,
-          where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.id in subquery(covered),
+          where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
           group_by: t.id,
           having: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at) == true,
           select: fragment("any(?)", t.scheme)

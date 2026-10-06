@@ -156,6 +156,25 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.status(summary) == :incomplete
   end
 
+  test "a local dirty run of a scheme CI never ran leaves a complete commit whole", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    Commits.signal_complete(project, "abc123")
+
+    local =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])], %{
+        scheme: "LocalScheme",
+        is_ci: false,
+        git_dirty: true
+      })
+
+    assert Commits.enqueue_recompute(local) == :skipped
+    summary = Commits.recompute(project, "abc123")
+    assert {Commits.status(summary), Commits.gap_reasons(summary)} == {:complete, []}
+  end
+
   test "signals completion and keeps it across recomputes", %{project: project, account: account} do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 
@@ -433,6 +452,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: nil})
     assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: true})
+    assert Commits.enqueue_recompute(%{run | git_dirty: true, is_ci: false}) == :skipped
     assert Commits.enqueue_recompute(%{run | git_commit_sha: ""}) == :skipped
   end
 
