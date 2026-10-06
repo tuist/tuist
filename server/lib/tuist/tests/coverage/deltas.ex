@@ -748,20 +748,20 @@ defmodule Tuist.Tests.Coverage.Deltas do
   defp between(query, _project_id, _from_place, _to_place), do: query
 
   @doc """
-  A file's coverage at each of `points`' commits whose rows are current,
-  keyed by SHA, as `%{covered_lines:, executable_lines:}`; a commit without
-  the file has none. One path's rows along the commits' chains, read once.
+  A file's coverage at each of the commits whose rows are current, keyed by
+  SHA, as `%{covered_lines:, executable_lines:}`, or nil at a commit without
+  the file. `summaries` are the commits' published rows by SHA
+  (`Commits.by_shas/2`). One path's rows along the commits' chains, read
+  once.
   """
-  def file_figures(_project_id, _path, []), do: %{}
+  def file_figures(_project_id, _path, summaries) when map_size(summaries) == 0, do: %{}
 
-  def file_figures(project_id, path, shas) do
-    written = written_places(project_id, shas)
+  def file_figures(project_id, path, summaries) do
+    written = written_places(project_id, Map.keys(summaries))
     parents = %{}
 
     {places, _parents} =
-      project_id
-      |> Commits.by_shas(shas)
-      |> Enum.flat_map_reduce(parents, fn {sha, summary}, parents ->
+      Enum.flat_map_reduce(summaries, parents, fn {sha, summary}, parents ->
         with {ref_id, position} = place <- place(summary),
              {version, ^ref_id, ^position} <- Map.get(written, sha),
              true <- version == summary.version do
@@ -793,13 +793,13 @@ defmodule Tuist.Tests.Coverage.Deltas do
         )
       end
 
-    Enum.reduce(places, %{}, fn {sha, chain}, acc ->
+    Map.new(places, fn {sha, chain} ->
       case newest_along(rows, chain) do
         %{executable_lines: executable} = row when executable > 0 ->
-          Map.put(acc, sha, %{covered_lines: row.covered_lines, executable_lines: executable})
+          {sha, %{covered_lines: row.covered_lines, executable_lines: executable}}
 
         _ ->
-          acc
+          {sha, nil}
       end
     end)
   end

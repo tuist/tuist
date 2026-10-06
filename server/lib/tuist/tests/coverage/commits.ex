@@ -1058,14 +1058,30 @@ defmodule Tuist.Tests.Coverage.Commits do
   The commit's targets with their file count and line totals, least covered
   first. On a commit whose skipped tests were all carried forward they are
   over its reported coverage, as its files are (`measured: true` keeps to
-  what its runs measured).
+  what its runs measured). A complete commit's are read as stored
+  (`Tuist.Tests.Coverage.Deltas.targets/2`) when they are current.
   """
   def targets(project_id, sha, opts \\ []) do
-    case carried_files(project_id, sha, opts) do
-      nil -> measured_targets(project_id, sha, opts)
-      files -> targets_of(files)
+    with true <- deltas?(project_id, opts),
+         targets when is_list(targets) <- Deltas.targets(project_id, sha) do
+      targets
+    else
+      _ ->
+        case carried_files(project_id, sha, opts) do
+          nil -> measured_targets(project_id, sha, opts)
+          files -> targets_of(files)
+        end
     end
   end
+
+  # A complete commit's figures are stored (`Tuist.Tests.Coverage.Deltas`)
+  # as the pages show them: carried coverage applied, the project's excluded
+  # paths left out. Other readings, commits whose stored figures are not
+  # current, and `stored: false` read the runs' rows.
+  defp deltas?(project_id, opts),
+    do:
+      Keyword.get(opts, :stored, true) and not Keyword.get(opts, :measured, false) and
+        Coverage.excluded(project_id, opts) == ExcludedPaths.pattern_for_project(project_id)
 
   @doc false
   def targets_of(files) do
@@ -1112,9 +1128,19 @@ defmodule Tuist.Tests.Coverage.Commits do
   coverage on a commit whose skipped tests were all carried forward, as
   `targets/3`. `search:` keeps the paths containing it, ignoring case, and
   `sort:` orders them as `{:coverage | :path, :asc | :desc}`, least covered
-  first by default.
+  first by default. A complete commit's files are read from their stored
+  deltas (`Tuist.Tests.Coverage.Deltas.list_files/5`) when they are current.
   """
   def list_files(project_id, sha, page, page_size, opts \\ []) do
+    with true <- deltas?(project_id, opts),
+         {_files, _count} = listed <- Deltas.list_files(project_id, sha, page, page_size, opts) do
+      listed
+    else
+      _ -> list_raw_files(project_id, sha, page, page_size, opts)
+    end
+  end
+
+  defp list_raw_files(project_id, sha, page, page_size, opts) do
     case carried_files(project_id, sha, opts) do
       nil ->
         list_measured_files(project_id, sha, page, page_size, opts)
@@ -1134,9 +1160,20 @@ defmodule Tuist.Tests.Coverage.Commits do
   `previous_executable_lines`) and `change`, in percentage points. Read as
   `list_files/5` reads a commit's files: in ClickHouse, keeping only the
   top of the list, unless coverage was carried into either commit, whose
-  files are then compared here.
+  files are then compared here. Two complete commits whose stored deltas are
+  current are compared over those instead
+  (`Tuist.Tests.Coverage.Deltas.changed_files/4`), carried coverage included.
   """
   def changed_files(project_id, from_sha, to_sha, count, opts \\ []) do
+    with true <- deltas?(project_id, opts),
+         changed when is_list(changed) <- Deltas.changed_files(project_id, from_sha, to_sha, count) do
+      changed
+    else
+      _ -> raw_changed_files(project_id, from_sha, to_sha, count, opts)
+    end
+  end
+
+  defp raw_changed_files(project_id, from_sha, to_sha, count, opts) do
     excluded = Coverage.excluded(project_id, opts)
     opts = Keyword.put(opts, :excluded, excluded)
 
