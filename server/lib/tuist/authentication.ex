@@ -157,7 +157,8 @@ defmodule Tuist.Authentication do
         scopes: Map.get(claims, "scopes") || Map.get(claims, :scopes) || [],
         all_projects: Map.get(claims, "all_projects") || Map.get(claims, :all_projects) || false,
         project_ids: extract_project_ids(claims),
-        issued_by: issued_by_user(claims)
+        issued_by: issued_by_user(claims),
+        withheld_scopes: Map.get(claims, "withheld_scopes") || Map.get(claims, :withheld_scopes) || %{}
       }
     else
       account

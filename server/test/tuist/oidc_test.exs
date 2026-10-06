@@ -22,6 +22,31 @@ defmodule Tuist.OIDCTest do
       assert claims.repository == "tuist/tuist"
     end
 
+    test "returns the GitHub Actions workflow claims that scope rules match against" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          claims: %{
+            "ref" => "refs/heads/main",
+            "job_workflow_ref" => "tuist/tuist/.github/workflows/release.yml@refs/heads/main",
+            "workflow_ref" => "tuist/tuist/.github/workflows/release.yml@refs/heads/main",
+            "environment" => "production",
+            "event_name" => "push"
+          }
+        )
+
+      stub(Req, :get, fn _url, _opts -> {:ok, %{status: 200, body: jwks}} end)
+
+      assert {:ok, claims} = OIDC.claims(token)
+
+      assert claims == %{
+               repository: "tuist/tuist",
+               provider: :github_actions,
+               ref: "refs/heads/main",
+               job_workflow_ref: "tuist/tuist/.github/workflows/release.yml@refs/heads/main",
+               environment: "production"
+             }
+    end
+
     test "returns error for GitHub Actions token with invalid audience" do
       {token, jwks} = generate_test_token_and_jwks(claims: %{"aud" => "other-service"})
 
@@ -100,7 +125,7 @@ defmodule Tuist.OIDCTest do
       end)
 
       assert {:ok, claims} = OIDC.claims(token)
-      assert claims.repository == "tuist/tuist"
+      assert claims == %{repository: "tuist/tuist", provider: :circleci}
     end
 
     test "returns error for CircleCI token with non-GitHub repository" do
