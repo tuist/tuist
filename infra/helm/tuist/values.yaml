@@ -1644,10 +1644,15 @@ rackFleet:
   #     shelf: s3
   #     positionU: 12
   #     power:                  # the fleet's remote reboot: Apple silicon boots
-  #       driver: shelly        # on power-apply and every host runs
-  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
-  #       outlet: "0"           # cold boot with nobody at a console.
-  #       credentialsSecret: "" # optional; omit for an unauthenticated plug
+  #       pdu: ber1-pdu-b       # on power-apply and every host runs
+  #       outlet: "1"           # `pmset autorestart 1`, so an outlet cycle is
+  #                             # a cold boot with nobody at a console. `pdu`
+  #                             # names a RackPDU (rendered from the site
+  #                             # definition in infra/rack-switch-fleet), whose
+  #                             # outlets are 1-based. A plug that is not a
+  #                             # RackPDU takes `driver` (shelly), `host`,
+  #                             # `outlet` ("0") and `credentialsSecret`
+  #                             # instead.
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
   #                             # host deletes its Node undrained
@@ -1681,12 +1686,29 @@ rackFleet:
       publicKey: public-key
       sudoPassword: sudo-password
 
-  # PDU / smart-plug credentials, if the endpoint has any. A plug on a
-  # management segment with no password needs none; leave disabled and omit
+  # The root key every rack power card's passwords (RackPDU, RackATS) are
+  # derived from, synced read-only from 1Password into `secretName` in the
+  # release namespace, which the operator reads as --rack-card-root-secret.
+  # Without it the operator adopts no card. A rebuilt cluster derives the same
+  # passwords from the same item, so it re-adopts the cards with nobody at the
+  # rack.
+  cardRootKey:
+    enabled: false
+    item: BER1_RACK_CARD_ROOT
+    field: key
+    secretName: rack-card-root
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+
+  # Credentials of a smart plug that is not a RackPDU (a Shelly on a desk), if
+  # it has any. A RackPDU's credentials are derived by its controller from
+  # `cardRootKey`. A plug with no password needs none; leave disabled and omit
   # `power.credentialsSecret` on the hosts.
   powerExternalSecret:
     enabled: false
-    item: BER1_PDU
+    item: ""
     secretName: ""       # default: <fleet-name>-power
     refreshInterval: 1h
     storeRef:

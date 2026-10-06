@@ -77,10 +77,7 @@
               <.coverage_cell covered={row.covered_lines} executable={row.executable_lines} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-              <.commit_change_cell
-                id={"coverage-recent-commit-change-#{row.git_commit_sha}"}
-                commit={row}
-              />
+              <.change_cell delta={row.change} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
               <.text_cell sublabel={

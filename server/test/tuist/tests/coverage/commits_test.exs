@@ -90,16 +90,89 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     first = Commits.summary(project.id, "abc123")
 
     dirty = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 1])], %{git_dirty: true})
-    assert Commits.enqueue_recompute(dirty) == :skipped
+    assert {:ok, _job} = Commits.enqueue_recompute(dirty)
     assert Commits.recompute(project, "abc123").covered_lines == 1
     assert Commits.run_ids(project.id, "abc123") != [dirty.id]
 
     second = Commits.summary(project.id, "abc123")
     assert second.version > first.version
     assert second.inserted_at == first.inserted_at
+    # A clean run measured the dirty run's scheme, so the figure is whole.
+    refute Commits.incomplete?(second)
 
     assert Commits.recompute(project, "nothing-measured") == nil
     assert Commits.summary(project.id, "nothing-measured") == nil
+  end
+
+  test "a scheme only runs from a dirty checkout measured leaves the figure a lower bound, and its runs are listed on request",
+       %{project: project, account: account} do
+    # Alone, a dirty run folds nothing: no run that counts measured the commit.
+    dirty =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+        scheme: "AppTests",
+        git_dirty: true
+      })
+
+    assert Commits.summary(project.id, "abc123") == nil
+
+    clean = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, summary.covered_lines, summary.executable_lines} == {["App"], 1, 2}
+    assert {summary.reported_kind, Commits.gap_reasons(summary)} == {"partial", [:dirty_run_excluded]}
+    assert Commits.status(summary) == :in_progress
+    assert Commits.status(Commits.signal_complete(project, "abc123")) == :incomplete
+
+    assert Enum.map(Commits.run_cursor_page(project.id, {:commit, "abc123"}).runs, &{&1.test_run_id, &1.git_dirty}) ==
+             [{clean.id, false}]
+
+    assert project.id
+           |> Commits.run_cursor_page({:commit, "abc123"}, dirty: true)
+           |> Map.fetch!(:runs)
+           |> Enum.map(&{&1.test_run_id, &1.git_dirty})
+           |> Enum.sort() == Enum.sort([{clean.id, false}, {dirty.id, true}])
+
+    # A clean run of the scheme makes the figure whole again.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{scheme: "AppTests"})
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, Commits.gap_reasons(summary)} == {["App", "AppTests"], []}
+    assert Commits.status(summary) == :complete
+  end
+
+  test "a dirty run landing after the commit's clean runs still leaves the figure a lower bound", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    refute Commits.incomplete?(Commits.signal_complete(project, "abc123"))
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1, 1])], %{
+      scheme: "AppTests",
+      git_dirty: true
+    })
+
+    summary = Commits.summary(project.id, "abc123")
+    assert {summary.schemes, Commits.gap_reasons(summary)} == {["App"], [:dirty_run_excluded]}
+    assert Commits.status(summary) == :incomplete
+  end
+
+  test "a local dirty run of a scheme CI never ran leaves a complete commit whole", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    Commits.signal_complete(project, "abc123")
+
+    local =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])], %{
+        scheme: "LocalScheme",
+        is_ci: false,
+        git_dirty: true
+      })
+
+    assert Commits.enqueue_recompute(local) == :skipped
+    summary = Commits.recompute(project, "abc123")
+    assert {Commits.status(summary), Commits.gap_reasons(summary)} == {:complete, []}
   end
 
   test "signals completion and keeps it across recomputes", %{project: project, account: account} do
@@ -371,14 +444,16 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.summary(project.id, "abc123").unmeasured_files_count == 1
   end
 
-  test "a run that does not say whether its checkout was dirty is folded as a clean one", %{
+  test "a run schedules its commit's fold whether its checkout was dirty or not, and one without a commit none", %{
     project: project,
     account: account
   } do
     run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
 
     assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: nil})
-    assert Commits.enqueue_recompute(%{run | git_dirty: true}) == :skipped
+    assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: true})
+    assert Commits.enqueue_recompute(%{run | git_dirty: true, is_ci: false}) == :skipped
+    assert Commits.enqueue_recompute(%{run | git_commit_sha: ""}) == :skipped
   end
 
   test "a report that lands while the fold runs gets a job of its own", %{project: project, account: account} do

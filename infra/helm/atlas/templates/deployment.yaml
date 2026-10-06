@@ -26,7 +26,9 @@ spec:
         {{- include "atlas.webSelectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "atlas.fullname" . }}
-      automountServiceAccountToken: {{ .Values.agentSandboxes.enabled }}
+      # In-process agents need no Kubernetes API credentials. The optional
+      # Tuist-audience token below is a separate, explicitly projected identity.
+      automountServiceAccountToken: false
       {{- if .Values.image.pullSecretName }}
       imagePullSecrets:
         - name: {{ .Values.image.pullSecretName }}

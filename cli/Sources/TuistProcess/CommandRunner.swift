@@ -174,13 +174,22 @@ extension AsyncThrowingStream where Element == ProcessEvent {
 
 public struct CommandRunner: CommandRunning {
     private let processLimiter: AsyncResourceLimiter
+    private let processStartedHook: (@Sendable () -> Void)?
 
     public init() {
         processLimiter = Self.sharedProcessLimiter
+        processStartedHook = nil
     }
 
     init(maximumConcurrentProcesses: Int) {
         processLimiter = AsyncResourceLimiter(limit: maximumConcurrentProcesses)
+        processStartedHook = nil
+    }
+
+    /// Lets tests hold the cooperative worker after spawning, before output consumption tasks can run.
+    init(processStartedHook: @escaping @Sendable () -> Void) {
+        processLimiter = Self.sharedProcessLimiter
+        self.processStartedHook = processStartedHook
     }
 
     static let reservedFileDescriptors = 32
@@ -256,21 +265,26 @@ public struct CommandRunner: CommandRunning {
                         let standardOutput = FileHandle(fileDescriptor: standardOutputPipe.readEnd.rawValue, closeOnDealloc: true)
                         let standardError = FileHandle(fileDescriptor: standardErrorPipe.readEnd.rawValue, closeOnDealloc: true)
                         let standardErrorCollector = StandardErrorCollector()
+                        // Arm both dedicated readers before spawning. Starting them inside the consumption tasks
+                        // leaves the child blocked on a full pipe when the cooperative pool is congested.
+                        let standardOutputStream = standardOutput.byteStream()
+                        let standardErrorStream = standardError.byteStream()
                         let result = try await Subprocess.run(
                             configuration,
                             input: .standardInput,
                             output: .fileDescriptor(standardOutputPipe.writeEnd, closeAfterSpawningProcess: true),
                             error: .fileDescriptor(standardErrorPipe.writeEnd, closeAfterSpawningProcess: true)
                         ) { execution in
+                            processStartedHook?()
                             try await withTaskCancellationHandler {
                                 try await withThrowingTaskGroup(of: Void.self) { group in
                                     group.addTask {
-                                        for try await data in standardOutput.byteStream() {
+                                        for try await data in standardOutputStream {
                                             continuation.yield(.standardOutput(Array(data)))
                                         }
                                     }
                                     group.addTask {
-                                        for try await data in standardError.byteStream() {
+                                        for try await data in standardErrorStream {
                                             let bytes = Array(data)
                                             await standardErrorCollector.append(bytes)
                                             continuation.yield(.standardError(bytes))

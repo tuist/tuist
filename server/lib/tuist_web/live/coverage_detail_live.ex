@@ -334,6 +334,7 @@ defmodule TuistWeb.CoverageDetailLive do
   def commit_statuses,
     do: [
       {"complete", dgettext("dashboard_tests", "Complete")},
+      {"incomplete", dgettext("dashboard_tests", "Incomplete")},
       {"in-progress", dgettext("dashboard_tests", "In Progress")},
       {"not-measured", dgettext("dashboard_tests", "Not measured")}
     ]
@@ -450,7 +451,8 @@ defmodule TuistWeb.CoverageDetailLive do
 
   # The runs behind the subject, newest first and read a page at a time from
   # a cursor, so a long period costs a page: a commit's, or those that named
-  # the branch in the period.
+  # the branch in the period. Runs from a dirty checkout are listed, marked
+  # as discarded, so a scheme missing from a figure has its run to show.
   defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["runs-search"] || "")
     available_filters = run_filters(run_schemes(socket))
@@ -463,7 +465,7 @@ defmodule TuistWeb.CoverageDetailLive do
         run_scope(subject),
         period ++
           run_filter_opts(filters) ++
-          [search: search, after: query["after"], before: query["before"], page_size: @page_size]
+          [search: search, after: query["after"], before: query["before"], page_size: @page_size, dirty: true]
       )
 
     socket
