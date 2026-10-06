@@ -1069,6 +1069,8 @@ var targets: [Target] = [
         name: "TuistProcessTests",
         dependencies: [
             "TuistProcess",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
         ],
         path: "cli/Tests/TuistProcessTests"
     ),
