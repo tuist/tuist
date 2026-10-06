@@ -39,17 +39,7 @@ defmodule TuistWeb.ProjectAutomationLive do
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
        )
-       |> assign(
-         OpenGraph.project_image_assigns(selected_project,
-           title: automation.name,
-           subtitle: ProjectAutomationsLive.automation_summary(automation),
-           badge:
-             if(automation.enabled,
-               do: dgettext("dashboard_projects", "Enabled"),
-               else: dgettext("dashboard_projects", "Disabled")
-             )
-         )
-       )}
+       |> assign(OpenGraph.og_image_assigns("settings"))}
     else
       _ ->
         raise TuistWeb.Errors.NotFoundError,

@@ -18,8 +18,8 @@ defmodule Tuist.OpenGraphImageTemplates do
   alias Tuist.Projects
   alias Tuist.Projects.Project
 
-  @max_title_length 240
-  @max_description_length 500
+  @max_title_length 500
+  @max_description_length 1_000
 
   def spec(%{"template" => "marketing", "title" => title} = params) do
     if allowed_keys?(params, ["template", "title"], []) and valid_text?(title, @max_title_length) do
@@ -101,16 +101,17 @@ defmodule Tuist.OpenGraphImageTemplates do
     end
   end
 
-  def spec(%{"template" => "project", "title" => title, "project" => project} = params) do
+  def spec(%{"template" => "project", "title" => title, "project" => project, "project_id" => project_id} = params) do
     optional_keys = ["subtitle", "badge", "locale"]
 
-    with true <- allowed_keys?(params, ["template", "title", "project"], optional_keys),
+    with true <- allowed_keys?(params, ["template", "title", "project", "project_id"], optional_keys),
          true <- valid_text?(title, 160),
          true <- valid_text?(project, 510),
          true <- valid_optional_text?(Map.get(params, "subtitle"), 200),
          true <- valid_optional_text?(Map.get(params, "badge"), 60),
          true <- valid_optional_text?(Map.get(params, "locale"), 20),
-         {:ok, resolved_project} <- public_project(project) do
+         {:ok, resolved_project} <- public_project(project),
+         true <- to_string(resolved_project.id) == project_id do
       project_spec(params, title, resolved_project)
     else
       _ -> :error
@@ -197,6 +198,7 @@ defmodule Tuist.OpenGraphImageTemplates do
 
     OpenGraphImages.cached_key(:project_open_graph_template_assets, [
       {:module, ProjectImage},
+      {:module, OpenGraphImageRenderer},
       {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end

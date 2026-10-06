@@ -9,6 +9,11 @@ defmodule TuistWeb.Helpers.OpenGraph do
   alias Tuist.Projects.Project
 
   @image_token_salt "open_graph_image"
+  # Project tokens expire to bound replay of old project-page text. Signing
+  # at the start of each week keeps URLs stable across renders while renewing
+  # their lifetime for newly shared pages. The 400-day lifetime covers HTML
+  # cached for a year plus the week rounded off at signing time.
+  # Tuist-owned marketing/docs content keeps stable, non-expiring tokens.
   @image_token_max_age 34_560_000
   @image_token_period 604_800
   @max_image_path_bytes 2_000
@@ -45,7 +50,7 @@ defmodule TuistWeb.Helpers.OpenGraph do
   """
   def project_image_assigns(%Project{visibility: :public} = project, opts) do
     with slug when is_binary(slug) <- project_slug(project),
-         {:ok, path} <- project_image_path(slug, opts) do
+         {:ok, path} <- project_image_path(project, slug, opts) do
       [
         head_image: Tuist.Environment.app_url(path: path),
         head_twitter_card: "summary_large_image"
@@ -59,11 +64,12 @@ defmodule TuistWeb.Helpers.OpenGraph do
     og_image_assigns(Keyword.get(opts, :fallback, "overview"))
   end
 
-  defp project_image_path(slug, opts) do
+  defp project_image_path(project, slug, opts) do
     variables =
       Enum.reject(
         [
           project: slug,
+          project_id: project.id,
           title: normalized_text(Keyword.get(opts, :title), 160),
           subtitle: normalized_text(Keyword.get(opts, :subtitle), 200),
           badge: normalized_text(Keyword.get(opts, :badge), 60),
@@ -128,16 +134,10 @@ defmodule TuistWeb.Helpers.OpenGraph do
             TuistWeb.Endpoint,
             @image_token_salt,
             Enum.sort(spec.params),
-            signed_at: token_period_start()
+            signed_at: token_signed_at(spec.params)
           )
 
-        path = "/open-graph-images/#{spec.key}.jpg?#{URI.encode_query(token: token)}"
-
-        if byte_size(path) <= @max_image_path_bytes do
-          path
-        else
-          raise ArgumentError, "Open Graph image path exceeds #{@max_image_path_bytes} bytes"
-        end
+        "/open-graph-images/#{spec.key}.jpg?#{URI.encode_query(token: token)}"
 
       :error ->
         raise ArgumentError, "invalid Open Graph image template variables"
@@ -149,17 +149,43 @@ defmodule TuistWeb.Helpers.OpenGraph do
            TuistWeb.Endpoint,
            @image_token_salt,
            token,
-           max_age: @image_token_max_age
+           max_age: :infinity
          ) do
-      {:ok, params} when is_list(params) -> {:ok, Map.new(params)}
+      {:ok, params} when is_list(params) -> verify_token_age(token, Map.new(params))
       _ -> :error
     end
   end
 
   def verify_image_token(_token), do: :error
 
-  defp token_period_start do
+  # Preserve already-published marketing/docs URLs using separate variables
+  # and signatures. Project cards must use the bounded-lifetime token format.
+  def verify_image_params(%{"template" => "project"}, _signature), do: :error
+
+  def verify_image_params(params, signature) when is_binary(signature) do
+    signed_params = Enum.sort(params)
+
+    case Phoenix.Token.verify(TuistWeb.Endpoint, @image_token_salt, signature, max_age: :infinity) do
+      {:ok, ^signed_params} -> :ok
+      _ -> :error
+    end
+  end
+
+  def verify_image_params(_params, _signature), do: :error
+
+  defp verify_token_age(token, %{"template" => "project"} = params) do
+    case Phoenix.Token.verify(TuistWeb.Endpoint, @image_token_salt, token, max_age: @image_token_max_age) do
+      {:ok, _params} -> {:ok, params}
+      _ -> :error
+    end
+  end
+
+  defp verify_token_age(_token, params), do: {:ok, params}
+
+  defp token_signed_at(%{"template" => "project"}) do
     timestamp = System.system_time(:second)
     div(timestamp, @image_token_period) * @image_token_period
   end
+
+  defp token_signed_at(_params), do: 0
 end

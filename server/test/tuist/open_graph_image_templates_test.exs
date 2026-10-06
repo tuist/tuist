@@ -48,6 +48,7 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
       "template" => "project",
       "title" => "App",
       "project" => slug,
+      "project_id" => to_string(project.id),
       "subtitle" => "main · Release",
       "badge" => "Success"
     }
@@ -65,11 +66,31 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
     slug = "#{project.account.name}/#{project.name}"
     stub(Projects, :get_project_by_slug, fn ^slug -> {:ok, project} end)
 
-    params = %{"template" => "project", "title" => "Builds", "project" => slug, "locale" => "en"}
+    params = %{
+      "template" => "project",
+      "title" => "Builds",
+      "project" => slug,
+      "project_id" => to_string(project.id),
+      "locale" => "en"
+    }
+
     assert {:ok, english} = OpenGraphImageTemplates.spec(params)
     assert {:ok, spanish} = OpenGraphImageTemplates.spec(%{params | "locale" => "es"})
 
     refute english.key == spanish.key
+  end
+
+  test "rejects cards for a different project reusing the same handle" do
+    project = public_project()
+    slug = "#{project.account.name}/#{project.name}"
+    stub(Projects, :get_project_by_slug, fn ^slug -> {:ok, %{project | id: 43}} end)
+
+    assert OpenGraphImageTemplates.spec(%{
+             "template" => "project",
+             "title" => "Builds",
+             "project" => slug,
+             "project_id" => to_string(project.id)
+           }) == :error
   end
 
   test "rejects malformed project image variables" do

@@ -17,12 +17,24 @@ defmodule TuistWeb.OpenGraphImageController do
     end
   end
 
+  def show(conn, %{"key" => filename, "signature" => signature} = params) do
+    image_params = Map.drop(params, ["key", "signature"])
+
+    with {:ok, key} <- parse_key(filename),
+         :ok <- OpenGraph.verify_image_params(image_params, signature),
+         {:ok, %{key: ^key} = spec} <- OpenGraphImageTemplates.spec(image_params) do
+      serve(conn, spec)
+    else
+      _ -> not_found(conn)
+    end
+  end
+
   def show(conn, _params), do: not_found(conn)
 
   defp serve(conn, %{key: key} = spec) do
-    case OpenGraphImages.ensure_available(key, fn -> {:ok, spec} end) do
+    case OpenGraphImages.ensure_available(key, fn -> {:ok, spec} end, storage_opts(spec)) do
       :ok -> send_image(conn, key, spec)
-      {:transient, image} -> serve_transient(conn, image)
+      {:transient, image} -> serve_transient(conn, image, spec)
       {:error, reason} when reason in [:not_found, :stale_version] -> not_found(conn)
       {:error, reason} -> unavailable(conn, reason)
     end
@@ -39,7 +51,7 @@ defmodule TuistWeb.OpenGraphImageController do
       # The image is fetched before any header is committed so a storage
       # failure degrades to a 503 the caller will retry, rather than a
       # truncated body under a long-lived cache header.
-      case OpenGraphImages.fetch(key) do
+      case OpenGraphImages.fetch(key, storage_opts(spec)) do
         {:ok, image} ->
           conn
           |> put_image_headers(etag, spec)
@@ -67,10 +79,15 @@ defmodule TuistWeb.OpenGraphImageController do
   defp cache_control(%{params: %{"template" => "project"}}), do: "public, no-cache"
   defp cache_control(_spec), do: "public, max-age=31536000, immutable"
 
-  defp serve_transient(conn, image) do
+  defp storage_opts(%{params: %{"template" => "project"}}), do: [project: true]
+  defp storage_opts(_spec), do: []
+
+  defp serve_transient(conn, image, spec) do
+    cache_control = if spec.params["template"] == "project", do: "public, no-cache", else: "public, max-age=60"
+
     conn
     |> put_resp_content_type("image/jpeg", nil)
-    |> put_resp_header("cache-control", "public, max-age=60")
+    |> put_resp_header("cache-control", cache_control)
     |> put_resp_header("x-content-type-options", "nosniff")
     |> send_resp(:ok, image)
   end

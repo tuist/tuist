@@ -1,6 +1,6 @@
 defmodule Tuist.OpenGraphImageRetention do
   @moduledoc """
-  Removes generated Open Graph images after their cache lifetime.
+  Removes generated public-project Open Graph images after their cache lifetime.
 
   The images are derivatives and are regenerated on demand, so a bounded
   retention window prevents frequently changing project metrics from growing
@@ -10,7 +10,7 @@ defmodule Tuist.OpenGraphImageRetention do
   alias Tuist.Storage
 
   @actor :open_graph_images
-  @prefix "open-graph-images/"
+  @prefix "open-graph-images/projects/"
   @default_retention_days 30
   @default_page_size 1_000
 

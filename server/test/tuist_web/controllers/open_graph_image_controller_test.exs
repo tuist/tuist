@@ -8,6 +8,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.OpenGraphImageRenderer
+  alias Tuist.OpenGraphImageTemplates
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Storage
@@ -210,7 +211,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     path = OpenGraph.project_image_assigns(project, title: "Builds")[:head_image]
     uri = URI.parse(path)
     key = Path.basename(uri.path, ".jpg")
-    object_key = "open-graph-images/#{key}.jpg"
+    object_key = "open-graph-images/projects/#{key}.jpg"
 
     expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
     expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "cached-project-image"} end)
@@ -219,6 +220,77 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
 
     assert response(conn, :ok) == "cached-project-image"
     assert get_resp_header(conn, "cache-control") == ["public, no-cache"]
+  end
+
+  test "rejects a cached card when a different project takes over its handle", %{conn: conn} do
+    %{path: path} = project_image_request()
+    project = public_project()
+    stub(Projects, :get_project_by_slug, fn _slug -> {:ok, %{project | id: 43}} end)
+    reject(&Storage.object_exists?/2)
+    reject(&Storage.get_object/2)
+
+    assert response(get(conn, path), :not_found) == ""
+  end
+
+  test "renders project images into the project-only retention prefix", %{conn: conn} do
+    %{object_key: object_key, path: path} = project_image_request()
+
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
+    expect(OpenGraphImageRenderer, :render, fn _html, "Builds" -> {:ok, "project-image"} end)
+    expect(Storage, :put_object, fn ^object_key, "project-image", :open_graph_images -> :ok end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "project-image"} end)
+
+    conn = get(conn, path)
+    assert response(conn, :ok) == "project-image"
+    assert get_resp_header(conn, "cache-control") == ["public, no-cache"]
+  end
+
+  test "requires revalidation even when a project image is served transiently", %{conn: conn} do
+    %{object_key: object_key, path: path} = project_image_request()
+
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
+    expect(OpenGraphImageRenderer, :render, fn _html, "Builds" -> {:fallback, "fallback-image"} end)
+    reject(&Storage.put_object/3)
+    reject(&Storage.get_object/2)
+
+    conn = get(conn, path)
+    assert response(conn, :ok) == "fallback-image"
+    assert get_resp_header(conn, "cache-control") == ["public, no-cache"]
+  end
+
+  test "rechecks visibility before returning not modified", %{conn: conn} do
+    %{key: key, path: path} = project_image_request()
+    project = public_project()
+    stub(Projects, :get_project_by_slug, fn _slug -> {:ok, %{project | visibility: :private}} end)
+    reject(&Storage.object_exists?/2)
+    reject(&Storage.get_object/2)
+
+    conn = conn |> put_req_header("if-none-match", ~s("#{key}")) |> get(path)
+    assert response(conn, :not_found) == ""
+  end
+
+  test "serves already-published URLs using separate signed variables", %{conn: conn} do
+    params = %{"template" => "docs", "title" => "About Tuist"}
+    assert {:ok, spec} = OpenGraphImageTemplates.spec(params)
+    signature = Phoenix.Token.sign(@endpoint, "open_graph_image", Enum.sort(params), signed_at: 0)
+    path = "/open-graph-images/#{spec.key}.jpg?" <> URI.encode_query(Map.put(params, "signature", signature))
+    object_key = "open-graph-images/#{spec.key}.jpg"
+
+    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "legacy-image"} end)
+
+    assert response(get(conn, path), :ok) == "legacy-image"
+  end
+
+  test "rejects tampered legacy variables", %{conn: conn} do
+    params = %{"template" => "docs", "title" => "About Tuist"}
+    assert {:ok, spec} = OpenGraphImageTemplates.spec(params)
+    signature = Phoenix.Token.sign(@endpoint, "open_graph_image", Enum.sort(params), signed_at: 0)
+    query = params |> Map.put("title", "Tampered") |> Map.put("signature", signature) |> URI.encode_query()
+    path = "/open-graph-images/#{spec.key}.jpg?" <> query
+    reject(&Storage.object_exists?/2)
+
+    assert response(get(conn, path), :not_found) == ""
   end
 
   test "does not render on-premise, forwarding the request away instead", %{conn: conn} do
@@ -247,6 +319,16 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
       object_key: "open-graph-images/#{key}.jpg",
       path: path
     }
+  end
+
+  defp project_image_request do
+    project = public_project()
+    slug = "#{project.account.name}/#{project.name}"
+    stub(Projects, :get_project_by_slug, fn ^slug -> {:ok, project} end)
+    path = OpenGraph.project_image_assigns(project, title: "Builds")[:head_image]
+    key = path |> URI.parse() |> Map.fetch!(:path) |> Path.basename(".jpg")
+
+    %{key: key, object_key: "open-graph-images/projects/#{key}.jpg", path: path}
   end
 
   defp public_project do
