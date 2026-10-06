@@ -599,44 +599,47 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       assert CoverageFixtures.branch_head(repository_id, "feature") == "y1"
     end
 
-    test "publishes the commit's place when its child's fold advanced the branch past it mid-fold", %{
-      account: account,
-      project: project
-    } do
-      repository_id =
-        CoverageFixtures.seed_history(account, [
-          CoverageFixtures.commit("d", [], 0),
-          CoverageFixtures.commit("n1", ["d"], 1),
-          CoverageFixtures.commit("n2", ["n1"], 2)
-        ])
+    # n1's own advance moves nothing either way: observed before n2's run
+    # moved main, or finding main already holds n1.
+    for {exit, n1_ago, n2_ago} <- [{"older", -7200, -3600}, {"newer", -3600, -7200}] do
+      test "publishes the commit's place when its child's fold advanced the branch past it mid-fold (#{exit} run)", %{
+        account: account,
+        project: project
+      } do
+        repository_id =
+          CoverageFixtures.seed_history(account, [
+            CoverageFixtures.commit("d", [], 0),
+            CoverageFixtures.commit("n1", ["d"], 1),
+            CoverageFixtures.commit("n2", ["n1"], 2)
+          ])
 
-      now = NaiveDateTime.utc_now()
-      file = [CoverageFixtures.file("Sources/A.swift", [1, 0])]
+        now = NaiveDateTime.utc_now()
+        file = [CoverageFixtures.file("Sources/A.swift", [1, 0])]
 
-      for {sha, ago} <- [{"n1", -7200}, {"n2", -3600}] do
-        CoverageFixtures.run_with_coverage(project, account, file, %{
-          git_commit_sha: sha,
-          ran_at: NaiveDateTime.add(now, ago),
-          recompute: false
-        })
+        for {sha, ago} <- [{"n1", unquote(n1_ago)}, {"n2", unquote(n2_ago)}] do
+          CoverageFixtures.run_with_coverage(project, account, file, %{
+            git_commit_sha: sha,
+            ran_at: NaiveDateTime.add(now, ago),
+            recompute: false
+          })
+        end
+
+        # n1's fold has read where n1 stands (nowhere yet) when n2's fold
+        # advances main through n1, before n1's row exists to be synced.
+        stub(Repo, :transaction, &Mimic.call_original(Repo, :transaction, [&1, &2]))
+
+        expect(Repo, :transaction, fn fun, opts ->
+          Commits.recompute(project, "n2")
+          Mimic.call_original(Repo, :transaction, [fun, opts])
+        end)
+
+        Commits.recompute(project, "n1")
+
+        assert {ref_id, position} = GitHistory.position(repository_id, "n1")
+        assert %{ref_id: ^ref_id, position: ^position} = Commits.summary(project.id, "n1")
+        assert %{ref_id: ref_id_n2, position: position_n2} = Commits.summary(project.id, "n2")
+        assert {ref_id_n2, position_n2} == GitHistory.position(repository_id, "n2")
       end
-
-      # n1's fold has read where n1 stands (nowhere yet) when n2's fold
-      # advances main through n1, before n1's row exists to be synced. n1's
-      # own advance then finds main already past it.
-      stub(Repo, :transaction, &Mimic.call_original(Repo, :transaction, [&1, &2]))
-
-      expect(Repo, :transaction, fn fun, opts ->
-        Commits.recompute(project, "n2")
-        Mimic.call_original(Repo, :transaction, [fun, opts])
-      end)
-
-      Commits.recompute(project, "n1")
-
-      assert {ref_id, position} = GitHistory.position(repository_id, "n1")
-      assert %{ref_id: ^ref_id, position: ^position} = Commits.summary(project.id, "n1")
-      assert %{ref_id: ref_id_n2, position: position_n2} = Commits.summary(project.id, "n2")
-      assert {ref_id_n2, position_n2} == GitHistory.position(repository_id, "n2")
     end
   end
 
