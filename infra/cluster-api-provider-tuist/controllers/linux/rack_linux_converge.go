@@ -131,8 +131,11 @@ resolvConf: /etc/resolv.conf
 `, o.ProviderID)
 }
 
+// rackLocalCNIConfig is the node-local pod network. The bridge is the pods'
+// default gateway and masquerades them behind the node, so a pod off the host
+// network reaches what the node reaches.
 func rackLocalCNIConfig() string {
-	return fmt.Sprintf(`{"cniVersion":"1.0.0","name":"rack-local","plugins":[{"type":"bridge","bridge":"cni-racklocal","isGateway":true,"ipMasq":true,"ipam":{"type":"host-local","ranges":[[{"subnet":"%s"}]]}},{"type":"portmap","capabilities":{"portMappings":true}}]}
+	return fmt.Sprintf(`{"cniVersion":"1.0.0","name":"rack-local","plugins":[{"type":"bridge","bridge":"cni-racklocal","isGateway":true,"ipMasq":true,"ipam":{"type":"host-local","ranges":[[{"subnet":"%s"}]],"routes":[{"dst":"0.0.0.0/0"}]}},{"type":"portmap","capabilities":{"portMappings":true}}]}
 `, rackLocalCNIRange)
 }
 

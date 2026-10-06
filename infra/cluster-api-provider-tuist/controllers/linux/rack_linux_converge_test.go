@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -169,5 +170,33 @@ func TestRackNodeConfigDropsTheManagementPortWithoutABootMAC(t *testing.T) {
 func TestRackNodeConfigWritesTheAPIServerThePodsOnTheNodeUse(t *testing.T) {
 	if f := configFile(t, rackNodeConfig(edgeConvergeOptions()), "/etc/tuist/kubernetes-api"); f.Content != "https://api.example:6443\n" {
 		t.Fatalf("API server file %+v", f)
+	}
+}
+
+// A pod on a rack node that is not on the host network reaches anything past
+// its node's bridge, such as a public resolver or the server, only through a
+// default route the CNI gives it.
+func TestRackLocalCNIGivesPodsADefaultRouteThroughTheBridge(t *testing.T) {
+	var config struct {
+		Plugins []struct {
+			Type      string `json:"type"`
+			IsGateway bool   `json:"isGateway"`
+			IPMasq    bool   `json:"ipMasq"`
+			IPAM      struct {
+				Routes []struct {
+					Dst string `json:"dst"`
+				} `json:"routes"`
+			} `json:"ipam"`
+		} `json:"plugins"`
+	}
+	if err := json.Unmarshal([]byte(rackLocalCNIConfig()), &config); err != nil {
+		t.Fatalf("the CNI config is not JSON: %v", err)
+	}
+	bridge := config.Plugins[0]
+	if bridge.Type != "bridge" || !bridge.IsGateway || !bridge.IPMasq {
+		t.Fatalf("plugin %+v, want the masquerading gateway bridge", bridge)
+	}
+	if len(bridge.IPAM.Routes) != 1 || bridge.IPAM.Routes[0].Dst != "0.0.0.0/0" {
+		t.Fatalf("routes %+v, want a default route", bridge.IPAM.Routes)
 	}
 }
