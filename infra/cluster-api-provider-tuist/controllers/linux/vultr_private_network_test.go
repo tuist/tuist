@@ -147,7 +147,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 			if stale {
 				remote.Status.NodeInfo.BootID = "rebooted"
 			}
-			cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks", Namespace: "test"}, Data: map[string]string{"regions.json": `{"ord":{"description":"test-ord","cidr":"172.30.244.0/24","qualified":true}}`}}
+			cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks", Namespace: "test"}, Data: map[string]string{"regions.json": `{"ord":{"description":"test-ord","cidr":"172.30.244.0/24","qualified":true,"canonicalPeers":["scl"]},"scl":{"description":"test-scl","cidr":"172.30.245.0/24","qualified":true,"canonicalPeers":["ord"]}}`}}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				if req.Method != http.MethodGet {
 					t.Errorf("unexpected mutation %s %s", req.Method, req.URL)
@@ -156,7 +156,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 				}
 				switch req.URL.Path {
 				case "/vpcs":
-					_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test","description":"test-ord","region":"ord","v4_subnet":"172.30.244.0","v4_subnet_mask":24}]}`))
+					_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test","description":"test-ord","region":"ord","v4_subnet":"172.30.244.0","v4_subnet_mask":24},{"id":"scl-id","description":"test-scl","region":"scl","v4_subnet":"172.30.245.0","v4_subnet_mask":24}]}`))
 				case "/bare-metals/host-a/vpcs":
 					_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test","mac_address":"02:00:00:00:00:01","ip_address":"172.30.244.3"}]}`))
 				case "/bare-metals/host-b/vpcs":
@@ -176,6 +176,9 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 			observed := &corev1.Node{}
 			if err := c.Get(ctx, types.NamespacedName{Name: "a"}, observed); err != nil {
 				t.Fatal(err)
+			}
+			if !stale && observed.Annotations[privateCanonicalNetworks] != `["scl-id"]` {
+				t.Fatal("resolved canonical VPC policy not published")
 			}
 			if (observed.Labels[privateNetworkAnnotation] == "vpc-test") == stale {
 				t.Fatal("published topology without matching current peer boot")
@@ -242,5 +245,31 @@ func TestVultrPrivateInventoryReadsAreSharedAndExpire(t *testing.T) {
 	}
 	if gets != 11 {
 		t.Fatal("stale attachment never refreshed")
+	}
+}
+
+func TestVultrCanonicalRegionPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		config string
+		fail   bool
+	}{
+		{"approved", `{"ord":{"qualified":true,"canonicalPeers":["scl"]},"scl":{"qualified":true,"canonicalPeers":["ord"]}}`, false},
+		{"prepare before qualification", `{"ord":{"qualified":true,"canonicalPeers":["scl"]},"scl":{"canonicalPeers":["ord"]}}`, false},
+		{"one way", `{"ord":{"canonicalPeers":["scl"]},"scl":{}}`, true},
+		{"unknown", `{"ord":{"canonicalPeers":["typo"]}}`, true},
+		{"self", `{"ord":{"canonicalPeers":["ord"]}}`, true},
+		{"duplicate", `{"ord":{"canonicalPeers":["scl","scl"]},"scl":{"canonicalPeers":["ord"]}}`, true},
+		{"unapproved qualified pair", `{"ord":{"qualified":true},"scl":{"qualified":true}}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var regions map[string]vultrPrivateRegion
+			if err := json.Unmarshal([]byte(tc.config), &regions); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateVultrCanonicalPeers(regions); (err != nil) != tc.fail {
+				t.Fatalf("policy result: %v", err)
+			}
+		})
 	}
 }

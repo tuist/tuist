@@ -35,8 +35,8 @@ required on every path.
   ORD–SCL has **no established provider-private path**. A WireGuard tunnel over
   public addresses encrypts traffic but does not satisfy the private-underlay
   requirement. Do not label both locations as one domain or enable a silent WAN
-  exception. Resolve that policy/topology gap before enabling strict routing
-  across a mesh containing both locations.
+  exception. Reciprocal `canonicalPeers` approvals explicitly allow canonical
+  mTLS between regional VPCs; within each VPC replication remains private-only.
   Separate ORD and SCL VPCs are provisioned. See
   [Vultr provisioning and qualification](vultr-private-networking.md) for the
   completed Chicago attachment, MTU and E2E qualification, Kubernetes ownership,
@@ -133,9 +133,11 @@ host routes converge; Santiago retains canonical mTLS. Other unqualified
 placements retain their existing behavior. See the provider-specific guide.
 
 Provider-only configuration is rejected at startup: opting in requires both
-`private_network` and `private_url`. Same-provider peers advertising absent or
-different private domains fail visibly in
-replication errors and private-probe logs. Failed private requests never retry
+`private_network` and `private_url`. Different same-provider domains require
+reciprocal exact-ID approval in `canonical_networks` to use canonical mTLS;
+absent or unapproved domains fail visibly in replication errors and private-probe
+logs. The allowlist is limited to 32 distinct remote IDs. Same-domain traffic
+always uses the private URL. Failed private requests never retry
 publicly. Listings, forward reads, batches and individual bodies all use the same
 selector; canonical peer identities and watermarks remain unchanged. Disabling
 redirects and environment proxies in topology mode prevents a selected private

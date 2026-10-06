@@ -573,6 +573,7 @@ mod tests {
     async fn private_probe_checks_canonical_url_on_private_underlay() {
         let canonical = "https://127.0.0.1:9";
         let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified-domain".into()),
             private_url: Some(canonical.into()),
@@ -599,6 +600,7 @@ mod tests {
     #[tokio::test]
     async fn failed_private_probe_preserves_advertised_traffic_state() {
         let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("local-domain".into()),
             private_url: Some("https://private.example:7443".into()),

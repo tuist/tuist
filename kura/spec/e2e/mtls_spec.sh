@@ -93,4 +93,23 @@ Describe 'peer mTLS'
     The status should be success
     The output should eq replicated
   End
+
+  regional_origins_replicate() {
+    COMPOSE_FILES+=(-f "${PROJECT_ROOT}/test/e2e/docker-compose.mtls-regional.yml")
+    dc down -v --remove-orphans >/dev/null 2>&1 || return 1
+    compose_up kura-us kura-eu kura-ap || return 1
+    resolve_http_node KURA_US kura-us
+    resolve_http_node KURA_EU kura-eu
+    resolve_http_node KURA_AP kura-ap
+    wait_for_node_ready "${KURA_US_URL}" >/dev/null || return 1
+    wait_for_node_ready "${KURA_EU_URL}" >/dev/null || return 1
+    wait_for_node_ready "${KURA_AP_URL}" >/dev/null || return 1
+    all_origins_replicate
+  }
+
+  It 'replicates within a private VPC and between reciprocally approved VPCs'
+    When call regional_origins_replicate
+    The status should be success
+    The output should eq replicated
+  End
 End

@@ -14,8 +14,10 @@ This node covers Helm assets under `infra/helm/`.
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production qualifies Chicago only; Santiago is
-  VPC-only until separately qualified. Multiple qualified domains require a
-  tested explicit cross-domain runtime policy. Self-hosted defaults stay off.
+  VPC-only until separately qualified. Reciprocal `canonicalPeers` region names
+  approve canonical mTLS between exact VPC IDs resolved by the controller. Stage
+  this policy on existing runtimes before qualifying another region; same-VPC
+  traffic remains private-only. Self-hosted defaults stay off.
 
 - `capi.ovhPrivateNetwork` declares the environment's provisioned vRack and
   reserved CIDR. `kuraController.privateReplication` consumes Node route

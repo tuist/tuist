@@ -63,11 +63,41 @@ but its host attachment and runtime topology remain disabled pending regional
 qualification. The existing Santiago canonical mTLS link remains compatible
 with Chicago's enabled topology because Santiago advertises no topology.
 
-Do not qualify a second Vultr region under the current strict same-provider
-policy. It rejects incompatible private domains. The controller rejects multiple
-qualified regions until an explicit allowed-canonical-domain policy is added
-and tested. Unknown or mistyped domains must never become public automatically.
-An ORD–SCL private interconnect is not provisioned by this PR.
+## Regional replication policy
+
+Each region uses its own VPC for private replication between hosts. Declare
+`canonicalPeers: [scl]` for `ord` and `canonicalPeers: [ord]` for `scl` to approve
+canonical mTLS between those regions. Approval must be reciprocal and name
+configured regions; all qualified regional pairs must be approved before the
+controller makes provider changes. This is an explicit public inter-region path,
+not an ORD–SCL private interconnect.
+
+The CAPI controller resolves those names against provider inventory to exact
+VPC IDs, retaining the IDs with the existing network state. After local host
+routes converge, it publishes the sorted remote IDs in the Node annotation
+`tuist.dev/private-network-canonical-peers`. The Kura controller requires all
+candidate Nodes to agree before adding `canonical_networks` to runtime topology.
+The runtime accepts a different same-provider domain over canonical mTLS only
+when both peers explicitly approve each other's exact VPC ID. Missing approval,
+unknown IDs and typos fail closed. Within one VPC it always uses the private URL;
+a private failure never triggers a public retry. Only same-VPC peers receive
+private donor preference. Cross-provider and topology-free compatibility are
+unchanged.
+
+Deploy the policy-capable runtime and both controllers first, with Santiago
+still `qualified: false`. Verify all Chicago runtimes advertise Santiago's VPC
+ID before qualifying Santiago: older runtimes ignore the additive policy field
+and would reject the second advertised domain. Existing production values stage
+the reciprocal approvals without attaching Santiago. Then qualify the Santiago
+host through the procedure below and enable `qualified: true`. A single host can
+validate attachment and runtime behavior, but physical host-to-host private
+replication must be tested when a second host arrives. Future Santiago hosts
+join the same region's membership/route convergence gate automatically.
+
+For rollback, withdraw Santiago topology before rolling back to a runtime that
+does not support regional policy. Preserve the host routes and network; do not
+detach a live network. Removing approvals while both domains advertise topology
+deliberately blocks their inter-region link.
 
 ## Qualification scope
 

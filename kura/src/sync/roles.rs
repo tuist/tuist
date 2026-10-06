@@ -85,7 +85,7 @@ fn region_gateways(
         .min_by_key(|peer| {
             let preferred = prefer.is_some_and(|own| {
                 peer.topology.as_ref().is_some_and(|remote| {
-                    own.same_provider(remote)
+                    own.same_private_network(remote)
                         && crate::peer_topology::endpoint(Some(own), Some(remote), &peer.url)
                             .is_ok()
                 })
@@ -314,6 +314,7 @@ mod tests {
     #[test]
     fn provider_preference_preserves_siblings_origins_and_published_gateways() {
         let own = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified-vrack".into()),
             private_url: Some("https://private.example:7443".into()),
@@ -389,6 +390,7 @@ mod tests {
     #[test]
     fn asymmetric_private_probes_do_not_change_local_gateway_election() {
         let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified-vrack".into()),
             private_url: Some("https://private.example:7443".into()),

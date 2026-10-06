@@ -234,3 +234,90 @@ func TestPrivateReplicationPoolChangeWithdrawsPreviousPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestPrivateReplicationCanonicalPolicyRequiresAgreement(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		policies []string
+		fail     bool
+	}{
+		{"legacy", []string{"", "[]"}, false},
+		{"approved", []string{`["scl-id"]`, `["scl-id"]`}, false},
+		{"updating", []string{`["scl-id"]`, ""}, true},
+		{"unknown", []string{`["scl-id"]`, `["other"]`}, true},
+		{"malformed", []string{`{"scl":"id"}`}, true},
+		{"same domain", []string{`["pn-test"]`}, true},
+		{"duplicate", []string{`["scl-id","scl-id"]`}, true},
+		{"whitespace", []string{`[" scl-id"]`}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			nodes := []corev1.Node{}
+			for i, policy := range tc.policies {
+				node := privateNode(fmt.Sprint(i), "vultr://ord/host", "pn-test", "members")
+				node.Status.NodeInfo.BootID = "boot"
+				node.Annotations["tuist.dev/private-network-revision"] = "script:boot"
+				node.Annotations[privateCanonicalNetworksAnnotation] = policy
+				nodes = append(nodes, node)
+			}
+			_, err := privateCanonicalNetworks(nodes, "pn-test")
+			if (err != nil) != tc.fail {
+				t.Fatalf("policy result: %v", err)
+			}
+		})
+	}
+}
+
+func TestPrivateReplicationPublishesCanonicalVPCIDs(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	node := privateNode("ord", "vultr://ord/host", "ord-id", "members")
+	node.Status.NodeInfo.BootID = "boot"
+	node.Annotations["tuist.dev/private-network-revision"] = "script:boot"
+	node.Annotations[privateCanonicalNetworksAnnotation] = `["scl-id"]`
+	r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(&node).Build(), PrivateReplication: true}
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{NodeSelector: map[string]string{"pool": "cache"}}}
+	template := podTemplate(instance, "", "production", "", false, false, false)
+	if err := r.configurePrivateReplication(context.Background(), instance, &template, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, env := range template.Spec.Containers[0].Env {
+		if env.Name == peerTopologyEnv {
+			var topology struct {
+				Network   string   `json:"private_network"`
+				Canonical []string `json:"canonical_networks"`
+			}
+			if err := json.Unmarshal([]byte(env.Value), &topology); err != nil {
+				t.Fatal(err)
+			}
+			if topology.Network != "ord-id" || !slices.Equal(topology.Canonical, []string{"scl-id"}) {
+				t.Fatal(topology)
+			}
+			return
+		}
+	}
+	t.Fatal("topology not published")
+}
+
+func TestProductionRegionalPolicyIsStagedBeforeSantiagoQualification(t *testing.T) {
+	docs := renderStableChartWithValues(t, "tuist", []string{"templates/_helpers.tpl", "templates/vultr-private-network.yaml"}, []string{"values-managed-common.yaml", "values-managed-production.yaml"})
+	for _, doc := range docs {
+		if doc["kind"] != "ConfigMap" {
+			continue
+		}
+		data := doc["data"].(map[string]interface{})
+		var regions map[string]struct {
+			Qualified      bool     `json:"qualified"`
+			CanonicalPeers []string `json:"canonicalPeers"`
+		}
+		if err := json.Unmarshal([]byte(data["regions.json"].(string)), &regions); err != nil {
+			t.Fatal(err)
+		}
+		if !regions["ord"].Qualified || regions["scl"].Qualified || !slices.Equal(regions["ord"].CanonicalPeers, []string{"scl"}) || !slices.Equal(regions["scl"].CanonicalPeers, []string{"ord"}) {
+			t.Fatal(regions)
+		}
+		return
+	}
+	t.Fatal("regional network ConfigMap missing")
+}

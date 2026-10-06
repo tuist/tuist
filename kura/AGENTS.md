@@ -52,6 +52,10 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   pooled connections alive. Scope fixture cleanup to its unique test label.
   Preserve qualification limits: a single-host canary is not a physical host
   pair, and Chicago does not qualify an ORD–SCL private interconnect.
+  Distinct same-provider domains require reciprocal exact-ID approval through
+  `canonical_networks` before using canonical mTLS. Same-domain traffic always
+  stays private-only. Canonically approved peers are not private donors. Roll
+  out policy-capable runtimes before advertising a newly qualified domain.
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.

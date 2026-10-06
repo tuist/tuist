@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -24,9 +25,34 @@ import (
 )
 
 type vultrPrivateRegion struct {
-	Description string `json:"description"`
-	CIDR        string `json:"cidr"`
-	Qualified   bool   `json:"qualified"`
+	Description    string   `json:"description"`
+	CIDR           string   `json:"cidr"`
+	Qualified      bool     `json:"qualified"`
+	CanonicalPeers []string `json:"canonicalPeers,omitempty"`
+}
+
+const privateCanonicalNetworks = "tuist.dev/private-network-canonical-peers"
+
+func validateVultrCanonicalPeers(regions map[string]vultrPrivateRegion) error {
+	for name, region := range regions {
+		if len(region.CanonicalPeers) > 32 {
+			return fmt.Errorf("region %s permits at most 32 canonical peers", name)
+		}
+		seen := map[string]bool{}
+		for _, peer := range region.CanonicalPeers {
+			remote, exists := regions[peer]
+			if !exists || peer == name || seen[peer] || !slices.Contains(remote.CanonicalPeers, name) {
+				return fmt.Errorf("cross-domain policy for %s requires distinct, known, reciprocal canonical peers", name)
+			}
+			seen[peer] = true
+		}
+		for peer, remote := range regions {
+			if peer != name && region.Qualified && remote.Qualified && !seen[peer] {
+				return fmt.Errorf("qualified regions %s and %s require an explicit cross-domain policy", name, peer)
+			}
+		}
+	}
+	return nil
 }
 
 type vultrNetworkState struct {
@@ -55,7 +81,7 @@ type vultrPrivateNICCacheEntry struct {
 func (r *VultrMachineReconciler) ensurePrivateVPC(ctx context.Context, region string, desired vultrPrivateRegion) (*vultr.VPC, error) {
 	r.privateNetworkMu.Lock()
 	defer r.privateNetworkMu.Unlock()
-	if cached, ok := r.privateVPCCache[region]; ok && cached.desired == desired && time.Now().Before(cached.expires) {
+	if cached, ok := r.privateVPCCache[region]; ok && cached.desired.Description == desired.Description && cached.desired.CIDR == desired.CIDR && time.Now().Before(cached.expires) {
 		network := cached.network
 		return &network, nil
 	}
@@ -236,14 +262,8 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 	if err = json.Unmarshal([]byte(config.Data["regions.json"]), &regions); err != nil {
 		return err
 	}
-	qualified := 0
-	for _, region := range regions {
-		if region.Qualified {
-			qualified++
-		}
-	}
-	if qualified > 1 {
-		return fmt.Errorf("multiple qualified Vultr regions require an explicit cross-domain runtime policy")
+	if err = validateVultrCanonicalPeers(regions); err != nil {
+		return err
 	}
 	region := firstNonEmpty(machine.Spec.Region, r.DefaultRegion)
 	desired, exists := regions[region]
@@ -260,6 +280,22 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 		}
 		conditions.MarkFalse(machine, privateNetworkReady, "QualificationPending", clusterv1.ConditionSeverityInfo, "VPC is managed; host transport is not qualified")
 		return nil
+	}
+	canonicalNetworks := []string{}
+	for _, peer := range desired.CanonicalPeers {
+		remote, e := r.ensurePrivateVPC(ctx, peer, regions[peer])
+		if e != nil {
+			return e
+		}
+		if remote.ID == "" || remote.ID == network.ID || slices.Contains(canonicalNetworks, remote.ID) {
+			return fmt.Errorf("cross-domain policy requires distinct provider VPC identities")
+		}
+		canonicalNetworks = append(canonicalNetworks, remote.ID)
+	}
+	sort.Strings(canonicalNetworks)
+	canonicalJSON, err := json.Marshal(canonicalNetworks)
+	if err != nil {
+		return err
 	}
 	interfaces, err := r.privateInterfaces(ctx, machine.Status.InstanceID)
 	if err != nil {
@@ -364,12 +400,16 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 			return fmt.Errorf("waiting for converged private routes on %s", name)
 		}
 	}
-	if node.Labels[privateNetworkAnnotation] != network.ID {
+	if node.Labels[privateNetworkAnnotation] != network.ID || node.Annotations[privateCanonicalNetworks] != string(canonicalJSON) {
 		before := node.DeepCopy()
 		if node.Labels == nil {
 			node.Labels = map[string]string{}
 		}
 		node.Labels[privateNetworkAnnotation] = network.ID
+		if node.Annotations == nil {
+			node.Annotations = map[string]string{}
+		}
+		node.Annotations[privateCanonicalNetworks] = string(canonicalJSON)
 		if err = r.Patch(ctx, node, client.MergeFrom(before)); err != nil {
 			return err
 		}

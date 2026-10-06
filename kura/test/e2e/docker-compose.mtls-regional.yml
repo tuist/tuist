@@ -1,0 +1,11 @@
+# Applied over the mTLS fixture: two private domains on the same provider.
+services:
+  kura-us:
+    environment:
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-ord","private_url":"https://private-us.kura.internal:7443","canonical_networks":["test-scl"]}'
+  kura-eu:
+    environment:
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-ord","private_url":"https://private-eu.kura.internal:7443","canonical_networks":["test-scl"]}'
+  kura-ap:
+    environment:
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-scl","private_url":"https://private-ap.kura.internal:7443","canonical_networks":["test-ord"]}'
