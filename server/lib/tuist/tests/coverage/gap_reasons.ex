@@ -2,7 +2,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   @moduledoc """
   Why some of a commit's reported coverage is unknown: the reasons its
   skipped tests (and the files no run compiled) could not be carried forward
-  (`Tuist.Tests.Coverage.Reported`), stored as a bitmask on
+  (`Tuist.Tests.Coverage.Reported`), or a scheme it measured that does not
+  count (`Tuist.Tests.Coverage.Commits`), stored as a bitmask on
   `coverage_commits.gap_reasons`. The bitmask says which reasons occur, not
   how often; the tests behind each are computed again on demand.
 
@@ -36,6 +37,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `overlapped`: an ancestor run recorded the test only as overlapping
     another test of its process (Swift Testing running in parallel), so
     nothing could be attributed to it.
+  - `dirty_run_excluded`: a scheme's coverage only came from CI runs on a
+    dirty checkout, which measured code that is not the commit's and never
+    count.
   """
   import Bitwise
 
@@ -53,7 +57,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :unbuilt_file_unknown,
     :unbuilt_file_uncarried,
     :evidence_expired,
-    :overlapped
+    :overlapped,
+    :dirty_run_excluded
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)
