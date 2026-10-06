@@ -15297,6 +15297,13 @@ public struct Client: APIProtocol {
                     name: "shard_plan_id",
                     value: input.query.shard_plan_id
                 )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "catch_all",
+                    value: input.query.catch_all
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept

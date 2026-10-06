@@ -24872,6 +24872,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in `skip`, so it runs every suite outside them.
+          in: query
+          name: catch_all
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
         - description: The zero-based shard index.
           in: path
           name: shard_index

@@ -265,6 +265,12 @@ defmodule TuistWeb.API.ShardsController do
         schema: %Schema{type: :string, format: :uuid},
         description: "The exact shard plan identifier. When present, it takes precedence over the reference."
       ],
+      catch_all: [
+        in: :query,
+        type: :boolean,
+        description:
+          "Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in `skip`, so it runs every suite outside them."
+      ],
       shard_index: [
         in: :path,
         type: :integer,
@@ -580,6 +586,8 @@ defmodule TuistWeb.API.ShardsController do
       true -> {:error, :missing_shard_plan_identifier}
     end
   end
+
+  defp suite_catch_all_supported?(%{params: %{catch_all: catch_all}}) when is_boolean(catch_all), do: catch_all
 
   defp suite_catch_all_supported?(conn) do
     case Headers.get_cli_version(conn) do

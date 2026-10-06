@@ -62416,12 +62416,21 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query/shard_plan_id`.
                 public var shard_plan_id: Swift.String?
+                /// Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in `skip`, so it runs every suite outside them.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query/catch_all`.
+                public var catch_all: Swift.Bool?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - shard_plan_id: The exact shard plan identifier. When present, it takes precedence over the reference.
-                public init(shard_plan_id: Swift.String? = nil) {
+                ///   - catch_all: Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in `skip`, so it runs every suite outside them.
+                public init(
+                    shard_plan_id: Swift.String? = nil,
+                    catch_all: Swift.Bool? = nil
+                ) {
                     self.shard_plan_id = shard_plan_id
+                    self.catch_all = catch_all
                 }
             }
             public var query: Operations.getShard.Input.Query
