@@ -867,6 +867,8 @@ rackLinuxFleet:
       hostname: ber1-store-a
       role: storage
       address: 10.10.0.11
+      # Reinstalled so it registers with its pool and machines-address labels.
+      reinstallGeneration: 1
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   boot:
