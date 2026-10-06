@@ -1671,7 +1671,7 @@ impl Store {
         }
         match self.manifest(&artifact_id)? {
             Some(manifest) => {
-                let exists = self.storage_exists(&manifest).await?;
+                let exists = self.storage_present(&manifest).await?;
                 if exists {
                     self.note_artifact_exists(&artifact_id);
                 }
@@ -2660,7 +2660,7 @@ impl Store {
         let Some(manifest) = self.manifest(&artifact_id)? else {
             return Ok(false);
         };
-        if !self.storage_exists(&manifest).await? {
+        if !self.storage_present(&manifest).await? {
             return Ok(false);
         }
         self.note_artifact_exists(&artifact_id);
@@ -2861,6 +2861,28 @@ impl Store {
         self.evict_segments(evicted_segments).await?;
 
         Ok(Some(refreshed))
+    }
+
+    /// Presence answer for the "is it there?" paths (FindMissingBlobs, write
+    /// short-circuits, HEAD), which run once per digest and can be asked about
+    /// thousands of blobs per request. A segment-backed blob is present while
+    /// its segment is still in the ring: eviction drops the segment from the
+    /// ring before it deletes the manifests and only then removes the file, so
+    /// ring membership is as strong as a `stat` and costs no blocking-pool
+    /// round trip. It also stops vouching for a blob whose segment is mid-
+    /// eviction. Serving paths keep probing the filesystem.
+    async fn storage_present(&self, manifest: &ArtifactManifest) -> Result<bool, String> {
+        if manifest.is_segment_backed() && !manifest.inline {
+            let segment_id = manifest
+                .segment_id
+                .as_deref()
+                .expect("segment-backed manifest should have a segment id");
+            return Ok(self
+                .segment_state_snapshot()
+                .generations
+                .contains_key(segment_id));
+        }
+        self.storage_exists(manifest).await
     }
 
     async fn storage_exists(&self, manifest: &ArtifactManifest) -> Result<bool, String> {
@@ -13730,6 +13752,51 @@ mod tests {
             .expect("normal memory pressure should permit mmap serving");
 
         assert_eq!(&mmap_bytes[..], b"second-artifact-payload");
+    }
+
+    #[tokio::test]
+    async fn artifact_exists_answers_from_segment_ring_membership() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/evicting",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+
+        store
+            .mutate_segment_state(|state| state.remove_segment(&segment_id))
+            .await
+            .expect("failed to drop the segment from the ring");
+        // The write seeded the existence cache; the check under test is the miss path.
+        store.trim_existence_cache_to(0);
+
+        assert!(
+            store.segment_path(&segment_id).exists(),
+            "the segment file outlives its ring entry until eviction finishes"
+        );
+        assert!(
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", "blob/evicting")
+                .expect("failed to read manifest")
+                .is_some(),
+            "the manifest outlives its ring entry until eviction finishes"
+        );
+        assert!(
+            !store
+                .artifact_exists(ArtifactProducer::Reapi, "ios", "blob/evicting")
+                .await
+                .expect("failed to check artifact existence"),
+            "a blob whose segment left the ring must not be vouched for"
+        );
     }
 
     #[tokio::test]
