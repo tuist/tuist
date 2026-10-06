@@ -90,7 +90,6 @@ Atlas releases publish the image and standalone Helm chart with the same version
 
 ## CodeQL
 
-`workflows/codeql.yml` replaces GitHub's CodeQL default setup so pushes to the
-same PR supersede each other and Glossia translation PRs are skipped. Default
-setup must stay disabled in the repository settings, or uploads from this
-workflow are rejected.
+`workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
+must stay disabled in the repository settings, or uploads from this workflow
+are rejected.
