@@ -61,14 +61,16 @@ defmodule TuistWeb.Helpers.OpenGraph do
 
   defp project_image_path(slug, opts) do
     variables =
-      [
-        project: slug,
-        title: normalized_text(Keyword.get(opts, :title), 160),
-        subtitle: normalized_text(Keyword.get(opts, :subtitle), 200),
-        badge: normalized_text(Keyword.get(opts, :badge), 60),
-        locale: Gettext.get_locale(TuistWeb.Gettext)
-      ]
-      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      Enum.reject(
+        [
+          project: slug,
+          title: normalized_text(Keyword.get(opts, :title), 160),
+          subtitle: normalized_text(Keyword.get(opts, :subtitle), 200),
+          badge: normalized_text(Keyword.get(opts, :badge), 60),
+          locale: Gettext.get_locale(TuistWeb.Gettext)
+        ],
+        fn {_key, value} -> is_nil(value) end
+      )
 
     path = image_path(:project, variables)
 

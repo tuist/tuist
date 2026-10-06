@@ -339,7 +339,7 @@ msgid "The account %{account_handle} was not found."
 msgstr ""
 
 #: lib/tuist_web/authentication.ex:491
-#: lib/tuist_web/live/layout_live.ex:168
+#: lib/tuist_web/live/layout_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""

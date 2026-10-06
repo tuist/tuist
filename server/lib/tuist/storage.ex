@@ -603,7 +603,7 @@ defmodule Tuist.Storage do
 
         bucket_name
         |> ExAws.S3.list_objects_v2(list_opts)
-        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
     end
   end
 

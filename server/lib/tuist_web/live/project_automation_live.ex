@@ -42,7 +42,7 @@ defmodule TuistWeb.ProjectAutomationLive do
        |> assign(
          OpenGraph.project_image_assigns(selected_project,
            title: automation.name,
-           subtitle: automation_summary(automation),
+           subtitle: ProjectAutomationsLive.automation_summary(automation),
            badge:
              if(automation.enabled,
                do: dgettext("dashboard_projects", "Enabled"),
