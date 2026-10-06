@@ -241,10 +241,11 @@ defmodule Tuist.Tests.Coverage.History do
   (`since`/`until`); `page_size` is 20 by default.
 
   `search` keeps the commits whose SHA starts with it and `status` those of
-  one status: `complete` (its pipeline signalled it finished), `in-progress`
-  (measured, not yet signalled) or `not-measured` (on the branch, no run
-  measured it). Each is stored, so they narrow the query the page is read
-  with.
+  one status (`Tuist.Tests.Coverage.Commits.status/1`): `complete` (its
+  pipeline signalled it finished and its figure is whole), `incomplete`
+  (signalled, its figure a lower bound), `in-progress` (measured, not yet
+  signalled) or `not-measured` (on the branch, no run measured it). Each is
+  stored, so they narrow the query the page is read with.
   """
   def commit_cursor_page(%Project{} = project, branch, opts \\ []) do
     size = Keyword.get(opts, :page_size, 20)
@@ -267,7 +268,7 @@ defmodule Tuist.Tests.Coverage.History do
       measured =
         from(m in CoverageCommit, where: m.project_id == ^project_id)
         |> Commits.comparable()
-        |> select([m], %{sha: m.git_commit_sha, complete: m.complete})
+        |> select([m], %{sha: m.git_commit_sha, complete: m.complete, reported_kind: m.reported_kind})
 
       fn query ->
         query = if search == "", do: query, else: where(query, [c], like(c.sha, ^sha_prefix(search)))
@@ -282,7 +283,20 @@ defmodule Tuist.Tests.Coverage.History do
     do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
 
   defp by_status(query, "complete", measured),
-    do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: m.complete)
+    do:
+      from(c in query,
+        join: m in subquery(measured),
+        on: m.sha == c.sha,
+        where: m.complete and m.reported_kind != "partial"
+      )
+
+  defp by_status(query, "incomplete", measured),
+    do:
+      from(c in query,
+        join: m in subquery(measured),
+        on: m.sha == c.sha,
+        where: m.complete and m.reported_kind == "partial"
+      )
 
   defp by_status(query, "in-progress", measured),
     do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha, where: not m.complete)
@@ -297,7 +311,8 @@ defmodule Tuist.Tests.Coverage.History do
 
     case status do
       "" -> query
-      "complete" -> where(query, [c], c.complete)
+      "complete" -> where(query, [c], c.complete and c.reported_kind != "partial")
+      "incomplete" -> where(query, [c], c.complete and c.reported_kind == "partial")
       "in-progress" -> where(query, [c], not c.complete)
       _other -> where(query, false)
     end

@@ -432,7 +432,10 @@ subjects:
 #     its Machine and infrastructure are already gone.
 #   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
 #     tuist.dev/os-update, tuist.dev/os-reinstall and tuist.dev/power-action
-#     annotations. Not /status: a rack host's quarantine clears by expiring.
+#     annotations, and park a host. Not /status: a rack host's quarantine
+#     clears by expiring. rackhosts delete: retire a host the chart no longer
+#     declares, which the chart keeps (helm.sh/resource-policy: keep), as for
+#     racklinuxhosts. No create: which boxes a rack has is the chart's.
 #   * racklinuxhosts update/patch — raise a rack Linux host's
 #     reinstallGeneration, which reinstalls it, set its online field or the
 #     tuist.dev/reboot annotation, and correct its bootMAC. delete — retire a
@@ -467,8 +470,11 @@ rules:
     resources: ["ovhdedicatedmachines"]
     verbs: ["patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
-    resources: ["rackapplesiliconmachines", "rackhosts"]
+    resources: ["rackapplesiliconmachines"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["racklinuxhosts"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]
