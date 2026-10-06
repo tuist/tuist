@@ -1,124 +1,113 @@
-name: CodeQL
+# For most projects, this workflow file will not need changing; you simply need
+# to commit it to your repository.
+#
+# You may wish to alter this file to override the set of languages analyzed,
+# or to provide custom queries or build logic.
+#
+# ******** NOTE ********
+# We have attempted to detect the languages in your repository. Please check
+# the `language` matrix defined below to confirm you have the correct set of
+# supported CodeQL languages.
+#
+name: "CodeQL Advanced"
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
   schedule:
-    - cron: "0 6 * * 1"
-
-permissions:
-  contents: read
-
-# Replaces default setup, which cannot supersede runs on rapid pushes. On main,
-# a newer pending run still replaces an older pending one.
-concurrency:
-  group: codeql-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    - cron: '20 11 * * 4'
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    if: github.repository == 'tuist/tuist' && github.event.pull_request.user.login != 'glossia[bot]'
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    # Runner size impacts CodeQL analysis time. To learn more, please see:
+    #   - https://gh.io/recommended-hardware-resources-for-running-codeql
+    #   - https://gh.io/supported-runners-and-hardware-resources
+    #   - https://gh.io/using-larger-runners (GitHub.com only)
+    # Consider using larger runners or machines with greater resources for possible analysis time improvements.
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
     permissions:
+      # required for all workflows
+      security-events: write
+
+      # required to fetch internal or private CodeQL packs
+      packages: read
+
+      # only required for workflows in private repositories
       actions: read
       contents: read
-      id-token: write
-      packages: read
-      security-events: write
+
     strategy:
       fail-fast: false
       matrix:
         include:
-          - language: actions
-            build-mode: none
-            runner: tuist-linux
-          - language: go
-            build-mode: autobuild
-            runner: tuist-linux
-          - language: java-kotlin
-            build-mode: none
-            runner: tuist-linux
-          - language: javascript-typescript
-            build-mode: none
-            runner: tuist-linux
-          - language: python
-            build-mode: none
-            runner: tuist-linux
-          - language: rust
-            build-mode: none
-            runner: tuist-linux-large
-          - language: swift
-            build-mode: manual
-            runner: tuist-macos-27-0
+        - language: actions
+          build-mode: none
+        - language: c-cpp
+          build-mode: none
+        - language: go
+          build-mode: autobuild
+        - language: java-kotlin
+          build-mode: autobuild
+        - language: javascript-typescript
+          build-mode: none
+        - language: python
+          build-mode: none
+        - language: rust
+          build-mode: none
+        - language: swift
+          build-mode: autobuild
+        # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
+        # Use `c-cpp` to analyze code written in C, C++ or both
+        # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
+        # Use 'javascript-typescript' to analyze code written in JavaScript, TypeScript or both
+        # To learn more about changing the languages that are analyzed or customizing the build mode for your analysis,
+        # see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
+        # If you are analyzing a compiled language, you can modify the 'build-mode' for that language to customize how
+        # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v7
 
-      - name: Install Rust
-        if: matrix.language == 'rust'
-        uses: ./.github/actions/mise
-        with:
-          install_args: "rust"
-          working_directory: kura
+    # Add any setup steps before running the `github/codeql-action/init` action.
+    # This includes steps like installing compilers or runtimes (`actions/setup-node`
+    # or others). This is typically only required for manual builds.
+    # - name: Setup runtime (example)
+    #   uses: actions/setup-example@v1
 
-      - name: Install Tuist
-        if: matrix.language == 'swift'
-        uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          cache: "false"
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        # If you wish to specify custom queries, you can do so here or in a config file.
+        # By default, queries listed here will override any specified in a config file.
+        # Prefix the list here with "+" to use these queries and those in the config file.
 
-      - name: Authenticate with Tuist
-        if: matrix.language == 'swift' && github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
+        # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+        # queries: security-extended,security-and-quality
 
-      - name: Setup Tuist
-        if: matrix.language == 'swift' && github.event.pull_request.head.repo.fork != true
-        run: tuist setup
+    # If the analyze step fails for one of the languages you are analyzing with
+    # "We were unable to automatically build your code", modify the matrix above
+    # to set the build mode to "manual" for that language. Then modify this step
+    # to build your code.
+    # ℹ️ Command-line programs to run using the OS shell.
+    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
+    - name: Run manual build steps
+      if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo 'If you are using a "manual" build mode for one or more of the' \
+          'languages you are analyzing, replace this with the commands to build' \
+          'your code, for example:'
+        echo '  make bootstrap'
+        echo '  make release'
+        exit 1
 
-      - name: Resolve Swift packages
-        if: matrix.language == 'swift'
-        run: |
-          tuist install --force-resolved-versions
-          swift package resolve --replace-scm-with-registry
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-          dependency-caching: true
-
-      - name: Resolve build environment
-        id: resolve-environment
-        if: matrix.language == 'go'
-        uses: github/codeql-action/resolve-environment@v4
-        with:
-          language: go
-
-      - name: Setup Go
-        if: matrix.language == 'go' && fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
-          cache: false
-
-      - name: Autobuild
-        if: matrix.build-mode == 'autobuild'
-        uses: github/codeql-action/autobuild@v4
-
-      # CodeQL extracts Swift by tracing a clean build, so .build is never restored from cache.
-      - name: Build Swift
-        if: matrix.language == 'swift'
-        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: /language:${{ matrix.language }}
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{matrix.language}}"
