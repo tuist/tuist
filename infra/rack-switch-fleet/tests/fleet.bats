@@ -141,9 +141,11 @@ render_as_captured() {
     fleet_render "$SITE_FILE" ber1-tor-a > "$a"
     fleet_render "$SITE_FILE" ber1-tor-b > "$b"
     run bash -c "diff '$a' '$b' | grep '^<'"
-    # the hostname, the address, the WAN uplink's description, and the name of
-    # tor-a's ISL lag on its two members and its port-channel
-    [ "${#lines[@]}" -eq 6 ]
+    # the hostname, the address, the WAN uplink's description, the name of
+    # tor-a's ISL lag on its two members and its port-channel, and ber1-store-a's
+    # port on the machines segment, whose pair ber1-store-b is still planned
+    [ "${#lines[@]}" -eq 9 ]
+    [[ "$output" == *"switchport pvid 10"* ]]
     [[ "$output" == *'hostname "ber1-tor-a"'* ]]
     [[ "$output" == *"ip address 192.168.0.11"* ]]
     [[ "$output" == *'description "router uplink WAN"'* ]]
@@ -2585,7 +2587,8 @@ STUB
     run fleet_render "$SITE_FILE" ber1-tor-a
     [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
     [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
-    [[ "$output" != *"untagged"* ]]
+    # on ToR A only the storage node sits on the segment
+    [ "$(awk '/^interface /{port = $2 " " $3} /untagged/ {print port}' <<<"$output")" = "ten-gigabitEthernet 1/0/27" ]
     run fleet_render "$SITE_FILE" ber1-mgmt
     [[ "$output" != *"vlan 10"* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | yq -o=json '.spec.config' | jq -c '[(.ports[] | select(.port == 2) | {nativeVlan, taggedVlans}), ([.vlans[].id])]'"
@@ -2680,6 +2683,34 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" != *"interface="* ]]
     [[ "$output" != *"dhcp-range"* ]]
+}
+
+@test "a storage node sits on the machines segment at its RackLinuxHost's address, beside the runners it serves" {
+    run fleet_render "$SITE_FILE" ber1-tor-a
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'interface ten-gigabitEthernet 1/0/27
+  spanning-tree
+  switchport general allowed vlan 10 untagged
+  switchport pvid 10
+  no switchport general allowed vlan 1
+#'* ]]
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_machines_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.11,ber1-store-a,infinite"* ]]
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
+    [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.12,ber1-store-a,infinite"* ]]
+    # a Linux node on the segment needs a declared host with an address
+    yq 'del((.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address)' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_machines "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-store-a's RackLinuxHost has no address"* ]]
+    yq 'del(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a"))' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_machines "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-store-a is on the machines segment and is neither a RackHost nor a RackLinuxHost"* ]]
 }
 
 # Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:
@@ -2976,7 +3007,7 @@ STUB
     jq '(.nodes[] | select(.name == "ber1-runner-b01")) |= del(.rack_host)' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"ber1-runner-b01 is on the machines segment and names no RackHost"* ]]
+    [[ "$output" == *"ber1-runner-b01 is on the machines segment and is neither a RackHost nor a RackLinuxHost"* ]]
     values="$BATS_TEST_TMPDIR/values.yaml"
     yq '(.rackFleet.hosts[] | select(.name == "ber1-runner-b01")).address = "192.168.0.41"' "$FLEET_RACK_VALUES" > "$values"
     run fleet_edge_check_machines "$SITE_FILE" "$values"
