@@ -710,3 +710,16 @@ func TestRackATSEventsIgnoreStatusWrites(t *testing.T) {
 		}
 	}
 }
+
+// The card can still report the voltage it last measured on an input it
+// already calls missing, as ber1-ats-3 did the moment a feed was pulled on
+// 2026-10-06: "source 2 is missing at 233.6 V" reads as a source that is up.
+func TestDescribeRackATSInputsLeavesTheVoltageOffAMissingSource(t *testing.T) {
+	got := describeRackATSInputs([]infrav1.RackATSInput{
+		{Source: 1, State: infrav1.RackATSInputGood, Voltage: "234.4"},
+		{Source: 2, State: infrav1.RackATSInputMissing, Voltage: "233.6"},
+	})
+	if want := "source 1 is good at 234.4 V; source 2 is missing"; got != want {
+		t.Fatalf("describeRackATSInputs = %q, want %q", got, want)
+	}
+}

@@ -439,6 +439,22 @@ The prep bay runs `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
 critical layer plus one chain: enough to fail a chain and watch the rest of the
 rack report it. `ber1-ats-2` and `ber1-pdu-a` are `planned` until the colo.
 
+The drill was run on 2026-10-06 with the three M5 Pro minis on chain B and
+two CI jobs running:
+
+- **One feed pulled**, on `ber1-ats-3` and then on `ber1-ats-1`: each switch
+  moved the load to its other source and back to its preferred one on restore,
+  reported as `Transferred` and `RedundancyLost`/`RedundancyRestored`. Nothing
+  downstream noticed: no mini, ToR or edge rebooted, VRRP did not move, and both
+  jobs completed.
+- **Chain B dark** (both of `ber1-ats-3`'s feeds out for about five minutes):
+  the minis, ToR B and edge-b went down. The critical layer kept reporting,
+  edge-a kept the power routes, and the MachineHealthCheck flagged the three
+  Machines without remediating any. After restore the PDU card answered in
+  about three minutes on its pinned certificate, and the minis came back
+  together in about 3.5 minutes, the time ToR B takes to boot, with no
+  re-bootstrap. edge-b took about 5.5 minutes.
+
 Keep more loads off the critical ATS over time rather than adding to it: gear
 bought with two power supplies goes one cord to each chain's PDU and needs no
 ATS at all, which leaves the critical layer with only what can never be

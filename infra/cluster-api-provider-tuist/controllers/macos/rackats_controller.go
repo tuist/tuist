@@ -498,7 +498,7 @@ func describeRackATSInputs(inputs []infrav1.RackATSInput) string {
 			out += "; "
 		}
 		out += fmt.Sprintf("source %d is %s", in.Source, in.State)
-		if in.Voltage != "" {
+		if in.Voltage != "" && in.State != infrav1.RackATSInputMissing {
 			out += " at " + in.Voltage + " V"
 		}
 	}

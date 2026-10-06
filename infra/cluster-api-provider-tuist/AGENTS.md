@@ -674,7 +674,11 @@ or upgrading can) keeps `Adopted=True` and is `Ready=False`, reason
 `capt_rackpdu_certificate_changed`, each 1 or 0. The alerts worth having:
 
 - `capt_rackpdu_ready == 0` for 15 minutes: every host on the PDU has lost its
-  remote reboot. The RackPDU's `Ready` reason says why.
+  remote reboot. The RackPDU's `Ready` reason says why. `Ready` is re-read
+  every 10 minutes, so a shorter outage can pass without it moving: a
+  six-minute chain failure on 2026-10-06 fell between two reads. The hosts'
+  own `PowerReachable` (`capt_rackhost_power_reachable`) caught it within a
+  minute, so alert on that for "remote power is gone now".
 - `capt_rackpdu_certificate_changed == 1`: something else answers at the
   card's address, or the card was replaced or reset; nothing is written to it
   until someone accepts the certificate.
