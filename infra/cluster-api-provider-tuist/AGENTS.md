@@ -396,6 +396,15 @@ mode behind it:
   `tailscale-device-reaper`, once out of dry-run, still deletes a device
   unseen for its `graceHours` (7 days), so the router entry in the guard, not
   the standard device, is what reaches a box that was off for longer.
+- **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
+  every private destination, and a rack's Kura gateway sits on the machines
+  segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
+  `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
+  The traffic leaves on the host's default route, so the VM NAT's general leg
+  translates it. The value is in the hash, so changing it re-pushes the
+  firewall to running hosts through the drift loop. The rented fleets never
+  get it.
 - **Delete stops.** No reinstall, no wipe: no API can do either to hardware in
   our own rack. That makes Stage 1 of the delete path (dropping the node
   identity) matter *more* than on rented capacity, not less: nothing wipes the
