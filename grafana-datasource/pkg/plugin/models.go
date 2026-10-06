@@ -19,11 +19,16 @@ type queryModel struct {
 	ProjectHandle string   `json:"projectHandle"`
 	Series        []string `json:"series"`
 	// Environment mirrors the dashboard filter: "any" (default), "ci", or "local".
-	Environment   string `json:"environment"`
-	Scheme        string `json:"scheme"`
-	Configuration string `json:"configuration"`
-	Category      string `json:"category"`
-	Status        string `json:"status"`
+	Environment          string `json:"environment"`
+	Scheme               string `json:"scheme"`
+	Configuration        string `json:"configuration"`
+	Category             string `json:"category"`
+	Status               string `json:"status"`
+	ResultMode           string `json:"resultMode"`
+	Metric               string `json:"metric"`
+	GitBranch            string `json:"gitBranch"`
+	Workload             string `json:"workload"`
+	SlowBuildThresholdMS *int64 `json:"slowBuildThresholdMs"`
 }
 
 // series mirrors a single duration series in the DurationMetrics API response.
@@ -45,4 +50,29 @@ type durationMetrics struct {
 // project mirrors the relevant field of the GET /api/projects response.
 type project struct {
 	FullName string `json:"full_name"`
+}
+
+// Gradle health metrics use null for missing evidence rather than zero.
+type buildHealthMetrics struct {
+	Dates  []int64               `json:"dates"`
+	Series map[string][]*float64 `json:"series"`
+	Totals map[string]*float64   `json:"totals"`
+	Rows   []buildMetricRow      `json:"rows"`
+}
+
+type buildMetricRow struct {
+	BuildSystem     string   `json:"build_system"`
+	Workload        string   `json:"workload"`
+	Category        string   `json:"category"`
+	ID              string   `json:"id"`
+	StartedAt       int64    `json:"started_at"`
+	DurationMS      *float64 `json:"duration_ms"`
+	User            string   `json:"user"`
+	RequestedTasks  []string `json:"requested_tasks"`
+	FailureCategory string   `json:"failure_category"`
+	GitBranch       string   `json:"git_branch"`
+	Builds          float64  `json:"builds"`
+	SuccessRate     *float64 `json:"success_rate"`
+	P50             *float64 `json:"p50"`
+	P90             *float64 `json:"p90"`
 }
