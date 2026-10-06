@@ -158,5 +158,31 @@ defmodule TuistCommon.AWS.ClientTest do
       Application.delete_env(:tuist_common, :finch_name)
       Application.delete_env(:ex_aws, :req_opts)
     end
+
+    test "returns error tuple when the Finch pool has no connection available" do
+      Application.put_env(:tuist_common, :finch_name, TestFinch)
+      Application.put_env(:ex_aws, :req_opts, [])
+
+      expect(Req, :request, fn _opts ->
+        raise "Finch was unable to provide a connection within the timeout due to excess queuing for connections."
+      end)
+
+      assert {:error, %{reason: :pool_timeout}} = Client.request(:get, "https://example.com")
+    after
+      Application.delete_env(:tuist_common, :finch_name)
+      Application.delete_env(:ex_aws, :req_opts)
+    end
+
+    test "reraises other runtime errors" do
+      Application.put_env(:tuist_common, :finch_name, TestFinch)
+      Application.put_env(:ex_aws, :req_opts, [])
+
+      expect(Req, :request, fn _opts -> raise "boom" end)
+
+      assert_raise RuntimeError, "boom", fn -> Client.request(:get, "https://example.com") end
+    after
+      Application.delete_env(:tuist_common, :finch_name)
+      Application.delete_env(:ex_aws, :req_opts)
+    end
   end
 end
