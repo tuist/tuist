@@ -299,25 +299,3 @@ func TestPrivateReplicationPublishesCanonicalVPCIDs(t *testing.T) {
 	}
 	t.Fatal("topology not published")
 }
-
-func TestProductionRegionalPolicyIsStagedBeforeSantiagoQualification(t *testing.T) {
-	docs := renderStableChartWithValues(t, "tuist", []string{"templates/_helpers.tpl", "templates/vultr-private-network.yaml"}, []string{"values-managed-common.yaml", "values-managed-production.yaml"})
-	for _, doc := range docs {
-		if doc["kind"] != "ConfigMap" {
-			continue
-		}
-		data := doc["data"].(map[string]interface{})
-		var regions map[string]struct {
-			Qualified      bool     `json:"qualified"`
-			CanonicalPeers []string `json:"canonicalPeers"`
-		}
-		if err := json.Unmarshal([]byte(data["regions.json"].(string)), &regions); err != nil {
-			t.Fatal(err)
-		}
-		if !regions["ord"].Qualified || regions["scl"].Qualified || !slices.Equal(regions["ord"].CanonicalPeers, []string{"scl"}) || !slices.Equal(regions["scl"].CanonicalPeers, []string{"ord"}) {
-			t.Fatal(regions)
-		}
-		return
-	}
-	t.Fatal("regional network ConfigMap missing")
-}

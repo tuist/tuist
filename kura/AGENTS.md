@@ -46,6 +46,9 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
   Keep durable regression coverage in the Rust tests and ShellSpec mTLS suite;
   use `test/e2e/provider-topology/` for repeatable local resource comparisons.
+  Regional E2E private aliases must be isolated per domain. The fixture mTLS
+  proxies distinguish private body transfers from discovery probes; retain the
+  one-sided-approval negative case and independent suite lifecycles.
   Keep run-specific manifests, credentials, captures and dated results out of
   the repository; record deployment validation in the associated PR. Private-path
   fault tests must observe a real blackhole: changing a Service port can leave

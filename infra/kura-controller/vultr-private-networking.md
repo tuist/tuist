@@ -72,9 +72,13 @@ configured regions; all qualified regional pairs must be approved before the
 controller makes provider changes. This is an explicit public inter-region path,
 not an ORD–SCL private interconnect.
 
-The CAPI controller resolves those names against provider inventory to exact
-VPC IDs, retaining the IDs with the existing network state. After local host
-routes converge, it publishes the sorted remote IDs in the Node annotation
+After local attachment and route convergence, the CAPI controller resolves
+those names read-only: each region must already have a retained VPC ID matching
+provider inventory (cached for at most one minute). Approval does not create a
+remote VPC. Missing state or inventory errors preserve the published policy and
+report `PrivateNetworkReady=False`, retried after 20 seconds; local attachment
+and route repair still run. New topology publication waits for resolution. On
+success it publishes the sorted remote IDs in the Node annotation
 `tuist.dev/private-network-canonical-peers`. The Kura controller requires all
 candidate Nodes to agree before adding `canonical_networks` to runtime topology.
 The runtime accepts a different same-provider domain over canonical mTLS only
@@ -85,7 +89,15 @@ private donor preference. Cross-provider and topology-free compatibility are
 unchanged.
 
 Deploy the policy-capable runtime and both controllers first, with Santiago
-still `qualified: false`. Verify all Chicago runtimes advertise Santiago's VPC
+still `qualified: false`. Publishing the new Node policy changes
+`KURA_PEER_TOPOLOGY` and triggers the normal Chicago StatefulSet rollout, even
+if the runtime image is unchanged. Node patches are not atomic across hosts:
+the Kura controller preserves existing topology until every candidate agrees.
+Ready Vultr Machines normally reconcile every ten minutes (20 seconds on
+private-network errors); Kura instances normally requeue every 30 seconds. A
+values-only update can therefore take a full resync interval plus queue time to
+converge. Observe the Node annotations and rollout completion instead of assuming
+simultaneous patches. Verify all Chicago runtimes advertise Santiago's VPC
 ID before qualifying Santiago: older runtimes ignore the additive policy field
 and would reject the second advertised domain. Existing production values stage
 the reciprocal approvals without attaching Santiago. Then qualify the Santiago

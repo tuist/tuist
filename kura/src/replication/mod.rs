@@ -192,9 +192,7 @@ async fn probe_private_path(
         Ok(url)
             if own
                 .zip(peer.topology.as_ref())
-                .is_some_and(|(local, remote)| {
-                    local.same_provider(remote) && local.private_network == remote.private_network
-                }) =>
+                .is_some_and(|(local, remote)| local.same_private_network(remote)) =>
         {
             url
         }

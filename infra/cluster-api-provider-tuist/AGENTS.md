@@ -17,8 +17,10 @@
   restart, and attest every peer on its current boot before publication. Chicago
   is qualified; Santiago remains VPC-only. Require reciprocal `canonicalPeers`
   for every qualified regional pair before provider calls. Resolve approvals to
-  exact VPC IDs and publish them only after local host routes converge; never
-  install private host routes across regional VPCs. `cmd/vultr-vpc`
+  retained VPC IDs through read-only inventory checks after local routes converge.
+  Missing remote state must never provision that region or block local attachment
+  and route repair; preserve the last published policy and report the error.
+  Never install private host routes across regional VPCs. `cmd/vultr-vpc`
   remains the empty-network bootstrap/planner. See
   [Vultr private networking](../kura-controller/vultr-private-networking.md).
 
