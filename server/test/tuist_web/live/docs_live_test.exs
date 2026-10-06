@@ -65,18 +65,16 @@ defmodule TuistWeb.DocsLiveTest do
       supported_systems =
         document
         |> Floki.find(~s([data-part="feature-card"]))
-        |> Enum.map(fn card ->
+        |> Map.new(fn card ->
           {card |> Floki.attribute("href") |> List.first(),
            Floki.attribute(card, ~s([data-part="supported-icon"]), "title")}
         end)
-        |> Map.new()
 
       assert supported_systems == %{
                "/en/docs/guides/features/cache" => ~w(apple gradle bazel),
                "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir),
                "/en/docs/guides/features/selective-testing" => ~w(apple),
-               "/en/docs/guides/features/test-insights/flaky-tests" =>
-                 ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir),
                "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir),
                "/en/docs/guides/features/previews" => ~w(apple android),
                "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir)
