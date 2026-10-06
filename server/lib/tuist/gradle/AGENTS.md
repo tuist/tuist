@@ -30,3 +30,5 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 - Timeline availability checks timed operation rows or samples aligned with the same origin as the actual timeline. Untimed legacy tasks and samples entirely before the build must not expose an empty Timeline tab.
 
 - Legacy clock-origin metadata remains available to API/MCP clients, but the dashboard does not display an internal missing-start-timestamp banner over otherwise valid recorded steps and samples.
+
+- Cache hit-rate analytics expose `has_data` from observed cacheable-task buckets. A recorded zero percent hit rate is valid data; absence of observations is the empty state.

@@ -447,6 +447,13 @@ jobs:
           install: "rust shellspec bazel aqua:facebook/buck2"
           working-directory: kura
 
+      - name: Install Java for the Bazel upload recovery fixture
+        if: matrix.shard_name == 'clients'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Show Docker tooling
         run: docker compose version
 

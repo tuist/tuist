@@ -189,11 +189,15 @@ keep_desktop_interactive
 # the agents it launches directly. A row only matches when it carries
 # Finder's code requirement as `indirect_object_code_identity`.
 #
+# tccd is still writing the database right after login, and the sqlite3
+# CLI fails at once on a lock unless given a busy timeout. Without one,
+# some boots lost the approval to `database is locked`.
+#
 # Best-effort: a job that never scripts Finder must not wait on this.
 approve_finder_automation() {
   local db="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
   local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
-  local waited=0 client
+  local waited=0 failed=0 client
   while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
     sleep 1
     waited=$((waited + 1))
@@ -203,12 +207,13 @@ approve_finder_automation() {
     return 0
   fi
   for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
-    if ! /usr/bin/sqlite3 "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
+    if ! /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
       echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
-      return 0
+      failed=1
     fi
   done
-  echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
+  [ "${failed}" -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
+  return 0
 }
 
 approve_finder_automation

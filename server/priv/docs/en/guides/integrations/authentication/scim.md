@@ -136,11 +136,14 @@ If you later change the provisioning scope, for example from **Sync all users an
 Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. To set them from Entra ID:
 
 1. In **App registrations**, open the Tuist application and add an app role for each Tuist role you want to assign. Set **Allowed member types** to **Users/Groups** and **Value** to `admin`, `user`, or `viewer`.
-2. On the enterprise application's **Users and groups** tab, assign each user or group one of those app roles. Give each user a single app role; if a user has more than one, Entra ID does not guarantee which one it sends.
-3. Under **Provisioning > Mappings > Provision Microsoft Entra ID Users**, click **Add New Mapping**. Set **Mapping type** to **Expression**, **Expression** to `SingleAppRoleAssignment([appRoleAssignments])`, and **Target attribute** to `roles[primary eq "True"].value`.
-4. Keep the provisioning scope set to **Sync only assigned users and groups**. `SingleAppRoleAssignment` isn't compatible with **Sync all users and groups**.
+2. On the enterprise application's **Users and groups** tab, assign each user or group one of those app roles. A user can hold several app roles. Tuist applies the most privileged one, where `admin` outranks `user` and `user` outranks `viewer`, so a user who belongs to groups mapped to different roles gets the highest of them.
+3. Under **Provisioning > Mappings**, open the **Advanced Options** dropdown and select **Edit target User attributes**. Add an attribute named `roles` with **Type** set to `String` and **Multi-Value** checked.
+4. Under **Provisioning > Mappings > Provision Microsoft Entra ID Users**, click **Add New Mapping**. Set **Mapping type** to **Expression**, **Expression** to `AssertiveAppRoleAssignmentsComplex([appRoleAssignments])`, and **Target attribute** to the `roles` attribute you added.
+5. Keep the provisioning scope set to **Sync only assigned users and groups**. `AssertiveAppRoleAssignmentsComplex` isn't compatible with **Sync all users and groups**.
 
-Changing a user's app role in Entra ID updates their Tuist role on the next provisioning cycle. A user provisioned without an app role, or with a value other than `admin`, `user`, or `viewer`, gets the role the organization enrolls single sign-on members at, which is `user` unless an administrator changed it under **Settings > Authentication**.
+`AssertiveAppRoleAssignmentsComplex` sends every app role a user holds, and it also sends removals, so taking a role away in Entra ID downgrades the user to the most privileged role they still hold. `SingleAppRoleAssignment([appRoleAssignments])` mapped to `roles[primary eq "True"].value` also works, but it only ever sends one role, and Entra ID gives no guarantee which one it picks when a user holds several.
+
+Changing a user's app roles in Entra ID updates their Tuist role on the next provisioning cycle. A user provisioned without an app role, or with values other than `admin`, `user`, or `viewer`, gets the role the organization enrolls single sign-on members at, which is `user` unless an administrator changed it under **Settings > Authentication**.
 
 ## Lifecycle behavior {#lifecycle-behavior}
 
@@ -148,7 +151,7 @@ When your identity provider assigns a user to the provisioning application, Tuis
 
 When your identity provider unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 
-Tuist exposes three synthetic SCIM groups: `Tuist Admins`, `Tuist Users`, and `Tuist Viewers`. Adding a member to a group sets their organization role. Removing a member from the group that matches their current role moves them back to the enrollment role, and membership itself only ends when the user is unassigned or deactivated. Identity providers can also set the role through the SCIM `roles` attribute on a user, with a value of `admin`, `user`, or `viewer`.
+Tuist exposes three synthetic SCIM groups: `Tuist Admins`, `Tuist Users`, and `Tuist Viewers`. Adding a member to a group sets their organization role. Removing a member from the group that matches their current role moves them back to the enrollment role, and membership itself only ends when the user is unassigned or deactivated. Identity providers can also set the role through the SCIM `roles` attribute on a user, with a value of `admin`, `user`, or `viewer`. An identity provider that sends several values gets the most privileged of them, where `admin` outranks `user` and `user` outranks `viewer`.
 
 ## Supported SCIM features {#supported-scim-features}
 

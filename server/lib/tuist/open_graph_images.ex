@@ -46,8 +46,8 @@ defmodule Tuist.OpenGraphImages do
     end
   end
 
-  def ensure_available(key, resolve) when is_binary(key) and is_function(resolve, 0) do
-    object_key = object_key(key)
+  def ensure_available(key, resolve, opts \\ []) when is_binary(key) and is_function(resolve, 0) do
+    object_key = object_key(key, opts)
 
     # Fast path: an already-generated image (the overwhelming majority of
     # requests) is served without taking the cluster-wide lock. Only a cache
@@ -71,9 +71,9 @@ defmodule Tuist.OpenGraphImages do
   # mid-download storage failure lands after a 200 with a year-long immutable
   # cache header, freezing a truncated image on CDNs and social platforms under
   # a URL that by construction never changes.
-  def fetch(key) do
+  def fetch(key, opts \\ []) do
     key
-    |> object_key()
+    |> object_key(opts)
     |> Storage.get_object(@actor)
   end
 
@@ -121,7 +121,12 @@ defmodule Tuist.OpenGraphImages do
     end
   end
 
-  defp object_key(key), do: Path.join(@storage_prefix, "#{key}.jpg")
+  defp object_key(key, opts) do
+    prefix =
+      if Keyword.get(opts, :project, false), do: Path.join(@storage_prefix, "projects"), else: @storage_prefix
+
+    Path.join(prefix, "#{key}.jpg")
+  end
 
   defp encode_part({:file, path}) do
     digest = file_digest(path)

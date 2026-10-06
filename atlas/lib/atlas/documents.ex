@@ -32,6 +32,7 @@ defmodule Atlas.Documents do
   alias Atlas.Documents.Workers.ProcessDocument
   alias Atlas.Finance
   alias Atlas.Finance.Agents.InvoiceExtractorAgent
+  alias Atlas.Finance.Invoice
   alias Atlas.LLMs.Errors, as: LLMErrors
   alias Atlas.Repo
   alias Atlas.Users.User
@@ -514,6 +515,8 @@ defmodule Atlas.Documents do
   end
 
   def process_document(document_id, opts \\ []) when is_binary(document_id) do
+    opts = Keyword.put_new(opts, :defer_invoice_extraction_errors?, true)
+
     with %Document{} = document <- Repo.get(Document, document_id),
          {:ok, document} <- mark_processing(document),
          {:ok, %{body: body}} <- Storage.get_object(document.storage_key),
@@ -1139,8 +1142,10 @@ defmodule Atlas.Documents do
 
   defp run_document_finalization_side_effects(original_document, updated, inserted_pages, opts) do
     Enum.each(inserted_pages, fn page -> index_page_vector(page, original_document, opts) end)
-    apply_classifier_side_effects(updated, inserted_pages, opts)
-    {:ok, updated}
+
+    with :ok <- apply_classifier_side_effects(updated, inserted_pages, opts) do
+      {:ok, updated}
+    end
   end
 
   # Side effects that follow any classification write, whether the document was
@@ -1150,13 +1155,32 @@ defmodule Atlas.Documents do
     maybe_enqueue_service_level_extraction(document)
     maybe_sync_account_from_order_form(document, pages)
     maybe_extract_finance_invoice(document, pages, opts)
-    :ok
   end
 
   defp maybe_extract_finance_invoice(%Document{} = document, pages, opts) do
     document = Repo.preload(document, [:document_type, :correspondent])
 
-    if extractable_invoice_document?(document) and not deterministic_classification?(document) do
+    if extractable_invoice_document?(document) do
+      invoice = Finance.get_finance_invoice_by_document(document)
+
+      if completed_invoice?(invoice) and not Keyword.get(opts, :force_invoice_extraction?, false) do
+        :ok
+      else
+        extract_finance_invoice(document, pages, opts)
+      end
+    else
+      :ok
+    end
+  end
+
+  defp completed_invoice?(nil), do: false
+
+  defp completed_invoice?(invoice) do
+    invoice.status != "failed" and (invoice.metadata || %{})["fallback"] != true
+  end
+
+  defp extract_finance_invoice(document, pages, opts) do
+    if Enum.any?(pages, &(String.trim(&1.content || "") != "")) do
       extractor = Keyword.get(opts, :invoice_extractor, InvoiceExtractorAgent)
 
       case extractor.extract(document, pages) do
@@ -1170,23 +1194,38 @@ defmodule Atlas.Documents do
             )
             |> maybe_put_finance_transaction_id(document)
 
-          Finance.upsert_extracted_invoice(document, invoice_attrs, line_items)
-          :ok
+          document
+          |> Finance.upsert_extracted_invoice(invoice_attrs, line_items)
+          |> invoice_write_result()
 
         {:error, reason} ->
-          Finance.mark_invoice_extraction_failed(document, reason)
-          Logger.warning("Could not extract invoice breakdown from document #{document.id}: #{inspect(reason)}")
-          :ok
+          handle_invoice_extraction_error(document, reason, opts)
       end
     else
-      :ok
+      document
+      |> Finance.mark_invoice_extraction_failed(:no_extractable_text)
+      |> invoice_write_result()
     end
   end
 
-  defp deterministic_classification?(%Document{attributes: %{"classification" => %{"source" => "deterministic"}}}),
-    do: true
+  defp handle_invoice_extraction_error(document, reason, opts) do
+    if Keyword.get(opts, :invoice_extraction_final_attempt?, true) or LLMErrors.hard_failure?(reason) do
+      Logger.warning("Could not extract invoice breakdown from document #{document.id}: #{inspect(reason)}")
 
-  defp deterministic_classification?(_document), do: false
+      document
+      |> Finance.mark_invoice_extraction_failed(reason)
+      |> invoice_write_result()
+    else
+      defer_or_retry_invoice_extraction(reason, opts)
+    end
+  end
+
+  defp defer_or_retry_invoice_extraction(reason, opts) do
+    if Keyword.get(opts, :defer_invoice_extraction_errors?, false), do: :ok, else: {:error, reason}
+  end
+
+  defp invoice_write_result({:ok, _invoice}), do: :ok
+  defp invoice_write_result({:error, _reason} = error), do: error
 
   defp extractable_invoice_document?(%Document{document_type: %{name: name}}) when is_binary(name) do
     name |> String.downcase() |> String.contains?("invoice")
@@ -1379,8 +1418,8 @@ defmodule Atlas.Documents do
   defp maybe_limit(query, _limit), do: query
 
   @doc """
-  Lists ready documents whose page text exists but metadata has not been
-  classified by the agent yet.
+  Lists ready documents missing classification metadata or complete finance
+  extraction after invoice classification.
   """
   def list_document_classification_candidate_ids(opts \\ []) do
     limit = Keyword.get(opts, :limit, @default_classification_candidate_limit)
@@ -1399,29 +1438,64 @@ defmodule Atlas.Documents do
         )
       end
 
-    Document
-    |> join(:inner, [document], page in assoc(document, :pages))
+    missing_classification = missing_document_classification(classification_status_filter)
+    missing_invoice = missing_document_invoice()
+
+    from(document in Document, as: :document)
+    |> join(:left, [document], page in assoc(document, :pages))
     |> join(:left, [document, _page], document_type in assoc(document, :document_type))
     |> where([document, _page, _document_type], document.status == "ready")
     |> maybe_exclude_failed_classifications(include_failed?)
-    |> where(
-      [document, _page, _document_type],
-      fragment("coalesce(?->?->>'status', '') <> 'classified'", document.attributes, ^@classification_attribute_key)
+    |> join(:left, [document], invoice in Invoice, on: invoice.document_id == document.id)
+    |> where(^dynamic(^missing_classification or ^missing_invoice))
+    |> group_by([document, _page, _document_type, invoice], [document.id, document.inserted_at, invoice.extracted_at])
+    |> order_by([document, _page, _document_type, invoice],
+      asc: fragment("coalesce(?, ?)", invoice.extracted_at, document.inserted_at),
+      asc: document.id
     )
-    |> where(
-      ^dynamic(
-        [document, _page, document_type],
-        ^classification_status_filter or
-          is_nil(document.correspondent_id) or is_nil(document.document_type_id) or
-          is_nil(document.document_date) or is_nil(document.summary) or document.summary == "" or
-          fragment("lower(coalesce(?, '')) = 'other'", document_type.name)
-      )
-    )
-    |> group_by([document, _page, _document_type], [document.id, document.inserted_at])
-    |> order_by([document, _page, _document_type], asc: document.inserted_at, asc: document.id)
     |> maybe_limit(limit)
     |> select([document, _page, _document_type], document.id)
     |> Repo.all()
+  end
+
+  defp missing_document_classification(classification_status_filter) do
+    incomplete_metadata =
+      dynamic(
+        [document, _page, document_type],
+        is_nil(document.correspondent_id) or is_nil(document.document_type_id) or
+          is_nil(document.document_date) or is_nil(document.summary) or document.summary == "" or
+          fragment("lower(coalesce(?, '')) = 'other'", document_type.name)
+      )
+
+    dynamic(
+      [document, page, _document_type],
+      not is_nil(page.id) and
+        fragment("coalesce(?->?->>'status', '') <> 'classified'", document.attributes, ^@classification_attribute_key) and
+        (^classification_status_filter or ^incomplete_metadata)
+    )
+  end
+
+  defp missing_document_invoice do
+    eligible_document =
+      dynamic(
+        [document, _page, document_type],
+        ilike(document_type.name, "%invoice%") or
+          (is_nil(document_type.id) and
+             (ilike(document.original_filename, "%invoice%") or
+                fragment("jsonb_typeof(?->'qonto_attachment_id') = 'string'", document.attributes)))
+      )
+
+    dynamic(
+      [document, _page, document_type],
+      fragment("?->?->>'status' = 'classified'", document.attributes, ^@classification_attribute_key) and
+        ^eligible_document and
+        not exists(
+          from invoice in Invoice,
+            where: invoice.document_id == parent_as(:document).id,
+            where: fragment("coalesce(?->>'fallback', 'false') != 'true'", invoice.metadata),
+            select: 1
+        )
+    )
   end
 
   defp maybe_exclude_failed_classifications(query, true), do: query
@@ -1449,12 +1523,21 @@ defmodule Atlas.Documents do
       %Document{status: status} when status != "ready" ->
         {:error, :document_not_ready}
 
-      %Document{pages: []} ->
-        {:error, :document_has_no_pages}
-
       %Document{} = document ->
-        classify_ready_document_metadata(document, opts)
+        if repair_invoice_without_reclassification?(document, opts) do
+          with :ok <- maybe_extract_finance_invoice(document, document.pages, opts) do
+            {:ok, document}
+          end
+        else
+          classify_ready_document_metadata(document, opts)
+        end
     end
+  end
+
+  defp repair_invoice_without_reclassification?(document, opts) do
+    Keyword.get(opts, :repair_missing_invoice?, false) and
+      get_in(document.attributes, ["classification", "status"]) == "classified" and
+      extractable_invoice_document?(document)
   end
 
   defp classify_ready_document_metadata(%Document{} = document, opts) do
@@ -1471,6 +1554,9 @@ defmodule Atlas.Documents do
           )
 
         update_classified_document_metadata(document, pages, metadata, opts)
+
+      :unknown when pages == [] ->
+        {:error, :document_has_no_pages}
 
       :unknown ->
         case classify(document, pages, opts) do
@@ -1705,9 +1791,8 @@ defmodule Atlas.Documents do
       |> put_classifier_associations(account, correspondent, document_type, tags)
       |> Repo.update()
 
-    with {:ok, updated} <- result do
-      apply_classifier_side_effects(updated, pages, opts)
-
+    with {:ok, updated} <- result,
+         :ok <- apply_classifier_side_effects(updated, pages, opts) do
       audit_document("document.classified", updated, %{
         "account_id" => updated.account_id,
         "document_type" => document_type && document_type.name,

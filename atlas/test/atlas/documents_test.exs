@@ -12,6 +12,8 @@ defmodule Atlas.DocumentsTest do
   alias Atlas.Documents.DocumentType
   alias Atlas.Documents.Tag
   alias Atlas.Documents.Workers.ProcessDocument
+  alias Atlas.Finance
+  alias Atlas.Finance.Agents.InvoiceExtractorAgent
   alias Atlas.Repo
   alias Atlas.TestSupport.Documents.Classifier
   alias Atlas.TestSupport.Documents.FailingClassifier
@@ -270,6 +272,229 @@ defmodule Atlas.DocumentsTest do
     assert Repo.all(DocumentPage) == []
   end
 
+  @tag :tmp_dir
+  test "extracts finance costs for an invoice classified by built-in rules", %{tmp_dir: tmp_dir} do
+    path = Path.join(tmp_dir, "cloudflare-invoice.txt")
+    File.write!(path, "Invoice from Cloudflare\n2026-09-30\nAmount due $100.00")
+
+    {:ok, document} =
+      Documents.create_from_path(
+        path,
+        %{
+          "title" => "Cloudflare invoice",
+          "original_filename" => "cloudflare-invoice.txt",
+          "content_type" => "text/plain",
+          "source" => "email"
+        },
+        enqueue?: false
+      )
+
+    expect(InvoiceExtractorAgent, :extract, fn classified, [_page] ->
+      assert classified.attributes["classification"]["source"] == "deterministic"
+      {:ok, extracted_invoice()}
+    end)
+
+    assert {:ok, %{status: "ready"}} = Documents.process_document(document.id, classifier: FailingClassifier)
+    invoice = Finance.get_finance_invoice_by_document(document)
+    assert invoice.vendor_name == "Cloudflare"
+    assert invoice.invoice_date == ~D[2026-09-30]
+    assert Decimal.equal?(invoice.total_amount_value, Decimal.new("100.00"))
+    assert invoice.metadata["document_source"] == "email"
+    assert [%{description: "Cloud services"}] = invoice.line_items
+  end
+
+  test "repairs a missing invoice without reclassifying curated document metadata" do
+    document = insert_rule_invoice!(%{title: "Archived document", original_filename: "archived-document.txt"})
+    insert_page!(document, "Service charges $100.00")
+
+    assert Documents.list_document_classification_candidate_ids(include_failed?: false) == [document.id]
+
+    expect(InvoiceExtractorAgent, :extract, fn _classified, [_page] -> {:ok, extracted_invoice()} end)
+
+    assert {:ok, updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert updated.title == document.title
+    assert updated.summary == document.summary
+    assert updated.attributes == document.attributes
+    assert %{vendor_name: "Cloudflare", status: "extracted"} = Finance.get_finance_invoice_by_document(document)
+    assert Documents.list_document_classification_candidate_ids(include_failed?: false) == []
+
+    invoice = Finance.get_finance_invoice_by_document(document)
+    reject(&InvoiceExtractorAgent.extract/2)
+    assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert Finance.get_finance_invoice_by_document(document).line_items == invoice.line_items
+  end
+
+  test "records a pageless invoice for review without calling the extractor or blocking later repairs" do
+    document = insert_rule_invoice!(%{title: "Archived scan", original_filename: "scan.txt"})
+    reject(&InvoiceExtractorAgent.extract/2)
+
+    assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert %{status: "failed", last_error: ":no_extractable_text"} = Finance.get_finance_invoice_by_document(document)
+    assert Documents.list_document_classification_candidate_ids() == []
+
+    next_document = insert_rule_invoice!(%{title: "Later invoice"})
+    insert_page!(next_document, "Invoice from Cloudflare\n2026-09-30\nAmount due $100.00")
+    assert Documents.list_document_classification_candidate_ids(limit: 1) == [next_document.id]
+  end
+
+  test "does not call the extractor when invoice pages contain only whitespace" do
+    document = insert_rule_invoice!()
+
+    document
+    |> insert_page!("Placeholder")
+    |> Ecto.Changeset.change(content: " \n\t ")
+    |> Repo.update!()
+
+    reject(&InvoiceExtractorAgent.extract/2)
+
+    assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert %{status: "failed", last_error: ":no_extractable_text"} = Finance.get_finance_invoice_by_document(document)
+  end
+
+  test "propagates failed invoice writes to the repair worker" do
+    document = insert_rule_invoice!()
+    insert_page!(document, "Invoice from Cloudflare\n2026-09-30")
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:ok, extracted_invoice()} end)
+    expect(Finance, :upsert_extracted_invoice, fn _document, _invoice, _items -> {:error, :write_failed} end)
+
+    assert {:error, :write_failed} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert Finance.get_finance_invoice_by_document(document) == nil
+  end
+
+  test "rotates persistent fallback entries behind invoices without an extraction attempt" do
+    fallbacks =
+      for _ <- 1..2 do
+        document = insert_rule_invoice!()
+        insert_page!(document, "Invoice from Cloudflare")
+
+        {:ok, _invoice} =
+          Finance.upsert_extracted_invoice(
+            document,
+            %{
+              vendor_name: "Cloudflare",
+              metadata: %{"fallback" => true},
+              extracted_at: ~U[2026-01-01 00:00:00Z]
+            },
+            []
+          )
+
+        document
+      end
+
+    missing = insert_rule_invoice!()
+    missing |> Ecto.Changeset.change(inserted_at: ~N[2026-01-02 00:00:00]) |> Repo.update!()
+    assert Documents.list_document_classification_candidate_ids(limit: 2) == Enum.map(fallbacks, & &1.id)
+
+    expect(InvoiceExtractorAgent, :extract, 2, fn document, _pages ->
+      {:ok, InvoiceExtractorAgent.fallback_metadata(document)}
+    end)
+
+    for document <- fallbacks do
+      assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    end
+
+    assert Documents.list_document_classification_candidate_ids(limit: 1) == [missing.id]
+  end
+
+  test "repairs untyped Qonto attachments accepted by the invoice extractor" do
+    document =
+      insert_document!("Archived document", %{
+        attributes: %{"classification" => %{"status" => "classified"}, "qonto_attachment_id" => "attachment-123"}
+      })
+
+    insert_page!(document, "Service charges $100.00")
+    assert Documents.list_document_classification_candidate_ids() == [document.id]
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:ok, extracted_invoice()} end)
+    assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert %{status: "extracted"} = Finance.get_finance_invoice_by_document(document)
+  end
+
+  test "repairs fallback finance entries once an extractor is available" do
+    document = insert_rule_invoice!()
+    insert_page!(document, "Invoice from Cloudflare\n2026-09-30")
+
+    {:ok, _invoice} =
+      Finance.upsert_extracted_invoice(
+        document,
+        %{
+          vendor_name: "Cloudflare",
+          invoice_date: document.document_date,
+          metadata: %{"fallback" => true}
+        },
+        []
+      )
+
+    assert Documents.list_document_classification_candidate_ids() == [document.id]
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:ok, extracted_invoice()} end)
+
+    assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert %{status: "extracted"} = Finance.get_finance_invoice_by_document(document)
+    assert Documents.list_document_classification_candidate_ids() == []
+  end
+
+  @tag :tmp_dir
+  test "keeps an agent-classified invoice ready after a transient ingest extraction failure", %{tmp_dir: tmp_dir} do
+    path = Path.join(tmp_dir, "cost-document.txt")
+    File.write!(path, "Cloud services: $100.00")
+
+    {:ok, document} =
+      Documents.create_from_path(
+        path,
+        %{
+          "title" => "Cost document",
+          "original_filename" => "cost-document.txt",
+          "content_type" => "text/plain"
+        },
+        enqueue?: false
+      )
+
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:error, :timeout} end)
+
+    assert {:ok, %{status: "ready"}} =
+             Documents.process_document(document.id,
+               classifier: InvoiceClassifier,
+               invoice_extraction_final_attempt?: false
+             )
+
+    assert Finance.get_finance_invoice_by_document(document) == nil
+    assert Documents.get_document(document.id).attributes["classification"]["source"] == "agent"
+    assert Documents.list_document_classification_candidate_ids() == [document.id]
+
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:ok, extracted_invoice()} end)
+    assert {:ok, _updated} = Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    assert %{status: "extracted"} = Finance.get_finance_invoice_by_document(document)
+  end
+
+  test "lets real invoice validation failures reach the repair job runner" do
+    document = insert_rule_invoice!()
+    insert_page!(document, "Invoice from Cloudflare\n2026-09-30")
+    invalid = extracted_invoice()
+    invalid = %{invalid | invoice: Map.put(invalid.invoice, :vendor_name, nil)}
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:ok, invalid} end)
+
+    assert_raise Ecto.InvalidChangesetError, fn ->
+      Documents.classify_document_metadata(document.id, repair_missing_invoice?: true)
+    end
+
+    assert Finance.get_finance_invoice_by_document(document) == nil
+  end
+
+  test "records extraction failures for invoices classified by built-in rules without retrying them in the repair job" do
+    document =
+      insert_document!("Cloudflare invoice", %{
+        document_date: ~D[2026-09-30],
+        attributes: %{"classification" => %{"status" => "classified", "source" => "deterministic"}}
+      })
+      |> put_document_type!(Documents.upsert_document_type("invoice"))
+
+    insert_page!(document, "Invoice from Cloudflare\n2026-09-30")
+    expect(InvoiceExtractorAgent, :extract, fn _document, _pages -> {:error, :timeout} end)
+
+    assert {:ok, %{status: "ready"}} = Documents.classify_document_metadata(document.id)
+    assert %{status: "failed", last_error: ":timeout"} = Finance.get_finance_invoice_by_document(document)
+    assert Documents.list_document_classification_candidate_ids() == []
+  end
+
   test "backfills document account associations from existing pages" do
     account = insert_account!(%{name: "Acme", primary_domain: "acme.example"})
     document = insert_document!("Acme Security Packet", %{summary: "Evidence requested for acme.example"})
@@ -401,7 +626,10 @@ defmodule Atlas.DocumentsTest do
       )
 
     assert {:ok, %Document{} = updated} =
-             Documents.classify_document_metadata(document.id, classifier: FailingClassifier)
+             Documents.classify_document_metadata(document.id,
+               classifier: FailingClassifier,
+               invoice_extractor: NoopInvoiceExtractor
+             )
 
     assert updated.summary == "Invoice from TOGETHER COMPUTER, INC for 100.00 USD."
     assert updated.document_date == ~D[2026-07-07]
@@ -968,6 +1196,41 @@ defmodule Atlas.DocumentsTest do
     |> Repo.preload(:tags)
     |> Document.tags_changeset(tags)
     |> Repo.update!()
+  end
+
+  defp insert_rule_invoice!(attrs \\ %{}) do
+    insert_document!(
+      "Cloudflare invoice",
+      Map.merge(
+        %{
+          summary: "Invoice from Cloudflare.",
+          document_date: ~D[2026-09-30],
+          attributes: %{"classification" => %{"status" => "classified", "source" => "deterministic"}}
+        },
+        attrs
+      )
+    )
+    |> put_correspondent!(Documents.upsert_correspondent("Cloudflare"))
+    |> put_document_type!(Documents.upsert_document_type("invoice"))
+  end
+
+  defp extracted_invoice do
+    %{
+      invoice: %{
+        vendor_name: "Cloudflare",
+        invoice_date: ~D[2026-09-30],
+        total_amount_value: Decimal.new("100.00"),
+        total_amount_currency: "USD"
+      },
+      line_items: [
+        %{
+          description: "Cloud services",
+          amount_value: Decimal.new("100.00"),
+          amount_currency: "USD",
+          category_name: "Cloud Infrastructure"
+        }
+      ]
+    }
   end
 
   defp insert_document!(title, attrs) do

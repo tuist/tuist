@@ -26,6 +26,7 @@ enum WorkspaceRestorer {
         packageDir: URL? = nil,
         cache: Cache,
         registryConfig: RegistryConfig,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         progress: RestoreProgressReporter?,
         disableSandbox: Bool = false
@@ -50,7 +51,7 @@ enum WorkspaceRestorer {
         let skipped = resolved.pins.count - sourcePins.count - registryPins.count
 
         async let restoredSources = restoreSourcePins(
-            sourcePins, checkouts: checkouts, cache: cache
+            sourcePins, checkouts: checkouts, cache: cache, mirrors: mirrors
         )
         async let restoredRegistry = restoreRegistryPins(
             registryPins,
@@ -65,6 +66,7 @@ enum WorkspaceRestorer {
             scratchDir: scratchDir,
             packageDir: packageDir,
             cache: cache,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: disableSandbox,
             progress: progress
@@ -90,6 +92,7 @@ enum WorkspaceRestorer {
         scratchDir: URL,
         packageDir: URL?,
         cache: Cache,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool,
         progress: RestoreProgressReporter?
@@ -97,6 +100,7 @@ enum WorkspaceRestorer {
         let contexts = try await packageContexts(
             packageDir: packageDir,
             scratchDir: scratchDir,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: disableSandbox
         )
@@ -122,6 +126,7 @@ enum WorkspaceRestorer {
                     context: context,
                     scratchDir: scratchDir,
                     cache: cache,
+                    mirrors: mirrors,
                     progress: progress
                 )
             }
@@ -133,6 +138,7 @@ enum WorkspaceRestorer {
         context: PackageContext,
         scratchDir: URL,
         cache: Cache,
+        mirrors: MirrorConfig,
         progress: RestoreProgressReporter?
     ) async throws {
         switch target.source {
@@ -151,6 +157,7 @@ enum WorkspaceRestorer {
                         identity: identity,
                         targetName: target.name,
                         url: url,
+                        downloadURL: mirrors.effectiveLocation(for: url),
                         checksum: checksum,
                         cache: cache,
                         destination: cachedArtifact,
@@ -224,11 +231,14 @@ enum WorkspaceRestorer {
         identity: String,
         targetName: String,
         url: String,
+        downloadURL: String,
         checksum: String,
         cache: Cache,
         destination: URL,
         progress: RestoreProgressReporter?
     ) async throws {
+        // Keyed on the manifest URL, so adding or changing a mirror keeps the cached archive;
+        // the checksum already guarantees it holds the same bytes.
         let archivePath = cache.binaryArtifactArchivePath(
             url: url,
             checksum: checksum
@@ -248,7 +258,7 @@ enum WorkspaceRestorer {
                 expectedChecksum: checksum
             ) {
                 try? await fileSystem.removePath(archivePath)
-                let remoteURL = try artifactURL(url)
+                let remoteURL = try artifactURL(downloadURL)
                 progress?.downloadingBinaryArtifact(identity: identity, target: targetName)
                 try await HTTPClient.download(
                     url: remoteURL,
@@ -260,7 +270,8 @@ enum WorkspaceRestorer {
                 guard actualChecksum.caseInsensitiveCompare(checksum) == .orderedSame else {
                     try? await fileSystem.removePath(archivePath)
                     throw ToolError.message(
-                        "\(targetName) checksum mismatch: expected \(checksum), got \(actualChecksum)"
+                        "\(targetName) checksum mismatch for \(remoteURL.absoluteString): "
+                            + "expected \(checksum), got \(actualChecksum)"
                     )
                 }
             }
@@ -379,6 +390,7 @@ enum WorkspaceRestorer {
     private static func packageContexts(
         packageDir: URL?,
         scratchDir: URL,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool
     ) async throws -> [PackageContext] {
@@ -426,10 +438,11 @@ enum WorkspaceRestorer {
         }
         contexts.append(
             contentsOf: try await ConcurrentTasks.map(pinnedPackages) { pin in
-                let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin)
+                let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
                 return PackageContext(
                     packageRef: try await packageRef(
                         pin,
+                        mirrors: mirrors,
                         packagePath: packagePath,
                         disableSandbox: disableSandbox
                     ),
@@ -467,7 +480,7 @@ enum WorkspaceRestorer {
         ]
     }
 
-    private static func packageRef(_ pin: ResolvedPin) throws -> [String: String] {
+    private static func packageRef(_ pin: ResolvedPin, mirrors: MirrorConfig) throws -> [String: String] {
         if PinKind.isRegistry(pin.kind) {
             return [
                 "identity": pin.identity,
@@ -479,17 +492,18 @@ enum WorkspaceRestorer {
         return [
             "identity": pin.identity,
             "kind": pin.kind,
-            "location": pin.location,
-            "name": PinKind.checkoutDirectoryName(pin),
+            "location": mirrors.effectiveLocation(of: pin),
+            "name": PinKind.checkoutDirectoryName(pin, mirrors: mirrors),
         ]
     }
 
     private static func packageRef(
         _ pin: ResolvedPin,
+        mirrors: MirrorConfig,
         packagePath: URL,
         disableSandbox: Bool
     ) async throws -> [String: String] {
-        var ref = try packageRef(pin)
+        var ref = try packageRef(pin, mirrors: mirrors)
         guard PinKind.isSourceControl(pin.kind) else {
             return ref
         }
@@ -535,7 +549,7 @@ enum WorkspaceRestorer {
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
 
-    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin) throws -> URL {
+    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return try scratchDir
                 .appendingPathComponent("registry/downloads")
@@ -543,7 +557,7 @@ enum WorkspaceRestorer {
         }
         return scratchDir
             .appendingPathComponent("checkouts")
-            .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+            .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: mirrors))
     }
 
     private static func binaryArtifact(in directory: URL) async throws -> BinaryArtifact? {
@@ -573,7 +587,7 @@ enum WorkspaceRestorer {
                 return [BinaryArtifact(path: directory, kind: ["xcframework": [:]])]
             }
             if directory.pathExtension == "artifactbundle" {
-                return [BinaryArtifact(path: directory, kind: ["artifactsArchive": [:]])]
+                return [BinaryArtifact(path: directory, kind: await artifactsArchiveKind(bundle: directory))]
             }
         }
         var result: [BinaryArtifact] = []
@@ -584,13 +598,29 @@ enum WorkspaceRestorer {
             if entry.pathExtension == "xcframework" {
                 result.append(BinaryArtifact(path: entry, kind: ["xcframework": [:]]))
             } else if entry.pathExtension == "artifactbundle" {
-                result.append(BinaryArtifact(path: entry, kind: ["artifactsArchive": [:]]))
+                result.append(BinaryArtifact(path: entry, kind: await artifactsArchiveKind(bundle: entry)))
             } else {
                 let nestedArtifacts = try await binaryArtifacts(in: entry)
                 result.append(contentsOf: nestedArtifacts)
             }
         }
         return result
+    }
+
+    /// SwiftPM 6.2+ migrates the legacy `artifactsArchive` kind to a bundle with no
+    /// artifact types, so it no longer treats an executable bundle as executable and
+    /// fails the build. Record the types from `info.json` the way SwiftPM's own resolve does.
+    private static func artifactsArchiveKind(bundle: URL) async -> [String: Any] {
+        var types: [String] = []
+        if let data = try? await fileSystem.readFile(at: bundle.appendingPathComponent("info.json").absolutePath),
+           let info = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let artifacts = info["artifacts"] as? [String: Any]
+        {
+            types = artifacts.sorted { $0.key < $1.key }.compactMap {
+                ($0.value as? [String: Any])?["type"] as? String
+            }
+        }
+        return ["typedArtifactsArchive": ["_0": types]]
     }
 
     private static func removeResourceForkDirectories(in directory: URL) async throws {
@@ -627,18 +657,22 @@ enum WorkspaceRestorer {
     private static func restoreSourcePins(
         _ pins: [ResolvedPin],
         checkouts: URL,
-        cache: Cache
+        cache: Cache,
+        mirrors: MirrorConfig
     ) async throws -> [(String, URL)] {
         let results = try await ConcurrentTasks.map(pins) { pin in
+            let location = mirrors.effectiveLocation(of: pin)
             do {
-                let source = try await ensureSource(cache: cache, pin: pin)
-                let checkout = checkouts.appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                let source = try await ensureSource(cache: cache, pin: pin, location: location)
+                let checkout = checkouts.appendingPathComponent(
+                    PinKind.checkoutDirectoryName(pin, mirrors: mirrors)
+                )
                 try await fileSystem.replaceWithSymlinkedDirectory(
                     source: source, destination: checkout
                 )
                 return (pin.identity, source)
             } catch {
-                throw sourceRestoreError(pin: pin, error: error)
+                throw sourceRestoreError(pin: pin, location: location, error: error)
             }
         }
         return results.sorted { $0.0 < $1.0 }
@@ -649,11 +683,14 @@ enum WorkspaceRestorer {
     static func cacheNativeSourceCheckouts(
         scratchDir: URL,
         cache: Cache,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins
     ) async throws {
         let checkouts = scratchDir.appendingPathComponent("checkouts")
         try await ConcurrentTasks.forEach(resolved.pins.filter { PinKind.isSourceControl($0.kind) }) { pin in
-            let checkout = checkouts.appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+            let checkout = checkouts.appendingPathComponent(
+                PinKind.checkoutDirectoryName(pin, mirrors: mirrors)
+            )
             guard fileSystem.isDirectoryAndNotSymlink(checkout),
                   try await cachedSourceIsUsable(checkout)
             else { return }
@@ -702,10 +739,11 @@ enum WorkspaceRestorer {
         }
     }
 
-    private static func sourceRestoreError(pin: ResolvedPin, error: any Error) -> ToolError {
+    private static func sourceRestoreError(pin: ResolvedPin, location: String, error: any Error) -> ToolError {
         let revision = (try? pin.revision()).map { " at \($0)" } ?? ""
+        let mirror = location == pin.location ? "" : " (mirror of \(pin.location))"
         return ToolError.message(
-            "failed to restore \(pin.identity) from \(pin.location)\(revision): \(error)"
+            "failed to restore \(pin.identity) from \(location)\(mirror)\(revision): \(error)"
         )
     }
 
@@ -730,7 +768,10 @@ enum WorkspaceRestorer {
         return results.sorted { $0.0 < $1.0 }
     }
 
-    static func ensureSource(cache: Cache, pin: ResolvedPin) async throws -> URL {
+    /// Fetches `pin` from `location`, its mirror when one applies. The cache stays keyed on what
+    /// Package.resolved records, so adding or changing a mirror keeps the cached sources; the
+    /// revision already pins their contents.
+    static func ensureSource(cache: Cache, pin: ResolvedPin, location: String) async throws -> URL {
         let destination = try cache.sourcePath(pin: pin)
         let expectedRevision = try pin.revision()
         if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
@@ -751,10 +792,12 @@ enum WorkspaceRestorer {
 
         do {
             do {
-                try await downloadSourceArchive(cache: cache, pin: pin, destination: temp)
+                try await downloadSourceArchive(
+                    cache: cache, pin: pin, location: location, destination: temp
+                )
             } catch {
                 try await resetDirectory(temp)
-                try await shallowFetchCheckout(pin: pin, destination: temp)
+                try await shallowFetchCheckout(pin: pin, location: location, destination: temp)
             }
 
             try await writeSourceRevisionMarker(directory: temp, revision: expectedRevision)
@@ -1017,28 +1060,33 @@ enum WorkspaceRestorer {
         )
     }
 
-    private static func downloadSourceArchive(cache: Cache, pin: ResolvedPin, destination: URL)
-        async throws
-    {
-        if (try? GitHubRepo(location: pin.location)) != nil, await GitHubAuth.hasSession() {
-            try await downloadGitHubArchive(cache: cache, pin: pin, destination: destination)
+    private static func downloadSourceArchive(
+        cache: Cache,
+        pin: ResolvedPin,
+        location: String,
+        destination: URL
+    ) async throws {
+        if let repo = try? GitHubRepo(location: location), await GitHubAuth.hasSession() {
+            try await downloadGitHubArchive(cache: cache, pin: pin, repo: repo, destination: destination)
             return
         }
-        if let repo = try? GitLabRepo(location: pin.location),
+        if let repo = try? GitLabRepo(location: location),
            await GitLabAuth.hasSession(host: repo.host)
         {
-            try await downloadGitLabArchive(cache: cache, pin: pin, destination: destination)
+            try await downloadGitLabArchive(cache: cache, pin: pin, repo: repo, destination: destination)
             return
         }
         throw ToolError.message(
-            "no authenticated source archive endpoint available for \(pin.location)"
+            "no authenticated source archive endpoint available for \(location)"
         )
     }
 
-    private static func downloadGitHubArchive(cache: Cache, pin: ResolvedPin, destination: URL)
-        async throws
-    {
-        let repo = try GitHubRepo(location: pin.location)
+    private static func downloadGitHubArchive(
+        cache: Cache,
+        pin: ResolvedPin,
+        repo: GitHubRepo,
+        destination: URL
+    ) async throws {
         let revision = try pin.revision()
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
         if try !(await fileSystem.exists(archivePath.absolutePath)) {
@@ -1064,10 +1112,12 @@ enum WorkspaceRestorer {
         try await rejectArchiveWithSubmodules(destination)
     }
 
-    private static func downloadGitLabArchive(cache: Cache, pin: ResolvedPin, destination: URL)
-        async throws
-    {
-        let repo = try GitLabRepo(location: pin.location)
+    private static func downloadGitLabArchive(
+        cache: Cache,
+        pin: ResolvedPin,
+        repo: GitLabRepo,
+        destination: URL
+    ) async throws {
         let revision = try pin.revision()
         let archivePath = cache.archivePath(url: pin.location, revision: revision)
         if try !(await fileSystem.exists(archivePath.absolutePath)) {
@@ -1087,12 +1137,16 @@ enum WorkspaceRestorer {
         try await rejectArchiveWithSubmodules(destination)
     }
 
-    private static func shallowFetchCheckout(pin: ResolvedPin, destination: URL) async throws {
+    private static func shallowFetchCheckout(
+        pin: ResolvedPin,
+        location fetchLocation: String,
+        destination: URL
+    ) async throws {
         let revision = try pin.revision()
         let isLocalSourceControlPackage =
-            try await PackageResolver.localSourceControlPackageLocation(pin.location) != nil
+            try await PackageResolver.localSourceControlPackageLocation(fetchLocation) != nil
         var attempts: [(candidate: String, error: any Error)] = []
-        for location in SourceControlLocations.fetchCandidates(pin.location) {
+        for location in SourceControlLocations.fetchCandidates(fetchLocation) {
             do {
                 try await resetDirectory(destination)
                 try await SystemProcess.run("/usr/bin/git", ["init", destination.path])
@@ -1125,7 +1179,7 @@ enum WorkspaceRestorer {
                 attempts.append((location, error))
             }
         }
-        throw GitFetchFailure.error(location: pin.location, attempts: attempts)
+        throw GitFetchFailure.error(location: fetchLocation, attempts: attempts)
     }
 
     private static func updateSubmodulesIfNeeded(
@@ -1193,7 +1247,11 @@ enum WorkspaceRestorer {
     }
 
     static func writeWorkspaceState(
-        packageDir: URL, scratchDir: URL, resolved: ResolvedPins, disableSandbox: Bool
+        packageDir: URL,
+        scratchDir: URL,
+        mirrors: MirrorConfig,
+        resolved: ResolvedPins,
+        disableSandbox: Bool
     ) async throws {
         var dependencies: [[String: Any]] = []
 
@@ -1204,7 +1262,8 @@ enum WorkspaceRestorer {
                 if let version = pin.state.version { checkoutState["version"] = version }
                 let ref = try await packageRef(
                     pin,
-                    packagePath: packagePathForPin(scratchDir: scratchDir, pin: pin),
+                    mirrors: mirrors,
+                    packagePath: packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors),
                     disableSandbox: disableSandbox
                 )
                 dependencies.append([
@@ -1214,10 +1273,10 @@ enum WorkspaceRestorer {
                         "checkoutState": checkoutState,
                         "name": "sourceControlCheckout",
                     ],
-                    "subpath": PinKind.checkoutDirectoryName(pin),
+                    "subpath": PinKind.checkoutDirectoryName(pin, mirrors: mirrors),
                 ])
             } else if PinKind.isRegistry(pin.kind) {
-                let ref = try packageRef(pin)
+                let ref = try packageRef(pin, mirrors: mirrors)
                 try dependencies.append([
                     "basedOn": NSNull(),
                     "packageRef": ref,
@@ -1258,6 +1317,7 @@ enum WorkspaceRestorer {
         var artifacts = try await workspaceArtifacts(
             packageDir: packageDir,
             scratchDir: scratchDir,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: disableSandbox
         )
@@ -1315,12 +1375,14 @@ enum WorkspaceRestorer {
     private static func workspaceArtifacts(
         packageDir: URL,
         scratchDir: URL,
+        mirrors: MirrorConfig,
         resolved: ResolvedPins,
         disableSandbox: Bool
     ) async throws -> [[String: Any]] {
         let contexts = try await packageContexts(
             packageDir: packageDir,
             scratchDir: scratchDir,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: disableSandbox
         )

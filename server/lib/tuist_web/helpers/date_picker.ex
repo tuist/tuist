@@ -52,6 +52,19 @@ defmodule TuistWeb.Helpers.DatePicker do
     end
   end
 
+  @doc """
+  The picker's period as `since:`/`until:` options for a query over naive
+  timestamps. The picker works in whole seconds, so the end is carried to the
+  close of its second: a row written moments ago, within the same second as
+  the bound, belongs to the period the reader asked for.
+  """
+  def period_opts({start_datetime, end_datetime}) do
+    [
+      since: DateTime.to_naive(start_datetime),
+      until: end_datetime |> DateTime.to_naive() |> NaiveDateTime.add(1, :second)
+    ]
+  end
+
   defp period_for_preset(preset) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 

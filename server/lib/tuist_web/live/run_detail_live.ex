@@ -12,6 +12,7 @@ defmodule TuistWeb.RunDetailLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Xcode
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -34,6 +35,13 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:user, user)
      |> assign(:project, project)
      |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
+     |> assign(
+       OpenGraph.project_image_assigns(project,
+         title: "tuist #{run.name}",
+         subtitle: run.git_branch,
+         badge: run.status |> to_string() |> String.capitalize()
+       )
+     )
      |> assign_initial_analytics_state()
      |> assign(:binary_cache_available_filters, define_binary_cache_filters())
      |> assign(:selective_testing_available_filters, define_selective_testing_filters())

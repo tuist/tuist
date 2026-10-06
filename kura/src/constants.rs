@@ -25,6 +25,9 @@ pub const CAS_CAPACITY_MAX_DISK_PERCENT: u64 = 80;
 pub const MAX_DESIRED_SEGMENTS: usize = 16_384;
 pub const ROCKSDB_BYTES_PER_SYNC: u64 = 1024 * 1024;
 pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
+/// Obsolete WAL files RocksDB keeps for reuse; together with the WAL bound this caps
+/// retained WAL at the memtable budget plus this many files.
+pub const ROCKSDB_RECYCLE_LOG_FILE_NUM: usize = 4;
 
 pub const ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER: i32 = 20;
 pub const ROCKSDB_LEVEL0_STOP_TRIGGER: i32 = 36;

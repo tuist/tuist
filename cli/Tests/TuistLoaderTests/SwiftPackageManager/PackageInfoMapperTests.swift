@@ -3836,7 +3836,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() async throws {
+    ) func map_whenSettingsContainsSwiftLanguageMode_mapsToSwiftVersion() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3873,7 +3873,7 @@ struct PackageInfoMapperTests {
                             "Target1",
                             basePath: basePath,
                             customSettings: [
-                                "OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"],
+                                "OTHER_SWIFT_FLAGS": ["$(inherited)"],
                                 "SWIFT_VERSION": "5",
                             ]
                         ),

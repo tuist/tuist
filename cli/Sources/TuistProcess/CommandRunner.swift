@@ -82,9 +82,27 @@ public protocol CommandRunning: Sendable {
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<ProcessEvent, any Error>
+
+    /// Runs the command in a process group of its own, which cancellation terminates as a whole, so
+    /// the processes the command starts go with it. The group is not the terminal's foreground one,
+    /// so an interrupt at the terminal no longer reaches the command: use it only for commands that
+    /// cancellation, such as a deadline, has to stop.
+    func runInOwnProcessGroup(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error>
 }
 
 extension CommandRunning {
+    public func runInOwnProcessGroup(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        run(arguments: arguments, environment: environment, workingDirectory: workingDirectory)
+    }
+
     public func run(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {
         run(
             arguments: arguments,
@@ -156,13 +174,22 @@ extension AsyncThrowingStream where Element == ProcessEvent {
 
 public struct CommandRunner: CommandRunning {
     private let processLimiter: AsyncResourceLimiter
+    private let processStartedHook: (@Sendable () -> Void)?
 
     public init() {
         processLimiter = Self.sharedProcessLimiter
+        processStartedHook = nil
     }
 
     init(maximumConcurrentProcesses: Int) {
         processLimiter = AsyncResourceLimiter(limit: maximumConcurrentProcesses)
+        processStartedHook = nil
+    }
+
+    /// Lets tests hold the cooperative worker after spawning, before output consumption tasks can run.
+    init(processStartedHook: @escaping @Sendable () -> Void) {
+        processLimiter = Self.sharedProcessLimiter
+        self.processStartedHook = processStartedHook
     }
 
     static let reservedFileDescriptors = 32
@@ -178,6 +205,23 @@ public struct CommandRunner: CommandRunning {
         arguments: [String],
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: false)
+    }
+
+    public func runInOwnProcessGroup(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        run(arguments: arguments, environment: environment, workingDirectory: workingDirectory, ownProcessGroup: true)
+    }
+
+    private func run(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?,
+        ownProcessGroup: Bool
     ) -> AsyncThrowingStream<ProcessEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -197,6 +241,11 @@ public struct CommandRunner: CommandRunning {
                         platformOptions.teardownSequence = [
                             .gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration),
                         ]
+                        #if !os(Windows)
+                            if ownProcessGroup {
+                                platformOptions.processGroupID = 0
+                            }
+                        #endif
                         let configuration = Configuration(
                             executable: executable,
                             arguments: Arguments(Array(arguments.dropFirst())),
@@ -216,27 +265,48 @@ public struct CommandRunner: CommandRunning {
                         let standardOutput = FileHandle(fileDescriptor: standardOutputPipe.readEnd.rawValue, closeOnDealloc: true)
                         let standardError = FileHandle(fileDescriptor: standardErrorPipe.readEnd.rawValue, closeOnDealloc: true)
                         let standardErrorCollector = StandardErrorCollector()
+                        // Arm both dedicated readers before spawning. Starting them inside the consumption tasks
+                        // leaves the child blocked on a full pipe when the cooperative pool is congested.
+                        let standardOutputStream = standardOutput.byteStream()
+                        let standardErrorStream = standardError.byteStream()
                         let result = try await Subprocess.run(
                             configuration,
                             input: .standardInput,
                             output: .fileDescriptor(standardOutputPipe.writeEnd, closeAfterSpawningProcess: true),
                             error: .fileDescriptor(standardErrorPipe.writeEnd, closeAfterSpawningProcess: true)
-                        ) { _ in
-                            try await withThrowingTaskGroup(of: Void.self) { group in
-                                group.addTask {
-                                    for try await data in standardOutput.byteStream() {
-                                        continuation.yield(.standardOutput(Array(data)))
+                        ) { execution in
+                            processStartedHook?()
+                            try await withTaskCancellationHandler {
+                                try await withThrowingTaskGroup(of: Void.self) { group in
+                                    group.addTask {
+                                        for try await data in standardOutputStream {
+                                            continuation.yield(.standardOutput(Array(data)))
+                                        }
                                     }
-                                }
-                                group.addTask {
-                                    for try await data in standardError.byteStream() {
-                                        let bytes = Array(data)
-                                        await standardErrorCollector.append(bytes)
-                                        continuation.yield(.standardError(bytes))
+                                    group.addTask {
+                                        for try await data in standardErrorStream {
+                                            let bytes = Array(data)
+                                            await standardErrorCollector.append(bytes)
+                                            continuation.yield(.standardError(bytes))
+                                        }
                                     }
+                                    try await group.waitForAll()
                                 }
-                                try await group.waitForAll()
+                            } onCancel: {
+                                #if !os(Windows)
+                                    if ownProcessGroup {
+                                        try? execution.send(signal: .terminate, toProcessGroup: true)
+                                    }
+                                #endif
                             }
+                            #if !os(Windows)
+                                // Subprocess's own teardown only signals the leader. This runs before
+                                // Subprocess reaps the leader, so the group's id cannot have been reused.
+                                if ownProcessGroup, Task.isCancelled {
+                                    await Task.detached { try? await Task.sleep(for: Self.gracefulShutdownDuration) }.value
+                                    try? execution.send(signal: .kill, toProcessGroup: true)
+                                }
+                            #endif
                         }
 
                         guard result.terminationStatus.isSuccess else {

@@ -7,6 +7,16 @@ defmodule TuistWeb.OpenGraphImageController do
 
   require Logger
 
+  def show(conn, %{"key" => filename, "token" => token}) do
+    with {:ok, key} <- parse_key(filename),
+         {:ok, image_params} <- OpenGraph.verify_image_token(token),
+         {:ok, %{key: ^key} = spec} <- OpenGraphImageTemplates.spec(image_params) do
+      serve(conn, spec)
+    else
+      _ -> not_found(conn)
+    end
+  end
+
   def show(conn, %{"key" => filename, "signature" => signature} = params) do
     image_params = Map.drop(params, ["key", "signature"])
 
@@ -22,29 +32,29 @@ defmodule TuistWeb.OpenGraphImageController do
   def show(conn, _params), do: not_found(conn)
 
   defp serve(conn, %{key: key} = spec) do
-    case OpenGraphImages.ensure_available(key, fn -> {:ok, spec} end) do
-      :ok -> send_image(conn, key)
-      {:transient, image} -> serve_transient(conn, image)
+    case OpenGraphImages.ensure_available(key, fn -> {:ok, spec} end, storage_opts(spec)) do
+      :ok -> send_image(conn, key, spec)
+      {:transient, image} -> serve_transient(conn, image, spec)
       {:error, reason} when reason in [:not_found, :stale_version] -> not_found(conn)
       {:error, reason} -> unavailable(conn, reason)
     end
   end
 
-  defp send_image(conn, key) do
+  defp send_image(conn, key, spec) do
     etag = ~s("#{key}")
 
     if etag in get_req_header(conn, "if-none-match") do
       conn
-      |> put_image_headers(etag)
+      |> put_image_headers(etag, spec)
       |> send_resp(:not_modified, "")
     else
       # The image is fetched before any header is committed so a storage
       # failure degrades to a 503 the caller will retry, rather than a
       # truncated body under a long-lived cache header.
-      case OpenGraphImages.fetch(key) do
+      case OpenGraphImages.fetch(key, storage_opts(spec)) do
         {:ok, image} ->
           conn
-          |> put_image_headers(etag)
+          |> put_image_headers(etag, spec)
           |> send_resp(:ok, image)
 
         {:error, reason} ->
@@ -53,18 +63,31 @@ defmodule TuistWeb.OpenGraphImageController do
     end
   end
 
-  defp put_image_headers(conn, etag) do
+  defp put_image_headers(conn, etag, spec) do
     conn
     |> put_resp_content_type("image/jpeg", nil)
-    |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+    |> put_resp_header("cache-control", cache_control(spec))
     |> put_resp_header("etag", etag)
     |> put_resp_header("x-content-type-options", "nosniff")
   end
 
-  defp serve_transient(conn, image) do
+  # A public project can become private at any time. Revalidation makes the
+  # request reach this controller again, where template resolution checks the
+  # current visibility before any cached bytes are read. Immutable caching is
+  # safe for marketing and documentation images because they have no customer
+  # visibility transition.
+  defp cache_control(%{params: %{"template" => "project"}}), do: "public, no-cache"
+  defp cache_control(_spec), do: "public, max-age=31536000, immutable"
+
+  defp storage_opts(%{params: %{"template" => "project"}}), do: [project: true]
+  defp storage_opts(_spec), do: []
+
+  defp serve_transient(conn, image, spec) do
+    cache_control = if spec.params["template"] == "project", do: "public, no-cache", else: "public, max-age=60"
+
     conn
     |> put_resp_content_type("image/jpeg", nil)
-    |> put_resp_header("cache-control", "public, max-age=60")
+    |> put_resp_header("cache-control", cache_control)
     |> put_resp_header("x-content-type-options", "nosniff")
     |> send_resp(:ok, image)
   end

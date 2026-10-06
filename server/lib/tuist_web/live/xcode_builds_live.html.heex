@@ -191,34 +191,45 @@
       </:actions>
     </.date_picker>
   </div>
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @build_success_rate_analytics,
+      @builds_duration_analytics,
+      @builds_p50_durations,
+      @builds_p90_durations,
+      @builds_p99_durations,
+      @failed_builds_analytics,
+      @total_builds_analytics
+    ]}
     title={dgettext("dashboard_builds", "Builds")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
     <div data-part="widgets">
       <.widget
-        loading={!@total_builds_analytics.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_builds", "Total builds")}
         legend_color="primary"
         description={dgettext("dashboard_builds", "The total number of builds.")}
-        value={if @total_builds_analytics.ok?, do: @total_builds_analytics.result.count}
+        value={if ready?, do: @total_builds_analytics.result.count}
         id="widget-total-builds"
         phx_click="select_widget"
         phx_value_widget="total-builds"
         selected={@analytics_selected_widget == "total-builds"}
-        trend_value={if @total_builds_analytics.ok?, do: @total_builds_analytics.result.trend}
+        trend_value={if ready?, do: @total_builds_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@total_builds_analytics.ok? && @total_builds_analytics.result.count == 0}
+        empty={ready? && @total_builds_analytics.result.count == 0}
       />
       <.widget
-        loading={!@build_success_rate_analytics.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_builds", "Build success rate")}
         legend_color="primary"
         description={dgettext("dashboard_builds", "The percentage of builds that succeeded.")}
         value={
-          if @build_success_rate_analytics.ok? do
+          if ready? do
             dgettext("dashboard_builds", "%{percentage}%",
               percentage: Float.round(@build_success_rate_analytics.result.success_rate * 100, 1)
             )
@@ -228,29 +239,27 @@
         phx_click="select_widget"
         phx_value_widget="build-success-rate"
         selected={@analytics_selected_widget == "build-success-rate"}
-        trend_value={
-          if @build_success_rate_analytics.ok?, do: @build_success_rate_analytics.result.trend
-        }
+        trend_value={if ready?, do: @build_success_rate_analytics.result.trend}
         trend_label={@analytics_trend_label}
-        empty={@total_builds_analytics.ok? && @total_builds_analytics.result.count == 0}
+        empty={ready? && @total_builds_analytics.result.count == 0}
       />
       <.widget
-        loading={!@failed_builds_analytics.ok?}
+        loading={!ready?}
         title={dgettext("dashboard_builds", "Failed builds")}
         legend_color="destructive"
         description={dgettext("dashboard_builds", "The number of builds that failed.")}
-        value={if @failed_builds_analytics.ok?, do: @failed_builds_analytics.result.count}
+        value={if ready?, do: @failed_builds_analytics.result.count}
         id="widget-failed-builds"
         phx_click="select_widget"
         phx_value_widget="failed-builds"
         selected={@analytics_selected_widget == "failed-builds"}
-        trend_value={if @failed_builds_analytics.ok?, do: @failed_builds_analytics.result.trend}
+        trend_value={if ready?, do: @failed_builds_analytics.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@failed_builds_analytics.ok? && @failed_builds_analytics.result.count == 0}
+        empty={ready? && @failed_builds_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
-        loading={!@builds_duration_analytics.ok?}
+        loading={!ready?}
         id="widget-build-duration"
         title={
           case @selected_build_duration_type do
@@ -275,7 +284,7 @@
           )
         }
         value={
-          if @builds_duration_analytics.ok? do
+          if ready? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               case @selected_build_duration_type do
                 "p99" -> @builds_p99_durations.result.total_percentile_duration
@@ -287,7 +296,7 @@
           end
         }
         metrics={
-          if @builds_duration_analytics.ok? do
+          if ready? do
             %{
               avg:
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -314,7 +323,7 @@
         phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
         trend_value={
-          if @builds_duration_analytics.ok? do
+          if ready? do
             case @selected_build_duration_type do
               "p99" -> @builds_p99_durations.result.trend
               "p90" -> @builds_p90_durations.result.trend
@@ -326,15 +335,18 @@
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={
-          @builds_duration_analytics.ok? &&
+          ready? &&
             @builds_duration_analytics.result.total_average_duration == 0
         }
       />
     </div>
-    <.card_section :if={
-      (@analytics_selected_widget == "build-duration" and !@builds_duration_analytics.ok?) or
-        (@analytics_selected_widget != "build-duration" and !@total_builds_analytics.ok?)
-    }>
+    <.card_section
+      :if={
+        (@analytics_selected_widget == "build-duration" and !ready?) or
+          (@analytics_selected_widget != "build-duration" and !ready?)
+      }
+      data-chart-frame="standard"
+    >
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
@@ -342,10 +354,11 @@
     <.card_section
       :if={
         @analytics_selected_widget == "build-duration" and
-          @builds_duration_analytics.ok? and
+          ready? and
           @builds_duration_analytics.result.total_average_duration != 0
       }
       data-part="analytics-card-chart-section"
+      data-chart-frame="standard"
     >
       <.chart_type_toggle
         id="build-duration"
@@ -361,14 +374,14 @@
         uri={@uri}
       />
       <div
-        :if={@build_duration_chart.loading || !@build_duration_chart.ok?}
+        :if={!@build_duration_chart.ok? && !@build_duration_chart.failed}
         data-part="analytics-chart"
       >
         <.skeleton_chart />
       </div>
       <.chart
         :if={
-          @build_duration_chart.ok? and !@build_duration_chart.loading and
+          @build_duration_chart.ok? and !@build_duration_chart.failed and
             @build_duration_chart.result == :line
         }
         id="average-build-time-chart"
@@ -510,8 +523,9 @@
       />
     </.card_section>
     <.card_section
-      :if={@analytics_selected_widget != "build-duration" and @analytics_chart_data.ok?}
+      :if={@analytics_selected_widget != "build-duration" and ready?}
       data-part="analytics-card-chart-section"
+      data-chart-frame="standard"
     >
       <.chart
         id="builds-analytics-chart"
@@ -592,10 +606,11 @@
     </.card_section>
     <.empty_card_section
       :if={
-        @builds_duration_analytics.ok? &&
+        ready? &&
           @builds_duration_analytics.result.total_average_duration == 0
       }
       title={dgettext("dashboard_builds", "No data yet")}
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -612,11 +627,14 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
-  <.card
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@configuration_insights_analytics]}
     title={dgettext("dashboard_builds", "Configuration Insights")}
     icon="device_laptop"
     data-part="configuration-insights-card"
+    chart_frame="small"
   >
     <:actions>
       <.dropdown
@@ -656,18 +674,21 @@
         </.dropdown_item>
       </.dropdown>
     </:actions>
-    <.card_section :if={!@configuration_insights_analytics.ok?}>
-      <div data-part="configuration-insights-chart-skeleton">
-        <.skeleton_legend />
-        <.skeleton_chart />
-      </div>
+    <.card_section
+      :if={!ready?}
+      data-chart-frame="small"
+      data-part="configuration-insights-card-chart-section"
+    >
+      <.skeleton_legend />
+      <.skeleton_chart height="84px" />
     </.card_section>
     <.card_section
       :if={
-        @configuration_insights_analytics.ok? &&
+        ready? &&
           not Enum.empty?(@configuration_insights_analytics.result)
       }
       data-part="configuration-insights-card-chart-section"
+      data-chart-frame="small"
     >
       <.legend title={dgettext("dashboard_builds", "Build duration")} style="secondary" />
       <.chart
@@ -736,11 +757,12 @@
     </.card_section>
     <.empty_card_section
       :if={
-        @configuration_insights_analytics.ok? &&
+        ready? &&
           Enum.empty?(@configuration_insights_analytics.result)
       }
       title={dgettext("dashboard_builds", "No data yet")}
       get_started_href="https://tuist.dev/en/docs/guides/features/build-insights"
+      data-chart-frame="small"
     >
       <:image>
         <img
@@ -757,8 +779,15 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
-  <.card
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[
+      @failed_builds_count,
+      @recent_builds,
+      @recent_builds_chart_data,
+      @successful_builds_count
+    ]}
     title={dgettext("dashboard_builds", "Recent Builds")}
     icon="dashboard"
     data-part="recent-builds-card"
@@ -772,7 +801,7 @@
         disabled={!@recent_builds.ok? || Enum.empty?(@recent_builds.result)}
       />
     </:actions>
-    <.card_section :if={!@recent_builds.ok?}>
+    <.card_section :if={!ready?} data-chart-frame="standard">
       <div data-part="recent-builds-card-skeleton">
         <div data-part="builds-chart">
           <div data-part="legends">
@@ -789,7 +818,7 @@
       </div>
     </.card_section>
     <.card_section
-      :if={@recent_builds.ok? && not Enum.empty?(@recent_builds.result)}
+      :if={ready? && not Enum.empty?(@recent_builds.result)}
       data-part="recent-builds-card-section"
     >
       <div data-part="builds-chart">
@@ -919,9 +948,10 @@
       </.table>
     </.card_section>
     <.empty_card_section
-      :if={@recent_builds.ok? && Enum.empty?(@recent_builds.result)}
+      :if={ready? && Enum.empty?(@recent_builds.result)}
       title={dgettext("dashboard_builds", "No data yet")}
       get_started_href="https://tuist.dev/en/docs/guides/features/build-insights"
+      data-chart-frame="standard"
     >
       <:image>
         <img
@@ -938,5 +968,5 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
 </div>

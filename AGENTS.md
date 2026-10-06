@@ -181,7 +181,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 **Prerequisites:**
 - PostgreSQL 16
 - Mise development environment manager
-- Private key from 1Password for `priv/secrets/dev.key`
+- Optional: 1Password access to the `Development` vault via fnox (`op signin` or `OP_SERVICE_ACCOUNT_TOKEN`), installed by `mise install`; the server boots without it with OAuth/Stripe/etc. disabled
 
 **Setup Commands:**
 ```bash
@@ -238,7 +238,7 @@ mise run dev                   # Start development server
 - `mix.exs` - Elixir project configuration and dependencies
 - `package.json` - JavaScript dependencies managed by aube
 - `config/` directory - Phoenix application configuration
-- `priv/secrets/dev.key` - Development secrets encryption key (not in repo)
+- `server/fnox.toml` - Dev secrets sourced from 1Password (`Development` vault) at runtime via fnox
 
 ## Testing Patterns
 

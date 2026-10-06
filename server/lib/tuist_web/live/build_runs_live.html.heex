@@ -3,6 +3,8 @@
     {TuistWeb.BazelBuildRunsLive.render(assigns)}
   <% Tuist.Projects.Project.gradle_project?(@selected_project) -> %>
     {TuistWeb.GradleBuildRunsLive.render(assigns)}
+  <% Tuist.Projects.Project.mix_project?(@selected_project) -> %>
+    {TuistWeb.MixBuildRunsLive.render(assigns)}
   <% true -> %>
     {TuistWeb.XcodeBuildRunsLive.render(assigns)}
 <% end %>

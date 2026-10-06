@@ -10,6 +10,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -23,6 +24,7 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.Callable
 import java.util.concurrent.TimeUnit
 
 class TuistTestShardingService(
@@ -319,6 +321,21 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 }
 
+private fun testClassDirectories(rootProject: Project, testTaskName: String?): List<FileCollection> {
+    if (testTaskName == null) {
+        return rootProject.allprojects.flatMap { project ->
+            project.tasks.withType(Test::class.java).map { it.testClassesDirs }
+        }
+    }
+    val testTasks = rootProject.allprojects.mapNotNull { it.tasks.findByName(testTaskName) as? Test }
+    if (testTasks.isEmpty()) {
+        throw org.gradle.api.GradleException(
+            "No test task named '$testTaskName' found. Set -PtuistShardTestTask to the test task the shards run, for example testDebugUnitTest."
+        )
+    }
+    return testTasks.map { it.testClassesDirs }
+}
+
 abstract class TuistTestShardingPlugin : Plugin<Project> {
 
     private val logger = Logging.getLogger(TuistTestShardingPlugin::class.java)
@@ -330,7 +347,6 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
 
         val config = TuistGradleConfig.from(project) ?: return
         val providers = project.providers
-        val testClassDirectories = project.objects.fileCollection()
 
         val prepareTestShards = project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java)
         prepareTestShards.configure {
@@ -339,18 +355,21 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             serverUrl = config.url
             tuistProject = config.project
             useEnvironmentProxy = config.network.proxy
-            compiledTestClassDirectories.from(testClassDirectories)
+
+            // Resolved lazily so the test tasks are realized and their class directories
+            // set by the Java or Android plugin before they are read. The directories carry
+            // the compile tasks that produce them as build dependencies. Subprojects are
+            // evaluated first because configuration on demand leaves them unconfigured when
+            // the task is requested by path.
+            val testTaskName = providers.gradleProperty("tuistShardTestTask").orNull
+            val rootProject = project
+            rootProject.subprojects.forEach { rootProject.evaluationDependsOn(it.path) }
+            compiledTestClassDirectories.from(Callable { testClassDirectories(rootProject, testTaskName) })
 
             providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
             providers.gradleProperty("tuistShardMin").orNull?.toIntOrNull()?.let { shardMin = it }
             providers.gradleProperty("tuistShardMaxDuration").orNull?.toIntOrNull()?.let { shardMaxDuration = it }
             providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull?.let { shardReference = it }
-        }
-
-        project.allprojects.forEach { subproject ->
-            subproject.tasks.withType(Test::class.java).configureEach {
-                testClassDirectories.from(testClassesDirs)
-            }
         }
 
         val shardIndexStr = providers.environmentVariable("TUIST_SHARD_INDEX").orNull ?: return

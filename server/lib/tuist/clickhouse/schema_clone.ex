@@ -150,12 +150,13 @@ defmodule Tuist.ClickHouse.SchemaClone do
         Logger.error("#{table}: column type changed, not reconciled: #{inspect(retyped)}")
       end
 
-      positions = column_positions(source, table)
+      {positions, clauses} = source_columns(source, table)
 
       only_on_source
       |> Enum.reject(&(name_of(&1) in retyped))
+      |> in_source_order(positions)
       |> Enum.map(fn column ->
-        statement = add_column_statement(target.database, table, column, positions)
+        statement = add_column_statement(target.database, table, column, positions, clauses)
 
         case execute(target, statement) do
           :ok ->
@@ -167,6 +168,18 @@ defmodule Tuist.ClickHouse.SchemaClone do
         end
       end)
     end)
+  end
+
+  @doc """
+  The missing columns in the order the source has them. Each one is added
+  after its predecessor on the source (`add_column_statement/4`), so a run of
+  new adjacent columns only lands when they are added front to back: added in
+  any other order, each column after the first refers to one that is not
+  there yet and fails.
+  """
+  def in_source_order(columns, positions) do
+    index = positions |> Enum.with_index() |> Map.new()
+    Enum.sort_by(columns, &Map.get(index, name_of(&1), length(positions)))
   end
 
   defp retyped_columns(only_on_source, only_on_destination) do
@@ -183,14 +196,20 @@ defmodule Tuist.ClickHouse.SchemaClone do
   sitting in the middle of the other would copy every later column into the
   wrong place.
 
+  The column keeps the source's default and codec (`clauses`, keyed by name).
+  Without the default, rows the destination already holds read the type's
+  zero value where the source reads the default, which is just as silent.
+
   Public because that is the part worth testing without a ClickHouse to talk
   to, and because the failure it prevents is silent.
   """
-  def add_column_statement(database, table, column, positions) do
+  def add_column_statement(database, table, column, positions, clauses \\ %{}) do
     [name, type] = String.split(column, " ", parts: 2)
 
+    definition = Enum.join([type | List.wrap(Map.get(clauses, name))], " ")
+
     prefix =
-      "ALTER TABLE #{Endpoints.quote_ident(database)}.#{Endpoints.quote_ident(table)} ADD COLUMN IF NOT EXISTS #{Endpoints.quote_ident(name)} #{type}"
+      "ALTER TABLE #{Endpoints.quote_ident(database)}.#{Endpoints.quote_ident(table)} ADD COLUMN IF NOT EXISTS #{Endpoints.quote_ident(name)} #{definition}"
 
     case previous_column(name, positions) do
       nil -> "#{prefix} FIRST"
@@ -208,11 +227,11 @@ defmodule Tuist.ClickHouse.SchemaClone do
 
   defp name_of(column), do: column |> String.split(" ", parts: 2) |> hd()
 
-  defp column_positions(source, table) do
+  defp source_columns(source, table) do
     %{rows: rows} =
       source.repo.query!(
         """
-        SELECT name FROM system.columns
+        SELECT name, default_kind, default_expression, compression_codec FROM system.columns
         WHERE database = {database:String} AND table = {table:String}
         ORDER BY position
         """,
@@ -220,7 +239,21 @@ defmodule Tuist.ClickHouse.SchemaClone do
         log: false
       )
 
-    List.flatten(rows)
+    clauses =
+      for [name, kind, expression, codec] <- rows,
+          clause = column_clause(kind, expression, codec),
+          clause != "",
+          into: %{},
+          do: {name, clause}
+
+    {Enum.map(rows, &hd/1), clauses}
+  end
+
+  @doc false
+  def column_clause(kind, expression, codec) do
+    [if(kind != "", do: "#{kind} #{expression}"), if(codec != "", do: codec)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
   end
 
   @doc """

@@ -1,0 +1,403 @@
+/* The coverage pages — a branch's glance, one subject in
+   detail, and a file — are page roots laid out like every other dashboard
+   page. */
+#coverage,
+#coverage-detail,
+#coverage-file-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="analytics-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  /* The table and the buttons that page it are one block, so the section's
+     gap does not stack with the pagination's own margin. */
+  & [data-part="commits-table"],
+  & [data-part="files-table"],
+  & [data-part="targets-table"],
+  & [data-part="runs-table"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="commits-section"] [data-part="filters"],
+  & [data-part="targets-section"] [data-part="filters"],
+  & [data-part="files-section"] [data-part="filters"],
+  & [data-part="runs-section"] [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="targets-section"] > [data-part="active-filters"],
+  & [data-part="runs-section"] > [data-part="active-filters"] {
+    display: flex;
+    align-self: flex-start;
+    gap: var(--noora-spacing-4);
+  }
+
+  /* The Files tab stacks two cards, spaced as the page spaces its own. */
+  & > [data-part="files"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="commits-section"],
+  & [data-part="runs-section"],
+  & [data-part="targets-section"],
+  & [data-part="files-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+  }
+
+  /* Clipped per section rather than per card: a card's header can hold a date
+     picker, whose calendar has to open over the card's edge. */
+  & .noora-card__section:not(.tuist-widget) {
+    overflow-x: hidden;
+  }
+
+  /* A widget's tooltip opens inside the widget, so neither the widget nor
+     the section holding widgets may clip it; widgets never overflow
+     sideways. */
+  & .noora-card__section:has(> [data-part="widgets"]) {
+    overflow: visible;
+  }
+
+  & .noora-chart {
+    height: 200px;
+  }
+
+  /* The section holding the chart pads it already. */
+  & [data-part="analytics-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & .noora-pagination-group,
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & [data-part="loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+}
+
+/* A branch, a commit or a file: a title block above the tabs, as the test
+   run detail page has. */
+#coverage-detail,
+#coverage-file-page {
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title-group"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+    }
+
+    /* The page's title only, led by an icon for what the page is (a commit,
+       a branch or a file), as the test case page leads with its
+       status; the header's tooltips have titles of their own. */
+    & > [data-part="title-group"] > [data-part="title"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      min-width: 0;
+
+      & > [data-part="kind"] {
+        border-radius: var(--noora-radius-4);
+        background: var(--noora-icon-neutral-background);
+
+        & > [data-part="icon"] {
+          padding: var(--noora-spacing-3);
+          width: var(--noora-icon-size-large);
+          height: var(--noora-icon-size-large);
+          color: var(--noora-icon-neutral-label);
+
+          & > svg {
+            width: 100%;
+            height: 100%;
+          }
+        }
+      }
+
+      & > [data-part="label"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+        word-break: break-word;
+      }
+    }
+
+    & [data-part="badges"] {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+}
+
+/* A file's coverage as a bar and a percentage: a table cell with no Noora
+   equivalent. */
+#coverage,
+#coverage-detail,
+#coverage-file-page {
+  & [data-part="coverage-cell"] {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    min-width: 160px;
+
+    & > .noora-progress-bar {
+      flex-grow: 1;
+    }
+
+    & > [data-part="percentage"] {
+      min-width: 48px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      text-align: right;
+    }
+  }
+
+  & [data-part="cell"][data-type="badge"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+}
+
+/* One file's page: its figures above a list of what it is made of. */
+#coverage-file-page {
+  & > [data-part="header"] > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="file-summary-section"],
+  & [data-part="file-functions-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & [data-part="file-functions-section"] > [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="functions-table"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="file-details"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & dd {
+      margin: var(--noora-spacing-2) 0 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-all;
+    }
+  }
+}
+
+/* The Code Coverage page's files and targets whose coverage moved most, laid
+   out as the Tests page's Test Cases card: two sections side by side, each a
+   stack of up to four cards with the edges of more behind them. */
+#coverage > [data-part="coverage-changes"] {
+  & [data-part="changes-sections"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-3);
+
+    & > * {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  & [data-part="changes-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+
+      & > [data-part="title"] {
+        flex-grow: 1;
+        color: var(--noora-surface-label-primary);
+      }
+    }
+
+    & > [data-part="empty"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="changes-list"] {
+      display: flex;
+      position: relative;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      padding-bottom: 19px;
+
+      & > [data-part="more-card"] {
+        position: absolute;
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-4);
+        background-color: var(--noora-surface-background-primary);
+        height: 48px;
+        &[data-index="one"] {
+          right: var(--noora-spacing-4);
+          bottom: 9px;
+          left: var(--noora-spacing-4);
+        }
+        &[data-index="two"] {
+          right: var(--noora-spacing-7);
+          bottom: 0;
+          left: var(--noora-spacing-7);
+        }
+      }
+    }
+  }
+}
+
+.coverage-change-card {
+  display: block;
+  z-index: var(--noora-z-index-1);
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-4);
+  background-color: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-4);
+  color: inherit;
+  text-decoration: none;
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="icon"] {
+      border-radius: var(--noora-radius-4);
+      padding: var(--noora-spacing-3);
+      width: 20px;
+      height: 20px;
+
+      & svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    & > [data-part="title-and-subtitle"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        margin: 0;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & > [data-part="subtitle"] {
+        overflow: hidden;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    & > [data-part="coverage"] {
+      flex-shrink: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+  }
+
+  &[data-direction="up"] > [data-part="header"] > [data-part="icon"] {
+    background-color: var(--noora-icon-success-background);
+    color: var(--noora-icon-success-label);
+  }
+
+  &[data-direction="down"] > [data-part="header"] > [data-part="icon"] {
+    background-color: var(--noora-icon-destructive-background);
+    color: var(--noora-icon-destructive-label);
+  }
+}

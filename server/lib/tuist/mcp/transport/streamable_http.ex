@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Transport.StreamableHTTP do
   import Plug.Conn
 
   alias EMCP.Transport.StreamableHTTP
+  alias Tuist.MCP.Transport.Stateless
 
   @latest_protocol_version "2025-06-18"
   @supported_protocol_versions [@latest_protocol_version, "2025-03-26"]
@@ -20,6 +21,26 @@ defmodule Tuist.MCP.Transport.StreamableHTTP do
 
   @impl Plug
   def call(conn, opts) do
+    if modern_request?(conn) do
+      Stateless.call(conn, opts)
+    else
+      call_legacy(conn, opts)
+    end
+  end
+
+  defp modern_request?(conn) do
+    get_req_header(conn, "mcp-protocol-version") == ["2026-07-28"] or
+      case conn.body_params do
+        %{"params" => %{"_meta" => %{"io.modelcontextprotocol/protocolVersion" => version}}}
+        when is_binary(version) ->
+          true
+
+        _ ->
+          false
+      end
+  end
+
+  defp call_legacy(conn, opts) do
     case validate_protocol_version_header(conn) do
       :ok ->
         negotiated_protocol_version = negotiated_protocol_version(conn)

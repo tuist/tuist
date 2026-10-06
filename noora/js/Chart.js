@@ -214,11 +214,19 @@ export default {
       );
 
     if (hasClickableData) {
+      // A line's points are a few pixels wide, so a click anywhere over the
+      // plot opens the point nearest it along the x axis, the one the axis
+      // tooltip shows; bars keep opening only when clicked themselves.
       this.chart.on("click", (params) => {
-        const dataItem = params.data;
-        if (dataItem && dataItem.url) {
-          window.location.href = dataItem.url;
+        if (params.seriesType !== "line" && params.data && params.data.url) {
+          this.navigate(params.data.url);
         }
+      });
+
+      const zr = this.chart.getZr();
+      zr.on("click", (event) => {
+        const url = this.nearestLineUrl([event.offsetX, event.offsetY]);
+        if (url) this.navigate(url);
       });
 
       this.chart.on("mouseover", (params) => {
@@ -229,6 +237,37 @@ export default {
       this.chart.on("mouseout", () => {
         chartDom.style.cursor = "default";
       });
+      zr.on("mousemove", (event) => {
+        if (this.nearestLineUrl([event.offsetX, event.offsetY])) {
+          zr.setCursorStyle("pointer");
+        }
+      });
+    }
+  },
+  nearestLineUrl(pixel) {
+    if (!this.chart.containPixel("grid", pixel)) return null;
+
+    let nearest = null;
+    this.chart.getOption().series.forEach((series, seriesIndex) => {
+      if (series.type !== "line" || !series.data) return;
+      series.data.forEach((item) => {
+        if (!item || typeof item !== "object" || !item.url) return;
+        const [x] = this.chart.convertToPixel({ seriesIndex }, item.value);
+        const distance = Math.abs(x - pixel[0]);
+        if (!nearest || distance < nearest.distance) {
+          nearest = { distance, url: item.url };
+        }
+      });
+    });
+    return nearest && nearest.url;
+  },
+  // Through LiveView, so a page in the same live session opens without a
+  // full reload; LiveView falls back to one for any other page.
+  navigate(url) {
+    if (typeof this.js === "function") {
+      this.js().navigate(url);
+    } else {
+      window.location.href = url;
     }
   },
   updated() {
@@ -619,6 +658,32 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+// A point that stands for a calendar day, week or month is titled by that
+// period. Its date is the period's start, truncated in UTC, so it is
+// formatted in UTC too: a local time zone would move it to the day before.
+function formatPeriod(date, period) {
+  if (period === "month") {
+    return date.toLocaleDateString(navigator.language, {
+      timeZone: "UTC",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  const day = new Intl.DateTimeFormat(navigator.language, {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (period === "week") {
+    return day.formatRange(date, new Date(date.getTime() + 6 * 86_400_000));
+  }
+
+  return day.format(date);
+}
+
 // Tooltip
 function tooltipFormatter(options = {}) {
   return (params) => {
@@ -661,6 +726,8 @@ function tooltipFormatter(options = {}) {
         });
         const hour = String(date.getHours()).padStart(2, "0");
         title = `${dateStr}, ${hour}:00`;
+      } else if (["day", "week", "month"].includes(options.dateFormat)) {
+        title = formatPeriod(date, options.dateFormat);
       } else {
         title = date.toLocaleDateString(navigator.language, {
           day: "numeric",

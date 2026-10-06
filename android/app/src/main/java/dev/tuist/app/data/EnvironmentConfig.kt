@@ -53,7 +53,7 @@ class EnvironmentConfig @Inject constructor(
 
     fun setEnvironment(env: TuistEnvironment): Boolean {
         val changed = current != env
-        prefs.edit().putString(KEY_ENVIRONMENT, env.name).apply()
+        prefs.edit().putString(KEY_ENVIRONMENT, env.name).commit()
         return changed
     }
 

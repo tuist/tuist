@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Db.Create do
   This task extends the ecto.create task to ensure all repos are started after database creation.
   """
   use Mix.Task
-  use Boundary, classify_to: Tuist.Mix
+  use Boundary, classify_to: Tuist.MixTasks
 
   import Mix.Ecto
 
