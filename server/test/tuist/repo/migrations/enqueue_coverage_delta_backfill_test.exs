@@ -13,6 +13,7 @@ defmodule Tuist.Repo.Migrations.EnqueueCoverageDeltaBackfillTest do
   defp commit(project, sha, complete) do
     now = DateTime.utc_now()
 
+    # credo:disable-for-next-line ExcellentMigrations.CredoCheck.MigrationsSafety
     Repo.insert_all(CoverageCommit, [
       %{
         project_id: project.id,
