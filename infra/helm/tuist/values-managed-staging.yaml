@@ -660,11 +660,19 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Already-prepared staging capacity for physical vRack/Cilium validation.
-  # The public ca-east cache and existing runner fleet retain their placement.
+  # Staging capacity for physical vRack/Cilium validation. The public ca-east
+  # cache and existing runner fleet retain their placement.
+  #
+  # At 0 until its box is prepped: ns3220989 carries the adoption marker but
+  # refuses OVH_FLEET_SSH, so its Machine never became available and every
+  # staging deploy failed Helm's wait from 2026-10-05. Releasing the Machine
+  # reinstalls the box with the fleet key; once it is up (or after
+  # `PREP_NAMESPACE=tuist-staging mise run baremetal:prep-ovh
+  # ns3220989.ip-162-19-86.eu tuist-tuist-ovh-fleet-gra-runners-cache`), set
+  # this back to 1.
   gra-runners-cache:
     enabled: true
-    replicas: 1
+    replicas: 0
     endpoint: ovh-us
     nodePool: kura-ovh-gra-runners
     machine:
