@@ -246,6 +246,14 @@ fleet_check_power() {
       $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null) |
         "\(.name): one of the \(.role) pair, but names no ats or pdu, so which transfer switch it shares cannot be checked"
     ] + [
+      # The feed cords into a transfer switch are cables like any other, so
+      # each source names the feed behind it, once.
+      select([$all[] | select(.hardware == "eats16n")] | length > 0) |
+      (1, 2) as $source | [(.feeds // [])[] | select(.source == $source)] |
+      if length == 0 then "the site has transfer switches but names no feed for source \($source)"
+      elif length > 1 then "source \($source) has more than one feed: \(map(.name) | join(", "))"
+      else empty end
+    ] + [
       [$all[] | select(.mgmt_address != null)] | group_by(.mgmt_address)[] | select(length > 1) |
         "\(map(.name) | join(" and ")) share management address \(.[0].mgmt_address)"
     ] | .[]
@@ -946,7 +954,10 @@ HEADER
         (.ats // .pdu) as $from |
         {from: $from, port: null, to: .name, nic: (if .role == "power" then "inlet" else "psu" end),
          media: "power", purpose: "power",
-         status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)})
+         status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)}),
+      ((.feeds // []) as $feeds | .nodes[]? | select(.hardware == "eats16n") | . as $ats | $feeds[] |
+        {from: .name, port: null, to: $ats.name, nic: "source-\(.source)", media: "power", purpose: "feed",
+         status: ($ats.status // "")})
     ] |
     sort_by(.from, (.port == null), .port, .to) | .[] |
     "| \(.from) | \(.port // "") | \(.to) | \(.nic) | \(.media) | \(.purpose) | \(.status) |"

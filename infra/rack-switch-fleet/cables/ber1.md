@@ -44,3 +44,9 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | ber1-tor-b | 31 | ber1-tor-a |  | dac | isl | planned |
 | ber1-tor-b | 32 | ber1-tor-a |  | dac | isl | installed |
 | ber1-tor-b |  | ber1-store-b | sfp28-1 | dac | data | planned |
+| feed-a |  | ber1-ats-1 | source-1 | power | feed | installed |
+| feed-a |  | ber1-ats-2 | source-1 | power | feed | planned |
+| feed-a |  | ber1-ats-3 | source-1 | power | feed | installed |
+| feed-b |  | ber1-ats-1 | source-2 | power | feed | installed |
+| feed-b |  | ber1-ats-2 | source-2 | power | feed | planned |
+| feed-b |  | ber1-ats-3 | source-2 | power | feed | installed |

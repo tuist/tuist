@@ -435,6 +435,15 @@ cable schedule shows each hop as its own row. `rack:fleet render` removes, and
 device the site no longer has, since the workflow applies the whole directory
 and a renamed device would otherwise leave two objects driving one card.
 
+The hops start at the site's `feeds`: one per source, `feed-a` behind every
+transfer switch's source 1 and `feed-b` behind source 2 (the house sockets at
+home, the A and B whips in the colo). Each transfer switch therefore has two
+feed rows, `feed-b → ber1-ats-3 source-2` and so on, and the cord is labelled
+`feed-b ↔ ber1-ats-3:source-2` like every other cable. A chain drill pulls
+exactly those cords; before they had rows, the drill on 2026-10-06 pulled the
+minis' own cords twice. `fleet_check_power` refuses a site with transfer
+switches that names no feed for a source, or two.
+
 The prep bay runs `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
 critical layer plus one chain: enough to fail a chain and watch the rest of the
 rack report it. `ber1-ats-2` and `ber1-pdu-a` are `planned` until the colo.

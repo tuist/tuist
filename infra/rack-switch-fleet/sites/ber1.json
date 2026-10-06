@@ -561,5 +561,17 @@
       "name": "edge-vrrp",
       "carried_by": "edges"
     }
+  ],
+  "feeds": [
+    {
+      "source": 1,
+      "name": "feed-a",
+      "note": "Every transfer switch source 1. At home a house socket; in the colo the A-side whip."
+    },
+    {
+      "source": 2,
+      "name": "feed-b",
+      "note": "Every transfer switch source 2. At home a second house socket; in the colo the B-side whip."
+    }
   ]
 }

@@ -541,6 +541,33 @@ STUB
     [[ "$output" == *"| ber1-mgmt | 2 | ber1-edge-b | i226-lm | copper | management | installed |"* ]]
 }
 
+@test "the cable schedule has a feed cord into each transfer switch inlet" {
+    # The cords a person pulls in a chain drill. Without them the schedule had
+    # no label for "ber1-ats-3's source 2", and the minis' own cords got pulled.
+    run fleet_cable_schedule "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"| feed-a |  | ber1-ats-3 | source-1 | power | feed | installed |"* ]]
+    [[ "$output" == *"| feed-b |  | ber1-ats-3 | source-2 | power | feed | installed |"* ]]
+    [[ "$output" == *"| feed-a |  | ber1-ats-1 | source-1 | power | feed | installed |"* ]]
+    [[ "$output" == *"| feed-b |  | ber1-ats-1 | source-2 | power | feed | installed |"* ]]
+    [[ "$output" == *"| feed-a |  | ber1-ats-2 | source-1 | power | feed | planned |"* ]]
+    [ "$(grep -c '| feed |' <<<"$output")" -eq 6 ]
+}
+
+@test "a site with transfer switches names the feed behind each source" {
+    run fleet_check_power "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    local site="$BATS_TEST_TMPDIR/feeds.json"
+    jq 'del(.feeds)' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"the site has transfer switches but names no feed for source 1"* ]]
+    jq '.feeds = [{source: 1, name: "feed-a"}, {source: 1, name: "feed-c"}, {source: 2, name: "feed-b"}]' "$SITE_FILE" > "$site"
+    run fleet_check_power "$site"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"source 1 has more than one feed"* ]]
+}
+
 @test "every node and switch resolves to one transfer switch, and the pairs to different ones" {
     run fleet_check_power "$SITE_FILE"
     [ "$status" -eq 0 ]

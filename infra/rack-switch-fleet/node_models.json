@@ -68,6 +68,14 @@
         "speed": "1G",
         "out_of_band": "native",
         "note": "Built-in management network port. Eaton's Netpack, not an add-in card."
+      },
+      "source-1": {
+        "media": "power",
+        "note": "C20 inlet for source 1, feed A."
+      },
+      "source-2": {
+        "media": "power",
+        "note": "C20 inlet for source 2, feed B."
       }
     }
   },
