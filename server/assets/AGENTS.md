@@ -45,6 +45,8 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   verified human. The optional server gateway adds collection-time auth and
   correlation context; see `infra/helm/k8s-monitoring/browser-rum.md`.
 
+- Test-run and test-case-run detail metadata keeps the same four-column grid between rows, falling back to two or one columns on narrow screens. Value-only test summary widgets do not reserve the trend widgets' minimum height; analytics widgets keep their shared loading and ready geometry.
+
 ## Related Context
 
 - Web layer: `server/lib/tuist_web/AGENTS.md`
