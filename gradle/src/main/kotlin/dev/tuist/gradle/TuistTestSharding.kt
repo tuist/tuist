@@ -436,5 +436,23 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
                 }
             }
         }
+
+        if (!isCatchAll) excludeTestTasksWithoutSuites(project, suitesByModule.keys)
+    }
+
+    // Excluded like `-x`, so the test tasks of projects without suites in the shard leave the
+    // task graph together with the dependencies only they need, such as test compilation.
+    // Gradle resolves excluded task paths after `projectsEvaluated`. Configuration on demand
+    // resolves them before configuring any project, so there the test tasks stay in the graph
+    // and are skipped.
+    private fun excludeTestTasksWithoutSuites(rootProject: Project, modulesWithSuites: Set<String>) {
+        val startParameter = rootProject.gradle.startParameter
+        if (startParameter.isConfigureOnDemand) return
+        rootProject.gradle.projectsEvaluated {
+            val excludedTestTasks = rootProject.allprojects
+                .filter { testModuleName(it) !in modulesWithSuites }
+                .flatMap { project -> project.tasks.withType(Test::class.java).names.map(project::absoluteProjectPath) }
+            startParameter.setExcludedTaskNames(startParameter.excludedTaskNames + excludedTestTasks)
+        }
     }
 }
