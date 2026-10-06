@@ -422,6 +422,20 @@ advertise it to the tailnet (see "The machines segment" in
 the first dial and every drift push into the rack survive losing an edge: the
 tailnet fails over between them.
 
+**Bootstrap checks it reached the right box.** An address only names a box
+through the edges' DHCP, so anything that answers at it (a tray whose units
+were swapped against the inventory, a box still holding the address on an old
+lease) would otherwise be bootstrapped under this host's name and providerID,
+with its host key pinned as this host's. So before pushing anything, bootstrap
+reads the host's serial (`ioreg`) and stops unless it is `RackHost.spec.serial`,
+returning no fingerprint, so the wrong box's key is not pinned
+(`HostIdentityMismatchError` in `infra/macos-host-bootstrap`). It counts as a
+failed attempt, and the recovery power-cycle after three of them reboots this
+host's own outlet, which is what makes the right box ask for its address
+again. A RackHost without a serial is not checked. On 2026-10-05 a recreated
+Machine bootstrapped the wrong mini of the first BER1 tray this way, under the
+other's serial, before this check existed.
+
 **Advertise a /32 per host, not the rack's prefix**, for as long as the
 catch-all `*->*` grant at the top of that ACL file still exists. A catch-all
 subsumes every narrowing below it, so what an advertised route actually exposes
