@@ -75,7 +75,7 @@ Do not add README entries for internal operational details such as env var names
 
 ## Stripe draft invoices
 
-- Caller-supplied line items on `create_stripe_draft_invoice` and `edit_stripe_draft_invoice` can carry `prepaid_runners` (`platforms`, optional `funding_ratio_bp`, optional `term`). Atlas writes these as the `tuist_prepaid_runners*` invoice item metadata keys that `Tuist.Runners.Prepaid` in `server/` reads when the invoice is finalized. The keys and bounds are a contract with that module: change both together, and keep Atlas's validation in step so a draft the server would refuse is rejected before it is sent.
+- Caller-supplied line items on `create_stripe_draft_invoice` and `edit_stripe_draft_invoice` can carry `prepaid_runners` (`platforms`, optional `credit_multiplier`, optional `term`). Atlas writes these as the `tuist_prepaid_runners*` invoice item metadata keys, converting the credit multiplier (for example `1.25`) to the basis points the server reads (`12500`), that `Tuist.Runners.Prepaid` in `server/` reads when the invoice is finalized. The keys and bounds are a contract with that module: change both together, and keep Atlas's validation in step so a draft the server would refuse is rejected before it is sent.
 
 ## Model relay and support classification
 

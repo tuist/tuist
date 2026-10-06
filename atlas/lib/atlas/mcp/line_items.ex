@@ -48,12 +48,10 @@ defmodule Atlas.MCP.LineItems do
               "items" => %{"type" => "string", "enum" => ["macos", "linux"]},
               "description" => "Runner platforms the credit pays for."
             },
-            "funding_ratio_bp" => %{
-              "type" => "integer",
-              "minimum" => 10_000,
-              "maximum" => 20_000,
+            "credit_multiplier" => %{
+              "type" => ["number", "string"],
               "description" =>
-                "Basis points of runner credit granted per unit paid, from the deal's prepaid and on-demand rates. Omit for the standard prepaid terms."
+                "How much runner credit each unit paid buys, for example `1.25` or `\"1.25\"`. Runner usage is always billed at the on-demand price, so the prepaid discount is applied by granting more credit than was paid. Compute it as the on-demand price per minute divided by the deal's prepaid price per minute: the standard terms of $0.075 on demand and $0.06 prepaid give 0.075 / 0.06 = 1.25, so paying $1,000 grants $1,250 of credit. Must be between 1.0 (no discount) and 2.0 (half off), with at most four decimal places. Omit for the standard terms."
             },
             "term" => %{
               "type" => "string",
@@ -72,16 +70,20 @@ defmodule Atlas.MCP.LineItems do
       "type" => ["object", "null"],
       "properties" => %{
         "platforms" => %{"type" => "array", "items" => %{"type" => "string"}},
-        "funding_ratio_bp" => %{"type" => ["integer", "null"]},
+        "credit_multiplier" => %{"type" => ["string", "null"]},
         "term" => %{"type" => ["string", "null"]}
       },
-      "required" => ["platforms", "funding_ratio_bp", "term"],
+      "required" => ["platforms", "credit_multiplier", "term"],
       "additionalProperties" => false
     }
   end
 
-  def serialize_prepaid_runners(%{platforms: platforms, funding_ratio_bp: funding_ratio_bp, term: term}),
-    do: %{platforms: platforms, funding_ratio_bp: funding_ratio_bp, term: term}
+  def serialize_prepaid_runners(%{platforms: platforms, credit_multiplier: credit_multiplier, term: term}),
+    do: %{
+      platforms: platforms,
+      credit_multiplier: credit_multiplier && Decimal.to_string(credit_multiplier, :normal),
+      term: term
+    }
 
   def serialize_prepaid_runners(_prepaid_runners), do: nil
 
@@ -90,8 +92,9 @@ defmodule Atlas.MCP.LineItems do
   def prepaid_runners_error_message(:platforms),
     do: "`prepaid_runners.platforms` must list one or more of `macos` and `linux`."
 
-  def prepaid_runners_error_message(:funding_ratio_bp),
-    do: "`prepaid_runners.funding_ratio_bp` must be a whole number of basis points between 10000 and 20000."
+  def prepaid_runners_error_message(:credit_multiplier),
+    do:
+      "`prepaid_runners.credit_multiplier` must be a number between 1.0 and 2.0 with at most four decimal places, for example `1.25`: the on-demand price per minute divided by the deal's prepaid price per minute."
 
   def prepaid_runners_error_message(:term), do: "`prepaid_runners.term` must be `monthly` or `yearly`."
 

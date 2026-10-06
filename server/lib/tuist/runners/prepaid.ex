@@ -59,9 +59,15 @@ defmodule Tuist.Runners.Prepaid do
     * `tuist_prepaid_runners` — required marker, and the platform
       scope. `"true"`/`"all"` covers every configured runner Price;
       `"macos"`, `"linux"`, or a comma-separated list narrows it.
-    * `tuist_prepaid_runners_funding_ratio_bp` — optional, basis
-      points of credit per unit paid, so the 1.25x default is `12500`.
-      Bounded between par (10000, no discount) and 20000 (50% off).
+    * `tuist_prepaid_runners_funding_ratio_bp`: optional, how much
+      runner credit each unit paid buys, in basis points of the amount
+      paid (10000 is 1x). It is the on-demand price per minute divided
+      by the deal's prepaid price per minute, times 10000: the standard
+      $0.075 on demand against $0.06 prepaid is 1.25x, written `12500`,
+      so a $1,000 line grants $1,250 of credit. Bounded between par
+      (10000, no discount) and 20000 (50% off). Atlas draft invoices
+      take it as a decimal `credit_multiplier` (`1.25`) and write it in
+      this form.
     * `tuist_prepaid_runners_term`: optional, `"monthly"` (the default)
       or `"yearly"`. A yearly line becomes a pool that lasts the contract
       term; see "Top-ups and expiry". Any other value is rejected.
@@ -982,6 +988,9 @@ defmodule Tuist.Runners.Prepaid do
   defp platform_from_string("macos"), do: {:ok, :macos}
   defp platform_from_string(other), do: {:error, {:unknown_platform, other}}
 
+  # Basis points of credit per unit paid: a line paying `amount` grants
+  # `amount * ratio_bp / 10000`. See "Line metadata keys" for how a deal's
+  # ratio is derived from its prepaid and on-demand rates.
   defp funding_ratio_bp(metadata) do
     case metadata |> Map.get(@ratio_key) |> normalize() do
       nil -> {:ok, @default_funding_ratio_bp}

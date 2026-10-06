@@ -588,8 +588,10 @@ defmodule Atlas.Accounts.StripeDraftInvoiceTest do
                amount_cents: 800_000,
                period_start: ~D[2027-01-01],
                period_end: ~D[2028-01-01],
-               prepaid_runners: %{platforms: ["macos"], funding_ratio_bp: 14_000, term: "yearly"}
+               prepaid_runners: %{platforms: ["macos"], credit_multiplier: multiplier, term: "yearly"}
              } = prepaid
+
+      assert Decimal.equal?(multiplier, Decimal.new("1.4"))
 
       assert prepaid.metadata["tuist_prepaid_runners"] == "macos"
       assert prepaid.metadata["tuist_prepaid_runners_funding_ratio_bp"] == "14000"
@@ -619,7 +621,7 @@ defmodule Atlas.Accounts.StripeDraftInvoiceTest do
                    "period_end" => "2028-01-01",
                    "prepaid_runners" => %{
                      "platforms" => ["macos"],
-                     "funding_ratio_bp" => 14_000,
+                     "credit_multiplier" => "1.4",
                      "term" => "yearly"
                    }
                  },
@@ -661,6 +663,46 @@ defmodule Atlas.Accounts.StripeDraftInvoiceTest do
              )
   end
 
+  test "create writes the credit multiplier as the basis points the Tuist server reads" do
+    account =
+      insert_account!(%{
+        account_key: "customer:prepaid-multiplier",
+        name: "Prepaid Multiplier Customer",
+        currency: "USD",
+        stripe_customer_id: "cus_prepaid_multiplier"
+      })
+
+    insert_order_form!(account, %{attributes: %{"signed" => true}})
+
+    for {multiplier, basis_points} <- [
+          {"1.25", "12500"},
+          {1.25, "12500"},
+          {2, "20000"},
+          {"1", "10000"},
+          {"1.3333", "13333"}
+        ] do
+      StripeClient.put_create_draft_invoice(fn {_customer_id, attrs, _opts} ->
+        assert [line_item] = attrs.line_items
+        assert line_item.metadata["tuist_prepaid_runners_funding_ratio_bp"] == basis_points
+
+        {:ok, %Stripe.Invoice{id: "in_prepaid_multiplier", status: "draft", customer_id: "cus_prepaid_multiplier"}}
+      end)
+
+      assert {:ok, _result} =
+               Accounts.create_stripe_draft_invoice_from_latest_signed_order_form(account,
+                 line_items: [
+                   %{
+                     "description" => "Prepaid Tuist Runners minutes",
+                     "amount" => "500.00",
+                     "currency" => "USD",
+                     "prepaid_runners" => %{"platforms" => ["macos"], "credit_multiplier" => multiplier}
+                   }
+                 ]
+               ),
+             "expected #{inspect(multiplier)} to be written as #{basis_points}"
+    end
+  end
+
   test "create rejects prepaid runner terms the Tuist server would refuse to grant" do
     account =
       insert_account!(%{
@@ -676,9 +718,11 @@ defmodule Atlas.Accounts.StripeDraftInvoiceTest do
       {%{"platforms" => []}, %{}, :platforms},
       {%{"platforms" => ["windows"]}, %{}, :platforms},
       {%{"platforms" => "macos"}, %{}, :platforms},
-      {%{"platforms" => ["macos"], "funding_ratio_bp" => 9_999}, %{}, :funding_ratio_bp},
-      {%{"platforms" => ["macos"], "funding_ratio_bp" => 20_001}, %{}, :funding_ratio_bp},
-      {%{"platforms" => ["macos"], "funding_ratio_bp" => "14k"}, %{}, :funding_ratio_bp},
+      {%{"platforms" => ["macos"], "credit_multiplier" => "0.9999"}, %{}, :credit_multiplier},
+      {%{"platforms" => ["macos"], "credit_multiplier" => 2.0001}, %{}, :credit_multiplier},
+      {%{"platforms" => ["macos"], "credit_multiplier" => "1.4x"}, %{}, :credit_multiplier},
+      {%{"platforms" => ["macos"], "credit_multiplier" => "1.23456"}, %{}, :credit_multiplier},
+      {%{"platforms" => ["macos"], "credit_multiplier" => 12_500}, %{}, :credit_multiplier},
       {%{"platforms" => ["macos"], "term" => "annual"}, %{}, :term},
       {%{"platforms" => ["macos"], "term" => "yearly"}, %{"period_start" => "2027-01-01", "period_end" => "2028-01-02"},
        :period},

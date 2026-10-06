@@ -246,14 +246,14 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoiceTest do
                    "currency" => "USD",
                    "prepaid_runners" => %{
                      "platforms" => ["macos"],
-                     "funding_ratio_bp" => 14_000,
+                     "credit_multiplier" => 1.4,
                      "term" => "yearly"
                    }
                  }
                ]
              })
 
-    assert [%{prepaid_runners: %{platforms: ["macos"], funding_ratio_bp: 14_000, term: "yearly"}}] =
+    assert [%{prepaid_runners: %{platforms: ["macos"], credit_multiplier: "1.4", term: "yearly"}}] =
              payload.line_items
   end
 
