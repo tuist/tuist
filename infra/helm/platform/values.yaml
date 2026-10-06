@@ -689,6 +689,48 @@ kura-runners-ingress-nginx:
     metrics:
       enabled: true
 
+# The BER1 rack's runner-cache gateway, on its storage nodes beside the rack's
+# minis, which reach it over the machines segment. A rack node runs a pod
+# network of its own and reaches no Service, so the gateway resolves through
+# the node and reaches the API server at the address the env sets in
+# KUBERNETES_SERVICE_HOST/PORT; the Kura pods it fronts sit on the same node.
+kura-ber1-runners-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: Default
+    electionID: kura-ber1-runners-ingress-nginx-leader
+    ingressClass: kura-ber1-runners
+    ingressClassResource:
+      name: kura-ber1-runners
+      controllerValue: k8s.io/kura-ber1-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-ber1-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: rack-storage-ber1
+    tolerations:
+      - key: tuist.dev/rack-storage
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    extraEnvs: []
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true
+
 # Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
 cacheDNS:
   enabled: false

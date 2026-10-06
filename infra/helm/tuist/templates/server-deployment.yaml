@@ -334,6 +334,19 @@ spec:
             # `Catalog.pool_name/1` in lockstep with the rendered CRs.
             - name: TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") | quote }}
+            {{- $sitePools := list }}
+            {{- range .Values.runnersFleet.pools }}
+            {{- if .site }}
+            {{- $platform := required (printf "runnersFleet.pools[%s].platform is required with a site" .name) .platform }}
+            {{- $sitePools = append $sitePools (printf "%s-%s=%s:%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) .name .site $platform) }}
+            {{- end }}
+            {{- end }}
+            {{- with $sitePools }}
+            # Pools racked at a site, as `<RunnerPool name>=<site>:<platform>`.
+            # Their jobs take the site's runner-cache region.
+            - name: TUIST_RUNNERS_SITE_POOLS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.runnersFleet.shapes }}
             # Same projection as the Linux shapes above, for the macOS
             # fleet. M2-L is the only shape today; this is wired now so

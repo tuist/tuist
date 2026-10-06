@@ -309,6 +309,33 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "site pools" do
+    setup do
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{"tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos}}
+      end)
+
+      :ok
+    end
+
+    test "a pool racked at a site takes its declared platform, whatever its name" do
+      assert Catalog.fleet_platform("tuist-runner-pool-ber1") == :macos
+      assert Catalog.fleet_site("tuist-runner-pool-ber1") == "ber1"
+    end
+
+    test "other fleets keep their prefix platform and sit at no site" do
+      assert Catalog.fleet_platform("macos-26-5") == :macos
+      assert Catalog.fleet_site("macos-26-5") == nil
+      assert Catalog.fleet_site(nil) == nil
+    end
+
+    test "a site pool passes the cluster network gate like its platform" do
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [:linux, :macos] end)
+
+      assert Catalog.fleet_on_cluster_network?("tuist-runner-pool-ber1")
+    end
+  end
+
   # The catalog ships more than one macOS shape (see
   # `config/config.exs`); the tests above assert on whichever entry is
   # not the default rather than pinning a specific one.
