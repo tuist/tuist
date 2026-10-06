@@ -42,6 +42,20 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
+  test "build and invocation pages only load the trend-aware summary", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    reject(&Bazel.summary/1)
+
+    for resource <- ["builds", "builds/build-runs"] do
+      {:ok, live_view, _html} = live(conn, "/#{organization.account.name}/#{project.name}/#{resource}")
+      render_async(live_view, @render_async_timeout)
+      assert render(live_view) =~ "bazel-invocations"
+    end
+  end
+
   test "empty invocations hide Timeline and direct links open Overview until a profile is published", %{
     conn: conn,
     project: project,
