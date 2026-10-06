@@ -88,5 +88,6 @@ dashboard presentation belong in `server/`.
   an option, an environment variable or what a task prints belongs there too,
   and every command on those pages was run before it was written down: run it
   again before you change it.
+- `mix tuist.test --prepare-only` downloads a shard's uploaded build without starting the app or tests. Run any database setup in a separate process, then `--no-download` uses the prepared build (and fails when the application artifact is absent). Both flags require a shard index and cannot be combined. Keep `MIX_ENV=test` on cold bootstrap commands. `--scheme LABEL` identifies execution variants in the existing test-run scheme field, keeping different environments out of cross-run flakiness comparisons. Flags remain local to the wrapper, never forwarded to `mix test`.
 - Releases use the `tuist-ex` conventional commit scope and `tuist-ex@` tags.
   See `.github/workflows/tuist-ex-release.yml` and the shared release component registry.
