@@ -32,6 +32,11 @@ defmodule TuistOps.JIT.Policy do
   hands it out unconditionally and the Slack bot refuses an
   `/elevate staging` rather than opening an approval for access
   the requester already holds.
+
+  GitHub organization admin elevations (`github_admin_group/0`, from
+  `/elevate-github`) go through the same two gates, so any
+  engineering role can self-approve making a GitHub account an
+  organization owner for the elevation's TTL.
   """
 
   alias TuistOps.JIT.TailscaleClient

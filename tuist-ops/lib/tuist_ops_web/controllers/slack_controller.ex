@@ -550,6 +550,9 @@ defmodule TuistOpsWeb.SlackController do
   # approval — the command rejects it with an explanation instead.
   defp elevatable_envs, do: Enum.reject(@valid_envs, &Policy.always_write_env?/1)
 
+  defp human_error({:invalid_env, "github"}),
+    do: "GitHub organization admin has its own command: #{github_usage_message()}"
+
   defp human_error({:invalid_env, env}),
     do: "Unknown env `#{env}`. Use one of: #{Enum.join(elevatable_envs(), ", ")}."
 
@@ -578,7 +581,10 @@ defmodule TuistOpsWeb.SlackController do
     do: "The GitHub account is no longer an active organization member."
 
   defp human_error({:github_promote_failed, reason}),
-    do: "Promoting the GitHub account failed: #{inspect(reason)}"
+    do: "Promoting the GitHub account failed: #{github_api_error(reason)}"
+
+  defp human_error({:github_api_failed, reason}),
+    do: "Checking the GitHub account failed: #{github_api_error(reason)}"
 
   defp human_error(:missing_intent), do: usage_message()
   defp human_error(:missing_text), do: usage_message()
@@ -586,8 +592,23 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp usage_message do
-    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
+    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do. For GitHub organization admin, use `/elevate-github`."
   end
+
+  defp github_api_error({:github_status, 403, body}),
+    do:
+      "GitHub returned 403 (#{github_message(body)}). The Tuist Ops GitHub App needs the organization Members permission with read and write access."
+
+  defp github_api_error({:github_status, status, body}),
+    do: "GitHub returned #{status} (#{github_message(body)})."
+
+  defp github_api_error({:github_app_token, _reason}),
+    do: "couldn't authenticate as the Tuist Ops GitHub App."
+
+  defp github_api_error(reason), do: inspect(reason)
+
+  defp github_message(%{"message" => message}) when is_binary(message), do: message
+  defp github_message(body), do: inspect(body)
 
   defp github_usage_message do
     "Usage: `/elevate-github <login> [duration] <intent>` to make a GitHub account an organization admin. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."

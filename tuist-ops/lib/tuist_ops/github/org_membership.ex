@@ -10,7 +10,7 @@ defmodule TuistOps.GitHub.OrgMembership do
   """
 
   alias TuistOps.Environment
-  alias TuistOps.GitHub.AppToken
+  alias TuistOps.GitHub.API
 
   @github_api_url "https://api.github.com"
 
@@ -21,7 +21,7 @@ defmodule TuistOps.GitHub.OrgMembership do
   of the organization.
   """
   def membership(login) when is_binary(login) do
-    with {:ok, headers} <- headers() do
+    with {:ok, headers} <- API.headers() do
       login
       |> membership_url()
       |> Req.get(headers: headers)
@@ -34,7 +34,7 @@ defmodule TuistOps.GitHub.OrgMembership do
   For an existing active member the change is immediate.
   """
   def set_role(login, role) when is_binary(login) and role in ["admin", "member"] do
-    with {:ok, headers} <- headers() do
+    with {:ok, headers} <- API.headers() do
       login
       |> membership_url()
       |> Req.put(headers: headers, body: JSON.encode!(%{role: role}))
@@ -50,22 +50,6 @@ defmodule TuistOps.GitHub.OrgMembership do
 
   defp membership_url(login) do
     "#{@github_api_url}/orgs/#{organization()}/memberships/#{URI.encode(login, &URI.char_unreserved?/1)}"
-  end
-
-  defp headers do
-    case AppToken.token() do
-      {:ok, token} ->
-        {:ok,
-         [
-           {"Accept", "application/vnd.github+json"},
-           {"Authorization", "Bearer #{token}"},
-           {"Content-Type", "application/json; charset=utf-8"},
-           {"X-GitHub-Api-Version", "2022-11-28"}
-         ]}
-
-      {:error, reason} ->
-        {:error, {:github_app_token, reason}}
-    end
   end
 
   defp handle_membership(

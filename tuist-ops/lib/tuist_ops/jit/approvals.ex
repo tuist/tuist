@@ -332,8 +332,14 @@ defmodule TuistOps.JIT.Approvals do
 
       true ->
         case github_promotable(login) do
-          :ok -> :ok
-          {:error, reason} -> {:error, {reason, login}}
+          :ok ->
+            :ok
+
+          {:error, reason} when reason in [:github_already_admin, :github_not_member] ->
+            {:error, {reason, login}}
+
+          {:error, reason} ->
+            {:error, {:github_api_failed, reason}}
         end
     end
   end

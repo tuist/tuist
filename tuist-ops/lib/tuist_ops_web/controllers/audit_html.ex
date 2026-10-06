@@ -5,6 +5,8 @@ defmodule TuistOpsWeb.AuditHTML do
   """
   use TuistOpsWeb, :html
 
+  alias TuistOps.JIT.Policy
+
   attr :section, :string, required: true
   attr :requests, :list, required: true
   attr :page, :integer, required: true
@@ -103,10 +105,11 @@ defmodule TuistOpsWeb.AuditHTML do
   defp cluster_env(%{target_group: "group:tuist-" <> rest}),
     do: String.replace_suffix(rest, "-write", "")
 
-  defp cluster_env(%{target_group: "github:org-admin", github_login: login}),
-    do: "GitHub admin (#{login})"
-
-  defp cluster_env(%{target_group: other}), do: other
+  defp cluster_env(%{target_group: target_group, github_login: login}) do
+    if Policy.github_admin_group?(target_group),
+      do: "GitHub admin (#{login})",
+      else: target_group
+  end
 
   defp humanize(status) when is_binary(status),
     do: status |> String.replace("_", " ") |> capitalize()

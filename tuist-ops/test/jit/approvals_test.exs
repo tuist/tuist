@@ -335,6 +335,34 @@ defmodule TuistOps.JIT.ApprovalsTest do
       assert text =~ "GitHub admin elevation: failed"
     end
 
+    test "revoke/2 pulls the GitHub revert forward" do
+      stub_default_roles()
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+      stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "member"}} end)
+      stub(OrgMembership, :set_role, fn _, _ -> {:ok, %{state: "active", role: "admin"}} end)
+
+      req = insert_request!(github_request_attrs())
+
+      {:ok, _req, elev} =
+        Approvals.approve(req.id, %{slack_id: "U_EDUARDO", email: "eduardo.ext@tuist.dev"})
+
+      assert {:ok, _} = Approvals.revoke(elev.id, %{slack_id: "U_EDUARDO"})
+
+      assert [%Oban.Job{scheduled_at: scheduled_at}] =
+               Repo.all(
+                 from j in Oban.Job, where: j.worker == "TuistOps.JIT.Workers.RevertWorker"
+               )
+
+      assert DateTime.diff(scheduled_at, DateTime.utc_now()) <= 1
+    end
+
+    test "request_elevation/1 reports a GitHub API failure without blaming the login" do
+      stub(OrgMembership, :membership, fn _ -> {:error, {:github_status, 403, %{}}} end)
+
+      assert {:error, {:github_api_failed, {:github_status, 403, _}}} =
+               Approvals.request_elevation(github_request_attrs())
+    end
+
     test "approve/2 refuses to promote a login that became admin meanwhile" do
       stub_default_roles()
       stub(SlackClient, :update_message, fn _, _, _ -> :ok end)

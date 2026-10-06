@@ -253,8 +253,26 @@ defmodule TuistOpsWeb.SlackControllerTest do
           "text" => "github esnunes fix branch protection"
         })
 
-      assert JSON.decode!(conn.resp_body)["text"] =~ "Unknown env `github`"
+      assert JSON.decode!(conn.resp_body)["text"] =~ "`/elevate-github <login>"
       assert Repo.aggregate(Request, :count) == 0
+    end
+
+    test "/elevate-github explains a GitHub API failure instead of an internal error" do
+      stub(OrgMembership, :membership, fn _ ->
+        {:error, {:github_status, 403, %{"message" => "Resource not accessible by integration"}}}
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(build_conn(), %{
+          "command" => "/elevate-github",
+          "user_id" => "U_MAREK",
+          "text" => "esnunes fix branch protection"
+        })
+
+      text = JSON.decode!(conn.resp_body)["text"]
+      assert text =~ "GitHub returned 403 (Resource not accessible by integration)"
+      assert text =~ "Members permission"
+      refute text =~ "Internal error"
     end
 
     test "/elevate without args → usage message" do
@@ -437,6 +455,35 @@ defmodule TuistOpsWeb.SlackControllerTest do
         })
 
       assert conn.status == 200
+    end
+
+    test "a failed GitHub promotion tells the approver why" do
+      request =
+        insert_pending_request!(%{target_group: "github:org-admin", github_login: "esnunes"})
+
+      stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "member"}} end)
+
+      stub(OrgMembership, :set_role, fn _, _ ->
+        {:error, {:github_status, 403, %{"message" => "Resource not accessible by integration"}}}
+      end)
+
+      expect(SlackClient, :ephemeral, fn "C_APPROVALS", "U_PEDRO", msg ->
+        assert msg =~ "Promoting the GitHub account failed: GitHub returned 403"
+        :ok
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.interactive(build_conn(), %{
+          "payload" =>
+            JSON.encode!(%{
+              "user" => %{"id" => "U_PEDRO"},
+              "channel" => %{"id" => "C_APPROVALS"},
+              "actions" => [%{"action_id" => "approve", "value" => "#{request.id}:U_MAREK"}]
+            })
+        })
+
+      assert conn.status == 200
+      assert Repo.get!(Request, request.id).status == "failed"
     end
 
     test "deny action dispatches to Approvals.deny and 200s" do
