@@ -12,6 +12,15 @@ defmodule Tuist.SentryEventFilterTest do
     struct!(Sentry.Event, Map.merge(defaults, overrides))
   end
 
+  # Built the way `TuistCommon.ObanTelemetry` reports a raised job exception.
+  defp clickhouse_memory_limit_event(worker, attempt: attempt, max_attempts: max_attempts) do
+    Sentry.Event.transform_exception(
+      %Ch.Error{code: 241, message: "Code: 241. DB::Exception: (total) memory limit exceeded. (MEMORY_LIMIT_EXCEEDED)"},
+      tags: %{oban_worker: worker, oban_queue: "process_build", oban_state: "failure"},
+      extra: %{attempt: attempt, max_attempts: max_attempts, worker: worker, oban_state: :failure}
+    )
+  end
+
   describe "before_send/1" do
     test "drops Oban.PerformError events from the webhook delivery worker" do
       event =
@@ -53,6 +62,24 @@ defmodule Tuist.SentryEventFilterTest do
             oban_state: "failure"
           }
         })
+
+      assert SentryEventFilter.before_send(event) == event
+    end
+
+    test "drops ClickHouse memory limit errors from non-final build processing attempts" do
+      event = clickhouse_memory_limit_event("Tuist.Builds.Workers.ProcessBuildWorker", attempt: 1, max_attempts: 5)
+
+      assert SentryEventFilter.before_send(event) == false
+    end
+
+    test "keeps ClickHouse memory limit errors from the final build processing attempt" do
+      event = clickhouse_memory_limit_event("Tuist.Builds.Workers.ProcessBuildWorker", attempt: 5, max_attempts: 5)
+
+      assert SentryEventFilter.before_send(event) == event
+    end
+
+    test "keeps ClickHouse memory limit errors from other workers" do
+      event = clickhouse_memory_limit_event("SomeWorker", attempt: 1, max_attempts: 5)
 
       assert SentryEventFilter.before_send(event) == event
     end
