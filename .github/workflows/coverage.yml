@@ -188,10 +188,10 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      # Only the CLI, as the other jobs install: a full install on a cold cache
-      # writes checksums into mise.lock for tools locked without them (erlang,
-      # elixir), and the CLI then reports the run from a dirty checkout, whose
-      # coverage the server leaves out of the commit.
+      # Only the CLI, locked, as the other jobs install it. A full install on a
+      # cold cache writes checksums into mise.lock for tools locked without
+      # them (erlang, elixir), so the CLI reports the run from a dirty
+      # checkout, whose coverage the server leaves out of the commit.
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
