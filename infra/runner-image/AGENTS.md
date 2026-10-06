@@ -73,6 +73,14 @@ attempts got each one wrong:
 - **Target.** `indirect_object_code_identity` must hold Finder's
   code requirement. A row with it NULL is ignored.
 
+The write itself races tccd, which is still writing the database
+right after login. Without a busy timeout, `sqlite3` failed with
+`database is locked` on some boots and the job then hit
+`-1712` (prompt shown) or `-1743` (immediate deny). The guest logs
+`Finder automation approved` or `WARNING could not approve …`; for VMs
+whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
+`runner log` lines for it.
+
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
 leaves them pointed at `/Users/admin` and they assert against the
