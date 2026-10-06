@@ -72,6 +72,8 @@ externalSecrets:
     item: ''
     field: ''
   enabled: false
+# Deprecated: retains legacy namespace/service-account objects only, never RBAC.
+# Atlas does not execute agents in Kubernetes sandboxes.
 agentSandboxes:
   enabled: false
   namespace: atlas-agents

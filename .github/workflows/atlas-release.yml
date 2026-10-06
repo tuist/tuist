@@ -186,7 +186,7 @@ jobs:
 
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl yq jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -227,6 +227,11 @@ jobs:
               helm rollback "$HELM_RELEASE_NAME" -n "$NAMESPACE" --wait --timeout 5m || true
               ;;
           esac
+
+      - name: Verify legacy sandbox namespace retention
+        # Recovery above can roll back the retention annotation. Check the live
+        # namespace immediately before any upgrade that disables legacy objects.
+        run: bash atlas/deploy/check-sandbox-retention.sh "$HELM_CHART_PATH/values-managed-production.yaml" "$HELM_RELEASE_NAME" "$NAMESPACE"
 
       - name: Authenticate Helm registry
         env:
