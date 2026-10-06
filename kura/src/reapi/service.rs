@@ -7623,6 +7623,87 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn find_missing_blobs_extends_aged_direct_and_chunk_lifetimes() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let artifact_id = |key: &str| {
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", key)
+                .unwrap()
+                .expect("manifest should exist")
+                .artifact_id
+        };
+        let direct = b"direct".to_vec();
+        let first = vec![0x61; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
+        let last = vec![0x62; 17];
+        for (version, bytes) in [&direct, &first, &last].into_iter().enumerate() {
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&digest(bytes)).unwrap()),
+                    "application/octet-stream",
+                    bytes,
+                    version as u64 + 1,
+                )
+                .await
+                .expect("blob should be stored");
+        }
+        let composite = digest(&[first.clone(), last.clone()].concat());
+        let recipe = ChunkedBlobRecipe::new(
+            &composite,
+            vec![digest(&first), digest(&last)],
+            reapi::chunking_function::Value::FastCdc2020 as i32,
+        )
+        .expect("recipe should be valid");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &recipe_key(&digest_key(&composite).unwrap()),
+                "application/x-protobuf",
+                &recipe.encode(),
+                10,
+                None,
+                None,
+            )
+            .await
+            .expect("recipe should be stored");
+        store.age_every_segment_for_test();
+        assert!(store.segment_ring_is_aging());
+        let absent = digest(b"absent");
+
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: vec![digest(&direct), composite, absent.clone()],
+                digest_function: 0,
+            }))
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+
+        assert_eq!(missing, vec![absent]);
+        for bytes in [&direct, &first, &last] {
+            let key = blob_key(&digest_key(&digest(bytes)).unwrap());
+            assert_eq!(
+                store.pending_promotion_for_test(&artifact_id(&key)),
+                Some(RefreshTrigger::FindMissing),
+                "a blob reported present from an Old segment is queued for copy-forward"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn find_missing_blobs_rejects_an_invalid_digest_in_any_batch() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {

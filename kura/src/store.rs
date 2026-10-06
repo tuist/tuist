@@ -4424,6 +4424,36 @@ impl Store {
         Ok(())
     }
 
+    /// Moves every segment into the Old generation behind a fresh New one, so
+    /// tests outside this module can drive the aging-ring paths.
+    #[cfg(test)]
+    pub(crate) fn age_every_segment_for_test(&self) {
+        let mut state = self.segment_state_snapshot().state.clone();
+        let mut old = std::mem::take(&mut state.old);
+        old.append(&mut state.current);
+        old.append(&mut state.new);
+        let created_at_ms = old
+            .iter()
+            .map(|segment| segment.created_at_ms)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        state.old = old;
+        state.new = vec![SegmentReference::new("aged-for-test".into(), created_at_ms)];
+        self.save_segment_state(&state)
+            .expect("failed to age segment state");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pending_promotion_for_test(&self, artifact_id: &str) -> Option<RefreshTrigger> {
+        self.promotion_queue
+            .lock()
+            .expect("promotion queue lock")
+            .pending
+            .get(artifact_id)
+            .copied()
+    }
+
     fn segment_generation(&self, segment_id: &str) -> Result<Option<SegmentGeneration>, String> {
         Ok(self
             .segment_state_snapshot()
