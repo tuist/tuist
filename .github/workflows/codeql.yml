@@ -23,11 +23,12 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     if: github.repository == 'tuist/tuist' && github.event.pull_request.user.login != 'glossia[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
+      id-token: write
       packages: read
       security-events: write
     strategy:
@@ -36,17 +37,56 @@ jobs:
         include:
           - language: actions
             build-mode: none
+            runner: tuist-linux
           - language: go
             build-mode: autobuild
+            runner: tuist-linux
           - language: java-kotlin
             build-mode: none
+            runner: tuist-linux
           - language: javascript-typescript
             build-mode: none
+            runner: tuist-linux
           - language: python
             build-mode: none
+            runner: tuist-linux
+          - language: rust
+            build-mode: none
+            runner: tuist-linux-large
+          - language: swift
+            build-mode: manual
+            runner: tuist-macos-27-0
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Rust
+        if: matrix.language == 'rust'
+        uses: ./.github/actions/mise
+        with:
+          install_args: "rust"
+          working_directory: kura
+
+      - name: Install Tuist
+        if: matrix.language == 'swift'
+        uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+
+      - name: Authenticate with Tuist
+        if: matrix.language == 'swift' && github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+
+      - name: Setup Tuist
+        if: matrix.language == 'swift' && github.event.pull_request.head.repo.fork != true
+        run: tuist setup
+
+      - name: Resolve Swift packages
+        if: matrix.language == 'swift'
+        run: |
+          tuist install --force-resolved-versions
+          swift package resolve --replace-scm-with-registry
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -72,6 +112,11 @@ jobs:
       - name: Autobuild
         if: matrix.build-mode == 'autobuild'
         uses: github/codeql-action/autobuild@v4
+
+      # CodeQL extracts Swift by tracing a clean build, so .build is never restored from cache.
+      - name: Build Swift
+        if: matrix.language == 'swift'
+        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
