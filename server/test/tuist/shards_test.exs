@@ -466,6 +466,64 @@ defmodule Tuist.ShardsTest do
       assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppUITests.aar"))
     end
 
+    test "plans a JVM class and its nested classes as one unit" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: ":app",
+            status: "success",
+            duration: 9_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "com.example.OuterTest", status: "success", duration: 3_000},
+              %{name: "com.example.OuterTest$Inner", status: "success", duration: 2_000},
+              %{name: "com.example.OuterTest$Inner$Deeper", status: "success", duration: 1_000},
+              %{name: "com.example.FooTest", status: "success", duration: 2_000},
+              %{name: "com.example.BarTest", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "nested-classes-1",
+          modules: [":app"],
+          granularity: "suite",
+          shard_total: 3
+        })
+
+      # Selecting or excluding a class also selects or excludes its nested classes, so planning them
+      # apart would run a nested class on two shards.
+      assert planned_targets(result) ==
+               MapSet.new([":app/com.example.OuterTest", ":app/com.example.FooTest", ":app/com.example.BarTest"])
+
+      outer_shard = Enum.find(result.shard_assignments, &(":app/com.example.OuterTest" in &1["test_targets"]))
+      assert outer_shard["test_targets"] == [":app/com.example.OuterTest"]
+      assert outer_shard["estimated_duration_ms"] == 6_000
+    end
+
+    test "keeps suite names that are not JVM class names as they are" do
+      project = ProjectsFixtures.project_fixture()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "dollar-suite-1",
+          test_suites: ["AppTests/Prices in $", "AppTests/Prices in $ and €"],
+          granularity: "suite",
+          shard_total: 2
+        })
+
+      assert planned_targets(result) == MapSet.new(["AppTests/Prices in $", "AppTests/Prices in $ and €"])
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 

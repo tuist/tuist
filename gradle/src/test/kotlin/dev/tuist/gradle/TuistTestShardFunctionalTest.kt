@@ -156,6 +156,51 @@ class TuistTestShardFunctionalTest {
         assertEquals(setOf("com.example.BarTest"), executedSuites("app"))
     }
 
+    @Test
+    fun `runs a nested class on the shard its outer class is assigned to`() {
+        writeNestedTestClass()
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.OuterTest")))
+
+        runShard(0, "test")
+
+        assertEquals(setOf("com.example.OuterTest", "com.example.OuterTest\$Inner"), executedSuites("app"))
+    }
+
+    @Test
+    fun `catch-all shard excludes the nested classes of a suite assigned to another shard`() {
+        writeNestedTestClass()
+        shards[1] = catchAll(":app/com.example.OuterTest")
+
+        runShard(1, "test")
+
+        assertEquals(setOf("com.example.FooTest", "com.example.BarTest"), executedSuites("app"))
+    }
+
+    private fun writeNestedTestClass() {
+        val source = File(projectDir, "app/src/test/java/com/example/OuterTest.java")
+        source.writeText(
+            """
+            package com.example;
+
+            import org.junit.jupiter.api.Nested;
+            import org.junit.jupiter.api.Test;
+
+            public class OuterTest {
+                @Test
+                public void passes() {
+                }
+
+                @Nested
+                class Inner {
+                    @Test
+                    public void passes() {
+                    }
+                }
+            }
+            """.trimIndent()
+        )
+    }
+
     private fun assigned(suites: Map<String, List<String>>): Map<String, Any> =
         mapOf(
             "download_urls" to emptyList<String>(),
