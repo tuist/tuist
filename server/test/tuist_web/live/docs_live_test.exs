@@ -36,6 +36,74 @@ defmodule TuistWeb.DocsLiveTest do
              )
     end
 
+    test "labels the test cards Selection, Flakiness, and Insights", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+
+      titles =
+        document
+        |> Floki.find(~s(#tests + p + [data-part="feature-cards"] [data-part="title"]))
+        |> Enum.map(&Floki.text/1)
+
+      assert titles == ["Selection", "Flakiness", "Insights"]
+    end
+
+    test "keeps the markdown overview's test card labels aligned", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+
+      assert markdown =~ "[Selection](/en/docs/guides/features/selective-testing)"
+      assert markdown =~ "[Flakiness](/en/docs/guides/features/test-insights/flaky-tests)"
+      assert markdown =~ "[Insights](/en/docs/guides/features/test-insights)"
+    end
+
+    test "shows the supported build systems on every feature card", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+
+      supported_systems =
+        document
+        |> Floki.find(~s([data-part="feature-card"]))
+        |> Map.new(fn card ->
+          {card |> Floki.attribute("href") |> List.first(),
+           Floki.attribute(card, ~s([data-part="supported-icon"]), "title")}
+        end)
+
+      assert supported_systems == %{
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel),
+               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/selective-testing" => ~w(apple),
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/previews" => ~w(apple android),
+               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir)
+             }
+
+      assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
+               4
+    end
+
+    test "introduces compute with runners and colocated cache infrastructure", %{conn: conn} do
+      {:ok, lv, html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(lv, "h2#compute", "Compute")
+      assert has_element?(lv, ~s(#docs-toc a[href="#compute"]), "Compute")
+
+      assert has_element?(
+               lv,
+               ~s(a[data-part="feature-card"][href="/en/docs/guides/features/runners"]),
+               "cache infrastructure colocated next to compute for the best results"
+             )
+
+      {:ok, document} = Floki.parse_document(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+
+      assert markdown =~ "## Compute"
+      assert markdown =~ "[Runners](/en/docs/guides/features/runners)"
+      assert markdown =~ "cache infrastructure colocated next to compute for the best results"
+    end
+
     test "positions Tuist as build infrastructure for Xcode, Gradle, and Bazel", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
