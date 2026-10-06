@@ -75,6 +75,11 @@ type RackAppleSiliconMachineReconciler struct {
 	// which both the push and the hash go through.
 	FleetConfig bootstrap.Config
 
+	// VMCacheGatewayCIDRs are the rack's runner-cache gateways, which a rack
+	// host's Tart VMs may reach on TCP 443. Overlaid by rackFleetConfig, so
+	// the rented fleets sharing FleetConfig never pass them.
+	VMCacheGatewayCIDRs []string
+
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
 	DefaultGuestCapacity int
@@ -920,12 +925,16 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 //   - its SSH ingress guard admits the host's subnet routers, the source its
 //     LAN dial arrives from.
 //
-// Both push paths and the stamped hash go through here, so a change to either
-// drifts the host rather than being recorded as converged without reaching it.
+// It also carries the rack's cache gateways into the VM egress firewall.
+//
+// Both push paths and the stamped hash go through here, so a change to any of
+// them drifts the host rather than being recorded as converged without
+// reaching it.
 func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHost) bootstrap.Config {
 	cfg := r.FleetConfig
 	cfg.TailscalePersistentDevice = true
 	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
+	cfg.VMCacheGatewayCIDRs = slices.Clone(r.VMCacheGatewayCIDRs)
 	return cfg
 }
 

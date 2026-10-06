@@ -346,6 +346,10 @@ func main() {
 		"The CAPI Cluster the RackHost controller makes each rack Mac host a Machine of. Empty, or no --rackhost-fleet-name, makes none.")
 	flag.StringVar(&rackHostBootstrapSecretName, "rackhost-bootstrap-secret-name", "",
 		"The Secret each rack Mac Machine names as its bootstrap data; the operator bootstraps the host, so it only has to exist.")
+	var rackHostVMCacheGatewayCIDRsRaw string
+	flag.StringVar(&rackHostVMCacheGatewayCIDRsRaw, "rackhost-vm-cache-gateway-cidrs", "",
+		"Comma-separated IPv4 CIDRs of the rack's runner-cache gateways, which the VM egress firewall on a rack Mac host lets Tart VMs reach on TCP 443. "+
+			"Rack hosts only; the rented fleets never pass them. Flows from the chart's rackFleet.vmCacheGatewayCIDRs.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -745,6 +749,7 @@ func main() {
 		// rented one run the same host config, which is what lets one workload
 		// target both and one operator image roll both.
 		FleetConfig:                   fleetConfig,
+		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
 		DefaultGuestCapacity:          tartKubeletGuestCapacity,
 		TartKubeletBinarySHA:          binarySHA,
 		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),

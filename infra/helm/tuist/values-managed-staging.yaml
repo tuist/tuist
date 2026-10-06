@@ -756,6 +756,9 @@ rackFleet:
   sshIngressAllowCIDRs:
     - 10.10.0.2/32
     - 10.10.0.3/32
+  # ber1-store-a's Kura gateway on the machines segment.
+  vmCacheGatewayCIDRs:
+    - 10.10.0.11/32
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on the
