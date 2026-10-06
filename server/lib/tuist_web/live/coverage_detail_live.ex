@@ -452,7 +452,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # The runs behind the subject, newest first and read a page at a time from
   # a cursor, so a long period costs a page: a commit's, or those that named
   # the branch in the period. Runs from a dirty checkout are listed, marked
-  # as not counted, so a scheme missing from a figure has its run to show.
+  # as discarded, so a scheme missing from a figure has its run to show.
   defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     search = String.trim(query["runs-search"] || "")
     available_filters = run_filters(run_schemes(socket))

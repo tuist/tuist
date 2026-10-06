@@ -101,7 +101,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, "#coverage-commit-status-b")
   end
 
-  test "lists a run from a dirty checkout as not counted, and says why the commit is incomplete", %{
+  test "lists a run from a dirty checkout as discarded, and says why the commit is incomplete", %{
     conn: conn,
     base: base,
     organization: organization,
@@ -124,7 +124,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#widget-coverage", "66.7%")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
-    assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Not counted")
+    assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Discarded")
   end
 
   test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{

@@ -246,7 +246,8 @@ defmodule TuistWeb.Coverage.Components do
 
   @doc """
   Whether a run measured every test (Full) or selective testing left some out
-  (Partial), or, for a run from a dirty checkout, that it does not count;
+  (Partial), or, for a run from a dirty checkout, that its coverage was
+  discarded;
   nil for no run.
   """
   def run_kind_cell(assigns) do
@@ -254,12 +255,12 @@ defmodule TuistWeb.Coverage.Components do
     <.tooltip_badge_cell
       :if={@dirty}
       id={@id}
-      label={dgettext("dashboard_tests", "Not counted")}
+      label={dgettext("dashboard_tests", "Discarded")}
       color="warning"
       description={
         dgettext(
           "dashboard_tests",
-          "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage doesn't count."
+          "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
         )
       }
     />
