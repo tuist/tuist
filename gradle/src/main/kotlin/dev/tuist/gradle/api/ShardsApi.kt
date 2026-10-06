@@ -23,8 +23,10 @@ interface ShardsApi {
      * 
      * Responses:
      *  - 200: Upload completed
+     *  - 400: Invalid parameters
      *  - 401: You need to be authenticated
      *  - 403: The authenticated subject is not authorized
+     *  - 429: You've made too many unauthorized requests.
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.
@@ -44,6 +46,7 @@ interface ShardsApi {
      *  - 401: You need to be authenticated
      *  - 403: The authenticated subject is not authorized
      *  - 404: The project doesn't exist
+     *  - 429: You've made too many unauthorized requests.
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.
@@ -59,8 +62,10 @@ interface ShardsApi {
      * 
      * Responses:
      *  - 200: The signed URL
+     *  - 400: Invalid parameters
      *  - 401: You need to be authenticated
      *  - 403: The authenticated subject is not authorized
+     *  - 429: You've made too many unauthorized requests.
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.
@@ -76,18 +81,22 @@ interface ShardsApi {
      * Returns the test targets and download URLs for a specific shard.
      * Responses:
      *  - 200: The shard
+     *  - 400: The request parameters are invalid
      *  - 401: You need to be authenticated
      *  - 403: The authenticated subject is not authorized
      *  - 404: The session or shard was not found
+     *  - 429: You've made too many unauthorized requests.
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.
      * @param reference The shard plan reference.
      * @param shardIndex The zero-based shard index.
+     * @param shardPlanId The exact shard plan identifier. When present, it takes precedence over the reference. (optional)
+     * @param catchAll Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in &#x60;skip&#x60;, so it runs every suite outside them. (optional)
      * @return [Call]<[Shard]>
      */
     @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}")
-    fun getShard(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Path("reference") reference: kotlin.String, @Path("shard_index") shardIndex: kotlin.Int): Call<Shard>
+    fun getShard(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Path("reference") reference: kotlin.String, @Path("shard_index") shardIndex: kotlin.Int, @Query("shard_plan_id") shardPlanId: java.util.UUID? = null, @Query("catch_all") catchAll: kotlin.Boolean? = null): Call<Shard>
 
     /**
      * POST api/projects/{account_handle}/{project_handle}/tests/shards/upload/start
@@ -95,8 +104,11 @@ interface ShardsApi {
      * 
      * Responses:
      *  - 200: The upload ID
+     *  - 400: Invalid parameters
      *  - 401: You need to be authenticated
      *  - 403: The authenticated subject is not authorized
+     *  - 404: The shard plan was not found
+     *  - 429: You've made too many unauthorized requests.
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.

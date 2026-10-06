@@ -1,12 +1,14 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import dev.tuist.gradle.api.model.ShardPlan
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.AfterEach
@@ -64,22 +66,41 @@ class TuistPrepareTestShardsFunctionalTest {
     }
 
     @Test
-    fun `compiles the test classes of every test task and plans shards for them`() {
+    fun `plans every project with a test task without compiling test classes`() {
         val result = runner("tuistPrepareTestShards").build()
 
-        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileTestJava")?.outcome, result.output)
-        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
         assertEquals(TaskOutcome.SUCCESS, result.task(":tuistPrepareTestShards")?.outcome, result.output)
-        assertEquals(listOf(":app/com.example.FooTest", ":app/com.example.OtherTest"), plannedTestSuites())
+        assertEquals(emptyList(), executedCompileTasks(result), result.output)
+        assertEquals(listOf(":app", ":lib"), plannedModules())
+        assertEquals("suite", shardPlanRequest().get("granularity").asString)
+        assertFalse(shardPlanRequest().has("test_suites"), shardPlanRequests.single())
     }
 
     @Test
-    fun `only compiles and plans the test task selected with tuistShardTestTask`() {
+    fun `only plans the projects with the test task selected with tuistShardTestTask`() {
         val result = runner("tuistPrepareTestShards", "-PtuistShardTestTask=otherTest").build()
 
-        assertEquals(null, result.task(":app:compileTestJava"), result.output)
-        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
-        assertEquals(listOf(":app/com.example.OtherTest"), plannedTestSuites())
+        assertEquals(emptyList(), executedCompileTasks(result), result.output)
+        assertEquals(listOf(":app"), plannedModules())
+    }
+
+    @Test
+    fun `plans the root project by its name`() {
+        File(projectDir, "build.gradle.kts").writeText("plugins {\n    java\n}\n")
+
+        runner("tuistPrepareTestShards", "-PtuistShardTestTask=test").build()
+
+        assertEquals(listOf(":app", ":lib", "sharding-fixture"), plannedModules())
+    }
+
+    @Test
+    fun `sends the git branch the tests are built from`() {
+        git("init", "--initial-branch=sharding-branch")
+        git("-c", "user.email=tuist@example.com", "-c", "user.name=Tuist", "commit", "--allow-empty", "-m", "Initial")
+
+        runner("tuistPrepareTestShards").build()
+
+        assertEquals("sharding-branch", shardPlanRequest().get("git_branch").asString)
     }
 
     @Test
@@ -90,17 +111,16 @@ class TuistPrepareTestShardsFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":tuistPrepareTestShards")?.outcome, result.output)
         assertTrue(result.output.contains("Configured :docs"), result.output)
-        assertEquals(listOf(":app/com.example.FooTest", ":app/com.example.OtherTest"), plannedTestSuites())
+        assertEquals(listOf(":app", ":lib"), plannedModules())
     }
 
     @Test
     fun `finds the selected test task when invoked by path with configuration on demand`() {
         enableConfigurationOnDemand()
 
-        val result = runner(":tuistPrepareTestShards", "-PtuistShardTestTask=otherTest").build()
+        runner(":tuistPrepareTestShards", "-PtuistShardTestTask=otherTest").build()
 
-        assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
-        assertEquals(listOf(":app/com.example.OtherTest"), plannedTestSuites())
+        assertEquals(listOf(":app"), plannedModules())
     }
 
     @Test
@@ -124,9 +144,17 @@ class TuistPrepareTestShardsFunctionalTest {
         File(projectDir, "gradle.properties").writeText("org.gradle.configureondemand=true\n")
     }
 
-    private fun plannedTestSuites(): List<String> {
-        val body = JsonParser.parseString(shardPlanRequests.single()).asJsonObject
-        return body.getAsJsonArray("test_suites").map { it.asString }
+    private fun executedCompileTasks(result: BuildResult): List<String> =
+        result.tasks.map { it.path }.filter { it.substringAfterLast(":").startsWith("compile") }
+
+    private fun shardPlanRequest(): JsonObject = JsonParser.parseString(shardPlanRequests.single()).asJsonObject
+
+    private fun plannedModules(): List<String> = shardPlanRequest().getAsJsonArray("modules").map { it.asString }
+
+    private fun git(vararg arguments: String) {
+        val process = ProcessBuilder(listOf("git") + arguments).directory(projectDir).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText()
+        check(process.waitFor() == 0) { output }
     }
 
     private fun runner(vararg arguments: String): GradleRunner =
@@ -154,7 +182,7 @@ class TuistPrepareTestShardsFunctionalTest {
             }
 
             rootProject.name = "sharding-fixture"
-            include(":app", ":docs")
+            include(":app", ":lib", ":docs")
             """.trimIndent()
         )
         File(projectDir, "build.gradle.kts").writeText("")
@@ -176,6 +204,10 @@ class TuistPrepareTestShardsFunctionalTest {
         )
         writeTestClass(app, "test", "FooTest")
         writeTestClass(app, "otherTest", "OtherTest")
+
+        val lib = File(projectDir, "lib").apply { mkdirs() }
+        File(lib, "build.gradle.kts").writeText("plugins {\n    java\n}\n")
+        writeTestClass(lib, "test", "LibTest")
 
         val docs = File(projectDir, "docs").apply { mkdirs() }
         File(docs, "build.gradle.kts").writeText("""println("Configured :docs")""")
