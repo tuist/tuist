@@ -156,14 +156,38 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
         project: "tuist/tuist",
         subtitle: "main branch",
         badge: "Success",
-        fonts_dir: Path.join(priv_dir, "static/fonts"),
-        tuist_logo_path: Path.join(priv_dir, "docs/images/logo.webp")
+        fonts_dir: Path.join(priv_dir, "static/fonts")
       )
 
     assert html =~ "<!DOCTYPE html>"
     assert html =~ "data:font/woff2;base64,"
     assert html =~ "&lt;script&gt;unsafe&lt;/script&gt;"
     refute html =~ "<script>unsafe</script>"
+    assert html =~ ~s(data-status="success")
+  end
+
+  test "renders status badges only for status-like badges" do
+    priv_dir = Application.app_dir(:tuist, "priv")
+    fonts_dir = Path.join(priv_dir, "static/fonts")
+
+    for {badge, status} <- [
+          {"Failed_processing", "error"},
+          {"Flaky", "warning"},
+          {"Skipped", "disabled"},
+          {"Processing", "in_progress"}
+        ] do
+      html = ProjectImage.render_html(title: "Build", project: "tuist/tuist", badge: badge, fonts_dir: fonts_dir)
+      assert html =~ ~s(data-status="#{status}")
+    end
+
+    html =
+      ProjectImage.render_html(title: "Build", project: "tuist/tuist", badge: "Failed_processing", fonts_dir: fonts_dir)
+
+    assert html =~ "Failed processing"
+
+    html = ProjectImage.render_html(title: "Bundle", project: "tuist/tuist", badge: "IPA", fonts_dir: fonts_dir)
+    refute html =~ ~r/<div class="badge" data-status=/
+    assert html =~ "IPA"
   end
 
   defp public_project do

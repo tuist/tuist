@@ -122,7 +122,6 @@ defmodule Tuist.OpenGraphImageTemplates do
   defp project_spec(params, title, %Project{}) do
     priv_dir = Application.app_dir(:tuist, "priv")
     fonts_dir = Path.join(priv_dir, "static/fonts")
-    tuist_logo_path = Path.join(priv_dir, "docs/images/logo.webp")
 
     build_spec(params, project_asset_hash(), fn ->
       html =
@@ -131,8 +130,7 @@ defmodule Tuist.OpenGraphImageTemplates do
           project: Map.fetch!(params, "project"),
           subtitle: Map.get(params, "subtitle"),
           badge: Map.get(params, "badge"),
-          fonts_dir: fonts_dir,
-          tuist_logo_path: tuist_logo_path
+          fonts_dir: fonts_dir
         )
 
       OpenGraphImageRenderer.render(html, title)
@@ -199,8 +197,7 @@ defmodule Tuist.OpenGraphImageTemplates do
 
     OpenGraphImages.cached_key(:project_open_graph_template_assets, [
       {:module, ProjectImage},
-      {:dir, Path.join(priv_dir, "static/fonts")},
-      {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+      {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end
 
