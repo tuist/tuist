@@ -1,6 +1,7 @@
 import Foundation
 import GRPCCore
-import SwiftProtobuf
+import GRPCProtobuf
+import Synchronization
 
 /// Upload admission needs time for other transfers to release memory. Reads keep their short
 /// retry policy so overload doesn't stall generation. Neither policy retries before a server's
@@ -8,6 +9,7 @@ import SwiftProtobuf
 public struct REAPIBackpressureRetryPolicy: Sendable {
     public let maximumRetryCount: Int
     public let baseDelayMilliseconds: Int64
+    /// Total scheduled backoff shared by the calls in a blob-upload operation, not a transfer deadline.
     public let maximumCumulativeDelay: Duration
     private static let maximumDelayMilliseconds: Int64 = 30000
 
@@ -35,16 +37,27 @@ public struct REAPIBackpressureRetryPolicy: Sendable {
     }
 
     static func retryInfoDelay(_ error: RPCError) -> Duration? {
-        for bytes in error.metadata[binaryValues: "grpc-status-details-bin"] {
-            guard let status = try? Google_Rpc_Status(serializedBytes: bytes), status.code == 8 else { continue }
-            for detail in status.details where detail.typeURL.split(separator: "/").last == "google.rpc.RetryInfo" {
-                guard let retry = try? Google_Rpc_RetryInfo(serializedBytes: detail.value), retry.hasRetryDelay,
-                      retry.retryDelay.seconds >= 0,
-                      (0 ..< 1_000_000_000).contains(retry.retryDelay.nanos)
-                else { continue }
-                return .seconds(retry.retryDelay.seconds) + .nanoseconds(Int64(retry.retryDelay.nanos))
-            }
+        guard let status = try? error.unpackGoogleRPCStatus(), status.code == .resourceExhausted,
+              let delay = status.details.lazy.compactMap(\.retryInfo).first?.delay, delay >= .zero
+        else { return nil }
+        return delay
+    }
+}
+
+/// Share scheduled backoff across all calls in one upload operation. Concurrent waits each
+/// consume the budget, but successful transfers never do: this is not a transfer deadline.
+final class REAPIUploadRetryBudget: Sendable {
+    private let remaining: Mutex<Duration>
+
+    init(maximumDelay: Duration) {
+        remaining = Mutex(max(maximumDelay, .zero))
+    }
+
+    func consume(_ delay: Duration) -> Bool {
+        remaining.withLock {
+            guard delay >= .zero, delay <= $0 else { return false }
+            $0 -= delay
+            return true
         }
-        return nil
     }
 }

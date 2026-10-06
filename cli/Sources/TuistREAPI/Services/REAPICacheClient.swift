@@ -280,7 +280,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     public func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
         try REAPI.validate(digest)
-        _ = try await retry(upload: true) {
+        _ = try await retry(uploadBudget: .init(maximumDelay: backpressureRetryPolicy.maximumCumulativeDelay)) {
             try await withClient { client in
                 try await Build_Bazel_Remote_Execution_V2_ActionCache.Client(wrapping: client).updateActionResult(
                     .with {
@@ -335,7 +335,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     /// three times the load from each client.
     private func retry<T>(
         retryingDeadlineExceeded: Bool = true,
-        upload: Bool = false,
+        uploadBudget: REAPIUploadRetryBudget? = nil,
         _ operation: () async throws -> T
     ) async throws -> T {
         var attempt = 0
@@ -345,10 +345,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         while true {
             do { return try await operation() } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
-                if upload, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
                     guard backpressureAttempts < backpressureRetryPolicy.maximumRetryCount else { throw error }
                     let delay = backpressureRetryPolicy.delay(for: backpressureAttempts, error: rpcError)
-                    guard delay <= backpressureRetryPolicy.maximumCumulativeDelay - backpressureDelay else {
+                    guard uploadBudget.consume(delay) else {
                         throw RPCError(
                             code: .resourceExhausted,
                             message: "\(rpcError.message) (upload admission retry wait budget exhausted)",
@@ -357,7 +357,6 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         )
                     }
                     try await Task.sleep(for: delay)
-                    backpressureDelay += delay
                     backpressureAttempts += 1
                     continue
                 }
@@ -428,6 +427,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
+        let uploadBudget = REAPIUploadRetryBudget(maximumDelay: backpressureRetryPolicy.maximumCumulativeDelay)
         let failures = Mutex<[REAPI.Digest: String]>([:])
         // Missing-blob requests contain only digests, so batch by metadata count, not file size.
         let digests = Array(blobs.keys)
@@ -438,7 +438,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         let concurrency = guards.uploadConcurrency ?? 8
         let existing = try await transfer(queries, maxConcurrentTasks: concurrency) { batch in
             do {
-                let response = try await self.retry(upload: true) {
+                let response = try await self.retry(uploadBudget: uploadBudget) {
                     try await self.withClient { client in
                         try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client)
                             .findMissingBlobs(.with {
@@ -464,7 +464,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             var successful = Set<REAPI.Digest>()
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 do {
-                    try await self.retry(upload: true) { try await self.uploadBlob(digest, from: blobs[digest]!) }
+                    try await self.retry(uploadBudget: uploadBudget) { try await self.uploadBlob(digest, from: blobs[digest]!) }
                     successful.insert(digest)
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
@@ -475,7 +475,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 var rejections: [REAPI.Digest: String] = [:]
                 var batchFailure: String?
                 do {
-                    try await self.retry(upload: true) {
+                    try await self.retry(uploadBudget: uploadBudget) {
                         rejections = [:]
                         let pending = Set(batch).subtracting(successful)
                         var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []

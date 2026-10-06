@@ -1,5 +1,6 @@
 import Foundation
 import GRPCCore
+import GRPCProtobuf
 import SwiftProtobuf
 import Testing
 @testable import TuistREAPI
@@ -46,11 +47,26 @@ struct REAPIBackpressureRetryPolicyTests {
         }
     }
 
-    @Test func ignoresMalformedOrUnrelatedDetails() throws {
+    @Test(arguments: [false, true]) func decodesFractionalHintsFromBinaryAndUnpaddedBase64(stringEncoded: Bool) throws {
+        let error = try Self.error(seconds: 5, nanos: 250_000_000, stringEncoded: stringEncoded)
+        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(error) == .milliseconds(5250))
+    }
+
+    @Test func ignoresNegativeMalformedOrUnrelatedDetails() throws {
         #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(try Self.error(seconds: -1)) == nil)
-        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(try Self.error(seconds: 1, nanos: -1)) == nil)
-        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(try Self.error(seconds: 1, nanos: 1_000_000_000)) == nil)
-        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(try Self.error(seconds: 1, type: "google.rpc.Other")) == nil)
+        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(try Self.error(seconds: 0, nanos: -1)) == nil)
+        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(try Self.error(seconds: 1, statusCode: .unavailable)) == nil)
+        let unrelated = GoogleRPCStatus(code: .resourceExhausted, message: "busy", details: .debugInfo(stack: [], detail: "busy"))
+        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(RPCError(
+            code: .resourceExhausted, message: "busy", metadata: unrelated.rpcErrorMetadata
+        )) == nil)
+        let malformed = GoogleRPCStatus(code: .resourceExhausted, message: "busy", details: .any(.with {
+            $0.typeURL = "type.googleapis.com/google.rpc.RetryInfo"
+            $0.value = Data([255])
+        }))
+        #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(RPCError(
+            code: .resourceExhausted, message: "busy", metadata: malformed.rpcErrorMetadata
+        )) == nil)
         var metadata = Metadata()
         metadata.addBinary([255], forKey: "grpc-status-details-bin")
         #expect(REAPIBackpressureRetryPolicy.retryInfoDelay(RPCError(
@@ -58,20 +74,52 @@ struct REAPIBackpressureRetryPolicyTests {
         )) == nil)
     }
 
-    static func error(seconds: Int64, nanos: Int32 = 0, type: String = "google.rpc.RetryInfo") throws -> RPCError {
-        let retry = Google_Rpc_RetryInfo.with {
-            $0.retryDelay.seconds = seconds
-            $0.retryDelay.nanos = nanos
+    @Test func sharedBudgetDoesNotOverspendOrChargeDeclinedHints() {
+        let budget = REAPIUploadRetryBudget(maximumDelay: .seconds(1))
+        #expect(budget.consume(.milliseconds(600)))
+        #expect(!budget.consume(.milliseconds(500)))
+        #expect(!budget.consume(.milliseconds(-1)))
+        #expect(budget.consume(.milliseconds(400)))
+        #expect(!budget.consume(.milliseconds(1)))
+        #expect(!REAPIUploadRetryBudget(maximumDelay: .seconds(-1)).consume(.milliseconds(1)))
+    }
+
+    @Test func sharedBudgetIsAtomicAcrossConcurrentCalls() async {
+        let budget = REAPIUploadRetryBudget(maximumDelay: .seconds(1))
+        let admitted = await withTaskGroup(of: Bool.self) { group in
+            for _ in 0 ..< 100 {
+                group.addTask { budget.consume(.milliseconds(100)) }
+            }
+            var admitted = 0
+            for await consumed in group where consumed {
+                admitted += 1
+            }
+            return admitted
         }
-        let status = try Google_Rpc_Status.with {
-            $0.code = 8
-            $0.details = [try .with {
-                $0.typeURL = "type.googleapis.com/\(type)"
-                $0.value = try retry.serializedData()
-            }]
-        }
+        #expect(admitted == 10)
+        #expect(!budget.consume(.milliseconds(1)))
+    }
+
+    static func error(
+        seconds: Int64,
+        nanos: Int32 = 0,
+        statusCode: RPCError.Code = .resourceExhausted,
+        stringEncoded: Bool = false
+    ) throws -> RPCError {
+        let status = GoogleRPCStatus(
+            code: statusCode, message: "busy",
+            details: .retryInfo(delay: .seconds(seconds) + .nanoseconds(Int64(nanos)))
+        )
+        let bytes: [UInt8] = try status.serializedBytes()
         var metadata = Metadata()
-        metadata.addBinary(Array(try status.serializedData()), forKey: "grpc-status-details-bin")
+        if stringEncoded {
+            metadata.addString(
+                Data(bytes).base64EncodedString().replacingOccurrences(of: "=", with: ""),
+                forKey: "grpc-status-details-bin"
+            )
+        } else {
+            metadata.addBinary(bytes, forKey: "grpc-status-details-bin")
+        }
         return RPCError(code: .resourceExhausted, message: "busy", metadata: metadata)
     }
 }
