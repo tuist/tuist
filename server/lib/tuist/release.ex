@@ -427,10 +427,11 @@ defmodule Tuist.Release do
   @doc """
   Writes the coverage file deltas of every complete commit whose runs' rows
   are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for one project
-  or every project, each ref's oldest commit first. It reads through the
-  application's repositories and caches, so it runs on a live node; run it
-  once after the tables are created (repeating it rewrites nothing that is
-  current):
+  or every project, each ref's oldest commit first. The migration that
+  ships the tables queues it on its own
+  (`Tuist.Tests.Coverage.Workers.DeltaBackfillWorker`); this runs it again
+  by hand. It reads through the application's repositories and caches, so
+  it runs on a live node, and repeating it rewrites nothing that is current:
 
       bin/tuist rpc "Tuist.Release.backfill_coverage_deltas()"
       bin/tuist rpc "Tuist.Release.backfill_coverage_deltas(<project id>)"
