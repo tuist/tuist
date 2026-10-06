@@ -36,6 +36,12 @@ The command re-uses binaries to speed up the process.
 
 If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
 
+### Remote upload admission {#remote-upload-admission}
+
+Modern module caching uses REAPI. When a busy cache temporarily rejects an upload with `RESOURCE_EXHAUSTED`, Tuist backs off with jitter, respects standard `google.rpc.RetryInfo` minimum delays, and retries within a bounded wait budget. Upload admission allows at most six retries and 60 seconds of cumulative backoff per call; the exponential delay starts at one second and grows toward 30 seconds before proportional jitter. If a server's required delay exceeds the remaining budget, Tuist fails rather than retrying earlier than instructed. Cancellation interrupts backoff, and cache reads retain short retries so overload does not stall generation.
+
+These defaults also help older Kura versions without retry hints. Longer retries absorb temporary contention, not sustained overload: reduce the [cache concurrency limit](#cache-concurrency-limit) on warm jobs or increase server capacity if rejections persist. See [Kura upload sizing](https://github.com/tuist/tuist/blob/main/kura/README.md#upload-admission-and-sizing) for pod-memory estimates and admission metrics.
+
 ### Configuration selection {#configuration-selection}
 
 When warming the cache without passing `--configuration`, Tuist selects the build configuration to use in the following order:
@@ -216,19 +222,15 @@ The following are some examples of common workflows:
 
 ### Cache concurrency limit {#cache-concurrency-limit}
 
-By default, Tuist downloads and uploads cache artifacts without any concurrency limit, maximizing throughput. You can control this behavior using the `TUIST_CACHE_CONCURRENCY_LIMIT` environment variable:
+Set `TUIST_CACHE_CONCURRENCY_LIMIT` to a positive integer to limit both downloads and uploads. For example, reduce the load on a small self-hosted cache in warm jobs:
 
 ```bash
-# Set a specific concurrency limit
-export TUIST_CACHE_CONCURRENCY_LIMIT=10
-tuist generate
-
-# Use "none" for no limit (default behavior)
-export TUIST_CACHE_CONCURRENCY_LIMIT=none
-tuist generate
+TUIST_CACHE_CONCURRENCY_LIMIT=2 tuist cache
 ```
 
-This can be useful in environments with limited network bandwidth or to reduce system load during cache operations.
+When unset, REAPI uploads use eight transfer tasks. Downloads use eight when any blob requires ByteStream and 32 for batch-only plans. The legacy HTTP cache path defaults to 100; that default does not apply to REAPI. Invalid values, including the previously documented `none`, retain the defaults rather than removing limits. Use `unset TUIST_CACHE_CONCURRENCY_LIMIT` to restore the defaults.
+
+Limits apply per transfer operation, not globally across operations or CI jobs. Three simultaneous warms with a limit of two can have six uploads active against the same cache. Consumer jobs can leave the variable unset to retain default download parallelism.
 
 ### Cache warm scratch directory {#cache-warm-scratch-directory}
 

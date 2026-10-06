@@ -10,7 +10,8 @@ cd "$MISE_PROJECT_ROOT"/cli/Sources/TuistREAPI
 mise install spm:apple/swift-protobuf@1.35.1 spm:grpc/grpc-swift-protobuf@2.1.1
 protobuf_root=$(mise where spm:apple/swift-protobuf@1.35.1)
 grpc_root=$(mise where spm:grpc/grpc-swift-protobuf@2.1.1)
-"$protobuf_root/bin/protoc" --plugin="protoc-gen-swift=$protobuf_root/bin/protoc-gen-swift" --swift_out=Generated --swift_opt=Visibility=Public capabilities.proto cache.proto bytestream.proto
+protobuf_include=$(mise where protoc)/include
+"$protobuf_root/bin/protoc" -I . -I "$protobuf_include" --plugin="protoc-gen-swift=$protobuf_root/bin/protoc-gen-swift" --swift_out=Generated --swift_opt=Visibility=Public capabilities.proto cache.proto bytestream.proto retry.proto
 "$protobuf_root/bin/protoc" --plugin="protoc-gen-grpc-swift-2=$grpc_root/bin/protoc-gen-grpc-swift-2" --grpc-swift-2_out=Generated --grpc-swift-2_opt=Visibility=Public capabilities.proto cache.proto bytestream.proto
 
 # The grpc-swift-2 generator emits a `type:` argument on MethodDescriptor that the resolved
