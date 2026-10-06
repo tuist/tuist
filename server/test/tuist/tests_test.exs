@@ -6873,7 +6873,7 @@ defmodule Tuist.TestsTest do
           test_modules: test_modules.("success")
         )
 
-      {:ok, _second_test} =
+      {:ok, second_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -6903,6 +6903,7 @@ defmodule Tuist.TestsTest do
       assert flaky_test.module_name == "TestModule"
       # Only the failing run is flaky; the passing run on the same commit stays clean
       assert flaky_test.flaky_runs_count == 1
+      assert flaky_test.last_flaky_run_id == second_test.id
     end
 
     test "supports ordering by marked_flaky_at" do
