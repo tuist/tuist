@@ -32,7 +32,6 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.project_image_assigns(project, title: resource))
       |> assign(:available_filters, define_filters(resource_kind))
-      |> assign_async(:invocation_summary, fn -> {:ok, %{invocation_summary: Bazel.summary(project.id)}} end)
 
     {:ok, socket}
   end
