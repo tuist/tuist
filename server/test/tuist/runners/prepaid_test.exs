@@ -342,6 +342,111 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
+    test "keeps a yearly line's pool for a year from the grant when the line carries no term" do
+      # A one-off invoice item raised without a period gets a zero-length one
+      # stamped when it was created, which says nothing about the contract.
+      now = ~U[2026-08-18 12:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+
+      created = DateTime.to_unix(~U[2026-08-17 09:00:00Z])
+
+      stub_lines([
+        line(%{
+          metadata: %{
+            "tuist_prepaid_runners" => "macos",
+            "tuist_prepaid_runners_funding_ratio_bp" => "14000",
+            "tuist_prepaid_runners_term" => "yearly"
+          },
+          period: %{start: created, end: created}
+        })
+      ])
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 1_120_000
+        assert attrs.price_ids == [@macos_price]
+        assert attrs.expires_at == ~U[2027-08-22 12:00:00Z]
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
+    end
+
+    test "runs a yearly line's pool to the end of the term the line was billed for" do
+      now = ~U[2026-08-18 12:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      stub_account_period(~U[2026-09-01 00:00:00Z])
+
+      stub_lines([
+        line(%{
+          metadata: %{"tuist_prepaid_runners" => "macos", "tuist_prepaid_runners_term" => "Yearly"},
+          period: %{
+            start: DateTime.to_unix(~U[2026-09-01 00:00:00Z]),
+            end: DateTime.to_unix(~U[2027-09-01 00:00:00Z])
+          }
+        })
+      ])
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == ~U[2027-09-05 00:00:00Z]
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
+    end
+
+    test "refuses a yearly line billed for a term longer than a year" do
+      stub(DateTime, :utc_now, fn -> ~U[2026-08-18 12:00:00Z] end)
+
+      long =
+        line(%{
+          metadata: %{"tuist_prepaid_runners" => "macos", "tuist_prepaid_runners_term" => "yearly"},
+          period: %{
+            start: DateTime.to_unix(~U[2026-09-01 00:00:00Z]),
+            end: DateTime.to_unix(~U[2028-09-01 00:00:00Z])
+          }
+        })
+
+      stub_lines([long])
+      reject(&CreditGrants.create/1)
+
+      assert {:error, {:term_longer_than_a_year, line_id}} = Prepaid.grant_for_invoice(invoice())
+      assert line_id == long.id
+    end
+
+    test "rejects an unknown term instead of falling back to monthly" do
+      reject(&CreditGrants.create/1)
+
+      for value <- ["annual", "year", "12", "true"] do
+        stub_lines([
+          line(%{metadata: %{"tuist_prepaid_runners" => "true", "tuist_prepaid_runners_term" => value}})
+        ])
+
+        assert {:error, {:invalid_metadata, :term, _value}} = Prepaid.grant_for_invoice(invoice()),
+               "expected #{inspect(value)} to be rejected"
+      end
+    end
+
+    test "keeps a line monthly when its term is monthly or left empty" do
+      now = ~U[2026-08-18 12:00:00Z]
+      period_end = ~U[2026-09-01 00:00:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      stub_account_period(period_end)
+
+      for value <- ["monthly", "  "] do
+        stub_lines([
+          line(%{metadata: %{"tuist_prepaid_runners" => "true", "tuist_prepaid_runners_term" => value}})
+        ])
+
+        expect(CreditGrants, :create, fn attrs ->
+          assert attrs.expires_at == DateTime.add(period_end, 4, :day)
+          {:ok, %{id: "credgr_1"}}
+        end)
+
+        assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
+      end
+    end
+
     test "rejects an unknown platform" do
       stub_lines([line(%{metadata: %{"tuist_prepaid_runners" => "windows"}})])
       reject(&CreditGrants.create/1)
