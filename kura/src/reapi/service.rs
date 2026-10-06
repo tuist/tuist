@@ -99,7 +99,7 @@ const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 const BATCH_UPDATE_PERSIST_CONCURRENCY: usize = 32;
 /// Staged ByteStream uploads coalesce wire chunks up to this many bytes per
 /// temp-file write.
-const REAPI_STAGING_WRITE_BUFFER_BYTES: u64 = 1024 * 1024;
+pub(super) const REAPI_STAGING_WRITE_BUFFER_BYTES: u64 = 1024 * 1024;
 const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
 const MAX_CONCURRENT_SPLICE_VERIFICATIONS: usize = 4;
 static ACTIVE_SPLICE_VERIFICATIONS: AtomicUsize = AtomicUsize::new(0);
@@ -572,6 +572,11 @@ impl ReapiService {
             ));
         }
         self.state
+            .store
+            .acknowledge_existing_client_manifest()
+            .await
+            .map_err(Status::internal)?;
+        self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "already_present", 0);
         Ok(Response::new(bytestream::WriteResponse {
@@ -1040,6 +1045,13 @@ impl ReapiService {
                 Status::internal(format!("failed to persist CAS blob: {error}"))
             }
         })?;
+        if persisted.already_present {
+            self.state
+                .store
+                .acknowledge_existing_client_manifest()
+                .await
+                .map_err(Status::internal)?;
+        }
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
@@ -3127,6 +3139,11 @@ impl ByteStream for ReapiService {
 
         match manifest {
             Some(manifest) => {
+                self.state
+                    .store
+                    .acknowledge_existing_client_manifest()
+                    .await
+                    .map_err(Status::internal)?;
                 let response = Response::new(bytestream::QueryWriteStatusResponse {
                     committed_size: manifest.size as i64,
                     complete: true,
@@ -3158,6 +3175,11 @@ impl ByteStream for ReapiService {
                 })?
                 .is_some()
                 {
+                    self.state
+                        .store
+                        .acknowledge_existing_client_manifest()
+                        .await
+                        .map_err(Status::internal)?;
                     Ok(Response::new(bytestream::QueryWriteStatusResponse {
                         committed_size: resource.size_bytes as i64,
                         complete: true,
@@ -4106,6 +4128,9 @@ async fn persist_cas_blob(
             bytes,
         )
         .await?;
+    if persisted.already_present {
+        state.store.acknowledge_existing_client_manifest().await?;
+    }
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -4980,7 +5005,12 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn clamped_staging_bounds_both_coalescing_and_file_cache_windows() {
-        assert_staging_coalescer_with_window(FileCachePolicy::Bounded, 16 * 1024, 16 * 1024).await;
+        assert_staging_coalescer_with_window(
+            FileCachePolicy::Bounded,
+            REAPI_STAGING_WRITE_BUFFER_BYTES as usize,
+            REAPI_STAGING_WRITE_BUFFER_BYTES,
+        )
+        .await;
     }
 
     async fn assert_staging_coalescer_preserves_ragged_bytes(policy: FileCachePolicy) {
