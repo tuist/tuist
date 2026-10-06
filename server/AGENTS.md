@@ -65,6 +65,14 @@ mise run dev
 - `mix test --only tag_name`
 - The `:test` env compiles only the `"en"` locale by default so a cold `_build/test` (e.g. a fresh worktree) doesn't generate ex_cldr code for all ten locales. Tests that assert other locales' formatting/normalization are tagged `:locale` and excluded by default. Run `TUIST_DEV_ALL_LOCALES=1 mix test` to compile the full locale set and include them (this is what CI does).
 
+**Build and Test Insights**
+- `mix compile` and `mix test` report to the hosted `tuist/server` project through the local `tuist_ex` package. The test alias keeps database creation, timezone setup, and migrations before `tuist.test`.
+- Authenticate locally with `mix tuist.login` (shares the Tuist CLI credentials). In CI, provide a project-scoped `TUIST_TOKEN` or authenticate with `mix tuist.login` using the CI provider's OIDC identity.
+- `TUIST_PROJECT` and `TUIST_URL` override the destination. Reporting failures never fail a build or test run; set `TUIST_DEBUG=1` to diagnose them.
+- `server.yml` builds once and runs four shards per ClickHouse variant. Plan locally with `TUIST_SHARD_REFERENCE=<unique-reference> mix tuist.test.build --shard-total 4`. On a cold shard, set `MIX_ENV=test`, `TUIST_SHARD_INDEX=<index>`, and `TUIST_SHARD_REFERENCE=<same-reference>`, then run `mix do deps.compile tuist_ex + tuist.test --prepare-only`. Run `mise run --no-deps db:reset` separately, then `mix tuist.test --no-download --warnings-as-errors`. Separate database setup prevents migration-module redefinition warnings in regression tests. Match `TUIST_DEV_ALL_LOCALES` across the build and shards; CI sets it to `1`. GitHub jobs reuse the build job's reference even when only failed jobs are rerun, and use distinct `--scheme` labels for each ClickHouse variant.
+- The hosted `tuist/server` project must be connected to the `tuist/tuist` GitHub repository for OpenID Connect credentials to authorize its reports and shard plans.
+- Concurrent local shards need separate `MIX_BUILD_PATH`, `TUIST_SERVER_TEST_POSTGRES_DB`, `TUIST_SERVER_TEST_CLICKHOUSE_DB`, and `TUIST_SERVER_TEST_PORT` values. Put the database and port overrides after `mise exec -- env` so the development-instance setup does not overwrite them. Leave `MIX_TEST_PARTITION` unset when overriding database names: legacy cross-database migrations append it themselves. For isolated local setup, invoke `bash mise/tasks/db/reset.sh` under those overrides instead of nesting `mise run`, which reloads and replaces the database environment.
+
 **Code Quality**
 - `mix credo`
 - `mise run format`
