@@ -179,7 +179,8 @@
       "description": "WAN termination, the path every other node reaches the internet through, the rack segment's DHCP and netboot, and the tailnet subnet routes. Two of them, active and standby, sharing the floating addresses through keepalived"
     },
     "storage": {
-      "description": "bulk storage"
+      "description": "bulk storage: the cache volumes the runners pull from, beside them on their segment",
+      "segment": "machines"
     },
     "runner": {
       "description": "Mac mini running the runner fleet",
@@ -244,7 +245,8 @@
           "port": 27,
           "media": "dac",
           "purpose": "data",
-          "nic": "sfp28-1"
+          "nic": "sfp28-1",
+          "mac": "38:05:25:3a:de:65"
         },
         {
           "switch": "ber1-mgmt",
