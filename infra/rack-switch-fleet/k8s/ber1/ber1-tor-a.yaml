@@ -217,6 +217,10 @@ spec:
       purpose: data
       peer: ber1-edge-b
       detail: edge/sfp28-2
+    - port: 27
+      purpose: data
+      peer: ber1-store-a
+      detail: storage/sfp28-1
     - port: 31
       purpose: isl
       peer: ber1-tor-b

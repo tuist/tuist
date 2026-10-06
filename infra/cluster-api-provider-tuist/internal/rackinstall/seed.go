@@ -14,8 +14,8 @@ import (
 // Seed is everything one install is rendered from.
 type Seed struct {
 	Host string
-	// Role is the host's role; storage is refused until its disk layout
-	// exists.
+	// Role is the host's role. A storage node gets a quotaed /data for cache
+	// volumes; the others take Ubuntu's direct layout.
 	Role string
 	User string
 	// ConsolePassword is the console account's password. The installed
@@ -55,9 +55,7 @@ var (
 
 func (s Seed) validate() error {
 	switch s.Role {
-	case "edge", "services":
-	case "storage":
-		return fmt.Errorf("the storage layout is not implemented: a storage node needs /boot, a capped / and a separate XFS /data with project quotas, fixed at install time")
+	case "edge", "services", "storage":
 	default:
 		return fmt.Errorf("%s has no known role (%q)", s.Host, s.Role)
 	}
@@ -99,7 +97,7 @@ func (s Seed) validate() error {
 
 // UserData renders the autoinstall seed's user-data.
 //
-// It installs Ubuntu with the direct layout and DHCP on the SFP+ uplinks only
+// It installs Ubuntu with the role's disk layout (storageLayout) and DHCP on the SFP+ uplinks only
 // (the MS-01's X710, driver i40e), so the 2.5G ports stay unmanaged for the
 // node's pods. The installer creates the console account with a locked
 // password, and cloud-init sets the password on the first boot, so the
@@ -144,10 +142,7 @@ autoinstall:
     install-server: true
     allow-pw: false
     authorized-keys:
-%[4]s  storage:
-    layout:
-      name: direct
-  network:
+%[4]s%[14]s  network:
     version: 2
     ethernets:
       uplinks:
@@ -221,10 +216,10 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s%[15]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      "), hostKey), nil
+		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role), dataMounts(s.Role)), nil
 }
 
 // handover boots the rack install on this machine's disks that match selects
@@ -244,6 +239,54 @@ for part in $(lsblk -rpno NAME,FSTYPE | awk '$2 == "ext4" {print $1}'); do
   fi
   umount /run/tuist-prev
 done
+`
+}
+
+// storageLayout is the autoinstall storage section for role. A storage node
+// serves cache volumes, which are local-path directories with an XFS project
+// quota each, so its largest disk gets a separate XFS /data mounted with
+// prjquota beside a capped ext4 /. The quota option can only be set when the
+// filesystem is mounted, and the layout cannot change without a reinstall.
+// Every other role takes Ubuntu's direct layout.
+func storageLayout(role string) string {
+	if role != "storage" {
+		return "  storage:\n    layout:\n      name: direct\n"
+	}
+	return `  storage:
+    config:
+      - {type: disk, id: disk0, match: {size: largest}, ptable: gpt, wipe: superblock-recursive, preserve: false}
+      - {type: partition, id: esp, device: disk0, number: 1, size: 1G, flag: boot, grub_device: true}
+      - {type: format, id: esp-fs, volume: esp, fstype: fat32}
+      - {type: partition, id: boot, device: disk0, number: 2, size: 2G}
+      - {type: format, id: boot-fs, volume: boot, fstype: ext4}
+      - {type: partition, id: root, device: disk0, number: 3, size: 64G}
+      - {type: format, id: root-fs, volume: root, fstype: ext4}
+      - {type: partition, id: data, device: disk0, number: 4, size: -1}
+      - {type: format, id: data-fs, volume: data, fstype: xfs}
+      - {type: mount, id: root-mount, device: root-fs, path: /}
+      - {type: mount, id: boot-mount, device: boot-fs, path: /boot}
+      - {type: mount, id: esp-mount, device: esp-fs, path: /boot/efi}
+      - {type: mount, id: data-mount, device: data-fs, path: /data, options: "defaults,prjquota"}
+`
+}
+
+// dataMounts puts a storage node's kubelet root, containerd root and the
+// local-path StorageClass root on /data with bind mounts, as the rented cache
+// fleets do when they join, so images and cache volumes never fill /. The
+// install writes them before the node runs either, so nothing lands on /
+// first.
+func dataMounts(role string) string {
+	if role != "storage" {
+		return ""
+	}
+	return `    - |
+      for dir in kubelet containerd local-path-provisioner; do mkdir -p /target/data/$dir; done
+      mkdir -p /target/var/lib/kubelet /target/var/lib/containerd /target/opt/local-path-provisioner
+      cat >> /target/etc/fstab <<'TUIST_EOF'
+      /data/kubelet /var/lib/kubelet none bind,nofail 0 0
+      /data/containerd /var/lib/containerd none bind,nofail 0 0
+      /data/local-path-provisioner /opt/local-path-provisioner none bind,nofail 0 0
+      TUIST_EOF
 `
 }
 

@@ -835,6 +835,12 @@ rackLinuxFleet:
         tuist.dev/rack-edge: ber1
       nodeTaints:
         - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+    storage:
+      tailnetTags: [tag:tuist-rack-node]
+      nodeLabels:
+        tuist.dev/rack-storage: ber1
+      nodeTaints:
+        - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
   hosts:
     # The two edges, each netbooting from the other. ber1-edge-a is preferred.
     # It was netbooted rather than announced by its stick, so its boot MAC (its
@@ -848,6 +854,10 @@ rackLinuxFleet:
       hostname: ber1-edge-b
       role: edge
       reinstallGeneration: 5
+    # Single-homed to ber1-tor-a port 27, i226-LM on ber1-mgmt port 3.
+    - uuid: 3a898800-6402-11f1-ab1d-b1bd5a0f6400
+      hostname: ber1-store-a
+      role: storage
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   boot:
