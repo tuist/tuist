@@ -563,6 +563,12 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error({:github_elevation_active, login}),
     do: "`#{login}` already has an active GitHub admin elevation."
 
+  defp human_error({:github_promote_failed, :github_already_admin}),
+    do: "The GitHub account is already an organization admin."
+
+  defp human_error({:github_promote_failed, :github_not_member}),
+    do: "The GitHub account is no longer an active organization member."
+
   defp human_error({:github_promote_failed, reason}),
     do: "Promoting the GitHub account failed: #{inspect(reason)}"
 
