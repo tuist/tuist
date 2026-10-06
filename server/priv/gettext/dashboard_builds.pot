@@ -107,8 +107,8 @@ msgid "Build Runs"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:237
-#: lib/tuist_web/live/bazel_invocations_live.ex:443
-#: lib/tuist_web/live/bazel_invocations_live.ex:455
+#: lib/tuist_web/live/bazel_invocations_live.ex:442
+#: lib/tuist_web/live/bazel_invocations_live.ex:454
 #: lib/tuist_web/live/build_run_live.ex:1198
 #: lib/tuist_web/live/build_run_live.html.heex:290
 #: lib/tuist_web/live/build_run_live.html.heex:501
@@ -372,7 +372,7 @@ msgstr ""
 msgid "Configuration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:406
+#: lib/tuist_web/live/bazel_invocations_live.ex:405
 #: lib/tuist_web/live/once_runs_live.ex:625
 #: lib/tuist_web/live/xcode_builds_live.html.heex:634
 #, elixir-autogen, elixir-format
@@ -441,8 +441,8 @@ msgid "Download throughput"
 msgstr ""
 
 #: lib/tuist_web/components/build_timeline.ex:234
-#: lib/tuist_web/live/bazel_invocations_live.ex:502
-#: lib/tuist_web/live/bazel_invocations_live.ex:510
+#: lib/tuist_web/live/bazel_invocations_live.ex:501
+#: lib/tuist_web/live/bazel_invocations_live.ex:509
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #: lib/tuist_web/live/generate_runs_live.html.heex:21
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
@@ -784,7 +784,7 @@ msgstr ""
 msgid "No data"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:471
+#: lib/tuist_web/live/bazel_invocations_live.ex:470
 #: lib/tuist_web/live/generate_runs_live.html.heex:125
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:92
 #: lib/tuist_web/live/once_runs_live.ex:691
@@ -883,8 +883,8 @@ msgstr ""
 msgid "Project settings"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:503
-#: lib/tuist_web/live/bazel_invocations_live.ex:518
+#: lib/tuist_web/live/bazel_invocations_live.ex:502
+#: lib/tuist_web/live/bazel_invocations_live.ex:517
 #: lib/tuist_web/live/generate_runs_live.html.heex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:29
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
@@ -990,7 +990,7 @@ msgstr ""
 msgid "Size (MB)"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:506
+#: lib/tuist_web/live/bazel_invocations_live.ex:505
 #: lib/tuist_web/live/build_run_live.html.heex:505
 #: lib/tuist_web/live/build_run_live.html.heex:658
 #: lib/tuist_web/live/build_run_live.html.heex:1545
@@ -1189,7 +1189,7 @@ msgstr ""
 msgid "Type"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocations_live.ex:415
+#: lib/tuist_web/live/bazel_invocations_live.ex:414
 #: lib/tuist_web/live/once_runs_live.ex:634
 #: lib/tuist_web/live/xcode_builds_live.html.heex:645
 #, elixir-autogen, elixir-format
