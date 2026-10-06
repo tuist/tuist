@@ -116,6 +116,8 @@ class BuildExecutionTelemetryIntegrationTest {
                 .first { it["task_path"].asString == ":app:compileJava" }
             assertEquals("remote_hit", cached["outcome"].asString)
             assertTrue(cached.getAsJsonObject("execution")["remote_cache_download_duration_ms"].asLong >= 0)
+            assertEquals(0, cold.getAsJsonObject("custom_metadata").getAsJsonObject("values")[BuildCacheSavingsTelemetry.KEY].asLong)
+            assertTrue(warm.getAsJsonObject("custom_metadata").getAsJsonObject("values")[BuildCacheSavingsTelemetry.KEY].asLong >= 0)
             assertTrue(cold["id"] != warm["id"], "Each configuration-cache reuse needs a fresh build identity")
             for (report in listOf(cold, warm)) {
                 val startedAt = Instant.parse(report["started_at"].asString).toEpochMilli()
@@ -160,6 +162,7 @@ class BuildExecutionTelemetryIntegrationTest {
             assertEquals("local_hit", local["outcome"].asString, localOutput)
             assertEquals("not_requested", local.getAsJsonObject("execution")["remote_cache_lookup_outcome"].asString)
             assertTrue(!local["remote_cache_miss"].asBoolean)
+            assertTrue(locallyCached.getAsJsonObject("custom_metadata").getAsJsonObject("values")[BuildCacheSavingsTelemetry.KEY].asLong >= 0)
         }
     }
     @Test

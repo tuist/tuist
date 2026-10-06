@@ -48,6 +48,8 @@ internal class BuildExecutionTelemetry {
     }
 
     private val pending = mutableMapOf<Long, CacheWork>()
+    val failures = BuildFailureTelemetry()
+    val cacheSavings = BuildCacheSavingsTelemetry()
     val tasks = mutableListOf<TaskOutcomeData>()
     val requestedTasks = linkedSetOf<String>()
     var lastTaskAt: Long? = null
@@ -57,6 +59,7 @@ internal class BuildExecutionTelemetry {
         val duration = (event.endTime - event.startTime).coerceAtLeast(0)
         val details = operation.details
         val result = event.result
+        failures.finished(details, event.failure)
         val operationId = operation.id?.id ?: return
         var work = pending.remove(operationId) ?: CacheWork()
         work = work.merge(when (details) {
@@ -94,6 +97,10 @@ internal class BuildExecutionTelemetry {
                 result.skipMessage == "UP-TO-DATE" -> TaskOutcome.UP_TO_DATE
                 result.skipMessage != null -> TaskOutcome.SKIPPED
                 else -> TaskOutcome.EXECUTED
+            }
+            if (outcome in listOf(TaskOutcome.REMOTE_HIT, TaskOutcome.LOCAL_HIT, TaskOutcome.CACHE_HIT)) {
+                val originalExecutionMs = try { result.originExecutionTime } catch (_: LinkageError) { null }
+                cacheSavings.cachedTask(originalExecutionMs, duration)
             }
             val cacheability = when {
                 work.hit != null || work.key != null -> "cacheable"
