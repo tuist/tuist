@@ -93,8 +93,8 @@ defmodule Tuist.Storage.RunArtifactRetentionTest do
            body: %{
              contents: [
                %{key: air_key, last_modified: days_ago(8)},
-               %{key: pro_expired_key, last_modified: days_ago(15)},
-               %{key: pro_recent_key, last_modified: days_ago(13)},
+               %{key: pro_expired_key, last_modified: days_ago(31)},
+               %{key: pro_recent_key, last_modified: days_ago(29)},
                %{key: enterprise_expired_key, last_modified: days_ago(31)},
                %{key: enterprise_recent_key, last_modified: days_ago(29)}
              ],

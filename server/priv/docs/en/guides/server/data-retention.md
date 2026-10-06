@@ -19,8 +19,8 @@ These windows define how long artifact files remain available on the hosted Tuis
 | --- | --- | --- | --- |
 | Cache artifacts, including Xcode cache, module cache, Gradle cache, Bazel remote-cache files, and GitLab CI cache archives from Tuist Runners | 14 days | 30 days | 30 days |
 | App preview builds and icons | 30 days | 30 days | 30 days |
-| Build archives | 7 days | 14 days | 30 days |
-| Run artifacts, including result bundles and session archives | 7 days | 14 days | 30 days |
+| Build archives | 7 days | 30 days | 30 days |
+| Run artifacts, including result bundles and session archives | 7 days | 30 days | 30 days |
 | Test run attachments | 30 days | 30 days | 30 days |
 | Shard bundles | 7 days | 14 days | 30 days |
 
