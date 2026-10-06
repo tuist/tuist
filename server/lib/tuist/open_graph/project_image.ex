@@ -71,7 +71,13 @@ defmodule Tuist.OpenGraph.ProjectImage do
             display: flex;
             flex-direction: column;
           }
+          /* The eyebrow, subtitle and badge truncate with an ellipsis, which
+             needs overflow: hidden. Their line boxes equal the font size, so
+             each clipping box gets vertical padding, cancelled by negative
+             margins, to leave room for ascenders and descenders. */
           .project {
+            padding: 12px 0 18px;
+            margin: -12px 0 -18px;
             font-size: 64px;
             font-weight: 400;
             line-height: 64px;
@@ -91,11 +97,12 @@ defmodule Tuist.OpenGraph.ProjectImage do
             overflow-wrap: anywhere;
           }
           .subtitle {
-            margin-top: 72px;
             display: flex;
             align-items: center;
             gap: 31px;
             min-height: 64px;
+            padding: 12px 0 18px;
+            margin: 60px 0 -18px;
             font-size: 64px;
             font-weight: 400;
             line-height: 64px;
@@ -105,6 +112,8 @@ defmodule Tuist.OpenGraph.ProjectImage do
             overflow: hidden;
           }
           .subtitle span {
+            padding: 12px 0 18px;
+            margin: -12px 0 -18px;
             overflow: hidden;
             text-overflow: ellipsis;
           }
@@ -126,6 +135,8 @@ defmodule Tuist.OpenGraph.ProjectImage do
             right: 79px;
             bottom: 82px;
             max-width: 760px;
+            padding: 10px 0 16px;
+            margin: -10px 0 -16px;
             font-size: 58px;
             font-weight: 400;
             line-height: 58px;
@@ -146,6 +157,7 @@ defmodule Tuist.OpenGraph.ProjectImage do
             display: inline-flex;
             align-items: center;
             gap: 14px;
+            margin: 0;
             padding: 14px 28px 14px 14px;
             border-radius: 21px;
             background: #0E0E0E;
