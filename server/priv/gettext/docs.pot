@@ -88,7 +88,7 @@ msgstr ""
 #: lib/tuist_web/live/docs_live.ex:384
 #: lib/tuist_web/live/docs_live.ex:724
 #, elixir-autogen, elixir-format
-msgid "Flaky Tests"
+msgid "Flakiness"
 msgstr ""
 
 #: lib/tuist_web/live/docs_live.ex:573
@@ -212,7 +212,7 @@ msgstr ""
 #: lib/tuist_web/live/docs_live.ex:366
 #: lib/tuist_web/live/docs_live.ex:719
 #, elixir-autogen, elixir-format
-msgid "Selective Testing"
+msgid "Selection"
 msgstr ""
 
 #: lib/tuist_web/live/docs_live.ex:521
@@ -458,4 +458,28 @@ msgstr ""
 #: lib/tuist_web/live/docs_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "or follow the instructions to"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:448
+#: lib/tuist_web/live/docs_live.ex:781
+#, elixir-autogen, elixir-format
+msgid "Compute"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:462
+#: lib/tuist_web/live/docs_live.ex:788
+#, elixir-autogen, elixir-format
+msgid "Runners"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:452
+#: lib/tuist_web/live/docs_live.ex:785
+#, elixir-autogen, elixir-format
+msgid "Run workflows on managed compute with cache infrastructure colocated for the best performance."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:468
+#: lib/tuist_web/live/docs_live.ex:791
+#, elixir-autogen, elixir-format
+msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
 msgstr ""
