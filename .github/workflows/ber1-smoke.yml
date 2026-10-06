@@ -55,6 +55,53 @@ jobs:
           test "$(cat /tmp/sum.txt)" = "333332833333500000"
           echo "computed and verified on rack hardware"
 
+  # The rack's own cache: dispatch hands a rack job the ber1-runners endpoint,
+  # the gateway on ber1-store-a on the machines segment. The job resolves it
+  # to the storage node, reads /up over TLS, and round-trips a blob with a
+  # token minted from its GitHub OIDC identity.
+  cache:
+    name: Pull from the rack's cache
+    runs-on: tuist-ber1-smoke
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TUIST_URL: https://staging.tuist.dev
+      RACK_CACHE_ADDRESS: 10.10.0.11
+    steps:
+      - name: The dispatched endpoint is the rack's cache
+        run: |
+          set -euo pipefail
+          endpoint="${TUIST_CACHE_ENDPOINT:-}"
+          [ -n "$endpoint" ] || { echo "::error::dispatch handed this job no cache endpoint"; exit 1; }
+          host="${endpoint#https://}"; host="${host%%/*}"
+          echo "TUIST_CACHE_ENDPOINT=$endpoint"
+          resolved="$(dscacheutil -q host -a name "$host" | awk '/^ip_address:/{print $2; exit}')"
+          echo "$host resolves to $resolved"
+          [ "$resolved" = "$RACK_CACHE_ADDRESS" ] || { echo "::error::$host is not the rack's storage node ($RACK_CACHE_ADDRESS)"; exit 1; }
+          code="$(curl -sS -m 10 -o /tmp/up -w '%{http_code}' "${endpoint%/}/up")"
+          echo "GET /up -> HTTP $code"
+          [ "$code" = 200 ] || { echo "::error::/up returned $code"; exit 1; }
+      - name: Round-trip a blob through it
+        run: |
+          set -euo pipefail
+          endpoint="${TUIST_CACHE_ENDPOINT%/}"
+          oidc="$(curl -sS -m 10 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=tuist" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')"
+          token="$(curl -sS -m 10 -X POST -H 'content-type: application/json' -d "{\"token\":\"$oidc\"}" "$TUIST_URL/api/auth/oidc/token" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+          [ -n "$token" ] || { echo "::error::staging minted no token for this repository's OIDC identity"; exit 1; }
+          key="ber1-smoke-$(uuidgen | tr 'A-Z' 'a-z' | tr -d -)"
+          query="tenant_id=tuist&namespace_id=tuist"
+          head -c 1048576 /dev/urandom > /tmp/blob
+          code="$(curl -sS -m 30 -o /tmp/put -w '%{http_code}' -X POST -H "Authorization: Bearer $token" -H 'content-type: application/octet-stream' --data-binary @/tmp/blob "$endpoint/api/cache/cas/$key?$query")"
+          echo "POST /api/cache/cas/$key -> HTTP $code"; cat /tmp/put; echo
+          case "$code" in 2*) ;; *) echo "::error::write returned $code"; exit 1;; esac
+          code="$(curl -sS -m 30 -o /tmp/got -w '%{http_code}' -H "Authorization: Bearer $token" "$endpoint/api/cache/cas/$key?$query")"
+          echo "GET /api/cache/cas/$key -> HTTP $code"
+          [ "$code" = 200 ] || { echo "::error::read returned $code"; exit 1; }
+          cmp /tmp/blob /tmp/got
+          echo "read back the 1 MiB blob byte for byte from $endpoint"
+
   slots:
     name: Plan load slots
     if: inputs.load_minutes != '0'
