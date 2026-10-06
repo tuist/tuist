@@ -385,7 +385,7 @@ jobs:
       - name: Check Elixir format
         run: mix format --check-formatted
       - name: Test frontend interactions
-        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs
+        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs assets/marketing/js/hooks/*.test.mjs
       - name: Check asset format
         run: prettier --check assets
       - name: Check CSS custom property references

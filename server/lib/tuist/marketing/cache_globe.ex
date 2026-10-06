@@ -1,11 +1,12 @@
 defmodule Tuist.Marketing.CacheGlobe do
   @moduledoc """
-  Public, region-level cache download totals. No tenant, project, node, or
-  downloader information leaves this context. Locations are representative
-  serving-region coordinates, not customer locations or transfer destinations.
+  Public cache download totals and estimated country-to-region activity.
+  No tenant, project, node, IP address, or precise customer location leaves
+  this context. Origin allocation is estimated separately from measured totals.
   """
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Marketing.CacheGlobeOrigins
 
   require Logger
 
@@ -30,6 +31,7 @@ defmodule Tuist.Marketing.CacheGlobe do
       recent_downloads: nil,
       breakdown: @empty_breakdown,
       origins: [],
+      playback_delay_seconds: 300,
       updated_at: nil,
       observed_at: nil,
       status: :waiting,
@@ -74,21 +76,48 @@ defmodule Tuist.Marketing.CacheGlobe do
       end)
 
     observed_at = rows |> Enum.map(&List.last/1) |> Enum.max(NaiveDateTime, fn -> nil end)
+    origins = CacheGlobeOrigins.snapshot(now, Enum.map(@regions, & &1.id))
 
     %{
       downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 1))),
       bytes: Enum.sum(Enum.map(rows, &Enum.at(&1, 2))),
       recent_downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 3))),
       breakdown: breakdown(midnight, now),
-      # Where requests come from (each a location, its serving region and its
-      # recent count). Empty until the usage rollups record a request's
-      # country; the page draws nothing invented in its place.
-      origins: [],
+      origins: origins,
+      playback_delay_seconds: 300,
       updated_at: DateTime.to_iso8601(now),
       observed_at: if(observed_at, do: NaiveDateTime.to_iso8601(observed_at) <> "Z"),
       status: if(observed_at, do: :available, else: :waiting),
       regions: regions
     }
+  end
+
+  @doc false
+  def with_origins(snapshot, origins) do
+    observed =
+      if snapshot.observed_at do
+        {:ok, observed, _offset} = DateTime.from_iso8601(snapshot.observed_at)
+        DateTime.to_naive(observed)
+      end
+
+    # Delayed playback can still cover yesterday while today's counters are
+    # zero. Its windows have measured timestamps, even though geography is estimated.
+    observed = origin_observed_at(origins, observed)
+
+    %{
+      snapshot
+      | origins: origins,
+        observed_at: if(observed, do: NaiveDateTime.to_iso8601(observed) <> "Z"),
+        status: if(snapshot.status == :waiting and observed != nil, do: :available, else: snapshot.status)
+    }
+  end
+
+  defp origin_observed_at(origins, observed) do
+    Enum.reduce(origins, observed, fn origin, latest ->
+      {:ok, start, _offset} = DateTime.from_iso8601(origin.window_start)
+      ending = start |> DateTime.add(origin.window_seconds, :second) |> DateTime.to_naive()
+      if latest == nil or NaiveDateTime.after?(ending, latest), do: ending, else: latest
+    end)
   end
 
   defp breakdown(midnight, now) do
