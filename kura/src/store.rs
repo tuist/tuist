@@ -2672,6 +2672,149 @@ impl Store {
         Ok(true)
     }
 
+    /// Batched [`Store::artifact_exists`] / [`Store::artifact_exists_extending_lifetime`]
+    /// for `FindMissingBlobs`, answering the same per key in one pass: one
+    /// manifest-cache lock, one RocksDB multi-get for the cache misses, and one
+    /// segment-state snapshot for ring membership and generations.
+    ///
+    /// Rows read from RocksDB are not admitted to the manifest cache: a
+    /// presence scan touches thousands of keys the client mostly never reads,
+    /// and admitting them would evict the rows serving reads rely on. A
+    /// present answer still seeds the existence cache, which is what a repeat
+    /// `FindMissingBlobs` hits while no segment has aged.
+    pub async fn artifacts_exist_extending_lifetime(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        keys: &[&str],
+        trigger: RefreshTrigger,
+    ) -> Result<Vec<bool>, String> {
+        let ids: Vec<[u8; 64]> = keys
+            .iter()
+            .map(|key| {
+                let mut id = [0_u8; 64];
+                artifact_storage_id_in(&mut id, producer, &self.tenant_id, namespace_id, key);
+                id
+            })
+            .collect();
+        let id = |index: usize| artifact_id_str(&ids[index]);
+
+        let mut present = vec![false; keys.len()];
+        // The existence cache carries no segment, so it cannot tell whether a
+        // present blob needs promoting; it only answers while nothing has aged.
+        let pending: Vec<usize> = if self.segment_ring_is_aging() {
+            (0..keys.len()).collect()
+        } else {
+            (0..keys.len())
+                .filter(|&index| {
+                    let cached = self.existence_cache_contains(id(index));
+                    present[index] = cached;
+                    !cached
+                })
+                .collect()
+        };
+
+        let manifests = self.manifests_retained_batch(pending.iter().map(|&index| id(index)))?;
+        let segment_state = self.segment_state_snapshot();
+        for (index, manifest) in pending.into_iter().zip(manifests) {
+            let Some(manifest) = manifest else {
+                continue;
+            };
+            let generation = manifest
+                .segment_id
+                .as_deref()
+                .and_then(|segment_id| segment_state.generations.get(segment_id).copied());
+            let exists = if manifest.is_segment_backed() && !manifest.inline {
+                generation.is_some()
+            } else {
+                self.storage_present(&manifest).await?
+            };
+            if !exists {
+                continue;
+            }
+            present[index] = true;
+            self.note_artifact_exists(id(index));
+            if generation == Some(SegmentGeneration::Old) {
+                self.enqueue_promotion(id(index), trigger);
+            }
+        }
+        Ok(present)
+    }
+
+    /// Whether each key has a stored manifest, read straight from RocksDB in
+    /// one multi-get. Meant as a pre-filter for rare rows (chunked-blob
+    /// recipes) so a presence scan only resolves the keys that have one.
+    pub fn manifests_stored(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        keys: &[&str],
+    ) -> Result<Vec<bool>, String> {
+        let ids: Vec<[u8; 64]> = keys
+            .iter()
+            .map(|key| {
+                let mut id = [0_u8; 64];
+                artifact_storage_id_in(&mut id, producer, &self.tenant_id, namespace_id, key);
+                id
+            })
+            .collect();
+        self.db
+            .batched_multi_get_cf(
+                self.cf(ROCKSDB_CF_MANIFESTS),
+                ids.iter().map(|id| &id[..]),
+                false,
+            )
+            .into_iter()
+            .map(|row| {
+                row.map(|bytes| bytes.is_some())
+                    .map_err(|error| format!("failed to read manifest from RocksDB: {error}"))
+            })
+            .collect()
+    }
+
+    /// [`Store::manifest_retained`] for many ids under one manifest-cache lock
+    /// and one RocksDB multi-get, without admitting the rows it reads.
+    fn manifests_retained_batch<'a>(
+        &self,
+        artifact_ids: impl ExactSizeIterator<Item = &'a str>,
+    ) -> Result<Vec<Option<Arc<ArtifactManifest>>>, String> {
+        let mut manifests = Vec::with_capacity(artifact_ids.len());
+        let mut misses = Vec::new();
+        {
+            let mut cache = self
+                .manifest_cache
+                .lock()
+                .expect("manifest cache lock poisoned");
+            for (index, artifact_id) in artifact_ids.enumerate() {
+                let manifest = cache.get(artifact_id);
+                if manifest.is_none() {
+                    misses.push((index, artifact_id));
+                }
+                manifests.push(manifest);
+            }
+        }
+        let metrics = self.io.metrics();
+        metrics.record_manifest_cache_lookups("hit", (manifests.len() - misses.len()) as u64);
+        metrics.record_manifest_cache_lookups("miss", misses.len() as u64);
+        if misses.is_empty() {
+            return Ok(manifests);
+        }
+
+        let rows = self.db.batched_multi_get_cf(
+            self.cf(ROCKSDB_CF_MANIFESTS),
+            misses.iter().map(|(_, artifact_id)| artifact_id.as_bytes()),
+            false,
+        );
+        for ((index, artifact_id), row) in misses.into_iter().zip(rows) {
+            let row =
+                row.map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?;
+            if let Some(bytes) = row {
+                manifests[index] = Some(Arc::new(decode_manifest_record(artifact_id, &bytes)?));
+            }
+        }
+        Ok(manifests)
+    }
+
     /// Extends the lifetimes of blobs a REAPI read path has just vouched for.
     ///
     /// `GetActionResult` presence-gates an entry and `FindMissingBlobs` reports
@@ -11351,6 +11494,10 @@ fn encode_manifest_record(manifest: &ArtifactManifest) -> Result<Vec<u8>, String
         .map_err(|error| format!("failed to encode manifest: {error}"))
 }
 
+fn artifact_id_str(id: &[u8; 64]) -> &str {
+    std::str::from_utf8(id).expect("artifact storage ids are hex")
+}
+
 fn decode_manifest_record(artifact_id: &str, bytes: &[u8]) -> Result<ArtifactManifest, String> {
     if let Some(manifest) = SegmentLocationRecord::decode(bytes, artifact_id)? {
         return Ok(manifest);
@@ -17203,6 +17350,205 @@ mod tests {
             store.promotion_queue.lock().expect("queue lock").depth(),
             1,
             "an absent blob and one already in a live segment queue nothing"
+        );
+    }
+
+    #[tokio::test]
+    async fn batched_presence_matches_the_per_key_answer() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/segment",
+                "application/octet-stream",
+                b"segment",
+            )
+            .await
+            .expect("failed to persist artifact");
+        store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/inline",
+                "application/octet-stream",
+                b"inline",
+            )
+            .await
+            .expect("failed to persist inline artifact");
+        let keys = [
+            "blob/segment",
+            "blob/absent",
+            "blob/inline",
+            "blob/segment",
+            "blob/absent",
+        ];
+
+        for existence_cache_entries in [usize::MAX, 0] {
+            store.trim_existence_cache_to(existence_cache_entries);
+            store.trim_manifest_cache_to(0, "test");
+            let batched = store
+                .artifacts_exist_extending_lifetime(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &keys,
+                    RefreshTrigger::FindMissing,
+                )
+                .await
+                .expect("batched presence should succeed");
+            let mut per_key = Vec::new();
+            for key in keys {
+                per_key.push(
+                    store
+                        .artifact_exists(ArtifactProducer::Reapi, "ios", key)
+                        .await
+                        .expect("presence should succeed"),
+                );
+            }
+            assert_eq!(batched, vec![true, false, true, true, false]);
+            assert_eq!(batched, per_key);
+        }
+    }
+
+    #[tokio::test]
+    async fn batched_presence_does_not_admit_scanned_manifests() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/scanned",
+                "application/octet-stream",
+                b"scanned",
+            )
+            .await
+            .expect("failed to persist artifact");
+        store.trim_manifest_cache_to(0, "test");
+        store.trim_existence_cache_to(0);
+
+        let present = store
+            .artifacts_exist_extending_lifetime(
+                ArtifactProducer::Reapi,
+                "ios",
+                &["blob/scanned"],
+                RefreshTrigger::FindMissing,
+            )
+            .await
+            .expect("batched presence should succeed");
+
+        assert_eq!(present, vec![true]);
+        assert!(
+            store.manifest_cache_get(&manifest.artifact_id).is_none(),
+            "a presence scan must not displace the rows serving reads rely on"
+        );
+        assert!(
+            store.existence_cache_contains(&manifest.artifact_id),
+            "a present answer still seeds the existence cache"
+        );
+    }
+
+    #[tokio::test]
+    async fn batched_presence_extends_the_lifetime_of_aged_blobs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        assert!(store.segment_ring_is_aging());
+        assert!(
+            store.existence_cache_contains(&aged_id),
+            "the write seeded the existence cache, which must not hide the aged segment"
+        );
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob-live",
+                "application/octet-stream",
+                b"live",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        let present = store
+            .artifacts_exist_extending_lifetime(
+                ArtifactProducer::Reapi,
+                "ios",
+                &["blob-aged", "blob-absent", "blob-live", "blob-aged"],
+                RefreshTrigger::FindMissing,
+            )
+            .await
+            .expect("batched presence should succeed");
+
+        assert_eq!(present, vec![true, false, true, true]);
+        let queue = store.promotion_queue.lock().expect("queue lock");
+        assert_eq!(queue.depth(), 1, "only the aged blob is queued, once");
+        assert_eq!(
+            queue.pending.get(&aged_id),
+            Some(&RefreshTrigger::FindMissing)
+        );
+    }
+
+    #[tokio::test]
+    async fn batched_presence_drops_a_blob_whose_segment_left_the_ring() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/evicting",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        store
+            .mutate_segment_state(|state| state.remove_segment(&segment_id))
+            .await
+            .expect("failed to drop the segment from the ring");
+        store.trim_existence_cache_to(0);
+
+        let present = store
+            .artifacts_exist_extending_lifetime(
+                ArtifactProducer::Reapi,
+                "ios",
+                &["blob/evicting"],
+                RefreshTrigger::FindMissing,
+            )
+            .await
+            .expect("batched presence should succeed");
+
+        assert_eq!(
+            present,
+            vec![false],
+            "a blob whose segment left the ring must not be vouched for"
+        );
+    }
+
+    #[tokio::test]
+    async fn stored_manifests_are_answered_in_one_multi_get() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob_chunks/present",
+                "application/x-protobuf",
+                b"recipe",
+            )
+            .await
+            .expect("failed to persist inline artifact");
+
+        assert_eq!(
+            store
+                .manifests_stored(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &["blob_chunks/absent", "blob_chunks/present"],
+                )
+                .expect("manifest probe should succeed"),
+            vec![false, true]
         );
     }
 
