@@ -28,7 +28,7 @@ defmodule Tuist.Kura.Regions do
 
   alias Tuist.Kura.Provisioner.KubernetesController
 
-  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, :site, retired: false]
 
   @doc """
   The region's nodes as a Kubernetes label selector, or `nil` when the region
@@ -537,6 +537,40 @@ defmodule Tuist.Kura.Regions do
       country: "FR",
       subdivision: "FR-IDF"
     },
+    # The BER1 rack's cache, on its storage node beside the rack's minis.
+    # Only the site's runner pools take it (`Tuist.Runners.Catalog.fleet_site/1`)
+    # and only accounts enabled on the `runner_site_cache` flag get a node.
+    #
+    # A rack node runs a pod network of its own, which the cluster does not
+    # route to and which routes to no Service, so the pods resolve names
+    # through public resolvers and call the server through its public URL,
+    # and the controller samples them through the API server
+    # (`nodeLocalNetwork`). That also rules out the peer mesh: one replica,
+    # no mesh, until the site has a second storage node to pair with.
+    %{
+      id: "ber1-runners",
+      site: "ber1",
+      replicas: 1,
+      mesh: false,
+      ingress_class_name: "kura-ber1-runners",
+      display_name: "BER1 rack (runner cache)",
+      cluster_id: "ber1",
+      node_pool: "rack-storage-ber1",
+      # The node's XFS /data, through the same local-path class as the other
+      # bare-metal pools.
+      storage_class: "scw-local-nvme",
+      storage_size: "50Gi",
+      runner_platforms: [:macos],
+      data_plane: :private_gateway,
+      # The rack's machines segment, where the minis sit.
+      client_cidrs: ["10.10.0.0/24"],
+      node_local_network: %{nameservers: ["1.1.1.1", "8.8.8.8"]},
+      tolerations: [
+        %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
+      ],
+      country: "DE",
+      subdivision: "DE-BE"
+    },
     # A catalog tombstone for runner-cache rows created before the staging
     # Hetzner runner pool was retired. It is never offered for provisioning,
     # but keeping the original cluster identity lets the reconciler observe and
@@ -909,6 +943,13 @@ defmodule Tuist.Kura.Regions do
 
   def serves_runner_platform?(_, _), do: false
 
+  @doc """
+  The site a private region's nodes are racked at, beside that site's runner
+  pools, or `nil` for a region that serves fleets at no particular site.
+  """
+  def site(%__MODULE__{site: site}), do: site
+  def site(_), do: nil
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil
@@ -1040,10 +1081,13 @@ defmodule Tuist.Kura.Regions do
   end
 
   defp private_region(spec) do
+    node_local_network = Map.get(spec, :node_local_network)
+
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
       runner_platforms: spec.runner_platforms,
+      site: Map.get(spec, :site),
       retired: Map.get(spec, :retired, false),
       provisioner: KubernetesController,
       provisioner_config: %{
@@ -1072,11 +1116,19 @@ defmodule Tuist.Kura.Regions do
         memory_governed: Map.get(spec, :memory_governed, false),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
         replicas: Map.get(spec, :replicas, 1),
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        # A node-local pod reaches no Service, so it calls the server through
+        # its public URL.
+        tuist_base_url:
+          if(node_local_network,
+            do: Tuist.Environment.app_url(),
+            else: Tuist.Environment.kura_tuist_base_url()
+          ),
+        node_local_network: node_local_network,
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the
-        # runner hot path remains node-local over the Private Network).
-        mesh: true
+        # runner hot path remains node-local over the Private Network). A
+        # node-local region reaches no peer, so it opts out.
+        mesh: Map.get(spec, :mesh, true)
       }
     }
   end

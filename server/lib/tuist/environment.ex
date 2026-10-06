@@ -2020,6 +2020,38 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Runner pools racked at a site, keyed by RunnerPool name, from
+  `TUIST_RUNNERS_SITE_POOLS` (`<pool>=<site>:<platform>`, comma separated).
+  Entries that don't parse, or name an unknown platform, are left out.
+  """
+  def runners_site_pools do
+    "TUIST_RUNNERS_SITE_POOLS"
+    |> System.get_env("")
+    |> parse_runners_site_pools()
+  end
+
+  @doc false
+  def parse_runners_site_pools(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.flat_map(fn entry ->
+      with [pool, location] <- String.split(String.trim(entry), "=", parts: 2),
+           [site, platform] <- String.split(location, ":", parts: 2),
+           true <- pool != "" and site != "",
+           platform when not is_nil(platform) <- runner_platform(platform) do
+        [{pool, %{site: site, platform: platform}}]
+      else
+        _ -> []
+      end
+    end)
+    |> Map.new()
+  end
+
+  defp runner_platform("linux"), do: :linux
+  defp runner_platform("macos"), do: :macos
+  defp runner_platform(_), do: nil
+
+  @doc """
   Raw Xcode version entries for the macOS fleet, as `config/runtime.exs`
   parses them from `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (defaults in
   `config/config.exs`). `Tuist.Runners.Catalog.xcode_versions/0`

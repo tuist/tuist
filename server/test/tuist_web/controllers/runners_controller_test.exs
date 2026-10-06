@@ -202,7 +202,7 @@ defmodule TuistWeb.RunnersControllerTest do
         url: scw_url,
         # Fresh readiness heartbeat so the node-port server is served
         # rather than failed over to the public cache (see
-        # Kura.runner_cache_endpoint_url/2).
+        # Kura.runner_cache_endpoint_url/3).
         last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
         provisioner_node_ref: "kura-#{account.name}-scw-fr-par-runners"
       })
@@ -252,7 +252,7 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :linux ->
+      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :linux, nil ->
         "http://kura-acme.kura.svc.cluster.local:4000"
       end)
 
@@ -291,6 +291,39 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
 
       refute Map.has_key?(off_cluster, "cache_endpoint_url")
+    end
+
+    test "hands a site's fleet the cache racked at its site", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :macos, "ber1" ->
+        "https://acme-ber1-runners.kura.tuist.dev"
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn _, _ ->
+        {:ok,
+         %{
+           credential: %{kind: :github, jit: "JITCONFIG"},
+           account: account,
+           runner_name: "pod-1",
+           workflow_job_id: 4242,
+           fleet_on_cluster_network: true,
+           fleet_platform: :macos,
+           fleet_site: "ber1"
+         }}
+      end)
+
+      response =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(200)
+
+      assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
   end
 

@@ -475,6 +475,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
+          "nodeLocalNetwork" => node_local_network(region),
           "extraEnv" => auth_env(region, claim, entitlements)
         }
         |> Map.merge(StableEndpoint.intent(%{server | account: account}, region))
@@ -660,7 +661,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "class=#{config[:ingress_class_name]}",
           "plane=#{config[:data_plane]}",
           "node-port=#{config[:expose_node_port]}"
-        ] ++ Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
+        ] ++
+          Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}") ++
+          Enum.map(get_in(config, [:node_local_network, :nameservers]) || [], &"nameserver=#{&1}")
 
       digest = revision_digest(inputs)
       "+replicas#{replicas(region)}+endpoint#{digest}"
@@ -850,7 +853,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       replication_pull_env(entitlements) ++
       backfill_env(entitlements) ++
       node_location_env(region) ++
-      telemetry_env(region)
+      telemetry_env(region) ++
+      node_local_env(region)
   end
 
   # Where the node runs, straight from the region's datacenter. Kura stamps it
@@ -1035,6 +1039,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp telemetry_env(_), do: []
+
+  # A region whose pods run on a pod network the cluster does not route
+  # (`Regions` `node_local_network`): its pods resolve through the region's
+  # nameservers and the controller samples them through the API server.
+  defp node_local_network(%Regions{provisioner_config: %{node_local_network: %{nameservers: [_ | _] = nameservers}}}) do
+    %{"nameservers" => nameservers}
+  end
+
+  defp node_local_network(_), do: nil
+
+  # Such a pod reaches no Service: analytics go to the server's public URL,
+  # and traces stay off rather than queueing for a collector it cannot reach.
+  defp node_local_env(%Regions{} = region) do
+    case node_local_network(region) do
+      nil ->
+        []
+
+      _ ->
+        [
+          env_var("KURA_ANALYTICS_SERVER_URL", tuist_base_url(region)),
+          env_var("KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
+        ]
+    end
+  end
 
   defp env_var(name, value), do: %{"name" => name, "value" => value}
   defp maybe_env_var(_name, nil), do: []

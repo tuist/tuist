@@ -102,6 +102,18 @@ kura-ca-east-ingress-nginx:
 kura-runners-ingress-nginx:
   enabled: true
 
+kura-ber1-runners-ingress-nginx:
+  enabled: true
+  controller:
+    # The staging API server's public address, the one rack nodes join
+    # through (/etc/tuist/kubernetes-api on the node); its certificate names
+    # the IP.
+    extraEnvs:
+      - name: KUBERNETES_SERVICE_HOST
+        value: "49.12.18.71"
+      - name: KUBERNETES_SERVICE_PORT
+        value: "443"
+
 # The gateways above are host-network, so a region with more than one box needs
 # this to let a gateway reach Kura pods on the other boxes. Without it those
 # requests are dropped by the per-instance NetworkPolicy and answer 504.
