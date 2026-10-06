@@ -82,6 +82,13 @@ rules:
     # the previous image. Ready pods remain under the StatefulSet's ordinary
     # ordered rollout.
     verbs: [get, list, watch, delete]
+  # Pods of instances with spec.nodeLocalNetwork sit on a pod network the
+  # controller cannot route to, so their /status/rollout is read through the
+  # API server's port-forward. create covers the SPDY upgrade (POST); get
+  # covers the WebSocket upgrade (GET) on API servers that authorize it as get.
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [get, create]
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]

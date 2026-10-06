@@ -163,8 +163,11 @@ type KuraInstanceReconciler struct {
 	Environment         string
 	PrivateReplication  bool
 	RuntimeStatusClient RuntimeStatusClient
-	PeerDNSResolver     PeerDNSResolver
-	PeerPathProber      PeerPathProber
+	// NodeLocalRuntimeStatusClient samples the pods of instances with
+	// spec.nodeLocalNetwork, whose pod IPs the controller cannot reach.
+	NodeLocalRuntimeStatusClient RuntimeStatusClient
+	PeerDNSResolver              PeerDNSResolver
+	PeerPathProber               PeerPathProber
 
 	// MetricsClient sources the readings behind requests.cpu. Nil leaves
 	// every instance on the cold-start constant.
@@ -424,6 +427,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods/portforward,verbs=get;create
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
@@ -2372,10 +2376,7 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 	instance *kurav1alpha1.KuraInstance,
 	pods []corev1.Pod,
 ) map[string]runtimeStatus {
-	statusClient := r.RuntimeStatusClient
-	if statusClient == nil {
-		statusClient = defaultRuntimeStatusClient()
-	}
+	statusClient := r.runtimeStatusClient(instance)
 
 	fresh := map[string]runtimeStatus{}
 	uids := map[string]types.UID{}
@@ -2689,7 +2690,23 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {
-	return &httpRuntimeStatusClient{client: &http.Client{Timeout: 2 * time.Second}}
+	return &httpRuntimeStatusClient{client: &http.Client{Timeout: runtimeStatusTimeout}}
+}
+
+// runtimeStatusClient picks how an instance's pods are sampled: by pod IP,
+// or through the API server for pods on a node-local network the controller
+// cannot route to.
+func (r *KuraInstanceReconciler) runtimeStatusClient(instance *kurav1alpha1.KuraInstance) RuntimeStatusClient {
+	if instance.Spec.NodeLocalNetwork != nil {
+		if r.NodeLocalRuntimeStatusClient != nil {
+			return r.NodeLocalRuntimeStatusClient
+		}
+		return unavailableRuntimeStatusClient{reason: "no API server port-forward client is configured for node-local instances"}
+	}
+	if r.RuntimeStatusClient != nil {
+		return r.RuntimeStatusClient
+	}
+	return defaultRuntimeStatusClient()
 }
 
 func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error) {
@@ -2704,6 +2721,10 @@ func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (r
 	if err != nil {
 		return runtimeStatus{}, err
 	}
+	return decodeRuntimeStatus(response)
+}
+
+func decodeRuntimeStatus(response *http.Response) (runtimeStatus, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
@@ -3967,7 +3988,7 @@ func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, in
 }
 
 func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool, gatewayGRPC bool, fastProbes bool) corev1.PodTemplateSpec {
-	return corev1.PodTemplateSpec{
+	template := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
 			Annotations: podAnnotations(instance, sharedSecretsResourceVersion),
@@ -3994,6 +4015,22 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			}},
 			Volumes: volumes(instance),
 		},
+	}
+	applyNodeLocalDNS(instance, &template.Spec)
+	return template
+}
+
+// applyNodeLocalDNS points the pods of a node-local instance at resolvers
+// their node can reach, since cluster DNS is not one of them. With no search
+// domains, ndots:1 sends every name straight to the nameservers as given.
+func applyNodeLocalDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
+	if instance.Spec.NodeLocalNetwork == nil {
+		return
+	}
+	spec.DNSPolicy = corev1.DNSNone
+	spec.DNSConfig = &corev1.PodDNSConfig{
+		Nameservers: append([]string(nil), instance.Spec.NodeLocalNetwork.Nameservers...),
+		Options:     []corev1.PodDNSConfigOption{{Name: "ndots", Value: ptr("1")}},
 	}
 }
 
