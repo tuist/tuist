@@ -28,7 +28,7 @@
       "flatted": "3.4.2",
       "yaml": "2.8.3",
       "defu": "6.1.5",
-      "follow-redirects": "1.16.0",
+      "follow-redirects": "1.16.1",
       "protobufjs": "7.6.5",
       "postcss": "8.5.23",
       "shell-quote": "1.11.0",
