@@ -2,7 +2,6 @@ defmodule Tuist.PromExTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Tuist.Accounts.PromExPlugin
   alias TuistCommon.PromExPhoenixPlugin
 
   describe "plugins/0" do
@@ -30,31 +29,33 @@ defmodule Tuist.PromExTest do
     end
   end
 
-  describe "plugins/0 outside web mode" do
+  describe "control-plane pollers" do
+    @web_only_plugins [
+      Tuist.Accounts.PromExPlugin,
+      Tuist.Projects.PromExPlugin,
+      Tuist.Kura.PromExPlugin,
+      Tuist.Runners.PromExPlugin,
+      Tuist.Kura.Rollouts.PromExPlugin
+    ]
+
     for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
       @mode mode
-      test "leaves out the control-plane pollers in #{@mode} mode" do
+      test "are left out in #{@mode} mode" do
         stub(Tuist.Environment, :mode, fn -> @mode end)
 
         plugins = Tuist.PromEx.plugins()
 
-        refute PromExPlugin in plugins
-        refute Tuist.Kura.PromExPlugin in plugins
-        refute Tuist.Runners.PromExPlugin in plugins
-        refute Tuist.Kura.Rollouts.PromExPlugin in plugins
+        assert Enum.filter(@web_only_plugins, &(&1 in plugins)) == []
         assert Tuist.Oban.PromExPlugin in plugins
       end
     end
 
-    test "keeps the control-plane pollers in web mode" do
+    test "run in web mode" do
       stub(Tuist.Environment, :mode, fn -> :web end)
 
       plugins = Tuist.PromEx.plugins()
 
-      assert PromExPlugin in plugins
-      assert Tuist.Kura.PromExPlugin in plugins
-      assert Tuist.Runners.PromExPlugin in plugins
-      assert Tuist.Kura.Rollouts.PromExPlugin in plugins
+      assert Enum.reject(@web_only_plugins, &(&1 in plugins)) == []
     end
   end
 
