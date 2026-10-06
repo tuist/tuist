@@ -280,6 +280,23 @@ func TestRackInstallPublishesAnInstallForAHostNotOnTheTailnet(t *testing.T) {
 	}
 }
 
+func TestRackInstallPublishesAStorageHostsInstallWithItsDataLayout(t *testing.T) {
+	storage := svcHost()
+	storage.Spec.Role = "storage"
+	h := newInstallHarness(t, storage)
+	host := h.reconcile(t, svcUUID)
+
+	if c := conditions.Get(host, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" {
+		t.Fatalf("Installed condition %+v, want the install published", c)
+	}
+	userData := string(h.boot(t)[svcMACPath+".user-data"])
+	for _, want := range []string{"fstype: xfs", "path: /data, options: \"defaults,prjquota\"", "/data/kubelet /var/lib/kubelet none bind,nofail 0 0"} {
+		if !strings.Contains(userData, want) {
+			t.Errorf("user-data lacks %q", want)
+		}
+	}
+}
+
 // laggingCache returns the host once as it was before the last reconcile, as
 // the operator's cache does until that reconcile's status patch reaches it.
 type laggingCache struct {

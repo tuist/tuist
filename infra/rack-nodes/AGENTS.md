@@ -346,11 +346,24 @@ A tailnet admin opens the login URL it prints.
 
 ## Roles
 
-`edge` and `services` install with Ubuntu's `direct` layout. `storage` is refused
-until its layout is designed: a node that serves cache volumes needs `/boot`, a
-capped `/` and a separate XFS `/data` with project quotas, fixed at install time
-(see `controllers/linux/linux_cloudinit.go` and the `baremetal:prep-*` tasks for
-the shape the rented fleets use).
+`edge` and `services` install with Ubuntu's `direct` layout. `storage` lays out
+its largest disk for cache volumes, the shape the rented cache fleets take
+(`controllers/linux/linux_cloudinit.go`, `internal/ovh`, `internal/scaleway`):
+
+| Partition | Size | Filesystem | Mount |
+|---|---|---|---|
+| 1 | 1 GiB | FAT32 | `/boot/efi` |
+| 2 | 2 GiB | ext4 | `/boot` |
+| 3 | 64 GiB | ext4 | `/` |
+| 4 | the rest | XFS, `prjquota` | `/data` |
+
+A cache volume is a local-path directory with an XFS project quota, and XFS
+takes `prjquota` only when it mounts, so `/data` carries it in fstab from the
+install. The install also bind-mounts `/data/kubelet` onto `/var/lib/kubelet`,
+`/data/containerd` onto `/var/lib/containerd` and `/data/local-path-provisioner`
+onto `/opt/local-path-provisioner`, so images and volumes land on `/data` from
+the node's first boot. `/` stays ext4 because a stick finds the install it made
+by mounting the ext4 partitions. Changing the layout is a reinstall.
 
 Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
 because the rack's networks at home sit inside staging's pod CIDR. A storage node

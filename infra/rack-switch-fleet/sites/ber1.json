@@ -241,20 +241,20 @@
       "links": [
         {
           "switch": "ber1-tor-a",
-          "port": null,
+          "port": 27,
           "media": "dac",
           "purpose": "data",
           "nic": "sfp28-1"
         },
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 3,
           "media": "copper",
           "nic": "i226-lm",
           "purpose": "management"
         }
       ],
-      "status": "planned",
+      "status": "installed",
       "hardware": "ms-01",
       "ats": "ber1-ats-1"
     },
