@@ -23,6 +23,16 @@ Pomerium).
   - `slack_blocks.ex`, `slack_client.ex` — Slack Block Kit + HTTP client
   - `tailscale_client.ex` — Tailscale users API (role lookup, cached 30s)
   - `workers/revert_worker.ex` — Oban job that marks elevation reverted at TTL
+- `/elevate github <login> [duration] <intent>` — temporary GitHub organization
+  admin (owner) for a staff member's GitHub account, through the same
+  request/approve/revoke flow and policy as the cluster envs. Unlike the cluster
+  elevations, GitHub's role is live state: approval promotes the login via
+  `lib/tuist_ops/github/org_membership.ex` and `RevertWorker` demotes it back to
+  `member` (retrying, then `revert_failed` + a Slack warning), so the revert job
+  is the enforcement. Only active `member`s can be elevated (never existing
+  admins, whose standing role the revert would strip, nor non-members, for whom
+  setting a role sends an invitation). The GitHub App needs the organization
+  "Members" permission with read and write access.
 - `lib/tuist_ops_web/controllers/slack_controller.ex` — Slack slash + interactive endpoints (`/webhooks/slack/*`)
 - `lib/tuist_ops_web/controllers/policy_controller.ex` — impersonation policy endpoint (`/api/v1/policy`)
 
@@ -44,7 +54,7 @@ Pomerium).
 - `lib/tuist_ops/previews/` — Ecto schema, Slack Block Kit,
   and GitHub Actions workflow-dispatch client
 - `lib/tuist_ops/github/` — GitHub App installation token minting and cache for
-  preview workflow calls
+  preview workflow calls and GitHub admin elevations
 - `/preview` with no arguments opens an interactive Slack form for creating or
   deleting previews
 - `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches

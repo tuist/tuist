@@ -5,8 +5,10 @@ defmodule TuistOpsWeb.SlackController do
   before the controller sees the request):
 
     * `/webhooks/slack/slash` — receives the `/elevate` slash
-      command. Parses `<env> [duration] <intent...>` from the
-      `text` field and creates a Request via
+      command. Parses `<env> [duration] <intent...>` (or
+      `github <login> [duration] <intent...>` for a GitHub
+      organization admin elevation) from the `text` field and
+      creates a Request via
       `TuistOps.JIT.Approvals.request_elevation/1`. Responds
       ephemerally to the requester.
 
@@ -26,6 +28,7 @@ defmodule TuistOpsWeb.SlackController do
 
   alias TuistOps.JIT.Approvals
   alias TuistOps.JIT.Policy
+  alias TuistOps.JIT.Request
   alias TuistOps.Previews
   alias TuistOps.Environment
   alias TuistOps.JIT.SlackBlocks
@@ -64,15 +67,16 @@ defmodule TuistOpsWeb.SlackController do
   end
 
   def slash(conn, %{"text" => raw_text} = params) do
-    with {:ok, env, ttl, intent} <- parse_slash(raw_text),
+    with {:ok, parsed} <- parse_slash(raw_text),
          channel_id = approvals_channel(),
          {:ok, _request} <-
            Approvals.request_elevation(%{
              requester_email: slack_user_to_email(params["user_id"]),
              requester_slack_id: params["user_id"],
-             target_group: Map.fetch!(@env_to_group, env),
-             intent: intent,
-             ttl_seconds: ttl,
+             target_group: parsed.target_group,
+             github_login: parsed[:github_login],
+             intent: parsed.intent,
+             ttl_seconds: parsed.ttl,
              slack_channel_id: channel_id
            }) do
       json(conn, %{
@@ -450,52 +454,66 @@ defmodule TuistOpsWeb.SlackController do
   # Accepted forms (whitespace-separated):
   #   "<env> <intent...>"                     -> default TTL
   #   "<env> <duration> <intent...>"          -> explicit TTL
+  #   "github <login> [duration] <intent...>" -> GitHub organization admin
   # Duration: "15m", "30m", "1h", or bare integer seconds.
   defp parse_slash(text) when is_binary(text) do
-    case_result =
-      case text |> String.trim() |> String.split(~r/\s+/, parts: 3) do
-        [env | _] when env not in @valid_envs ->
-          {:error, {:invalid_env, env}}
+    case text |> String.trim() |> String.split(~r/\s+/, parts: 2) do
+      ["github", rest] ->
+        parse_github_slash(rest)
 
-        [env, maybe_duration, rest] ->
-          case parse_duration(maybe_duration) do
-            {:ok, seconds} ->
-              {:ok, env, seconds, String.trim(rest)}
+      ["github"] ->
+        {:error, :missing_github_login}
 
-            :error ->
-              {:ok, env, Approvals.default_ttl_seconds(),
-               String.trim("#{maybe_duration} #{rest}")}
-          end
+      [env | _] when env not in @valid_envs ->
+        {:error, {:invalid_env, env}}
 
-        [env, rest] ->
-          {:ok, env, Approvals.default_ttl_seconds(), String.trim(rest)}
+      [env, rest] ->
+        if Policy.always_write_env?(env) do
+          {:error, {:always_write_env, env}}
+        else
+          rest
+          |> parse_duration_and_intent()
+          |> Map.put(:target_group, Map.fetch!(@env_to_group, env))
+          |> validate_intent()
+        end
 
-        _ ->
-          {:error, :missing_intent}
-      end
-
-    case_result
-    |> validate_env()
-    |> validate_intent()
+      _ ->
+        {:error, :missing_intent}
+    end
   end
 
   defp parse_slash(_), do: {:error, :missing_text}
 
-  defp validate_env({:ok, env, ttl, intent}) do
-    if Policy.always_write_env?(env) do
-      {:error, {:always_write_env, env}}
-    else
-      {:ok, env, ttl, intent}
+  defp parse_github_slash(text) do
+    case String.split(text, ~r/\s+/, parts: 2) do
+      [login, rest] ->
+        if Regex.match?(Request.github_login_format(), login) do
+          rest
+          |> parse_duration_and_intent()
+          |> Map.merge(%{target_group: Policy.github_admin_group(), github_login: login})
+          |> validate_intent()
+        else
+          {:error, {:invalid_github_login, login}}
+        end
+
+      _ ->
+        {:error, :missing_intent}
     end
   end
 
-  defp validate_env(other), do: other
+  defp parse_duration_and_intent(text) do
+    with [maybe_duration, rest] <- String.split(text, ~r/\s+/, parts: 2),
+         {:ok, seconds} <- parse_duration(maybe_duration) do
+      %{ttl: seconds, intent: String.trim(rest)}
+    else
+      _ -> %{ttl: Approvals.default_ttl_seconds(), intent: String.trim(text)}
+    end
+  end
 
-  defp validate_intent({:ok, env, ttl, intent}) when byte_size(intent) >= 5,
-    do: {:ok, env, ttl, intent}
+  defp validate_intent(%{intent: intent} = parsed) when byte_size(intent) >= 5,
+    do: {:ok, parsed}
 
-  defp validate_intent({:ok, _env, _ttl, _short}), do: {:error, :intent_too_short}
-  defp validate_intent(other), do: other
+  defp validate_intent(_parsed), do: {:error, :intent_too_short}
 
   defp parse_duration(s) when is_binary(s) do
     cond do
@@ -530,13 +548,31 @@ defmodule TuistOpsWeb.SlackController do
     do:
       "`#{env}` is writable for everyone on the tailnet — no elevation needed. Just run `kubectl --context tuist-k8s-#{env} ...`."
 
+  defp human_error({:invalid_github_login, login}),
+    do: "`#{login}` isn't a valid GitHub login."
+
+  defp human_error(:missing_github_login),
+    do: "Usage: `/elevate github <login> [duration] <intent>`."
+
+  defp human_error({:github_not_member, login}),
+    do: "`#{login}` isn't an active member of the GitHub organization."
+
+  defp human_error({:github_already_admin, login}),
+    do: "`#{login}` is already a GitHub organization admin — no elevation needed."
+
+  defp human_error({:github_elevation_active, login}),
+    do: "`#{login}` already has an active GitHub admin elevation."
+
+  defp human_error({:github_promote_failed, reason}),
+    do: "Promoting the GitHub account failed: #{inspect(reason)}"
+
   defp human_error(:missing_intent), do: usage_message()
   defp human_error(:missing_text), do: usage_message()
   defp human_error(:intent_too_short), do: "Intent must be at least 5 characters."
   defp human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp usage_message do
-    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
+    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}, or `/elevate github <login> [duration] <intent>` to become a GitHub organization admin. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
   end
 
   defp parse_preview_slash(text) when is_binary(text) do

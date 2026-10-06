@@ -70,7 +70,7 @@ defmodule TuistOpsWeb.AuditHTML do
               <.table id="cluster-access" rows={@requests}>
                 <:col :let={r} label="Operator"><.text_cell label={r.requester_email} /></:col>
                 <:col :let={r} label="Environment">
-                  <.text_cell label={cluster_env(r.target_group)} />
+                  <.text_cell label={cluster_env(r)} />
                 </:col>
                 <:col :let={r} label="Intent"><.text_cell label={r.intent} /></:col>
                 <:col :let={r} label="Status">
@@ -100,8 +100,13 @@ defmodule TuistOpsWeb.AuditHTML do
     """
   end
 
-  defp cluster_env("group:tuist-" <> rest), do: String.replace_suffix(rest, "-write", "")
-  defp cluster_env(other), do: other
+  defp cluster_env(%{target_group: "group:tuist-" <> rest}),
+    do: String.replace_suffix(rest, "-write", "")
+
+  defp cluster_env(%{target_group: "github:org-admin", github_login: login}),
+    do: "GitHub admin (#{login})"
+
+  defp cluster_env(%{target_group: other}), do: other
 
   defp humanize(status) when is_binary(status),
     do: status |> String.replace("_", " ") |> capitalize()

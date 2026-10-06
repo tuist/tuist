@@ -19,11 +19,17 @@ defmodule TuistOps.JIT.Approvals do
   inject the elevated impersonation header on a given kubectl call.
   No tailnet policy is written from this module; revocation is just
   a DB status update.
+
+  GitHub organization admin elevations (`Policy.github_admin_group/0`)
+  are the exception: GitHub's role is live state, so approval promotes
+  the target login to `admin` through `TuistOps.GitHub.OrgMembership`
+  and the RevertWorker demotes it back to `member`.
   """
 
   import Ecto.Query, only: [from: 2]
 
   alias TuistOps.Repo
+  alias TuistOps.GitHub.OrgMembership
   alias TuistOps.JIT.Elevation
   alias TuistOps.JIT.Policy
   alias TuistOps.JIT.Request
@@ -46,7 +52,9 @@ defmodule TuistOps.JIT.Approvals do
   must include `:requester_email`, `:requester_slack_id`,
   `:target_group`, `:intent`, `:slack_channel_id`, and may include
   `:ttl_seconds` (default #{div(@default_ttl_seconds, 60)} min,
-  capped at #{div(@max_ttl_seconds, 60)} min).
+  capped at #{div(@max_ttl_seconds, 60)} min). GitHub admin requests
+  also need `:github_login`, which must be an active organization
+  member that is not already an admin.
   """
   def request_elevation(attrs) when is_map(attrs) do
     ttl = attrs |> Map.get(:ttl_seconds, @default_ttl_seconds) |> clamp_ttl()
@@ -58,7 +66,8 @@ defmodule TuistOps.JIT.Approvals do
       |> Map.put(:expires_at, expires_at)
       |> Request.create_changeset()
 
-    with {:ok, request} <- Repo.insert(changeset),
+    with :ok <- check_github_target(changeset),
+         {:ok, request} <- Repo.insert(changeset),
          self_approval =
            Policy.self_approval_allowed?(request.requester_email, request.target_group),
          {:ok, ts} <-
@@ -154,6 +163,9 @@ defmodule TuistOps.JIT.Approvals do
       {:ok, {:expired, _req}} ->
         {:error, :approval_expired}
 
+      {:ok, {:failed, _req, reason}} ->
+        {:error, {:github_promote_failed, reason}}
+
       {:ok, {req, elev}} ->
         {:ok, req, elev}
 
@@ -163,6 +175,27 @@ defmodule TuistOps.JIT.Approvals do
   end
 
   defp do_approve(req, approver_slack_id, approver_email) do
+    case promote_github(req) do
+      :ok ->
+        do_grant(req, approver_slack_id, approver_email)
+
+      {:error, reason} ->
+        {:ok, failed} =
+          req
+          |> Request.transition_changeset(%{
+            status: "failed",
+            approver_slack_id: approver_slack_id,
+            approver_email: approver_email,
+            failure_reason: inspect(reason)
+          })
+          |> Repo.update()
+
+        notify_closed(failed, "failed", github_failure_detail(reason))
+        {:failed, failed, reason}
+    end
+  end
+
+  defp do_grant(req, approver_slack_id, approver_email) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     elev_expires_at = DateTime.add(now, req.ttl_seconds, :second)
 
@@ -185,6 +218,7 @@ defmodule TuistOps.JIT.Approvals do
         request_id: req.id,
         requester_email: req.requester_email,
         target_group: req.target_group,
+        github_login: req.github_login,
         expires_at: elev_expires_at
       }
       |> Elevation.create_changeset()
@@ -282,6 +316,76 @@ defmodule TuistOps.JIT.Approvals do
       SlackBlocks.closed(req, label, detail)
     )
   end
+
+  # A pending request is checked up front so the Slack card only goes
+  # out for a login that can actually be promoted. The same conditions
+  # are re-checked by `promote_github/1` at approval time.
+  defp check_github_target(%Ecto.Changeset{valid?: true} = changeset) do
+    login = Ecto.Changeset.get_field(changeset, :github_login)
+
+    cond do
+      not Policy.github_admin_group?(Ecto.Changeset.get_field(changeset, :target_group)) ->
+        :ok
+
+      active_github_elevation?(login) ->
+        {:error, {:github_elevation_active, login}}
+
+      true ->
+        case github_promotable(login) do
+          :ok -> :ok
+          {:error, reason} -> {:error, {reason, login}}
+        end
+    end
+  end
+
+  defp check_github_target(_changeset), do: :ok
+
+  defp active_github_elevation?(login) do
+    target_group = Policy.github_admin_group()
+
+    Repo.exists?(
+      from(e in Elevation,
+        where:
+          e.target_group == ^target_group and e.github_login == ^login and
+            e.status == "active"
+      )
+    )
+  end
+
+  defp promote_github(%Request{target_group: target_group, github_login: login}) do
+    if Policy.github_admin_group?(target_group) do
+      with :ok <- github_promotable(login),
+           {:ok, %{role: "admin"}} <- OrgMembership.set_role(login, "admin") do
+        :ok
+      else
+        {:ok, membership} -> {:error, {:unexpected_membership, membership}}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      :ok
+    end
+  end
+
+  # Only active members are promoted. An existing admin is rejected
+  # because the revert would demote a standing owner, and a non-member
+  # because setting a role on one sends an organization invitation.
+  defp github_promotable(login) do
+    case OrgMembership.membership(login) do
+      {:ok, %{state: "active", role: "member"}} -> :ok
+      {:ok, %{state: "active", role: "admin"}} -> {:error, :github_already_admin}
+      {:ok, _pending} -> {:error, :github_not_member}
+      {:error, :not_member} -> {:error, :github_not_member}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp github_failure_detail(:github_already_admin),
+    do: "The GitHub account is already an organization admin."
+
+  defp github_failure_detail(:github_not_member),
+    do: "The GitHub account is not an active organization member."
+
+  defp github_failure_detail(_reason), do: "Promoting the GitHub account failed."
 
   defp clamp_ttl(ttl) when is_integer(ttl) and ttl > 0 do
     min(ttl, @max_ttl_seconds)
