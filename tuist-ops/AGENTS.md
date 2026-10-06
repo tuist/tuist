@@ -23,7 +23,7 @@ Pomerium).
   - `slack_blocks.ex`, `slack_client.ex` — Slack Block Kit + HTTP client
   - `tailscale_client.ex` — Tailscale users API (role lookup, cached 30s)
   - `workers/revert_worker.ex` — Oban job that marks elevation reverted at TTL
-- `/elevate github <login> [duration] <intent>` — temporary GitHub organization
+- `/elevate-github <login> [duration] <intent>` — temporary GitHub organization
   admin (owner) for a staff member's GitHub account, through the same
   request/approve/revoke flow and policy as the cluster envs. Unlike the cluster
   elevations, GitHub's role is live state: approval promotes the login via

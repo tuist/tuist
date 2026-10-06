@@ -166,7 +166,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
       end
     end
 
-    test "/elevate github <login> [duration] <intent> → GitHub admin Request" do
+    test "/elevate-github <login> [duration] <intent> → GitHub admin Request" do
       stub(OrgMembership, :membership, fn "esnunes" ->
         {:ok, %{state: "active", role: "member"}}
       end)
@@ -174,7 +174,11 @@ defmodule TuistOpsWeb.SlackControllerTest do
       conn =
         TuistOpsWeb.SlackController.slash(
           build_conn(),
-          %{"user_id" => "U_MAREK", "text" => "github esnunes 30m fix branch protection"}
+          %{
+            "command" => "/elevate-github",
+            "user_id" => "U_MAREK",
+            "text" => "esnunes 30m fix branch protection"
+          }
         )
 
       assert {:ok, %{"response_type" => "ephemeral"}} = JSON.decode(conn.resp_body)
@@ -187,24 +191,29 @@ defmodule TuistOpsWeb.SlackControllerTest do
              } = Repo.one!(Request)
     end
 
-    test "/elevate github without a duration uses the default TTL" do
+    test "/elevate-github without a duration uses the default TTL" do
       stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "member"}} end)
 
       TuistOpsWeb.SlackController.slash(
         build_conn(),
-        %{"user_id" => "U_MAREK", "text" => "github esnunes fix branch protection"}
+        %{
+          "command" => "/elevate-github",
+          "user_id" => "U_MAREK",
+          "text" => "esnunes fix branch protection"
+        }
       )
 
       assert %Request{ttl_seconds: ttl, intent: "fix branch protection"} = Repo.one!(Request)
       assert ttl == Approvals.default_ttl_seconds()
     end
 
-    test "/elevate github with a missing or invalid login → ephemeral error, no Request" do
+    test "/elevate-github with a missing login, intent, or invalid login → ephemeral error, no Request" do
       reject(&OrgMembership.membership/1)
 
-      for text <- ["github", "github -bad- fix branch protection", "github esnunes"] do
+      for text <- ["", "-bad- fix branch protection", "esnunes"] do
         conn =
           TuistOpsWeb.SlackController.slash(build_conn(), %{
+            "command" => "/elevate-github",
             "user_id" => "U_MAREK",
             "text" => text
           })
@@ -218,16 +227,34 @@ defmodule TuistOpsWeb.SlackControllerTest do
       assert Repo.aggregate(Request, :count) == 0
     end
 
-    test "/elevate github for an existing admin explains there is nothing to elevate" do
+    test "/elevate-github for an existing admin explains there is nothing to elevate" do
       stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "admin"}} end)
 
       conn =
         TuistOpsWeb.SlackController.slash(
           build_conn(),
-          %{"user_id" => "U_MAREK", "text" => "github esnunes fix branch protection"}
+          %{
+            "command" => "/elevate-github",
+            "user_id" => "U_MAREK",
+            "text" => "esnunes fix branch protection"
+          }
         )
 
       assert JSON.decode!(conn.resp_body)["text"] =~ "already a GitHub organization admin"
+    end
+
+    test "/elevate no longer treats github as an env" do
+      reject(&OrgMembership.membership/1)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(build_conn(), %{
+          "command" => "/elevate",
+          "user_id" => "U_MAREK",
+          "text" => "github esnunes fix branch protection"
+        })
+
+      assert JSON.decode!(conn.resp_body)["text"] =~ "Unknown env `github`"
+      assert Repo.aggregate(Request, :count) == 0
     end
 
     test "/elevate without args → usage message" do

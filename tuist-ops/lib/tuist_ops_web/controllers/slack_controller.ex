@@ -5,12 +5,12 @@ defmodule TuistOpsWeb.SlackController do
   before the controller sees the request):
 
     * `/webhooks/slack/slash` — receives the `/elevate` slash
-      command. Parses `<env> [duration] <intent...>` (or
-      `github <login> [duration] <intent...>` for a GitHub
-      organization admin elevation) from the `text` field and
-      creates a Request via
+      command. Parses `<env> [duration] <intent...>` from the
+      `text` field and creates a Request via
       `TuistOps.JIT.Approvals.request_elevation/1`. Responds
-      ephemerally to the requester.
+      ephemerally to the requester. `/elevate-github` takes
+      `<login> [duration] <intent...>` instead and requests a
+      GitHub organization admin elevation for that login.
 
     * `/webhooks/slack/interactive` — receives Block Kit button
       callbacks (`approve`, `deny`, `revoke`). Parses the action_id
@@ -66,8 +66,25 @@ defmodule TuistOpsWeb.SlackController do
     preview_slash(conn, params)
   end
 
+  def slash(conn, %{"command" => "/elevate-github"} = params) do
+    params
+    |> Map.get("text", "")
+    |> parse_github_slash()
+    |> request_elevation(conn, params)
+  end
+
   def slash(conn, %{"text" => raw_text} = params) do
-    with {:ok, parsed} <- parse_slash(raw_text),
+    raw_text
+    |> parse_slash()
+    |> request_elevation(conn, params)
+  end
+
+  def slash(conn, _params) do
+    json(conn, %{response_type: "ephemeral", text: usage_message()})
+  end
+
+  defp request_elevation(parse_result, conn, params) do
+    with {:ok, parsed} <- parse_result,
          channel_id = approvals_channel(),
          {:ok, _request} <-
            Approvals.request_elevation(%{
@@ -89,10 +106,6 @@ defmodule TuistOpsWeb.SlackController do
         Logger.warning("tuist_ops slash failed: #{inspect(reason)}")
         json(conn, %{response_type: "ephemeral", text: human_error(reason)})
     end
-  end
-
-  def slash(conn, _params) do
-    json(conn, %{response_type: "ephemeral", text: usage_message()})
   end
 
   # ----------------------------------------------------------------
@@ -454,16 +467,9 @@ defmodule TuistOpsWeb.SlackController do
   # Accepted forms (whitespace-separated):
   #   "<env> <intent...>"                     -> default TTL
   #   "<env> <duration> <intent...>"          -> explicit TTL
-  #   "github <login> [duration] <intent...>" -> GitHub organization admin
   # Duration: "15m", "30m", "1h", or bare integer seconds.
   defp parse_slash(text) when is_binary(text) do
     case text |> String.trim() |> String.split(~r/\s+/, parts: 2) do
-      ["github", rest] ->
-        parse_github_slash(rest)
-
-      ["github"] ->
-        {:error, :missing_github_login}
-
       [env | _] when env not in @valid_envs ->
         {:error, {:invalid_env, env}}
 
@@ -484,8 +490,9 @@ defmodule TuistOpsWeb.SlackController do
 
   defp parse_slash(_), do: {:error, :missing_text}
 
-  defp parse_github_slash(text) do
-    case String.split(text, ~r/\s+/, parts: 2) do
+  # `/elevate-github` takes "<login> [duration] <intent...>".
+  defp parse_github_slash(text) when is_binary(text) do
+    case text |> String.trim() |> String.split(~r/\s+/, parts: 2) do
       [login, rest] ->
         if Regex.match?(Request.github_login_format(), login) do
           rest
@@ -497,9 +504,11 @@ defmodule TuistOpsWeb.SlackController do
         end
 
       _ ->
-        {:error, :missing_intent}
+        {:error, :github_usage}
     end
   end
+
+  defp parse_github_slash(_), do: {:error, :github_usage}
 
   defp parse_duration_and_intent(text) do
     with [maybe_duration, rest] <- String.split(text, ~r/\s+/, parts: 2),
@@ -551,8 +560,7 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error({:invalid_github_login, login}),
     do: "`#{login}` isn't a valid GitHub login."
 
-  defp human_error(:missing_github_login),
-    do: "Usage: `/elevate github <login> [duration] <intent>`."
+  defp human_error(:github_usage), do: github_usage_message()
 
   defp human_error({:github_not_member, login}),
     do: "`#{login}` isn't an active member of the GitHub organization."
@@ -578,7 +586,11 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp usage_message do
-    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}, or `/elevate github <login> [duration] <intent>` to become a GitHub organization admin. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
+    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
+  end
+
+  defp github_usage_message do
+    "Usage: `/elevate-github <login> [duration] <intent>` to make a GitHub account an organization admin. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do."
   end
 
   defp parse_preview_slash(text) when is_binary(text) do
