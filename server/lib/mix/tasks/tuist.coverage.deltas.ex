@@ -5,7 +5,9 @@ defmodule Mix.Tasks.Tuist.Coverage.Deltas do
   Writes the coverage file deltas and targets of every complete commit whose
   runs' rows are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for
   every project or the one given by id. New commits are written as they
-  complete; this fills in the ones from before the tables existed.
+  complete, and the migration that created the tables queued the ones from
+  before (`Tuist.Tests.Coverage.Workers.DeltaBackfillWorker`); this runs
+  that backfill again.
 
       mix tuist.coverage.deltas
       mix tuist.coverage.deltas 42
