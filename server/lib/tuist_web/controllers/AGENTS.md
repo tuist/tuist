@@ -50,3 +50,9 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
+
+- `API.MetricsController` exposes Gradle health and branch/workload dimension routes alongside Xcode/test durations, using project build-read authorization, validated bounded ranges/thresholds, rate limiting and short-lived caching. Preserve exact range boundaries in Gradle metric cache keys. These Grafana endpoints remain outside the generated command-line client.
+
+- Shared Grafana health routes dispatch by the authorized project build system. Keep the legacy Gradle routes compatible, use build-read authorization, and include the source in dimension cache keys.
+
+- Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.

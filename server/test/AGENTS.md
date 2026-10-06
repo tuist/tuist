@@ -58,3 +58,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.
 
 - Verify analytics transitions locally with headless Chrome, not just the settled page: capture before and after screenshots, measure section bounds, and check that chart and table elements remain mounted during refresh. Cover empty and populated sibling pages across build systems, narrow viewports and both themes. Initial renders must tolerate partially completed required results; optional requests must not delay the whole card, and failed loads must leave filter controls usable.
+
+- Gradle Grafana metric coverage verifies project/filter isolation, half-open ranges, direct period statistics, cancellation handling, failed-or-slow attention counts, missing/invalid cache observations, workload overrides, evidence-based failure categories, and build-read authorization. Use dates within the 90-day retention window.
+
+- Shared Grafana build-health regression coverage lives in `tuist/build_metrics_test.exs`, alongside the legacy Gradle tests. Exercise both database sources, terminal status semantics, source-specific links, missing evidence, and project/range isolation.

@@ -15,6 +15,7 @@ defmodule Tuist.OnceEvents.Run do
     field :run_id, :string
     field :acked_seq, :integer, default: 0
     field :project_id, :integer
+    field :account_id, :integer
 
     field :kind, :string, default: "build"
 
