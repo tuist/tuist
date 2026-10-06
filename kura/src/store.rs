@@ -1298,13 +1298,10 @@ impl Store {
         options.set_wal_bytes_per_sync(ROCKSDB_WAL_BYTES_PER_SYNC);
         // Bound the WAL at the memtable budget it backs: past it, RocksDB
         // flushes the column families pinning the oldest WAL so it becomes
-        // obsolete. Without a bound, low-volume families keep every WAL alive
-        // and nothing is ever reused. Obsolete WALs are then recycled: every
-        // request-path write waits for a WAL sync, and overwriting a recycled
-        // file is a data-only sync, while appending to a fresh one also
-        // commits its growing size to the file-system journal (ext4: 4.1 ms
-        // vs 8.1 ms per fdatasync). Recycling is compatible with the default
-        // point-in-time WAL recovery mode.
+        // obsolete. This is tighter than RocksDB's dynamic default and makes
+        // low-volume families release old WALs sooner. Reusing obsolete files
+        // can avoid the growing-file journal work of fresh WAL appends.
+        // Recycling is compatible with the default point-in-time recovery mode.
         options.set_max_total_wal_size(config.rocksdb_write_buffer_manager_bytes as u64);
         options.set_recycle_log_file_num(ROCKSDB_RECYCLE_LOG_FILE_NUM);
         options.set_write_buffer_manager(&rocksdb_write_buffer_manager);
