@@ -2,6 +2,7 @@
   id="marketing-globe"
   phx-hook="CacheGlobe"
   data-snapshot={JSON.encode!(@snapshot)}
+  data-server-now={@server_now}
   data-demo={to_string(@demo)}
 >
   <%!-- A display page for a screen: the layout is authored on the Figma's
@@ -27,7 +28,10 @@
       <div data-part="toolbar">
         <div id="globe-status" data-part="status" phx-update="ignore" role="status">
           <span data-part="dot" aria-hidden="true"></span>
-          <span data-status="live" hidden>{dgettext("marketing", "Live activity")}</span>
+          <span data-status="live" hidden>{dgettext(
+            "marketing",
+            "Activity replay · at least 5 minutes behind"
+          )}</span>
           <span data-status="demo" hidden>{dgettext("marketing", "Demo · illustrative data")}</span>
           <span data-status="waiting">{dgettext("marketing", "Waiting for cache activity")}</span>
           <span data-status="idle" hidden>{dgettext("marketing", "Waiting for new cache activity")}</span>
@@ -145,7 +149,7 @@
         <p data-part="copy">
           {dgettext(
             "marketing",
-            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
+            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time. Arcs estimate request origins and replay reported activity at least five minutes behind real time."
           )}
         </p>
       </div>
@@ -177,7 +181,6 @@
           data-emit-life="5"
           data-emit-opacity="75"
           data-emit-direction="radial"
-          data-arc-busy="5"
           data-offset-x="0"
           data-offset-y="0"
           data-markers={@markers}
