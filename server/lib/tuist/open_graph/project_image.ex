@@ -60,10 +60,13 @@ defmodule Tuist.OpenGraph.ProjectImage do
             color-scheme: dark;
             background: #0E0E0E;
           }
+          /* Anchored to the subtitle's resting place rather than the top, so
+             a title that wraps onto a second line pushes the block up and
+             keeps the subtitle clear of the footer. */
           .content {
             position: absolute;
             left: 76px;
-            top: 289px;
+            bottom: 384px;
             width: 1768px;
             display: flex;
             flex-direction: column;
@@ -92,6 +95,7 @@ defmodule Tuist.OpenGraph.ProjectImage do
             display: flex;
             align-items: center;
             gap: 31px;
+            min-height: 64px;
             font-size: 64px;
             font-weight: 400;
             line-height: 64px;
@@ -132,26 +136,26 @@ defmodule Tuist.OpenGraph.ProjectImage do
             text-overflow: ellipsis;
           }
           /* Noora's status badge (.noora-status-badge) in dark mode, scaled
-             4.5x so its 12px label lands at the footer's text size: the
+             3.5x so it sits comfortably beside the footer wordmark: the
              4px/8px padding, 4px gap, 6px radius, 16px icon and the
              light-default border ring all scale together. Token values are
              the dark-mode results of tokens.css, written as hex. */
           .badge[data-status] {
             right: 76px;
-            bottom: 58px;
+            bottom: 70px;
             display: inline-flex;
             align-items: center;
-            gap: 18px;
-            padding: 18px 36px 18px 18px;
-            border-radius: 27px;
+            gap: 14px;
+            padding: 14px 28px 14px 14px;
+            border-radius: 21px;
             background: #0E0E0E;
             box-shadow:
-              0 4.5px 4.5px 0 rgba(14,14,14, 0.3),
-              0 0 0 4.5px rgba(113,113,113, 0.45),
-              0 9px 13.5px 0 rgba(0, 0, 0, 0.3);
-            font-size: 54px;
+              0 3.5px 3.5px 0 rgba(14,14,14, 0.3),
+              0 0 0 3.5px rgba(113,113,113, 0.45),
+              0 7px 10.5px 0 rgba(0, 0, 0, 0.3);
+            font-size: 42px;
             font-weight: 500;
-            line-height: 72px;
+            line-height: 56px;
             letter-spacing: 0;
             color: #FDFDFD;
             overflow: visible;
@@ -160,10 +164,10 @@ defmodule Tuist.OpenGraph.ProjectImage do
           .badge [data-part="icon"] {
             display: inline-flex;
             flex: none;
-            width: 72px;
-            height: 72px;
+            width: 56px;
+            height: 56px;
           }
-          .badge [data-part="icon"] svg { width: 72px; height: 72px; }
+          .badge [data-part="icon"] svg { width: 56px; height: 56px; }
           .badge [data-part="label"] {
             overflow: hidden;
             text-overflow: ellipsis;
@@ -180,7 +184,7 @@ defmodule Tuist.OpenGraph.ProjectImage do
         <div class="content">
           <div class="project">{@project}</div>
           <div class="title">{@title_text}</div>
-          <div :if={@subtitle_parts != []} class="subtitle">
+          <div class="subtitle">
             <%= for {part, index} <- Enum.with_index(@subtitle_parts) do %>
               <i :if={index > 0}></i>
               <span>{part}</span>
