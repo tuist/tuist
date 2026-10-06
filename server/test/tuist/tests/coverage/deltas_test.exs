@@ -107,7 +107,8 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
       |> History.file_points(path, points, stored: false)
       |> Map.new(&{&1.git_commit_sha, Map.take(&1, [:covered_lines, :executable_lines])})
 
-    assert Deltas.file_figures(project.id, path, shas) == raw
+    stored = Deltas.file_figures(project.id, path, Commits.by_shas(project.id, shas))
+    assert Map.reject(stored, fn {_sha, figure} -> is_nil(figure) end) == raw
   end
 
   describe "a branch's complete commits" do
@@ -599,6 +600,8 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
 
     assert rows(project, "head") == []
     for sha <- ~w(base head), do: assert_parity(project, sha)
+    assert_trend_parity(project, "Sources/Text.swift", ~w(base head))
+    assert_trend_parity(project, "Sources/Math.swift", ~w(base head))
   end
 
   test "the coverage readers read a complete commit's stored figures, and the runs' rows for any other", %{
@@ -654,6 +657,36 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
              Commits.list_files(project.id, "c", 1, 1, sort: {:path, :asc})
 
     assert Commits.targets(project.id, "c") == Commits.targets(project.id, "c", stored: false)
+  end
+
+  test "a file's trend reads nothing from the runs at commits whose stored rows are current", %{
+    project: project,
+    account: account
+  } do
+    linear(account, ~w(a b))
+    measure(project, account, "a", [file("Sources/A.swift", [1, 0])])
+    measure(project, account, "b", [file("Sources/A.swift", [1, 0]), file("Sources/New.swift", [1, 1])])
+    for sha <- ~w(a b), do: complete(project, sha)
+    settle()
+
+    test_pid = self()
+
+    stub(ClickHouseRepo, :all, fn query ->
+      send(test_pid, {:clickhouse, inspect(query)})
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    stub(ClickHouseRepo, :all, fn query, opts ->
+      send(test_pid, {:clickhouse, inspect(query)})
+      call_original(ClickHouseRepo, :all, [query, opts])
+    end)
+
+    # a has no New.swift: its stored rows say so, without reading its runs.
+    assert [%{git_commit_sha: "b", covered_lines: 2}] =
+             History.file_points(project, "Sources/New.swift", [%{git_commit_sha: "a"}, %{git_commit_sha: "b"}])
+
+    {:messages, messages} = Process.info(self(), :messages)
+    refute Enum.any?(messages, &match?({:clickhouse, "#Ecto.Query<from c0 in Tuist.Tests.CoverageFile," <> _}, &1))
   end
 
   test "a version whose runs' rows don't add up to its totals is not written, and reads stay raw", %{

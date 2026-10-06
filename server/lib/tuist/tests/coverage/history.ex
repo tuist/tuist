@@ -168,9 +168,9 @@ defmodule Tuist.Tests.Coverage.History do
   def file_points(_project, _path, [], _opts), do: []
 
   def file_points(%Project{} = project, path, points, opts) do
-    shas = Enum.map(points, & &1.git_commit_sha)
-    stored = if Keyword.get(opts, :stored, true), do: Deltas.file_figures(project.id, path, shas), else: %{}
-    rows_by_sha = project.id |> Commits.by_shas(shas) |> Map.drop(Map.keys(stored))
+    summaries = Commits.by_shas(project.id, Enum.map(points, & &1.git_commit_sha))
+    stored = if Keyword.get(opts, :stored, true), do: Deltas.file_figures(project.id, path, summaries), else: %{}
+    rows_by_sha = Map.drop(summaries, Map.keys(stored))
     {carried, measured} = Enum.split_with(rows_by_sha, fn {_sha, row} -> Commits.carried?(row) end)
 
     commit_of = for {sha, row} <- measured, id <- row.test_run_ids, into: %{}, do: {id, sha}
