@@ -32,11 +32,6 @@ defmodule Atlas.Accounts.Invoices do
   @period_start_keys ~w(period_start service_period_start start_date effective_date)
   @period_end_keys ~w(period_end service_period_end end_date renewal_date)
   @seat_count_keys ~w(seats seat_count number_of_seats quantity users user_count licenses license_count)
-  @prepaid_runner_platforms ~w(linux macos)
-  @prepaid_runner_terms ~w(monthly yearly)
-  @basis_points_per_unit 10_000
-  @min_prepaid_funding_ratio_bp 10_000
-  @max_prepaid_funding_ratio_bp 20_000
 
   # Bank-transfer footer printed at the bottom of every Stripe invoice.
   # Configured at runtime via ATLAS_INVOICE_FOOTER so real beneficiary and
@@ -314,8 +309,7 @@ defmodule Atlas.Accounts.Invoices do
   Pass `line_items: [%{description, amount, currency, ...}, ...]` in `opts` to
   bypass auto-extraction when the caller (typically the Slack agent) already
   has the values in hand. The latest signed order form is still resolved and
-  linked as the source document. An item can carry `prepaid_runners` to mark
-  it as prepaid runner minutes for the Tuist server to grant.
+  linked as the source document.
   """
   def create_stripe_draft_invoice_from_latest_signed_order_form(account_or_id, opts \\ [])
 
@@ -736,9 +730,7 @@ defmodule Atlas.Accounts.Invoices do
     with {:ok, description} <- present_string(description, :missing_line_item_description),
          {:ok, amount} <- positive_amount(amount),
          {:ok, currency} <- present_currency(currency),
-         {:ok, amount_cents} <- amount_cents(amount),
-         {:ok, prepaid_runners} <-
-           prepaid_runners(explicit_field(item, "prepaid_runners"), period_start, period_end) do
+         {:ok, amount_cents} <- amount_cents(amount) do
       {:ok,
        %{
          description: description,
@@ -749,12 +741,7 @@ defmodule Atlas.Accounts.Invoices do
          period_end: period_end,
          quantity: quantity,
          unit_amount_decimal: unit_amount_decimal(amount_cents, quantity),
-         prepaid_runners: prepaid_runners,
-         metadata:
-           Map.merge(
-             explicit_line_item_metadata(index, quantity, period_start, period_end),
-             prepaid_runners_metadata(prepaid_runners)
-           )
+         metadata: explicit_line_item_metadata(index, quantity, period_start, period_end)
        }}
     else
       {:error, :missing_amount} -> {:error, :missing_invoice_amount}
@@ -808,97 +795,6 @@ defmodule Atlas.Accounts.Invoices do
       "term_duration_days" => term_duration_days(period_start, period_end)
     })
   end
-
-  # A line carrying these keys is prepaid runner minutes: `Tuist.Runners.Prepaid`
-  # on the Tuist server reads them when the invoice is finalized and turns the
-  # line's amount into runner credit. The checks mirror the ones it applies,
-  # so a draft it would refuse to grant is rejected here, before it is sent.
-  defp prepaid_runners(nil, _period_start, _period_end), do: {:ok, nil}
-
-  defp prepaid_runners(attrs, period_start, period_end) when is_map(attrs) do
-    with {:ok, platforms} <- prepaid_runner_platforms(explicit_field(attrs, "platforms")),
-         {:ok, credit_multiplier} <-
-           prepaid_runner_credit_multiplier(explicit_field(attrs, "credit_multiplier")),
-         {:ok, term} <- prepaid_runner_term(explicit_field(attrs, "term")),
-         :ok <- prepaid_runner_period(term, period_start, period_end) do
-      {:ok, %{platforms: platforms, credit_multiplier: credit_multiplier, term: term}}
-    end
-  end
-
-  defp prepaid_runners(_attrs, _period_start, _period_end), do: invalid_prepaid_runners(:prepaid_runners)
-
-  defp prepaid_runner_platforms([_platform | _rest] = platforms) do
-    normalized = platforms |> Enum.map(&normalized_token/1) |> Enum.uniq() |> Enum.sort()
-
-    if Enum.all?(normalized, &(&1 in @prepaid_runner_platforms)),
-      do: {:ok, normalized},
-      else: invalid_prepaid_runners(:platforms)
-  end
-
-  defp prepaid_runner_platforms(_platforms), do: invalid_prepaid_runners(:platforms)
-
-  # The credit multiplier is how much runner credit each unit paid buys, and it
-  # is where the prepaid discount lives: runner usage is always billed at the
-  # on-demand price, so a discounted deal is one whose credit is worth more than
-  # was paid for it. It is the on-demand price per minute divided by the deal's
-  # prepaid price per minute. At the standard terms of $0.075 on demand and
-  # $0.06 prepaid that is 0.075 / 0.06 = 1.25, so paying $1,000 grants $1,250
-  # of credit. Left out, the server applies those standard terms.
-  #
-  # It must lie between 1.0 (no discount) and 2.0 (half off), the band the
-  # server enforces, because a value outside it is likelier a typo than a
-  # deal. The server reads it in basis points (1.25 is 12500), so it can carry
-  # at most four decimal places.
-  defp prepaid_runner_credit_multiplier(nil), do: {:ok, nil}
-
-  defp prepaid_runner_credit_multiplier(value) do
-    with %Decimal{} = multiplier <- explicit_amount(value),
-         basis_points = Decimal.mult(multiplier, @basis_points_per_unit),
-         true <- Decimal.integer?(basis_points),
-         basis_points = Decimal.to_integer(basis_points),
-         true <- basis_points >= @min_prepaid_funding_ratio_bp and basis_points <= @max_prepaid_funding_ratio_bp do
-      {:ok, Decimal.normalize(multiplier)}
-    else
-      _invalid -> invalid_prepaid_runners(:credit_multiplier)
-    end
-  end
-
-  defp prepaid_runner_term(nil), do: {:ok, nil}
-
-  defp prepaid_runner_term(value) do
-    term = normalized_token(value)
-    if term in @prepaid_runner_terms, do: {:ok, term}, else: invalid_prepaid_runners(:term)
-  end
-
-  # A yearly pool lasts until the end of the line's period, and the server
-  # refuses a period longer than a year.
-  defp prepaid_runner_period("yearly", %Date{} = period_start, %Date{} = period_end) do
-    if Date.after?(period_end, Date.shift(period_start, year: 1)),
-      do: invalid_prepaid_runners(:period),
-      else: :ok
-  end
-
-  defp prepaid_runner_period(_term, _period_start, _period_end), do: :ok
-
-  defp invalid_prepaid_runners(field), do: {:error, {:invalid_prepaid_runners, field}}
-
-  defp normalized_token(value) when is_binary(value), do: value |> String.trim() |> String.downcase()
-  defp normalized_token(_value), do: nil
-
-  defp prepaid_runners_metadata(nil), do: %{}
-
-  defp prepaid_runners_metadata(prepaid_runners) do
-    compact_metadata(%{
-      "tuist_prepaid_runners" => Enum.join(prepaid_runners.platforms, ","),
-      "tuist_prepaid_runners_funding_ratio_bp" => funding_ratio_bp(prepaid_runners.credit_multiplier),
-      "tuist_prepaid_runners_term" => prepaid_runners.term
-    })
-  end
-
-  defp funding_ratio_bp(nil), do: nil
-
-  defp funding_ratio_bp(credit_multiplier),
-    do: credit_multiplier |> Decimal.mult(@basis_points_per_unit) |> Decimal.to_integer()
 
   defp document_line_item_attrs(%Document{attributes: attrs}) when is_map(attrs) do
     direct =
@@ -1296,7 +1192,7 @@ defmodule Atlas.Accounts.Invoices do
     signature =
       line_items
       |> Enum.map(fn line_item ->
-        signature = %{
+        %{
           amount_cents: line_item.amount_cents,
           currency: line_item.currency,
           description: line_item.description,
@@ -1304,12 +1200,6 @@ defmodule Atlas.Accounts.Invoices do
           period_start: line_item[:period_start],
           period_end: line_item[:period_end]
         }
-
-        # Added only for prepaid lines, so every other invoice keeps its key.
-        case line_item[:prepaid_runners] do
-          nil -> signature
-          prepaid_runners -> Map.put(signature, :prepaid_runners, prepaid_runners)
-        end
       end)
       |> JSON.encode!()
       |> then(&:crypto.hash(:sha256, &1))

@@ -73,10 +73,6 @@ Do not add README entries for internal operational details such as env var names
 - Rule-based document classification must still run finance invoice extraction. Classifying a document as an invoice does not create its finance entry or line items.
 - `EnsureDocumentClassifications` also repairs ready classified invoices that have no finance entry or only an unconfigured-extractor fallback, using the existing pages and unique classification jobs. Repair jobs extract costs from the stored classification without rewriting document metadata. Documents without text get a visible failed finance entry without calling the model. Transient extraction errors retry before a final failure is recorded. Existing complete finance entries, including failed extractions, are excluded from this automatic recovery. Candidate ordering uses the last extraction attempt so persistent fallback entries rotate behind invoices that have not been attempted. Transient extraction errors during ingestion leave the document ready for the repair job. Successful entries are preserved during reclassification; an intentional refresh can use `Documents.process_document(id, force_invoice_extraction?: true)`.
 
-## Stripe draft invoices
-
-- Caller-supplied line items on `create_stripe_draft_invoice` and `edit_stripe_draft_invoice` can carry `prepaid_runners` (`platforms`, optional `credit_multiplier`, optional `term`). Atlas writes these as the `tuist_prepaid_runners*` invoice item metadata keys, converting the credit multiplier (for example `1.25`) to the basis points the server reads (`12500`), that `Tuist.Runners.Prepaid` in `server/` reads when the invoice is finalized. The keys and bounds are a contract with that module: change both together, and keep Atlas's validation in step so a draft the server would refuse is rejected before it is sent.
-
 ## Model relay and support classification
 
 - When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures.

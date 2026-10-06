@@ -67,8 +67,7 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoice do
               "period_start" => %{"type" => ["string", "null"]},
               "period_end" => %{"type" => ["string", "null"]},
               # Read straight out of Stripe line item metadata, whose values are strings.
-              "term_duration_days" => %{"type" => ["string", "null"]},
-              "prepaid_runners" => Atlas.MCP.LineItems.prepaid_runners_output_schema()
+              "term_duration_days" => %{"type" => ["string", "null"]}
             },
             "required" => [
               "description",
@@ -78,8 +77,7 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoice do
               "quantity",
               "period_start",
               "period_end",
-              "term_duration_days",
-              "prepaid_runners"
+              "term_duration_days"
             ],
             "additionalProperties" => false
           }
@@ -201,8 +199,7 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoice do
       quantity: line_item[:quantity],
       period_start: Tool.iso8601(line_item.period_start),
       period_end: Tool.iso8601(line_item.period_end),
-      term_duration_days: line_item[:metadata] && line_item.metadata["term_duration_days"],
-      prepaid_runners: LineItems.serialize_prepaid_runners(line_item[:prepaid_runners])
+      term_duration_days: line_item[:metadata] && line_item.metadata["term_duration_days"]
     }
   end
 
@@ -240,8 +237,6 @@ defmodule Atlas.MCP.Tools.CreateStripeDraftInvoice do
   defp error_message(:missing_line_item_description, _account) do
     "One of the supplied line items is missing a description."
   end
-
-  defp error_message({:invalid_prepaid_runners, field}, _account), do: LineItems.prepaid_runners_error_message(field)
 
   defp error_message(:invalid_line_items, _account) do
     "The supplied line items are malformed. Each item needs a description, amount, and currency."

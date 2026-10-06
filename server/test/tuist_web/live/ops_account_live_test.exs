@@ -970,6 +970,127 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
   end
 
+  describe "prepaid runner pool" do
+    defp pool_params(overrides \\ %{}) do
+      Map.merge(
+        %{
+          "paid" => "8000.00",
+          "credit_multiplier" => "1.4",
+          "platforms" => "macos",
+          "expires_on" => "2027-09-30",
+          "invoice_id" => "in_pool"
+        },
+        overrides
+      )
+    end
+
+    test "quotes the credit and the baseline minutes it buys before anything is granted", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.grant_pool/2)
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params())
+        |> render_change()
+
+      assert html =~ "11,200.00"
+      assert html =~ "149.3K"
+    end
+
+    test "grants the pool on the terms typed", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :grant_pool, fn account, attrs ->
+        assert account.id == user.account.id
+        assert attrs.paid_cents == 800_000
+        assert Decimal.equal?(attrs.credit_multiplier, Decimal.new("1.4"))
+        assert attrs.platforms == [:macos]
+        assert attrs.expires_on == ~D[2027-09-30]
+        assert attrs.invoice_id == "in_pool"
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params())
+      |> render_submit()
+
+      assert render(lv) =~ "September 30, 2027"
+    end
+
+    test "covers every platform and records no invoice when those are left as they are", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :grant_pool, fn _account, attrs ->
+        assert attrs.platforms == [:linux, :macos]
+        assert is_nil(attrs.invoice_id)
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params(%{"platforms" => "all", "invoice_id" => "  "}))
+      |> render_submit()
+    end
+
+    test "refuses input it cannot read without granting anything", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.grant_pool/2)
+
+      for overrides <- [%{"paid" => "eight thousand"}, %{"credit_multiplier" => "1.4x"}, %{"expires_on" => "soon"}] do
+        lv
+        |> form("#prepaid-pool-form", pool_params(overrides))
+        |> render_submit()
+
+        assert render(lv) =~ "Could not grant the pool"
+      end
+    end
+
+    test "says which term was refused", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      stub(Prepaid, :grant_pool, fn _account, _attrs -> {:error, {:invalid_pool, :expires_on}} end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params())
+      |> render_submit()
+
+      assert render(lv) =~ "within thirteen months"
+    end
+
+    test "keeps a pool out of the minutes the monthly field opens on", %{conn: conn, user: user} do
+      # The monthly field replaces what it opens on. Opening on the pool's
+      # minutes would sell them again as a month's worth.
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(375_000, :USD),
+          expires_at: ~U[2026-11-05 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_monthly",
+              kind: "prepaid",
+              available: Money.new(75_000, :USD),
+              available_minutes: 10_000,
+              expires_at: ~U[2026-11-05 00:00:00Z]
+            },
+            %{
+              id: "credgr_pool",
+              kind: "pool",
+              available: Money.new(300_000, :USD),
+              available_minutes: 40_000,
+              expires_at: ~U[2027-10-05 00:00:00Z]
+            }
+          ]
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert has_element?(lv, "#prepaid-minutes-input[value=\"10000\"]")
+      assert has_element?(lv, "#prepaid-balance-table", "Pool")
+    end
+  end
+
   describe "standing prepaid runner minutes" do
     test "opens on the minutes the subscription carries", %{conn: conn, user: user} do
       stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)

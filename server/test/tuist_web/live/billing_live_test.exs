@@ -455,6 +455,7 @@ defmodule TuistWeb.BillingLiveTest do
           available: Money.new(300_000, :USD),
           granted: Money.new(750_000, :USD),
           granted_minutes: 10_000,
+          period_minutes: 10_000,
           expires_at: ~U[2026-09-01 00:00:00Z],
           grants: []
         }
@@ -470,6 +471,32 @@ defmodule TuistWeb.BillingLiveTest do
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
+    end
+
+    test "raises the ceiling by what a pool has left this period, not by the whole term", %{
+      conn: conn,
+      account: account
+    } do
+      # A pool bought for a year would otherwise read as a year of minutes
+      # available in every single month.
+      runner_session_fixture(account, 40)
+
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(300_000, :USD),
+          granted: Money.new(1_500_000, :USD),
+          granted_minutes: 200_000,
+          period_minutes: 40_000,
+          expires_at: ~U[2027-10-05 00:00:00Z],
+          grants: []
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      html = render(lv)
+      assert html =~ "100 free runner minutes plus 40K prepaid"
+      refute html =~ "200K"
     end
   end
 
@@ -601,6 +628,7 @@ defmodule TuistWeb.BillingLiveTest do
           available: Money.new(750_000, :USD),
           granted: Money.new(750_000, :USD),
           granted_minutes: 10_000,
+          period_minutes: 10_000,
           expires_at: ~U[2027-08-20 00:00:00Z],
           grants: []
         }

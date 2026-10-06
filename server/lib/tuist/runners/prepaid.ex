@@ -59,18 +59,9 @@ defmodule Tuist.Runners.Prepaid do
     * `tuist_prepaid_runners` — required marker, and the platform
       scope. `"true"`/`"all"` covers every configured runner Price;
       `"macos"`, `"linux"`, or a comma-separated list narrows it.
-    * `tuist_prepaid_runners_funding_ratio_bp`: optional, how much
-      runner credit each unit paid buys, in basis points of the amount
-      paid (10000 is 1x). It is the on-demand price per minute divided
-      by the deal's prepaid price per minute, times 10000: the standard
-      $0.075 on demand against $0.06 prepaid is 1.25x, written `12500`,
-      so a $1,000 line grants $1,250 of credit. Bounded between par
-      (10000, no discount) and 20000 (50% off). Atlas draft invoices
-      take it as a decimal `credit_multiplier` (`1.25`) and write it in
-      this form.
-    * `tuist_prepaid_runners_term`: optional, `"monthly"` (the default)
-      or `"yearly"`. A yearly line becomes a pool that lasts the contract
-      term; see "Top-ups and expiry". Any other value is rejected.
+    * `tuist_prepaid_runners_funding_ratio_bp` — optional, basis
+      points of credit per unit paid, so the 1.25x default is `12500`.
+      Bounded between par (10000, no discount) and 20000 (50% off).
 
   ## Why the line and not the invoice
 
@@ -93,21 +84,12 @@ defmodule Tuist.Runners.Prepaid do
 
   ## Top-ups and expiry
 
-  By default minutes belong to the month they were bought for. A grant
-  expires a few days after the billing period the paying invoice
-  covered, late enough for the invoice closing that period to draw on it
-  and too early for the next one, so nothing rolls over: what an account
-  does not spend that month is gone, and next month's minutes arrive on
-  their own invoice. Standing renewals and minutes sold through
-  `bill_prepaid_minutes/3` are always monthly.
-
-  A line marked with the yearly term is the exception: a year paid up
-  front, usually by bank transfer, as a single pool. Usage is seasonal,
-  and a quiet month should not cost a customer the minutes they paid a
-  year for. The grant expires a few days after the end of the line's own
-  period when the invoice item was raised with the contract's dates, and
-  a few days after a year from the grant otherwise. A period longer than
-  a year is refused.
+  Outside a prepaid pool, minutes belong to the month they were bought
+  for. Such a grant expires a few days after the billing period the paying
+  invoice covered, late enough for the invoice closing that period to draw
+  on it and too early for the next one, so nothing rolls over: what an
+  account does not spend that month is gone, and next month's minutes
+  arrive on their own invoice.
 
   Neither top-ups nor expiry need machinery here. Every prepaid line
   creates its own grant, and Stripe applies whichever grants are live
@@ -162,6 +144,36 @@ defmodule Tuist.Runners.Prepaid do
   every item on a subscription shares one interval, so a monthly item
   cannot sit on an annual term.
 
+  ## Prepaid pools
+
+  Some customers pay for a whole year of runner time up front, usually by
+  bank transfer, and their usage is seasonal. Monthly expiry would forfeit
+  every quiet month they already paid for, so these deals are a *pool*: one
+  grant, usable until the contract ends. Usage past it falls through to the
+  on-demand rate like any other exhausted grant.
+
+  A pool is granted by an operator with `grant_pool/2`, not from an invoice.
+  The end of the term is a contract date someone knows when the deal is
+  closed, so it is entered rather than inferred from Stripe, and the
+  invoice charging for the pool is an ordinary one with nothing on it for
+  this module to read. Its id is recorded on the grant so the credit can
+  be traced to its charge.
+
+  The terms are written for a person. The *credit multiplier* is how much
+  credit each dollar paid buys: the on-demand price per minute divided by
+  the deal's prepaid price per minute. At the standard $0.075 on demand
+  and $0.06 prepaid that is 0.075 / 0.06 = 1.25, so a $1,000 payment grants
+  $1,250 of credit. It is the funding ratio above, held to the same band
+  between 1.0 and 2.0, and recorded on the grant in basis points like any
+  other.
+
+  A pool is not what the monthly minutes field sets, so `set_minutes/3`
+  leaves it alone, and the balance counts it toward a billing period by
+  what it has left rather than by the whole term it was bought for.
+  Monthly expiry stays the default everywhere else because a pool is a
+  deliberate, contract-backed exception: subscription-billed prepaid that
+  outlived its month would let an account bank minutes.
+
   ## Trials are not this
 
   A runner trial is an account that is not billed for runner usage at
@@ -210,13 +222,16 @@ defmodule Tuist.Runners.Prepaid do
 
   @marker_key "tuist_prepaid_runners"
   @ratio_key "tuist_prepaid_runners_funding_ratio_bp"
-  @term_key "tuist_prepaid_runners_term"
 
   @kind_key "tuist_runner_credit"
   @invoice_key "tuist_prepaid_invoice_id"
   @line_key "tuist_prepaid_invoice_line_id"
   @paid_cents_key "tuist_prepaid_paid_cents"
   @granted_ratio_key "tuist_prepaid_funding_ratio_bp"
+
+  @pool_kind "pool"
+  # A yearly contract, granted up to a month before it starts.
+  @max_pool_months 13
 
   @balance_cache_ttl to_timeout(minute: 5)
 
@@ -270,7 +285,7 @@ defmodule Tuist.Runners.Prepaid do
       lines
       |> Enum.reject(&granted?(granted_line_ids, &1))
       |> Enum.reduce_while({:ok, []}, fn line, {:ok, acc} ->
-        case grant_line(customer_id, invoice_id, line, currency, expires_at) do
+        case grant_line(customer_id, invoice_id, line, currency, line_expires_at(line, expires_at)) do
           {:ok, grant} -> {:cont, {:ok, [grant | acc]}}
           {:error, reason} -> {:halt, {:error, reason}}
         end
@@ -282,14 +297,13 @@ defmodule Tuist.Runners.Prepaid do
     end
   end
 
-  defp grant_line(customer_id, invoice_id, line, currency, account_expires_at) do
+  defp grant_line(customer_id, invoice_id, line, currency, expires_at) do
     metadata = line_metadata(line)
 
     with :ok <- ensure_period_open(line),
          {:ok, platforms} <- line_platforms(line, metadata),
          {:ok, amount} <- line_amount(line),
          {:ok, ratio_bp} <- funding_ratio_bp(metadata),
-         {:ok, expires_at} <- line_expires_at(line, metadata, account_expires_at),
          {:ok, price_ids} <- price_ids(platforms) do
       CreditGrants.create(%{
         customer_id: customer_id,
@@ -351,57 +365,10 @@ defmodule Tuist.Runners.Prepaid do
   # A standing renewal is dated from the period its own line was billed for.
   # The account's recorded period can still be the one that just closed when
   # the renewal is granted, which would expire the new minutes almost at once.
-  defp line_expires_at(line, metadata, account_expires_at) do
+  defp line_expires_at(line, account_expires_at) do
     case standing_period_end(line) do
-      %DateTime{} = period_end -> {:ok, past_period_end(period_end)}
-      nil -> term_expires_at(line, metadata, account_expires_at)
-    end
-  end
-
-  defp term_expires_at(line, metadata, account_expires_at) do
-    case prepaid_term(metadata) do
-      {:ok, :monthly} -> {:ok, account_expires_at}
-      {:ok, :yearly} -> yearly_expires_at(line)
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  # A yearly pool lasts as long as the contract it was paid for. An invoice
-  # item raised with the contract's dates as its period carries them onto its
-  # line, and the pool runs to the end of that period. An item raised without
-  # one gets a zero-length period stamped when it was created, which has ended
-  # by the time it is granted, so the pool runs a year from the grant instead.
-  # A period longer than a year is refused rather than capped, because it is
-  # either a typo or a deal this term does not describe.
-  defp yearly_expires_at(line) do
-    now = DateTime.utc_now()
-    a_year_from_now = DateTime.shift(now, year: 1)
-
-    case line_period(line) do
-      {period_start, period_end} ->
-        cond do
-          DateTime.after?(period_end, DateTime.shift(period_start, year: 1)) ->
-            {:error, {:term_longer_than_a_year, line_id(line)}}
-
-          DateTime.after?(period_end, now) ->
-            {:ok, past_period_end(period_end)}
-
-          true ->
-            {:ok, past_period_end(a_year_from_now)}
-        end
-
-      nil ->
-        {:ok, past_period_end(a_year_from_now)}
-    end
-  end
-
-  defp line_period(line) do
-    case Map.get(line, :period) do
-      %{start: period_start, end: period_end} when is_integer(period_start) and is_integer(period_end) ->
-        {DateTime.from_unix!(period_start), DateTime.from_unix!(period_end)}
-
-      _ ->
-        nil
+      %DateTime{} = period_end -> past_period_end(period_end)
+      nil -> account_expires_at
     end
   end
 
@@ -581,7 +548,7 @@ defmodule Tuist.Runners.Prepaid do
   def set_minutes(%Account{customer_id: customer_id} = account, minutes, opts)
       when is_binary(customer_id) and is_integer(minutes) and minutes >= 0 do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
-         held = Enum.filter(grants, &live_runner_credit?/1),
+         held = Enum.filter(grants, &(live_runner_credit?(&1) and not pool?(&1))),
          {:ok, granted} <- grant_target(account, minutes, opts) do
       result =
         case withdraw(held) do
@@ -601,6 +568,138 @@ defmodule Tuist.Runners.Prepaid do
   # asked for.
   defp grant_target(_account, 0, _opts), do: {:ok, :cleared}
   defp grant_target(account, minutes, opts), do: bill_prepaid_minutes(account, minutes, opts)
+
+  @doc """
+  Grants `account` a prepaid pool: runner credit paid up front for a whole
+  contract term, usable until the contract ends rather than expiring with
+  each billing period. See "Prepaid pools" above.
+
+  `attrs` carries the agreed terms:
+
+    * `:paid_cents` - what the customer paid for the pool, in US cents.
+    * `:credit_multiplier` - how much credit each unit paid buys, as a
+      `Decimal`. `1.4` turns a $8,000 payment into $11,200 of credit.
+    * `:platforms` - the runner platforms the credit pays for.
+    * `:expires_on` - the last day of the contract. The pool stays usable
+      through it.
+    * `:invoice_id` - optional, the Stripe invoice that charged for the pool,
+      recorded on the grant so the credit can be traced to its charge.
+
+  Nothing is billed here: the charge is an ordinary invoice raised on its
+  own. Returns `{:ok, grant}`, `{:error, {:invalid_pool, field}}` for a term
+  no pool should have, or `{:error, reason}` when Stripe refuses the grant.
+  """
+  def grant_pool(%Account{customer_id: customer_id}, attrs) when is_binary(customer_id) and is_map(attrs) do
+    with {:ok, paid_cents} <- pool_paid_cents(attrs[:paid_cents]),
+         {:ok, ratio_bp} <- pool_funding_ratio_bp(attrs[:credit_multiplier]),
+         {:ok, platforms} <- pool_platforms(attrs[:platforms]),
+         {:ok, expires_at} <- pool_expires_at(attrs[:expires_on]),
+         {:ok, invoice_metadata} <- pool_invoice_metadata(attrs[:invoice_id]),
+         {:ok, price_ids} <- price_ids(platforms) do
+      terms = [paid_cents, ratio_bp, Enum.join(platforms, ","), DateTime.to_unix(expires_at), attrs[:invoice_id]]
+
+      result =
+        CreditGrants.create(%{
+          customer_id: customer_id,
+          amount_cents: div(paid_cents * ratio_bp, @bp_basis),
+          currency: "usd",
+          price_ids: price_ids,
+          category: "paid",
+          name: "Prepaid runner pool",
+          expires_at: expires_at,
+          priority: @prepaid_priority,
+          metadata:
+            Map.merge(invoice_metadata, %{
+              @kind_key => @pool_kind,
+              @paid_cents_key => to_string(paid_cents),
+              @granted_ratio_key => to_string(ratio_bp)
+            }),
+          # Keyed on the terms, so a form submitted twice grants once.
+          idempotency_key: "runner-prepaid-pool-#{customer_id}-#{terms_digest(terms)}"
+        })
+
+      refresh_balance(customer_id)
+      result
+    end
+  end
+
+  @doc """
+  What a pool paying `paid_cents` at `credit_multiplier` grants, as the
+  credit and the minutes it buys on the macOS 6 vCPU / 14 GB baseline.
+  `:error` for terms `grant_pool/2` would refuse.
+  """
+  def quote_pool(paid_cents, credit_multiplier) do
+    with {:ok, paid_cents} <- pool_paid_cents(paid_cents),
+         {:ok, ratio_bp} <- pool_funding_ratio_bp(credit_multiplier) do
+      granted_cents = div(paid_cents * ratio_bp, @bp_basis)
+      {:ok, %{granted: Money.new(granted_cents, :USD), minutes: minutes_for(granted_cents)}}
+    else
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp pool_paid_cents(paid_cents) when is_integer(paid_cents) and paid_cents > 0, do: {:ok, paid_cents}
+  defp pool_paid_cents(_paid_cents), do: invalid_pool(:paid_cents)
+
+  # The multiplier is the funding ratio, written for a person rather than in
+  # basis points. It has to land on a whole basis point inside the same band
+  # an invoice line's ratio is held to, so a `12500` typed for `1.25` stops
+  # the grant instead of issuing ten thousand times the credit.
+  defp pool_funding_ratio_bp(%Decimal{} = credit_multiplier) do
+    ratio_bp = Decimal.mult(credit_multiplier, @bp_basis)
+
+    with true <- Decimal.integer?(ratio_bp),
+         ratio_bp = Decimal.to_integer(ratio_bp),
+         true <- ratio_bp >= @min_funding_ratio_bp and ratio_bp <= @max_funding_ratio_bp do
+      {:ok, ratio_bp}
+    else
+      false -> invalid_pool(:credit_multiplier)
+    end
+  end
+
+  defp pool_funding_ratio_bp(_credit_multiplier), do: invalid_pool(:credit_multiplier)
+
+  defp pool_platforms([_platform | _rest] = platforms) do
+    if Enum.all?(platforms, &(&1 in @platforms)),
+      do: {:ok, platforms |> Enum.uniq() |> Enum.sort()},
+      else: invalid_pool(:platforms)
+  end
+
+  defp pool_platforms(_platforms), do: invalid_pool(:platforms)
+
+  # The pool is usable through the contract's last day, and then for
+  # `@expiry_grace_days` more, so the invoice closing the period that ends
+  # with the contract can still draw on it. A contract already over, or one
+  # ending further out than a yearly term granted a month early, is a typo.
+  defp pool_expires_at(%Date{} = expires_on) do
+    today = DateTime.to_date(DateTime.utc_now())
+
+    if Date.after?(expires_on, today) and not Date.after?(expires_on, Date.shift(today, month: @max_pool_months)) do
+      {:ok, expires_on |> Date.add(1) |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> past_period_end()}
+    else
+      invalid_pool(:expires_on)
+    end
+  end
+
+  defp pool_expires_at(_expires_on), do: invalid_pool(:expires_on)
+
+  defp pool_invoice_metadata(nil), do: {:ok, %{}}
+
+  defp pool_invoice_metadata(invoice_id) when is_binary(invoice_id) do
+    case String.trim(invoice_id) do
+      "" -> {:ok, %{}}
+      "in_" <> _rest = invoice_id -> {:ok, %{@invoice_key => invoice_id}}
+      _other -> invalid_pool(:invoice_id)
+    end
+  end
+
+  defp pool_invoice_metadata(_invoice_id), do: invalid_pool(:invoice_id)
+
+  defp invalid_pool(field), do: {:error, {:invalid_pool, field}}
+
+  defp terms_digest(terms) do
+    :sha256 |> :crypto.hash(:erlang.term_to_binary(terms)) |> Base.encode16(case: :lower) |> binary_part(0, 16)
+  end
 
   @doc """
   The standing monthly prepaid minutes `account`'s subscription carries, as
@@ -833,7 +932,7 @@ defmodule Tuist.Runners.Prepaid do
   # Versioned: the cached value is a map this module shapes, so a deploy
   # that changes that shape would otherwise serve stale entries to new
   # code until the TTL lapsed. Bump on any shape change.
-  defp balance_cache_key(customer_id), do: [:runner_prepaid_balance, :v2, customer_id]
+  defp balance_cache_key(customer_id), do: [:runner_prepaid_balance, :v3, customer_id]
 
   defp fetch_balance(customer_id) do
     with {:ok, grants} <- CreditGrants.list_for_customer(customer_id),
@@ -877,6 +976,7 @@ defmodule Tuist.Runners.Prepaid do
       |> Enum.sort_by(&expiry_sort_key(&1.expires_at))
 
     granted = funded |> Enum.map(fn {grant, _cents} -> grant_amount_cents(grant) end) |> Enum.sum()
+    period = funded |> Enum.map(&period_cents/1) |> Enum.sum()
 
     %{
       available: Money.new(total, currency),
@@ -885,24 +985,38 @@ defmodule Tuist.Runners.Prepaid do
       # reader checking their entitlement wants the second.
       granted: Money.new(granted, currency),
       granted_minutes: minutes_for(granted),
+      # What the current billing period can run on. See `period_cents/1`.
+      period_minutes: minutes_for(period),
       expires_at: grants |> Enum.map(& &1.expires_at) |> Enum.reject(&is_nil/1) |> Enum.min(DateTime, fn -> nil end),
       grants: grants
     }
   end
+
+  # Stripe draws credit down only when an invoice closes, so mid-period a
+  # monthly grant still holds everything it was bought with, and that
+  # purchase is the figure that stays put as the period's usage accrues. A
+  # pool has already paid for the periods before this one, so its purchase
+  # would count a whole term toward a single month: what it has left is
+  # what this period can run on.
+  defp period_cents({grant, available_cents}) do
+    if pool?(grant), do: available_cents, else: grant_amount_cents(grant)
+  end
+
+  defp pool?(grant), do: grant_kind(grant) == @pool_kind
 
   # Credit is spent at the gross on-demand rate, so that rate is what
   # turns an amount of money into the minutes it buys on the baseline
   # machine.
   defp minutes_for(cents), do: div(cents * 10, @macos_on_demand_rate)
 
-  # Unless a line asks for a yearly term, minutes belong to the month they
-  # were bought for and do not roll over, so the grant dies just after the
-  # billing period the invoice paid for, capped at a month, because runner
-  # items ride the account's own subscription and an annual enterprise term
-  # reports a year-long period. Dating a grant from that would hand each of
-  # those accounts a year of minutes to bank. An account Stripe reports no
-  # period for still has to get what it paid for, and a month keeps that
-  # promise on the same footing.
+  # Minutes belong to the month they were bought for and do not roll
+  # over, so the grant dies just after the billing period the invoice
+  # paid for — capped at a month, because runner items ride the account's own
+  # subscription and an annual enterprise term reports a year-long
+  # period. Dating a grant from that would hand each of those accounts a
+  # year of minutes to bank. An account Stripe reports no period for
+  # still has to get what it paid for, and a month keeps that promise on
+  # the same footing.
   defp expires_at(customer_id) do
     monthly = DateTime.shift(DateTime.utc_now(), month: 1)
 
@@ -988,25 +1102,11 @@ defmodule Tuist.Runners.Prepaid do
   defp platform_from_string("macos"), do: {:ok, :macos}
   defp platform_from_string(other), do: {:error, {:unknown_platform, other}}
 
-  # Basis points of credit per unit paid: a line paying `amount` grants
-  # `amount * ratio_bp / 10000`. See "Line metadata keys" for how a deal's
-  # ratio is derived from its prepaid and on-demand rates.
   defp funding_ratio_bp(metadata) do
     case metadata |> Map.get(@ratio_key) |> normalize() do
       nil -> {:ok, @default_funding_ratio_bp}
       "" -> {:ok, @default_funding_ratio_bp}
       value -> bounded_integer(value, @min_funding_ratio_bp, @max_funding_ratio_bp, :funding_ratio_bp)
-    end
-  end
-
-  # An unknown term is rejected rather than read as monthly, for the same
-  # reason a bad ratio is: a pool paid for a year that quietly expired after a
-  # month would forfeit eleven months the customer paid for.
-  defp prepaid_term(metadata) do
-    case metadata |> Map.get(@term_key) |> normalize() do
-      value when value in [nil, "", "monthly"] -> {:ok, :monthly}
-      "yearly" -> {:ok, :yearly}
-      value -> {:error, {:invalid_metadata, :term, value}}
     end
   end
 
@@ -1058,7 +1158,7 @@ defmodule Tuist.Runners.Prepaid do
 
   defp grant_kind(grant) do
     case grant_metadata(grant, @kind_key) do
-      kind when kind in ["prepaid", "trial"] -> kind
+      kind when kind in ["prepaid", "trial", @pool_kind] -> kind
       _ -> nil
     end
   end

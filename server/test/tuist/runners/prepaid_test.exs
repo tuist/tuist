@@ -342,111 +342,6 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
     end
 
-    test "keeps a yearly line's pool for a year from the grant when the line carries no term" do
-      # A one-off invoice item raised without a period gets a zero-length one
-      # stamped when it was created, which says nothing about the contract.
-      now = ~U[2026-08-18 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      stub_account_period(~U[2026-09-01 00:00:00Z])
-
-      created = DateTime.to_unix(~U[2026-08-17 09:00:00Z])
-
-      stub_lines([
-        line(%{
-          metadata: %{
-            "tuist_prepaid_runners" => "macos",
-            "tuist_prepaid_runners_funding_ratio_bp" => "14000",
-            "tuist_prepaid_runners_term" => "yearly"
-          },
-          period: %{start: created, end: created}
-        })
-      ])
-
-      expect(CreditGrants, :create, fn attrs ->
-        assert attrs.amount_cents == 1_120_000
-        assert attrs.price_ids == [@macos_price]
-        assert attrs.expires_at == ~U[2027-08-22 12:00:00Z]
-        {:ok, %{id: "credgr_1"}}
-      end)
-
-      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
-    end
-
-    test "runs a yearly line's pool to the end of the term the line was billed for" do
-      now = ~U[2026-08-18 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      stub_account_period(~U[2026-09-01 00:00:00Z])
-
-      stub_lines([
-        line(%{
-          metadata: %{"tuist_prepaid_runners" => "macos", "tuist_prepaid_runners_term" => "Yearly"},
-          period: %{
-            start: DateTime.to_unix(~U[2026-09-01 00:00:00Z]),
-            end: DateTime.to_unix(~U[2027-09-01 00:00:00Z])
-          }
-        })
-      ])
-
-      expect(CreditGrants, :create, fn attrs ->
-        assert attrs.expires_at == ~U[2027-09-05 00:00:00Z]
-        {:ok, %{id: "credgr_1"}}
-      end)
-
-      assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
-    end
-
-    test "refuses a yearly line billed for a term longer than a year" do
-      stub(DateTime, :utc_now, fn -> ~U[2026-08-18 12:00:00Z] end)
-
-      long =
-        line(%{
-          metadata: %{"tuist_prepaid_runners" => "macos", "tuist_prepaid_runners_term" => "yearly"},
-          period: %{
-            start: DateTime.to_unix(~U[2026-09-01 00:00:00Z]),
-            end: DateTime.to_unix(~U[2028-09-01 00:00:00Z])
-          }
-        })
-
-      stub_lines([long])
-      reject(&CreditGrants.create/1)
-
-      assert {:error, {:term_longer_than_a_year, line_id}} = Prepaid.grant_for_invoice(invoice())
-      assert line_id == long.id
-    end
-
-    test "rejects an unknown term instead of falling back to monthly" do
-      reject(&CreditGrants.create/1)
-
-      for value <- ["annual", "year", "12", "true"] do
-        stub_lines([
-          line(%{metadata: %{"tuist_prepaid_runners" => "true", "tuist_prepaid_runners_term" => value}})
-        ])
-
-        assert {:error, {:invalid_metadata, :term, _value}} = Prepaid.grant_for_invoice(invoice()),
-               "expected #{inspect(value)} to be rejected"
-      end
-    end
-
-    test "keeps a line monthly when its term is monthly or left empty" do
-      now = ~U[2026-08-18 12:00:00Z]
-      period_end = ~U[2026-09-01 00:00:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-      stub_account_period(period_end)
-
-      for value <- ["monthly", "  "] do
-        stub_lines([
-          line(%{metadata: %{"tuist_prepaid_runners" => "true", "tuist_prepaid_runners_term" => value}})
-        ])
-
-        expect(CreditGrants, :create, fn attrs ->
-          assert attrs.expires_at == DateTime.add(period_end, 4, :day)
-          {:ok, %{id: "credgr_1"}}
-        end)
-
-        assert {:ok, [_grant]} = Prepaid.grant_for_invoice(invoice())
-      end
-    end
-
     test "rejects an unknown platform" do
       stub_lines([line(%{metadata: %{"tuist_prepaid_runners" => "windows"}})])
       reject(&CreditGrants.create/1)
@@ -930,6 +825,25 @@ defmodule Tuist.Runners.PrepaidTest do
       assert {:error, :stripe_down} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 3_000)
     end
 
+    test "leaves a prepaid pool alone, since it is not what the minutes field sets" do
+      pool = %{
+        id: "credgr_pool",
+        voided_at: nil,
+        metadata: %{"tuist_runner_credit" => "pool", "tuist_prepaid_invoice_id" => "in_pool"},
+        amount: %{type: "monetary", monetary: %{currency: "usd", value: 1_120_000}},
+        expires_at: nil
+      }
+
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [pool, prepaid_grant("credgr_old", "ii_old")]}
+      end)
+
+      expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{deleted: true}} end)
+      expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
+
+      assert {:ok, _} = Prepaid.set_minutes(%Account{customer_id: "cus_set"}, 0)
+    end
+
     test "clears the balance when set to zero" do
       stub(CreditGrants, :list_for_customer, fn _customer_id ->
         {:ok, [prepaid_grant("credgr_old", "ii_old")]}
@@ -1075,6 +989,136 @@ defmodule Tuist.Runners.PrepaidTest do
       assert balance.granted == Money.new(75_000, :USD)
       # $750 of credit buys 10,000 minutes at the $0.075 standard rate.
       assert balance.granted_minutes == 10_000
+    end
+
+    test "counts a pool by what it has left toward the period, and a monthly grant in full" do
+      # A pool's earlier periods have already drawn on it, so what it was
+      # bought with overstates what this period can run on. A monthly grant
+      # is only drawn down when its period's invoice closes, so mid-period
+      # its purchase is the figure that does not move as usage accrues.
+      customer_id = "cus_period_#{System.unique_integer([:positive])}"
+
+      stub(CreditGrants, :list_for_customer, fn ^customer_id ->
+        {:ok,
+         [
+           %{
+             id: "credgr_monthly",
+             metadata: %{"tuist_runner_credit" => "prepaid"},
+             amount: %{monetary: %{currency: "usd", value: 75_000}},
+             expires_at: nil
+           },
+           %{
+             id: "credgr_pool",
+             metadata: %{"tuist_runner_credit" => "pool"},
+             amount: %{monetary: %{currency: "usd", value: 1_500_000}},
+             expires_at: nil
+           }
+         ]}
+      end)
+
+      stub(CreditGrants, :available_balance_cents, fn ^customer_id, grant_id ->
+        case grant_id do
+          "credgr_monthly" -> {:ok, 75_000}
+          "credgr_pool" -> {:ok, 300_000}
+        end
+      end)
+
+      balance = Prepaid.balance(%Account{customer_id: customer_id})
+
+      assert balance.granted_minutes == 210_000
+      assert balance.period_minutes == 50_000
+      assert Enum.find(balance.grants, &(&1.id == "credgr_pool")).kind == "pool"
+    end
+  end
+
+  describe "grant_pool/2" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2026-10-06 12:00:00Z] end)
+      :ok
+    end
+
+    defp pool_account, do: %Account{id: 9, customer_id: "cus_pool_#{System.unique_integer([:positive])}"}
+
+    defp pool_attrs(overrides \\ %{}) do
+      Map.merge(
+        %{
+          paid_cents: 800_000,
+          credit_multiplier: Decimal.new("1.4"),
+          platforms: [:macos],
+          expires_on: ~D[2027-09-30],
+          invoice_id: "in_pool"
+        },
+        overrides
+      )
+    end
+
+    test "grants the paid amount times the credit multiplier until the day after the contract ends" do
+      account = pool_account()
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.customer_id == account.customer_id
+        assert attrs.amount_cents == 1_120_000
+        assert attrs.currency == "usd"
+        assert attrs.price_ids == [@macos_price]
+        assert attrs.category == "paid"
+        # The last day of the contract is still usable, and the invoice
+        # closing the period that ends then still has to draw on it.
+        assert attrs.expires_at == ~U[2027-10-05 00:00:00Z]
+        assert attrs.metadata["tuist_runner_credit"] == "pool"
+        assert attrs.metadata["tuist_prepaid_invoice_id"] == "in_pool"
+        assert attrs.metadata["tuist_prepaid_paid_cents"] == "800000"
+        assert attrs.metadata["tuist_prepaid_funding_ratio_bp"] == "14000"
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, %{id: "credgr_pool"}} = Prepaid.grant_pool(account, pool_attrs())
+    end
+
+    test "records no invoice when none is given" do
+      expect(CreditGrants, :create, fn attrs ->
+        refute Map.has_key?(attrs.metadata, "tuist_prepaid_invoice_id")
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs(%{invoice_id: nil}))
+    end
+
+    test "rejects terms that are more likely a typo than a deal" do
+      reject(&CreditGrants.create/1)
+
+      cases = [
+        {%{credit_multiplier: Decimal.new("0.9999")}, :credit_multiplier},
+        {%{credit_multiplier: Decimal.new("2.0001")}, :credit_multiplier},
+        {%{credit_multiplier: Decimal.new("1.23456")}, :credit_multiplier},
+        {%{credit_multiplier: Decimal.new("12500")}, :credit_multiplier},
+        {%{paid_cents: 0}, :paid_cents},
+        {%{platforms: []}, :platforms},
+        {%{platforms: [:windows]}, :platforms},
+        {%{expires_on: ~D[2026-10-06]}, :expires_on},
+        {%{expires_on: ~D[2027-11-07]}, :expires_on},
+        {%{invoice_id: "123"}, :invoice_id}
+      ]
+
+      for {overrides, field} <- cases do
+        assert {:error, {:invalid_pool, ^field}} = Prepaid.grant_pool(pool_account(), pool_attrs(overrides)),
+               "expected #{inspect(overrides)} to be rejected on #{field}"
+      end
+    end
+
+    test "accepts a contract that ends thirteen months out, for one granted a month before it starts" do
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == ~U[2027-11-11 00:00:00Z]
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs(%{expires_on: ~D[2027-11-06]}))
+    end
+
+    test "keeps the grant owed when no runner price exists yet" do
+      stub(Environment, :stripe_prices, fn -> %{"runners" => %{}} end)
+      reject(&CreditGrants.create/1)
+
+      assert {:error, :no_runner_prices_configured} = Prepaid.grant_pool(pool_account(), pool_attrs())
     end
   end
 end
