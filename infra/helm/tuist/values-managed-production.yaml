@@ -1132,7 +1132,7 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
