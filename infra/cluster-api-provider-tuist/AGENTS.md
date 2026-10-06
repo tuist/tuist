@@ -2175,6 +2175,14 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
+**A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
+machine kinds ignore their own status writes (`ignoreOwnStatusWrites`), since
+every pass patches status (a bootstrap attempt counted, a phase set) and that
+patch would otherwise trigger the next pass at once, skipping the
+`RequeueAfter`. Spec, labels, annotations, finalizers, owner references and a
+started deletion still wake them. Before it, the staging GRA box that refused
+the fleet key took 30,043 SSH logins in about 11 hours (2026-10-05).
+
 **A reinstall already in flight is a completed release, not a failure.** OVH and Elastic Metal
 reach the provider before dropping the finalizer, so a controller restart
 between a successful install call and the finalizer patch — or two Machines on one
