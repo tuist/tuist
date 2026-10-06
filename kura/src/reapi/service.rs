@@ -2132,11 +2132,6 @@ impl ActionCache for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        // Outputs uploaded under deferred content durability must be durable
-        // before this result is acknowledged. Every output the client saw
-        // acknowledged was published before this request arrived, so the
-        // target captured here covers them all.
-        let deferred_outputs = self.state.store.deferred_client_manifest_target();
         let (manifest, applied) = self
             .state
             .store
@@ -2151,15 +2146,6 @@ impl ActionCache for ReapiService {
             )
             .await
             .map_err(|error| store_write_status("failed to store action result", error))?;
-        // An applied result's own synced write already covered the captured
-        // target, so this returns without flushing. A damped refresh, or a
-        // write the store ignored as equal or stale, synced nothing itself,
-        // so it runs whatever the outcome.
-        self.state
-            .store
-            .ensure_deferred_client_manifests_durable(deferred_outputs)
-            .await
-            .map_err(|error| store_write_status("failed to sync output manifests", error))?;
         // A damped refresh (identical bytes, fresh version) counts under its own
         // result and books no bytes: it stored nothing and wrote no replication
         // feed row, so folding it into "ok" both overstates ingest and makes the
@@ -12129,174 +12115,6 @@ mod tests {
             "ranged reads must take the streaming reader"
         );
         assert_eq!(read_bytestream(&mut client, &resource, 0, 0).await, blob);
-
-        let _ = shutdown_tx.send(());
-        let _ = server.await;
-    }
-
-    // A replicated action result from a peer whose clock runs ahead makes the
-    // local update an ignored write that syncs nothing itself. Under deferred
-    // content durability the outputs uploaded before it must still be durable
-    // when the update is acknowledged.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn ignored_action_result_update_syncs_deferred_output_manifests() {
-        use reapi::{
-            action_cache_client::ActionCacheClient,
-            content_addressable_storage_client::ContentAddressableStorageClient,
-        };
-
-        let context = test_context(|config| {
-            config.reapi_cas_durability = crate::config::ReapiCasDurability::ActionResult;
-        })
-        .await;
-        let store = context.state.store.clone();
-        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
-
-        let action_digest = digest_of(b"future action");
-        let key = action_cache_key(&digest_key(&action_digest).expect("digest key"));
-        let future_version_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock after epoch")
-            .as_millis() as u64
-            + 3_600_000;
-        let replicated = reapi::ActionResult {
-            exit_code: 1,
-            ..Default::default()
-        }
-        .encode_to_vec();
-        store
-            .apply_replicated_inline_artifact_from_bytes(
-                ArtifactProducer::Reapi,
-                "ios",
-                &key,
-                "application/x-protobuf",
-                &replicated,
-                future_version_ms,
-                None,
-                None,
-            )
-            .await
-            .expect("seed a newer replicated action result");
-
-        let output = b"deferred output".to_vec();
-        let uploaded = ContentAddressableStorageClient::new(channel.clone())
-            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
-                instance_name: "ios".into(),
-                requests: vec![reapi::batch_update_blobs_request::Request {
-                    digest: Some(digest_of(&output)),
-                    data: output.clone(),
-                    compressor: 0,
-                }],
-                digest_function: reapi::digest_function::Value::Sha256 as i32,
-            })
-            .await
-            .expect("output upload should succeed")
-            .into_inner();
-        assert_eq!(
-            uploaded.responses[0]
-                .status
-                .as_ref()
-                .map(|status| status.code),
-            Some(0)
-        );
-        assert!(
-            store.has_deferred_client_manifests(),
-            "the output manifest should wait for a synced write"
-        );
-
-        ActionCacheClient::new(channel)
-            .update_action_result(reapi::UpdateActionResultRequest {
-                instance_name: "ios".into(),
-                action_digest: Some(action_digest),
-                action_result: Some(reapi::ActionResult {
-                    output_files: vec![reapi::OutputFile {
-                        path: "out".into(),
-                        digest: Some(digest_of(&output)),
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                }),
-                digest_function: reapi::digest_function::Value::Sha256 as i32,
-                ..Default::default()
-            })
-            .await
-            .expect("the update should be acknowledged");
-
-        let stored = store
-            .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
-            .expect("manifest lookup")
-            .expect("the replicated entry should remain");
-        assert_eq!(
-            stored.version_ms, future_version_ms,
-            "the newer replicated entry wins, so the update stored nothing"
-        );
-        assert!(
-            !store.has_deferred_client_manifests(),
-            "an acknowledged action result must imply durable outputs"
-        );
-
-        let _ = shutdown_tx.send(());
-        let _ = server.await;
-    }
-
-    // An applied action result's own synced write covers the outputs captured
-    // before it, so acknowledging it must not pay a second WAL flush.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn applied_action_result_update_covers_deferred_outputs_with_its_own_flush() {
-        use reapi::{
-            action_cache_client::ActionCacheClient,
-            content_addressable_storage_client::ContentAddressableStorageClient,
-        };
-
-        let context = test_context(|config| {
-            config.reapi_cas_durability = crate::config::ReapiCasDurability::ActionResult;
-        })
-        .await;
-        let store = context.state.store.clone();
-        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
-
-        let output = b"applied output".to_vec();
-        ContentAddressableStorageClient::new(channel.clone())
-            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
-                instance_name: "ios".into(),
-                requests: vec![reapi::batch_update_blobs_request::Request {
-                    digest: Some(digest_of(&output)),
-                    data: output.clone(),
-                    compressor: 0,
-                }],
-                digest_function: reapi::digest_function::Value::Sha256 as i32,
-            })
-            .await
-            .expect("output upload should succeed");
-        assert!(store.has_deferred_client_manifests());
-
-        let (_, _, flush_before) = store.wal_write_counts();
-        ActionCacheClient::new(channel)
-            .update_action_result(reapi::UpdateActionResultRequest {
-                instance_name: "ios".into(),
-                action_digest: Some(digest_of(b"applied action")),
-                action_result: Some(reapi::ActionResult {
-                    output_files: vec![reapi::OutputFile {
-                        path: "out".into(),
-                        digest: Some(digest_of(&output)),
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                }),
-                digest_function: reapi::digest_function::Value::Sha256 as i32,
-                ..Default::default()
-            })
-            .await
-            .expect("the update should be acknowledged");
-        assert_eq!(
-            store.wal_write_counts().2,
-            flush_before + 1,
-            "only the result's own synced write flushes the WAL"
-        );
-        assert!(
-            !store.has_deferred_client_manifests(),
-            "an acknowledged action result must imply durable outputs"
-        );
 
         let _ = shutdown_tx.send(());
         let _ = server.await;

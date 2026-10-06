@@ -35,7 +35,7 @@ use crate::{
         producer::ArtifactProducer,
         segment_location_record::SegmentLocationRecord,
     },
-    config::{Config, ReapiCasDurability},
+    config::Config,
     constants::{
         ACTION_CACHE_TRUNK_SCAN_FACTOR, BACKFILL_APPLY_GROUP_RECORDS,
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
@@ -173,8 +173,6 @@ pub struct StorageSnapshotData {
     pub newest_content_at_ms: Option<u64>,
 }
 
-type DeferredFeedTickets = Vec<(u64, Vec<SyncFeedTicket>)>;
-
 pub struct Store {
     startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
@@ -226,12 +224,6 @@ pub struct Store {
     direct_small_uploads_enabled: AtomicBool,
     segment_writers_ahead_of_durability: Arc<DurabilityWriters>,
     pending_capacity_evictions: StdMutex<VecDeque<CapacityEviction>>,
-    /// Feed tickets of deferred client content manifests, with the WAL
-    /// sequence a flush must cover before they may be served. Committing a
-    /// ticket lets siblings read its row; a row a crash could still erase
-    /// would let the restarted node reuse its feed seq for another write
-    /// that a sibling, already past that seq, would never pull.
-    deferred_feed_tickets: Arc<StdMutex<DeferredFeedTickets>>,
     /// Payload ceiling of one segment-eviction write batch. Mirrors
     /// `SEGMENT_EVICTION_MAX_BATCH_BYTES`; it is a field rather than the
     /// constant read inline so tests can drive the chunk boundary without
@@ -254,11 +246,6 @@ pub struct Store {
     #[cfg(test)]
     #[allow(clippy::type_complexity)]
     write_commit_observer: StdMutex<Option<Arc<dyn Fn() + Send + Sync>>>,
-    /// Called with a deferred manifest's WAL sequence while its publication
-    /// still holds the deferred-ticket lock, before the tickets are queued.
-    #[cfg(test)]
-    #[allow(clippy::type_complexity)]
-    deferred_publication_observer: StdMutex<Option<Arc<dyn Fn(u64) + Send + Sync>>>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
     /// empty index is otherwise indistinguishable from a stale one and has to be
@@ -355,8 +342,6 @@ pub struct Store {
     wal_sync_write_count: AtomicU64,
     wal_deferred_write_count: AtomicU64,
     wal_flush_count: AtomicU64,
-    /// See [`ReapiCasDurability::ActionResult`].
-    defer_client_cas_manifest_sync: bool,
     failpoints: Arc<FailpointSet>,
 }
 
@@ -626,7 +611,6 @@ pub struct BackfillIndexPage {
 pub(crate) enum ApplyDurability {
     Sync,
     DeferredBatch,
-    DeferredClientManifest,
 }
 
 const SEGMENT_DURABILITY_GROUP_COMMIT_DELAY: Duration = Duration::from_millis(1);
@@ -1484,7 +1468,6 @@ impl Store {
             direct_small_uploads_enabled: AtomicBool::new(true),
             segment_writers_ahead_of_durability: Arc::new(DurabilityWriters::default()),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
-            deferred_feed_tickets: Arc::new(StdMutex::new(Vec::new())),
             startup_recovery: None,
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
@@ -1493,8 +1476,6 @@ impl Store {
             write_thread_observer: Arc::new(StdMutex::new(None)),
             #[cfg(test)]
             write_commit_observer: StdMutex::new(None),
-            #[cfg(test)]
-            deferred_publication_observer: StdMutex::new(None),
             action_cache_generations: StdMutex::new(HashMap::new()),
             action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
                 ACTION_CACHE_REMOVAL_LOG_MAX,
@@ -1534,8 +1515,6 @@ impl Store {
             wal_sync_write_count: AtomicU64::new(0),
             wal_deferred_write_count: AtomicU64::new(0),
             wal_flush_count: AtomicU64::new(0),
-            defer_client_cas_manifest_sync: config.reapi_cas_durability
-                == ReapiCasDurability::ActionResult,
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -2068,36 +2047,14 @@ impl Store {
             size,
             &mut feed,
         )?;
-        // Under `ReapiCasDurability::ActionResult` a client's content manifest
-        // enters the WAL without its own sync. Its bytes are already durable,
-        // so the byte-before-metadata order holds; the WAL is synced in
-        // order, so the next synced write (the action result that references
-        // this blob) makes the manifest durable too.
-        let durability = if self.defer_client_cas_manifest_sync
-            && spec.producer == ArtifactProducer::Reapi
-            && spec.server_stamped
-            && spec.key.starts_with("blob/")
-        {
-            ApplyDurability::DeferredClientManifest
-        } else {
-            ApplyDurability::Sync
-        };
-        let deferred_feed = if durability == ApplyDurability::DeferredClientManifest {
-            std::mem::take(&mut feed)
-        } else {
-            Vec::new()
-        };
         self.write_batch_with_segment_pins(
             batch,
             "manifest batch",
-            durability,
+            ApplyDurability::Sync,
             vec![location.pin.clone()],
-            deferred_feed,
         )
         .await?;
-        if durability != ApplyDurability::DeferredClientManifest {
-            commit_sync_feed_tickets(feed);
-        }
+        commit_sync_feed_tickets(feed);
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
         Ok(manifest)
@@ -2880,7 +2837,6 @@ impl Store {
             "refreshed manifest",
             ApplyDurability::Sync,
             vec![source_pin, location.pin.clone()],
-            Vec::new(),
         )
         .await?;
         // The promoted entry keeps its original version, which the max-only
@@ -5985,7 +5941,6 @@ impl Store {
                     StagedBackfillApply::Inline(_) => None,
                 })
                 .collect(),
-            Vec::new(),
         )
         .await?;
         commit_sync_feed_tickets(feed);
@@ -9357,7 +9312,7 @@ impl Store {
                 write_options.set_sync(true);
                 self.wal_sync_write_count.fetch_add(1, Ordering::Relaxed);
             }
-            ApplyDurability::DeferredBatch | ApplyDurability::DeferredClientManifest => {
+            ApplyDurability::DeferredBatch => {
                 write_options.set_sync(false);
                 self.wal_deferred_write_count
                     .fetch_add(1, Ordering::Relaxed);
@@ -9400,7 +9355,7 @@ impl Store {
         label: &'static str,
         durability: ApplyDurability,
     ) -> Result<(), String> {
-        self.write_batch_with_segment_pins(batch, label, durability, Vec::new(), Vec::new())
+        self.write_batch_with_segment_pins(batch, label, durability, Vec::new())
             .await
     }
 
@@ -9410,24 +9365,20 @@ impl Store {
         label: &'static str,
         durability: ApplyDurability,
         pins: Vec<Arc<SegmentPin>>,
-        deferred_feed: Vec<SyncFeedTicket>,
     ) -> Result<(), String> {
         // The current RocksDB binding marks `WriteBatch` as `Send`, so move its
         // existing allocation to the blocking worker without a serialized copy
         // and reconstruction. See `commit_eviction_chunk`.
-        let pending_writer = (durability != ApplyDurability::DeferredBatch)
+        let pending_writer = (durability == ApplyDurability::Sync)
             .then(|| PendingDurabilityWriter::new(&self.wal_writers_ahead_of_durability));
         let pending_seq = Arc::clone(&self.wal_pending_seq);
-        let deferred_tickets = Arc::clone(&self.deferred_feed_tickets);
-        #[cfg(test)]
-        let publication_observer = self.deferred_publication_observer.lock().unwrap().clone();
         let db = Arc::clone(&self.db);
         let mut write_options = WriteOptions::default();
         match durability {
             ApplyDurability::Sync => {
                 write_options.set_sync(false);
             }
-            ApplyDurability::DeferredBatch | ApplyDurability::DeferredClientManifest => {
+            ApplyDurability::DeferredBatch => {
                 write_options.set_sync(false);
                 self.wal_deferred_write_count
                     .fetch_add(1, Ordering::Relaxed);
@@ -9446,29 +9397,12 @@ impl Store {
             if let Some(observer) = observer {
                 observer(std::thread::current().id());
             }
-            let result = db.write_opt(batch, &write_options).map(|()| {
-                match durability {
-                    ApplyDurability::DeferredClientManifest => {
-                        // The worker owns tickets through database commit and
-                        // publication. Cancellation cannot resolve their feed
-                        // positions before a WAL flush covers the rows.
-                        let mut deferred = deferred_tickets
-                            .lock()
-                            .expect("deferred feed tickets lock poisoned");
-                        let seq = pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
-                        #[cfg(test)]
-                        if let Some(observer) = publication_observer {
-                            observer(seq);
-                        }
-                        if !deferred_feed.is_empty() {
-                            deferred.push((seq, deferred_feed));
-                        }
-                        Some(seq)
-                    }
+            let result = db
+                .write_opt(batch, &write_options)
+                .map(|()| match durability {
                     ApplyDurability::Sync => Some(pending_seq.fetch_add(1, Ordering::AcqRel) + 1),
                     ApplyDurability::DeferredBatch => None,
-                }
-            });
+                });
             // The worker owns both publication and enrollment, even if its
             // caller is cancelled after the row becomes visible.
             drop(pending_writer);
@@ -9486,8 +9420,7 @@ impl Store {
         .map_err(|error| format!("failed to write {label}: {error}"))?;
         self.sync_feed.notify_commit();
 
-        if let Some(durability_seq) = durability_seq.filter(|_| durability == ApplyDurability::Sync)
-        {
+        if let Some(durability_seq) = durability_seq {
             self.ensure_wal_durable(durability_seq).await?;
         }
         Ok(())
@@ -9514,41 +9447,7 @@ impl Store {
             .map_err(|error| format!("failed to flush WAL: {error}"))?;
         self.wal_flush_count.fetch_add(1, Ordering::Relaxed);
         self.wal_durable_seq.store(target, Ordering::Release);
-        self.commit_durable_feed_tickets(target);
         Ok(())
-    }
-
-    /// Commits the feed tickets of deferred manifests a WAL flush through
-    /// `target` made durable.
-    fn commit_durable_feed_tickets(&self, target: u64) {
-        let durable = {
-            let mut pending = self
-                .deferred_feed_tickets
-                .lock()
-                .expect("deferred feed tickets lock poisoned");
-            if pending.is_empty() {
-                return;
-            }
-            let (durable, waiting): (Vec<_>, Vec<_>) =
-                pending.drain(..).partition(|(seq, _)| *seq <= target);
-            *pending = waiting;
-            durable
-        };
-        for (_, tickets) in durable {
-            commit_sync_feed_tickets(tickets);
-        }
-    }
-
-    /// The WAL sequence that covers every deferred client content manifest
-    /// published so far, or `None` when nothing waits for a flush. A
-    /// manifest's sequence is published before its upload is acknowledged, so
-    /// a target captured when a request arrives covers every upload the
-    /// client saw acknowledged before sending it.
-    pub(crate) fn deferred_client_manifest_target(&self) -> Option<u64> {
-        if !self.defer_client_cas_manifest_sync {
-            return None;
-        }
-        self.client_manifest_target()
     }
 
     fn client_manifest_target(&self) -> Option<u64> {
@@ -9563,34 +9462,13 @@ impl Store {
     }
 
     /// Covers an existing client manifest, including a cancelled writer's
-    /// tracked commit. Durable hits and unrelated metadata writes require no
-    /// I/O; deferred mode keeps the next action-result/background barrier.
+    /// tracked commit: a visible row may still be waiting for its WAL flush.
+    /// Durable hits and unrelated metadata writes require no I/O.
     pub(crate) async fn acknowledge_existing_client_manifest(&self) -> Result<(), String> {
-        if self.defer_client_cas_manifest_sync {
-            let _ = self.client_manifest_target();
-            Ok(())
-        } else {
-            self.ensure_deferred_client_manifests_durable(self.client_manifest_target())
-                .await
-        }
-    }
-
-    /// Makes the deferred manifests covered by a captured target durable,
-    /// joining the shared WAL group flush. A synced write after the capture
-    /// already covers it, so this returns without flushing again.
-    pub(crate) async fn ensure_deferred_client_manifests_durable(
-        &self,
-        target: Option<u64>,
-    ) -> Result<(), String> {
-        match target {
+        match self.client_manifest_target() {
             Some(target) => self.ensure_wal_durable(target).await,
             None => Ok(()),
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn has_deferred_client_manifests(&self) -> bool {
-        self.deferred_client_manifest_target().is_some()
     }
 
     /// The deferred batch's phase-4 durability barrier: one synced WAL flush
@@ -12393,7 +12271,6 @@ mod tests {
             },
             action_cache_eviction_cascade_enabled: true,
             reapi_blob_chunking_enabled: true,
-            reapi_cas_durability: crate::config::ReapiCasDurability::PerWrite,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -13632,30 +13509,22 @@ mod tests {
 
     #[tokio::test]
     async fn unrelated_metadata_writes_do_not_trigger_client_manifest_flushes() {
-        for mode in [
-            ReapiCasDurability::PerWrite,
-            ReapiCasDurability::ActionResult,
-        ] {
-            let (_temp_dir, _config, store) =
-                temp_store_with(|config| config.reapi_cas_durability = mode);
-            store.db.put(b"unrelated-metadata", b"value").unwrap();
-            let mut batch = WriteBatch::default();
-            batch.put(b"synced-metadata", b"value");
-            store.write_batch_sync(batch, "unrelated metadata").unwrap();
-            store.flush_wal_barrier().unwrap();
-            let before = store.wal_write_counts().2;
-            assert_eq!(store.deferred_client_manifest_target(), None);
-            store.acknowledge_existing_client_manifest().await.unwrap();
-            assert_eq!(store.wal_pending_seq.load(Ordering::Acquire), 0);
-            assert_eq!(store.wal_write_counts().2, before);
-        }
+        let (_temp_dir, _config, store) = temp_store();
+        store.db.put(b"unrelated-metadata", b"value").unwrap();
+        let mut batch = WriteBatch::default();
+        batch.put(b"synced-metadata", b"value");
+        store.write_batch_sync(batch, "unrelated metadata").unwrap();
+        store.flush_wal_barrier().unwrap();
+        let before = store.wal_write_counts().2;
+        assert_eq!(store.client_manifest_target(), None);
+        store.acknowledge_existing_client_manifest().await.unwrap();
+        assert_eq!(store.wal_pending_seq.load(Ordering::Acquire), 0);
+        assert_eq!(store.wal_write_counts().2, before);
     }
 
     #[tokio::test]
     async fn visible_inflight_manifest_target_cannot_be_satisfied_by_an_older_flush() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.reapi_cas_durability = ReapiCasDurability::ActionResult
-        });
+        let (_temp_dir, _config, store) = temp_store();
         // An earlier flush captured 4. Model a second writer in the
         // database-visibility/publication window while that flush is running.
         store.wal_pending_seq.store(4, Ordering::Release);
@@ -13665,277 +13534,18 @@ mod tests {
             .db
             .put(b"visible-before-publication", b"value")
             .unwrap();
-        let target = store.deferred_client_manifest_target().unwrap();
+        let target = store.client_manifest_target().unwrap();
         assert_eq!(target, 5);
         store.wal_durable_seq.store(4, Ordering::Release);
         drop(writer);
         let before = store.wal_write_counts().2;
-        store
-            .ensure_deferred_client_manifests_durable(Some(target))
-            .await
-            .unwrap();
+        store.ensure_wal_durable(target).await.unwrap();
         assert_eq!(store.wal_write_counts().2, before + 1);
         assert_eq!(store.wal_durable_seq.load(Ordering::Acquire), 5);
     }
 
     #[tokio::test]
-    async fn action_result_cas_durability_defers_only_client_content_manifests() {
-        let (_temp_dir, config, store) = temp_store_with(|config| {
-            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
-        });
-        let body = b"content upload".to_vec();
-
-        // A client content upload: bytes durable, manifest deferred.
-        let (sync_before, deferred_before, flush_before) = store.wal_write_counts();
-        store
-            .persist_artifact_from_bytes_and_replicate(
-                ArtifactProducer::Reapi,
-                "ios",
-                "blob/abc/14",
-                "application/octet-stream",
-                &body,
-            )
-            .await
-            .expect("content upload should persist");
-        let (sync_after, deferred_after, flush_after) = store.wal_write_counts();
-        assert_eq!(deferred_after, deferred_before + 1);
-        assert_eq!(sync_after, sync_before);
-        assert_eq!(flush_after, flush_before);
-
-        // Other producers and keys keep per-write durability.
-        let (_, deferred_before, flush_before) = store.wal_write_counts();
-        store
-            .persist_artifact_from_bytes_and_replicate(
-                ArtifactProducer::Gradle,
-                "ios",
-                "gradle-key",
-                "application/octet-stream",
-                &body,
-            )
-            .await
-            .expect("gradle upload should persist");
-        let (_, deferred_after, flush_after) = store.wal_write_counts();
-        assert_eq!(deferred_after, deferred_before);
-        assert!(flush_after > flush_before);
-
-        // The explicit sync every action result runs joins the WAL flush for a
-        // deferred manifest, and costs nothing once no manifest waits.
-        store
-            .persist_artifact_from_bytes_and_replicate(
-                ArtifactProducer::Reapi,
-                "ios",
-                "blob/def/14",
-                "application/octet-stream",
-                &body,
-            )
-            .await
-            .expect("second content upload should persist");
-        assert!(store.has_deferred_client_manifests());
-        let (_, _, flush_before) = store.wal_write_counts();
-        store
-            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
-            .await
-            .expect("deferred manifests should sync");
-        let (_, _, flush_after) = store.wal_write_counts();
-        assert!(flush_after > flush_before);
-        assert!(!store.has_deferred_client_manifests());
-        store
-            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
-            .await
-            .expect("a sync with nothing deferred should succeed");
-        assert_eq!(store.wal_write_counts().2, flush_after);
-
-        drop(store);
-        let reopened = reopen_store(&config);
-        let manifest = reopened
-            .fetch_artifact(ArtifactProducer::Reapi, "ios", "blob/abc/14")
-            .await
-            .expect("fetch after reopen")
-            .expect("deferred manifest survives a clean reopen");
-        assert_eq!(read_manifest_bytes(&reopened, &manifest).await, body);
-    }
-
-    #[tokio::test]
-    async fn deferred_content_feed_rows_are_served_only_once_durable() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
-        });
-        store.sync_feed_activate().await.expect("activate the feed");
-        let head_before = store.sync_feed().head();
-        store
-            .persist_artifact_from_bytes_and_replicate(
-                ArtifactProducer::Reapi,
-                "ios",
-                "blob/feed/4",
-                "application/octet-stream",
-                b"feed",
-            )
-            .await
-            .expect("content upload should persist");
-        assert_eq!(
-            store.sync_feed().head(),
-            head_before,
-            "a sibling must not read a row a crash could still erase"
-        );
-        assert!(store.has_deferred_client_manifests());
-
-        store
-            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
-            .await
-            .expect("flush deferred manifests");
-        assert!(store.sync_feed().head() > head_before);
-        assert!(!store.has_deferred_client_manifests());
-    }
-
-    // A flush that captures a deferred manifest's sequence while that
-    // sequence is still being published must still commit its feed ticket.
-    // The flush runs entirely inside the publication window: it captures the
-    // sequence, makes it durable, and only then reaches the ticket queue. If
-    // the tickets could be queued after that queue was drained, the durable
-    // sequence would already cover them, nothing would ever flush for them
-    // again, and the feed head would stay pinned below them.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn deferred_publication_racing_a_flush_still_commits_its_feed_ticket() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
-        });
-        let store = Arc::new(store);
-        store.sync_feed_activate().await.expect("activate the feed");
-        let head_before = store.sync_feed().head();
-
-        let (published_tx, mut published_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (resume_tx, resume_rx) = std::sync::mpsc::channel::<()>();
-        let resume_rx = StdMutex::new(resume_rx);
-        *store.deferred_publication_observer.lock().unwrap() = Some(Arc::new(move |seq| {
-            published_tx
-                .send(seq)
-                .expect("the test should observe the publication");
-            resume_rx
-                .lock()
-                .unwrap()
-                .recv()
-                .expect("the test should resume the publication");
-        }));
-
-        let upload = tokio::spawn({
-            let store = Arc::clone(&store);
-            async move {
-                store
-                    .persist_artifact_from_bytes_and_replicate(
-                        ArtifactProducer::Reapi,
-                        "ios",
-                        "blob/race/4",
-                        "application/octet-stream",
-                        b"race",
-                    )
-                    .await
-                    .map(drop)
-            }
-        });
-        let seq = published_rx
-            .recv()
-            .await
-            .expect("the upload should publish its sequence");
-        *store.deferred_publication_observer.lock().unwrap() = None;
-
-        let target = store.deferred_client_manifest_target();
-        assert!(target.is_some_and(|target| target >= seq));
-        let flush = tokio::spawn({
-            let store = Arc::clone(&store);
-            async move { store.ensure_deferred_client_manifests_durable(target).await }
-        });
-        while store.wal_durable_seq.load(Ordering::Acquire) < seq {
-            tokio::task::yield_now().await;
-        }
-        resume_tx.send(()).expect("the publication should resume");
-
-        upload
-            .await
-            .expect("upload task should finish")
-            .expect("content upload should persist");
-        flush
-            .await
-            .expect("flush task should finish")
-            .expect("deferred manifests should sync");
-        assert!(!store.has_deferred_client_manifests());
-        assert!(
-            store
-                .deferred_feed_tickets
-                .lock()
-                .expect("deferred feed tickets lock poisoned")
-                .is_empty(),
-            "the racing flush must commit the ticket it made durable"
-        );
-        assert!(
-            store.sync_feed().head() > head_before,
-            "the durable row must become readable without another write"
-        );
-    }
-
-    // An action result captures the deferred target before its own synced
-    // write; that write covers the target, so acknowledging the result costs
-    // no further flush even when newer deferred uploads arrived meanwhile.
-    #[tokio::test]
-    async fn captured_deferred_target_needs_no_flush_after_a_synced_write() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.reapi_cas_durability = ReapiCasDurability::ActionResult;
-        });
-        store
-            .persist_artifact_from_bytes_and_replicate(
-                ArtifactProducer::Reapi,
-                "ios",
-                "blob/output/6",
-                "application/octet-stream",
-                b"output",
-            )
-            .await
-            .expect("output upload should persist");
-        let target = store.deferred_client_manifest_target();
-        assert!(target.is_some());
-
-        let (_, _, flush_before) = store.wal_write_counts();
-        store
-            .persist_inline_artifact_from_bytes_damped_and_replicate(
-                ArtifactProducer::Reapi,
-                "ios",
-                "action_cache/result/6",
-                "application/x-protobuf",
-                b"result",
-                None,
-                None,
-            )
-            .await
-            .expect("action result should persist");
-        assert_eq!(store.wal_write_counts().2, flush_before + 1);
-        store
-            .persist_artifact_from_bytes_and_replicate(
-                ArtifactProducer::Reapi,
-                "ios",
-                "blob/later/5",
-                "application/octet-stream",
-                b"later",
-            )
-            .await
-            .expect("a later upload should persist");
-        assert!(store.has_deferred_client_manifests());
-
-        store
-            .ensure_deferred_client_manifests_durable(target)
-            .await
-            .expect("the captured target is already durable");
-        assert_eq!(
-            store.wal_write_counts().2,
-            flush_before + 1,
-            "the result's own synced write covered the captured outputs"
-        );
-        assert!(
-            store.has_deferred_client_manifests(),
-            "a later upload is left to the next synced write or the background bound"
-        );
-    }
-
-    #[tokio::test]
-    async fn per_write_cas_durability_syncs_every_content_manifest() {
+    async fn client_content_manifests_sync_before_acknowledgement() {
         let (_temp_dir, _config, store) = temp_store();
         let (_, deferred_before, flush_before) = store.wal_write_counts();
         store
@@ -13951,12 +13561,7 @@ mod tests {
         let (_, deferred_after, flush_after) = store.wal_write_counts();
         assert_eq!(deferred_after, deferred_before);
         assert!(flush_after > flush_before);
-        assert_eq!(store.deferred_client_manifest_target(), None);
-        store
-            .ensure_deferred_client_manifests_durable(store.deferred_client_manifest_target())
-            .await
-            .expect("no-op under per-write durability");
-        assert_eq!(store.wal_write_counts().2, flush_after);
+        assert_eq!(store.client_manifest_target(), None);
     }
 
     #[tokio::test]
@@ -22702,7 +22307,6 @@ mod tests {
             "pin test",
             ApplyDurability::Sync,
             vec![pin],
-            Vec::new(),
         ));
         tokio::time::timeout(Duration::from_secs(60), async {
             tokio::select! {

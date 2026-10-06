@@ -1,201 +1,167 @@
 use super::*;
-use crate::config::ReapiCasDurability;
 use crate::test_support::test_context;
 use bazel_remote_apis::build::bazel::remote::execution::v2::content_addressable_storage_client::ContentAddressableStorageClient;
 use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn existing_blob_acknowledgements_cover_a_cancelled_visible_commit() {
-    for mode in [
-        ReapiCasDurability::PerWrite,
-        ReapiCasDurability::ActionResult,
-    ] {
-        for operation in ["status", "write", "batch", "find_missing"] {
-            let context = test_context(|config| config.reapi_cas_durability = mode).await;
-            let store = context.state.store.clone();
-            store.sync_feed_activate().await.unwrap();
-            store
-                .persist_artifact_from_bytes(
+    for operation in ["status", "write", "batch", "find_missing"] {
+        let context = test_context(|_| {}).await;
+        let store = context.state.store.clone();
+        store.sync_feed_activate().await.unwrap();
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "recovery",
+                "sentinel",
+                "application/octet-stream",
+                b"sentinel",
+            )
+            .await
+            .unwrap();
+        let bytes = b"cancelled but database-visible content".to_vec();
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
+        let (reached_tx, reached_rx) = tokio::sync::oneshot::channel();
+        let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+        let reached_tx = std::sync::Mutex::new(Some(reached_tx));
+        let finished_tx = std::sync::Mutex::new(Some(finished_tx));
+        let resume_rx = std::sync::Mutex::new(resume_rx);
+        store.set_write_commit_observer(Some(Arc::new(move || {
+            reached_tx.lock().unwrap().take().unwrap().send(()).unwrap();
+            // Closing the sender on test failure also releases the worker.
+            let _ = resume_rx.lock().unwrap().recv();
+            let _ = finished_tx.lock().unwrap().take().unwrap().send(());
+        })));
+        let writer_store = store.clone();
+        let writer_key = key.clone();
+        let writer_bytes = bytes.clone();
+        let writer = tokio::spawn(async move {
+            writer_store
+                .persist_artifact_from_bytes_and_replicate(
                     ArtifactProducer::Reapi,
                     "recovery",
-                    "sentinel",
+                    &writer_key,
                     "application/octet-stream",
-                    b"sentinel",
+                    &writer_bytes,
                 )
                 .await
-                .unwrap();
-            let head_before = store.sync_feed().head();
-            let bytes = b"cancelled but database-visible content".to_vec();
-            let digest = reapi::Digest {
-                hash: hex::encode(Sha256::digest(&bytes)),
-                size_bytes: bytes.len() as i64,
-            };
-            let key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
-            let (reached_tx, reached_rx) = tokio::sync::oneshot::channel();
-            let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
-            let (resume_tx, resume_rx) = std::sync::mpsc::channel();
-            let reached_tx = std::sync::Mutex::new(Some(reached_tx));
-            let finished_tx = std::sync::Mutex::new(Some(finished_tx));
-            let resume_rx = std::sync::Mutex::new(resume_rx);
-            store.set_write_commit_observer(Some(Arc::new(move || {
-                reached_tx.lock().unwrap().take().unwrap().send(()).unwrap();
-                // Closing the sender on test failure also releases the worker.
-                let _ = resume_rx.lock().unwrap().recv();
-                let _ = finished_tx.lock().unwrap().take().unwrap().send(());
-            })));
-            let writer_store = store.clone();
-            let writer_key = key.clone();
-            let writer_bytes = bytes.clone();
-            let writer = tokio::spawn(async move {
-                writer_store
-                    .persist_artifact_from_bytes_and_replicate(
-                        ArtifactProducer::Reapi,
-                        "recovery",
-                        &writer_key,
-                        "application/octet-stream",
-                        &writer_bytes,
-                    )
-                    .await
-            });
-            tokio::time::timeout(std::time::Duration::from_secs(10), reached_rx)
-                .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(10), reached_rx)
+            .await
+            .unwrap()
+            .unwrap();
+        store.set_write_commit_observer(None);
+        writer.abort();
+        assert!(writer.await.unwrap_err().is_cancelled());
+        assert!(
+            store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, "recovery", &key)
                 .unwrap()
-                .unwrap();
-            store.set_write_commit_observer(None);
-            writer.abort();
-            assert!(writer.await.unwrap_err().is_cancelled());
-            assert!(
-                store
-                    .artifact_manifest_exists(ArtifactProducer::Reapi, "recovery", &key)
-                    .unwrap()
-            );
-            if mode == ReapiCasDurability::ActionResult {
-                assert_eq!(
-                    store.sync_feed().head(),
-                    head_before,
-                    "cancellation must not expose an undurable feed row"
-                );
-            }
-            let before = store.wal_write_counts().2;
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let address = listener.local_addr().unwrap();
-            let router = routes(context.state.clone());
-            let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-            let resource_name = format!(
-                "recovery/uploads/cancelled/blobs/{}/{}",
-                digest.hash, digest.size_bytes
-            );
-            match operation {
-                "status" => {
-                    let mut client = ByteStreamClient::connect(format!("http://{address}"))
-                        .await
-                        .unwrap();
-                    let response = client
-                        .query_write_status(bytestream::QueryWriteStatusRequest { resource_name })
-                        .await
-                        .unwrap()
-                        .into_inner();
-                    assert!(response.complete);
-                    assert_eq!(response.committed_size, digest.size_bytes);
-                }
-                "write" => {
-                    let mut client = ByteStreamClient::connect(format!("http://{address}"))
-                        .await
-                        .unwrap();
-                    let response = client
-                        .write(tokio_stream::iter([bytestream::WriteRequest {
-                            resource_name,
-                            write_offset: 0,
-                            finish_write: true,
-                            data: bytes,
-                        }]))
-                        .await
-                        .unwrap()
-                        .into_inner();
-                    assert_eq!(response.committed_size, digest.size_bytes);
-                }
-                "batch" => {
-                    let mut client =
-                        ContentAddressableStorageClient::connect(format!("http://{address}"))
-                            .await
-                            .unwrap();
-                    let response = client
-                        .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
-                            instance_name: "recovery".into(),
-                            requests: vec![reapi::batch_update_blobs_request::Request {
-                                digest: Some(digest),
-                                data: bytes,
-                                compressor: 0,
-                            }],
-                            ..Default::default()
-                        })
-                        .await
-                        .unwrap()
-                        .into_inner();
-                    assert_eq!(response.responses.len(), 1);
-                    assert_eq!(response.responses[0].status.as_ref().unwrap().code, 0);
-                }
-                "find_missing" => {
-                    let mut client =
-                        ContentAddressableStorageClient::connect(format!("http://{address}"))
-                            .await
-                            .unwrap();
-                    let response = client
-                        .find_missing_blobs(reapi::FindMissingBlobsRequest {
-                            instance_name: "recovery".into(),
-                            blob_digests: vec![digest],
-                            ..Default::default()
-                        })
-                        .await
-                        .unwrap()
-                        .into_inner();
-                    assert!(response.missing_blob_digests.is_empty());
-                }
-                _ => unreachable!(),
-            }
-            if mode == ReapiCasDurability::ActionResult {
-                assert_eq!(
-                    store.wal_write_counts().2,
-                    before,
-                    "{operation} must not force a deferred upload flush"
-                );
-                let target = store
-                    .deferred_client_manifest_target()
-                    .expect("visible cancelled commit must be registered");
-                store
-                    .ensure_deferred_client_manifests_durable(Some(target))
+        );
+        let before = store.wal_write_counts().2;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let router = routes(context.state.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let resource_name = format!(
+            "recovery/uploads/cancelled/blobs/{}/{}",
+            digest.hash, digest.size_bytes
+        );
+        match operation {
+            "status" => {
+                let mut client = ByteStreamClient::connect(format!("http://{address}"))
                     .await
                     .unwrap();
-                assert!(store.wal_write_counts().2 > before);
-                assert!(
-                    store.sync_feed().head() > head_before,
-                    "the covered cancelled commit must become replicable"
-                );
-            } else if operation != "find_missing" {
-                assert!(
-                    store.wal_write_counts().2 > before,
-                    "{operation} must cover the visible commit before acknowledging it"
-                );
+                let response = client
+                    .query_write_status(bytestream::QueryWriteStatusRequest { resource_name })
+                    .await
+                    .unwrap()
+                    .into_inner();
+                assert!(response.complete);
+                assert_eq!(response.committed_size, digest.size_bytes);
             }
-            if operation != "find_missing" {
-                let after = store.wal_write_counts().2;
-                let target = store.deferred_client_manifest_target();
-                store.acknowledge_existing_client_manifest().await.unwrap();
-                assert_eq!(
-                    store.wal_write_counts().2,
-                    after,
-                    "durable lookup must not flush again"
-                );
-                assert!(target.is_none());
+            "write" => {
+                let mut client = ByteStreamClient::connect(format!("http://{address}"))
+                    .await
+                    .unwrap();
+                let response = client
+                    .write(tokio_stream::iter([bytestream::WriteRequest {
+                        resource_name,
+                        write_offset: 0,
+                        finish_write: true,
+                        data: bytes,
+                    }]))
+                    .await
+                    .unwrap()
+                    .into_inner();
+                assert_eq!(response.committed_size, digest.size_bytes);
             }
-            resume_tx.send(()).unwrap();
-            tokio::time::timeout(std::time::Duration::from_secs(10), finished_rx)
-                .await
-                .unwrap()
-                .unwrap();
-            server.abort();
-            let _ = server.await;
+            "batch" => {
+                let mut client =
+                    ContentAddressableStorageClient::connect(format!("http://{address}"))
+                        .await
+                        .unwrap();
+                let response = client
+                    .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
+                        instance_name: "recovery".into(),
+                        requests: vec![reapi::batch_update_blobs_request::Request {
+                            digest: Some(digest),
+                            data: bytes,
+                            compressor: 0,
+                        }],
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap()
+                    .into_inner();
+                assert_eq!(response.responses.len(), 1);
+                assert_eq!(response.responses[0].status.as_ref().unwrap().code, 0);
+            }
+            "find_missing" => {
+                let mut client =
+                    ContentAddressableStorageClient::connect(format!("http://{address}"))
+                        .await
+                        .unwrap();
+                let response = client
+                    .find_missing_blobs(reapi::FindMissingBlobsRequest {
+                        instance_name: "recovery".into(),
+                        blob_digests: vec![digest],
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap()
+                    .into_inner();
+                assert!(response.missing_blob_digests.is_empty());
+            }
+            _ => unreachable!(),
         }
+        if operation != "find_missing" {
+            assert!(
+                store.wal_write_counts().2 > before,
+                "{operation} must cover the visible commit before acknowledging it"
+            );
+        }
+        if operation != "find_missing" {
+            let after = store.wal_write_counts().2;
+            store.acknowledge_existing_client_manifest().await.unwrap();
+            assert_eq!(
+                store.wal_write_counts().2,
+                after,
+                "durable lookup must not flush again"
+            );
+        }
+        resume_tx.send(()).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(10), finished_rx)
+            .await
+            .unwrap()
+            .unwrap();
+        server.abort();
+        let _ = server.await;
     }
 }
 

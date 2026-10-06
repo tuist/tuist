@@ -56,9 +56,6 @@ const HTTP_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
-/// Longest a deferred content manifest waits for a synced write before a
-/// background WAL flush makes it durable (`KURA_REAPI_CAS_DURABILITY=action_result`).
-const DEFERRED_CAS_MANIFEST_FLUSH_INTERVAL: Duration = Duration::from_millis(50);
 // The kubelet writes memory.min/memory.low once at container creation, so this
 // gauge only has to notice a change across a kubelet restart or upgrade. It
 // rides the pressure loop rather than owning one, and samples far slower than
@@ -512,28 +509,6 @@ async fn initialize_and_serve(
             .in_current_span(),
         ))
     };
-
-    if state.config.reapi_cas_durability == crate::config::ReapiCasDurability::ActionResult {
-        // Bounds how long a deferred content manifest stays undurable (and so
-        // invisible to siblings) when no action result follows it.
-        let store = Arc::clone(&state.store);
-        tokio::spawn(
-            async move {
-                loop {
-                    tokio::time::sleep(DEFERRED_CAS_MANIFEST_FLUSH_INTERVAL).await;
-                    if let Err(error) = store
-                        .ensure_deferred_client_manifests_durable(
-                            store.deferred_client_manifest_target(),
-                        )
-                        .await
-                    {
-                        tracing::warn!("failed to flush deferred content manifests: {error}");
-                    }
-                }
-            }
-            .in_current_span(),
-        );
-    }
 
     let reapi_routes = reapi::routes(state.clone());
     let router = cohosted_router(state.clone(), reapi_routes.clone());

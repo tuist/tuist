@@ -46,7 +46,6 @@ const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_S
 const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
     "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
 const KURA_REAPI_BLOB_CHUNKING_ENABLED: &str = "KURA_REAPI_BLOB_CHUNKING_ENABLED";
-const KURA_REAPI_CAS_DURABILITY: &str = "KURA_REAPI_CAS_DURABILITY";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -167,23 +166,6 @@ const FALLBACK_HOST_CPU_COUNT: usize = 4;
 #[cfg(target_os = "linux")]
 const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
-/// When an acknowledged Remote Execution content upload becomes durable.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ReapiCasDurability {
-    /// Every content upload is durable before it is acknowledged (default).
-    #[default]
-    PerWrite,
-    /// Content bytes are durable before their manifest is written, but the
-    /// manifest itself becomes durable with the next synced metadata write,
-    /// normally the `UpdateActionResult` that references it. A durable action
-    /// result therefore still implies durable outputs uploaded to the same
-    /// node; the guarantee is node-local, so uploads and results must reach
-    /// the same node. A crash can lose an acknowledged upload no synced write
-    /// on its node has followed, which clients see as a cache miss. Saves one
-    /// metadata flush per upload.
-    ActionResult,
-}
-
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
@@ -224,9 +206,6 @@ pub struct Config {
     /// recipes remain readable when disabled so a rollback flag change cannot
     /// strand data that is already stored.
     pub reapi_blob_chunking_enabled: bool,
-    /// When a client's Remote Execution content upload is acknowledged as
-    /// durable; see [`ReapiCasDurability`].
-    pub reapi_cas_durability: ReapiCasDurability,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -888,19 +867,6 @@ impl Config {
             },
         )
         .unwrap_or(true);
-        let reapi_cas_durability = optional_parsed_value(
-            &mut lookup,
-            KURA_REAPI_CAS_DURABILITY,
-            &mut invalid,
-            |value| match value {
-                "per_write" => Ok(ReapiCasDurability::PerWrite),
-                "action_result" => Ok(ReapiCasDurability::ActionResult),
-                _ => Err(format!(
-                    "{KURA_REAPI_CAS_DURABILITY} must be `per_write` or `action_result`"
-                )),
-            },
-        )
-        .unwrap_or_default();
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -2051,7 +2017,6 @@ impl Config {
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
             reapi_blob_chunking_enabled,
-            reapi_cas_durability,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -2902,7 +2867,6 @@ mod tests {
         assert_eq!(config.internal_port, 7443);
         assert!(config.peers.is_empty());
         assert!(config.reapi_blob_chunking_enabled);
-        assert_eq!(config.reapi_cas_durability, ReapiCasDurability::PerWrite);
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
@@ -3113,7 +3077,6 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
             (KURA_REAPI_BLOB_CHUNKING_ENABLED, "false"),
-            (KURA_REAPI_CAS_DURABILITY, "action_result"),
             (
                 KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
                 "10485760",
@@ -3149,10 +3112,6 @@ mod tests {
         );
         assert_eq!(config.discovery_dns_name, None);
         assert!(!config.reapi_blob_chunking_enabled);
-        assert_eq!(
-            config.reapi_cas_durability,
-            ReapiCasDurability::ActionResult
-        );
         assert_eq!(config.peer_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
@@ -3370,7 +3329,6 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
             (KURA_REAPI_BLOB_CHUNKING_ENABLED, "invalid"),
-            (KURA_REAPI_CAS_DURABILITY, "eventually"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
@@ -3405,7 +3363,6 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
         assert!(error.contains(KURA_REAPI_BLOB_CHUNKING_ENABLED));
-        assert!(error.contains(KURA_REAPI_CAS_DURABILITY));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
     }
