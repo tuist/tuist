@@ -488,20 +488,53 @@
       }
     },
     {
-      "name": "ber1-proto-01",
+      "name": "ber1-runner-b01",
       "role": "runner",
       "hardware": "mac-mini",
-      "rack_host": "ber1-proto-01",
+      "rack_host": "ber1-runner-b01",
       "status": "installed",
-      "note": "The refurbished M1 that proves the plumbing until the leased minis arrive. Its NIC is 1G, not the 10G of the rack minis the hardware entry describes.",
       "links": [
         {
           "switch": "ber1-tor-b",
-          "port": 1,
+          "port": 2,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
-          "mac": "14:98:77:3a:99:2c"
+          "mac": "bc:74:ea:b7:76:b0"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b02",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b02",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 3,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:b2:96:1d"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b03",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b03",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 4,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:be:0b:56"
         }
       ]
     }
@@ -527,6 +560,18 @@
       "id": 4000,
       "name": "edge-vrrp",
       "carried_by": "edges"
+    }
+  ],
+  "feeds": [
+    {
+      "source": 1,
+      "name": "feed-a",
+      "note": "Every transfer switch source 1. At home a house socket; in the colo the A-side whip."
+    },
+    {
+      "source": 2,
+      "name": "feed-b",
+      "note": "Every transfer switch source 2. At home a second house socket; in the colo the B-side whip."
     }
   ]
 }
