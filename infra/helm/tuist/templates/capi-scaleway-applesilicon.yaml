@@ -49,6 +49,8 @@ rules:
       - vultrmachinetemplates
       - rackapplesiliconmachines
       - rackhosts
+      - rackpdus
+      - rackatses
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxcandidates
@@ -69,6 +71,12 @@ rules:
       - rackapplesiliconmachines/finalizers
       # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
+      # The RackPDU and RackATS controllers hold a deleted PDU or transfer
+      # switch with a finalizer until its egress Service is gone.
+      - rackpdus/status
+      - rackpdus/finalizers
+      - rackatses/status
+      - rackatses/finalizers
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
       # until it retired the host's Machine, tailnet devices and console key,
@@ -377,6 +385,12 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            {{- if .Values.capi.vultrPrivateNetwork.enabled }}
+            - --vultr-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "vultr-private-network") }}
+            {{- end }}
+            {{- if .Values.capi.ovhPrivateNetwork.enabled }}
+            - --ovh-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
+            {{- end }}
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
             {{- end }}
@@ -407,6 +421,9 @@ spec:
             - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
             - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
             - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- if .Values.rackFleet.cardRootKey.enabled }}
+            - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
+            {{- end }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}

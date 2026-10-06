@@ -23,6 +23,8 @@ defmodule Atlas.Letters do
   alias Atlas.Users
   alias Atlas.Users.User
 
+  require Logger
+
   def configured?, do: Config.configured?()
 
   def verify_webhook_signature(raw_body, signature) do
@@ -381,10 +383,23 @@ defmodule Atlas.Letters do
 
   def deliver(letter_id) when is_binary(letter_id) do
     case get_letter(letter_id) do
-      nil -> {:error, :not_found}
-      %Letter{status: status} when status in ["sent", "delivered", "undeliverable"] -> :ok
-      %Letter{status: "queued"} = letter -> do_deliver(letter)
-      _letter -> {:error, :letter_not_ready_to_send}
+      nil ->
+        {:error, :not_found}
+
+      %Letter{status: status} when status in ["sent", "delivered", "undeliverable"] ->
+        :ok
+
+      # "sending" is retryable because a prior attempt may have crashed anywhere
+      # between the "sending" status update and persisting Pingen's response
+      # (letter id, tracking number). do_deliver/1 branches on
+      # pingen_letter_id: if the id is already stored we reconcile against
+      # Pingen instead of re-submitting, so replaying a "sending" letter
+      # cannot post the same physical letter twice.
+      %Letter{status: status} = letter when status in ["queued", "sending"] ->
+        do_deliver(letter)
+
+      _letter ->
+        {:error, :letter_not_ready_to_send}
     end
   end
 
@@ -718,27 +733,46 @@ defmodule Atlas.Letters do
     |> Oban.insert()
   end
 
-  defp do_deliver(letter) do
-    with {:ok, sending} <- update_letter(letter, %{status: "sending", last_error: nil}),
-         {:ok, pdf} <- load_letter_pdf(sending),
-         {:ok, delivery} <- Pingen.send_letter(sending, pdf),
-         {:ok, delivered} <- apply_provider_delivery(sending, delivery, "submission") do
-      audit(
-        "letter.submitted",
-        delivered,
-        delivered.created_by,
-        %{
-          "pingen_letter_id" => delivered.pingen_letter_id,
-          "pingen_status" => delivered.pingen_status
-        },
-        interface: "worker"
-      )
-
+  defp do_deliver(%Letter{pingen_letter_id: pingen_letter_id} = letter) when is_binary(pingen_letter_id) do
+    # A prior attempt already handed this letter to Pingen but crashed before
+    # persisting the response. Reconcile against Pingen instead of running the
+    # upload+create flow again — Pingen's idempotency-key would return the same
+    # letter, but we would still burn a second file upload slot and confuse the
+    # provider-side audit trail.
+    with {:ok, delivery} <- Pingen.get_letter(pingen_letter_id),
+         {:ok, delivered} <- apply_provider_delivery(letter, delivery, "submission") do
+      audit_letter_submitted(delivered)
       {:ok, delivered}
     else
       :disabled -> fail_delivery(letter, :postal_delivery_not_configured)
       {:error, reason} -> fail_delivery(letter, reason)
     end
+  end
+
+  defp do_deliver(letter) do
+    with {:ok, sending} <- update_letter(letter, %{status: "sending", last_error: nil}),
+         {:ok, pdf} <- load_letter_pdf(sending),
+         {:ok, delivery} <- Pingen.send_letter(sending, pdf),
+         {:ok, delivered} <- apply_provider_delivery(sending, delivery, "submission") do
+      audit_letter_submitted(delivered)
+      {:ok, delivered}
+    else
+      :disabled -> fail_delivery(letter, :postal_delivery_not_configured)
+      {:error, reason} -> fail_delivery(letter, reason)
+    end
+  end
+
+  defp audit_letter_submitted(letter) do
+    audit(
+      "letter.submitted",
+      letter,
+      letter.created_by,
+      %{
+        "pingen_letter_id" => letter.pingen_letter_id,
+        "pingen_status" => letter.pingen_status
+      },
+      interface: "worker"
+    )
   end
 
   defp load_letter_pdf(%Letter{kind: "uploaded_letter", document_id: document_id}) when is_binary(document_id),
@@ -804,13 +838,27 @@ defmodule Atlas.Letters do
   end
 
   defp fail_delivery(letter, reason) do
-    case update_letter(letter, %{status: "failed", last_error: inspect(reason), last_checked_at: DateTime.utc_now()}) do
+    # last_checked_at is :utc_datetime, which rejects microseconds; without
+    # truncation the whole update raises and the letter stays wedged mid-flight
+    # with no failure audit and no last_error recorded.
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    case update_letter(letter, %{status: "failed", last_error: inspect(reason), last_checked_at: now}) do
       {:ok, failed} ->
         audit("letter.delivery_failed", failed, failed.created_by, %{"reason" => inspect(reason)}, interface: "worker")
         {:error, reason}
 
-      {:error, changeset} ->
-        {:error, changeset}
+      {:error, %Ecto.Changeset{} = changeset} ->
+        # Persisting the failure itself failed (constraint / type mismatch).
+        # Log the changeset errors and return the ORIGINAL provider reason so
+        # the SendLetter worker's Oban.PerformError carries the provider
+        # failure, not an opaque changeset that would obscure the root cause
+        # in the job's error history.
+        Logger.error(
+          "Letter #{letter.id}: failed to persist delivery failure after #{inspect(reason)}: #{inspect(changeset.errors)}"
+        )
+
+        {:error, reason}
     end
   end
 

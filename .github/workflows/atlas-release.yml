@@ -1,11 +1,6 @@
 name: Atlas Release
 
-# Cuts a versioned release of the Atlas image, publishes it to GHCR
-# under `ghcr.io/tuist/atlas:<version>` + `:latest`, records an
-# `atlas@X.Y.Z` git tag + GitHub Release, and rolls the new version
-# out to the atlas-production cluster with `helm upgrade`. Release
-# and deploy live in the same workflow so a merge to `main` ships
-# straight to production — same shape server-deployment.yml uses.
+# Publish the image and chart together; managed deployment consumes that version.
 
 on:
   push:
@@ -17,6 +12,7 @@ on:
       - infra/k8s/atlas/**
       - mise/tasks/release/components.json
       - .github/workflows/atlas-release.yml
+      - .github/workflows/atlas-deployment-validation.yml
   workflow_dispatch:
 
 permissions:
@@ -56,9 +52,16 @@ jobs:
       - id: check
         run: mise run --skip-tools release:check atlas
 
+  validation:
+    needs: check
+    if: needs.check.outputs.should-release == 'true'
+    uses: ./.github/workflows/atlas-deployment-validation.yml
+    with:
+      version: ${{ needs.check.outputs.next-version-number }}
+
   release:
     name: Release Atlas
-    needs: check
+    needs: [check, validation]
     if: needs.check.outputs.should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 30
@@ -70,7 +73,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff"
+          install_args: "--locked git-cliff helm"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -82,7 +85,7 @@ jobs:
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "atlas/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "atlas/**/*" --config cliff.toml --repository "../" 2>/dev/null -- "${LATEST_VERSION}..HEAD" | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
             git cliff --include-path "atlas/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
@@ -123,6 +126,25 @@ jobs:
             ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}
             ghcr.io/tuist/atlas:latest
 
+      - name: Publish matching Helm chart
+        env:
+          ATLAS_VERSION: ${{ needs.check.outputs.next-version-number }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+          helm lint infra/helm/atlas
+          helm package infra/helm/atlas --version "$ATLAS_VERSION" --app-version "$ATLAS_VERSION" --destination dist
+          helm push "dist/atlas-$ATLAS_VERSION.tgz" oci://ghcr.io/tuist/charts
+
+      - name: Prepare Compose release bundle
+        run: |
+          mkdir -p dist/atlas-compose/deploy
+          cp atlas/compose.yaml dist/atlas-compose/
+          cp atlas/.env.example dist/atlas-compose/
+          cp atlas/deploy/Caddyfile dist/atlas-compose/deploy/
+          sed -i 's/^ATLAS_VERSION=.*/ATLAS_VERSION=${{ needs.check.outputs.next-version-number }}/' dist/atlas-compose/.env.example
+          tar -czf dist/atlas-compose-${{ needs.check.outputs.next-version-number }}.tar.gz -C dist atlas-compose
+
       - name: Create Atlas GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -131,8 +153,14 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Atlas ${{ needs.check.outputs.next-version-number }}
           tag_name: ${{ needs.check.outputs.next-version }}
+          files: |
+            dist/atlas-*.tgz
+            dist/atlas-compose-*.tar.gz
           body: |
             Docker image: `ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}`
+
+            Helm chart: `oci://ghcr.io/tuist/charts/atlas` at `${{ needs.check.outputs.next-version-number }}`.
+            The Compose bundle below pins the same image version.
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
         env:
@@ -158,7 +186,7 @@ jobs:
 
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl yq jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -200,6 +228,16 @@ jobs:
               ;;
           esac
 
+      - name: Verify legacy sandbox namespace retention
+        # Recovery above can roll back the retention annotation. Check the live
+        # namespace immediately before any upgrade that disables legacy objects.
+        run: bash atlas/deploy/check-sandbox-retention.sh "$HELM_CHART_PATH/values-managed-production.yaml" "$HELM_RELEASE_NAME" "$NAMESPACE"
+
+      - name: Authenticate Helm registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+
       - name: helm upgrade --install
         # --force-conflicts: Helm 4 applies chart objects server-side, so a
         # field previously owned by another manager (e.g. a manual
@@ -210,7 +248,9 @@ jobs:
         # instead of erroring, which is the desired outcome: the chart is the
         # source of truth for the objects it renders.
         run: |
-          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+          helm upgrade --install "$HELM_RELEASE_NAME" oci://ghcr.io/tuist/charts/atlas \
+            --version "$IMAGE_TAG" \
+            --values "$HELM_CHART_PATH/values-managed-production.yaml" \
             --namespace "$NAMESPACE" --create-namespace \
             --set image.tag="$IMAGE_TAG" \
             --set env.SENTRY_RELEASE="$IMAGE_TAG" \

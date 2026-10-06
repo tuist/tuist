@@ -183,12 +183,16 @@ public struct SwifterPM: Sendable {
             configPath: request.registryConfigurationPath,
             defaultRegistryURL: request.defaultRegistryURL
         )
+        let mirrors = try await MirrorConfig.load(
+            packageDir: package, configPath: request.registryConfigurationPath
+        )
         let resolved = try await ResolvedFile.read(packageDir: package)
         try await WorkspaceRestorer.restorePackage(
             scratchDir: scratch,
             packageDir: package,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             resolved: resolved,
             progress: request.quiet ? nil : RestoreProgressReporter(),
             disableSandbox: request.disableSandbox
@@ -197,6 +201,7 @@ public struct SwifterPM: Sendable {
             packageDir: package,
             scratchDir: scratch,
             resolved: resolved,
+            mirrors: mirrors,
             cacheDir: request.packageInfoCacheDirectory,
             disablePackageInfoCache: request.disablePackageInfoCache,
             disableSandbox: request.disableSandbox,
@@ -205,6 +210,7 @@ public struct SwifterPM: Sendable {
         try await WorkspaceRestorer.writeWorkspaceState(
             packageDir: package,
             scratchDir: scratch,
+            mirrors: mirrors,
             resolved: resolved,
             disableSandbox: request.disableSandbox
         )
@@ -217,6 +223,9 @@ public struct SwifterPM: Sendable {
         let package = request.packageDirectory.standardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
+        let mirrors = try await MirrorConfig.load(
+            packageDir: package, configPath: request.registryConfigurationPath
+        )
 
         // On `resolve`, the seed Package.resolved may still list dependencies
         // that have been removed from the manifest since the last install.
@@ -229,7 +238,9 @@ public struct SwifterPM: Sendable {
                 packageDir: package,
                 scratchDir: scratch,
                 cacheRoot: cacheRoot,
-                disableSandbox: request.disableSandbox
+                mirrors: mirrors,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation
             )
         }
 
@@ -264,6 +275,7 @@ public struct SwifterPM: Sendable {
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
                 cache: cache,
+                mirrors: mirrors,
                 resolved: resolved
             )
             try await WorkspaceRestorer.cacheNativeRegistryDownloads(
@@ -285,6 +297,7 @@ public struct SwifterPM: Sendable {
             scratchDir: scratch,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             registryConfigurationPath: request.registryConfigurationPath,
             defaultRegistryURL: request.defaultRegistryURL,
             disableSandbox: request.disableSandbox,
@@ -305,6 +318,7 @@ public struct SwifterPM: Sendable {
                 packageDir: package,
                 cache: cache,
                 registryConfig: registryConfig,
+                mirrors: mirrors,
                 resolved: resolved,
                 progress: request.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: request.disableSandbox
@@ -313,6 +327,7 @@ public struct SwifterPM: Sendable {
                 packageDir: package,
                 scratchDir: scratch,
                 resolved: resolved,
+                mirrors: mirrors,
                 cacheDir: request.packageInfoCacheDirectory,
                 disablePackageInfoCache: request.disablePackageInfoCache,
                 disableSandbox: request.disableSandbox,
@@ -321,6 +336,7 @@ public struct SwifterPM: Sendable {
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package,
                 scratchDir: scratch,
+                mirrors: mirrors,
                 resolved: resolved,
                 disableSandbox: request.disableSandbox
             )
@@ -349,6 +365,7 @@ public struct SwifterPM: Sendable {
         packageDir: URL,
         scratchDir: URL,
         resolved: ResolvedPins,
+        mirrors: MirrorConfig,
         cacheDir: URL?,
         disablePackageInfoCache: Bool,
         disableSandbox: Bool,
@@ -359,6 +376,7 @@ public struct SwifterPM: Sendable {
             packageDir: packageDir,
             scratchDir: scratchDir,
             resolved: resolved,
+            mirrors: mirrors,
             cacheDir: cacheDir,
             disableSandbox: disableSandbox,
             quiet: quiet

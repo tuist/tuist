@@ -225,7 +225,7 @@ env:
 jobs:
   guard_production_source:
     name: Guard production source
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 5
     steps:
       - name: Require main for production
@@ -252,7 +252,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux-large
     # 60m absorbs a fully cold build (no buildcache hits).
     timeout-minutes: 60
     outputs:

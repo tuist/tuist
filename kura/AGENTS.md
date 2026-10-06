@@ -30,6 +30,28 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Mesh and usage HTTP timeout policy: `src/control_plane_http.rs`, used by `src/mesh_heartbeat.rs` and `src/usage.rs` — 3 seconds for connection setup including DNS, within a 5-second total request deadline. `src/telemetry.rs` builds the OTLP span exporter's HTTP client from the same two budgets; that client must stay blocking, because the batch span processor drives exports on a thread with no Tokio reactor. Enrollment, registration, analytics, and authentication configure their clients separately. Keep the initial peer-view serving gate intact.
 - Peer TLS support: `src/peer_tls.rs`
+- Provider/domain-aware peer routing: `src/peer_topology.rs`. Private metadata is
+  a deployment attestation of the underlay, never inferred from a provider name.
+  Keep all pull body/listing/feed requests on `AppState::peer_request`, canonical
+  identities unchanged, and cross-provider/published replication coverage intact.
+  Keep local private-probe health separate from advertised serving/draining state
+  and out of the local gateway election. Only backward region passes may yield
+  to healthy remote-region private donors; sibling donors and forward pages must
+  never trigger this delay. Preserve legacy canonical discovery semantics.
+  Reuse a status response as private health only when discovery queried the actual
+  private origin; an equal advertised node URL behind a gateway is insufficient.
+  Analytics outbox delivery uses its own control-plane client, independent of
+  peer certificates, proxy suppression and redirect policy.
+  Rollout gates and unresolved provider setup are in
+  [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
+  Keep durable regression coverage in the Rust tests and ShellSpec mTLS suite;
+  use `test/e2e/provider-topology/` for repeatable local resource comparisons.
+  Keep run-specific manifests, credentials, captures and dated results out of
+  the repository; record deployment validation in the associated PR. Private-path
+  fault tests must observe a real blackhole: changing a Service port can leave
+  pooled connections alive. Scope fixture cleanup to its unique test label.
+  Preserve qualification limits: a single-host canary is not a physical host
+  pair, and Chicago does not qualify an ORD–SCL private interconnect.
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.
@@ -87,6 +109,7 @@ Put the before/after numbers for all four axes in the pull request description, 
 - Keep `LICENSE.md`, `CLA.md`, and `cla/` aligned with root licensing and contribution policy changes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
+- ByteStream partial staging is request-owned, not resumable session state. Missing completed-upload status signals `UNIMPLEMENTED` so Bazel can restart; keep this contract and completed-artifact queries covered by the real uploader fixture in `test/e2e/bytestream-recovery/`. A Write of an already stored direct blob is drained, not answered early: early answers reset streams the client is still sending on and exhaust h2's per-connection error-reset budget (GOAWAY `too_many_internal_resets`)
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
 - When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
   `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That

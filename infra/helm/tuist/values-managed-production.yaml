@@ -349,10 +349,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events.tuist.dev as GRPC end-to-end, so Once
+  # CLIs that discover the host via `/.well-known/once` can stream live
+  # run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
@@ -400,7 +406,26 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
+capi:
+  vultrPrivateNetwork:
+    enabled: true
+    regions:
+      ord:
+        description: tuist-kura-production-ord
+        cidr: 172.30.244.0/24
+        qualified: true
+      scl:
+        description: tuist-kura-production-scl
+        cidr: 172.30.245.0/24
+        qualified: false
+  ovhPrivateNetwork:
+    enabled: true
+    vrackID: pn-2024093
+    cidr: 172.30.243.0/24
+
 kuraController:
+  privateReplication:
+    enabled: true
   stableDNS:
     enabled: true
     hostedZoneId: Z046862130S1WUMPV7Z3P
@@ -1075,12 +1100,12 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these three OVH nodes after the September 28 move.
-  # Keep the historical pool name: live KuraInstances, local PVs and gateways
-  # still select it. All Dedibox hosts have been retired.
+  # Public EU West runs on these four OVH nodes in Gravelines. Keep the
+  # historical pool name: live KuraInstances, local PVs and gateways still
+  # select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
-    replicas: 3
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:

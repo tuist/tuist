@@ -169,6 +169,7 @@ defmodule Tuist.MixProject do
       {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
+      {:tuist_ex, path: "../tuist_ex", only: :test, runtime: false},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:peep, "4.2.1", override: true},
@@ -187,7 +188,7 @@ defmodule Tuist.MixProject do
       # `mix release` refuses to assemble a release with duplicated modules.
       # grpcbox 0.18 requires chatterbox 0.16, which prefixes them chatterbox_h2_*.
       {:grpcbox, "~> 0.18.0", override: true},
-      # gRPC listener for build.tuist.dev. Serves the `once.events.v1`
+      # gRPC listener for events.tuist.dev. Serves the `once.events.v1`
       # protocol on its own port so the interactive HTTP endpoint is
       # untouched; grpc-elixir carries its own cowboy2 HTTP/2 server, so
       # there is no need to teach Bandit gRPC.

@@ -135,11 +135,10 @@ struct SettingsMapper {
                     swiftFlags.append("-Werror=StrictMemorySafety")
                 }
             case (.swift, .swiftLanguageMode):
-                // TODO: Use -language-mode instead of -swift-version when Xcode 15 support is removed.
-                // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0441-formalize-language-mode-terminology.md#swift-compiler-option
-                swiftFlags.append("-swift-version \(setting.value[0])")
-
-                // Control the language mode for an Xcode project or target by setting the XCConfig SWIFT_VERSION
+                // Control the language mode by setting SWIFT_VERSION. Passing -swift-version alongside it is
+                // redundant and triggers a warning in Xcode 27 (SR / Swift evolution SE-0441):
+                // "language mode was overridden by extra Swift flags and may be inconsistent with code
+                // generated during the build".
                 // https://www.swift.org/migration/documentation/swift-6-concurrency-migration-guide/swift6mode
                 settingsDictionary["SWIFT_VERSION"] = "\(setting.value[0])"
             case (.linker, .unsafeFlags):

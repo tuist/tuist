@@ -80,11 +80,19 @@ defmodule Tuist.Telemetry do
     [:tuist, :repo, :pool, :metrics]
   end
 
+  def event_name_coverage_publish do
+    [:tuist, :tests, :coverage, :publish]
+  end
+
   def event_name_test_case_run_flaky_correction do
     [:tuist, :tests, :test_case_run, :flaky_correction]
   end
 
   def event_name_ingestion_buffer_dropped do
     TuistCommon.Ingestion.Buffer.dropped_event()
+  end
+
+  def event_name_once_events_refused do
+    [:tuist, :once_events, :refused]
   end
 end

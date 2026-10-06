@@ -2,6 +2,22 @@
 
 This document explains how Kura works, starting from a very high level and going deeper as you read on. Skim the first sections for an overview; read further for the runtime, replication, and rollout details.
 
+Optional provider-aware replication keeps canonical peer identities and persisted
+watermarks separate from transport endpoints. Membership status advertises the
+provider and a deployment-verified private routing domain. All pull requests
+select a private HTTPS endpoint for matching providers/domains, report unsupported
+same-provider routes, and retain mTLS cross-provider links. Preference is bounded:
+healthy compatible donors win otherwise equivalent remote-region selection, while
+published coverage and sibling feeds remain intact. Only remote backward passes
+give healthy preferred donors in remote regions 200 ms to claim shared bodies;
+forward pages and local sibling donors never trigger that delay. Public status
+discovery retains its existing timeout and observation semantics. Private-probe
+health is separate from advertised serving/draining state, affects only remote
+donor ranking and preference, and never changes the local gateway election.
+Provider-only configuration is rejected; different same-provider domains remain
+fail-closed without public data fallback. See the
+[network qualification and rollout plan](../../infra/kura-controller/private-replication.md).
+
 ## What Kura Is
 
 Kura is a Rust service that builds **low-latency cache meshes**. A mesh is a small set of Kura nodes that each serve cache traffic from local disk and replicate writes to one another in the background. Clients (Bazel, Buck2, Xcode, Gradle, Tuist Module Cache, Nx, Metro) talk to whichever node is closest. Reads come back fast because they are local; writes propagate to peers asynchronously.
@@ -75,6 +91,14 @@ Kura splits durable state into two planes so that the hot path is simple and the
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
 Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
+
+## ByteStream Upload Recovery
+
+ByteStream partial staging belongs to a live Write request and is removed on failure or cancellation. Kura does not retain upload sessions or resumable byte prefixes between requests. `QueryWriteStatus` can confirm a completed artifact, including deduplicated and chunked artifacts, but returns `UNIMPLEMENTED` when no completed blob is available. This explicitly signals unsupported partial-upload status so Bazel restarts the upload at offset zero. Returning `NOT_FOUND` there causes its uploader to stop recovery instead. Authorization and namespace checks still precede status lookup; missing Read and CAS results are unchanged.
+
+A Write whose target is already stored as a direct blob is read to completion but not staged, decoded, hashed, persisted, or billed; offsets, size limits, and the stall deadline still apply, and the answer equals a full write's. Presence is checked again before that answer: if the blob was evicted while the bytes streamed, the write fails with `UNAVAILABLE` so the client restarts through the staging path instead of being told a blob it no longer has a copy of is stored. The presence check is a single direct-key lookup with the same lifetime extension FindMissingBlobs applies; composite recipes are not decoded on this path because that work would run before staging admission. Kura does not end such a write early: answering while the client is still sending forces an HTTP/2 stream reset, and enough late DATA frames for reset streams exhaust h2's per-connection error-reset budget, which closes the whole connection.
+
+This fallback adds no retained staging, session metadata, memory budget, replication format, or ingress policy. It is node-local and safe during a rolling update, although requests handled by an older node retain the old failure behavior. The [interoperability fixture](../test/e2e/bytestream-recovery/README.md) exercises the real Bazel uploader through an interrupted write and verifies full read-back.
 
 ## Bazel Test-Artifact Delivery
 

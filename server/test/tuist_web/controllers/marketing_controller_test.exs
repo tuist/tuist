@@ -8,9 +8,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Marketing.Localization
 
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -120,6 +122,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Folded into the tests page; their URLs redirect and are not advertised.
       for path <- ["/flaky-tests", "/test-insights"] do
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "includes individual changelog entries", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+      entry = List.first(Changelog.get_entries())
+
+      for locale <- Localization.all_locales() do
+        path = Localization.localized_href("/changelog/#{entry.id}", locale)
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
     end
 

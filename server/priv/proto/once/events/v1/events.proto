@@ -1,6 +1,10 @@
 syntax = "proto3";
 package once.events.v1;
 
+// Every call carries the bearer token in the `authorization` metadata. Clients
+// also send the opaque project id, the same value as `RunStarted.project_id`,
+// in the optional `once-project-id` metadata, because a reconnect does not
+// always resend `RunStarted`. See RFC 0008, "Identity and redaction".
 service RunEventService {
   rpc GetServerCapabilities(GetServerCapabilitiesRequest) returns (ServerCapabilities);
   rpc GetArgvHashKey(GetArgvHashKeyRequest) returns (ArgvHashKey);

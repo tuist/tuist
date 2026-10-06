@@ -180,6 +180,7 @@ defmodule TuistWeb.ErrorHTML do
         }
       </script>
       <head>
+        <TuistWeb.LayoutComponents.head_analytics_scripts page_section="dashboard" {assigns} />
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csp-nonce" content={get_csp_nonce()} />

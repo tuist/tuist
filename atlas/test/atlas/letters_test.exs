@@ -363,6 +363,148 @@ defmodule Atlas.LettersTest do
     assert [%{"id" => ^event_id}] = duplicate.pingen_events["items"]
   end
 
+  test "records a delivery failure and audit when the provider rejects the letter" do
+    account = insert_tax_account!()
+    executive = insert_user!(%{role: :executive})
+
+    {:ok, letter} =
+      Audit.with_context(%{actor: executive, interface: "dashboard"}, fn ->
+        Letters.prepare_tax_certificate(account, recipient_attrs(), executive)
+      end)
+
+    {:ok, %{body: pdf}} = Storage.get_object(letter.document.storage_key)
+
+    {:ok, signed} =
+      Letters.attach_letter_document(letter, %{body: signed_pdf(pdf), filename: "signed-request.pdf"}, executive)
+
+    assert {:ok, ready} = Letters.prepare_delivery_details(signed)
+
+    assert {:ok, queued} =
+             Audit.with_context(%{actor: executive, interface: "dashboard"}, fn ->
+               Letters.confirm_delivery(ready, %{"confirmed" => true}, executive)
+             end)
+
+    expect(Pingen, :send_letter, fn %Letter{id: id}, _pdf ->
+      assert id == queued.id
+      {:error, {:pingen_letter_creation_failed, 400}}
+    end)
+
+    assert {:error, {:pingen_letter_creation_failed, 400}} = Letters.deliver(queued.id)
+
+    failed = Repo.get!(Letter, queued.id)
+    assert failed.status == "failed"
+    assert failed.last_error =~ "pingen_letter_creation_failed"
+    assert failed.last_checked_at
+
+    assert Repo.get_by(Activity, action: "letter.delivery_failed", target_id: queued.id)
+  end
+
+  test "retries delivery for a letter left in \"sending\" by a prior crashed attempt" do
+    account = insert_tax_account!()
+    executive = insert_user!(%{role: :executive})
+
+    {:ok, letter} =
+      Audit.with_context(%{actor: executive, interface: "dashboard"}, fn ->
+        Letters.prepare_tax_certificate(account, recipient_attrs(), executive)
+      end)
+
+    {:ok, %{body: pdf}} = Storage.get_object(letter.document.storage_key)
+
+    {:ok, signed} =
+      Letters.attach_letter_document(letter, %{body: signed_pdf(pdf), filename: "signed-request.pdf"}, executive)
+
+    assert {:ok, ready} = Letters.prepare_delivery_details(signed)
+
+    {:ok, queued} =
+      Audit.with_context(%{actor: executive, interface: "dashboard"}, fn ->
+        Letters.confirm_delivery(ready, %{"confirmed" => true}, executive)
+      end)
+
+    # Simulate the state a crashed prior attempt leaves behind: status stuck at
+    # "sending", no failure audit, no last_error.
+    stuck =
+      queued
+      |> Ecto.Changeset.change(status: "sending")
+      |> Repo.update!()
+
+    provider_letter_id = "provider-letter-#{System.unique_integer([:positive])}"
+
+    expect(Pingen, :send_letter, fn %Letter{id: id}, _pdf ->
+      assert id == stuck.id
+
+      {:ok,
+       %{
+         id: provider_letter_id,
+         status: "sent",
+         tracking_number: "tracking-#{System.unique_integer([:positive])}",
+         submitted_at: ~U[2026-09-30 12:37:00Z],
+         delivered_at: nil,
+         undeliverable_at: nil,
+         raw: %{}
+       }}
+    end)
+
+    assert {:ok, sent} = Letters.deliver(stuck.id)
+    assert sent.status == "sent"
+    assert sent.sent_at == ~U[2026-09-30 12:37:00Z]
+  end
+
+  test "reconciles with the provider instead of resubmitting when pingen_letter_id is already set" do
+    account = insert_tax_account!()
+    executive = insert_user!(%{role: :executive})
+
+    {:ok, letter} =
+      Audit.with_context(%{actor: executive, interface: "dashboard"}, fn ->
+        Letters.prepare_tax_certificate(account, recipient_attrs(), executive)
+      end)
+
+    {:ok, %{body: pdf}} = Storage.get_object(letter.document.storage_key)
+
+    {:ok, signed} =
+      Letters.attach_letter_document(letter, %{body: signed_pdf(pdf), filename: "signed-request.pdf"}, executive)
+
+    assert {:ok, ready} = Letters.prepare_delivery_details(signed)
+
+    {:ok, queued} =
+      Audit.with_context(%{actor: executive, interface: "dashboard"}, fn ->
+        Letters.confirm_delivery(ready, %{"confirmed" => true}, executive)
+      end)
+
+    # Simulate the crash-after-submit case: the first attempt already handed
+    # the letter to Pingen and stored the pingen id, but died before
+    # apply_provider_delivery finished, so status is still "sending".
+    provider_letter_id = "provider-letter-#{System.unique_integer([:positive])}"
+
+    already_submitted =
+      queued
+      |> Ecto.Changeset.change(status: "sending", pingen_letter_id: provider_letter_id)
+      |> Repo.update!()
+
+    # send_letter must NEVER be invoked on this path. Mimic's stub without an
+    # expect(..) leaves the mock ready to fail the test if it's called.
+    stub(Pingen, :send_letter, fn _letter, _pdf ->
+      flunk("Pingen.send_letter/2 must not be called when pingen_letter_id is already set")
+    end)
+
+    expect(Pingen, :get_letter, fn ^provider_letter_id ->
+      {:ok,
+       %{
+         id: provider_letter_id,
+         status: "sent",
+         tracking_number: "tracking-#{System.unique_integer([:positive])}",
+         submitted_at: ~U[2026-09-30 12:37:00Z],
+         delivered_at: nil,
+         undeliverable_at: nil,
+         raw: %{}
+       }}
+    end)
+
+    assert {:ok, sent} = Letters.deliver(already_submitted.id)
+    assert sent.status == "sent"
+    assert sent.pingen_letter_id == provider_letter_id
+    assert sent.sent_at == ~U[2026-09-30 12:37:00Z]
+  end
+
   defp recipient_attrs do
     %{
       "recipient_name" => "Finanzamt Berlin",

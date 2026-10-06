@@ -504,6 +504,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       http_status(downcased_output) in @transient_http_statuses ->
         :transient
 
+      Regex.match?(~r/^fatal: repository '[^\r\n]+' not found$/m, downcased_output) ->
+        :permanent
+
       Enum.any?(@skippable_submodule_failure_markers, &String.contains?(downcased_output, &1)) ->
         :permanent
 

@@ -45,6 +45,7 @@ defmodule TuistWeb.GradleTasksLive do
     title = name || dgettext("dashboard_gradle", "Tasks")
 
     key = {name, opts}
+    identity_changed? = socket.assigns[:name] != name
 
     socket =
       socket
@@ -70,16 +71,17 @@ defmodule TuistWeb.GradleTasksLive do
       |> assign(:execution_order, execution_order(params))
       |> assign(:head_title, "#{title} · Builds · Tuist")
 
-    socket =
-      if socket.assigns[:query_key] == key do
-        socket
-      else
-        socket
-        |> assign(:query_key, key)
-        |> assign_async(:analytics, fn -> load_analytics(project_id, name, opts) end, reset: true)
-      end
+    {:noreply, maybe_load_analytics(socket, key, project_id, name, opts, identity_changed?)}
+  end
 
-    {:noreply, socket}
+  defp maybe_load_analytics(socket, key, project_id, name, opts, identity_changed?) do
+    if socket.assigns[:query_key] == key && socket.assigns[:analytics] && !socket.assigns.analytics.failed do
+      socket
+    else
+      socket
+      |> assign(:query_key, key)
+      |> assign_async(:analytics, fn -> load_analytics(project_id, name, opts) end, reset: identity_changed?)
+    end
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")

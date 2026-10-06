@@ -316,6 +316,16 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  GETs a PersistentVolumeClaim by name from `namespace`. Kura capacity reads a
+  replica's data claim to tell a volume a resize will replace from one large
+  enough to keep, which keeps its replica on the node it is bound to. The
+  server SA is granted `persistentvolumeclaims: [get]` in the Kura namespace.
+  """
+  def get_persistent_volume_claim(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
+    get("/api/v1/namespaces/#{namespace}/persistentvolumeclaims/#{name}", opts)
+  end
+
+  @doc """
   Reads a Node. Dispatch uses this to read the cache-master labels
   tart-kubelet advertises on each macOS host, so it can hand a polling
   runner a job whose account's cache is already resident there. The

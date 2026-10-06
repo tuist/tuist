@@ -460,6 +460,115 @@ impl ReapiService {
         });
     }
 
+    // Direct-blob presence with FindMissingBlobs' lifetime extension: the client
+    // stops uploading and relies on the blob staying. Composite blobs are not
+    // consulted, because decoding a recipe runs before staging admission and is
+    // not charged to it; such writes, and failed lookups, upload normally.
+    async fn write_target_already_present(&self, resource: &BlobResource) -> bool {
+        let store = &self.state.store;
+        let present = if store.segment_ring_is_aging() {
+            store
+                .artifact_exists_extending_lifetime(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                    RefreshTrigger::FindMissing,
+                )
+                .await
+        } else {
+            store
+                .artifact_exists(
+                    ArtifactProducer::Reapi,
+                    &resource.namespace_id,
+                    &resource.key,
+                )
+                .await
+        };
+        present.unwrap_or_else(|error| {
+            tracing::debug!("bytestream write presence check failed: {error}");
+            false
+        })
+    }
+
+    // Reads a write of an already stored blob to completion without staging,
+    // decoding, hashing, or persisting it, and answers as a full write does.
+    // Answering early instead would make the server reset a stream the client
+    // is still sending on; h2 counts the resulting errors toward its per-
+    // connection rapid-reset limit and then closes the whole connection.
+    async fn discard_stored_write(
+        &self,
+        stream: &mut tonic::Streaming<bytestream::WriteRequest>,
+        mut first_chunk: bytestream::WriteRequest,
+        resource: BlobResource,
+    ) -> Result<Response<bytestream::WriteResponse>, Status> {
+        let wire_limit = match resource.compressor {
+            BlobCompressor::Identity => resource.size_bytes,
+            BlobCompressor::Zstd => compressed_wire_ceiling(resource.size_bytes),
+        };
+        let resource_name = std::mem::take(&mut first_chunk.resource_name);
+        let mut wire_received = 0_u64;
+        let mut stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
+        let mut next = Some(first_chunk);
+        let finished = loop {
+            let chunk = match next.take() {
+                Some(chunk) => chunk,
+                None => match tokio::time::timeout_at(stall_deadline, stream.message()).await {
+                    Ok(result) => match result? {
+                        Some(chunk) => chunk,
+                        None => break false,
+                    },
+                    Err(_elapsed) => {
+                        return Err(Status::deadline_exceeded(format!(
+                            "no upload progress within {}s; aborting stalled write",
+                            REAPI_WRITE_STALL_TIMEOUT.as_secs()
+                        )));
+                    }
+                },
+            };
+            if !chunk.resource_name.is_empty() && chunk.resource_name != resource_name {
+                // The first chunk's name was taken above, so it compares empty.
+                return Err(Status::invalid_argument("resource_name changed mid-stream"));
+            }
+            if chunk.write_offset < 0 || chunk.write_offset as u64 != wire_received {
+                return Err(Status::invalid_argument("unexpected write_offset"));
+            }
+            wire_received = wire_received.saturating_add(chunk.data.len() as u64);
+            if wire_received > wire_limit {
+                return Err(Status::invalid_argument(
+                    "write data exceeds the declared blob size",
+                ));
+            }
+            if !chunk.data.is_empty() {
+                stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
+            }
+            if chunk.finish_write {
+                break true;
+            }
+        };
+        if !finished {
+            return Err(Status::invalid_argument("write stream did not finish"));
+        }
+        if resource.compressor == BlobCompressor::Identity && wire_received != resource.size_bytes {
+            return Err(Status::invalid_argument(
+                "uploaded blob size did not match digest",
+            ));
+        }
+        // The discarded bytes were the client's only copy in this request, so
+        // a blob evicted while they streamed must not be acknowledged. The
+        // retry restarts through the staging path.
+        if !self.write_target_already_present(&resource).await {
+            return Err(Status::unavailable(
+                "blob was evicted during the upload; restart the write from offset zero",
+            ));
+        }
+        self.state
+            .metrics
+            .record_artifact_write(ArtifactProducer::Reapi, "already_present", 0);
+        Ok(Response::new(bytestream::WriteResponse {
+            committed_size: wire_received as i64,
+        }))
+    }
+
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
     // (write) removes a staged path on any error this returns. Small uploads stay
     // in their admitted memory and disarm that cleanup before any suspension can
@@ -542,6 +651,12 @@ impl ReapiService {
                     namespace_id: Some(&parsed_resource.namespace_id),
                 };
                 self.authorize_metadata(&metadata, write_spec).await?;
+                if self.write_target_already_present(&parsed_resource).await {
+                    cleanup.disarm();
+                    return self
+                        .discard_stored_write(&mut stream, chunk, parsed_resource)
+                        .await;
+                }
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
                 memory_payload = (parsed_resource.size_bytes <= SEGMENT_COPY_BUFFER_BYTES as u64
@@ -2567,6 +2682,9 @@ impl ByteStream for ReapiService {
                 "read_limit is not supported on compressed-blobs; leave it at 0 and consume the response stream",
             ));
         }
+        if resource.size_bytes == 0 && resource.hash() == EMPTY_BLOB_SHA256 {
+            return Ok(Response::new(Box::pin(tokio_stream::empty())));
+        }
         let manifest = match self
             .state
             .store
@@ -2935,7 +3053,12 @@ impl ByteStream for ReapiService {
                         complete: true,
                     }))
                 } else {
-                    Err(Status::not_found("blob not found"))
+                    // Partial staging is discarded on failure, so no resumable
+                    // offset exists. Bazel treats NOT_FOUND as terminal here;
+                    // UNIMPLEMENTED tells it to restart the Write from zero.
+                    Err(Status::unimplemented(
+                        "incomplete upload status is not supported; restart the write from offset zero",
+                    ))
                 }
             }
         }
@@ -3286,6 +3409,11 @@ async fn batch_read_one_atomic(
     digest: &reapi::Digest,
     budget: &AtomicMaterializationBudget<'_>,
 ) -> Result<Option<Vec<u8>>, Status> {
+    // FindMissingBlobs reports the empty blob present without it ever being
+    // stored, so it has to be served here too.
+    if is_empty_blob(digest) {
+        return Ok(Some(Vec::new()));
+    }
     let key = blob_key(&digest_key(digest)?);
     let manifest = state
         .store
@@ -4549,6 +4677,10 @@ fn parse_blob_resource_name_allocating(
         compressor,
     })
 }
+
+#[cfg(test)]
+#[path = "bytestream_recovery_tests.rs"]
+mod bytestream_recovery_tests;
 
 #[cfg(test)]
 mod tests {
@@ -6664,6 +6796,49 @@ mod tests {
             .get_action_result(get_request(empty_ref_action))
             .await
             .expect("an entry referencing the empty blob for stdout and a tree leaf still serves");
+    }
+
+    #[tokio::test]
+    async fn the_empty_blob_is_served_without_being_stored() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let empty = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let batch = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: "ios".into(),
+                digests: vec![empty.clone()],
+                acceptable_compressors: vec![reapi::compressor::Value::Zstd as i32],
+                digest_function: 0,
+            }))
+            .await
+            .expect("batch_read_blobs should succeed")
+            .into_inner();
+        assert_eq!(batch.responses.len(), 1);
+        let response = &batch.responses[0];
+        assert_eq!(response.status.as_ref().map(|status| status.code), Some(0));
+        assert_eq!(response.digest.as_ref(), Some(&empty));
+        assert!(response.data.is_empty());
+
+        let mut stream = service
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!("ios/blobs/{EMPTY_BLOB_SHA256}/0"),
+                read_offset: 0,
+                read_limit: 0,
+            }))
+            .await
+            .expect("reading the empty blob should succeed")
+            .into_inner();
+        let mut data = Vec::new();
+        while let Some(response) = stream.next().await {
+            data.extend(response.expect("stream response").data);
+        }
+        assert!(data.is_empty());
     }
 
     #[tokio::test]

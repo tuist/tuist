@@ -95,7 +95,8 @@
         "infra/helm/atlas/**/*",
         "infra/k8s/atlas/**/*",
         "mise/tasks/release/components.json",
-        ".github/workflows/atlas-release.yml"
+        ".github/workflows/atlas-release.yml",
+        ".github/workflows/atlas-deployment-validation.yml"
       ]
     },
     {

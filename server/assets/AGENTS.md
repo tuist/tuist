@@ -12,6 +12,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - `BuildTimelineMetrics.mjs` renders CPU, memory, network and disk tracks using the same time range as build steps; each plot has its own time ruler, synchronized cursor and range-selection overlay, with coordinates scaled to its own width. Noora-styled chart cards use taller line plots, horizontal gridlines, and purple/blue series. Metric hover values appear only in each chart’s top-right readout, including both network/disk directions; floating tooltips are reserved for build steps. The initial and maximum zoom-out both show the entire build. Failed hook initialization cleans up listeners and indicators and hides partially mounted content. Samples are loaded once, culled by binary search, and keep stable scales across zooms; missing samples and collection gaps are not shown as zero readings.
 
 - JS/CSS sources built by esbuild.
+- The docs table of contents keeps its actions and heading visible while its link list scrolls within the viewport. Include its padding in the sticky panel's height limit so the last links remain reachable.
 - The shared `GoogleOneTap` hook uses Google's hosted identity library only in secure, top-level browsers that support native identity credentials. It requests explicit account selection, submits its own challenge nonce and the `csrf_token` returned by the start request with the credential (the page's embedded token may come from a shared cache), so browser tabs remain independent, and preserves ordinary login links when the prompt is unavailable. It does not prompt when the start response lacks any of `client_id`, `nonce`, or `csrf_token`. Initialization, credential callbacks and teardown contain failures so optional Google sign-in cannot interrupt LiveView navigation; shared hook regression tests run with the frontend interaction suite.
 - `marketing/source-images` keeps the original shared header artwork outside
   the served `priv/static` tree. Regenerate its 960px desktop and 480px mobile
@@ -30,6 +31,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Crosshair styling and synchronized hover time cursors activate only on plot canvases, not metric headings, rulers, controls or surrounding card space.
 - Timeline logs preserve source lines and scroll horizontally; their full height participates in the inspector's vertical scrolling.
 - Timeline selection persists when scrolling or zooming moves the step outside the visible range, keeping its metadata and log open.
+- `marketing/js/hooks/cache-globe.js` is the `/globe` page controller: it fills the counters and region rows from the LiveView snapshot and feeds the shared `DitherGlobe` canvas its markers (`data-markers`, then `dither-globe:markers` / `dither-globe:motion` events) — it draws nothing itself. Keep motion pausable and honor reduced-motion preferences. Regional lights describe serving activity, not customer destinations. Its styling is scoped to `#marketing-globe`. Hit-rate rows cover All caches, Xcode, Gradle, and Bazel; demo rates are illustrative, while live rates stay unavailable until the snapshot supplies them.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
   Faro Web SDK from the `globalThis.analytics` config that
   `TuistWeb.LayoutComponents.head_analytics_scripts` renders, and every bundle
@@ -65,8 +67,15 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
 
 - Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.
+- Runner step rails shrink with the viewport and hide below 900px. When rails are visible, duration slots retain equal widths even without timestamps; minimum-width ticks stay within the track. Only the recorded offset and width are supplied inline as custom properties.
+- Runner step logs and the Logs-tab viewport contain vertical overscroll so reaching a log boundary does not scroll the surrounding page.
 
 - Runner volume pages follow Jobs card/widget spacing and Job detail headers and metadata. Keep inventory search and tables in Noora card sections, with Volume details above the Overview and Jobs tabs.
 
 - The volume chart uses the shared Noora/ECharts hook, Jobs-style line rendering and count/byte/percentage formatting. Keep its three selectable widgets equal in width and height even when only the storage widgets have trend footers.
 - `build_run.css` shares header and metadata styling between Xcode and Once run details. Keep `once_run.css` limited to Once-specific wrapping and responsive layout.
+
+- Analytics chart sections declare small, compact, standard or large frames shared by loading, ready and illustrated empty states. Scope the frame to the active chart section; keep list/timeline geometry independent. Widgets share a minimum height across loading and empty states. Skeletons reveal after 200 milliseconds and respect reduced motion; stale charts remain mounted and receive a subtle delayed refresh indication.
+- The cache globe renders measured daily hit rates from the snapshot breakdown. Keep missing rates distinct from measured zeroes; illustrative rates belong only to explicit demo mode.
+
+- Treat request timing and layout movement as separate problems. Measure card geometry across loading, ready, empty and failed states, including wrapped widget titles and chart legends. Reserve the same chart frame for each state without imposing that height on tables or timelines.

@@ -117,7 +117,9 @@ defmodule TuistWeb.BazelCacheLive do
   def render(assigns) do
     ~H"""
     <div id="bazel-cache" class="bazel-invocations">
-      <.card
+      <.async_card
+        :let={ready?}
+        results={[@cache_analytics, @cache_summary, @has_any_cache_observations]}
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="bazel-cache-analytics-card"
@@ -154,7 +156,7 @@ defmodule TuistWeb.BazelCacheLive do
         <div data-part="widgets">
           <.percentile_dropdown_widget
             id="bazel-cache-hit-rate"
-            loading={!@cache_summary.ok?}
+            loading={!ready?}
             title={hit_rate_title(@selected_hit_rate_type)}
             legend_color={percentile_legend_color(@selected_hit_rate_type)}
             description={
@@ -164,28 +166,28 @@ defmodule TuistWeb.BazelCacheLive do
               )
             }
             value={
-              if @cache_summary.ok?,
+              if ready?,
                 do: hit_rate_value(@cache_summary.result.hit_rate_metrics, @selected_hit_rate_type)
             }
             metrics={
-              if @cache_summary.ok?,
+              if ready?,
                 do: hit_rate_metric_values(@cache_summary.result.hit_rate_metrics)
             }
             selected_type={@selected_hit_rate_type}
             event_name="select_hit_rate_type"
             trend_value={
-              if @cache_summary.ok?,
+              if ready?,
                 do: hit_rate_trend(@cache_summary.result.hit_rate_trends, @selected_hit_rate_type)
             }
             trend_label={@analytics_trend_label}
-            empty={@cache_summary.ok? && @cache_summary.result.hit_rate_metrics.sample_count == 0}
+            empty={ready? && @cache_summary.result.hit_rate_metrics.sample_count == 0}
             phx_click="select_widget"
             phx_value_widget="cache_hit_rate"
             selected={@analytics_selected_widget == "cache_hit_rate"}
           />
           <.widget
             id="bazel-cache-transfer"
-            loading={!@cache_summary.ok?}
+            loading={!ready?}
             title={transfer_title(@selected_transfer_type)}
             legend_color={split_legend_color(@selected_transfer_type, "p50")}
             description={
@@ -195,16 +197,16 @@ defmodule TuistWeb.BazelCacheLive do
               )
             }
             value={
-              if @cache_summary.ok?,
+              if ready?,
                 do:
                   ByteFormatter.format_bytes(
                     transfer_value(@cache_summary.result, @selected_transfer_type)
                   )
             }
-            trend_value={if @cache_summary.ok?, do: @cache_summary.result.transfer_trend}
+            trend_value={if ready?, do: @cache_summary.result.transfer_trend}
             trend_type={:neutral}
             trend_label={@analytics_trend_label}
-            empty={@cache_summary.ok? && @cache_summary.result.transfer_bytes == 0}
+            empty={ready? && @cache_summary.result.transfer_bytes == 0}
             phx_click="select_widget"
             phx_value_widget="cache_transfer"
             selected={@analytics_selected_widget == "cache_transfer"}
@@ -216,7 +218,7 @@ defmodule TuistWeb.BazelCacheLive do
                 event_name="select_transfer_type"
                 label={dgettext("dashboard_projects", "Cache transfer")}
                 metric={
-                  if @cache_summary.ok?,
+                  if ready?,
                     do: ByteFormatter.format_bytes(@cache_summary.result.transfer_bytes)
                 }
               />
@@ -226,7 +228,7 @@ defmodule TuistWeb.BazelCacheLive do
                 event_name="select_transfer_type"
                 label={dgettext("dashboard_projects", "Downloads")}
                 metric={
-                  if @cache_summary.ok?,
+                  if ready?,
                     do: ByteFormatter.format_bytes(@cache_summary.result.download_bytes)
                 }
               />
@@ -236,7 +238,7 @@ defmodule TuistWeb.BazelCacheLive do
                 event_name="select_transfer_type"
                 label={dgettext("dashboard_projects", "Uploads")}
                 metric={
-                  if @cache_summary.ok?,
+                  if ready?,
                     do: ByteFormatter.format_bytes(@cache_summary.result.upload_bytes)
                 }
               />
@@ -244,7 +246,7 @@ defmodule TuistWeb.BazelCacheLive do
           </.widget>
           <.widget
             id="bazel-cache-latency"
-            loading={!@cache_summary.ok?}
+            loading={!ready?}
             title={latency_title(@selected_latency_type)}
             legend_color={split_legend_color(@selected_latency_type, "p90")}
             description={
@@ -254,16 +256,16 @@ defmodule TuistWeb.BazelCacheLive do
               )
             }
             value={
-              if @cache_summary.ok?,
+              if ready?,
                 do:
                   DateFormatter.format_duration_from_milliseconds(
                     latency_value(@cache_summary.result, @selected_latency_type)
                   )
             }
-            trend_value={if @cache_summary.ok?, do: @cache_summary.result.latency_trend}
+            trend_value={if ready?, do: @cache_summary.result.latency_trend}
             trend_type={:inverse}
             trend_label={@analytics_trend_label}
-            empty={@cache_summary.ok? && @cache_summary.result.latency_ms == 0}
+            empty={ready? && @cache_summary.result.latency_ms == 0}
             phx_click="select_widget"
             phx_value_widget="cache_latency"
             selected={@analytics_selected_widget == "cache_latency"}
@@ -274,31 +276,27 @@ defmodule TuistWeb.BazelCacheLive do
                 value="combined"
                 event_name="select_latency_type"
                 label={dgettext("dashboard_projects", "Cache latency")}
-                metric={if @cache_summary.ok?, do: format_duration(@cache_summary.result.latency_ms)}
+                metric={if ready?, do: format_duration(@cache_summary.result.latency_ms)}
               />
               <.split_dropdown_item
                 selected_type={@selected_latency_type}
                 value="read"
                 event_name="select_latency_type"
                 label={dgettext("dashboard_projects", "Read latency")}
-                metric={
-                  if @cache_summary.ok?, do: format_duration(@cache_summary.result.read_latency_ms)
-                }
+                metric={if ready?, do: format_duration(@cache_summary.result.read_latency_ms)}
               />
               <.split_dropdown_item
                 selected_type={@selected_latency_type}
                 value="write"
                 event_name="select_latency_type"
                 label={dgettext("dashboard_projects", "Write latency")}
-                metric={
-                  if @cache_summary.ok?, do: format_duration(@cache_summary.result.write_latency_ms)
-                }
+                metric={if ready?, do: format_duration(@cache_summary.result.write_latency_ms)}
               />
             </:select>
           </.widget>
           <.widget
             id="bazel-cache-throughput"
-            loading={!@cache_summary.ok?}
+            loading={!ready?}
             title={throughput_title(@selected_throughput_type)}
             legend_color={split_legend_color(@selected_throughput_type, "flaky")}
             description={
@@ -308,16 +306,16 @@ defmodule TuistWeb.BazelCacheLive do
               )
             }
             value={
-              if @cache_summary.ok?,
+              if ready?,
                 do:
                   format_throughput(
                     throughput_value(@cache_summary.result, @selected_throughput_type)
                   )
             }
-            trend_value={if @cache_summary.ok?, do: @cache_summary.result.throughput_trend}
+            trend_value={if ready?, do: @cache_summary.result.throughput_trend}
             trend_type={:neutral}
             trend_label={@analytics_trend_label}
-            empty={@cache_summary.ok? && @cache_summary.result.throughput_bytes_per_second == 0}
+            empty={ready? && @cache_summary.result.throughput_bytes_per_second == 0}
             phx_click="select_widget"
             phx_value_widget="cache_throughput"
             selected={@analytics_selected_widget == "cache_throughput"}
@@ -329,7 +327,7 @@ defmodule TuistWeb.BazelCacheLive do
                 event_name="select_throughput_type"
                 label={dgettext("dashboard_projects", "Cache throughput")}
                 metric={
-                  if @cache_summary.ok?,
+                  if ready?,
                     do: format_throughput(@cache_summary.result.throughput_bytes_per_second)
                 }
               />
@@ -339,7 +337,7 @@ defmodule TuistWeb.BazelCacheLive do
                 event_name="select_throughput_type"
                 label={dgettext("dashboard_projects", "Download throughput")}
                 metric={
-                  if @cache_summary.ok?,
+                  if ready?,
                     do: format_throughput(@cache_summary.result.download_throughput_bytes_per_second)
                 }
               />
@@ -349,22 +347,27 @@ defmodule TuistWeb.BazelCacheLive do
                 event_name="select_throughput_type"
                 label={dgettext("dashboard_projects", "Upload throughput")}
                 metric={
-                  if @cache_summary.ok?,
+                  if ready?,
                     do: format_throughput(@cache_summary.result.upload_throughput_bytes_per_second)
                 }
               />
             </:select>
           </.widget>
         </div>
-        <.card_section :if={!@cache_analytics.ok?} data-part="analytics-card-chart-section">
+        <.card_section
+          :if={!ready?}
+          data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
+        >
           <.skeleton_chart />
         </.card_section>
         <.card_section
           :if={
-            @cache_analytics.ok? &&
+            ready? &&
               analytics_has_data?(@cache_analytics.result, @analytics_selected_widget)
           }
           data-part="analytics-card-chart-section"
+          data-chart-frame="standard"
         >
           <.chart
             id="bazel-cache-analytics-chart"
@@ -383,12 +386,13 @@ defmodule TuistWeb.BazelCacheLive do
         </.card_section>
         <.empty_card_section
           :if={
-            @cache_analytics.ok? &&
+            ready? &&
               !analytics_has_data?(@cache_analytics.result, @analytics_selected_widget)
           }
           data-part="analytics-card-chart-section"
           title={cache_observations_empty_state_title(@has_any_cache_observations.result)}
           get_started_href={cache_get_started_href(@has_any_cache_observations.result)}
+          data-chart-frame="standard"
         >
           <:image>
             <img
@@ -405,9 +409,11 @@ defmodule TuistWeb.BazelCacheLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
 
-      <.card
+      <.async_card
+        :let={ready?}
+        results={[@has_any_cache_observations, @recent_cache_invocations]}
         title={dgettext("dashboard_projects", "Recent Invocations")}
         icon="dashboard"
         data-part="bazel-cache-invocations-card"
@@ -422,7 +428,7 @@ defmodule TuistWeb.BazelCacheLive do
           />
         </:actions>
         <.card_section
-          :if={@recent_cache_invocations.ok? && Enum.any?(@recent_cache_invocations.result)}
+          :if={ready? && Enum.any?(@recent_cache_invocations.result)}
           data-part="bazel-cache-invocations-section"
         >
           <div data-part="builds-section">
@@ -510,10 +516,10 @@ defmodule TuistWeb.BazelCacheLive do
             </.table>
           </div>
         </.card_section>
-        <.skeleton_chart :if={!@recent_cache_invocations.ok?} />
+        <.skeleton_chart :if={!ready?} />
         <.empty_card_section
           :if={
-            @recent_cache_invocations.ok? && @has_any_cache_observations.ok? &&
+            ready? &&
               Enum.empty?(@recent_cache_invocations.result)
           }
           title={cache_invocations_empty_state_title(@has_any_cache_observations.result)}
@@ -534,7 +540,7 @@ defmodule TuistWeb.BazelCacheLive do
             />
           </:image>
         </.empty_card_section>
-      </.card>
+      </.async_card>
     </div>
     """
   end
