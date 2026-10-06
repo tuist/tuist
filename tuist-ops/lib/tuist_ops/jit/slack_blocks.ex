@@ -10,6 +10,7 @@ defmodule TuistOps.JIT.SlackBlocks do
   """
 
   alias TuistOps.JIT.Elevation
+  alias TuistOps.JIT.Policy
   alias TuistOps.JIT.Request
 
   @doc """
@@ -38,9 +39,9 @@ defmodule TuistOps.JIT.SlackBlocks do
         text: %{
           type: "mrkdwn",
           text: """
-          *Tailscale elevation request*
+          *#{title(req)} request*
           *Requester:* <@#{req.requester_slack_id}>
-          *Group:* `#{req.target_group}`
+          #{target_line(req)}
           *Duration:* #{format_seconds(req.ttl_seconds)}
           *Intent:* #{req.intent}
           """
@@ -89,10 +90,10 @@ defmodule TuistOps.JIT.SlackBlocks do
         text: %{
           type: "mrkdwn",
           text: """
-          *Tailscale elevation: active* :unlock:
+          *#{title(req)}: active* :unlock:
           *Requester:* <@#{req.requester_slack_id}>
           *Approver:* <@#{req.approver_slack_id}>
-          *Group:* `#{req.target_group}`
+          #{target_line(req)}
           *Intent:* #{req.intent}
           """
         }
@@ -130,9 +131,9 @@ defmodule TuistOps.JIT.SlackBlocks do
   def closed(%Request{} = req, status_label, detail \\ nil) do
     text =
       [
-        "*Tailscale elevation: #{status_label}*",
+        "*#{title(req)}: #{status_label}*",
         "*Requester:* <@#{req.requester_slack_id}>",
-        "*Group:* `#{req.target_group}`",
+        target_line(req),
         "*Intent:* #{req.intent}"
       ] ++ if(detail, do: ["#{detail}"], else: [])
 
@@ -167,6 +168,22 @@ defmodule TuistOps.JIT.SlackBlocks do
 
       _ ->
         :error
+    end
+  end
+
+  defp title(%Request{target_group: target_group}) do
+    if Policy.github_admin_group?(target_group),
+      do: "GitHub admin elevation",
+      else: "Tailscale elevation"
+  end
+
+  # The GitHub login comes from the slash command, so it may not be the
+  # requester's own account; the card names it next to the requester.
+  defp target_line(%Request{target_group: target_group} = req) do
+    if Policy.github_admin_group?(target_group) do
+      "*GitHub account:* <https://github.com/#{req.github_login}|#{req.github_login}> → organization admin"
+    else
+      "*Group:* `#{target_group}`"
     end
   end
 
