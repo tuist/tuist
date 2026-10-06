@@ -1,0 +1,318 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: rackatses.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: RackATS
+    listKind: RackATSList
+    plural: rackatses
+    shortNames:
+      - rats
+    singular: rackats
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.site
+          name: Site
+          type: string
+        - jsonPath: .spec.address
+          name: Address
+          type: string
+        - jsonPath: .spec.managedBy
+          name: Managed By
+          type: string
+        - jsonPath: .status.adopted
+          name: Adopted
+          type: boolean
+        - jsonPath: .status.activeSource
+          name: Active
+          type: integer
+        - jsonPath: .spec.preferredSource
+          name: Preferred
+          type: integer
+        - jsonPath: .status.conditions[?(@.type=="Redundant")].status
+          name: Redundant
+          type: string
+        - jsonPath: .status.lastObserved
+          name: Observed
+          type: date
+        - jsonPath: .status.card
+          name: Card
+          priority: 1
+          type: string
+        - jsonPath: .status.deviceSerialNumber
+          name: Serial
+          priority: 1
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RackATS is one automatic transfer switch in a rack we operate, adopted,
+            kept configured and observed by the RackATS controller.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackATSSpec is one automatic transfer switch, rendered from the rack's site
+                definition (infra/rack-switch-fleet).
+              properties:
+                address:
+                  description: Address is the card's fixed address on the rack's management LAN.
+                  pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
+                  type: string
+                mac:
+                  description: |-
+                    MAC is the management card's MAC, against which the rack's edge reserves
+                    Address. Empty until someone has read it off the unit: the controller
+                    still adopts a card already at Address, and reports that a factory card
+                    would not get there.
+                  pattern: ^$|^([0-9a-f]{2}:){5}[0-9a-f]{2}$
+                  type: string
+                managedBy:
+                  default: standalone
+                  description: |-
+                    ManagedBy gates every write: only `controller` is adopted, configured
+                    and observed. `standalone` is never contacted.
+                  enum:
+                    - controller
+                    - standalone
+                  type: string
+                model:
+                  description: |-
+                    Model is the transfer switch's hardware model. Only the Eaton EATS16N
+                    (ATS 16 Netpack) is driven.
+                  enum:
+                    - eats16n
+                  type: string
+                preferredSource:
+                  default: 1
+                  description: |-
+                    PreferredSource is the source the switch powers the load from whenever
+                    that source is good: 1 or 2, as the switch numbers its inputs.
+                  format: int32
+                  maximum: 2
+                  minimum: 1
+                  type: integer
+                site:
+                  description: Site is the rack site (e.g. `ber1`).
+                  type: string
+              required:
+                - address
+                - model
+                - site
+              type: object
+            status:
+              description: RackATSStatus is what the controller observed.
+              properties:
+                activeSource:
+                  description: |-
+                    ActiveSource is the source powering the load at the last observation:
+                    1 or 2, 0 when neither does or the card did not say.
+                  format: int32
+                  type: integer
+                adopted:
+                  description: |-
+                    Adopted is whether the controller configured the card: its
+                    administrator password, its licence agreement, the controller's account
+                    and the device's settings.
+                  type: boolean
+                card:
+                  description: |-
+                    Card names the kind of management card the controller speaks to and
+                    what it identified itself as.
+                  type: string
+                conditions:
+                  description: |-
+                    Conditions: Adopted, Converged, Ready, Redundant, CertificateChanged,
+                    AddressReserved.
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                credentialsSecret:
+                  description: |-
+                    CredentialsSecret is the Secret the controller generated: the
+                    administrator's password, the controller's account and the pin. It
+                    outlives the object.
+                  type: string
+                deviceFirmwareVersion:
+                  type: string
+                deviceModel:
+                  description: |-
+                    DeviceModel, DeviceSerialNumber and DeviceFirmwareVersion are the
+                    transfer switch's own, behind its card.
+                  type: string
+                deviceSerialNumber:
+                  type: string
+                drift:
+                  description: Drift is how the card compared with the spec when last verified.
+                  enum:
+                    - unknown
+                    - none
+                    - drifted
+                  type: string
+                firmwareVersion:
+                  type: string
+                inputs:
+                  description: Inputs are the switch's two sources at the last observation.
+                  items:
+                    description: |-
+                      RackATSInput is one source as the switch reported it at the last
+                      observation.
+                    properties:
+                      detail:
+                        description: Detail is what the card reported that the state was read from.
+                        type: string
+                      frequency:
+                        description: Frequency is the source's frequency in hertz, when the card reports it.
+                        type: string
+                      source:
+                        description: Source is the input's number, 1 or 2.
+                        format: int32
+                        type: integer
+                      state:
+                        description: State is how the switch judges the source.
+                        enum:
+                          - good
+                          - derated
+                          - outOfRange
+                          - missing
+                          - unknown
+                        type: string
+                      voltage:
+                        description: Voltage is the source's voltage in volts, when the card reports it.
+                        type: string
+                    required:
+                      - source
+                      - state
+                    type: object
+                  type: array
+                lastObserved:
+                  description: LastObserved is when the switch's sources were last read.
+                  format: date-time
+                  type: string
+                lastTransfer:
+                  description: |-
+                    LastTransfer is the last change of the active source the controller
+                    observed.
+                  properties:
+                    from:
+                      format: int32
+                      type: integer
+                    observedAt:
+                      description: ObservedAt is the observation that first saw the load on To.
+                      format: date-time
+                      type: string
+                    to:
+                      format: int32
+                      type: integer
+                  required:
+                    - from
+                    - observedAt
+                    - to
+                  type: object
+                lastVerified:
+                  description: LastVerified is when the card was last read.
+                  format: date-time
+                  type: string
+                message:
+                  description: Message says what the last reconcile found.
+                  type: string
+                model:
+                  description: |-
+                    Model, SerialNumber and FirmwareVersion are the management card's, as
+                    it reports them.
+                  type: string
+                observedGeneration:
+                  description: ObservedGeneration is the generation the card was last converged to.
+                  format: int64
+                  type: integer
+                preferredSource:
+                  description: |-
+                    PreferredSource is the preferred source the card reports, 0 when it
+                    reports none the controller recognises.
+                  format: int32
+                  type: integer
+                presentedFingerprint:
+                  description: |-
+                    PresentedFingerprint is the certificate the card presents when it no
+                    longer matches TLSFingerprint.
+                  type: string
+                reachable:
+                  description: Reachable is whether the card answered the last reconcile.
+                  type: boolean
+                serialNumber:
+                  type: string
+                tlsFingerprint:
+                  description: |-
+                    TLSFingerprint is the SHA-256 of the certificate the card presented at
+                    first contact, which every later connection is pinned to.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

@@ -109,6 +109,8 @@ fi
 
 chart="$root/infra/helm/atlas"
 helm lint "$chart"
+bash "$chart/test-agent-boundary.sh"
+bash "$root/atlas/deploy/test-sandbox-retention.sh"
 helm template standalone "$chart" > "$work/standalone.yaml"
 helm template atlas "$chart" --values "$chart/values-managed-production.yaml" > "$work/managed.yaml"
 if grep -Eq 'kind: (ExternalSecret|Cluster)|tuist-server-token|atlas.tuist.dev' "$work/standalone.yaml"; then

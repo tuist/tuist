@@ -1,5 +1,5 @@
-# Runs one GitHub Actions job on a Mac mini we own, in the BER1 rack, to prove
-# the machine is a working CI runner and not merely a registered Node.
+# Runs GitHub Actions jobs on the Mac minis we own, in the BER1 rack, to prove
+# the machines are working CI runners and not merely registered Nodes.
 #
 # `runs-on` targets the `tuist-ber1-smoke` dispatch label. That label reaches
 # the STAGING Tuist server's webhook handler, which matches it to the rack pool
@@ -7,12 +7,26 @@
 # Production receives the same webhook, has no pool with this label, and ignores
 # it.
 #
-# Manual dispatch only. There is one prototype box behind a home subnet router,
-# so this must never sit in a repository's automatic path.
+# Manual dispatch only: the rack sits behind a home subnet router, so this must
+# never sit in a repository's automatic path.
+#
+# `load_minutes` above 0 also runs one load job per guest slot: every vCPU
+# hashes for that long, and each job prints its throughput once a minute. A
+# flush-stacked tray that throttles shows as throughput falling over the run,
+# worst in the middle unit, which the per-job runner name maps to a host.
 name: BER1 Smoke
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      load_minutes:
+        description: Minutes of full CPU load per guest slot (0 runs only the smoke job)
+        required: false
+        default: "0"
+      slots:
+        description: Guest slots to load (the rack's hosts x 2)
+        required: false
+        default: "6"
 
 permissions:
   contents: read
@@ -40,3 +54,46 @@ jobs:
           python3 -c "print(sum(i*i for i in range(1_000_000)))" > /tmp/sum.txt
           test "$(cat /tmp/sum.txt)" = "333332833333500000"
           echo "computed and verified on rack hardware"
+
+  slots:
+    name: Plan load slots
+    if: inputs.load_minutes != '0'
+    runs-on: ubuntu-latest
+    outputs:
+      slots: ${{ steps.plan.outputs.slots }}
+    steps:
+      - id: plan
+        run: echo "slots=$(seq 1 "$SLOTS" | jq -cs .)" >> "$GITHUB_OUTPUT"
+        env:
+          SLOTS: ${{ inputs.slots }}
+
+  load:
+    name: Load slot ${{ matrix.slot }}
+    needs: slots
+    runs-on: tuist-ber1-smoke
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: ${{ fromJSON(needs.slots.outputs.slots) }}
+    steps:
+      - name: Hash on every vCPU and report throughput per minute
+        env:
+          LOAD_MINUTES: ${{ inputs.load_minutes }}
+        run: |
+          set -euo pipefail
+          cpus=$(sysctl -n hw.ncpu)
+          echo "runner=$RUNNER_NAME cpus=$cpus chip=$(system_profiler SPHardwareDataType | awk -F': ' '/Chip/{print $2}')"
+          work=$(mktemp -d)
+          for i in $(seq 1 "$cpus"); do
+            ( while :; do head -c 268435456 /dev/zero | openssl dgst -sha256 >/dev/null; echo >> "$work/w$i"; done ) &
+          done
+          total() { cat "$work"/w* 2>/dev/null | wc -l | tr -d ' '; }
+          previous=0
+          for minute in $(seq 1 "$LOAD_MINUTES"); do
+            sleep 60
+            now=$(total)
+            echo "minute=$minute runner=$RUNNER_NAME gib_per_min=$(( (now - previous) / 4 )) chunks=$((now - previous))"
+            previous=$now
+          done
+          kill $(jobs -p) 2>/dev/null || true

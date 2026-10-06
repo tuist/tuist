@@ -34,6 +34,11 @@ Do not add README entries for internal operational details such as env var names
 - Standalone deployment support is documented in [deploy/AGENTS.md](deploy/AGENTS.md) and lives in `compose.yaml` and the public `/docs/self-hosting` guide. The chart defaults require only an external database and application Secret; Tuist cluster integrations live in an excluded managed values overlay. Releases publish the chart and image with matching versions and attach a Compose bundle.
 - The monorepo release workflow is `.github/workflows/atlas-release.yml`, chart `infra/helm/atlas`, namespace `atlas-production` on the separate Atlas workload cluster. The Tuist production context does not target this deployment.
 
+## Agent execution
+
+- Condukt workflows use native in-process model/tool sessions, not Kubernetes coding sandboxes. The call-site inventory and dependency boundaries are documented in [agents/AGENTS.md](lib/atlas/agents/AGENTS.md).
+- Atlas needs no Kubernetes API token mount or pod/exec permissions for those workflows. Legacy sandbox namespace retention is only upgrade safety; it is not an enabled execution capability. Preserve the separately scoped Tuist connector identity when changing chart credentials.
+
 ## Inference relay
 
 - Providers may configure a relative `decision_path` in addition to their base endpoint. Jev uses `https://api.typesafe.ai/v1` with `systemone`. `/inference/v1/systemone` and `/inference/v1/decisions` forward native decision payloads through the profile-bound token, replace only the model alias, and record the `decision` operation with token counts and the profile's configured input/output prices. Decision calls are non-streaming, use dedicated profile tokens (Atlas role tokens are rejected), and disable automatic upstream retries, including transport timeouts. Successful responses without valid input/output usage produce a warning and an audit `usage_reported: false` flag; recorded costs only cover provider-reported usage.
