@@ -1034,6 +1034,9 @@ defmodule Tuist.Runners.PrepaidTest do
   describe "grant_pool/2" do
     setup do
       stub(DateTime, :utc_now, fn -> ~U[2026-10-06 12:00:00Z] end)
+      # Monthly, renewing on the 1st. Stale on purpose: the cycle is what
+      # matters, not which period is current.
+      stub(Billing, :current_billing_period, fn _account -> {~U[2026-08-01 00:00:00Z], ~U[2026-09-01 00:00:00Z]} end)
       :ok
     end
 
@@ -1045,6 +1048,7 @@ defmodule Tuist.Runners.PrepaidTest do
           paid_cents: 800_000,
           credit_multiplier: Decimal.new("1.4"),
           platforms: [:macos],
+          starts_on: ~D[2026-10-01],
           expires_on: ~D[2027-09-30],
           invoice_id: "in_pool"
         },
@@ -1052,7 +1056,7 @@ defmodule Tuist.Runners.PrepaidTest do
       )
     end
 
-    test "grants the paid amount times the credit multiplier until the day after the contract ends" do
+    test "grants the paid amount times the credit multiplier for the contract's invoices" do
       account = pool_account()
 
       expect(CreditGrants, :create, fn attrs ->
@@ -1061,8 +1065,11 @@ defmodule Tuist.Runners.PrepaidTest do
         assert attrs.currency == "usd"
         assert attrs.price_ids == [@macos_price]
         assert attrs.category == "paid"
-        # The last day of the contract is still usable, and the invoice
-        # closing the period that ends then still has to draw on it.
+        # The contract is already running, so the pool takes effect when it
+        # is granted: Stripe refuses an effective date in the past.
+        assert is_nil(attrs[:effective_at])
+        # The invoice closing on October 1, 2027 carries the contract's last
+        # day, so the pool outlives it by the grace period.
         assert attrs.expires_at == ~U[2027-10-05 00:00:00Z]
         assert attrs.metadata["tuist_runner_credit"] == "pool"
         assert attrs.metadata["tuist_prepaid_invoice_id"] == "in_pool"
@@ -1072,6 +1079,55 @@ defmodule Tuist.Runners.PrepaidTest do
       end)
 
       assert {:ok, %{id: "credgr_pool"}} = Prepaid.grant_pool(account, pool_attrs())
+    end
+
+    test "takes effect only after the contract starts when granted ahead of it" do
+      # Stripe pays an invoice from a grant when the invoice's period ends at
+      # or after the grant takes effect. The October invoice closes on
+      # November 1 and carries no contract usage, so it must not draw on it.
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.effective_at == ~U[2026-11-01 00:00:01Z]
+        assert attrs.expires_at == ~U[2027-11-05 00:00:00Z]
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} =
+               Prepaid.grant_pool(pool_account(), pool_attrs(%{starts_on: ~D[2026-11-01], expires_on: ~D[2027-10-31]}))
+    end
+
+    test "runs a term shorter than a year, aligned to an earlier contract" do
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.effective_at == ~U[2026-11-01 00:00:01Z]
+        assert attrs.expires_at == ~U[2027-09-05 00:00:00Z]
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} =
+               Prepaid.grant_pool(pool_account(), pool_attrs(%{starts_on: ~D[2026-11-01], expires_on: ~D[2027-08-31]}))
+    end
+
+    test "outlives the invoice carrying the contract's last day on a cycle that renews mid-month" do
+      # Renewing on the 15th, the usage of September 15 to 30 is invoiced on
+      # October 15, well after the contract's last day.
+      stub(Billing, :current_billing_period, fn _account -> {~U[2026-09-15 00:00:00Z], ~U[2026-10-15 00:00:00Z]} end)
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == ~U[2027-10-19 00:00:00Z]
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs())
+    end
+
+    test "dates the pool from the contract alone when the account has no billing cycle" do
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.expires_at == ~U[2027-10-05 00:00:00Z]
+        {:ok, %{id: "credgr_pool"}}
+      end)
+
+      assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs())
     end
 
     test "records no invoice when none is given" do
@@ -1094,8 +1150,11 @@ defmodule Tuist.Runners.PrepaidTest do
         {%{paid_cents: 0}, :paid_cents},
         {%{platforms: []}, :platforms},
         {%{platforms: [:windows]}, :platforms},
+        {%{starts_on: nil}, :term},
+        {%{starts_on: ~D[2027-10-01]}, :term},
+        {%{starts_on: ~D[2026-09-30]}, :term},
         {%{expires_on: ~D[2026-10-06]}, :expires_on},
-        {%{expires_on: ~D[2027-11-07]}, :expires_on},
+        {%{starts_on: ~D[2026-11-08], expires_on: ~D[2027-11-07]}, :expires_on},
         {%{invoice_id: "123"}, :invoice_id}
       ]
 
@@ -1105,13 +1164,15 @@ defmodule Tuist.Runners.PrepaidTest do
       end
     end
 
-    test "accepts a contract that ends thirteen months out, for one granted a month before it starts" do
+    test "accepts a year-long contract that ends thirteen months out" do
       expect(CreditGrants, :create, fn attrs ->
-        assert attrs.expires_at == ~U[2027-11-11 00:00:00Z]
+        assert attrs.effective_at == ~U[2026-11-07 00:00:01Z]
+        assert attrs.expires_at == ~U[2027-12-05 00:00:00Z]
         {:ok, %{id: "credgr_pool"}}
       end)
 
-      assert {:ok, _grant} = Prepaid.grant_pool(pool_account(), pool_attrs(%{expires_on: ~D[2027-11-06]}))
+      assert {:ok, _grant} =
+               Prepaid.grant_pool(pool_account(), pool_attrs(%{starts_on: ~D[2026-11-07], expires_on: ~D[2027-11-06]}))
     end
 
     test "keeps the grant owed when no runner price exists yet" do
@@ -1119,6 +1180,46 @@ defmodule Tuist.Runners.PrepaidTest do
       reject(&CreditGrants.create/1)
 
       assert {:error, :no_runner_prices_configured} = Prepaid.grant_pool(pool_account(), pool_attrs())
+    end
+  end
+
+  describe "pool_coverage/3" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2026-10-06 12:00:00Z] end)
+      :ok
+    end
+
+    test "names the first and last invoice the pool pays for" do
+      coverage =
+        Prepaid.pool_coverage(
+          {~U[2026-09-15 00:00:00Z], ~U[2026-10-15 00:00:00Z]},
+          ~D[2026-11-01],
+          ~D[2027-10-31]
+        )
+
+      # The invoice closing November 15 is the first to carry contract usage,
+      # and the one closing November 15 a year later carries its last day.
+      assert coverage.first_invoice_at == ~U[2026-11-15 00:00:00Z]
+      assert coverage.last_invoice_at == ~U[2027-11-15 00:00:00Z]
+      assert coverage.effective_at == ~U[2026-11-01 00:00:01Z]
+      assert coverage.expires_at == ~U[2027-11-19 00:00:00Z]
+    end
+
+    test "follows a yearly billing cycle to the renewal that invoices the contract's usage" do
+      coverage =
+        Prepaid.pool_coverage({~U[2026-03-01 00:00:00Z], ~U[2027-03-01 00:00:00Z]}, ~D[2026-10-01], ~D[2027-09-30])
+
+      assert coverage.first_invoice_at == ~U[2027-03-01 00:00:00Z]
+      assert coverage.last_invoice_at == ~U[2028-03-01 00:00:00Z]
+      assert coverage.expires_at == ~U[2028-03-05 00:00:00Z]
+    end
+
+    test "names no invoices when there is no billing cycle to read" do
+      coverage = Prepaid.pool_coverage(nil, ~D[2026-10-01], ~D[2027-09-30])
+
+      assert is_nil(coverage.first_invoice_at)
+      assert is_nil(coverage.last_invoice_at)
+      assert coverage.expires_at == ~U[2027-10-05 00:00:00Z]
     end
   end
 end

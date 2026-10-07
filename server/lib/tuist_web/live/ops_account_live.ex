@@ -39,6 +39,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_pool_quote, nil)
+         |> assign(:prepaid_pool_coverage, nil)
          |> assign(:prepaid_quote, nil)
          |> assign_standing_prepaid(account, subscription)
          |> assign(:has_subscription, not is_nil(subscription))
@@ -224,7 +225,10 @@ defmodule TuistWeb.OpsAccountLive do
 
   @impl true
   def handle_event("quote_prepaid_pool", params, socket) do
-    {:noreply, assign(socket, :prepaid_pool_quote, quote_pool(params))}
+    {:noreply,
+     socket
+     |> assign(:prepaid_pool_quote, quote_pool(params))
+     |> assign(:prepaid_pool_coverage, pool_coverage(params, socket.assigns.account))}
   end
 
   @impl true
@@ -243,6 +247,7 @@ defmodule TuistWeb.OpsAccountLive do
              |> assign(:prepaid_balance, refreshed)
              |> assign(:prepaid_minutes_value, held_minutes(refreshed))
              |> assign(:prepaid_pool_quote, nil)
+             |> assign(:prepaid_pool_coverage, nil)
              |> put_flash(:info, grant_pool_message(account, attrs))}
 
           {:error, reason} ->
@@ -583,6 +588,18 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
+  # Which invoices the pool will pay for, read only once both contract dates
+  # are filled in, since the billing cycle can take a Stripe call to read.
+  defp pool_coverage(params, account) do
+    with {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]),
+         false <- Date.after?(starts_on, expires_on) do
+      Prepaid.pool_coverage(Billing.current_billing_period(account), starts_on, expires_on)
+    else
+      _incomplete -> nil
+    end
+  end
+
   # Reads the form into the terms `Prepaid.grant_pool/2` takes. It only
   # parses: whether the terms make sense is the domain's to decide, so the
   # same rules hold however a pool is granted.
@@ -590,12 +607,14 @@ defmodule TuistWeb.OpsAccountLive do
     with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
          {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
          {:ok, platforms} <- parse_pool_platforms(params["platforms"]),
+         {:ok, starts_on} <- parse_date(params["starts_on"]),
          {:ok, expires_on} <- parse_date(params["expires_on"]) do
       {:ok,
        %{
          paid_cents: paid_cents,
          credit_multiplier: credit_multiplier,
          platforms: platforms,
+         starts_on: starts_on,
          expires_on: expires_on,
          invoice_id: blank_to_nil(params["invoice_id"])
        }}
@@ -702,6 +721,13 @@ defmodule TuistWeb.OpsAccountLive do
   def prepaid_pool_error({:invalid_pool, :platforms}),
     do: dgettext("dashboard", "Could not grant the pool: choose the platforms the credit pays for.")
 
+  def prepaid_pool_error({:invalid_pool, :term}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
+      )
+
   def prepaid_pool_error({:invalid_pool, :expires_on}),
     do:
       dgettext(
@@ -790,6 +816,8 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   defp parse_minutes(_raw), do: :error
+
+  def prepaid_pool_invoice_label(%DateTime{} = closes_at), do: Timex.format!(closes_at, "{Mfull} {D}, {YYYY}")
 
   def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
   def prepaid_grant_kind_label("pool"), do: dgettext("dashboard", "Pool")

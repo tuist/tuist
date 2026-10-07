@@ -146,6 +146,7 @@
   & [data-part="prepaid-quote"],
   & [data-part="standing-prepaid-quote"],
   & [data-part="prepaid-pool-quote"],
+  & [data-part="prepaid-pool-coverage"],
   & [data-part="free-tier-usage"] {
     display: flex;
     flex-direction: column;

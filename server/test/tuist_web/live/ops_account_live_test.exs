@@ -977,6 +977,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
           "paid" => "8000.00",
           "credit_multiplier" => "1.4",
           "platforms" => "macos",
+          "starts_on" => "2026-10-01",
           "expires_on" => "2027-09-30",
           "invoice_id" => "in_pool"
         },
@@ -998,6 +999,35 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "149.3K"
     end
 
+    test "names the first and last invoice the pool will pay for", %{conn: conn, user: user} do
+      # Stripe picks the invoices a grant pays by when their period ends, so
+      # the operator sees which ones before granting rather than after.
+      stub(Billing, :current_billing_period, fn _account -> {~U[2099-09-15 00:00:00Z], ~U[2099-10-15 00:00:00Z]} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params(%{"starts_on" => "2099-11-01", "expires_on" => "2100-10-31"}))
+        |> render_change()
+
+      assert html =~ "November 15, 2099"
+      assert html =~ "November 15, 2100"
+    end
+
+    test "says no invoice will draw on a pool when the account has no billing cycle", %{conn: conn, user: user} do
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params(%{"starts_on" => "2099-11-01", "expires_on" => "2100-10-31"}))
+        |> render_change()
+
+      assert html =~ "No subscription to invoice against"
+    end
+
     test "grants the pool on the terms typed", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
@@ -1006,6 +1036,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
         assert attrs.paid_cents == 800_000
         assert Decimal.equal?(attrs.credit_multiplier, Decimal.new("1.4"))
         assert attrs.platforms == [:macos]
+        assert attrs.starts_on == ~D[2026-10-01]
         assert attrs.expires_on == ~D[2027-09-30]
         assert attrs.invoice_id == "in_pool"
         {:ok, %{id: "credgr_pool"}}
@@ -1037,7 +1068,12 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       reject(&Prepaid.grant_pool/2)
 
-      for overrides <- [%{"paid" => "eight thousand"}, %{"credit_multiplier" => "1.4x"}, %{"expires_on" => "soon"}] do
+      for overrides <- [
+            %{"paid" => "eight thousand"},
+            %{"credit_multiplier" => "1.4x"},
+            %{"starts_on" => "soon"},
+            %{"expires_on" => "soon"}
+          ] do
         lv
         |> form("#prepaid-pool-form", pool_params(overrides))
         |> render_submit()

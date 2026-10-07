@@ -146,18 +146,27 @@ defmodule Tuist.Runners.Prepaid do
 
   ## Prepaid pools
 
-  Some customers pay for a whole year of runner time up front, usually by
-  bank transfer, and their usage is seasonal. Monthly expiry would forfeit
-  every quiet month they already paid for, so these deals are a *pool*: one
-  grant, usable until the contract ends. Usage past it falls through to the
-  on-demand rate like any other exhausted grant.
+  Some customers pay for a contract term of runner time up front, usually a
+  year by bank transfer, and their usage is seasonal. Monthly expiry would
+  forfeit every quiet month they already paid for, so these deals are a
+  *pool*: one grant, usable for the whole term. Usage past it falls through
+  to the on-demand rate like any other exhausted grant.
 
   A pool is granted by an operator with `grant_pool/2`, not from an invoice.
-  The end of the term is a contract date someone knows when the deal is
-  closed, so it is entered rather than inferred from Stripe, and the
-  invoice charging for the pool is an ordinary one with nothing on it for
-  this module to read. Its id is recorded on the grant so the credit can
-  be traced to its charge.
+  The term's first and last day are contract dates someone knows when the
+  deal is closed, so they are entered rather than inferred from Stripe. A
+  term can be shorter than a year, to line a new contract up with the end
+  of an earlier one. The invoice charging for the pool is an ordinary one
+  with nothing on it for this module to read; its id is recorded on the
+  grant so the credit can be traced to its charge.
+
+  Stripe decides which invoices a grant pays for by when their periods end,
+  so the term is turned into invoices on the account's billing cycle: the
+  first whose period ends after the contract starts, through the one whose
+  period holds its last day. `pool_coverage/3` works them out, and the ops
+  form shows them before anything is granted. A grant already applied to an
+  invoice cannot be voided, so a used pool is withdrawn by expiring it in
+  Stripe.
 
   The terms are written for a person. The *credit multiplier* is how much
   credit each dollar paid buys: the on-demand price per minute divided by
@@ -571,8 +580,8 @@ defmodule Tuist.Runners.Prepaid do
 
   @doc """
   Grants `account` a prepaid pool: runner credit paid up front for a whole
-  contract term, usable until the contract ends rather than expiring with
-  each billing period. See "Prepaid pools" above.
+  contract term, usable for that term rather than expiring with each
+  billing period. See "Prepaid pools" above.
 
   `attrs` carries the agreed terms:
 
@@ -580,8 +589,9 @@ defmodule Tuist.Runners.Prepaid do
     * `:credit_multiplier` - how much credit each unit paid buys, as a
       `Decimal`. `1.4` turns a $8,000 payment into $11,200 of credit.
     * `:platforms` - the runner platforms the credit pays for.
-    * `:expires_on` - the last day of the contract. The pool stays usable
-      through it.
+    * `:starts_on` - the first day of the contract.
+    * `:expires_on` - the last day of the contract, at most a year after
+      the first.
     * `:invoice_id` - optional, the Stripe invoice that charged for the pool,
       recorded on the grant so the credit can be traced to its charge.
 
@@ -589,14 +599,16 @@ defmodule Tuist.Runners.Prepaid do
   own. Returns `{:ok, grant}`, `{:error, {:invalid_pool, field}}` for a term
   no pool should have, or `{:error, reason}` when Stripe refuses the grant.
   """
-  def grant_pool(%Account{customer_id: customer_id}, attrs) when is_binary(customer_id) and is_map(attrs) do
+  def grant_pool(%Account{customer_id: customer_id} = account, attrs) when is_binary(customer_id) and is_map(attrs) do
     with {:ok, paid_cents} <- pool_paid_cents(attrs[:paid_cents]),
          {:ok, ratio_bp} <- pool_funding_ratio_bp(attrs[:credit_multiplier]),
          {:ok, platforms} <- pool_platforms(attrs[:platforms]),
-         {:ok, expires_at} <- pool_expires_at(attrs[:expires_on]),
+         :ok <- pool_term(attrs[:starts_on], attrs[:expires_on]),
+         :ok <- pool_end(attrs[:expires_on]),
          {:ok, invoice_metadata} <- pool_invoice_metadata(attrs[:invoice_id]),
          {:ok, price_ids} <- price_ids(platforms) do
-      terms = [paid_cents, ratio_bp, Enum.join(platforms, ","), DateTime.to_unix(expires_at), attrs[:invoice_id]]
+      coverage = pool_coverage(Billing.current_billing_period(account), attrs.starts_on, attrs.expires_on)
+      terms = [paid_cents, ratio_bp, platforms, attrs.starts_on, attrs.expires_on, attrs[:invoice_id]]
 
       result =
         CreditGrants.create(%{
@@ -606,7 +618,8 @@ defmodule Tuist.Runners.Prepaid do
           price_ids: price_ids,
           category: "paid",
           name: "Prepaid runner pool",
-          expires_at: expires_at,
+          effective_at: coverage.effective_at,
+          expires_at: coverage.expires_at,
           priority: @prepaid_priority,
           metadata:
             Map.merge(invoice_metadata, %{
@@ -638,6 +651,73 @@ defmodule Tuist.Runners.Prepaid do
     end
   end
 
+  @doc """
+  Which invoices a pool for a contract from `starts_on` through `expires_on`
+  pays for, on an account billed over `billing_period`, the `{start, end}`
+  of one of its billing periods, or `nil` when it has none.
+
+  Stripe pays an invoice from a grant when the invoice's period ends at or
+  after the grant takes effect and before it expires. The pool takes effect
+  just after the contract starts, so an invoice whose period ends as the
+  contract starts, and so carries none of its usage, does not draw on it.
+  It expires `@expiry_grace_days` after the invoice whose period holds the
+  contract's last day, which on a cycle renewing mid-month or yearly closes
+  after the contract does. An invoice straddling either end of the contract
+  carries usage from both sides of it, and the pool pays for all of it.
+
+  Returns `effective_at`, `nil` once the contract is running, since Stripe
+  only takes one in the future and the pool then takes effect when it is
+  granted; `expires_at`; and when the first and last invoice it pays for
+  close, both `nil` without a billing cycle to read them from.
+  """
+  def pool_coverage(billing_period, %Date{} = starts_on, %Date{} = expires_on) do
+    now = DateTime.utc_now()
+    contract_end = start_of_day(Date.add(expires_on, 1))
+    effective_at = DateTime.add(start_of_day(starts_on), 1, :second)
+    effective_at = if DateTime.after?(effective_at, now), do: effective_at
+
+    case period_ends(billing_period) do
+      nil ->
+        %{
+          effective_at: effective_at,
+          expires_at: past_period_end(contract_end),
+          first_invoice_at: nil,
+          last_invoice_at: nil
+        }
+
+      period_ends ->
+        last_invoice_at = Enum.find(period_ends, &(not DateTime.before?(&1, contract_end)))
+
+        %{
+          effective_at: effective_at,
+          expires_at: past_period_end(last_invoice_at),
+          first_invoice_at: Enum.find(period_ends, &(not DateTime.before?(&1, effective_at || now))),
+          last_invoice_at: last_invoice_at
+        }
+    end
+  end
+
+  # When the account's billing periods end, from the one given onward, for a
+  # monthly or yearly cycle. Stripe keeps a cycle on its anchor day, which
+  # month arithmetic from a period that started on a clamped day (February 28
+  # for an anchor on the 31st) can undershoot by up to three days. The grace
+  # after the last invoice covers that, at worst carrying the pool one
+  # invoice further at a month end.
+  defp period_ends({%DateTime{} = period_start, %DateTime{} = period_end}) do
+    interval =
+      Enum.find([1, 12], fn months ->
+        abs(DateTime.diff(DateTime.shift(period_start, month: months), period_end, :day)) <= 3
+      end)
+
+    if interval do
+      1 |> Stream.iterate(&(&1 + 1)) |> Stream.map(&DateTime.shift(period_start, month: &1 * interval))
+    end
+  end
+
+  defp period_ends(_billing_period), do: nil
+
+  defp start_of_day(date), do: DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+
   defp pool_paid_cents(paid_cents) when is_integer(paid_cents) and paid_cents > 0, do: {:ok, paid_cents}
   defp pool_paid_cents(_paid_cents), do: invalid_pool(:paid_cents)
 
@@ -667,21 +747,25 @@ defmodule Tuist.Runners.Prepaid do
 
   defp pool_platforms(_platforms), do: invalid_pool(:platforms)
 
-  # The pool is usable through the contract's last day, and then for
-  # `@expiry_grace_days` more, so the invoice closing the period that ends
-  # with the contract can still draw on it. A contract already over, or one
-  # ending further out than a yearly term granted a month early, is a typo.
-  defp pool_expires_at(%Date{} = expires_on) do
-    today = DateTime.to_date(DateTime.utc_now())
-
-    if Date.after?(expires_on, today) and not Date.after?(expires_on, Date.shift(today, month: @max_pool_months)) do
-      {:ok, expires_on |> Date.add(1) |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> past_period_end()}
-    else
-      invalid_pool(:expires_on)
-    end
+  # A term runs from its first day through its last, and lasts at most a
+  # year, so its last day falls before the same date a year on.
+  defp pool_term(%Date{} = starts_on, %Date{} = expires_on) do
+    if Date.after?(starts_on, expires_on) or Date.after?(Date.add(expires_on, 1), Date.shift(starts_on, year: 1)),
+      do: invalid_pool(:term),
+      else: :ok
   end
 
-  defp pool_expires_at(_expires_on), do: invalid_pool(:expires_on)
+  defp pool_term(_starts_on, _expires_on), do: invalid_pool(:term)
+
+  # A contract already over, or one ending further out than a year-long term
+  # starting within a month, is a typo.
+  defp pool_end(%Date{} = expires_on) do
+    today = DateTime.to_date(DateTime.utc_now())
+
+    if Date.after?(expires_on, today) and not Date.after?(expires_on, Date.shift(today, month: @max_pool_months)),
+      do: :ok,
+      else: invalid_pool(:expires_on)
+  end
 
   defp pool_invoice_metadata(nil), do: {:ok, %{}}
 

@@ -687,7 +687,7 @@
       <p data-part="prepaid-pool-description">
         {dgettext(
           "dashboard",
-          "A pool is runner credit paid up front for a whole contract, usually a year by bank transfer. It stays usable until the contract's last day instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it. The minutes field above leaves pools alone."
+          "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it. The minutes field above leaves pools alone."
         )}
       </p>
       <.form
@@ -721,6 +721,13 @@
           <:item value="linux" label={dgettext("dashboard", "Linux")} />
         </.select>
         <.text_input
+          id="prepaid-pool-starts-on-input"
+          name="starts_on"
+          value=""
+          input_type="date"
+          label={dgettext("dashboard", "Contract's first day")}
+        />
+        <.text_input
           id="prepaid-pool-expires-on-input"
           name="expires_on"
           value=""
@@ -745,6 +752,26 @@
             <dt>{dgettext("dashboard", "Baseline minutes")}</dt>
             <dd data-part="prepaid-pool-quote-minutes">
               {format_number(@prepaid_pool_quote.minutes)}
+            </dd>
+          </div>
+        </dl>
+        <dl :if={@prepaid_pool_coverage} data-part="prepaid-pool-coverage">
+          <div :if={@prepaid_pool_coverage.first_invoice_at}>
+            <dt>{dgettext("dashboard", "First invoice paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-first-invoice">
+              {prepaid_pool_invoice_label(@prepaid_pool_coverage.first_invoice_at)}
+            </dd>
+          </div>
+          <div :if={@prepaid_pool_coverage.last_invoice_at}>
+            <dt>{dgettext("dashboard", "Last invoice paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-last-invoice">
+              {prepaid_pool_invoice_label(@prepaid_pool_coverage.last_invoice_at)}
+            </dd>
+          </div>
+          <div :if={is_nil(@prepaid_pool_coverage.last_invoice_at)}>
+            <dt>{dgettext("dashboard", "Invoices paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-no-invoices">
+              {dgettext("dashboard", "No subscription to invoice against")}
             </dd>
           </div>
         </dl>
