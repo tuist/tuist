@@ -8,7 +8,9 @@
   <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
-        {dgettext("dashboard_integrations", "GitHub")}
+        {if GitHubAppInstallation.enterprise?(@github_app_installation),
+          do: dgettext("dashboard_integrations", "GitHub Enterprise Server"),
+          else: dgettext("dashboard_integrations", "GitHub")}
       </span>
       <span data-part="subtitle">
         {dgettext(
@@ -46,6 +48,8 @@
             type="basic"
             value={@github_client_url}
             label={dgettext("dashboard_integrations", "Server URL")}
+            required
+            show_required
             placeholder="https://github.company.com"
             hint={dgettext("dashboard_integrations", "The GitHub URL your browser can access.")}
             error={@github_client_url_error}
@@ -56,12 +60,12 @@
             name="github_api_url"
             type="basic"
             value={@github_api_url}
-            label={dgettext("dashboard_integrations", "API URL (optional)")}
+            label={dgettext("dashboard_integrations", "API URL")}
             placeholder="https://github-proxy.company.com/api/v3"
-            hint={
+            suffix_hint={
               dgettext(
                 "dashboard_integrations",
-                "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL."
+                "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
               )
             }
             error={@github_api_url_error}
@@ -90,16 +94,24 @@
           data-part="github-enterprise-form"
         >
           <.text_input
+            id="github-client-url"
+            name="github_client_url"
+            type="basic"
+            value={@github_app_installation.client_url}
+            label={dgettext("dashboard_integrations", "Server URL")}
+            readonly
+          />
+          <.text_input
             id="github-api-url"
             name="github_api_url"
             type="basic"
             value={@github_api_url}
-            label={dgettext("dashboard_integrations", "API URL (optional)")}
+            label={dgettext("dashboard_integrations", "API URL")}
             placeholder="https://github-proxy.company.com/api/v3"
-            hint={
+            suffix_hint={
               dgettext(
                 "dashboard_integrations",
-                "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL."
+                "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
               )
             }
             error={@github_api_url_error}

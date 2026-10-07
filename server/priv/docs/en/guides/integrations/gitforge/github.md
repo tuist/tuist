@@ -38,7 +38,7 @@ If engineers access GitHub Enterprise through an internal hostname while third-p
 | Field | Example | Used by |
 |---|---|---|
 | **Server URL** | `https://github.internal.company.com` | Your browser, for App registration and installation, and links to GitHub from Tuist |
-| **API URL (optional)** | `https://github-proxy.company.com/api/v3` | Tuist's servers, for the manifest-code exchange, access tokens, repository access, PR comments, and checks |
+| **API URL** | `https://github-proxy.company.com/api/v3` | Tuist's servers, for the manifest-code exchange, access tokens, repository access, PR comments, and checks |
 
 The API URL is the full REST API base URL, including `/api/v3` or the equivalent path exposed by your proxy. Tuist does not append `/api/v3` to an explicit API URL. Leave it empty if one hostname works for both your browser and Tuist; existing connections keep using `<Server URL>/api/v3`.
 
