@@ -102,7 +102,9 @@ defmodule Tuist.Tests.Coverage.Reported do
       # out to cover, which is what an ancestor's files are read back over.
       covered_schemes = (schemes ++ Enum.map(unmeasured, & &1.scheme)) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
 
-      hits = selective_testing_hits(project.id, repository_id, run_ids)
+      # A scheme skipped whole measured nothing, and its run's hits are all
+      # that say which targets it skipped.
+      hits = selective_testing_hits(project.id, repository_id, run_ids ++ Enum.map(unmeasured, & &1.test_run_id))
 
       case skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
         {:not_enumerated, _ancestry} ->

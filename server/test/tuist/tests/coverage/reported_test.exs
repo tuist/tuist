@@ -423,6 +423,37 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     selective_testing(project, base, [{"AppTests", :miss, "app"}, {"TextKitTests", :miss, "text"}])
 
+    case Keyword.get(opts, :head, :measured) do
+      :measured -> target_only_head(project, account, opts)
+      :skipped -> skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}])
+    end
+  end
+
+  # The scheme skipped whole at the head: its run measured nothing and listed
+  # no candidates, and only its targets' hits say what it skipped.
+  defp skipped_head(project, account, hits) do
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    {:ok, head} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "App",
+        git_branch: "feature/skipped",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "head",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    selective_testing(project, head, hits)
+  end
+
+  defp target_only_head(project, account, opts) do
     head =
       CoverageFixtures.run_with_coverage(project, account, head_files(), %{
         git_commit_sha: "head",
@@ -524,6 +555,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert_received :window_walk
     refute_received :window_walk
     refute_received {:tracked_files, "root"}
+  end
+
+  test "carries a target selective testing skipped whole when its scheme was skipped whole", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :skipped)
+
+    assert %{
+             kind: "reported",
+             covered_lines: 5,
+             executable_lines: 7,
+             skipped_tests_count: 2,
+             carried_tests_count: 2,
+             gap_files_count: 0,
+             carried_from: ["base"]
+           } = Reported.compute(project, "head")
   end
 
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
