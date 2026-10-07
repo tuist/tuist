@@ -173,27 +173,33 @@
               <span data-part="label">{String.slice(@build.git_commit_sha, 0, 8)}</span>
             </div>
           </div>
-          <div :if={@build.requested_tasks != []} data-part="metadata-row">
-            <div data-part="metadata">
+          <div data-part="metadata-row">
+            <div
+              :if={@build.requested_tasks != []}
+              data-part="metadata"
+              data-field="requested-tasks"
+            >
               <div data-part="title">{dgettext("dashboard_gradle", "Requested tasks")}</div>
               <span data-part="label">{Enum.join(@build.requested_tasks, " ")}</span>
             </div>
-          </div>
-          <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">
                 {dgettext("dashboard_gradle", "Estimated cache work avoided")}
               </div>
-              <span id="build-cache-work-avoided" data-part="label">
+              <span
+                id="build-cache-work-avoided"
+                data-part="label"
+                title={
+                  dgettext(
+                    "dashboard_gradle",
+                    "Cumulative task time avoided by cache hits, not elapsed build time saved."
+                  )
+                }
+              >
+                <.history :if={!is_nil(@cache_work_avoided)} />
                 {if is_nil(@cache_work_avoided),
                   do: dgettext("dashboard_gradle", "Not reported"),
                   else: format_duration(@cache_work_avoided)}
-              </span>
-              <span data-part="label">
-                {dgettext(
-                  "dashboard_gradle",
-                  "Cumulative task time avoided by cache hits, not elapsed build time saved."
-                )}
               </span>
             </div>
           </div>
