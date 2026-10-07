@@ -719,6 +719,11 @@ const PATH_USE_RECORD_INTERVAL: Duration = Duration::from_secs(60 * 60);
 /// check starts another attempt.
 const REOPEN_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
+/// How long after a store open starts a resolve on its path waits for it to
+/// finish. A healthy open takes milliseconds, and the requests that arrive
+/// inside one are a build's first lookups; past this, they answer misses.
+const OPEN_WAIT: Duration = Duration::from_secs(1);
+
 /// How long a store open, prune or release, or a file operation inside a CAS
 /// directory, may run before the proxy reports that it has not returned. A
 /// healthy one takes milliseconds.
@@ -1173,6 +1178,8 @@ struct StoreBinding {
     /// means the store was deleted and recreated under this long-lived proxy.
     generation: Option<CasGeneration>,
     reopen: Reopen,
+    /// When the running open or rebind started, if one is running.
+    open_started: Option<Instant>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1647,7 +1654,7 @@ impl PathState {
             open,
             cas: RwLock::new(cas),
             cas_path: cas_path.to_string(),
-            binding: Mutex::new(StoreBinding { generation, reopen }),
+            binding: Mutex::new(StoreBinding { generation, reopen, open_started: None }),
             stalls,
             gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
@@ -1815,6 +1822,7 @@ impl PathState {
         let outcome = self.stalls.watch(&self.cas_path, what, || self.reopen_cas());
         {
             let mut binding = self.binding.lock().unwrap();
+            binding.open_started = None;
             match &outcome {
                 Ok(()) => {
                     binding.generation = Some(target);
@@ -3023,8 +3031,8 @@ impl Proxy {
         // an uncached/changed key or a parallel build can't trust known_local
         // marks for a store that no longer exists (which would skip re-fetching
         // wiped nodes and hand back a value whose graph is missing on disk). A
-        // store that is being reopened answers a miss instead of waiting.
-        if !self.check_generation(state) {
+        // store whose open has run past `OPEN_WAIT` answers a miss.
+        if !self.check_generation_awaiting_open(state) {
             state.stats_reopen_misses.fetch_add(1, Ordering::Relaxed);
             return Ok(None);
         }
@@ -3182,6 +3190,17 @@ impl Proxy {
         observed: u64,
     ) -> Result<Option<Vec<u8>>, String> {
         let value = manifest[0].llcas_digest.clone();
+        // A prune or wipe that advanced the generation while the manifest was
+        // fetched dropped this path's local marks. Nothing below reads the
+        // store, so once it serves the manifest is registered against the
+        // current generation rather than answered as a miss.
+        let mut observed = observed;
+        while !committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+            if !self.check_generation(state) {
+                return Ok(None);
+            }
+            observed = state.gen_counter.load(Ordering::SeqCst);
+        }
         // Register the complete graph atomically before exposing a candidate.
         // Global queries may prepare it immediately; local-only probes must
         // still return a miss until the full graph is available locally.
@@ -4011,7 +4030,10 @@ impl Proxy {
                         binding.generation = current;
                     }
                 }
-                StoreVerdict::Reopen(_) => binding.reopen = Reopen::InFlight,
+                StoreVerdict::Reopen(_) => {
+                    binding.reopen = Reopen::InFlight;
+                    binding.open_started = Some(Instant::now());
+                }
                 StoreVerdict::Unavailable => {}
             }
             verdict
@@ -4023,13 +4045,35 @@ impl Proxy {
             .name("cas-reopen".into())
             .spawn(move || state.finish_reopen(target));
         if let Err(error) = spawned {
-            state.binding.lock().unwrap().reopen = Reopen::Failed { at: Instant::now() };
+            let mut binding = state.binding.lock().unwrap();
+            binding.open_started = None;
+            binding.reopen = Reopen::Failed { at: Instant::now() };
+            drop(binding);
             crate::log_line(&format!(
                 "cas reopen could not start for {}: {error}",
                 state.cas_path
             ));
         }
         false
+    }
+
+    /// `check_generation`, waiting for an open that started less than
+    /// `OPEN_WAIT` ago. An open that is still running after that answers
+    /// `false` at once, as before, so a blocked one holds a request up for at
+    /// most `OPEN_WAIT` after it started.
+    fn check_generation_awaiting_open(&self, state: &'static PathState) -> bool {
+        loop {
+            if self.check_generation(state) {
+                return true;
+            }
+            let open_started = state.binding.lock().unwrap().open_started;
+            match open_started {
+                Some(started) if started.elapsed() < OPEN_WAIT => {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                _ => return false,
+            }
+        }
     }
 
     fn is_local(&self, state: &PathState, observed: u64, digest: &[u8]) -> bool {
@@ -11284,6 +11328,34 @@ mod tests {
         assert!(!reopened.load_present(&root), "a fresh process must not find a persistent partial root");
     }
 
+    // swift-build prunes the store while a build's first key queries are in
+    // flight, and the prune's invalidation advances the generation under them.
+    #[test]
+    fn a_resolve_that_a_prune_overtakes_still_registers_its_candidate() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("prune-overtakes-resolve");
+        let state = path_state_for(&dir.path());
+        let seed_dir = TempCasDir::new("prune-overtakes-seed");
+        let seed = path_state_for(&seed_dir.path());
+        let root = store_probe_object(seed, b"root");
+        let child = store_probe_object(seed, b"child");
+        let proxy = test_proxy();
+        proxy.materializer.drain_stop_timeout(Duration::ZERO);
+        let remote = proxy.remote_for("tuist/prune-overtakes-resolve");
+        let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+        state.invalidate();
+
+        assert_eq!(
+            proxy.commit_and_materialize(&remote, state, b"key", manifest, observed).unwrap(),
+            Some(root.clone()),
+            "the manifest names the remote's value whatever the prune removed locally"
+        );
+        assert_eq!(state.withheld_roots.lock().unwrap().get(&root), Some(&vec![child]));
+    }
+
     #[test]
     fn snapshot_candidates_install_the_same_closure_guard() {
         if run_in_cas_subprocess() {
@@ -12049,6 +12121,7 @@ mod tests {
         let bound = |reopen: Reopen| StoreBinding {
             generation: Some(g1),
             reopen,
+            open_started: None,
         };
         let in_flight = Reopen::InFlight;
         let failed = Reopen::Failed { at: now };
@@ -12583,6 +12656,43 @@ mod tests {
             Ok(crate::proxy_proto::Resolution::Miss) => panic!("the opened store serves hits"),
             Err(error) => panic!("the opened store serves hits: {error}"),
         }
+    }
+
+    // The build system's concurrent key queries are the first requests on a
+    // store they create, so they all arrive inside its first open.
+    #[test]
+    fn a_resolve_during_a_prompt_first_open_is_served_from_the_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("first-open-prompt");
+        let store = store_in(&dir, "store");
+        let proxy = upstream_registry_proxy(&dir.0.join("registry"));
+        let slow_open = || -> OpenCas {
+            Box::new(|up: &'static Upstream, path: &str| {
+                std::thread::sleep(Duration::from_millis(150));
+                unsafe { open_cas(up, path) }
+            })
+        };
+        let state = proxy
+            .path_state_opening_with(&store, slow_open)
+            .expect("registering does not wait for the open");
+        let key = b"first-open-prompt";
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.to_vec(), Resolution::Miss(Instant::now()));
+
+        let remote = proxy.remote_for("tuist/app");
+        let resolved = proxy.resolve(&remote, "tuist/app", state, key, None);
+
+        assert!(matches!(resolved, Ok(None)), "{resolved:?}");
+        assert_eq!(
+            state.stats_reopen_misses.load(Ordering::Relaxed),
+            0,
+            "an open that finishes within moments is waited for, not answered as a miss"
+        );
     }
 
     #[test]
