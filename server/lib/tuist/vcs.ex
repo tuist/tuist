@@ -31,6 +31,12 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
+  @test_body_build_systems [
+    {"xcode", "Xcode", "Scheme"},
+    {"gradle", "Gradle", "Project"},
+    {"bazel", "Bazel", "Target patterns"},
+    {"mix", "Mix", "Scheme"}
+  ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -790,44 +796,39 @@ defmodule Tuist.VCS do
     end
   end
 
+  defp get_test_body(%{test_runs: []}), do: nil
+
   defp get_test_body(%{
          test_runs: test_runs,
          git_remote_url_origin: git_remote_url_origin,
          test_run_url: test_run_url,
          project: project
        }) do
-    if Enum.empty?(test_runs) do
-      nil
-    else
-      project = Repo.preload(project, :account)
+    project = Repo.preload(project, :account)
+    runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
 
-      runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
+    sections =
+      for {build_system, name, run_header} <- @test_body_build_systems,
+          build_system_test_runs = Map.get(runs_by_build_system, build_system, []),
+          build_system_test_runs != [] do
+        args = test_body_args(build_system_test_runs, project, git_remote_url_origin, test_run_url)
 
-      sections =
-        Enum.reject(
-          [
-            {"Xcode",
-             get_xcode_test_body(
-               test_body_args(runs_by_build_system["xcode"], project, git_remote_url_origin, test_run_url)
-             )},
-            {"Gradle",
-             get_gradle_test_body(
-               test_body_args(runs_by_build_system["gradle"], project, git_remote_url_origin, test_run_url)
-             )},
-            {"Bazel",
-             get_bazel_test_body(
-               test_body_args(runs_by_build_system["bazel"], project, git_remote_url_origin, test_run_url)
-             )}
-          ],
-          fn {_name, body} -> body == "" end
-        )
+        body =
+          if build_system == "xcode",
+            do: get_xcode_test_body(args),
+            else: get_test_count_body(args, run_header)
 
-      section_body =
-        case sections do
-          [{_name, body}] -> body
-          sections -> Enum.map_join(sections, "\n", fn {name, body} -> "##### #{name}\n\n#{body}" end)
-        end
+        {name, body}
+      end
 
+    section_body =
+      case sections do
+        [] -> nil
+        [{_name, body}] -> body
+        sections -> Enum.map_join(sections, "\n", fn {name, body} -> "##### #{name}\n\n#{body}" end)
+      end
+
+    if section_body do
       """
 
       #### Tests 🧪
@@ -839,14 +840,12 @@ defmodule Tuist.VCS do
 
   defp test_body_args(test_runs, project, git_remote_url_origin, test_run_url) do
     %{
-      test_runs: test_runs || [],
+      test_runs: test_runs,
       git_remote_url_origin: git_remote_url_origin,
       test_run_url: test_run_url,
       project: project
     }
   end
-
-  defp get_xcode_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
   defp get_xcode_test_body(%{
          test_runs: test_runs,
@@ -887,55 +886,27 @@ defmodule Tuist.VCS do
 
   defp test_modules_text(metrics), do: metrics.ran_test_modules
 
-  defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
-
-  defp get_gradle_test_body(%{
-         test_runs: test_runs,
-         git_remote_url_origin: git_remote_url_origin,
-         test_run_url: test_run_url,
-         project: project
-       }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
-
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
-
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
-      end)
-
-    "| Project | Status | Tests | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
-      rows
-  end
-
-  defp get_bazel_test_body(%{test_runs: [], project: _project} = _args), do: ""
-
-  defp get_bazel_test_body(%{
-         test_runs: test_runs,
-         git_remote_url_origin: git_remote_url_origin,
-         test_run_url: test_run_url,
-         project: project
-       }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+  defp get_test_count_body(
+         %{
+           test_runs: test_runs,
+           git_remote_url_origin: git_remote_url_origin,
+           test_run_url: test_run_url,
+           project: project
+         },
+         run_header
+       ) do
+    metrics_map = project.id |> TestsAnalytics.test_runs_metrics(test_runs) |> Map.new(&{&1.test_run_id, &1})
 
     rows =
       Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
         test_url = test_run_url.(%{project: project, test_run: test_run})
-        target_patterns = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+        name = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        total_tests = get_in(metrics_map, [test_run.id, :total_tests]) || 0
 
-        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
+        "| [#{name}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
-    "| Target patterns | Status | Tests | Commit |\n" <>
+    "| #{run_header} | Status | Tests | Commit |\n" <>
       "|:-:|:-:|:-:|:-:|\n" <>
       rows
   end

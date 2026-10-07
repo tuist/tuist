@@ -1495,6 +1495,101 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "creates a comment with mix test runs" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, passing_test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "clickhouse-current",
+          build_system: "mix",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "Tuist.AccountsTest",
+              status: "success",
+              duration: 3000,
+              test_cases: [
+                %{name: "creates an account", status: "success", duration: 1500},
+                %{name: "deletes an account", status: "success", duration: 1500}
+              ]
+            }
+          ]
+        )
+
+      {:ok, failing_test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "clickhouse-floor",
+          build_system: "mix",
+          status: "failure",
+          ran_at: ~N[2024-04-30 04:00:00],
+          test_modules: [
+            %{
+              name: "Tuist.AccountsTest",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "creates an account", status: "failure", duration: 1000}
+              ]
+            }
+          ]
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json].body
+
+        assert body =~
+                 """
+                 #### Tests 🧪
+
+                 | Scheme | Status | Tests | Commit |
+                 |:-:|:-:|:-:|:-:|
+                 """
+
+        assert body =~
+                 "| [clickhouse-current](https://tuist.dev/test_runs/#{passing_test_run.id}) | ✅ | 2 | #{commit_link} |\n"
+
+        assert body =~
+                 "| [clickhouse-floor](https://tuist.dev/test_runs/#{failing_test_run.id}) | ❌ | 1 | #{commit_link} |\n"
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
     test "creates a comment with mixed xcode and gradle test runs" do
       # Given
       project =
