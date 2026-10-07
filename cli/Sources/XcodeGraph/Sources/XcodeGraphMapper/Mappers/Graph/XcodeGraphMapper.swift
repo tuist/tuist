@@ -235,7 +235,8 @@ public struct XcodeGraphMapper: XcodeGraphMapping {
         projects.compactMapValues { project in
             guard !project.packages.isEmpty else { return nil }
             return Dictionary(
-                uniqueKeysWithValues: project.packages.map { ($0.url, $0) }
+                project.packages.map { ($0.url, $0) },
+                uniquingKeysWith: { first, _ in first }
             )
         }
     }
