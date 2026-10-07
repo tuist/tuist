@@ -1448,3 +1448,43 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Server updated."
 msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Delete server?"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "Deleting this server permanently removes all saved user connections. This action cannot be undone."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:345
+#, elixir-autogen, elixir-format
+msgid "Enter the server's name to confirm"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:488
+#, elixir-autogen, elixir-format
+msgid "Expired %{datetime}"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:472
+#, elixir-autogen, elixir-format
+msgid "Reconnect required"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:320
+#, elixir-autogen, elixir-format
+msgid "Remove this upstream server from Atlas."
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:413
+#, elixir-autogen, elixir-format
+msgid "Server actions"
+msgstr ""
+
+#: lib/atlas_web/live/mcp_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Server name does not match."
+msgstr ""
