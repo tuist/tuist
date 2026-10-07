@@ -63,7 +63,17 @@ applications that are already running, and `Application.ensure_all_started/1`
 does not restore them. Put every OTP application used from a task back on the
 path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
 in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
-file and uses the command line tool's refresh lock path. Server ingestion and
+file and uses the command line tool's refresh lock path. `Git` and `Analytics.GitHistory` port the command line tool's Git history
+collection (`GitController+History.swift`, `GitHistoryParser.swift`,
+`GitHistoryService.swift`) and must stay in step with it, since the server
+compares what both report: the merge base with the CI provider's base branch
+(fetching it and deepening a shallow clone within the server's budget), the
+changed files and hunks since, the commits within the window (a shallow
+boundary's parents read from the commit objects), whether the checkout is
+dirty (`git status --porcelain`, untracked files included), and after the run
+the commits the server lacks, the branch head, and a clean checkout's file
+listing. Git's standard error is discarded and nothing here ever fails a run.
+Server ingestion and
 dashboard presentation belong in `server/`.
 
 - `lib/tuist_ex/analytics/contract.ex` carries the wire contract version the

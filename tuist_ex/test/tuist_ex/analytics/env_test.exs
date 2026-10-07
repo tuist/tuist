@@ -117,4 +117,40 @@ defmodule TuistEx.Analytics.EnvTest do
 
     assert Env.without_credentials(nil) == nil
   end
+
+  test "reads the base branch from the CI provider, without a full ref's prefix" do
+    assert Env.base_branch(fn
+             "GITHUB_BASE_REF" -> "main"
+             _ -> nil
+           end) == "main"
+
+    assert Env.base_branch(fn
+             "SYSTEM_PULLREQUEST_TARGETBRANCH" -> "refs/heads/develop"
+             _ -> nil
+           end) == "develop"
+
+    assert Env.base_branch(fn _ -> nil end) == nil
+  end
+
+  test "reads the pull request number from the ref, then the provider's variables" do
+    assert Env.pull_request_number(fn
+             "GITHUB_REF" -> "refs/pull/42/merge"
+             _ -> nil
+           end) == 42
+
+    assert Env.pull_request_number(fn
+             "CI_MERGE_REQUEST_IID" -> "7"
+             _ -> nil
+           end) == 7
+
+    assert Env.pull_request_number(fn
+             "GITHUB_REF" -> "refs/heads/main"
+             _ -> nil
+           end) == nil
+
+    assert Env.pull_request_number(fn
+             "BITRISE_PULL_REQUEST" -> "false"
+             _ -> nil
+           end) == nil
+  end
 end
