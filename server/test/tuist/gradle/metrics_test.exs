@@ -206,7 +206,9 @@ defmodule Tuist.Gradle.MetricsTest do
     {native, _} =
       Tuist.Gradle.list_builds(
         project.id,
-        %{filters: [%{field: :failure_category, op: :==, value: "verification"}], page_size: 20}, failure_category: true)
+        %{filters: [%{field: :failure_category, op: :==, value: "verification"}], page_size: 20},
+        failure_category: true
+      )
 
     assert length(native) == 2
     assert Enum.all?(native, &(&1.failure_category == "verification"))

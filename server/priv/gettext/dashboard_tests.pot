@@ -45,7 +45,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.html.heex:373
 #: lib/tuist_web/live/flaky_tests_live.ex:291
 #: lib/tuist_web/live/flaky_tests_live.html.heex:10
-#: lib/tuist_web/live/once_runs_live.ex:1342
+#: lib/tuist_web/live/once_runs_live.ex:1340
 #: lib/tuist_web/live/test_cases_live.ex:395
 #: lib/tuist_web/live/test_cases_live.html.heex:10
 #: lib/tuist_web/live/test_runs_live.ex:364
@@ -134,7 +134,7 @@ msgstr ""
 #: lib/tuist_web/live/mix_overview_live.html.heex:173
 #: lib/tuist_web/live/mix_overview_live.html.heex:224
 #: lib/tuist_web/live/once_overview_live.ex:198
-#: lib/tuist_web/live/once_runs_live.ex:1100
+#: lib/tuist_web/live/once_runs_live.ex:1098
 #: lib/tuist_web/live/once_tests_live.ex:230
 #: lib/tuist_web/live/test_runs_live.ex:344
 #: lib/tuist_web/live/test_runs_live.html.heex:154
@@ -168,7 +168,7 @@ msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.ex:293
 #: lib/tuist_web/live/flaky_tests_live.html.heex:26
-#: lib/tuist_web/live/once_runs_live.ex:1341
+#: lib/tuist_web/live/once_runs_live.ex:1339
 #: lib/tuist_web/live/test_case_live.ex:340
 #: lib/tuist_web/live/test_cases_live.ex:397
 #: lib/tuist_web/live/test_cases_live.html.heex:26
@@ -678,7 +678,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:148
 #: lib/tuist_web/live/flaky_tests_live.ex:292
 #: lib/tuist_web/live/flaky_tests_live.html.heex:18
-#: lib/tuist_web/live/once_runs_live.ex:1340
+#: lib/tuist_web/live/once_runs_live.ex:1338
 #: lib/tuist_web/live/test_cases_live.ex:396
 #: lib/tuist_web/live/test_cases_live.html.heex:18
 #: lib/tuist_web/live/test_run_live.ex:1437
@@ -1495,7 +1495,7 @@ msgstr ""
 msgid "p50 test case run duration"
 msgstr ""
 
-#: lib/tuist_web/live/once_runs_live.ex:1099
+#: lib/tuist_web/live/once_runs_live.ex:1097
 #: lib/tuist_web/live/once_tests_live.ex:229
 #: lib/tuist_web/live/test_runs_live.ex:341
 #: lib/tuist_web/live/test_runs_live.html.heex:157
@@ -1524,7 +1524,7 @@ msgstr ""
 msgid "p90 test case run duration"
 msgstr ""
 
-#: lib/tuist_web/live/once_runs_live.ex:1098
+#: lib/tuist_web/live/once_runs_live.ex:1096
 #: lib/tuist_web/live/once_tests_live.ex:228
 #: lib/tuist_web/live/test_runs_live.ex:338
 #: lib/tuist_web/live/test_runs_live.html.heex:156
@@ -1553,7 +1553,7 @@ msgstr ""
 msgid "p99 test case run duration"
 msgstr ""
 
-#: lib/tuist_web/live/once_runs_live.ex:1097
+#: lib/tuist_web/live/once_runs_live.ex:1095
 #: lib/tuist_web/live/once_tests_live.ex:227
 #: lib/tuist_web/live/test_runs_live.ex:335
 #: lib/tuist_web/live/test_runs_live.html.heex:155
