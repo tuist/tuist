@@ -566,6 +566,23 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(paths.last, packageManifestPath)
     }
 
+    func test_locatePackageManifest_when_root_has_no_package_manifest_but_locating_path_does() async throws {
+        // Given
+        // Simulates a monorepo where the root (located via an ancestor `.git`/`Tuist/` directory,
+        // mocked below) has no `Package.swift` of its own, but the directory tuist is invoked from does.
+        let paths = try await createFiles([
+            "feature-package/Package.swift",
+            "feature-package/Sources/File.swift",
+        ])
+        let locatingPath = paths.first!.parentDirectory
+
+        // When
+        let packageManifestPath = try await subject.locatePackageManifest(at: locatingPath)
+
+        // Then
+        XCTAssertEqual(packageManifestPath, paths.first)
+    }
+
     func test_locateProjectManifests_returns_all_manifest_containing_manifest_signature() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
