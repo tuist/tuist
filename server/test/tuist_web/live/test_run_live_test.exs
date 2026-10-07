@@ -14,13 +14,13 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
   alias Tuist.Xcode
-  alias TuistWeb.Helpers.OpenGraph
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
+  alias TuistWeb.Helpers.OpenGraph
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()

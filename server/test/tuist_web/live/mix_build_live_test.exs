@@ -8,9 +8,9 @@ defmodule TuistWeb.MixBuildLiveTest do
   alias Tuist.Mix
   alias Tuist.Mix.Build.Buffer
   alias Tuist.Projects
-  alias TuistWeb.Helpers.OpenGraph
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Helpers.OpenGraph
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "mixbuild#{System.unique_integer([:positive])}")
