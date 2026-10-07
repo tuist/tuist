@@ -15,8 +15,12 @@
   root/MTU/probe options explicitly, without rewriting another provider's script.
   Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
-  is qualified; Santiago remains VPC-only. Reject multiple qualified Vultr
-  regions until explicit cross-domain runtime policy exists. `cmd/vultr-vpc`
+  is qualified; Santiago remains VPC-only. Require reciprocal `canonicalPeers`
+  for every qualified regional pair before provider calls. Resolve approvals to
+  retained VPC IDs through read-only inventory checks after local routes converge.
+  Missing remote state must never provision that region or block local attachment
+  and route repair; preserve the last published policy and report the error.
+  Never install private host routes across regional VPCs. `cmd/vultr-vpc`
   remains the empty-network bootstrap/planner. See
   [Vultr private networking](../kura-controller/vultr-private-networking.md).
 

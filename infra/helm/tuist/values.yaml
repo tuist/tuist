@@ -1435,6 +1435,9 @@ capi:
   enabled: true
   vultrPrivateNetwork:
     enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
     enabled: false

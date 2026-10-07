@@ -48,7 +48,10 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
   boot route attestations on merge. Santiago remains VPC-only and canonical.
   [Vultr private networking](vultr-private-networking.md) covers Kubernetes
   ownership, retained creation intent, isolated tests and rollback. Never enable
-  two incompatible Vultr domains without an explicit cross-domain policy.
+  two Vultr domains until all active peers support reciprocal `canonical_networks`.
+  Publish that policy only from matching host annotations on every candidate
+  Node. Same-domain donors alone receive private preference; canonical approvals
+  must never turn a failed private path into public fallback.
 
 - Production public EU-West runs on OVH. All managed Dedibox hosts and
   staging/canary EU-West instances have completed retirement; public validation

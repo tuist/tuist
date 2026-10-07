@@ -411,10 +411,12 @@ capi:
     enabled: true
     regions:
       ord:
+        canonicalPeers: [scl]
         description: tuist-kura-production-ord
         cidr: 172.30.244.0/24
         qualified: true
       scl:
+        canonicalPeers: [ord]
         description: tuist-kura-production-scl
         cidr: 172.30.245.0/24
         qualified: false
