@@ -56,7 +56,9 @@ defmodule TuistWeb.API.OrganizationsController do
             |> Authentication.authenticated_subject_account()
             |> Tuist.Repo.preload(:organization)
 
-          [%{organization: account.organization, account: account}]
+          if account.organization,
+            do: [%{organization: account.organization, account: account}],
+            else: []
       end
 
     organizations =
