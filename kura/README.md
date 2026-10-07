@@ -627,22 +627,52 @@ helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
 ```
 
-Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together:
+Enable `grpcIngress` when the Remote Execution API should be reachable outside the cluster. The Tuist CLI uses it for the module cache and Bazel, and it dials gRPC on the same host and port as the HTTP cache endpoint, so give `grpcIngress` the same host as `ingress` and route the gRPC service paths to it. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together. With ingress-nginx, only the HTTP ingress declares TLS for the shared host:
 
 ```yaml
 service:
   gatewayGrpcPort: 4001
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.example.com
+      secretName: kura-tls
 
 grpcIngress:
   enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: kura-grpc.example.com
+    - host: kura.example.com
       paths:
-        - path: /
-          pathType: Prefix
+        - path: /build\.bazel\.remote\.execution\.v2\.
+          pathType: ImplementationSpecific
+        - path: /google\.bytestream\.
+          pathType: ImplementationSpecific
+        - path: /build\.bazel\.remote\.asset\.v1\.
+          pathType: ImplementationSpecific
+        - path: /google\.devtools\.build\.v1\.
+          pathType: ImplementationSpecific
 ```
 
 Install it on a generic cluster:
