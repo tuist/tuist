@@ -1130,6 +1130,20 @@ profile change reaches the server only through a restart.
 </clickhouse>
 {{- end }}
 
+{{/* Both platforms use one server-authenticated cache agent identity. */}}
+{{- define "tuist.runnerCacheVolumesNamespace" -}}
+{{- $mac := .Values.runnersFleet.namespace | default "tuist-runners" -}}
+{{- $linux := .Values.runnersFleetLinux.namespace | default $mac -}}
+{{- if .Values.runnersFleet.customCacheVolumes.enabled -}}
+{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled (ne $mac $linux) -}}
+{{- fail "macOS and Linux custom cache volumes must use the same runners namespace" -}}
+{{- end -}}
+{{- $mac -}}
+{{- else -}}
+{{- $linux -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Resolve the effective Once events ingress config.
 

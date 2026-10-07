@@ -52,6 +52,10 @@ Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
 
+The optional `custom_cache_apfs` staging smoke input runs the candidate shared
+cache lifecycle and real APFS tests in a staging macOS runner. It validates native
+filesystem behavior, not a deployed host/mailbox/server rollout. Keep that
+limitation explicit when reporting smoke results.
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under
@@ -114,3 +118,5 @@ Atlas releases publish the image and standalone Helm chart with the same version
 `workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
 must stay disabled in the repository settings, or uploads from this workflow
 are rejected.
+
+- Runner-controller checks, image builds and release path filters include the shared `infra/runner-cache` module.

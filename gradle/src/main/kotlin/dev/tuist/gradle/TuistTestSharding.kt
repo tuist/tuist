@@ -12,6 +12,7 @@ import org.gradle.api.Project
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logging
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.IgnoreEmptyDirectories
@@ -184,6 +185,10 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val compiledTestClassDirectories: ConfigurableFileCollection
 
+    /** Test class directories keyed by the module name test insights reports for their project. */
+    @get:Internal
+    abstract val moduleTestClassDirectories: MapProperty<String, FileCollection>
+
     @TaskAction
     fun execute() {
         val shardingService = createShardingService()
@@ -194,7 +199,12 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )
 
-        val testSuites = discoverTestSuitesFromDirs(compiledTestClassDirectories.files.toList())
+        val testSuites = moduleTestClassDirectories.get()
+            .flatMap { (module, directories) ->
+                discoverTestSuitesFromDirs(directories.files.toList()).map { "$module/$it" }
+            }
+            .distinct()
+            .sorted()
         if (testSuites.isEmpty()) {
             throw org.gradle.api.GradleException("No test classes found in compiled test output.")
         }
@@ -321,19 +331,25 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 }
 
-private fun testClassDirectories(rootProject: Project, testTaskName: String?): List<FileCollection> {
-    if (testTaskName == null) {
-        return rootProject.allprojects.flatMap { project ->
-            project.tasks.withType(Test::class.java).map { it.testClassesDirs }
+internal fun testModuleName(project: Project): String =
+    if (project.path == ":") project.name else project.path
+
+private fun moduleTestClassDirectories(rootProject: Project, testTaskName: String?): Map<String, FileCollection> {
+    val directories = rootProject.allprojects.associate { project ->
+        val testTasks = if (testTaskName == null) {
+            project.tasks.withType(Test::class.java).toList()
+        } else {
+            listOfNotNull(project.tasks.findByName(testTaskName) as? Test)
         }
-    }
-    val testTasks = rootProject.allprojects.mapNotNull { it.tasks.findByName(testTaskName) as? Test }
-    if (testTasks.isEmpty()) {
+        testModuleName(project) to testTasks.map { it.testClassesDirs }
+    }.filterValues { it.isNotEmpty() }
+
+    if (testTaskName != null && directories.isEmpty()) {
         throw org.gradle.api.GradleException(
             "No test task named '$testTaskName' found. Set -PtuistShardTestTask to the test task the shards run, for example testDebugUnitTest."
         )
     }
-    return testTasks.map { it.testClassesDirs }
+    return directories.mapValues { (_, collections) -> rootProject.files(collections) }
 }
 
 abstract class TuistTestShardingPlugin : Plugin<Project> {
@@ -364,7 +380,9 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             val testTaskName = providers.gradleProperty("tuistShardTestTask").orNull
             val rootProject = project
             rootProject.subprojects.forEach { rootProject.evaluationDependsOn(it.path) }
-            compiledTestClassDirectories.from(Callable { testClassDirectories(rootProject, testTaskName) })
+            val directories = project.provider { moduleTestClassDirectories(rootProject, testTaskName) }
+            compiledTestClassDirectories.from(Callable { directories.get().values })
+            moduleTestClassDirectories.set(directories)
 
             providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
             providers.gradleProperty("tuistShardMin").orNull?.toIntOrNull()?.let { shardMin = it }
@@ -404,8 +422,11 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
 
         val shard = shardingService.getShard(reference, shardIndex)
 
-        val assignedTargets = shard.suites.values.flatten()
-        logger.lifecycle("Tuist: Shard $shardIndex assigned ${assignedTargets.size} test suite(s)")
+        val suitesByModule = shard.suites
+        logger.lifecycle(
+            "Tuist: Shard $shardIndex assigned ${suitesByModule.values.sumOf { it.size }} test suite(s) " +
+                "in ${suitesByModule.size} project(s)"
+        )
 
         // Set shard context on the test insights service so it's included in the test report
         project.gradle.sharedServices.registrations.findByName("tuistTestInsights")?.let { registration ->
@@ -416,16 +437,17 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             }
         }
 
+        // Configured rather than set in a task action, so the filter is part of the test task's
+        // build cache key and shards cannot load each other's results.
         project.allprojects {
-            val subproject = this
-            subproject.tasks.withType(Test::class.java).configureEach {
-                val testTask = this
-                testTask.doFirst {
-                    testTask.filter.isFailOnNoMatchingTests = false
-                    for (target in assignedTargets) {
-                        testTask.filter.includeTestsMatching(target)
-                    }
-                    logger.lifecycle("Tuist: Applied shard filter to test task '${testTask.path}' with ${assignedTargets.size} suite(s)")
+            val moduleName = testModuleName(this)
+            val moduleSuites = suitesByModule[moduleName].orEmpty()
+            tasks.withType(Test::class.java).configureEach {
+                filter.isFailOnNoMatchingTests = false
+                if (moduleSuites.isEmpty()) {
+                    onlyIf("Tuist shard $shardIndex has no test suites in $moduleName") { false }
+                } else {
+                    moduleSuites.forEach { filter.includeTestsMatching(it) }
                 }
             }
         }

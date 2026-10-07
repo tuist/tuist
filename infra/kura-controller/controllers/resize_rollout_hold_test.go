@@ -189,6 +189,71 @@ func TestReconcileLowersTheRequestOfAResizeReplicaStrandedOnCPU(t *testing.T) {
 	}
 }
 
+// The re-template orphans the pods and the next pass recreates the
+// StatefulSet. Its template carries the grown ephemeral-storage request, so a
+// StatefulSet recreated on the default RollingUpdate replaces the highest
+// ordinal at that request on its old volume, which is pinned to a box that may
+// not fit it. It has to come back already held.
+func TestReconcileRecreatesAReTemplatedStatefulSetHeld(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+	f := newResizeHoldFixture(3000)
+	instance := f.instance
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance,
+			f.claim(0, "16Gi"), f.claim(1, "16Gi"),
+			f.servingPod(0, "3"), f.servingPod(1, "3"),
+		).Build(),
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{
+			instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			instance.Name + "-1": {Ready: true, State: "serving", RingMembers: 2},
+		}},
+	}
+	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+
+	result, err := reconciler.Reconcile(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RequeueAfter != 10*time.Second {
+		t.Fatalf("expected the resize to keep requeuing, got %+v", result)
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, request.NamespacedName, sts); err != nil {
+		t.Fatal(err)
+	}
+	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType || sts.Annotations[resizeRolloutHoldAnnotation] != "true" {
+		t.Fatalf("expected the StatefulSet to be recreated held, got strategy %+v annotations %v", sts.Spec.UpdateStrategy, sts.Annotations)
+	}
+	if got := templateStorage(sts); got.String() != "32Gi" {
+		t.Fatalf("expected the recreated StatefulSet to carry the grown claim, got %s", got.String())
+	}
+	for ordinal := 0; ordinal < 2; ordinal++ {
+		if !objectExists(t, reconciler.Client, f.claim(ordinal, "16Gi")) || !objectExists(t, reconciler.Client, f.servingPod(ordinal, "3")) {
+			t.Fatalf("ordinal %d must keep serving through the recreate", ordinal)
+		}
+	}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	if objectExists(t, reconciler.Client, f.claim(0, "16Gi")) {
+		t.Fatal("expected the next pass to rebuild ordinal 0 behind ordinal 1")
+	}
+	if !objectExists(t, reconciler.Client, f.claim(1, "16Gi")) {
+		t.Fatal("ordinal 1 must keep serving while ordinal 0 rebuilds")
+	}
+	if err := reconciler.Get(ctx, request.NamespacedName, sts); err != nil {
+		t.Fatal(err)
+	}
+	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+		t.Fatalf("expected the hold to stay in place during the rebuild, got %+v", sts.Spec.UpdateStrategy)
+	}
+}
+
 func TestHoldRolloutForResize(t *testing.T) {
 	ctx := context.Background()
 	scheme := meshTestScheme(t)
@@ -248,15 +313,33 @@ func TestHoldRolloutForResize(t *testing.T) {
 		})
 	}
 
-	t.Run("reports nothing held without a StatefulSet", func(t *testing.T) {
+	t.Run("reports a missing StatefulSet held, since it is created held", func(t *testing.T) {
 		f := newResizeHoldFixture(3000)
 		r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance).Build(), Scheme: scheme}
 		held, err := r.holdRolloutForResize(ctx, f.instance)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if !held {
+			t.Fatal("a missing StatefulSet is recreated on the hold")
+		}
+	})
+
+	t.Run("reports a StatefulSet still being replaced not held", func(t *testing.T) {
+		f := newResizeHoldFixture(3000)
+		sts := f.statefulSet(rollingUpdate(), "3", nil)
+		sts.Finalizers = []string{metav1.FinalizerOrphanDependents}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance, sts).Build()
+		if err := c.Delete(ctx, sts); err != nil {
+			t.Fatal(err)
+		}
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		held, err := r.holdRolloutForResize(ctx, f.instance)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if held {
-			t.Fatal("a missing StatefulSet cannot be held")
+			t.Fatal("a StatefulSet being replaced cannot be held")
 		}
 	})
 }

@@ -7,6 +7,7 @@ defmodule Tuist.Runners.CacheVolumes.Measurement do
     field(:size_bytes, :integer)
     field(:capacity_bytes, :integer)
     field(:deleted, :boolean, default: false)
+    field(:retired, :boolean, default: false)
     field(:observed_at, :utc_datetime_usec)
   end
 end

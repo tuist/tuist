@@ -268,6 +268,7 @@ defmodule Tuist do
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
       Runners.CacheVolumes,
+      Runners.CacheVolumes.Builtin,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
       Runners.Analytics,

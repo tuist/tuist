@@ -56,3 +56,8 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Shared Grafana health routes dispatch by the authorized project build system. Keep the legacy Gradle routes compatible, use build-read authorization, and include the source in dimension cache keys.
 
 - Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.
+
+- `RunnerCacheMastersController.report_usage` accepts only the per-machine
+  `tuist-runner-host` audience, derives the node from its ServiceAccount, and
+  delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
+  body-supplied account/node/repository fields cannot authorize these reports.

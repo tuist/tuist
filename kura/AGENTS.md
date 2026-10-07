@@ -52,12 +52,19 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
   Keep durable regression coverage in the Rust tests and ShellSpec mTLS suite;
   use `test/e2e/provider-topology/` for repeatable local resource comparisons.
+  Regional E2E private aliases must be isolated per domain. The fixture mTLS
+  proxies distinguish private body transfers from discovery probes; retain the
+  one-sided-approval negative case and independent suite lifecycles.
   Keep run-specific manifests, credentials, captures and dated results out of
   the repository; record deployment validation in the associated PR. Private-path
   fault tests must observe a real blackhole: changing a Service port can leave
   pooled connections alive. Scope fixture cleanup to its unique test label.
   Preserve qualification limits: a single-host canary is not a physical host
   pair, and Chicago does not qualify an ORD–SCL private interconnect.
+  Distinct same-provider domains require reciprocal exact-ID approval through
+  `canonical_networks` before using canonical mTLS. Same-domain traffic always
+  stays private-only. Canonically approved peers are not private donors. Roll
+  out policy-capable runtimes before advertising a newly qualified domain.
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.

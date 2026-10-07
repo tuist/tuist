@@ -89,7 +89,7 @@ This area owns LiveView pages and components for the web UI.
 
 - Volume clearing uses “Clear volume” in the trigger, modal title and confirm action, with a short header description. Cache update policy is not user-configurable; omit its controls and metadata. Label mount activity “Job runs”.
 
-- Volume job rows use job names when available (ID fallback), a Workflow column (Unknown fallback), and Jobs-style status badges. Label the lifecycle column Cache status and successful publication Saved to distinguish it from the job outcome. Explain every cache lifecycle status in a shared Noora tooltip available on hover and keyboard focus.
+- Volume job rows use job names when available (ID fallback), a Workflow column (Unknown fallback), and a single Cache column for Hit/Miss. Omit the cache lifecycle status column and its tooltip from both Recent jobs and Jobs.
 
 - Inventory Cache hit rate aggregates known mount outcomes across the account for the selected range, independently of table search and pagination. Weight by mounts, not per-volume rates; exclude unknown outcomes and retain missing buckets as gaps. Show a 0–100% chart with an unavailable state when no outcomes exist. Capacity stays in tables and volume details. Hit-rate trends compare weighted rates with the preceding equal-length period in percentage points, with increases positive. Exclude the current start boundary from the previous period. Show No previous data or No data when comparison inputs are missing.
 - Once run details share Xcode build header and metadata styles. Keep status labels, count formatting, and timezone-aware timestamps consistent across Once detail and list pages.
@@ -103,3 +103,11 @@ This area owns LiveView pages and components for the web UI.
 - Existing build tables show shared failure categories for Gradle, Xcode, Bazel and Once. Build Runs pages sort and filter this virtual column in the database before pagination; successful, cancelled and unfinished runs leave it empty. `BuildHealth` shares category labels/filter options and the Gradle cache savings card. Preserve missing versus zero estimates and source-specific navigation. Gradle detail fields use the same responsive metadata grid and duration icon.
 
 - Gradle estimated task time saved belongs in the existing Cache Analytics card as a fourth selectable widget with its own time-series chart. Reporting coverage remains available through Grafana metrics, without a prominent native widget. The estimate is captioned “Cumulative task time” in both the widget and build details. Keep its async failure independent of existing cache metrics, and preserve missing versus recorded zero estimates.
+
+- Automatic macOS Tuist/Xcode cache records share the volume inventory and detail
+  presentation with custom volumes; do not add Automatic/Custom labels or sections.
+  Keep measured usage/history/analytics on the shared path. Clear is not exposed
+  for `builtin_name` records until their host lifecycle supports invalidation.
+
+- Reuse RunnersLive.platform_label/1 for translated platform names in the volume
+  inventory and details. Refresh English Gettext templates after UI string edits.

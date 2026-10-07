@@ -51,10 +51,10 @@ dependency required by the current commit. The action attaches the volume;
 the service saves eligible successful jobs after teardown. No post action or
 additional workflow permissions are required.
 
-A missing client fails with a Tuist Linux runner requirement. Unavailable
+A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 fail without replacing their contents. The default volume capacity is 20 GB.
-Linux only; the fleet must have cache volumes enabled.
+Linux and macOS fleets must have cache volumes enabled.
 
 ## Releases
 
@@ -77,6 +77,18 @@ Distribution repositories need a `main` branch and write access for
 `TUIST_RELEASE_GITHUB_TOKEN` as a one-time setup. Publishing the wrappers does
 not enable cache volumes on the fleet; storage rollout is independent.
 
-Paths are mounted as ordinary directories, so tools can use their usual locations
+On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
 Each action call attaches one directory; use a different key for each directory.
+
+On macOS, targets are attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible. For a
+workspace path, ignore the link without a trailing slash (for example `.gradle`,
+not `.gradle/`, in `.gitignore`). Paths must be a single line without control
+characters; use a plain YAML string instead of `path: |`.
+
+On macOS, use a macOS runner profile. Native jobs are supported; Linux container
+examples do not apply to macOS. Volumes mount in the macOS guest, so a separate
+Docker VM does not inherit them. Built-in Tuist and Xcode caches stay automatic;
+custom volumes use separate empty directories and platform-specific identities.

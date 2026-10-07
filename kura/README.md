@@ -248,7 +248,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem. Actual free-space pressure may lower the effective ring to preserve rotation and metadata headroom; the minimum ring remains five segments. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
 | `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
-| `KURA_PEER_TOPOLOGY` | Optional JSON requiring all of `provider`, `private_network` and `private_url` when enabled; provider-only configuration is rejected. Requires peer mTLS. Matching providers require the same verified private routing domain; failed or unsupported private routes never fall back publicly. Unknown legacy peers retain HTTPS compatibility. See [private replication rollout](../infra/kura-controller/private-replication.md). | Yes | disabled |
+| `KURA_PEER_TOPOLOGY` | Optional JSON requiring all of `provider`, `private_network` and `private_url` when enabled; provider-only configuration is rejected. Requires peer mTLS. Same-domain peers use private transport only. Different same-provider domains require reciprocal `canonical_networks` allowlists of exact remote IDs to use canonical mTLS; failed private routes never fall back publicly. Unknown legacy peers retain HTTPS compatibility. See [private replication rollout](../infra/kura-controller/private-replication.md). | Yes | disabled |
 | `KURA_PEERS` | Static seed peer list. Immutable for the process lifetime, so it should carry only platform-stable peers (enrollment seeds it with the managed regions' public peer gateways); volatile self-hosted membership flows through the mesh heartbeat instead. | Yes | empty |
 | `KURA_MESH_PEERS_SYNC` | When `true` on a non-enrolled (managed) node, fetches the account's dynamic peer list from `{KURA_CONTROL_PLANE_URL}/_internal/kura/mesh/peers` at boot and on cadence, using the control-plane client credentials. Serving is gated on the first successful fetch, so a pod booting blind never accepts writes without enqueuing replication for peers it cannot see. | Yes | `false` |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
@@ -627,22 +627,52 @@ helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
 ```
 
-Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together:
+Enable `grpcIngress` when the Remote Execution API should be reachable outside the cluster. The Tuist CLI uses it for the module cache and Bazel, and it dials gRPC on the same host and port as the HTTP cache endpoint, so give `grpcIngress` the same host as `ingress` and route the gRPC service paths to it. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together. With ingress-nginx, only the HTTP ingress declares TLS for the shared host:
 
 ```yaml
 service:
   gatewayGrpcPort: 4001
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.example.com
+      secretName: kura-tls
 
 grpcIngress:
   enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: kura-grpc.example.com
+    - host: kura.example.com
       paths:
-        - path: /
-          pathType: Prefix
+        - path: /build\.bazel\.remote\.execution\.v2\.
+          pathType: ImplementationSpecific
+        - path: /google\.bytestream\.
+          pathType: ImplementationSpecific
+        - path: /build\.bazel\.remote\.asset\.v1\.
+          pathType: ImplementationSpecific
+        - path: /google\.devtools\.build\.v1\.
+          pathType: ImplementationSpecific
 ```
 
 Install it on a generic cluster:

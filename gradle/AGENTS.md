@@ -31,3 +31,5 @@ Related: `server/lib/tuist/gradle/AGENTS.md`.
 - BuildFailureTelemetry retains only normalized failure categories. Configuration failures must report failure even without a failed task. Recovered cache-operation errors do not fail the build; infrastructure evidence takes precedence over verification. Preserve custom metadata limits and explicit category overrides.
 
 Automatic cache work avoided sums nonnegative original execution time minus observed restoration duration for local/remote task hits. Missing timings or incomplete telemetry omit the build estimate; never call cumulative work elapsed build time saved. Preserve explicit metadata and the 20-entry limit.
+
+- The prepare task plans suites as `<module>/<class>`, where the module is the name test insights reports (`testModuleName`), so the server matches them against historical suite timings. A shard configures each test task's filter from its project's assigned suites and skips test tasks with none. Set the filter during configuration, never in `doFirst`: the filter is then part of the test task's cache key, and shards cannot load each other's results from the remote cache.

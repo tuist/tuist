@@ -383,3 +383,58 @@ func TestCancelledAcquisitionNeverPublishesAndWaitsForWriterFence(t *testing.T) 
 		t.Fatal(slots, b.deleted, b.sealed, err)
 	}
 }
+
+func TestCleanPodsContinuesAfterOwnerLookupFailure(t *testing.T) {
+	s, _ := newStore(t)
+	for _, uid := range []string{"missing-owner", "finished"} {
+		if err := os.Mkdir(filepath.Join(s.path, "pods", uid), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	missing := errors.New("owner missing")
+	err := s.CleanPods(func(uid string) (bool, error) {
+		if uid == "missing-owner" {
+			return false, missing
+		}
+		return true, nil
+	})
+	if !errors.Is(err, missing) {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.path, "pods", "finished")); !os.IsNotExist(err) {
+		t.Fatal("cleanup stopped at another pod's error", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.path, "pods", "missing-owner")); err != nil {
+		t.Fatal("removed unfenced pod", err)
+	}
+}
+
+func TestCleanupDoesNotBlockAllocationAndRechecksLease(t *testing.T) {
+	s, _ := newStore(t)
+	if err := os.MkdirAll(filepath.Join(s.path, "pods", "u1"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	checking, release := make(chan struct{}), make(chan struct{})
+	finished := make(chan error, 1)
+	go func() {
+		finished <- s.CleanPods(func(string) (bool, error) { close(checking); <-release; return true, nil })
+	}()
+	<-checking
+	acquired := make(chan error, 1)
+	go func() { _, err := s.Acquire(context.Background(), identity(first), "p1", "u1"); acquired <- err }()
+	select {
+	case err := <-acquired:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(time.Second):
+		t.Error("writer-fence lookup blocked allocation")
+	}
+	close(release)
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.path, "pods", "u1")); err != nil {
+		t.Fatal("removed newly acquired mailbox", err)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -17,6 +18,7 @@ const privateNetworkLabel = "tuist.dev/private-network"
 const privateMembershipAnnotation = "tuist.dev/private-network-members"
 const peerTopologyEnv = "KURA_PEER_TOPOLOGY"
 const managedTopologyAnnotation = "kura.tuist.dev/managed-peer-topology"
+const privateCanonicalNetworksAnnotation = "tuist.dev/private-network-canonical-peers"
 
 // Only advertise a provider domain after every possible placement carries the
 // host controller's converged route attestation. A pool name is not a provider.
@@ -29,6 +31,10 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 		return err
 	}
 	provider, network, err := privateReplicationDomain(nodes.Items)
+	var canonicalNetworks []string
+	if err == nil && provider != "" {
+		canonicalNetworks, err = privateCanonicalNetworks(nodes.Items, network)
+	}
 	if err != nil || provider == "" {
 		// Qualification gates topology publication, not unrelated workload
 		// reconciliation. Preserve policy through observation gaps only while
@@ -38,10 +44,11 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 		return nil
 	}
 	value, err := json.Marshal(struct {
-		Provider string `json:"provider"`
-		Network  string `json:"private_network"`
-		URL      string `json:"private_url"`
-	}{provider, network, renderPodNodeURL(instance, "$(POD_NAME)", "$(POD_NAMESPACE)")})
+		Provider          string   `json:"provider"`
+		Network           string   `json:"private_network"`
+		URL               string   `json:"private_url"`
+		CanonicalNetworks []string `json:"canonical_networks,omitempty"`
+	}{provider, network, renderPodNodeURL(instance, "$(POD_NAME)", "$(POD_NAMESPACE)"), canonicalNetworks})
 	if err != nil {
 		return err
 	}
@@ -59,6 +66,34 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 	}
 	template.Annotations[managedTopologyAnnotation] = "true"
 	return nil
+}
+
+// Publish a host-controller policy only when every possible placement agrees.
+// Domain IDs come from verified provider inventory, never from region aliases.
+func privateCanonicalNetworks(nodes []corev1.Node, ownNetwork string) ([]string, error) {
+	var result []string
+	for index, node := range nodes {
+		var networks []string
+		if raw := node.Annotations[privateCanonicalNetworksAnnotation]; raw != "" {
+			if err := json.Unmarshal([]byte(raw), &networks); err != nil {
+				return nil, fmt.Errorf("invalid canonical network policy on %s: %w", node.Name, err)
+			}
+		}
+		if len(networks) > 32 {
+			return nil, fmt.Errorf("canonical network policy on %s exceeds 32 domains", node.Name)
+		}
+		slices.Sort(networks)
+		for i, network := range networks {
+			if network == "" || network != strings.TrimSpace(network) || network == ownNetwork || (i > 0 && networks[i-1] == network) {
+				return nil, fmt.Errorf("invalid canonical domain on %s", node.Name)
+			}
+		}
+		if index > 0 && !slices.Equal(result, networks) {
+			return nil, fmt.Errorf("private replication waits for matching canonical network policies")
+		}
+		result = networks
+	}
+	return result, nil
 }
 
 func preservePrivateReplication(template, previous *corev1.PodTemplateSpec) {
