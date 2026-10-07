@@ -9735,6 +9735,14 @@ mod tests {
             .expect("writer task should not panic")
             .expect_err("the second message should exceed admitted memory");
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        let details = RpcStatus::decode(error.details())
+            .expect("admission retry details must survive the HTTP/2 and Tonic body-error path");
+        assert_eq!(details.code, tonic::Code::ResourceExhausted as i32);
+        assert_eq!(details.details.len(), 1);
+        assert_eq!(
+            details.details[0].type_url,
+            "type.googleapis.com/google.rpc.RetryInfo"
+        );
 
         context.state.memory.observe(0);
         let blob = vec![0xC3; 1024];

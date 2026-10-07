@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The app's device-build job generates with `--configuration Release` to match its
+Release archive. Default Debug binary-cache hits cannot be optimized by the
+archive's Release setting and make the bundle-size check depend on cache warmth.
+Keep simulator build/test generation on its normal configuration.
+
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
