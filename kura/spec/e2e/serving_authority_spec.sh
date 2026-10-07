@@ -8,7 +8,7 @@ Describe 'Isolated managed serving authority'
       "$KURA_E2E_PRIMARY_POD" "$KURA_E2E_STANDBY_POD"
   }
 
-  It 'preserves named handover or rejects expired persistent sessions and in-flight writes'
+  It 'preserves handover and controller restarts or rejects expired sessions and writes'
     Skip if 'requires an isolated deployed instance and KURA_E2E_SERVING_AUTHORITY=1' authority_disabled
     When call run_authority
     The status should be success

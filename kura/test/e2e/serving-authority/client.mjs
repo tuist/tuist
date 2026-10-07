@@ -5,7 +5,7 @@ import {setTimeout as sleep} from 'node:timers/promises';
 import {createHash} from 'node:crypto';
 
 const [mode, primaryURL, standbyURL, primaryPod, standbyPod] = process.argv.slice(2);
-if (!['handover','partition'].includes(mode) || !standbyPod) throw new Error('usage: client.mjs handover|partition PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD');
+if (!['handover','partition','leader-restart'].includes(mode) || !standbyPod) throw new Error('usage: client.mjs handover|partition|leader-restart PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD');
 const context = process.env.KURA_SPEC98_CONTEXT;
 if (!context) throw new Error('KURA_SPEC98_CONTEXT must explicitly identify the isolated staging context');
 const instance = process.env.KURA_SPEC98_INSTANCE ?? 'kura-spec98';
@@ -61,6 +61,18 @@ try {
     assert.notEqual((await capabilities(sessions[0])).grpc,'0');
     assert.equal((await write(sessions[1])).status,204);
     console.log(JSON.stringify({mode,epoch:after.epoch,retainedHTTP:true,retainedGRPC:true,oldPersistentHTTPRejected:true,oldPersistentGRPCRejected:true}));
+  } else if(mode==='leader-restart') {
+    kube('rollout','restart','deployment/spec98-tuist-kura-controller');
+    for(let i=0;i<40;i++) {
+      await sleep(1000);
+      assert.equal((await write(sessions[0])).status,204,'controller restart interrupted HTTP writes');
+      assert.equal((await capabilities(sessions[0])).grpc,'0','controller restart interrupted gRPC');
+      const current=await report(primaryURL);
+      assert.equal(current.valid,true);assert.equal(current.epoch,before.epoch);
+    }
+    kube('rollout','status','deployment/spec98-tuist-kura-controller','--timeout=30s');
+    assert.equal((await report(standbyURL)).valid,false);
+    console.log(JSON.stringify({mode,epoch:before.epoch,continuousHTTP:true,continuousGRPC:true,unchangedHolder:true}));
   } else {
     const lateBlob=Buffer.from(`started-before-expiry-completed-after-${key}`);
     const lateHash=createHash('sha256').update(lateBlob).digest('hex');

@@ -151,3 +151,8 @@ Set `KURA_SPEC98_CONTEXT` explicitly. `KURA_SPEC98_INSTANCE` and
 `KURA_E2E_MISSING_SIZE` to the next handover case after positive fencing and
 rebuild. It requires ByteStream `NOT_FOUND` on the promoted primary before
 starting another handover, verifying that the rejected late write did not appear.
+
+Set `KURA_E2E_AUTHORITY_MODE=leader-restart` to restart the isolated controller
+while continuously checking HTTP writes, gRPC capabilities, and the unchanged
+valid primary epoch. This mode requires both replica endpoints and intentionally
+targets only `spec98-tuist-kura-controller` in the selected fixture namespace.
