@@ -265,7 +265,7 @@ defmodule TuistWeb.BillingLive do
     # they cost nothing more to run. Counting them alongside the free
     # allowance makes one bar answer "how much can I still run", which is
     # the question the bar is there to answer.
-    prepaid_minutes = if prepaid, do: prepaid.granted_minutes, else: 0
+    prepaid_minutes = if prepaid, do: prepaid.period_minutes, else: 0
 
     %{
       # An account with runners turned on has an allowance whether or

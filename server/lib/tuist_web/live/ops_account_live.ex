@@ -38,6 +38,8 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:prepaid_balance, balance)
          |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
+         |> assign(:prepaid_pool_quote, nil)
+         |> assign(:prepaid_pool_coverage, nil)
          |> assign(:prepaid_quote, nil)
          |> assign_standing_prepaid(account, subscription)
          |> assign(:has_subscription, not is_nil(subscription))
@@ -218,6 +220,42 @@ defmodule TuistWeb.OpsAccountLive do
 
       :error ->
         {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
+    end
+  end
+
+  @impl true
+  def handle_event("quote_prepaid_pool", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:prepaid_pool_quote, quote_pool(params))
+     |> assign(:prepaid_pool_coverage, pool_coverage(params, socket.assigns.account))}
+  end
+
+  @impl true
+  def handle_event("grant_prepaid_pool", params, socket) do
+    case parse_pool_params(params) do
+      {:ok, attrs} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.grant_pool(account, attrs) do
+          {:ok, _grant} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_pool_quote, nil)
+             |> assign(:prepaid_pool_coverage, nil)
+             |> put_flash(:info, grant_pool_message(account, attrs))}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, prepaid_pool_error(reason))}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, prepaid_pool_error(:unreadable))}
     end
   end
 
@@ -540,6 +578,172 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
+  defp quote_pool(params) do
+    with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
+         {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
+         {:ok, quote} <- Prepaid.quote_pool(paid_cents, credit_multiplier) do
+      quote
+    else
+      _invalid -> nil
+    end
+  end
+
+  # Which invoices the pool will pay for, read only once both contract dates
+  # are filled in, since the billing cycle can take a Stripe call to read.
+  defp pool_coverage(params, account) do
+    with {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]),
+         false <- Date.after?(starts_on, expires_on) do
+      Prepaid.pool_coverage(Billing.current_billing_period(account), starts_on, expires_on)
+    else
+      _incomplete -> nil
+    end
+  end
+
+  # Reads the form into the terms `Prepaid.grant_pool/2` takes. It only
+  # parses: whether the terms make sense is the domain's to decide, so the
+  # same rules hold however a pool is granted.
+  defp parse_pool_params(params) do
+    with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
+         {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
+         {:ok, platforms} <- parse_pool_platforms(params["platforms"]),
+         {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]) do
+      {:ok,
+       %{
+         paid_cents: paid_cents,
+         credit_multiplier: credit_multiplier,
+         platforms: platforms,
+         starts_on: starts_on,
+         expires_on: expires_on,
+         invoice_id: blank_to_nil(params["invoice_id"])
+       }}
+    end
+  end
+
+  # Dollars as typed, to whole cents. A fraction of a cent is a typo, not a
+  # rounding question.
+  defp parse_pool_paid(raw) do
+    with {:ok, dollars} <- parse_decimal(String.replace(raw || "", ",", "")),
+         cents = Decimal.mult(dollars, 100),
+         true <- Decimal.integer?(cents) do
+      {:ok, Decimal.to_integer(cents)}
+    else
+      _invalid -> :error
+    end
+  end
+
+  defp parse_decimal(raw) when is_binary(raw) do
+    case Decimal.parse(String.trim(raw)) do
+      {decimal, ""} -> {:ok, decimal}
+      _invalid -> :error
+    end
+  end
+
+  defp parse_decimal(_raw), do: :error
+
+  defp parse_pool_platforms("all"), do: {:ok, [:linux, :macos]}
+  defp parse_pool_platforms("macos"), do: {:ok, [:macos]}
+  defp parse_pool_platforms("linux"), do: {:ok, [:linux]}
+  defp parse_pool_platforms(_raw), do: :error
+
+  defp parse_date(raw) when is_binary(raw) do
+    case Date.from_iso8601(String.trim(raw)) do
+      {:ok, date} -> {:ok, date}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp parse_date(_raw), do: :error
+
+  defp blank_to_nil(raw) when is_binary(raw) do
+    case String.trim(raw) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp blank_to_nil(_raw), do: nil
+
+  # The standard prepaid terms as a credit multiplier, which the pool form
+  # opens on.
+  def standard_credit_multiplier do
+    Prepaid.default_funding_ratio_bp()
+    |> Decimal.new()
+    |> Decimal.div(10_000)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
+  end
+
+  def credit_multiplier_hint do
+    paid = Money.new(100_000, :USD)
+    {:ok, quote} = Prepaid.quote_pool(paid.amount, Decimal.new(standard_credit_multiplier()))
+
+    dgettext(
+      "dashboard",
+      "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute. The standard prepaid terms are %{multiplier}, so %{paid} paid grants %{granted} of credit.",
+      multiplier: standard_credit_multiplier(),
+      paid: format_money(paid),
+      granted: format_money(quote.granted)
+    )
+  end
+
+  defp grant_pool_message(account, attrs) do
+    {:ok, quote} = Prepaid.quote_pool(attrs.paid_cents, attrs.credit_multiplier)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}.",
+      account: account.name,
+      credit: format_money(quote.granted),
+      minutes: format_number(quote.minutes),
+      date: Timex.format!(attrs.expires_on, "{Mfull} {D}, {YYYY}")
+    )
+  end
+
+  def prepaid_pool_error(:unreadable),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: enter the amount paid in dollars, a credit multiplier such as 1.25, the platforms, and the contract's last day."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :paid_cents}),
+    do: dgettext("dashboard", "Could not grant the pool: the amount paid has to be more than zero.")
+
+  def prepaid_pool_error({:invalid_pool, :credit_multiplier}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :platforms}),
+    do: dgettext("dashboard", "Could not grant the pool: choose the platforms the credit pays for.")
+
+  def prepaid_pool_error({:invalid_pool, :term}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :expires_on}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract's last day has to be after today and within thirteen months."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :invoice_id}),
+    do: dgettext("dashboard", "Could not grant the pool: a Stripe invoice id starts with in_.")
+
+  def prepaid_pool_error(:no_runner_prices_configured),
+    do: dgettext("dashboard", "Could not grant the pool: no runner price is configured for this environment yet.")
+
+  def prepaid_pool_error(reason),
+    do: dgettext("dashboard", "Could not grant the pool: %{reason}", reason: inspect(reason))
+
   defp assign_standing_prepaid(socket, account, subscription) do
     {minutes, unavailable} =
       case Prepaid.standing_minutes(account) do
@@ -598,8 +802,10 @@ defmodule TuistWeb.OpsAccountLive do
   # figure rather than working out the difference from the table above.
   defp held_minutes(nil), do: 0
 
+  # A pool is not what the field sets, so counting it would sell its minutes
+  # again as a month's worth.
   defp held_minutes(%{grants: grants}) do
-    grants |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
+    grants |> Enum.reject(&(&1.kind == "pool")) |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
   end
 
   defp parse_minutes(raw) when is_binary(raw) do
@@ -611,7 +817,10 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp parse_minutes(_raw), do: :error
 
+  def prepaid_pool_invoice_label(%DateTime{} = closes_at), do: Timex.format!(closes_at, "{Mfull} {D}, {YYYY}")
+
   def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label("pool"), do: dgettext("dashboard", "Pool")
   def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
 
   def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
