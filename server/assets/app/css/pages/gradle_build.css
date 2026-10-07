@@ -112,7 +112,6 @@
         gap: var(--noora-spacing-7);
 
         & > [data-field="requested-tasks"] {
-          grid-column: span 2;
           overflow-wrap: anywhere;
         }
 
@@ -122,10 +121,6 @@
 
         @media (max-width: 600px) {
           grid-template-columns: minmax(0, 1fr);
-
-          & > [data-field="requested-tasks"] {
-            grid-column: auto;
-          }
         }
 
         & > [data-part="metadata"] {

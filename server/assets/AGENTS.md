@@ -85,6 +85,6 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - Native build-health cards use shared Noora typography for failure-table headings, loading text and classification notes. Scope these styles to the card to preserve existing overview layouts.
 
-- Gradle build details use a responsive four-column metadata grid, with requested tasks spanning two columns and the cache estimate using the shared duration styling.
+- Gradle build details use a responsive four-column metadata grid, with requested tasks occupying the first column and the cache estimate aligned below Java Version in the second column, using the shared duration styling.
 
 - Widget value captions and Gradle build estimate captions use secondary small body text beneath the value. Keep the existing widget dimensions and metadata grid.
