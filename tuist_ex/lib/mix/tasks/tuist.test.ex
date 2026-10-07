@@ -60,6 +60,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.ExUnitFormatter
+  alias TuistEx.Analytics.Relay
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.TempDir
 
@@ -294,7 +295,7 @@ defmodule Mix.Tasks.Tuist.Test do
         {_output, status} =
           System.cmd(mix, args,
             env: [{@retry_results, path}, {"MIX_ENV", "test"}],
-            into: IO.stream(:stdio, :line),
+            into: Relay.new(),
             stderr_to_stdout: true
           )
 

@@ -1,6 +1,8 @@
 defmodule TuistEx.Analytics.Args do
   @moduledoc false
 
+  alias TuistEx.Analytics.Relay
+
   # Separates a Tuist task's own options from the arguments it forwards to the
   # Mix task it wraps. Everything it does not recognise is forwarded untouched
   # and in order, so `mix tuist.test` takes the same command line as
@@ -60,7 +62,7 @@ defmodule TuistEx.Analytics.Args do
       {_output, status} =
         System.cmd(mix, [task | args],
           env: [{"MIX_ENV", Atom.to_string(env)}],
-          into: IO.stream(:stdio, :line),
+          into: Relay.new(),
           stderr_to_stdout: true
         )
 
