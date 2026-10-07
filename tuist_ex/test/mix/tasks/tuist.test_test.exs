@@ -17,6 +17,30 @@ defmodule Mix.Tasks.Tuist.TestTest do
              ])
   end
 
+  test "separates shard preparation, prepared-build and variant options" do
+    assert {[prepare_only: true, scheme: "clickhouse-current"], ["--trace"]} =
+             Task.split_args(["--prepare-only", "--scheme", "clickhouse-current", "--trace"])
+
+    assert {[no_download: true], ["test/a_test.exs"]} =
+             Task.split_args(["--no-download", "test/a_test.exs"])
+  end
+
+  test "preparation and prepared-build execution require a shard and cannot be combined" do
+    assert :ok = Task.validate_shard_options([], nil)
+    assert :ok = Task.validate_shard_options([prepare_only: true], 0)
+    assert :ok = Task.validate_shard_options([no_download: true], 0)
+
+    for options <- [[prepare_only: true], [no_download: true]] do
+      assert_raise Mix.Error, ~r/require a shard index/, fn ->
+        Task.validate_shard_options(options, nil)
+      end
+    end
+
+    assert_raise Mix.Error, ~r/cannot be combined/, fn ->
+      Task.validate_shard_options([prepare_only: true, no_download: true], 0)
+    end
+  end
+
   test "still accepts the `--` separator older versions required" do
     assert {[url: "https://tuist.example"], ["--trace"]} =
              Task.split_args(["--url", "https://tuist.example", "--", "--trace"])

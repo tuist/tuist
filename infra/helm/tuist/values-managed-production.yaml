@@ -1167,7 +1167,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 2
+    replicas: 3
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1710,6 +1710,11 @@ runnersFleet:
   # pool mix is unpredictable in advance.
   xcodeOverrides:
     "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

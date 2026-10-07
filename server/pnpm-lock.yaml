@@ -21,7 +21,7 @@ overrides:
   nanoid@^5.0.0: 5.1.16
   postcss: 8.5.23
   protobufjs: 7.6.5
-  shell-quote: 1.9.0
+  shell-quote: 1.11.0
   source-map-js: 1.2.2
   ts-deepmerge: 8.0.0
   vue: 3.5.42
@@ -76,7 +76,7 @@ time:
   nanoid@5.1.16: 2026-06-24T18:37:08.221Z
   postcss@8.5.23: 2026-07-24T17:05:13.876Z
   protobufjs@7.6.5: 2026-07-04T01:13:19.092Z
-  shell-quote@1.9.0: 2026-06-25T04:47:19.588Z
+  shell-quote@1.11.0: 2026-09-29T02:34:24.391Z
   source-map-js@1.2.2: 2026-09-30T14:08:09.382Z
   ts-deepmerge@8.0.0: 2026-05-22T00:15:00.073Z
   ua-parser-js@1.0.41: 2025-08-19T12:45:30.307Z
@@ -1427,8 +1427,8 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shell-quote@1.9.0:
-    resolution: {integrity: sha512-Iov+JwFv/2HcTpcwNMKd8+IWNb8tboQJNQTkAY/LLVK7gGH9jy+LGkVqPxfekHl+yMmiqXszdGWXgkfml7hjqA==}
+  shell-quote@1.11.0:
+    resolution: {integrity: sha512-JdxDPD0DBTyu08pq0kPC0xSNet/qsU07qT6IsX1AS8oO2ICNRY4ldNa8OAI6PuwAH8tG3lxEhbqmyp4Dw4036g==}
     engines: {node: '>= 0.4'}
 
   source-map-js@1.2.2:
@@ -2115,7 +2115,7 @@ snapshots:
       posthog-js: 1.363.2
       pretty-ms: 9.3.0
       radix-vue: 1.9.17(vue@3.5.42(typescript@5.9.3))
-      shell-quote: 1.9.0
+      shell-quote: 1.11.0
       type-fest: 5.4.4
       vite-plugin-monaco-editor: 1.1.0(monaco-editor@0.54.0)
       vue: 3.5.42(typescript@5.9.3)
@@ -3535,7 +3535,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.9.0: {}
+  shell-quote@1.11.0: {}
 
   source-map-js@1.2.2: {}
 

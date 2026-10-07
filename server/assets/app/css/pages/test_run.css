@@ -196,22 +196,39 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
+
+    & > [data-part="widgets"] > .tuist-widget {
+      min-height: unset;
+    }
+
     & [data-part="metadata-grid"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-9);
 
       & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--noora-spacing-7);
+
+        @media (max-width: 768px) {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        @media (max-width: 480px) {
+          grid-template-columns: 1fr;
+        }
+
+        & > [data-part="metadata"]:only-child {
+          grid-column: 1 / -1;
+        }
 
         & > [data-part="metadata"] {
           display: flex;
-          flex: 1;
           flex-direction: column;
           align-items: flex-start;
           gap: var(--noora-spacing-4);
+          min-width: 0;
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);

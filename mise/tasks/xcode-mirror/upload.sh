@@ -23,7 +23,12 @@
 #
 #   26.4.1          -> 26.4.1          (unchanged; stable releases)
 #   27.0 Beta 6     -> 27.0-beta-6
-#   27.0 Release Candidate -> 27.0-release-candidate
+#   27.1 Release Candidate -> 27.1-rc
+#   27.1 Release Candidate 2 -> 27.1-rc-2
+#
+# "Release Candidate" shortens to "rc" because the slug ends up in
+# RunnerPool names, which also become label values capped at 63
+# characters.
 #
 # Tools come from the repo-root mise.toml (xcodes, oras, jq, gh).
 # Beyond that the task self-bootstraps: it uses the operator's
@@ -46,7 +51,7 @@ fi
 # Slug the Apple version string into the identifier every consumer
 # downstream of the mirror uses. Stable releases are already their
 # own slug, so this is a no-op for them.
-SLUG="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
+SLUG="$(printf '%s' "$VERSION" | sed 's/Release Candidate/rc/' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
 if [ "$SLUG" != "$VERSION" ]; then
   echo "Apple version \"${VERSION}\" -> slug ${SLUG}"
 fi

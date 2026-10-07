@@ -4,6 +4,7 @@ This directory contains database migrations and other private assets.
 
 ## Responsibilities
 - Grafana build-health setup, metric definitions, reporting limitations, and alert routing are documented in `docs/en/guides/integrations/grafana.md`. Keep this guide aligned with the Grafana plugin readme and link it in `lib/tuist/docs_sidebar.ex`.
+- REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
 - Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`

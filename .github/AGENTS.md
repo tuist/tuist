@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The app's device-build job generates with `--configuration Release` to match its
+Release archive. Default Debug binary-cache hits cannot be optimized by the
+archive's Release setting and make the bundle-size check depend on cache warmth.
+Keep simulator build/test generation on its normal configuration.
+
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
@@ -62,6 +67,22 @@ Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
+## Server test sharding
+
+`server.yml` compiles the test build once and creates separate four-shard plans
+for current and oldest-supported ClickHouse, with references scoped to the GitHub
+run, attempt, and variant. Each shard owns fresh PostgreSQL and ClickHouse databases.
+Bootstrap only `tuist_ex`, authenticate with `mix tuist.login` using GitHub
+OpenID Connect, and download with `mix tuist.test --prepare-only`. Run `db:reset`
+in a separate process before `mix tuist.test --no-download --warnings-as-errors`,
+so migration regression tests do not redefine modules already loaded by setup.
+Take shard references from the build job's outputs, not the current run attempt,
+so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
+labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
+Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsharded
+variants without Tuist authentication or `id-token: write`, like the CLI and
+Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
+
 ## Restore drills
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
@@ -87,3 +108,9 @@ vendored evaluator and rubric license notices. Validate with
 `actionlint .github/workflows/pr-quality.yml` from the repository root.
 
 Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects.
+
+## CodeQL
+
+`workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
+must stay disabled in the repository settings, or uploads from this workflow
+are rejected.

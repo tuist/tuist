@@ -400,6 +400,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       ci_host: Env.ci_host(environment),
       shard_plan_id: Keyword.get(opts, :shard_plan_id),
       shard_index: Keyword.get(opts, :shard_index),
+      scheme: Keyword.get(opts, :scheme),
       custom_metadata: Metadata.collect(opts),
       test_modules: modules
     }

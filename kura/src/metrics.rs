@@ -2643,15 +2643,22 @@ impl Metrics {
     }
 
     pub fn record_manifest_cache_lookup(&self, result: &str) {
+        self.record_manifest_cache_lookups(result, 1);
+    }
+
+    pub fn record_manifest_cache_lookups(&self, result: &str, count: u64) {
+        if count == 0 {
+            return;
+        }
         if result == "hit" {
-            self.hot_read.manifest_hits.inc();
+            self.hot_read.manifest_hits.inc_by(count);
             return;
         }
         self.manifest_cache_lookups
             .get_or_create(&ManifestCacheLookupLabels {
                 result: result.to_owned(),
             })
-            .inc();
+            .inc_by(count);
     }
 
     pub fn record_manifest_cache_admission(&self, result: &str) {
