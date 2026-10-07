@@ -401,6 +401,11 @@ build {
   }
 
   provisioner "file" {
+    source = "${path.root}/build/tuist-cache-volume"
+    destination = "/tmp/tuist-cache-volume"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
   }
@@ -454,6 +459,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",

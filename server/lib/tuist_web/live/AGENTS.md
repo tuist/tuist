@@ -89,7 +89,7 @@ This area owns LiveView pages and components for the web UI.
 
 - Volume clearing uses “Clear volume” in the trigger, modal title and confirm action, with a short header description. Cache update policy is not user-configurable; omit its controls and metadata. Label mount activity “Job runs”.
 
-- Volume job rows use job names when available (ID fallback), a Workflow column (Unknown fallback), and Jobs-style status badges. Label the lifecycle column Cache status and successful publication Saved to distinguish it from the job outcome. Explain every cache lifecycle status in a shared Noora tooltip available on hover and keyboard focus.
+- Volume job rows use job names when available (ID fallback), a Workflow column (Unknown fallback), and a single Cache column for Hit/Miss. Omit the cache lifecycle status column and its tooltip from both Recent jobs and Jobs.
 
 - Inventory Cache hit rate aggregates known mount outcomes across the account for the selected range, independently of table search and pagination. Weight by mounts, not per-volume rates; exclude unknown outcomes and retain missing buckets as gaps. Show a 0–100% chart with an unavailable state when no outcomes exist. Capacity stays in tables and volume details. Hit-rate trends compare weighted rates with the preceding equal-length period in percentage points, with increases positive. Exclude the current start boundary from the previous period. Show No previous data or No data when comparison inputs are missing.
 - Once run details share Xcode build header and metadata styles. Keep status labels, count formatting, and timezone-aware timestamps consistent across Once detail and list pages.
@@ -98,3 +98,11 @@ This area owns LiveView pages and components for the web UI.
 - Analytics cards reveal their required widget/chart results together through `AsyncCard`; optional selectors and metadata retain their own loading/failure guards. Test Runs derives its chart from the current selection before rendering and reuses successful or in-flight analytics across table-only patches. Once preserves its date snapshot and skips unchanged or hidden analytics loads, while new run events invalidate those loads. Table refreshes retain their prior rows, and pagination follows the displayed result while new controls request an update; reset Gradle task analytics only when task identity changes.
 
 - For analytics, distinguish initial loading from refresh: `assign_async` retains successful results by default. Use the shared readiness state rather than hiding content whenever `.loading` is set, and handle failure before retained success. Query reuse keys contain only analytics inputs; preserve relative date boundaries across table-only patches and allow failed requests to retry. Derive chart selection from current assigns at render time so an in-flight request cannot restore an outdated selection.
+
+- Automatic macOS Tuist/Xcode cache records share the volume inventory and detail
+  presentation with custom volumes; do not add Automatic/Custom labels or sections.
+  Keep measured usage/history/analytics on the shared path. Clear is not exposed
+  for `builtin_name` records until their host lifecycle supports invalidation.
+
+- Reuse RunnersLive.platform_label/1 for translated platform names in the volume
+  inventory and details. Refresh English Gettext templates after UI string edits.

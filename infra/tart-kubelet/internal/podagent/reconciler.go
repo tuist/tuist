@@ -164,7 +164,8 @@ type Reconciler struct {
 	// — when nil or disabled (no runner-cache root provisioned on this
 	// host), every VM boots on the status-quo cold path and the volume
 	// lifecycle no-ops.
-	Volumes *VolumeManager
+	Volumes       *VolumeManager
+	CustomVolumes *CustomVolumes
 
 	// Converge fast-forwards the masters in Volumes to their volumes' HEADs off
 	// every job's critical path. Nil when Volumes is.
@@ -526,6 +527,8 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// entries. BootObserved is set because we didn't witness this boot.
 	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
 		entry := &Entry{
+			PodName:      pod.Name,
+			PodUID:       string(pod.UID),
 			VMName:       vmName,
 			StartTS:      metav1.Now(),
 			BootObserved: true,
@@ -588,7 +591,13 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 		att = VolumeAttachment{}
 	}
+	if r.CustomVolumes != nil && pod.Labels["tuist.dev/runner"] == "true" {
+		if share, e := r.CustomVolumes.Share(pod); e == nil {
+			sharedDirs = append(sharedDirs, "custom-cache:"+share)
+		}
+	}
 	var statusDir string
+
 	if att.Attached {
 		// tart's --dir mounts read-write by default and only accepts a `:ro`
 		// modifier; a `:rw` suffix is parsed as part of the path and fails the
@@ -618,6 +627,8 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// and the GC loop would happily reap it on the next pass —
 	// exactly the orphan we used to clean up reactively.
 	entry := &Entry{
+		PodName:         pod.Name,
+		PodUID:          string(pod.UID),
 		VMName:          vmName,
 		StartTS:         metav1.Now(),
 		Volume:          att,
@@ -1794,6 +1805,8 @@ func VMNameForPod(pod *corev1.Pod) string {
 // Tart endpoint state lives under Reconciler.VNCControlDir, while Pod
 // annotations carry only server-consumable relay readiness metadata.
 type Entry struct {
+	PodName string
+	PodUID  string
 	VMName  string
 	StartTS metav1.Time
 	Run     *tart.RunHandle

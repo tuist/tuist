@@ -1268,8 +1268,7 @@ the `apk add` on every Pod startup goes away.
 
 Local reflink image clones are implemented in
 [`../runner-cache`](../runner-cache/AGENTS.md) and `cmd/cache-volumes`.
-They reuse macOS HEAD arbitration and object storage; custom volumes remain
-Linux-only. The agent image includes ext4/loop tooling, with no Ceph dependency.
+They share journal and object-storage publication with the macOS APFS backend. The agent image includes ext4/loop tooling, with no Ceph dependency.
 See [host setup and rollout](cache-volumes.md).
 RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
 runner and DinD, guarded by Kata. Prefer the storage-readiness node label without
