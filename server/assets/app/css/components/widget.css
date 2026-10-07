@@ -8,6 +8,10 @@
 
   &[data-selected] .tuist-widget {
     box-shadow: var(--noora-border-light-focus);
+    & [data-part="value-caption"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
   }
 }
 

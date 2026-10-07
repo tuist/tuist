@@ -17,6 +17,7 @@ defmodule TuistWeb.Components.BuildHealth do
       id="cache-work-avoided"
       title={dgettext("dashboard_gradle", "Estimated task time saved")}
       legend_color="p90"
+      value_caption={dgettext("dashboard_gradle", "Cumulative task time")}
       description={
         dgettext(
           "dashboard_gradle",

@@ -42,3 +42,5 @@ This area owns shared UI components for LiveView and templates.
 
 
 - Existing build tables show shared failure categories for Gradle, Xcode, Bazel and Once. Build Runs pages sort and filter this virtual column in the database before pagination; successful, cancelled and unfinished runs leave it empty. `BuildHealth` uses Noora neutral light-fill badge cells for recorded failure categories and plain dashes for non-failures; focusable Noora tooltips explain the classification, and shares category labels/filter options and the Gradle estimated task time saved widget and chart. Preserve missing versus zero estimates and source-specific navigation. Gradle detail fields use the same responsive metadata grid and duration icon.
+
+- Widgets may provide `value_caption` for short visible context beneath their values; it defaults to absent. Gradle task time estimates use “Cumulative task time” in the widget and build details, with the full elapsed-time distinction retained in the tooltip.
