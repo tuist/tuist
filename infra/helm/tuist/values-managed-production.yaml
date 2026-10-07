@@ -419,7 +419,7 @@ capi:
         canonicalPeers: [ord]
         description: tuist-kura-production-scl
         cidr: 172.30.245.0/24
-        qualified: false
+        qualified: true
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2024093

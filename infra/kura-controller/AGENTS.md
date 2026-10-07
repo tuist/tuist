@@ -40,12 +40,16 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 - Provider-private replication qualification and staged rollout:
   [private-replication.md](private-replication.md). Runtime topology remains opt-in
-  until provider attachments, both underlay directions and fail-closed routing
-  are verified. Do not infer provider identity from a pool during migration.
+  until provider attachments and fail-closed routing are verified. For regions
+  with multiple hosts, verify both physical underlay directions; explicitly
+  record the physical host-pair limitation for single-host regions. Do not infer
+  provider identity from a pool during migration.
   Managed environments enable this for their qualified OVH domain. Canary has
   one OVH host; its colocated fixture does not prove a physical host pair.
   Vultr Chicago also passed physical qualification and activates through current-
-  boot route attestations on merge. Santiago remains VPC-only and canonical.
+  boot route attestations on merge. Santiago also enables managed topology after
+  no-reboot attachment and regional runtime validation; its single host cannot
+  establish physical host-to-host qualification.
   [Vultr private networking](vultr-private-networking.md) covers Kubernetes
   ownership, retained creation intent, isolated tests and rollback. Never enable
   two Vultr domains until all active peers support reciprocal `canonical_networks`.
