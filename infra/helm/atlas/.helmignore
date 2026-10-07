@@ -1,3 +1,4 @@
 values-managed-*.yaml
 AGENTS.md
 test-agent-boundary.sh
+test-demo-boundary.sh

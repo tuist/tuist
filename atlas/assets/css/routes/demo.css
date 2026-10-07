@@ -1,0 +1,35 @@
+[data-part="demo-content"] {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+[data-part="demo-banner"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+  padding: var(--noora-spacing-4) var(--noora-spacing-6);
+  background: var(--noora-surface-background-secondary);
+  border-bottom: 1px solid var(--noora-surface-border-primary);
+}
+
+[data-part="demo-page"] {
+  padding: var(--noora-spacing-8);
+}
+
+[data-part="demo-overview"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > h1 {
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="demo-journeys"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: var(--noora-spacing-6);
+  }
+}

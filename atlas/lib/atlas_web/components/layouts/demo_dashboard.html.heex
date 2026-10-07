@@ -1,0 +1,74 @@
+<main class="layout">
+  <header class="headerbar">
+    <div data-part="left-section">
+      <.link navigate={~p"/demo"} class="headerbar__brand">
+        <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
+        <span class="headerbar__title">Atlas demo</span>
+      </.link>
+    </div>
+    <div data-part="right-section">
+      <.link href="https://atlas.tuist.dev/docs/self-hosting">{gettext("Self-host Atlas")}</.link>
+    </div>
+  </header>
+  <.line_divider />
+  <section class="layout__main">
+    <.sidebar>
+      <.sidebar_group
+        id="sidebar-demo"
+        label={gettext("Explore Atlas")}
+        icon="chart_dots"
+        collapsible={false}
+      >
+        <.sidebar_item
+          label={gettext("Start here")}
+          icon="chart_dots"
+          navigate={~p"/demo"}
+          selected={@current_path == "/demo"}
+        />
+        <.sidebar_item
+          label={gettext("Accounts")}
+          icon="building"
+          navigate={~p"/commercial/sales/accounts"}
+          selected={String.starts_with?(@current_path, "/commercial/sales/accounts")}
+        />
+        <.sidebar_item
+          label={gettext("Tasks")}
+          icon="circle_check"
+          navigate={~p"/tasks"}
+          selected={@current_path == "/tasks"}
+        />
+        <.sidebar_item
+          label={gettext("Finance")}
+          icon="chart_donut_4"
+          navigate={~p"/commercial/finance"}
+          selected={@current_path == "/commercial/finance"}
+        />
+        <.sidebar_item
+          label={gettext("Vendor costs")}
+          icon="building"
+          navigate={~p"/commercial/finance/vendors"}
+          selected={@current_path == "/commercial/finance/vendors"}
+        />
+        <.sidebar_item
+          label={gettext("Notes")}
+          icon="file_text"
+          navigate={~p"/library/notes"}
+          selected={String.starts_with?(@current_path, "/library/notes")}
+        />
+      </.sidebar_group>
+    </.sidebar>
+    <div data-part="demo-content">
+      <aside id="demo-banner" data-part="demo-banner">
+        <strong>{gettext("Read-only demo")}</strong>
+        <span>
+          {gettext(
+            "All data is fictional. Browse, search, and filter; changes and integrations are disabled."
+          )}
+        </span>
+        <.link href="https://atlas.tuist.dev/docs">{gettext("Read the docs")}</.link>
+      </aside>
+      <div data-part="demo-page">{@inner_content}</div>
+    </div>
+  </section>
+  <.flash_group flash={@flash} />
+</main>

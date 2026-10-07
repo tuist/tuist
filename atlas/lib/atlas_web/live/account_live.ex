@@ -18,6 +18,7 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Accounts.OutcomeProposal
   alias Atlas.Accounts.POCs
   alias Atlas.Audit
+  alias Atlas.Demo
   alias Atlas.Letters
   alias Atlas.LLMs
   alias Atlas.Nudges
@@ -60,11 +61,19 @@ defmodule AtlasWeb.AccountLive do
          |> assign(:outcome_proposals_error, nil)
          |> assign_favicon(account)
          |> assign_account(account)
-         |> allow_upload(:signed_tax_certificate_request,
-           accept: ~w(.pdf),
-           max_entries: 1,
-           max_file_size: 50_000_000
-         )}
+         |> configure_uploads()}
+    end
+  end
+
+  defp configure_uploads(socket) do
+    if Demo.enabled?() do
+      socket
+    else
+      allow_upload(socket, :signed_tax_certificate_request,
+        accept: ~w(.pdf),
+        max_entries: 1,
+        max_file_size: 50_000_000
+      )
     end
   end
 
@@ -1357,6 +1366,7 @@ defmodule AtlasWeb.AccountLive do
                   <:icon_left><.download /></:icon_left>
                 </.button>
                 <.modal
+                  :if={!Demo.enabled?()}
                   id={signed_tax_certificate_upload_modal_id(letter.id)}
                   title={gettext("Upload signed request")}
                   description={gettext("Attach the signed request to start delivery preparation.")}

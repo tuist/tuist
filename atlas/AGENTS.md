@@ -14,6 +14,12 @@ Do not add README entries for internal operational details such as env var names
 - Public documentation emits `x-tuist-public: 1`, matching the zone-wide Cloudflare public-page rate limits in `infra/flux/cloudflare-config/`. Verified crawlers receive a request ceiling; other clients receive managed challenges above the same threshold. This header is classification, not an origin-side rate limiter. Self-hosted operators need equivalent edge protection.
 - Signed-out root visits redirect to `/docs`; authenticated root visits retain the overview dashboard. Other application routes still require sign-in. Public docs neither fetch users nor start a LiveView session.
 
+## Public read-only demo
+
+- The isolated demo uses the same release with `ATLAS_DEMO_MODE=true`, a dedicated `atlas_demo` PostgreSQL database, independent application keys, and a SELECT-only serving role. It never selects production versus demo data by hostname.
+- The curated anonymous dashboard covers accounts, tasks, finance/vendor costs, and notes; `/` redirects to `/demo`. The endpoint and LiveView guards deny unreviewed paths/events, including writes and external integrations. Demo startup excludes workers, browser pools, connector bootstrap, and self-monitoring.
+- Dataset, runtime validation, and permission checks live in [`lib/atlas/demo/AGENTS.md`](lib/atlas/demo/AGENTS.md). Deployment preparation is documented in `deploy/demo.md`, with standalone `infra/helm/atlas/values-demo.yaml` and a DNS/PostgreSQL-only egress policy. Do not reuse development seeds or production Secrets.
+
 ## First administrator
 
 - An operator can grant the first administrator access after that user signs in: `ATLAS_BOOTSTRAP_ADMIN_EMAIL=person@example.org bin/bootstrap-admin` in a release, or `ATLAS_BOOTSTRAP_ADMIN_EMAIL=person@example.org mix run --no-start -e 'Atlas.Release.bootstrap_admin()'` in a source checkout. Run migrations first. This command starts only the repository dependencies, not the web server or background workers.

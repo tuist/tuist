@@ -1488,3 +1488,114 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Server name does not match."
 msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:18
+#, elixir-autogen, elixir-format
+msgid "A company operating system, ready to explore"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "All data is fictional. Browse, search, and filter; changes and integrations are disabled."
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:52
+#, elixir-autogen, elixir-format
+msgid "Browse account-linked tasks and the notes that explain the team's decisions. Search and filters work just as they do in Atlas."
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Discover more in the documentation"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:18
+#: lib/atlas_web/live/demo_live.ex:9
+#, elixir-autogen, elixir-format
+msgid "Explore Atlas"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "Explore accounts"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "Explore finance"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "Explore tasks"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Finance"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:37
+#, elixir-autogen, elixir-format
+msgid "Follow the money"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:40
+#, elixir-autogen, elixir-format
+msgid "Inspect cash flow and runway, then break down vendor costs. Change the date range to compare recent months."
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "Keep the team aligned"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Open an account to see its contacts, commercial terms, invoices, and timeline together. Try searching for Helio or filtering by lifecycle."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "Read the docs"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Read-only demo"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Self-host Atlas"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Start here"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "Tasks"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "This curated demo is a subset of Atlas. Production also supports integrations, agents, contracts, support, engineering, and other operational workflows."
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:25
+#, elixir-autogen, elixir-format
+msgid "Understand a customer"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/demo_dashboard.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Vendor costs"
+msgstr ""
+
+#: lib/atlas_web/live/demo_live.ex:20
+#, elixir-autogen, elixir-format
+msgid "Welcome to the fictional Northstar team. Explore how Atlas connects commercial accounts, team tasks, finances, and shared knowledge without signing in."
+msgstr ""

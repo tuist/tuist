@@ -51,6 +51,14 @@ probes:
 migrationJob:
   enabled: true
   backoffLimit: 2
+  # Optional separate credentials for migrations (required by the demo).
+  appSecretName: ''
+demo:
+  enabled: false
+  # Demo egress permits only DNS and this separately provisioned PostgreSQL.
+  databaseNamespace: atlas-demo
+  databasePodSelector:
+    app.kubernetes.io/name: atlas-demo-postgres
 ingress:
   enabled: false
   className: ''
