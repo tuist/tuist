@@ -692,8 +692,8 @@ kura-runners-ingress-nginx:
 # The BER1 rack's runner-cache gateway, on its storage nodes beside the rack's
 # minis, which reach it over the machines segment. A rack node runs a pod
 # network of its own and reaches no Service, so the gateway resolves through
-# the node and reaches the API server at the address the env sets in
-# KUBERNETES_SERVICE_HOST/PORT; the Kura pods it fronts sit on the same node.
+# the node; the node translates the kubernetes Service to the API server, and
+# the Kura pods it fronts sit on the same node.
 kura-ber1-runners-ingress-nginx:
   enabled: false
   controller:
@@ -717,7 +717,6 @@ kura-ber1-runners-ingress-nginx:
       enabled: false
     extraArgs:
       update-status: "false"
-    extraEnvs: []
     service:
       type: ClusterIP
       externalTrafficPolicy: ""

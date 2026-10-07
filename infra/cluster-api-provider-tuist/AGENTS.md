@@ -1312,10 +1312,16 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`), the exact
-kubelet release the control plane runs and the hostname, into the
-`RackLinuxMachine`'s `status.nodeConfig`, hashed. `rack-node` applies one: it
-writes only files whose content or mode differs, loads modules and sysctls,
+the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+translation of the kubernetes Service to the API server in
+`/etc/tuist/kubernetes-service.nft`), the exact kubelet release the control
+plane runs and the hostname, into the `RackLinuxMachine`'s `status.nodeConfig`,
+hashed. The translation needs the kubernetes Service's ClusterIP, which the
+operator reads like the cluster DNS (a Role on `default/kubernetes` alone), and
+an API server address that is an IP; without either it is removed. `rack-node`
+applies one: it writes only files whose content or mode differs, loads modules
+and sysctls, loads its nftables files on every apply (each recreates its own
+table, which undoes a flush),
 installs containerd with its default configuration on the systemd cgroup
 driver, installs exactly the named kubelet from pkgs.k8s.io and never
 downgrades it, sets the hostname, restarts containerd or the kubelet when
