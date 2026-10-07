@@ -217,7 +217,7 @@ defmodule TuistWeb.Router do
 
   pipeline :browser_marketing_page do
     plug :put_request_kind, "marketing"
-    plug MarkdownNegotiationPlug
+    plug MarkdownNegotiationPlug, cdn_cache: false
     plug :accepts, ["html"]
   end
 
@@ -266,6 +266,13 @@ defmodule TuistWeb.Router do
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
     plug :fetch_current_user
+  end
+
+  pipeline :marketing_markdown do
+    plug :put_request_kind, "marketing"
+    plug :enable_robot_indexing
+    plug :mark_public_marketing_page
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :browser_marketing_feed do
@@ -359,6 +366,14 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
+
+  scope "/", TuistWeb do
+    pipe_through [:marketing_markdown]
+
+    get "/marketing-markdown", MarketingMarkdownController, :show, metadata: @marketing_route_metadata
+    get "/marketing-markdown/source/*path", MarketingMarkdownController, :source, metadata: @marketing_route_metadata
+    get "/marketing-markdown/*path", MarketingMarkdownController, :show, metadata: @marketing_route_metadata
+  end
 
   scope "/" do
     pipe_through [:browser_marketing_feed]

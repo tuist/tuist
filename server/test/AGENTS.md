@@ -3,6 +3,7 @@
 This directory contains ExUnit tests for the Tuist Server.
 
 ## Testing Guidelines
+- Agent-marketing coverage checks authored landing-page inventory and docs links, original policy wording and statement access, bounded directory links, cookie-free explicit routes, alternate discovery, quality-aware negotiation, unchanged redirect/error responses, and Cloudflare cache bypass on negotiated marketing responses.
 - Search-indexing coverage verifies crawlable public project HTML, noindex for sensitive routes and failures, query-free canonical URLs, and bounded public-only project sitemaps. Keep private-project authorization unchanged.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.

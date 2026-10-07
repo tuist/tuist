@@ -8,6 +8,7 @@ This directory contains database migrations and other private assets.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
+- Purpose-written agent marketing guides: `server/priv/marketing/agents`, see `marketing/agents/AGENTS.md` for content, discovery, and CDN rollout constraints.
 - All served raster images under `priv/static` are checked by
   `mise run marketing:image-budget` (requires ImageMagick).
   Signup artwork is WebP at twice its rendered width; keep replacements within

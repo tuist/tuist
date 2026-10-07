@@ -8,6 +8,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.HtmlToMarkdown
   alias TuistWeb.Utilities.MarkdownResponse
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @accept_header "accept"
   @markdown_content_type "text/markdown"
@@ -16,11 +17,19 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
 
   def init(opts), do: opts
 
-  def call(%Plug.Conn{method: method} = conn, _opts) when method in ["GET", "HEAD"] do
+  def call(%Plug.Conn{method: method} = conn, opts) when method in ["GET", "HEAD"] do
     conn
     |> put_private(@markdown_request_private_key, build_request_state(conn))
     |> maybe_rewrite_accept_header()
-    |> register_before_send(&negotiate_response/1)
+    |> register_before_send(fn conn ->
+      conn = negotiate_response(conn)
+
+      # Cloudflare does not generally partition its cache by Vary: Accept.
+      # Explicit Markdown URLs can be cached without varying representations.
+      if Keyword.get(opts, :cdn_cache, true),
+        do: conn,
+        else: put_resp_header(conn, "cloudflare-cdn-cache-control", "no-store")
+    end)
   end
 
   def call(conn, _opts), do: conn
@@ -34,14 +43,42 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   end
 
   defp markdown_requested?(conn) do
-    conn
-    |> get_req_header(@accept_header)
-    |> Enum.any?(fn value ->
-      value
-      |> String.downcase()
-      |> String.split(",")
-      |> Enum.map(&String.trim/1)
-      |> Enum.any?(&String.starts_with?(&1, @markdown_content_type))
+    media_types =
+      conn
+      |> get_req_header(@accept_header)
+      |> Enum.flat_map(&String.split(&1, ","))
+      |> Enum.map(&media_type_preference/1)
+
+    markdown_quality = preferred_quality(media_types, @markdown_content_type)
+    html_quality = preferred_quality(media_types, "text/html", true)
+
+    markdown_quality > 0 and markdown_quality >= html_quality
+  end
+
+  defp media_type_preference(value) do
+    case Plug.Conn.Utils.media_type(String.downcase(String.trim(value))) do
+      {:ok, type, subtype, params} ->
+        quality =
+          case Float.parse(Map.get(params, "q", "1")) do
+            {quality, ""} when quality >= 0 and quality <= 1 -> quality
+            _ -> 0.0
+          end
+
+        {type <> "/" <> subtype, quality}
+
+      :error ->
+        {nil, 0.0}
+    end
+  end
+
+  defp preferred_quality(media_types, type, wildcards? \\ false) do
+    candidates = if wildcards?, do: [type, "text/*", "*/*"], else: [type]
+
+    Enum.find_value(candidates, 0.0, fn candidate ->
+      case for({media_type, quality} <- media_types, media_type == candidate, do: quality) do
+        [] -> nil
+        qualities -> Enum.max(qualities)
+      end
     end)
   end
 
@@ -67,12 +104,30 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   defp negotiate_response(conn) do
     conn
     |> maybe_convert_to_markdown()
+    |> put_marketing_alternate_link()
     |> MarkdownResponse.put_vary_accept()
+  end
+
+  defp put_marketing_alternate_link(conn) do
+    case {conn.status, MarketingMarkdown.alternate_path(conn.request_path)} do
+      {200, path} when is_binary(path) ->
+        alternate = ~s(<#{path}>; rel="alternate"; type="text/markdown"; hreflang="en")
+        links = get_resp_header(conn, "link") ++ [alternate]
+        put_resp_header(conn, "link", Enum.join(links, ", "))
+
+      _ ->
+        conn
+    end
   end
 
   defp maybe_convert_to_markdown(conn) do
     case markdown_body(conn) do
       {:ok, markdown} ->
+        conn =
+          if MarketingMarkdown.alternate_path(conn.request_path),
+            do: put_resp_header(conn, "content-language", "en"),
+            else: conn
+
         MarkdownResponse.prepare(conn, markdown)
 
       :error ->
@@ -84,7 +139,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
     request_state = request_state(conn)
 
     cond do
-      not request_state.requested? ->
+      not request_state.requested? or conn.status != 200 ->
         :error
 
       is_binary(request_state.override) and request_state.override != "" ->
@@ -136,7 +191,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
         end
 
       _ ->
-        nil
+        MarketingMarkdown.get(request_path)
     end
   end
 end
