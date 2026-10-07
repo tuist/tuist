@@ -473,6 +473,34 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert response["message"] =~ "coverage storage key"
     end
 
+    test "rejects a coverage block storage key that is not the run's even beside a valid Xcode one", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      id = UUIDv7.generate()
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: id,
+          duration: 1000,
+          is_ci: false,
+          test_modules: [],
+          status: "success",
+          xcode_coverage_storage_key: Tuist.Tests.Coverage.storage_key(project, id),
+          coverage: %{
+            tool: "cover",
+            partial: false,
+            storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+          }
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "coverage storage key"
+    end
+
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 

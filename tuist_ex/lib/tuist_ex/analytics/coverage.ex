@@ -53,12 +53,14 @@ defmodule TuistEx.Analytics.Coverage do
       {:result, entries, _failures} = :cover.analyse(:calls, :line)
       test_dirs = Enum.map(config[:test_paths] || ["test"], &Path.expand(&1, project_dir))
       default_app = config[:app] && to_string(config[:app])
+      ignored = get_in(config, [:test_coverage, :ignore_modules]) || []
 
       entries
       |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
       |> Enum.group_by(fn {{module, _line}, _count} -> module end, fn {{_module, line}, count} ->
         {line, count}
       end)
+      |> Enum.reject(fn {module, _lines} -> ignored?(module, ignored) end)
       |> Enum.flat_map(fn {module, lines} ->
         case locate(source(module), project_dir) do
           nil -> []
@@ -82,6 +84,16 @@ defmodule TuistEx.Analytics.Coverage do
         }
       end)
     end
+  end
+
+  # The modules the project's coverage configuration leaves out, as Mix's
+  # coverage tool reads `ignore_modules`: a module, or a pattern its name
+  # matches.
+  defp ignored?(module, ignored) do
+    Enum.any?(ignored, fn
+      %Regex{} = pattern -> Regex.match?(pattern, inspect(module))
+      other -> other == module
+    end)
   end
 
   defp source(module) do

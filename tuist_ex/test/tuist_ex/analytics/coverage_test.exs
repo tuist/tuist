@@ -163,6 +163,35 @@ defmodule TuistEx.Analytics.CoverageTest do
 
       assert lines == %{3 => 1, 7 => 0, 11 => 0}
     end
+
+    test "leaves out the modules the project's coverage configuration ignores", %{
+      directory: directory,
+      source: source
+    } do
+      case :cover.start() do
+        {:ok, _} -> :ok
+        {:error, {:already_started, _}} -> :ok
+      end
+
+      [ok: _, ok: _] =
+        :cover.compile_beam_directory(String.to_charlist(Path.join(directory, "ebin")))
+
+      ignored = [app: :calculator, test_coverage: [ignore_modules: [~r/\.Inner$/]]]
+
+      assert %{lines: lines} =
+               directory |> Coverage.snapshot(ignored) |> Enum.find(&(&1.path == source))
+
+      assert Map.keys(lines) == [3, 7]
+
+      ignored = [
+        app: :calculator,
+        test_coverage: [
+          ignore_modules: [TuistExCoverFixture.Calculator, TuistExCoverFixture.Calculator.Inner]
+        ]
+      ]
+
+      refute directory |> Coverage.snapshot(ignored) |> Enum.any?(&(&1.path == source))
+    end
   end
 
   describe "attach/3" do
