@@ -121,6 +121,12 @@
     @media (max-width: 1023px) {
       grid-template-rows: auto;
     }
+
+    @media (min-width: 1024px) {
+      &:has(> [data-part="regions"][hidden]) {
+        grid-template-rows: calc(72 * var(--u)) minmax(calc(828 * var(--u) + 3 * var(--seam)), 1fr);
+      }
+    }
   }
 
   /* The full-screen button promotes the page body (navbar and footer sit
@@ -345,6 +351,7 @@
       }
 
       & > [data-part="stat"] {
+        container-type: inline-size;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -360,6 +367,10 @@
           font-variation-settings: var(--font-figure-shape);
           text-shadow: var(--figure-glow);
           white-space: nowrap;
+
+          &#globe-bytes {
+            font-size: min(calc(48 * var(--u)), calc(100cqw / var(--count-length, 1)));
+          }
         }
 
         & > [data-part="label"] {

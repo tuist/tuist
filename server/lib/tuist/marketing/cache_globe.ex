@@ -29,6 +29,7 @@ defmodule Tuist.Marketing.CacheGlobe do
       downloads: nil,
       bytes: nil,
       recent_downloads: nil,
+      recent_bytes: nil,
       breakdown: @empty_breakdown,
       origins: [],
       playback_delay_seconds: 300,
@@ -49,6 +50,7 @@ defmodule Tuist.Marketing.CacheGlobe do
         """
         SELECT region, sum(request_count), sum(bytes),
                sumIf(request_count, window_start >= {recent:DateTime}),
+               sumIf(bytes, window_start >= {recent:DateTime}),
                max(window_start + toIntervalSecond(window_seconds))
         FROM kura_usage_events FINAL
         WHERE window_start >= {midnight:DateTime} AND window_start < {now:DateTime}
@@ -67,11 +69,13 @@ defmodule Tuist.Marketing.CacheGlobe do
       ).rows
 
     by_region =
-      Map.new(rows, fn [id, downloads, bytes, recent, observed] -> {id, {downloads, bytes, recent, observed}} end)
+      Map.new(rows, fn [id, downloads, bytes, recent, recent_bytes, observed] ->
+        {id, {downloads, bytes, recent, recent_bytes, observed}}
+      end)
 
     regions =
       Enum.map(@regions, fn region ->
-        {downloads, _bytes, recent, _observed} = Map.get(by_region, region.id, {0, 0, 0, nil})
+        {downloads, _bytes, recent, _recent_bytes, _observed} = Map.get(by_region, region.id, {0, 0, 0, 0, nil})
         Map.merge(region, %{downloads: downloads, recent_downloads: recent})
       end)
 
@@ -82,6 +86,7 @@ defmodule Tuist.Marketing.CacheGlobe do
       downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 1))),
       bytes: Enum.sum(Enum.map(rows, &Enum.at(&1, 2))),
       recent_downloads: Enum.sum(Enum.map(rows, &Enum.at(&1, 3))),
+      recent_bytes: Enum.sum(Enum.map(rows, &Enum.at(&1, 4))),
       breakdown: breakdown(midnight, now),
       origins: origins,
       playback_delay_seconds: 300,
