@@ -241,6 +241,7 @@ defmodule TuistWeb.CoverageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-analytics']")
+      refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
 
       stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
 
@@ -350,6 +351,7 @@ defmodule TuistWeb.CoverageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
       assert has_element?(lv, "[data-part='empty-commits']", "No complete commits on main in this period")
+      refute has_element?(lv, "[data-part='recent-commits'] [data-part='view-more']")
     end
   end
 
@@ -396,6 +398,7 @@ defmodule TuistWeb.CoverageLiveTest do
     test "says when no run named the branch in the period", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-runs']", "No run gathered coverage on main in this period")
+      refute has_element?(lv, "[data-part='recent-runs'] [data-part='view-more']")
     end
   end
 
@@ -532,6 +535,8 @@ defmodule TuistWeb.CoverageLiveTest do
 
       assert [{"Down.swift", _, "0.0%", "-50.0%"}, {"Up.swift", _, "50.0%", "+50.0%"}] = change_cards(lv, "files")
       assert has_element?(lv, "[data-side='targets'] [data-part='empty']", "No coverage change")
+      assert has_element?(lv, "[data-side='files'] [data-part='view-more']")
+      refute has_element?(lv, "[data-side='targets'] [data-part='view-more']")
     end
 
     test "says when the period has no change to compare", %{conn: conn, organization: organization, project: project} do
