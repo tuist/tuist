@@ -83,7 +83,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   """
   def compute(%Project{} = project, sha, opts \\ []) do
     runs = Keyword.get_lazy(opts, :runs, fn -> Commits.runs(project.id, sha) end)
-    unmeasured = if runs == [], do: unmeasured_runs(project.id, sha), else: []
+    clean = unmeasured_runs(project.id, sha)
+    unmeasured = if runs == [], do: clean, else: []
 
     if runs == [] and unmeasured == [] do
       nil
@@ -105,9 +106,9 @@ defmodule Tuist.Tests.Coverage.Reported do
 
       # A scheme skipped whole measured nothing, and its run's hits are all
       # that say which targets it skipped.
-      hits = selective_testing_hits(project.id, repository_id, run_ids ++ Enum.map(unmeasured, & &1.test_run_id))
+      hits = selective_testing_hits(project.id, repository_id, Enum.uniq(run_ids ++ Enum.map(clean, & &1.test_run_id)))
 
-      case skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
+      case skipped_tests(project, repository_id, sha, {run_ids, hits, clean}, schemes) do
         {:not_enumerated, _ancestry} ->
           result(observed, "observed", [], [], {0, []}, [])
 
@@ -392,8 +393,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   # The enabled candidates of the commit's runs that none of them executed,
   # with the ancestors' runs when inheriting candidates read them (nil
   # otherwise), so carrying them does not read them again.
-  defp skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
-    {inherited, ancestry} = inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes)
+  defp skipped_tests(project, repository_id, sha, {run_ids, _hits, _clean} = runs, schemes) do
+    {inherited, ancestry} = inherited_candidates(project, repository_id, sha, runs, schemes)
     candidates = Enum.uniq_by(enumerated(project.id, run_ids) ++ inherited, & &1.test_case_id)
 
     if candidates == [] do
@@ -438,24 +439,19 @@ defmodule Tuist.Tests.Coverage.Reported do
   # is where their evidence comes from anyway. Every other guard still
   # applies to each of them, so a test that must not be carried is still a
   # gap rather than a silent omission.
-  defp silent_schemes(project_id, sha, run_ids, schemes) do
+  defp silent_schemes(clean, run_ids, schemes) do
     measured = MapSet.new(schemes)
 
-    from(t in Test,
-      where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
-      distinct: true,
-      select: %{id: t.id, scheme: t.scheme}
-    )
-    |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
-    |> Enum.reject(&(&1.scheme in [nil, ""] or MapSet.member?(measured, &1.scheme) or &1.id in run_ids))
+    clean
+    |> Enum.reject(&(&1.scheme in [nil, ""] or MapSet.member?(measured, &1.scheme) or &1.test_run_id in run_ids))
     |> Enum.map(& &1.scheme)
     |> Enum.uniq()
   end
 
   defp inherited_candidates(_project, repository_id, _sha, _runs, _schemes) when repository_id in [nil, 0], do: {[], nil}
 
-  defp inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes) do
-    silent = silent_schemes(project.id, sha, run_ids, schemes)
+  defp inherited_candidates(project, repository_id, sha, {run_ids, hits, clean}, schemes) do
+    silent = silent_schemes(clean, run_ids, schemes)
     skipped_modules = hits |> Enum.map(& &1.name) |> Enum.uniq()
 
     if silent == [] and skipped_modules == [] do

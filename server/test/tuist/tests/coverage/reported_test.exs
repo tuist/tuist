@@ -591,6 +591,89 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
            } = Reported.compute(project, "head")
   end
 
+  test "carries a target of a scheme skipped whole beside a scheme that measured", %{
+    project: project,
+    account: account
+  } do
+    base_app =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "base",
+          test_modules: modules([test_case("testAdd()", "MathTests")]),
+          enumerated_tests: [%{module: "AppTests", suite: "MathTests", name: "testAdd()"}],
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0, 1],
+                lines: [[1, 2], [1, 1]]
+              }
+            ]
+          }
+        }
+      )
+
+    base_text =
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 1, 1, 0])], %{
+        git_commit_sha: "base",
+        scheme: "TextScheme",
+        test_modules: [
+          %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+        ],
+        enumerated_tests: [%{module: "TextKitTests", suite: "TextTests", name: "testTrim()"}],
+        coverage_evidence: %{
+          paths: ["Sources/Text.swift"],
+          scopes: [%{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0], lines: [[1, 3]]}]
+        }
+      })
+
+    selective_testing(project, base_app, [{"AppTests", :miss, "app"}])
+    selective_testing(project, base_text, [{"TextKitTests", :miss, "text"}])
+
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    head =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+        %{
+          git_commit_sha: "head",
+          test_modules: modules([test_case("testAdd()", "MathTests")]),
+          enumerated_tests: [%{module: "AppTests", suite: "MathTests", name: "testAdd()"}]
+        }
+      )
+
+    selective_testing(project, head, [{"AppTests", :miss, "app-changed"}])
+
+    {:ok, silent} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "TextScheme",
+        git_branch: "main",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "head",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    selective_testing(project, silent, [{"TextKitTests", :local, "text"}])
+
+    assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+  end
+
   test "carries what executed a file the repository's Git does not track, such as a submodule's", %{
     project: project,
     account: account
