@@ -197,6 +197,26 @@ test("illustrative updates are stable between snapshots, and opt-in never change
   assert.ok(latestOrigins(events).every((origin) => !origin.illustrative));
 });
 
+test("mounted illustration seeds the canvas immediately and stays stable through counter ticks and LiveView patches", () => {
+  const { hook, events, rendered, advanceClock } = fixture();
+  enableIllustration(hook);
+  hook.sync = Object.getPrototypeOf(hook).sync;
+  hook.el.dataset.snapshot = JSON.stringify(hook.snapshot);
+  hook.mounted();
+  assert.equal(latestOrigins(events).length, 27);
+  assert.equal(JSON.parse(hook.globe.dataset.origins).length, 27);
+  assert.equal(rendered.counter, 1200);
+  events.length = 0;
+  advanceClock(60000);
+  hook.advance();
+  assert.equal(events.length, 0);
+  assert.equal(rendered.counter, 1202);
+  hook.updated();
+  assert.equal(events.length, 0);
+  assert.equal(rendered.counter, 1202);
+  assert.equal(hook.snapshot.origins.length, 0);
+});
+
 test("regional rows show daily downloads even when recent activity is zero", () => {
   const { hook, rendered } = fixture();
   hook.updateSnapshot();
