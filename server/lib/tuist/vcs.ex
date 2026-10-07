@@ -31,12 +31,7 @@ defmodule Tuist.VCS do
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
-  @test_body_build_systems [
-    {"xcode", "Xcode", "Scheme"},
-    {"gradle", "Gradle", "Project"},
-    {"bazel", "Bazel", "Target patterns"},
-    {"mix", "Mix", "Test run"}
-  ]
+  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -808,7 +803,7 @@ defmodule Tuist.VCS do
     runs_by_build_system = Enum.group_by(test_runs, & &1.build_system)
 
     sections =
-      for {build_system, name, run_header} <- @test_body_build_systems,
+      for {build_system, name} <- @test_body_build_systems,
           build_system_test_runs = Map.get(runs_by_build_system, build_system, []),
           build_system_test_runs != [] do
         args = test_body_args(build_system_test_runs, project, git_remote_url_origin, test_run_url)
@@ -816,7 +811,7 @@ defmodule Tuist.VCS do
         body =
           if build_system == "xcode",
             do: get_xcode_test_body(args),
-            else: get_test_count_body(args, run_header)
+            else: get_test_rollup_body(args)
 
         {name, body}
       end
@@ -886,29 +881,35 @@ defmodule Tuist.VCS do
 
   defp test_modules_text(metrics), do: metrics.ran_test_modules
 
-  defp get_test_count_body(
-         %{
-           test_runs: test_runs,
-           git_remote_url_origin: git_remote_url_origin,
-           test_run_url: test_run_url,
-           project: project
-         },
-         run_header
-       ) do
-    metrics_map = project.id |> TestsAnalytics.test_runs_metrics(test_runs) |> Map.new(&{&1.test_run_id, &1})
+  defp get_test_rollup_body(%{
+         test_runs: [latest | _] = test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    counts = TestsAnalytics.test_case_counts(project.id, test_runs)
 
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_url = test_run_url.(%{project: project, test_run: test_run})
+    links =
+      Enum.map_join(test_runs, "<br/>", fn test_run ->
         name = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-        total_tests = get_in(metrics_map, [test_run.id, :total_tests]) || 0
-
-        "| [#{name}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
+        "[#{name}](#{test_run_url.(%{project: project, test_run: test_run})})"
       end)
 
-    "| #{run_header} | Status | Tests | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
-      rows
+    "| Test runs | Status | Passed | Failed | Skipped | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
+      "| #{links} | #{rollup_status_text(test_runs, counts)} | #{counts.passed} | #{counts.failed} | #{counts.skipped} | #{commit_link(latest.git_commit_sha, git_remote_url_origin)} |\n"
+  end
+
+  defp rollup_status_text(test_runs, counts) do
+    statuses = Enum.map(test_runs, & &1.status)
+
+    cond do
+      Enum.any?(statuses, &(&1 in ["in_progress", "processing"])) -> "⏳"
+      counts.failed > 0 or "failure" in statuses -> "❌"
+      "failed_processing" in statuses -> "⚠️"
+      Enum.all?(statuses, &(&1 == "skipped")) -> "⏭️"
+      true -> "✅"
+    end
   end
 
   defp get_test_run_status_text(test_run) do
@@ -1191,25 +1192,25 @@ defmodule Tuist.VCS do
 
     from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
-    |> where([t], t.scheme != "")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
-    |> Enum.reduce(%{}, fn test_run, acc ->
-      scheme = test_run.scheme
-
-      current_test = Map.get(acc, scheme)
-
-      if current_test == nil or
-           NaiveDateTime.after?(
-             test_run.inserted_at,
-             current_test.inserted_at
-           ) do
-        Map.put(acc, scheme, test_run)
-      else
-        acc
-      end
+    |> Enum.group_by(& &1.build_system)
+    |> Enum.flat_map(fn
+      {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)
+      {_build_system, test_runs} -> latest_commit_test_runs(test_runs)
     end)
-    |> Map.values()
+  end
+
+  # Expects the test runs newest first. A run without a scheme is kept like any
+  # other, under the empty scheme.
+  defp latest_test_run_per_scheme(test_runs), do: test_runs |> Enum.uniq_by(& &1.scheme) |> Enum.sort_by(& &1.scheme)
+
+  # Only the build system's latest commit is reported, the way coverage reports
+  # a commit, with a rerun replacing the run of the same scheme it repeats.
+  defp latest_commit_test_runs([latest | _] = test_runs) do
+    test_runs
+    |> Enum.filter(&(&1.git_commit_sha == latest.git_commit_sha))
+    |> latest_test_run_per_scheme()
   end
 
   defp get_builds_body(%{

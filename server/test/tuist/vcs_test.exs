@@ -1465,9 +1465,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Project | Status | Tests | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [my-android-app](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | #{commit_link} |
+        | Test runs | Status | Passed | Failed | Skipped | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [my-android-app](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 2 | 0 | 0 | #{commit_link} |
 
         """
 
@@ -1495,7 +1495,7 @@ defmodule Tuist.VCSTest do
       })
     end
 
-    test "creates a comment with mix test runs" do
+    test "rolls up the mix test runs of the latest commit" do
       # Given
       project =
         ProjectsFixtures.project_fixture(
@@ -1505,49 +1505,54 @@ defmodule Tuist.VCSTest do
           ]
         )
 
-      {:ok, passing_test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          account_id: project.account_id,
-          git_ref: @git_ref,
-          git_commit_sha: @git_commit_sha,
-          scheme: "clickhouse-current",
-          build_system: "mix",
-          ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: [
-            %{
-              name: "Tuist.AccountsTest",
-              status: "success",
-              duration: 3000,
-              test_cases: [
-                %{name: "creates an account", status: "success", duration: 1500},
-                %{name: "deletes an account", status: "success", duration: 1500}
+      mix_test_run = fn attrs, test_cases ->
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            [
+              project_id: project.id,
+              account_id: project.account_id,
+              git_ref: @git_ref,
+              git_commit_sha: @git_commit_sha,
+              build_system: "mix",
+              test_modules: [
+                %{
+                  name: "Tuist.AccountsTest",
+                  status: if(Enum.any?(test_cases, &(&1.status == "failure")), do: "failure", else: "success"),
+                  duration: 1000,
+                  test_cases: Enum.map(test_cases, &Map.put(&1, :duration, 100))
+                }
               ]
-            }
-          ]
+            ] ++ attrs
+          )
+
+        test_run
+      end
+
+      _previous_commit_test_run =
+        mix_test_run.(
+          [git_commit_sha: "abcdef0123", scheme: "clickhouse-current", status: "failure"],
+          [%{name: "deletes an account", status: "failure"}]
         )
 
-      {:ok, failing_test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          account_id: project.account_id,
-          git_ref: @git_ref,
-          git_commit_sha: @git_commit_sha,
-          scheme: "clickhouse-floor",
-          build_system: "mix",
-          status: "failure",
-          ran_at: ~N[2024-04-30 04:00:00],
-          test_modules: [
-            %{
-              name: "Tuist.AccountsTest",
-              status: "failure",
-              duration: 1000,
-              test_cases: [
-                %{name: "creates an account", status: "failure", duration: 1000}
-              ]
-            }
-          ]
-        )
+      current_test_run =
+        mix_test_run.([scheme: "clickhouse-current"], [
+          %{name: "creates an account", status: "success"},
+          %{name: "deletes an account", status: "success"}
+        ])
+
+      _replaced_floor_test_run =
+        mix_test_run.([scheme: "clickhouse-floor", status: "failure"], [
+          %{name: "creates an account", status: "failure"},
+          %{name: "updates an account", status: "failure"}
+        ])
+
+      floor_test_run =
+        mix_test_run.([scheme: "clickhouse-floor", status: "failure"], [
+          %{name: "creates an account", status: "failure"},
+          %{name: "updates an account", status: "success"}
+        ])
+
+      unlabelled_test_run = mix_test_run.([], [%{name: "lists accounts", status: "skipped"}])
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -1555,22 +1560,26 @@ defmodule Tuist.VCSTest do
 
       commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
 
-      expect(Req, :post, fn opts ->
-        body = opts[:json].body
+      test_runs_cell =
+        Enum.map_join(
+          [
+            {"Unknown", unlabelled_test_run},
+            {"clickhouse-current", current_test_run},
+            {"clickhouse-floor", floor_test_run}
+          ],
+          "<br/>",
+          fn {name, test_run} -> "[#{name}](https://tuist.dev/test_runs/#{test_run.id})" end
+        )
 
-        assert body =~
+      expect(Req, :post, fn opts ->
+        assert opts[:json].body =~
                  """
                  #### Tests 🧪
 
-                 | Test run | Status | Tests | Commit |
-                 |:-:|:-:|:-:|:-:|
+                 | Test runs | Status | Passed | Failed | Skipped | Commit |
+                 |:-:|:-:|:-:|:-:|:-:|:-:|
+                 | #{test_runs_cell} | ❌ | 2 | 1 | 1 | #{commit_link} |
                  """
-
-        assert body =~
-                 "| [clickhouse-current](https://tuist.dev/test_runs/#{passing_test_run.id}) | ✅ | 2 | #{commit_link} |\n"
-
-        assert body =~
-                 "| [clickhouse-floor](https://tuist.dev/test_runs/#{failing_test_run.id}) | ❌ | 1 | #{commit_link} |\n"
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1663,9 +1672,9 @@ defmodule Tuist.VCSTest do
 
         ##### Gradle
 
-        | Project | Status | Tests | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | #{commit_link} |
+        | Test runs | Status | Passed | Failed | Skipped | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | 0 | 0 | #{commit_link} |
 
         """
 
