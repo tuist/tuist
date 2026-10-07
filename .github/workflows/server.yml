@@ -378,17 +378,20 @@ jobs:
         run: mise run --no-deps db:reset
       - name: Run shard ${{ matrix.shard }}
         run: mix tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
-  test-fork:
-    name: Test (fork, ${{ matrix.clickhouse }})
+  test-unsharded:
+    name: Test (unsharded fallback, ${{ matrix.clickhouse }})
     runs-on: tuist-linux-large
     timeout-minutes: 75
     permissions:
       contents: read
+    needs: test-build
+    # A failed planner stays red, but must not leave its fixing PR untested.
+    # Forks also use these unprivileged, explicitly unsharded jobs.
     if: |
+      always() && !cancelled() &&
       github.repository == 'tuist/tuist' &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.fork == true
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event.pull_request.head.repo.fork == true || needs.test-build.result == 'failure')
     strategy:
       fail-fast: false
       matrix:

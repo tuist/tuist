@@ -76,8 +76,7 @@ so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
 Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsharded
 variants without Tuist authentication or `id-token: write`, like the CLI and
-Gradle fork fallbacks. Never fall back to running the whole suite when an
-authenticated shard cannot fetch its plan.
+Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
 
 ## Restore drills
 
