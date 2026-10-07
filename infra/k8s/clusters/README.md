@@ -149,6 +149,16 @@ every minute, so the roll starts about a minute after merge. Before merging:
   `etcd_server_has_leader` is 1 on every member, leader changes are flat, and
   WAL fsync p99 is normal) and the KCP reports three up-to-date, Ready
   replicas.
+- Check the fleet for host rules that pin the API endpoint to one member.
+  The roll gives every member a new server, and a member's IP is not always
+  reused, so a node whose host NATs the load balancer address to a single
+  member loses the API when that member is removed. On 2026-10-07 a
+  redirect left over from an incident took the EU East Kura node down this
+  way (see `infra/kura-controller/incidents/2026-09-22-eu-east.md`). On
+  each Linux fleet host, `sudo iptables -t nat -S OUTPUT` must show nothing
+  that matches the load balancer address or a control-plane member's IP.
+  During the roll, a worker that goes NotReady right after a member is
+  deleted points to such a pin.
 - Pick an off-peak window with no server deploy running or queued.
 - Silence `Hetzner control-plane load-balancer target unhealthy` for the
   window: each new member is a load-balancer target for several minutes
@@ -162,8 +172,8 @@ deletes its server, and KCP immediately creates a replacement, so pause first:
 annotate the `KubeadmControlPlane` with `cluster.x-k8s.io/paused` and diagnose
 on the stuck host. Pause only the KCP, not the `Cluster`: pausing the Cluster
 also stops every worker pool from scaling or remediating. Then remove the
-annotation and either delete the stuck Machine (KCP retries) or revert. Reverting the type is another full
-roll, not an undo.
+annotation and either delete the stuck Machine (KCP retries) or revert.
+Reverting the type is another full roll, not an undo.
 
 ## Adapting from caph upstream
 
