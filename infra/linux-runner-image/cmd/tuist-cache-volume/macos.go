@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,9 +28,6 @@ func acquireMac(key string) (string, string, bool, error) {
 	defer cancel()
 	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
-func macCommand(args ...string) error {
-	return macCommandContext(context.Background(), args...)
-}
 func macCommandContext(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -42,12 +40,15 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if _, err := os.Stat(share); err != nil {
 		return "", "", false, err
 	}
-	name := digest(key) + ".request"
 	data, _ := json.Marshal(map[string]any{"key": key, "uid": os.Getuid()})
 	temp, err := os.CreateTemp(share, ".request-")
 	if err != nil {
 		return "", "", false, err
 	}
+	name := filepath.Base(temp.Name()) + ".request"
+	defer os.Remove(temp.Name())
+	defer os.Remove(filepath.Join(share, name+".response"))
+	defer os.Remove(filepath.Join(share, name))
 	_, err = temp.Write(data)
 	temp.Close()
 	if err != nil {
@@ -83,6 +84,9 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.MkdirAll(base, 0755); err != nil {
 		return "", "", false, err
 	}
+	if err = os.Remove(filepath.Join(shared, ".detached")); err != nil && !os.IsNotExist(err) {
+		return "", "", false, err
+	}
 	if err = command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", base); err != nil {
 		return "", "", false, err
 	}
@@ -97,8 +101,24 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 
 // Only clean detach marks a branch eligible. A force-detach, failed job,
 // cancellation or abrupt VM shutdown leaves it disposable.
-func detachMac() error { return detachMacAt(macShare, macMountRoot, macCommand) }
-func detachMacAt(share, mountRoot string, command func(...string) error) error {
+func detachMac() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func() {
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+		}
+	})
+}
+func measureMac(path string) (int64, int64, error) {
+	var stat unix.Statfs_t
+	if err := unix.Statfs(path, &stat); err != nil {
+		return 0, 0, err
+	}
+	return int64(stat.Blocks-stat.Bfree) * int64(stat.Bsize), int64(stat.Blocks) * int64(stat.Bsize), nil
+}
+func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), pause func()) error {
 	dirs, err := os.ReadDir(mountRoot)
 	if os.IsNotExist(err) {
 		return nil
@@ -117,7 +137,26 @@ func detachMacAt(share, mountRoot string, command func(...string) error) error {
 			failures = append(failures, err)
 			continue
 		}
-		if err = command("detach", base, "-quiet"); err != nil {
+		var used, capacity int64
+		for attempt := 0; attempt < 5; attempt++ {
+			used, capacity, err = measure(base)
+			if err != nil {
+				break
+			}
+			err = command("detach", base, "-quiet")
+			if err == nil {
+				break
+			}
+			if attempt < 4 {
+				pause()
+			}
+		}
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity})
+		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".usage"), usage, 0644); err != nil {
 			failures = append(failures, err)
 			continue
 		}

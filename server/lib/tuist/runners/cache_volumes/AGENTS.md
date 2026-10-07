@@ -84,3 +84,16 @@ these schemas persist volume identities and per-job uses.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
+  host-audience endpoint. Resolve job/account/repository from the executed session
+  on the authenticated node. `builtin_name` selects the existing storage identity;
+  never run the custom allocation, image, clear or seven-day expiry protocol on it.
+  Rows use the same inventory, job history and analytics without a UI type label.
+- Built-in measurements describe mounted images and the current canonical saved
+  image. `superseded_at` / measurement `retired` withdraw an older canonical
+  observation; they are not physical deletion acknowledgements. Keep them distinct
+  from `deleted_at` / `deleted`. Superseded telemetry expires after 90 days.
+
+- Allocation resolves execution binding and platform in one session query. Apply
+  the platform rollout flag to that same result, including pending (425) sessions.

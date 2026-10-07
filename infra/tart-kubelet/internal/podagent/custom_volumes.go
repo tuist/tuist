@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
@@ -37,17 +36,17 @@ type CustomVolumes struct {
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
-	ready                                      atomic.Bool
+	shareMu                                    sync.Mutex
+	reservations                               map[string]cachevolumes.Slot
+	prefetch                                   *customPrefetcher
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
-	lastReport                                 time.Time
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
-	if !c.ready.Load() {
-		return "", errors.New("custom cache agent unavailable")
-	}
+	c.shareMu.Lock()
+	defer c.shareMu.Unlock()
 	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
 	if err != nil || !mounted {
 		return "", errors.New("cache filesystem unavailable")
@@ -56,12 +55,11 @@ func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 	if err = os.MkdirAll(filepath.Join(c.Root, "owners"), 0700); err != nil {
 		return "", err
 	}
-	if err = os.WriteFile(filepath.Join(c.Root, "owners", uid), []byte(pod.Name), 0600); err != nil {
-		return "", err
-	}
-
 	path := filepath.Join(c.Root, "pods", uid)
 	if err := os.MkdirAll(path, 0777); err != nil {
+		return "", err
+	}
+	if err = os.WriteFile(filepath.Join(c.Root, "owners", uid), []byte(pod.Name), 0600); err != nil {
 		return "", err
 	}
 	return path, os.Chmod(path, 0777)
@@ -134,17 +132,11 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
-		Transfer:  &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: 21_000_000_000, Token: c.token},
-		FreeBytes: c.freeBytes,
-	}, Guard: c.guard, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: 21_000_000_000, Token: c.token},
+		FreeBytesContext: c.freeBytesContext,
+	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
 	c.Builtins.mu.Lock()
-	c.Builtins.CustomReserved = func() uint64 {
-		images, err := filepath.Glob(filepath.Join(c.Root, "images", "*.img"))
-		if err != nil {
-			return ^uint64(0) / 2
-		}
-		return uint64(len(images)) * 20_000_000_000
-	}
+	c.Builtins.CustomReserved = c.reservedBytes
 	c.Builtins.mu.Unlock()
 	if err := os.MkdirAll(c.Root, 0700); err != nil {
 		return err
@@ -166,23 +158,95 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	defer store.Close()
 	c.Store = store
-	c.ready.Store(true)
-	defer c.ready.Store(false)
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	if err := c.refreshReservations(ctx); err != nil {
+		return err
+	}
+	prefetchCtx, stopPrefetch := context.WithCancel(ctx)
+	c.prefetch = &customPrefetcher{slots: make(chan struct{}, 1), budget: 2 * time.Minute, restore: backend.Prefetch}
+	defer func() {
+		stopPrefetch()
+		c.prefetch.wait.Wait()
+	}()
+	c.prefetch.ctx = prefetchCtx
+	requests := time.NewTicker(time.Second)
+	defer requests.Stop()
+	reports := time.NewTicker(30 * time.Second)
+	defer reports.Stop()
+	return c.serve(ctx, requests.C, reports.C)
+}
+
+// Publication and each pod's mailbox make progress independently. At most eight
+// pods have a worker, with no queued work and no concurrent scans of one mailbox.
+func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time.Time) error {
+	ctx, cancel := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() {
+		cancel()
+		workers.Wait()
+	}()
+	finished := make(chan string, 9)
+	active := make(map[string]bool)
+	publishing := false
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
-			if err := c.reconcile(ctx); err != nil {
-				log.FromContext(ctx).Error(err, "custom cache reconciliation")
+		case uid := <-finished:
+			if uid == "" {
+				publishing = false
+			} else {
+				delete(active, uid)
+			}
+		case <-reports:
+			if publishing {
+				continue
+			}
+			publishing = true
+			workers.Go(func() {
+				if err := c.reconcile(ctx); err != nil {
+					log.FromContext(ctx).Error(err, "custom cache reconciliation")
+				}
+				finished <- ""
+			})
+		case <-requests:
+			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
+			stop()
+			if err != nil {
+				log.FromContext(ctx).Error(err, "custom cache pod discovery")
+				continue
+			}
+			for _, pod := range pods.Items {
+				uid := string(pod.UID)
+				if len(active) >= 8 || active[uid] || uid == "" || pod.Spec.NodeName != c.Node || pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning || pod.Labels["tuist.dev/runner"] != "true" {
+					continue
+				}
+				active[uid] = true
+				workers.Go(func() {
+					if err := c.requests(ctx, &pod); err != nil {
+						log.FromContext(ctx).Error(err, "custom cache request", "pod", pod.Name)
+					}
+					finished <- uid
+				})
 			}
 		}
 	}
 }
 
 func (c *CustomVolumes) freeBytes(string) (uint64, error) {
+	return c.freeBytesContext(context.Background(), "")
+}
+
+func (c *CustomVolumes) freeBytesContext(ctx context.Context, _ string) (uint64, error) {
+	release, err := c.guard(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+	return c.freeBytesLocked()
+}
+
+func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
 	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
 	if err != nil || !mounted {
 		return 0, errors.New("cache filesystem unavailable")
@@ -192,11 +256,7 @@ func (c *CustomVolumes) freeBytes(string) (uint64, error) {
 		return 0, err
 	}
 	reserved := uint64(len(c.Builtins.reserved)) * c.Builtins.capBytes()
-	images, err := filepath.Glob(filepath.Join(c.Root, "images", "*.img"))
-	if err != nil {
-		return 0, err
-	}
-	reserved += uint64(len(images)) * 20_000_000_000
+	reserved += c.reservedBytes()
 	if c.Builtins.converging != nil {
 		reserved += c.Builtins.converging.remaining()
 	}
@@ -244,26 +304,13 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 }
 
 func (c *CustomVolumes) reconcile(ctx context.Context) error {
-	pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(ctx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
-	if err != nil {
+	if err := c.refreshReservations(ctx); err != nil {
 		return err
 	}
-	for _, pod := range pods.Items {
-		if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning || pod.Labels["tuist.dev/runner"] != "true" {
-			continue
-		}
-		if err := c.requests(ctx, &pod); err != nil {
-			log.FromContext(ctx).Error(err, "custom cache request", "pod", pod.Name)
-		}
-	}
-	if time.Since(c.lastReport) < 30*time.Second {
-		return nil
-	}
-	c.lastReport = time.Now()
-	if err = c.Store.Reconcile(c.gone, c.report); err != nil {
+	if err := c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}
-	err = c.Store.CleanPods(func(uid string) (bool, error) {
+	err := c.Store.CleanPods(func(uid string) (bool, error) {
 		name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
 		if err != nil {
 			return false, err
@@ -273,6 +320,8 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	c.shareMu.Lock()
+	defer c.shareMu.Unlock()
 	owners, err := os.ReadDir(filepath.Join(c.Root, "owners"))
 	if os.IsNotExist(err) {
 		return nil
@@ -349,6 +398,8 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
 				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				c.prefetch.start(identity)
 			}
 		}
 		cancel()
@@ -362,6 +413,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		out.Close()
 		if err != nil {
 			return err
+		}
+		if _, err := root.Stat(name); os.IsNotExist(err) {
+			_ = root.Remove(name + ".response")
 		}
 	}
 	return nil

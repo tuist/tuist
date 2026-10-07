@@ -28,20 +28,21 @@ type ImageTransfer interface {
 // LocalImages keeps immutable masters and reflinked private ext4 images on a
 // dedicated host filesystem. A clone must fail rather than fall back to copying.
 type LocalImages struct {
-	Root         string
-	SizeGB       int
-	MinFreeBytes uint64
-	Transfer     ImageTransfer
-	Clone        func(context.Context, string, string) error
-	Observe      Observer
-	Run          func(context.Context, string, ...string) ([]byte, error)
-	Mount        func(string, string) error
-	Unmount      func(string, string) error
-	Check        func(string, string) error
-	MeasureFS    func(string) (int64, int64, error)
-	FreeBytes    func(string) (uint64, error)
-	locks        sync.Map
-	admission    contextMutex
+	Root             string
+	SizeGB           int
+	MinFreeBytes     uint64
+	Transfer         ImageTransfer
+	Clone            func(context.Context, string, string) error
+	Observe          Observer
+	Run              func(context.Context, string, ...string) ([]byte, error)
+	Mount            func(string, string) error
+	Unmount          func(string, string) error
+	Check            func(string, string) error
+	MeasureFS        func(string) (int64, int64, error)
+	FreeBytes        func(string) (uint64, error)
+	FreeBytesContext func(context.Context, string) (uint64, error)
+	locks            sync.Map
+	admission        contextMutex
 }
 
 func (b *LocalImages) command(name string, args ...string) ([]byte, error) {
@@ -157,6 +158,13 @@ func (b *LocalImages) Probe() error {
 	return b.clone(src, src+".clone")
 }
 
+func (b *LocalImages) freeBytes(ctx context.Context) (uint64, error) {
+	if b.FreeBytesContext != nil {
+		return b.FreeBytesContext(ctx, b.Root)
+	}
+	return b.FreeBytes(b.Root)
+}
+
 // Reflinks share physical extents, so admission uses filesystem free space,
 // exactly like the APFS manager, rather than summing logical image sizes.
 func (b *LocalImages) reserve(ctx context.Context) error {
@@ -164,10 +172,10 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 		return err
 	}
 	defer b.admission.Unlock()
-	if b.FreeBytes == nil {
+	if b.FreeBytes == nil && b.FreeBytesContext == nil {
 		return errors.New("missing filesystem admission")
 	}
-	free, err := b.FreeBytes(b.Root)
+	free, err := b.freeBytes(ctx)
 	if err != nil {
 		return err
 	}
@@ -201,7 +209,7 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		free, err = b.FreeBytes(b.Root)
+		free, err = b.freeBytes(ctx)
 		if err != nil {
 			return err
 		}
@@ -580,6 +588,10 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 	if err := b.reserve(ctx); err != nil {
 		return err
 	}
+	return b.prefetch(ctx, slot)
+}
+
+func (b *LocalImages) prefetch(ctx context.Context, slot Slot) error {
 	unlock, err := b.lockContext(ctx, slot.Scope)
 	if err != nil {
 		return err

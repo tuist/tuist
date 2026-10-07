@@ -4,9 +4,12 @@ package podagent
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -58,6 +61,14 @@ func TestCustomAPFSRealColdWarmIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := runCmd(time.Minute, "xattr", "-w", "dev.tuist.test", "kept", filepath.Join(mount, "dependency")); err != nil {
+		t.Fatal(err)
+	}
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(mount, &stat); err != nil {
+		t.Fatal(err)
+	}
+	usage, _ := json.Marshal(map[string]any{"id": slot.ID, "used_bytes": int64(stat.Blocks-stat.Bfree) * int64(stat.Bsize), "capacity_bytes": int64(stat.Blocks) * int64(stat.Bsize)})
+	if err := os.WriteFile(filepath.Join(branch, ".usage"), usage, 0644); err != nil {
 		t.Fatal(err)
 	}
 	detach()
@@ -117,5 +128,58 @@ func TestCustomAPFSReclaimsInterruptedInspection(t *testing.T) {
 	}
 	if err := detachCustomInspection(image); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCustomInspectionNeverMountsGuestFilesystem(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		var calls []string
+		err := inspectCustomImage("image", func(_ time.Duration, name string, args ...string) (string, error) {
+			call := name + " " + strings.Join(args, " ")
+			calls = append(calls, call)
+			switch name {
+			case "hdiutil":
+				if args[0] == "attach" {
+					if !strings.Contains(call, "-nomount") || !strings.Contains(call, "-noautofsck") || !strings.Contains(call, "-readonly") {
+						t.Fatal(call)
+					}
+					return "/dev/disk42 GUID_partition_scheme\n/dev/disk42s1 EFI\n/dev/disk42s2 Apple_APFS\n", nil
+				}
+				if strings.Join(args, " ") != "detach /dev/disk42 -quiet" {
+					t.Fatal(call)
+				}
+			case "/sbin/fsck_apfs":
+				if strings.Join(args, " ") != "-n /dev/rdisk42s2" {
+					t.Fatal(call)
+				}
+				if fail {
+					return "", errors.New("corrupt")
+				}
+			default:
+				t.Fatal(call)
+			}
+			return "", nil
+		})
+		if (err != nil) != fail || len(calls) != 3 {
+			t.Fatal(calls, err)
+		}
+	}
+}
+
+func TestCustomAPFSReclaimsInterruptedUnmountedInspection(t *testing.T) {
+	image := filepath.Join(t.TempDir(), "cache.sparseimage")
+	if err := createCustomImage(context.Background(), image, 20_000_000_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCmd(time.Minute, "hdiutil", "attach", image, "-readonly", "-nomount", "-noautofsck"); err != nil {
+		t.Fatal(err)
+	}
+	defer detachCustomInspection(image)
+	if err := detachCustomInspection(image); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCmd(time.Minute, "hdiutil", "info")
+	if err != nil || strings.Contains(out, image) {
+		t.Fatal("inspection device retained", err)
 	}
 }

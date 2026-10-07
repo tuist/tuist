@@ -1,6 +1,9 @@
 defmodule Tuist.Runners.CacheVolumesTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Mimic
+
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheVolumes
@@ -14,6 +17,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
+    stub(Environment, :runner_cache_volumes_enabled?, fn _ -> true end)
     account = AccountsFixtures.account_fixture()
 
     %{
@@ -66,10 +70,39 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
 
+  test "legacy Linux allocation conflict target still works during rolling deploys", %{job: job} do
+    {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    volume = Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id)
+    fields = [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid]
+
+    row =
+      volume
+      |> Map.take(fields ++ [:repository_id, :repository, :inserted_at, :updated_at])
+      |> Map.put(:id, Ecto.UUID.generate())
+
+    assert {0, _} = Repo.insert_all(Volume, [row], on_conflict: :nothing, conflict_target: fields)
+    assert Repo.get!(Volume, volume.id).platform == "linux"
+  end
+
   test "macOS identities are separate while existing Linux UUIDs and built-in heads survive", %{
     job: job,
     account: account
   } do
+    # Simulate the later enablement migration in transaction-local tables, so
+    # concurrent tests and the pre-enable database retain the legacy index.
+    for table <- ~w(runner_cache_volumes runner_cache_volume_uses runner_cache_volume_measurements) do
+      Repo.query!("CREATE TEMP TABLE #{table} (LIKE public.#{table} INCLUDING ALL) ON COMMIT DROP")
+    end
+
+    for [index] <-
+          Repo.query!("""
+          SELECT indexrelid::regclass::text FROM pg_index
+          WHERE indrelid = 'pg_temp.runner_cache_volumes'::regclass
+            AND indisunique AND indnkeyatts = 7
+          """).rows do
+      Repo.query!("DROP INDEX #{index}")
+    end
+
     {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     builtin = VolumeHeads.reserved_tuist_cache()
     assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, builtin)
@@ -155,7 +188,9 @@ defmodule Tuist.Runners.CacheVolumesTest do
       "platform" => "linux"
     }
 
-    assert CacheVolumes.platform("mac-pod", "mac-node") == :macos
+    expect(Environment, :runner_cache_volumes_enabled?, fn :macos -> false end)
+    assert {:error, :unavailable} = CacheVolumes.allocate(params)
+    expect(Environment, :runner_cache_volumes_enabled?, fn :macos -> true end)
     assert {:ok, use} = CacheVolumes.allocate(params)
     assert Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id).platform == "macos"
     Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
@@ -191,6 +226,12 @@ defmodule Tuist.Runners.CacheVolumesTest do
         "uid" => 1001
       }
 
+      expect(Environment, :runner_cache_volumes_enabled?, fn platform ->
+        assert platform == @session_platform
+        false
+      end)
+
+      assert {:error, :unavailable} = CacheVolumes.allocate(params)
       assert {:error, :pending} = CacheVolumes.allocate(params)
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
       assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})

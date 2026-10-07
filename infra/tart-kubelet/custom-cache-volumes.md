@@ -39,21 +39,25 @@ provider instance, immutable repository/pipeline scope and publication policy.
 Successful job teardown cleanly detaches each image. Failure, cancellation,
 forced detach and abrupt shutdown produce no eligible marker. The host waits
 for API Pod absence **and** a stopped Tart process before inspecting the image.
-It verifies APFS read-only with diskutil, persists a verification guard, uploads
-the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
+It attaches the disk device with `hdiutil -readonly -nomount -noautofsck`, checks
+the raw APFS partition with `fsck_apfs -n` without mounting its filesystem in the
+host kernel, persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
 Only an accepted image becomes a local master. A failed upload retries without
 reformatting or consuming another verification; a crash during verification
 poisons the branch. Expired or cleared generations cannot publish later.
 
 Mount duration remains unknown because host preparation excludes guest attachment.
 Usage remains unknown while the guest owns the image; after clean teardown the
-host records verified filesystem usage/capacity. These are logical filesystem
-bytes, not unique physical allocation or billing measurements. APFS shares
+host records the guest's lease-bound, validated filesystem usage/capacity sampled
+before the successful detach. These measurements do not authorize disk admission.
+They are logical filesystem bytes, not unique physical allocation or billing
+measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
-reserves each live custom image alongside existing built-in reservations on the
-same quota-bounded filesystem. Custom allocation is serialized with built-in
-admission, including a required cold download; this favors a simple correct
-capacity bound over simultaneous materialization on the two-guest hosts.
+reserves only the remaining growth (capacity minus allocated blocks) of running
+custom guests alongside built-in reservations on the same bounded filesystem.
+Stopped guests reserve no extra growth while publication retries. A short shared
+lock records admission before creation; downloads and image creation run outside
+it. Live reservations are recovered from the durable journal after restart.
 
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and
@@ -64,15 +68,22 @@ the APFS mount; no macOS container-volume support is implied.
 
 1. Deploy the platform migration and matching server code while macOS custom
    volumes remain disabled. Linux rows retain `platform=linux` and their existing
-   identity. The migration replaces the allocation uniqueness index; old server
-   processes cannot allocate against the new index and requests fall back cold
-   until those processes are replaced. Existing report/image operations continue.
-   For an application downgrade, disable allocations and drain jobs, reclaim all
-   macOS data and remove its metadata, then run the guarded migration rollback
-   to restore the old index before starting old code. The rollback refuses to
-   collapse any remaining macOS rows into Linux identities.
+   identity. Keep both the seven-column legacy index and the platform-aware
+   index so old pods can still allocate during rollout and an image rollback.
+   The legacy index intentionally prevents identical cross-platform identities
+   until enablement. After all server pods use the new conflict target and the
+   rollback window closes, **ship a separate enablement migration** that drops
+   `runner_cache_volumes_provider_identity` concurrently. Do not enable macOS
+   custom volumes before that migration. This PR does not drop that index.
+   After enablement, downgrading to pre-platform code requires disabling new
+   allocations, draining jobs, reclaiming macOS data/metadata, and running the
+   guarded rollback to recreate the legacy index. The rollback refuses any
+   remaining macOS rows.
 2. Release the runner image with the common client and successful-job detach
    hook. Older images keep built-in caches; they cannot mount custom volumes.
+   Update the client before the host verification change: publication now requires
+   its lease-bound `.usage` report. Older custom-volume clients without that report
+   can still read caches, but their branches are discarded after teardown.
 3. Release the CAPI provider/tart-kubelet with the APFS backend. Keep
    `runnersFleet.customCacheVolumes.enabled=false` until staging validation.
 4. Enable that value in staging. Helm renders the server gate and shared agent
@@ -101,19 +112,49 @@ storage tests cover retry, rejected publication and interrupted verification;
 shared journal tests cover restart and writer fencing. Provider authorization,
 clear epochs and expiry remain database-tested server responsibilities.
 
-Interrupted host inspection mounts use a deterministic host-only path; poisoned
-branch cleanup detaches any retained read-only mount before deleting its image.
-An unavailable agent retries initialization and leaves ordinary jobs cold instead
-of stopping tart-kubelet.
+Interrupted host inspection devices are found by backing-image path and detached
+before poisoned-branch cleanup. Cleanup also handles mounts left by older agents.
+An unavailable agent retries initialization. Pods receive their mailbox whenever
+the cache filesystem is mounted, including before the agent becomes ready. Each
+attach attempt has a unique request name and cleans up its response. Clean detach
+retries five times for transient busy files; force-detach never permits publication.
+A failed detach logs a warning explaining that affected volumes will not publish.
 
-The host scans requests once per second, reports/reclaims every 30 seconds, and
+The host scans requests once per second with independent per-pod workers (at most
+eight, without a queue), and publishes/reclaims on a separate worker every
+30 seconds. Slow verification, uploads and another guest's restore cannot block
+an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
 
 Acquisition follows Linux's 25-second host budget and 30-second client budget.
 Cancellation reaches APFS creation/cloning, remote restore and admission waits;
-an expired response cannot trigger a guest mount. Linux's bounded background
-master prefetch remains Linux-specific. macOS custom volumes emit the shared
+an expired response cannot trigger a guest mount. Like Linux, macOS can prefetch
+one immutable master after a restore timeout, with a two-minute budget, no queue,
+and a separate disk reservation for the archive and expanded image. Agent shutdown
+cancels and joins that worker. macOS custom volumes emit the shared
 operation/source/result metrics through tart-kubelet's existing metrics endpoint.
 Custom admission counts outstanding built-in convergence downloads, and built-in
 convergence reserves space for live custom images before starting a download.
+
+## Built-in volume measurements
+
+The existing Xcode/Tuist cache appears in the same volume inventory as custom
+volumes after its first measured job. The guest samples the mounted APFS
+filesystem at attach and teardown, including capacity, used bytes, mount duration
+and warm/cold source. After finalization removes the private branch, tart-kubelet
+queues the report durably and retries using its host-scoped identity. The server
+resolves the account and repository through the actual executed job's session.
+
+Roll out the additive server migration and endpoint before the host binary and
+runner image. Older hosts/images continue running but cannot populate missing
+measurements retroactively. New hosts retain reports while the endpoint is
+unavailable. Rolling back the host/image stops new observations without changing
+built-in publication; leave the additive schema in place when rolling back the
+server.
+
+Storage totals track the measured canonical saved image and observed job copies,
+not a census of physical host/S3 replicas. Superseding a canonical measurement is
+recorded separately from physical deletion. Built-in volumes do not participate
+in custom-volume expiry or clear until their backend supports the same fencing
+contract; the UI does not expose an unsafe clear action.

@@ -2,11 +2,13 @@ package cachevolumes
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
@@ -17,7 +19,7 @@ func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
 			t.Fatal(size)
 		}
 		return os.WriteFile(path, []byte("cold APFS"), 0600)
-	}, Verify: func(string) (int64, int64, error) { return 3, 20_000_000_000, nil }}
+	}, Verify: func(string) error { return nil }}
 	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		if name != "cp" || args[0] != "-c" {
 			t.Fatalf("unexpected %s %v", name, args)
@@ -43,6 +45,10 @@ func apfsPath(t *testing.T, b *APFSImages, slot Slot) string {
 }
 func detached(t *testing.T, path, id string) {
 	t.Helper()
+	usage, _ := json.Marshal(map[string]any{"id": id, "used_bytes": 3, "capacity_bytes": 20_000_000_000})
+	if err := os.WriteFile(filepath.Join(path, ".usage"), usage, 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(path, ".detached"), []byte(id), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +131,7 @@ func TestAPFSNoPublicationWithoutCleanDetach(t *testing.T) {
 				detached(t, path, "other")
 			case "failed verification":
 				detached(t, path, slot.ID)
-				b.Verify = func(string) (int64, int64, error) { return 0, 0, errors.New("disk failure") }
+				b.Verify = func(string) error { return errors.New("disk failure") }
 			case "interrupted verification":
 				detached(t, path, slot.ID)
 				_ = os.WriteFile(b.image(slot)+".checking", nil, 0600)
@@ -205,5 +211,127 @@ func TestAPFSCancelledCreationNeverExposesImage(t *testing.T) {
 		if _, err := os.Stat(file); !os.IsNotExist(err) {
 			t.Fatalf("cancelled creation left %s: %v", file, err)
 		}
+	}
+}
+
+func TestAPFSAdmissionDoesNotHoldGuardDuringCreation(t *testing.T) {
+	b, _ := newAPFS(t)
+	reserved := false
+	b.Reserve = func(context.Context, Slot) (func(bool), error) {
+		reserved = true
+		return func(retain bool) { reserved = retain }, nil
+	}
+	original := b.Create
+	b.Create = func(ctx context.Context, path string, bytes int64) error {
+		if !reserved {
+			t.Fatal("creation was not reserved")
+		}
+		return original(ctx, path, bytes)
+	}
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err != nil {
+		t.Fatal(err)
+	}
+	if !reserved {
+		t.Fatal("live guest lost its reservation")
+	}
+}
+
+func TestAPFSTimedOutRestoreCanPrefetchAndWarmNextJob(t *testing.T) {
+	b, _ := newAPFS(t)
+	remote := &cancelTransfer{cancelled: make(chan struct{})}
+	b.Transfer = remote
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.BaseGeneration = 1
+	slot.ImageDigest = strings.Repeat("b", 40)
+	slot.ContentDigest = strings.Repeat("c", 64)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := b.Attach(ctx, slot, apfsPath(t, b, slot)); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	remote.ready = true
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
+	slot.ID = second
+	slot.PodUID = "next"
+	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err != nil {
+		t.Fatal(err)
+	}
+	if remote.downloads != 2 {
+		t.Fatalf("next job re-downloaded master: %d", remote.downloads)
+	}
+}
+
+type cancelTransfer struct {
+	cancelled chan struct{}
+	ready     bool
+	downloads int
+	lastID    string
+}
+
+func (r *cancelTransfer) Download(ctx context.Context, slot Slot, path string) error {
+	r.downloads++
+	r.lastID = slot.ID
+	if r.ready {
+		return os.WriteFile(path, []byte("master"), 0600)
+	}
+	<-ctx.Done()
+	close(r.cancelled)
+	return ctx.Err()
+}
+func (*cancelTransfer) Publish(Slot, string, string, string) (int64, error) {
+	panic("unexpected publication")
+}
+
+func TestAPFSRejectsUnboundAndInvalidUsage(t *testing.T) {
+	for _, contents := range []string{
+		`{"id":"other","used_bytes":3,"capacity_bytes":20}`,
+		`{"id":"lease","used_bytes":21,"capacity_bytes":20}`,
+		`{"id":"lease","used_bytes":-1,"capacity_bytes":20}`,
+		`{"id":"lease","used_bytes":1,"capacity_bytes":21}`,
+	} {
+		path := filepath.Join(t.TempDir(), "volume")
+		_ = os.Mkdir(path, 0755)
+		_ = os.WriteFile(filepath.Join(path, ".usage"), []byte(contents), 0600)
+		if _, _, err := APFSUsage(path, "lease", 20); err == nil {
+			t.Fatal("accepted invalid usage", contents)
+		}
+	}
+}
+
+func TestAPFSPrefetchReservesOnceWithoutChangingTransferIdentity(t *testing.T) {
+	b, _ := newAPFS(t)
+	remote := &cancelTransfer{ready: true}
+	b.Transfer = remote
+	reserved := false
+	b.FreeBytes = func(string) (uint64, error) {
+		if reserved {
+			return 30_000_000_000, nil
+		}
+		return 50_000_000_000, nil
+	}
+	b.Reserve = func(_ context.Context, slot Slot) (func(bool), error) {
+		if slot.ID != "prefetch" {
+			t.Fatal("background work reused a guest reservation", slot.ID)
+		}
+		reserved = true
+		return func(retain bool) {
+			if retain {
+				t.Error("background reservation retained")
+			}
+			reserved = false
+		}, nil
+	}
+	slot := Slot{Identity: identity(first)}
+	slot.BaseGeneration = 1
+	slot.ImageDigest = strings.Repeat("b", 40)
+	slot.ContentDigest = strings.Repeat("c", 64)
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
+	if reserved || remote.downloads != 1 || remote.lastID != slot.ID {
+		t.Fatal("prefetch reservation leaked", reserved, remote.downloads)
 	}
 }

@@ -79,6 +79,14 @@ func Open(path string, backend Backend) (*Store, error) {
 	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, locks: map[string]*leaseLock{}}, nil
 }
 func (s *Store) Close() error { return s.root.Close() }
+
+// Snapshot returns durable leases for admission recovery.
+func (s *Store) Snapshot() ([]Slot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.slots()
+}
+
 func (s *Store) activePath(slot Slot) string {
 	return filepath.Join(s.path, "pods", slot.PodUID, slot.Scope)
 }
@@ -374,9 +382,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 // Clean scratch files only after both pod teardown fences and after all block
 // mounts for that pod have been detached. Never traverse a live mount.
 func (s *Store) CleanPods(gone func(string) (bool, error)) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	slots, err := s.slots()
+	slots, err := s.Snapshot()
 	if err != nil {
 		return err
 	}
@@ -395,19 +401,38 @@ func (s *Store) CleanPods(gone func(string) (bool, error)) error {
 	if err != nil {
 		return err
 	}
+	var failures []error
 	for _, uid := range names {
 		if !component.MatchString(uid) || mounted[uid] {
 			continue
 		}
 		done, err := gone(uid)
 		if err != nil {
-			return err
+			failures = append(failures, err)
+			continue
 		}
 		if done {
-			if err := s.root.RemoveAll("pods/" + uid); err != nil {
-				return err
+			if err := s.cleanPod(uid); err != nil {
+				failures = append(failures, err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(failures...)
+}
+
+func (s *Store) cleanPod(uid string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Allocation may have journaled a lease while the external writer fence was
+	// being checked. Keep that mailbox, without holding the lock across API calls.
+	slots, err := s.slots()
+	if err != nil {
+		return err
+	}
+	for _, slot := range slots {
+		if slot.PodUID == uid && (slot.State == "active" || slot.State == "allocated") {
+			return nil
+		}
+	}
+	return s.root.RemoveAll("pods/" + uid)
 }

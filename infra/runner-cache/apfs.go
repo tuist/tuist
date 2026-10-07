@@ -18,10 +18,10 @@ import (
 // Built-in Tuist/CAS images remain owned by the existing VolumeManager.
 type APFSImages struct {
 	LocalImages
-	Create func(context.Context, string, int64) error
-	Guard  func(context.Context) (func(), error)
-	Verify func(string) (int64, int64, error)
-	Detach func(string) error
+	Create  func(context.Context, string, int64) error
+	Reserve func(context.Context, Slot) (func(bool), error)
+	Verify  func(string) error
+	Detach  func(string) error
 }
 
 func (b *APFSImages) Init() error {
@@ -48,20 +48,20 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
 		}
 	}()
-	if b.Guard != nil {
-		release, err := b.Guard(ctx)
-		if err != nil {
-			return err
-		}
-		defer release()
-	}
 	if err = ctx.Err(); err != nil {
 		return err
 	}
 	image := b.image(slot)
-	if _, err := os.Lstat(image); os.IsNotExist(err) {
+	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
 		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
 			return err
+		}
+		if b.Reserve != nil {
+			finish, reserveErr := b.Reserve(ctx, slot)
+			if reserveErr != nil {
+				return reserveErr
+			}
+			defer func() { finish(err == nil) }()
 		}
 		tmp := image + ".sparseimage"
 		_ = os.Remove(tmp)
@@ -101,8 +101,8 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 		if err = durableRename(tmp, image); err != nil {
 			return err
 		}
-	} else if err != nil {
-		return err
+	} else if statErr != nil {
+		return statErr
 	}
 	if source == "unknown" {
 		source = "local"
@@ -182,7 +182,10 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		if err = syncFile(filepath.Dir(image)); err != nil {
 			return err
 		}
-		used, capacity, err := b.Verify(image)
+		if err := b.Verify(image); err != nil {
+			return fmt.Errorf("%w: %v", ErrPoisoned, err)
+		}
+		used, capacity, err := APFSUsage(path, slot.ID, int64(b.SizeGB)*1_000_000_000)
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrPoisoned, err)
 		}
@@ -246,3 +249,22 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 	return root.RemoveAll(filepath.Base(path))
 }
 func (b *APFSImages) Keep(slot Slot, path string) error { return b.Delete(slot, path) }
+
+func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
+		return errors.New("invalid prefetch identity")
+	}
+	if err := b.reserve(ctx); err != nil {
+		return err
+	}
+	if b.Reserve != nil {
+		reservation := slot
+		reservation.ID = "prefetch"
+		finish, err := b.Reserve(ctx, reservation)
+		if err != nil {
+			return err
+		}
+		defer finish(false)
+	}
+	return b.prefetch(ctx, slot)
+}

@@ -26,12 +26,9 @@ defmodule Tuist.Repo.Migrations.ScopeCacheVolumesByPlatform do
              concurrently: true
            )
 
-    drop index(
-           :runner_cache_volumes,
-           [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid],
-           name: :runner_cache_volumes_provider_identity,
-           concurrently: true
-         )
+    # Keep the seven-column index for old server pods and image rollback.
+    # Drop it in the later macOS enablement migration, after all servers use
+    # the platform-aware conflict target.
   end
 
   def down do
@@ -45,12 +42,20 @@ defmodule Tuist.Repo.Migrations.ScopeCacheVolumesByPlatform do
     END $$;
     """
 
-    create unique_index(
-             :runner_cache_volumes,
-             [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid],
-             name: :runner_cache_volumes_provider_identity,
-             concurrently: true
-           )
+    create_if_not_exists unique_index(
+                           :runner_cache_volumes,
+                           [
+                             :account_id,
+                             :provider,
+                             :provider_instance,
+                             :scope_id,
+                             :key,
+                             :architecture,
+                             :uid
+                           ],
+                           name: :runner_cache_volumes_provider_identity,
+                           concurrently: true
+                         )
 
     drop index(
            :runner_cache_volumes,

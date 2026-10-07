@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
 )
@@ -192,4 +193,277 @@ func TestCustomFreeBytesCountsOutstandingConvergence(t *testing.T) {
 	if err != nil || before-after != 10*gib {
 		t.Fatal(before, after, err)
 	}
+}
+
+func TestCustomShareAvailableBeforeWorkerStarts(t *testing.T) {
+	m, be := m2L(t)
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "job", UID: "uid"}}
+	share, err := c.Share(pod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(share); err != nil {
+		t.Fatal(err)
+	}
+	owner, err := os.ReadFile(filepath.Join(c.Root, "owners", "uid"))
+	if err != nil || string(owner) != "job" {
+		t.Fatal(string(owner), err)
+	}
+	be.notMounted = true
+	if _, err := c.Share(pod); err == nil {
+		t.Fatal("shared unmounted cache filesystem")
+	}
+}
+
+func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
+	m, be := m2L(t)
+	be.perMaster = 15_000_000_000
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m, Namespace: "runners"}
+	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: c.Root, SizeGB: 20, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Reserve: c.reserve, Create: func(_ context.Context, path string, _ int64) error {
+		if !m.mu.TryLock() {
+			t.Error("built-in admission blocked during create")
+		} else {
+			m.mu.Unlock()
+		}
+		return os.WriteFile(path, nil, 0600)
+	}}
+	if err := backend.Init(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := cachevolumes.Open(c.Root, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	c.Store = store
+	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1}
+	if _, err := store.Acquire(context.Background(), id, "job", "uid"); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.reservedBytes(); got != 5_000_000_000 {
+		t.Fatal("double counted image allocation", got)
+	}
+	// Reconstruct the same reservation from the journal after an agent restart.
+	c.reservations = nil
+	c.Running = func(context.Context, string) (bool, error) { return true, nil }
+	if err := c.refreshReservations(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.reservedBytes(); got != 5_000_000_000 {
+		t.Fatal("lost reservation after restart", got)
+	}
+	c.Running = func(context.Context, string) (bool, error) { return false, nil }
+	if err := c.refreshReservations(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.reservedBytes(); got != 0 {
+		t.Fatal("stopped VM still reserves growth", got)
+	}
+	if _, err := os.Stat(filepath.Join(c.Root, "images", id.ID+".img")); err != nil {
+		t.Fatal("removed pending image", err)
+	}
+}
+
+func TestCustomPrefetchHasIndependentDeadlineAndNoQueue(t *testing.T) {
+	started := make(chan struct{})
+	finished := make(chan error, 1)
+	p := &customPrefetcher{ctx: context.Background(), slots: make(chan struct{}, 1), budget: 20 * time.Millisecond, restore: func(ctx context.Context, _ cachevolumes.Slot) error {
+		close(started)
+		<-ctx.Done()
+		finished <- ctx.Err()
+		return ctx.Err()
+	}}
+	if p.start(cachevolumes.Identity{}) {
+		t.Fatal("prefetching empty master")
+	}
+	if !p.start(cachevolumes.Identity{BaseGeneration: 1}) {
+		t.Fatal("did not start")
+	}
+	<-started
+	if p.start(cachevolumes.Identity{BaseGeneration: 1}) {
+		t.Fatal("queued another prefetch")
+	}
+	select {
+	case err := <-finished:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("unbounded prefetch")
+	}
+	p.wait.Wait()
+}
+
+func TestCustomAdmissionLockWaitUsesRequestDeadline(t *testing.T) {
+	m, _ := m2L(t)
+	c := &CustomVolumes{Root: m.Root, Builtins: m}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := c.freeBytesContext(ctx, ""); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+}
+
+// The same Store used by the scheduler blocks real Attach/Seal calls here, so
+// this catches accidental reintroduction of a shared mailbox/publication loop.
+type blockingCustomBackend struct {
+	cachevolumes.Backend
+	attachStarted, sealStarted chan struct{}
+	release                    chan struct{}
+}
+
+func (b *blockingCustomBackend) Attach(ctx context.Context, slot cachevolumes.Slot, _ string) error {
+	if slot.PodName == "slow" {
+		close(b.attachStarted)
+		select {
+		case <-b.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+func (b *blockingCustomBackend) Measure(cachevolumes.Slot, string) (int64, int64, error) {
+	return 0, 20_000_000_000, nil
+}
+func (b *blockingCustomBackend) Seal(cachevolumes.Slot, string) error {
+	close(b.sealStarted)
+	<-b.release
+	return nil
+}
+
+func TestCustomMailboxesProgressDuringSlowRestoreAndPublication(t *testing.T) {
+	for _, operation := range []string{"restore", "publish"} {
+		t.Run(operation, func(t *testing.T) {
+			m, _ := m2L(t)
+			root := filepath.Join(m.Root, "custom")
+			backend := &blockingCustomBackend{attachStarted: make(chan struct{}), sealStarted: make(chan struct{}), release: make(chan struct{})}
+			store, err := cachevolumes.Open(root, backend)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			id := func(slow bool) cachevolumes.Identity {
+				if slow {
+					return cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1, CanPublish: true}
+				}
+				return cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222", Scope: strings.Repeat("b", 64), Account: 1}
+			}
+			kube := fake.NewSimpleClientset()
+			addPod := func(name string) {
+				pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "runners", UID: types.UID(name), Labels: map[string]string{"tuist.dev/runner": "true"}}, Spec: corev1.PodSpec{NodeName: "host"}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+				if _, err := kube.CoreV1().Pods("runners").Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(root, "pods", name)
+				if err := os.MkdirAll(path, 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(path, "cache.request"), []byte(`{"key":"gradle","uid":501}`), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var input struct {
+					Pod string `json:"pod_name"`
+				}
+				_ = json.NewDecoder(r.Body).Decode(&input)
+				if r.URL.Path == "/authorize" {
+					_ = json.NewEncoder(w).Encode(id(input.Pod == "slow"))
+				} else {
+					_, _ = w.Write([]byte(`{"action":"seal"}`))
+				}
+			}))
+			defer server.Close()
+			c := &CustomVolumes{Root: root, Store: store, Kube: kube, Node: "host", Namespace: "runners", Builtins: m, URL: server.URL, HTTP: server.Client(), tokenValue: "token", tokenUntil: time.Now().Add(time.Hour), Running: func(context.Context, string) (bool, error) { return false, nil }}
+			requests, reports := make(chan time.Time), make(chan time.Time)
+			ctx, cancel := context.WithCancel(context.Background())
+			stopped := make(chan struct{})
+			go func() { defer close(stopped); _ = c.serve(ctx, requests, reports) }()
+			// Release publication before waiting for shutdown; mailbox restores are canceled.
+			defer func() {
+				cancel()
+				close(backend.release)
+				<-stopped
+			}()
+			var started <-chan struct{}
+			if operation == "restore" {
+				addPod("slow")
+				requests <- time.Now()
+				started = backend.attachStarted
+			} else {
+				if _, err := store.Acquire(ctx, id(true), "finished", "finished"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "pods", "finished", id(true).Scope, ".mounted"), []byte(id(true).ID), 0600); err != nil {
+					t.Fatal(err)
+				}
+				reports <- time.Now()
+				started = backend.sealStarted
+			}
+			select {
+			case <-started:
+			case <-time.After(3 * time.Second):
+				t.Fatal("slow operation never started")
+			}
+			addPod("fast")
+			requests <- time.Now()
+			deadline := time.After(3 * time.Second)
+			for {
+				data, err := os.ReadFile(filepath.Join(root, "pods", "fast", "cache.request.response"))
+				if err == nil {
+					if !strings.Contains(string(data), id(false).ID) {
+						t.Fatalf("fast request failed: %s", data)
+					}
+					break
+				}
+				select {
+				case <-deadline:
+					t.Fatal("unrelated mailbox blocked behind slow work")
+				case <-time.After(10 * time.Millisecond):
+				}
+			}
+		})
+	}
+}
+
+func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
+	m, _ := m2L(t)
+	root := filepath.Join(m.Root, "custom")
+	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: root, SizeGB: 20, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Create: func(_ context.Context, p string, _ int64) error { return os.WriteFile(p, nil, 0600) }}
+	if err := backend.Init(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := cachevolumes.Open(root, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1}
+	if _, err := store.Acquire(context.Background(), id, "old", "old"); err != nil {
+		t.Fatal(err)
+	}
+	started, release := make(chan struct{}), make(chan struct{})
+	c := &CustomVolumes{Root: root, Builtins: m, Store: store, Running: func(context.Context, string) (bool, error) { close(started); <-release; return false, nil }}
+	finished := make(chan error, 1)
+	go func() { finished <- c.refreshReservations(context.Background()) }()
+	<-started
+	pending := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222"}}
+	releaseReservation, err := c.reserve(context.Background(), pending)
+	if err != nil {
+		close(release)
+		<-finished
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	if got := c.reservedBytes(); got != 2*customCapacity {
+		t.Fatal("lost in-flight reservation", got)
+	}
+	releaseReservation(false)
 }

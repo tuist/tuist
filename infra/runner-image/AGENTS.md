@@ -773,3 +773,10 @@ semantics; this doc is just about the VM image.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
+  size, mount time/duration and host-staged warm/cold source. Stage once at attach
+  and again before detach; never estimate sparse-image filesystem usage from the
+  image file's host size. The host adds scope/outcome and authenticates reporting.
+- Failed custom-volume detach must emit a warning that publication is skipped;
+  preserve the job's exit status and never force-detach a publishable image.

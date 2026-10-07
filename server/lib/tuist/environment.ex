@@ -1983,6 +1983,9 @@ defmodule Tuist.Environment do
     codebase_search_url(environment) != nil
   end
 
+  def runner_cache_volumes_enabled?(:linux), do: Application.get_env(:tuist, :runner_linux_cache_volumes, false)
+  def runner_cache_volumes_enabled?(:macos), do: Application.get_env(:tuist, :runner_macos_cache_volumes, false)
+
   @doc """
   Kubernetes namespace customer runner Pods live in. The
   webhook handler writes RunnerAssignment CRs into this

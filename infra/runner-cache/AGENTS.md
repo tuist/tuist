@@ -9,7 +9,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - APFSImages uses private APFS sparse images. Guests mount an image hard link
   through their own virtio-fs share. Host image paths and masters stay private.
   Require clean guest detach, API absence AND stopped Tart VM before verifying
-  and publishing. Never attach a live guest image on the host.
+  and publishing. Never mount guest-written APFS on the host; use an unmounted read-only device
+  and userspace fsck. Validate lease-bound guest usage separately from admission.
 - Only accepted publication becomes a master. Failed upload retries and restart
   recovery retain the same journal identity. Clear conflicts discard the branch.
 - Default custom capacity is 20 decimal GB. Built-in Tuist/CAS macOS caches keep
@@ -37,6 +38,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   reclaim their journals only after the existing writer fences pass.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
-- Linux may prefetch one immutable master after a timed-out warm acquisition,
+- Linux and macOS may prefetch one immutable master after a timed-out warm acquisition,
   bounded to two minutes with no queue and the same disk reserve. Never create
   a private branch, publish, or extend the foreground budget from prefetch.
+
+- APFS admission records a reservation under the built-in lock, then releases it
+  before downloads or formatting. Reserve remaining growth only for running VMs;
+  retain journal recovery and bounded, separately reserved prefetch work.
+- Per-pod cleanup errors must not prevent cleanup of other fenced pods.
+- Pod cleanup checks external writer fences outside the global allocation lock,
+  then rechecks the durable lease under that lock before removing a mailbox.

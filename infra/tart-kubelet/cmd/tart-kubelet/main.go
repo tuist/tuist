@@ -836,7 +836,9 @@ func recoverState(
 			startTS = &now
 		}
 		entry := &podagent.Entry{
-			VMName: vmName,
+			PodName: pod.Name,
+			PodUID:  string(pod.UID),
+			VMName:  vmName,
 			// Pod.Status.StartTime is when the API server first saw the
 			// Pod, not when we started the clone — observing
 			// `tart_kubelet_vm_boot_duration_seconds` against it would

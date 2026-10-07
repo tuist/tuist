@@ -470,6 +470,8 @@ use_local_cold_cache() {
 # materializes the dispatched account's master into the branch.
 attach_cache_image() {
   local err
+  local attach_started_ms
+  attach_started_ms=$(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1000')
   if [ ! -f "${CACHE_IMAGE}" ]; then
     cache_diag "no cache image at ${CACHE_IMAGE}"
     return 1
@@ -482,6 +484,8 @@ attach_cache_image() {
   fi
   CACHE_MOUNT="${CACHE_MOUNTPOINT}"
   CACHE_IMAGE_ACTIVE=1
+  CACHE_ATTACHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  CACHE_ATTACH_MS=$(( $(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1000') - attach_started_ms ))
   # Make every inherited artifact owner-writable so the CLI can re-sign in place.
   # Empty (cold) images have no tuist/ yet, so guard on its presence.
   if [ -d "${CACHE_MOUNT}/tuist" ]; then
@@ -1218,6 +1222,7 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
+      stage_volume_usage attach
       # Both caches' limits, from what the job inherited, before the prune that
       # applies the compilation cache's.
       set_cache_limits attach
@@ -1252,6 +1257,26 @@ wait_for_cache_ready() {
     waited=$((waited + 1))
   done
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
+}
+
+# Measure the mounted APFS filesystem, not the sparse image's host allocation.
+# The host supplies identity/outcome and sends this after fencing the guest.
+stage_volume_usage() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local sample used capacity source warm
+  sample=$(df -kP "${CACHE_MOUNT}" 2>/dev/null | awk 'NR == 2 {printf "%.0f %.0f", $3 * 1024, $2 * 1024}')
+  used=${sample%% *}
+  capacity=${sample#* }
+  case "${used}:${capacity}" in *[!0-9:]*|:*) return 0 ;; esac
+  [ "${capacity}" -gt 0 ] 2>/dev/null || return 0
+  if [ "$1" = "attach" ]; then CACHE_ATTACHED_SIZE_BYTES=${used}; fi
+  [ -n "${CACHE_ATTACHED_SIZE_BYTES:-}" ] || return 0
+  source=$(cat "${STATUS_SHARE}/cache-source" 2>/dev/null)
+  case "${source}" in warm|seeded) warm=true ;; cold) warm=false ;; *) return 0 ;; esac
+  printf '{"attached_at":"%s","attach_ms":%s,"attached_size_bytes":%s,"size_bytes":%s,"capacity_bytes":%s,"warm":%s}\n' \
+    "${CACHE_ATTACHED_AT}" "${CACHE_ATTACH_MS}" "${CACHE_ATTACHED_SIZE_BYTES}" "${used}" "${capacity}" "${warm}" \
+    > "${STATUS_SHARE}/cache-usage.json.tmp" 2>/dev/null && \
+    mv "${STATUS_SHARE}/cache-usage.json.tmp" "${STATUS_SHARE}/cache-usage.json" 2>/dev/null || true
 }
 
 # The post-job fill % at or above which an image is refused promotion. A master
@@ -1866,7 +1891,6 @@ while true; do
       # account's cache master into the branch share now. Wait (bounded) for
       # the cache-ready signal before the runner touches the cache, then
       # snapshot the pre-job inventory. Cold path on timeout; never blocks.
-      wait_for_cache_ready
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
       # synced the guest clock, which can start minutes behind. The
@@ -1882,6 +1906,7 @@ while true; do
       else
         echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
       fi
+      wait_for_cache_ready
       # Fork the machine-metrics sampler so it runs for the job's
       # duration and POSTs CPU/memory/network/disk to the server. It
       # dies with the VM when the EXIT trap halts us after the runner
@@ -2132,6 +2157,7 @@ HOOK
         mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
         cache_within_fill_ceiling=0
       fi
+      stage_volume_usage teardown
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then
@@ -2147,7 +2173,9 @@ HOOK
         report_volume_head "${JOB_PASSED}"
       fi
       if [ "${JOB_PASSED}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
-        /usr/local/bin/tuist-cache-volume --detach-all || true
+        if ! /usr/local/bin/tuist-cache-volume --detach-all; then
+          echo "$(date -u +%FT%TZ) dispatch-poll: WARNING custom cache detach failed; affected volumes will not be published" >&2
+        fi
       fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last

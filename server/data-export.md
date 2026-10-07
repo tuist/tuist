@@ -430,12 +430,12 @@ The archive contains everything needed to understand the account's complete data
 
 - **Pending Bazel profiles** (`bazel_profile_uploads`, PostgreSQL): One bounded gzip body (at most 32 MiB), state (`pending`, `processed`, `rejected`, or `failed`), rejection reason, project/invocation identifiers and timestamps per invocation. A job on the bounded Bazel artifact processor queue parses and sanitizes the raw profile; the request process only validates the envelope and digest. Raw bytes, which may include command lines, paths and credentials, are deleted after successful processing or terminal validation rejection, or exhausted processing retries. A new upload may replace a rejected or failed body and clear its error for another processing attempt; pending or processed duplicates leave the row unchanged. The existing batched daily Bazel ingestion cleanup removes staging/status rows older than 90 days. Export by `project_id`, including pending bodies and their invocation IDs.
 
-## Runner cache volumes (opt-in)
+## Runner cache volumes
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
   repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
-  execution UID, generation, published head use UUID,
+  execution UID, generation, published head use UUID, optional built-in storage name,
   last use, logical deletion and creation/update timestamps. Identity is unique
   per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
@@ -448,10 +448,10 @@ The archive contains everything needed to understand the account's complete data
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical
-  deletion; unacknowledged resources remain tracked.
+  deletion; unacknowledged resources remain tracked. Built-in canonical observations also carry a logical `superseded_at`; their history expires 90 days after supersession without claiming physical deletion.
 - **Size history** (`runner_cache_volume_measurements`, PostgreSQL): append-only
   observations linked to a use, containing logical filesystem used/capacity
-  bytes, server observation timestamp and a deletion acknowledgement flag.
+  bytes, observation timestamp, a deletion acknowledgement flag, and a separate logical `retired` flag for superseded built-in canonical observations.
   The first report and changes in size or capacity create entries; identical
   heartbeat reports do not. Unknown measurements remain null. Acknowledged
   removal records zero retained bytes and capacity, without rewriting earlier
@@ -460,7 +460,14 @@ The archive contains everything needed to understand the account's complete data
   deletion and with account deletion. These observations support storage
   visibility; they are not a billing ledger or measurements of unique physical
   allocation. Observation time is report receipt time, not the exact time data
-  was written, and changes before reporting cannot be reconstructed.
+was written, and changes before reporting cannot be reconstructed. Built-in macOS
+observations additionally preserve the guest-measured mount timestamp and initial
+filesystem size, followed by the finalized snapshot measurement. The host reports
+through its own authenticated identity after finalization; the executed runner
+session supplies account and job scope. `builtin_name` maps these records to the
+existing `tuist-cache` / `repo-*` images and their unchanged retention lifecycle.
+Only the current canonical image contributes retained built-in snapshot bytes;
+host replicas and superseded S3 objects are not a physical-storage census.
 - **Cache contents** (host-local images and object storage): private sparse ext4 (Linux) or APFS (macOS)
   images in `images/<use UUID>.img`, immutable reflink masters under
   `masters/<scope>/<HEAD generation>-<content SHA-256>.img`, and gzip-compressed
