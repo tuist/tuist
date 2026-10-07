@@ -86,7 +86,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       markdown = MarketingMarkdown.get(path)
       assert [_guide, catalog] = String.split(markdown, "## Current entries", parts: 2)
       links = Regex.scan(~r/^- \[.+\]\(.+\)$/m, catalog)
-      assert length(links) > 0
+      refute links == []
       assert length(links) <= 20
       assert catalog =~ "Accept: text/markdown"
     end
