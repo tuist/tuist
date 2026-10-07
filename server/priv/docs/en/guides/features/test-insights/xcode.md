@@ -105,3 +105,58 @@ Additionally, you will either need to:
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` tests your project without `-resultBundlePath`, the required result bundle files are not generated. The `tuist inspect test` post-action requires these files to analyze your tests.
+
+## Per-test coverage {#per-test-coverage}
+
+> [!IMPORTANT]
+> **Early access**
+>
+> Code coverage in Test Insights is in early access. Collecting per-test coverage requires the `TUIST_FEATURE_FLAG_COVERAGE=1` and `TUIST_COVERAGE_EVIDENCE=1` environment variables when running `tuist test` or `tuist xcodebuild test` with code coverage enabled.
+
+Xcode's code coverage tells you what a whole test run covered. To know which code each test executed, your unit test targets link the [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package, which records the coverage counters each test moves. Tuist uses it so that a run that skips tests can reuse those tests' coverage from an earlier run. Per-test coverage is collected on macOS and the iOS simulator, and the package requires macOS 13 or iOS 16 as the deployment target of the test targets that link it.
+
+### Generated projects {#per-test-coverage-generated-projects}
+
+Declare the package in `Tuist/Package.swift`. Pin it to a minor version: it is pre-1.0, and minor versions can break.
+
+```swift
+let package = Package(
+    name: "MyApp",
+    dependencies: [
+        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.1.1")),
+    ]
+)
+```
+
+Then turn on `attributeToTests` in `Tuist.swift` and run `tuist install`:
+
+```swift
+let tuist = Tuist(
+    testInsights: .testInsights(coverage: .coverage(attributeToTests: true)),
+    project: .tuist()
+)
+```
+
+When generating, Tuist links `TestCoverageAttribution` into every unit test target. It never links it into apps, frameworks or UI test targets, whose tests drive the app in a separate process. Tuist also generates the package's targets as dynamic frameworks, overriding any `productTypes` you set for them: a static framework would be dropped by the linker in test targets that only use XCTest, since they reference nothing in it. Generation fails if the package isn't declared in `Tuist/Package.swift`.
+
+### Other projects {#per-test-coverage-other-projects}
+
+Add the package to your project and link the `TestCoverageAttribution` product to your unit test targets, as its [README](https://github.com/tuist/TestCoverageAttribution#installation) describes. If you link it statically, add `-ObjC` to the test targets' `OTHER_LDFLAGS`.
+
+### Swift Testing {#per-test-coverage-swift-testing}
+
+XCTest tests need nothing else: the package observes them as soon as the test bundle loads. Swift Testing has no observation center a library can join, so add the `.coverageAttribution` trait to your suites:
+
+```swift
+import TestCoverageAttribution
+import Testing
+
+@Suite(.coverageAttribution, .serialized)
+struct CheckoutTests {
+    @Test func appliesDiscount() { ... }
+}
+```
+
+### Run tests serially {#per-test-coverage-serial-testing}
+
+Coverage can only be attributed to a test when it runs alone in its process. A test that overlaps another is left out of per-test coverage. Use `.serialized` on Swift Testing suites, and pass `-parallel-testing-enabled NO` to `xcodebuild` for full attribution.

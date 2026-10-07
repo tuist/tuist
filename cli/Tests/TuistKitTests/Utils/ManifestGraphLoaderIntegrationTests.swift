@@ -1,4 +1,7 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -59,5 +62,55 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
             "FrameworkA",
             "FrameworkB",
         ])
+    }
+}
+
+struct ManifestGraphLoaderCoverageAttributionIntegrationTests {
+    @Test(.inTemporaryDirectory)
+    func load_whenCoverageIsAttributedToTestsWithoutAPackageManifest() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(
+                testInsights: .testInsights(coverage: .coverage(attributeToTests: true)),
+                project: .tuist()
+            )
+            """,
+            at: path.appending(component: "Tuist.swift")
+        )
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let project = Project(
+                name: "App",
+                targets: [
+                    .target(name: "App", destinations: .macOS, product: .framework, bundleId: "dev.tuist.App"),
+                    .target(
+                        name: "AppTests",
+                        destinations: .macOS,
+                        product: .unitTests,
+                        bundleId: "dev.tuist.AppTests",
+                        dependencies: [.target(name: "App")]
+                    ),
+                ]
+            )
+            """,
+            at: path.appending(component: "Project.swift")
+        )
+        let subject = ManifestGraphLoader(
+            manifestLoader: ManifestLoader(),
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
+
+        // When / Then
+        await #expect(throws: TestCoverageAttributionLinkerError.missingPackageManifest) {
+            try await subject.load(path: path, disableSandbox: true)
+        }
     }
 }

@@ -1,0 +1,15 @@
+{
+  "originHash" : "05c21fadbe7d6d190e47cb062a1fae84462a71f31081172d4b7ef09528433be8",
+  "pins" : [
+    {
+      "identity" : "testcoverageattribution",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/TestCoverageAttribution",
+      "state" : {
+        "revision" : "4595ce714562f65e8d4931e488af266920b496b3",
+        "version" : "0.1.1"
+      }
+    }
+  ],
+  "version" : 3
+}
