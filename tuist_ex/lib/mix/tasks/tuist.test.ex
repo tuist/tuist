@@ -60,8 +60,8 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Args
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.ExUnitFormatter
-  alias TuistEx.Analytics.Relay
   alias TuistEx.Analytics.Shards
+  alias TuistEx.Analytics.Subprocess
   alias TuistEx.Analytics.TempDir
 
   @formatter ExUnitFormatter
@@ -287,17 +287,8 @@ defmodule Mix.Tasks.Tuist.Test do
   defp retry_once(test_args, path) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
-        color = if IO.ANSI.enabled?(), do: ["--color"], else: []
-
-        args =
-          ["tuist.test", "--failed"] ++ color ++ retry_args(test_args)
-
-        {_output, status} =
-          System.cmd(mix, args,
-            env: [{@retry_results, path}, {"MIX_ENV", "test"}],
-            into: Relay.new(),
-            stderr_to_stdout: true
-          )
+        args = ["tuist.test", "--failed" | retry_args(test_args)]
+        status = Subprocess.run(mix, args, [{@retry_results, path}, {"MIX_ENV", "test"}])
 
         {:ok, status, ExUnitFormatter.read_collected(path)}
 
