@@ -127,14 +127,19 @@ still expires authority and requires positive fencing.
 
 ## Isolated staging validation
 
-The isolated installation helper is `test/staging/install.sh`. Run it from the
-repository root with the candidate controller's `sha-<12-hex-commit>` image tag
-through an authorized staging deployment identity, with `KUBECONFIG` explicitly
-targeting staging. It adds only the new CRD fields and installs a controller
-scoped to `kura-spec98`; it does not replace the shared controller or activate
-production. The image-build workflow has no isolated-deployment dispatch option.
-Local human credentials intentionally cannot create the required RBAC/namespace;
-never retrieve admin credentials to work around that boundary.
+Provision an isolated namespace, a namespace-scoped authority-enabled controller,
+and a two-replica `PositiveFenceV1` instance through an authorized staging
+deployment. Pin the candidate images and qualify distinct physical hosts and
+clock agreement before running faults. The image-build workflow has no isolated
+deployment job. Local human credentials intentionally cannot create the required
+RBAC/namespace; never retrieve admin credentials to work around that boundary.
+
+The partition policy fixture is
+`kura/test/e2e/serving-authority/api-partition.yaml`. It targets only pods carrying
+`spec98.tuist.dev/api-partition=true` in the isolated `kura-spec98` namespace.
+Install it through the authorized deployment identity before the partition case;
+if the fixture namespace is overridden, render the policy into that namespace
+too. The client removes the fault label when the case exits.
 
 The opt-in ShellSpec harness in `kura/spec/e2e/serving_authority_spec.sh`
 exercises existing HTTP/2 and gRPC sessions. Its partition mode leaves the old

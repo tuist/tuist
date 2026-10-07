@@ -4,6 +4,9 @@ These fixtures exercise real Kura runtimes. `client.mjs` operates only on an
 explicitly selected isolated Kubernetes instance and uses the real controller.
 Its fencing tests keep the original HTTP/2 and gRPC sessions: do not reconnect
 those channels to turn a stale-channel failure into a pass.
+`api-partition.yaml` is the matching opt-in network-policy fixture. It belongs
+only in the explicitly isolated test namespace, and affects only pods with the
+test's fault label. Keep its namespace aligned with `KURA_SPEC98_NAMESPACE`.
 
 `corpus.mjs` verifies action-cache output digests and every referenced CAS body.
 Only idempotent verification reads may reconnect after graceful connection aging
