@@ -369,7 +369,8 @@
           white-space: nowrap;
 
           &#globe-bytes {
-            font-size: min(calc(48 * var(--u)), calc(100cqw / var(--count-length, 1)));
+            --count-length: 1;
+            font-size: min(calc(48 * var(--u)), calc(100cqw / var(--count-length)));
           }
         }
 
