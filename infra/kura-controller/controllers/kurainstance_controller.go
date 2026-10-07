@@ -4623,6 +4623,11 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if crossRegionRuntimeEnabled(instance) {
 		discoveryDNSName = accountPeerServiceDNSName(instance)
 	}
+	// A node-local pod resolves no cluster name, and outside the mesh it has no
+	// peer to find, so it is given no peer Service to look up.
+	if instance.Spec.NodeLocalNetwork != nil && !instance.Spec.Mesh {
+		discoveryDNSName = ""
+	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -4902,8 +4907,16 @@ func labels(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if instance.Spec.Private && instance.Spec.PublicHostNetwork && clientHost(instance) != "" {
 		labels["tuist.dev/host-network-gateway"] = "true"
 	}
+	if instance.Spec.NodeLocalNetwork != nil {
+		labels[nodeLocalNetworkLabel] = "true"
+	}
 	return labels
 }
+
+// nodeLocalNetworkLabel marks the pods of an instance on a node-local pod
+// network: the cluster's scrapers cannot reach them and leave them to the
+// collector on their node.
+const nodeLocalNetworkLabel = "tuist.dev/node-local-network"
 
 func accountPeerSelectorLabels(instance *kurav1alpha1.KuraInstance) map[string]string {
 	return map[string]string{

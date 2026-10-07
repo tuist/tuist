@@ -278,3 +278,39 @@ func TestRuntimeStatusOverPortForwardStreamReportsForwardingErrors(t *testing.T)
 		t.Fatalf("expected the kubelet's forwarding error, got %v", err)
 	}
 }
+
+func envValue(env []corev1.EnvVar, name string) (string, bool) {
+	for _, e := range env {
+		if e.Name == name {
+			return e.Value, true
+		}
+	}
+	return "", false
+}
+
+// A node-local pod resolves no cluster name, so outside the mesh, where it has
+// no peer to find, it gets no peer Service to look up.
+func TestNodeLocalInstanceOutsideTheMeshDiscoversNoPeers(t *testing.T) {
+	instance := nodeLocalTestInstance()
+	if value, _ := envValue(baseEnv(instance, "", "staging"), "KURA_DISCOVERY_DNS_NAME"); value != "" {
+		t.Fatalf("KURA_DISCOVERY_DNS_NAME = %q, want none", value)
+	}
+
+	instance.Spec.NodeLocalNetwork = nil
+	if value, _ := envValue(baseEnv(instance, "", "staging"), "KURA_DISCOVERY_DNS_NAME"); value == "" {
+		t.Fatal("a cluster-network instance lost its peer discovery")
+	}
+}
+
+// Their pods carry a label the cluster's scrapers leave alone and the
+// rack's own collector selects.
+func TestNodeLocalPodsAreLabelledSo(t *testing.T) {
+	instance := nodeLocalTestInstance()
+	if labels(instance)[nodeLocalNetworkLabel] != "true" {
+		t.Fatalf("labels %v", labels(instance))
+	}
+	instance.Spec.NodeLocalNetwork = nil
+	if _, ok := labels(instance)[nodeLocalNetworkLabel]; ok {
+		t.Fatal("a cluster-network instance is labelled node-local")
+	}
+}
