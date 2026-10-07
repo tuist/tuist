@@ -33,24 +33,25 @@ defmodule Tuist.GitHub.App do
   def get_installation_token(%{installation_id: installation_id} = installation, opts) when is_binary(installation_id) do
     api_url = Keyword.get(opts, :api_url, VCS.installation_api_url(installation))
     creds = Keyword.get(opts, :credentials, VCS.github_app_credentials(installation))
-    fetch_installation_token(installation_id, api_url, creds, opts)
+    fetch_installation_token(installation_id, api_url, creds, opts, Map.get(installation, :id))
   end
 
   def get_installation_token(installation_id, opts) when is_binary(installation_id) do
     api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
     creds = Keyword.get(opts, :credentials, VCS.github_app_credentials())
-    fetch_installation_token(installation_id, api_url, creds, opts)
+    fetch_installation_token(installation_id, api_url, creds, opts, nil)
   end
 
-  defp fetch_installation_token(_installation_id, _api_url, nil, _opts) do
+  defp fetch_installation_token(_installation_id, _api_url, nil, _opts, _row_id) do
     {:error, "GitHub App is not configured"}
   end
 
-  defp fetch_installation_token(installation_id, api_url, creds, opts) do
+  defp fetch_installation_token(installation_id, api_url, creds, opts, row_id) do
     ttl = to_timeout(minute: 10)
+    identity = if row_id, do: "installation:#{row_id}", else: "app:#{creds.app_id}"
 
     case KeyValueStore.get_or_update(
-           [__MODULE__, "installation_token", api_url, installation_id],
+           [__MODULE__, "installation_token", identity, api_url, installation_id],
            [
              cache: get_cache(opts),
              ttl: Keyword.get(opts, :ttl, ttl)
@@ -186,8 +187,11 @@ defmodule Tuist.GitHub.App do
 
   defp pin_for_request(url, _api_url) do
     case SSRFGuard.pin(url) do
-      {:ok, pinned_url, hostname} -> {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
-      {:error, reason} -> {:error, "SSRF guard rejected GHES URL: #{inspect(reason)}"}
+      {:ok, pinned_url, hostname} ->
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname), redirect: false]}
+
+      {:error, reason} ->
+        {:error, "SSRF guard rejected GHES URL: #{inspect(reason)}"}
     end
   end
 
