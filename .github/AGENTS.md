@@ -114,3 +114,5 @@ Atlas releases publish the image and standalone Helm chart with the same version
 `workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
 must stay disabled in the repository settings, or uploads from this workflow
 are rejected.
+
+- Runner-controller checks, image builds and release path filters include the shared `infra/runner-cache` module.

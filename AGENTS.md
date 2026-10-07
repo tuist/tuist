@@ -516,3 +516,5 @@ This documentation is critical for:
 
 **Failure to keep this documentation current could result in incomplete data exports for legal requests, potentially leading to compliance violations.**
 - Don't modify content in languages other than English (source language)
+
+- `infra/runner-cache/` — shared runner cache lifecycle and Linux image backend; see `infra/runner-cache/AGENTS.md`.

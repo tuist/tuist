@@ -1,7 +1,7 @@
 # Linux local cache images
 
 Local reflink branches of sparse ext4 images, with the same object storage and
-HEAD publication protocol as the macOS cache. See [runbook](../../cache-volumes.md).
+HEAD publication protocol as the macOS cache. See [runbook](../runners-controller/cache-volumes.md).
 
 - Never expose host images, masters, journals or signed URLs to workflows.
   Guests see only `pods/<pod UID>` through kubelet SubPathExpr.
@@ -31,8 +31,8 @@ HEAD publication protocol as the macOS cache. See [runbook](../../cache-volumes.
   idle masters. An acknowledged sealed journal allows private image reclamation.
 - Use no-follow mount operations and os.Root for job-controlled tree cleanup.
 - Keep the fleet disabled until deployed Kata and provider smoke validation.
-- Run `go test -race ./internal/cachevolumes ./cmd/cache-volumes` and
-  `scripts/test-cache-filesystem.sh` (real Linux loop mounts/reflinks in Docker).
+- Run `go test -race ./...` here and `go test -race ./cmd/cache-volumes` in runners-controller and
+  `../runners-controller/scripts/test-cache-filesystem.sh` (real Linux loop mounts/reflinks in Docker).
 - New images default to 20 decimal GB. Configurable per-volume capacity and
   macOS custom volumes remain follow-ups.
 - Emit bounded operation/source/result metrics and structured phase timings without
