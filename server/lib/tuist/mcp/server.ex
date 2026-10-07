@@ -123,7 +123,7 @@ defmodule Tuist.MCP.Server do
   """
 
   @agent_workflow_instructions """
-  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Never invent credentials. The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows. Use `list_accounts` when an account handle is unknown. Model Context Protocol authentication only authorizes Tuist tools; Gradle and Bazel require separate `tuist auth whoami --url` authentication. Never continue a verification build after that check fails. Verify integrations through Tuist read-back tools before reporting success.
+  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Never invent credentials. Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations. Verify the outcome of requested changes through the relevant Tuist tools before reporting success.
   """
 
   def server do

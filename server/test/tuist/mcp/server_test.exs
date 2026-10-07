@@ -104,12 +104,17 @@ defmodule Tuist.MCP.ServerTest do
       refute server.instructions =~ "confirm the email address"
 
       assert server.instructions =~
-               "The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows"
+               "Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations."
 
-      assert server.instructions =~ "Use `list_accounts` when an account handle is unknown."
-      assert server.instructions =~ "Gradle and Bazel require separate `tuist auth whoami --url` authentication"
-      assert server.instructions =~ "Never continue a verification build after that check fails."
-      assert server.instructions =~ "Verify integrations through Tuist read-back tools before reporting success."
+      assert server.instructions =~
+               "Verify the outcome of requested changes through the relevant Tuist tools before reporting success."
+
+      refute server.instructions =~ "get_gradle_integration_guide"
+      refute server.instructions =~ "get_bazel_integration_guide"
+      refute server.instructions =~ "list_accounts"
+      refute server.instructions =~ "tuist auth whoami"
+      refute server.instructions =~ "Gradle"
+      refute server.instructions =~ "Bazel"
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
