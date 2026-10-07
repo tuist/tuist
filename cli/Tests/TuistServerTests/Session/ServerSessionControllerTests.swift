@@ -74,11 +74,52 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             serverURL: serverURL,
             deviceCodeType: .cli,
             onOpeningBrowser: { authURLOpened = $0 },
+            onBrowserOpenFailed: {},
             onAuthWaitBegin: {}
         )
 
         // Then
         XCTAssertEqual(authURLOpened, authURL())
+    }
+
+    func test_authenticate_completes_when_opening_the_browser_fails() async throws {
+        // Given
+        struct BrowserOpenError: Error {}
+        let throwingOpener = MockOpening()
+        given(throwingOpener)
+            .open(url: .any)
+            .willThrow(BrowserOpenError())
+        subject = ServerSessionController(
+            opener: throwingOpener,
+            getAuthTokenService: getAuthTokenService,
+            uniqueIDGenerator: uniqueIDGenerator,
+            serverAuthenticationController: serverAuthenticationController
+        )
+        given(getAuthTokenService)
+            .getAuthToken(serverURL: .any, deviceCode: .any)
+            .willReturn(
+                ServerAuthenticationTokens(
+                    accessToken: "access-token", refreshToken: "refresh-token"
+                )
+            )
+        given(uniqueIDGenerator).uniqueID().willReturn("id")
+
+        // When
+        var authURLOpened: URL?
+        var didReportBrowserOpenFailure = false
+        var didWaitForAuthentication = false
+        try await subject.authenticate(
+            serverURL: serverURL,
+            deviceCodeType: .cli,
+            onOpeningBrowser: { authURLOpened = $0 },
+            onBrowserOpenFailed: { didReportBrowserOpenFailure = true },
+            onAuthWaitBegin: { didWaitForAuthentication = true }
+        )
+
+        // Then
+        XCTAssertEqual(authURLOpened, authURL())
+        XCTAssertTrue(didReportBrowserOpenFailure)
+        XCTAssertTrue(didWaitForAuthentication)
     }
 
     func test_whoami_when_logged_in() async throws {
