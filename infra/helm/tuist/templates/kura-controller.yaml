@@ -284,6 +284,11 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Capacity admission reads a replica's data claim size: a claim at least as
+  # large as the new one is kept by a resize, so its replica stays on its node.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get]
   # The server applies the per-account mesh peer-TLS Secret alongside the
   # KuraInstance when an account bridges into the managed mesh.
   - apiGroups: [""]

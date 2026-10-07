@@ -4007,7 +4007,7 @@ func TestKuraInstanceReconcilePinsPublicPeerServiceToGatewayPod(t *testing.T) {
 // and cordoned, so the replacement cannot land back on it.
 func evacuationNode(name string, retiring bool) *corev1.Node {
 	node := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: defaultNodeSelector()},
 		Spec:       corev1.NodeSpec{Unschedulable: retiring},
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},

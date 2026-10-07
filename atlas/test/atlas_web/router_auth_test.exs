@@ -2,7 +2,6 @@ defmodule AtlasWeb.RouterAuthTest do
   use AtlasWeb.ConnCase, async: true
 
   @authenticated_paths [
-    "/",
     "/commercial/sales",
     "/commercial/sales/accounts",
     "/commercial/sales/accounts/some-id",

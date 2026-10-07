@@ -349,10 +349,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events.tuist.dev as GRPC end-to-end, so Once
+  # CLIs that discover the host via `/.well-known/once` can stream live
+  # run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
@@ -1094,12 +1100,12 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these three OVH nodes after the September 28 move.
-  # Keep the historical pool name: live KuraInstances, local PVs and gateways
-  # still select it. All Dedibox hosts have been retired.
+  # Public EU West runs on these four OVH nodes in Gravelines. Keep the
+  # historical pool name: live KuraInstances, local PVs and gateways still
+  # select it. All Dedibox hosts have been retired.
   eu-west:
     enabled: true
-    replicas: 3
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
@@ -1126,7 +1132,7 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1161,7 +1167,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 2
+    replicas: 3
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1704,6 +1710,11 @@ runnersFleet:
   # pool mix is unpredictable in advance.
   xcodeOverrides:
     "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

@@ -2656,12 +2656,28 @@ mod tests {
     async fn index_building_peer_is_retried_without_failing_the_pass() {
         let peer = test_context(|_| {}).await;
         seed_inline(&peer, "inl-a", b"inline-body", 900).await;
-        // No index build yet: the listing endpoint answers 503 index_building
-        // until the delayed build lands.
-        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+        // Observe an actual retryable response before building the index; a
+        // timer can elapse while the local store is still initializing.
+        let index_building = Arc::new(tokio::sync::Notify::new());
+        let observed = index_building.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let observed = observed.clone();
+                async move {
+                    let response = next.run(request).await;
+                    if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        observed.notify_one();
+                    }
+                    response
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
         let peer_state = peer.state.clone();
         let builder = tokio::spawn(async move {
-            sleep(Duration::from_millis(150)).await;
+            tokio::time::timeout(Duration::from_secs(30), index_building.notified())
+                .await
+                .expect("listing should produce an index-building response");
             peer_state
                 .store
                 .run_backfill_index_build()

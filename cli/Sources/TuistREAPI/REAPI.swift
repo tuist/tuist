@@ -18,6 +18,10 @@ public enum REAPI {
         }
     }
 
+    /// Servers report the empty blob present whether or not it was ever uploaded, and need not serve it, so
+    /// clients synthesize it instead of reading it.
+    public static let emptyBlob = digest(Data())
+
     public static func digest(file: URL) throws -> Digest {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
@@ -63,9 +67,11 @@ public enum REAPICacheError: Error, LocalizedError, Equatable {
     case insufficientSpace
     case transferStalled
     case uploadFailed(reason: String)
+    case invalidTransferGuards(reason: String)
     public var errorDescription: String? {
         switch self {
         case let .uploadFailed(reason): "The cache did not accept every blob: \(reason)"
+        case let .invalidTransferGuards(reason): "The REAPI cache client was configured with invalid transfer guards: \(reason)"
         case .invalidDigest: "The cache returned an invalid content digest."
         case .corruptBlob: "The cache content failed its integrity check."
         case .invalidTree: "The cache artifact has an unsupported layout or an unsafe path or symlink."

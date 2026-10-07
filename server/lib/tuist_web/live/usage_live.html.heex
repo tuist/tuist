@@ -73,6 +73,7 @@
     <.card_section
       :if={TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}
       data-part="usage-detail-section"
+      data-chart-frame="standard"
     >
       <div data-part="chart">
         <.chart
@@ -171,7 +172,7 @@
   >
     <.async_result :let={pricing} assign={@usage_pricing}>
       <:loading>
-        <.card_section data-part="usage-summary-section">
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
           <.skeleton_chart />
         </.card_section>
       </:loading>
@@ -229,6 +230,7 @@
       <.card_section
         :if={TuistWeb.UsageLive.cache_used?(pricing.cache)}
         data-part="usage-detail-section"
+        data-chart-frame="standard"
       >
         <div data-part="chart">
           <.chart
@@ -361,7 +363,7 @@
   >
     <.async_result :let={pricing} assign={@usage_pricing}>
       <:loading>
-        <.card_section data-part="usage-summary-section">
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
           <.skeleton_chart />
         </.card_section>
       </:loading>
@@ -396,6 +398,7 @@
       <.card_section
         :if={TuistWeb.UsageLive.tests_used?(pricing.tests)}
         data-part="usage-detail-section"
+        data-chart-frame="standard"
       >
         <div data-part="chart">
           <.chart
@@ -484,8 +487,10 @@
     </.async_result>
   </.card>
 
-  <.card
+  <.async_card
+    :let={ready?}
     :if={not @usage_based_pricing}
+    results={[@totals]}
     title={dgettext("dashboard_usage", "Cache traffic")}
     icon="chart_column"
     data-part="kura-traffic"
@@ -501,15 +506,15 @@
             "Bytes sent from the cache to clients (cache downloads) in the selected window."
           )
         }
-        value={if @totals.ok?, do: TuistWeb.UsageLive.format_bytes(@totals.result.egress.bytes)}
-        loading={!@totals.ok?}
+        value={if ready?, do: TuistWeb.UsageLive.format_bytes(@totals.result.egress.bytes)}
+        loading={!ready?}
         selected={@analytics_selected_widget == "egress"}
         phx_click="select_widget"
         phx_value_widget="egress"
-        trend_value={if @totals.ok?, do: @totals.result.egress.bytes_trend}
+        trend_value={if ready?, do: @totals.result.egress.bytes_trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@totals.ok? && @totals.result.egress.bytes == 0}
+        empty={ready? && @totals.result.egress.bytes == 0}
       />
       <.widget
         id="widget-ingress"
@@ -521,15 +526,15 @@
             "Bytes received by the cache from clients (cache uploads) in the selected window."
           )
         }
-        value={if @totals.ok?, do: TuistWeb.UsageLive.format_bytes(@totals.result.ingress.bytes)}
-        loading={!@totals.ok?}
+        value={if ready?, do: TuistWeb.UsageLive.format_bytes(@totals.result.ingress.bytes)}
+        loading={!ready?}
         selected={@analytics_selected_widget == "ingress"}
         phx_click="select_widget"
         phx_value_widget="ingress"
-        trend_value={if @totals.ok?, do: @totals.result.ingress.bytes_trend}
+        trend_value={if ready?, do: @totals.result.ingress.bytes_trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@totals.ok? && @totals.result.ingress.bytes == 0}
+        empty={ready? && @totals.result.ingress.bytes == 0}
       />
       <.widget
         id="widget-requests"
@@ -541,18 +546,18 @@
             "Number of cache requests served in the selected window."
           )
         }
-        value={if @totals.ok?, do: TuistWeb.UsageLive.format_count(@totals.result.request_count)}
-        loading={!@totals.ok?}
+        value={if ready?, do: TuistWeb.UsageLive.format_count(@totals.result.request_count)}
+        loading={!ready?}
         selected={@analytics_selected_widget == "requests"}
         phx_click="select_widget"
         phx_value_widget="requests"
-        trend_value={if @totals.ok?, do: @totals.result.request_count_trend}
+        trend_value={if ready?, do: @totals.result.request_count_trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@totals.ok? && @totals.result.request_count == 0}
+        empty={ready? && @totals.result.request_count == 0}
       />
     </div>
-    <.card_section data-part="kura-traffic-card-chart-section">
+    <.card_section data-part="kura-traffic-card-chart-section" data-chart-frame="standard">
       <% current_series = TuistWeb.UsageLive.series_for(assigns, @analytics_selected_widget) %>
       <%= cond do %>
         <% !current_series.ok? -> %>
@@ -592,7 +597,7 @@
           />
       <% end %>
     </.card_section>
-  </.card>
+  </.async_card>
 
   <.card
     :if={not @usage_based_pricing}

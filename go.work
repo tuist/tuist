@@ -29,6 +29,7 @@ use (
 	./infra/mdm/enroller
 	./infra/rack-switch-controller
 	./infra/runner-image
+	./infra/runner-cache
 	./infra/runners-controller
 	./infra/stable-egress-controller
 	./infra/tart-kubelet

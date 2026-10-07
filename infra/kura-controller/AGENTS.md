@@ -34,8 +34,12 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 - Managed OVH topology derives from real Node provider IDs and converged private
   route attestations. Missing or mixed evidence holds topology publication while
-  other template changes continue with the previous topology and selector; never
-  silently remove an active topology on a failed network observation. Keep the
+  other template changes continue with the previous topology and selector when
+  the requested placement is unchanged. An explicit selector change withdraws
+  the old policy if the destination is unqualified; never silently remove it on
+  a failed network observation alone. Evacuation must check the StatefulSet's
+  actual template selector before deleting a pod or its local claim, falling
+  back to the rendered instance selector only if the StatefulSet is absent. Keep the
   qualified network scheduling selector and per-pod mTLS endpoint together.
   See [private network reconciliation](private-network-provisioning.md).
 

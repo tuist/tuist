@@ -104,6 +104,12 @@ Use provider identity from the real Node providerID. `private_network` is a
 verified routing domain, not a provider or region alias. `private_url` must reach
 this process, with its existing account mTLS and a matching certificate SAN.
 The deployment attests the underlay; the runtime cannot inspect provider NICs.
+In managed deployments, `private_url` and `KURA_NODE_URL` use the same per-pod
+DNS name. Host routes and unreachable guards enforce the physical private path;
+the qualified scheduling selector keeps new pods on prepared hosts. Runtime
+topology adds domain compatibility checks and private-donor preference, and
+supports standalone deployments whose private endpoint differs from their
+canonical endpoint. It does not create a second physical path for managed pods.
 Do not put a shared primary Service in every sibling's `private_url`, which
 would send sibling feeds to the same process. Global discovery advertises the
 responding gateway process's private URL and refreshes it at membership cadence.

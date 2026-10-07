@@ -26,6 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -74,6 +76,7 @@ func main() {
 		secretsNamespace          string
 		ovhPrivateNetworkConfig   string
 		vultrPrivateNetworkConfig string
+		rackCardRootSecret        string
 
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
@@ -129,6 +132,8 @@ func main() {
 		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
 	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
 		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
+		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
 		"External API server URL Mac minis dial when joining (https://...). "+
@@ -675,6 +680,46 @@ func main() {
 		}
 	}
 	powerRegistry := power.NewRegistry()
+	// Logs out of the PDU and ATS sessions on shutdown: an Eaton card allows one
+	// session per account, and a stale one refuses the next leader's login.
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		<-ctx.Done()
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := powerRegistry.Close(closeCtx); err != nil {
+			setupLog.Error(err, "log out of PDU sessions")
+		}
+		return nil
+	})); err != nil {
+		setupLog.Error(err, "add power session cleanup")
+		os.Exit(1)
+	}
+	if err := (&macos.RackPDUReconciler{
+		Client:           mgr.GetClient(),
+		APIReader:        mgr.GetAPIReader(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackpdu-controller"),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackPDUReconciler")
+		os.Exit(1)
+	}
+	if err := (&macos.RackATSReconciler{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackats-controller"),
+		APIReader:        mgr.GetAPIReader(),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackATSReconciler")
+		os.Exit(1)
+	}
 	if err := (&macos.RackHostReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -683,6 +728,8 @@ func main() {
 		Power:                powerRegistry,
 		SecretsNamespace:     secretsNamespace,
 		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
+		EgressNamespace:      egressNamespace,
+		EgressProxyGroup:     egressProxyGroup,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackHostReconciler")
 		os.Exit(1)

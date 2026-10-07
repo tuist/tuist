@@ -51,8 +51,16 @@ Mixed providers, missing attestations, different networks, or different route
 memberships hold topology publication. Other StatefulSet changes continue. Before
 first qualification the instance retains canonical replication; after activation,
 the last managed topology and full scheduling selector are preserved during a
-qualification gap. An explicit disable or manual topology override remains an
-operator action. Qualified pods require the same network label for scheduling.
+qualification gap only while the requested selector is unchanged (excluding the
+controller-added network label). An intentional placement change uses the new
+selector and withdraws the old managed policy if the destination is unqualified;
+a qualified destination receives its own topology. Withdrawing topology restores
+canonical replication, which may use public bandwidth. An explicit disable or
+manual topology override also remains an operator action. Qualified pods require
+the same network label for scheduling. Evacuation checks the StatefulSet template's
+selector before deleting a local claim or pod, so an unattested replacement in
+the same pool is not counted as a landing node. If the StatefulSet does not yet
+exist, it uses the instance's rendered selector, including its defaults.
 Each process advertises its own authenticated peer DNS name. Discovery through a
 gateway still requires a direct private probe even when the advertised private
 and node URLs match. Discovery that already queried the private origin reuses that

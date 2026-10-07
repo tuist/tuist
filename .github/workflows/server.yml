@@ -7,6 +7,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - tuist_ex/**
       - noora/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
@@ -19,6 +20,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - tuist_ex/**
       - noora/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
@@ -229,20 +231,70 @@ jobs:
           fi
 
           echo "✅ All dashboard translation templates present"
-  test:
-    name: Test
-    # Bigger shape: the test compile + ClickHouse + Postgres peak over the
-    # 2 vCPU / 8 GB default microVM, OOM-killing the runner from inside the
-    # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
-    # headroom this job had before the default was downsized (#11052).
+  test-build:
+    name: Build Test Shards
     runs-on: tuist-linux-large
-    timeout-minutes: 75
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    # Local `mix test` compiles only the "en" locale for fast cold builds
-    # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
-    # locale set so the `:locale`-tagged i18n tests run and are covered here.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
+    outputs:
+      current-matrix: ${{ steps.current.outputs.matrix }}
+      floor-matrix: ${{ steps.floor.outputs.matrix }}
+      current-reference: ${{ steps.current.outputs.reference }}
+      floor-reference: ${{ steps.floor.outputs.reference }}
     env:
       TUIST_DEV_ALL_LOCALES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: "false"
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
+      - name: Authenticate with Tuist
+        run: mix 'do' deps.compile tuist_ex + tuist.login
+      - name: Build and plan current ClickHouse shards
+        id: current
+        run: |
+          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
+      - name: Plan oldest supported ClickHouse shards
+        id: floor
+        run: |
+          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
+  test:
+    name: Test
+    # Keep the 4 vCPU / 16 GB shape for the tests and their database services.
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
+    needs: test-build
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-build.outputs.current-matrix) }}
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+      TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.current-reference }}
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
     services:
       postgres:
         image: postgres:16
@@ -262,43 +314,89 @@ jobs:
         with:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           restore-mix-cache: "false"
-      - name: Restore CLDR locale cache
-        uses: actions/cache@v4
-        with:
-          path: server/_build/cldr/locales
-          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            cldr-locales-v1-
-      - name: Prefetch CLDR locale data
-        run: mise/tasks/cldr/prefetch-locale-data.sh
-      - name: Compile
-        run: mix compile --warnings-as-errors
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
+      - name: Authenticate and download the test build
+        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
+      # Run migrations in another process so migration regression tests can
+      # require their modules without triggering redefinition warnings.
       - name: Setup database
         run: mise run --no-deps db:reset
-      - name: Run tests
-        run: mix test --warnings-as-errors
+      - name: Run shard ${{ matrix.shard }}
+        run: mix tuist.test --no-download --scheme clickhouse-current --warnings-as-errors
   test-clickhouse-floor:
     name: Test (oldest supported ClickHouse)
-    # The self-hosting requirements promise ClickHouse 25, but every ClickHouse
-    # we operate is newer: dev and the Test job pin 26.1, the Helm chart ships
-    # 26.1, and the bundled Compose file ships 26.5. Nothing exercised the
-    # documented floor, so a query setting or function introduced after it
-    # reached self-hosted deployments as a failed migration rather than as a
-    # failed build (#12515). Running the suite here replays every ClickHouse
-    # migration and every runtime query against the floor.
-    #
-    # The release under test comes from Tuist.ClickHouseVersions, which is also
-    # what the migration guard asserts and what the self-hosting requirements
-    # publish, so the three cannot drift apart.
+    # Keep exercising the release declared by Tuist.ClickHouseVersions, including
+    # every migration, rather than testing only against the newer hosted release.
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
+    needs: test-build
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-build.outputs.floor-matrix) }}
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+      TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.floor-reference }}
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: "false"
+      # This install must be unlocked: mise.lock pins the newer CI release.
+      - name: Pin ClickHouse to the oldest supported release
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          mise use "github:ClickHouse/ClickHouse@${version}"
+          clickhouse --version
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Authenticate and download the test build
+        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      - name: Run shard ${{ matrix.shard }}
+        run: mix tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
+  test-unsharded:
+    name: Test (unsharded fallback, ${{ matrix.clickhouse }})
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    permissions:
+      contents: read
+    needs: test-build
+    # A failed planner stays red, but must not leave its fixing PR untested.
+    # Forks also use these unprivileged, explicitly unsharded jobs.
+    if: |
+      always() && !cancelled() &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event.pull_request.head.repo.fork == true || needs.test-build.result == 'failure')
+    strategy:
+      fail-fast: false
+      matrix:
+        clickhouse: [current, floor]
     env:
-      # Matches the Test job. Several locale assertions live in tests that carry
-      # no `:locale` tag, so they run either way and fail against the "en"-only
-      # locale set that `mix test` compiles by default.
       TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
@@ -315,7 +413,12 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the oldest supported ClickHouse release
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-install-args: ${{ matrix.clickhouse == 'current' && 'erlang elixir github:ClickHouse/ClickHouse' || 'erlang elixir' }}
+          restore-mix-cache: "false"
+      - name: Pin ClickHouse to the oldest supported release
+        if: matrix.clickhouse == 'floor'
         run: |
           file=lib/tuist/clickhouse_versions.ex
           version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
@@ -323,16 +426,7 @@ jobs:
             echo "Could not resolve @oldest_tested_release from $file" >&2
             exit 1
           fi
-          echo "CLICKHOUSE_FLOOR_VERSION=$version" >> "$GITHUB_ENV"
-          echo "Testing against ClickHouse ${version}"
-      - uses: ./.github/actions/setup-server-mix
-        with:
-          restore-mix-cache: "false"
-      # Not passed through mise-install-args: that path installs `--locked`, and
-      # mise.lock pins the version the rest of CI runs on.
-      - name: Pin ClickHouse to the oldest supported release
-        run: |
-          mise use "github:ClickHouse/ClickHouse@${CLICKHOUSE_FLOOR_VERSION}"
+          mise use "github:ClickHouse/ClickHouse@${version}"
           clickhouse --version
       - name: Restore CLDR locale cache
         uses: actions/cache@v4
@@ -349,7 +443,7 @@ jobs:
         run: mise run --no-deps clickhouse:start
       - name: Setup database
         run: mise run --no-deps db:reset
-      - name: Run tests
+      - name: Run tests without Tuist authentication
         run: mix test --warnings-as-errors
   credo:
     name: Credo
@@ -385,7 +479,7 @@ jobs:
       - name: Check Elixir format
         run: mix format --check-formatted
       - name: Test frontend interactions
-        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs
+        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs assets/marketing/js/hooks/*.test.mjs
       - name: Check asset format
         run: prettier --check assets
       - name: Check CSS custom property references

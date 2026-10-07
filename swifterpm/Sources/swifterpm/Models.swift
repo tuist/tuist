@@ -38,10 +38,10 @@ struct ResolvedPins: Codable, Sendable {
         case version
     }
 
-    func normalizedForResolvedFile() -> ResolvedPins {
+    func normalizedForResolvedFile(mirrors: MirrorConfig) -> ResolvedPins {
         var normalized = self
         normalized.pins = pins
-            .map { $0.normalizedForResolvedFile() }
+            .map { $0.normalizedForResolvedFile(mirrors: mirrors) }
             .sorted {
                 let lhsIdentity = $0.identity.lowercased()
                 let rhsIdentity = $1.identity.lowercased()
@@ -133,7 +133,17 @@ struct ResolvedPin: Codable, Equatable, Sendable {
         case state
     }
 
-    func normalizedForResolvedFile() -> ResolvedPin {
+    func normalizedForResolvedFile(mirrors: MirrorConfig) -> ResolvedPin {
+        var normalized = normalizedForResolvedFile()
+        if PinKind.isSourceControl(kind),
+           let original = mirrors.mirroredOriginal(ofSourceControlLocation: location)
+        {
+            normalized.location = original
+        }
+        return normalized
+    }
+
+    private func normalizedForResolvedFile() -> ResolvedPin {
         var normalized = self
         if let originalLocation {
             normalized.originalLocation = Self.normalizedRemoteSourceControlLocation(originalLocation)
@@ -196,13 +206,13 @@ enum ResolvedFile {
         return try JSONDecoder().decode(ResolvedPins.self, from: data)
     }
 
-    static func write(packageDir: URL, resolved: ResolvedPins) async throws {
+    static func write(packageDir: URL, resolved: ResolvedPins, mirrors: MirrorConfig) async throws {
         let path = packageDir.appendingPathComponent("Package.resolved")
         if resolved.pins.isEmpty {
             try await fileSystem.removePath(path)
             return
         }
-        let resolved = resolved.normalizedForResolvedFile()
+        let resolved = resolved.normalizedForResolvedFile(mirrors: mirrors)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(resolved) + Data("\n".utf8)
@@ -250,8 +260,10 @@ enum PinKind {
         kind == "registry"
     }
 
-    static func checkoutDirectoryName(_ pin: ResolvedPin) -> String {
-        let trimmed = pin.location.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    /// SwiftPM names a checkout after the repository it clones, which is the mirror when one
+    /// applies.
+    static func checkoutDirectoryName(_ pin: ResolvedPin, mirrors: MirrorConfig) -> String {
+        let trimmed = mirrors.effectiveLocation(of: pin).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let withoutGit = trimmed.hasSuffix(".git") ? String(trimmed.dropLast(4)) : trimmed
         let name = withoutGit.split(separator: "/").last.map(String.init).flatMap {
             $0.isEmpty ? nil : $0

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -116,7 +117,17 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		}
 	}
 
-	if !hasLandingNode(nodes.Items, leaving, instance) {
+	selector := nodeSelector(instance)
+	sts := &appsv1.StatefulSet{}
+	switch err := r.Get(ctx, client.ObjectKeyFromObject(instance), sts); {
+	case apierrors.IsNotFound(err):
+		// Before the StatefulSet exists, use the same defaults as its renderer.
+	case err != nil:
+		return err
+	default:
+		selector = sts.Spec.Template.Spec.NodeSelector
+	}
+	if !hasLandingNode(nodes.Items, leaving, selector) {
 		logger.Info("cache pods sit on a node marked for evacuation but no other node can take them; leaving them in place",
 			"instance", instance.Name, "pods", len(stranded))
 		return nil
@@ -273,8 +284,8 @@ func podsOnNodes(pods []corev1.Pod, nodes map[string]bool) []*corev1.Pod {
 
 // hasLandingNode reports whether some node that is not being evacuated could
 // actually take this instance's pods: Ready, schedulable, and matching whatever
-// nodeSelector pins the instance to its region's pool.
-func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, instance *kurav1alpha1.KuraInstance) bool {
+// nodeSelector constrains the replacement, including its private network.
+func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, selector map[string]string) bool {
 	for i := range nodes {
 		node := &nodes[i]
 		if leaving[node.Name] || node.Spec.Unschedulable || node.DeletionTimestamp != nil {
@@ -284,7 +295,7 @@ func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, instance *kura
 			continue
 		}
 		matches := true
-		for key, value := range instance.Spec.NodeSelector {
+		for key, value := range selector {
 			if node.Labels[key] != value {
 				matches = false
 				break

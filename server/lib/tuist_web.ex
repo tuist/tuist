@@ -125,6 +125,7 @@ defmodule TuistWeb do
       import TuistWeb.AppAuthComponents
       import TuistWeb.AppComponents
       import TuistWeb.CldrHelpers
+      import TuistWeb.Components.AsyncCard
       # Core UI components and translation
       import TuistWeb.Components.IconComponents
       import TuistWeb.Components.Skeleton

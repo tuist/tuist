@@ -3,8 +3,12 @@
 This directory contains ExUnit tests for the Tuist Server.
 
 ## Testing Guidelines
+- Search-indexing coverage verifies crawlable public project HTML, noindex for sensitive routes and failures, query-free canonical URLs, and bounded public-only project sitemaps. Keep private-project authorization unchanged.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
 - Tests run with a clean database.
+- Successful Mix compile-reporter ingestion fixtures must include a profiled file; idle compiles intentionally emit no report. Error diagnostics still report without profiled files.
+- Open Graph regressions cover published legacy URLs, stable marketing/docs tokens, project-token expiry, handle reuse, visibility rechecks (including 304s and transient images), project-only retention, and exclusion of restricted automation configuration.
+- Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout. When adopting shared analytics cards, update page tests to assert the shared failure state and successful recovery; keep separate coverage for optional-result failures that must leave required content visible.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
 - Never modify System environment variables in tests (shared state).
 - Use mocks/stubs/DI for environment-dependent behavior.
@@ -53,3 +57,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.
 
 - Storage telemetry regression tests distinguish capacity churn, pressure-only days, and mixed-reason days; pressure cannot establish a retention or occupancy resize verdict.
+
+- Verify analytics transitions locally with headless Chrome, not just the settled page: capture before and after screenshots, measure section bounds, and check that chart and table elements remain mounted during refresh. Cover empty and populated sibling pages across build systems, narrow viewports and both themes. Initial renders must tolerate partially completed required results; optional requests must not delay the whole card, and failed loads must leave filter controls usable.

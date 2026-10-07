@@ -1,9 +1,9 @@
 defmodule AtlasWeb.PageControllerTest do
   use AtlasWeb.ConnCase, async: true
 
-  test "GET / redirects to login when not authenticated", %{conn: conn} do
+  test "GET / redirects to documentation when not authenticated", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert redirected_to(conn) == "/login"
+    assert redirected_to(conn) == "/docs"
   end
 
   test "GET /login renders the login page", %{conn: conn} do

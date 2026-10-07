@@ -286,6 +286,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "TestCoverageAttribution"),
             ]
         ),
     ],

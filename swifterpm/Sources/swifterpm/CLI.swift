@@ -590,16 +590,20 @@ enum CLIRunner {
                 cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir)
             let registryConfig = try await cliRegistryConfig(
                 cli: cli, paths: paths, package: package)
+            let mirrors = try await MirrorConfig.load(
+                packageDir: package, configPath: paths.resolve(cli.configPath))
             let resolved = try await ResolvedFile.read(packageDir: package)
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: mirrors,
                 resolved: resolved,
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox)
             try await maybeWritePackageInfoCache(
-                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved)
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
+                mirrors: mirrors)
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved,
+                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
                 disableSandbox: cli.disableSandbox)
         }
     }
@@ -623,6 +627,8 @@ enum CLIRunner {
         let readOnly =
             cli.forceResolvedVersions || cli.disableAutomaticResolution
             || cli.onlyUseVersionsFromResolvedFile
+        let mirrors = try await MirrorConfig.load(
+            packageDir: package, configPath: paths.resolve(cli.configPath))
 
         // On `resolve`, the seed Package.resolved may still list dependencies
         // that have been removed from the manifest since the last install.
@@ -635,7 +641,9 @@ enum CLIRunner {
                 packageDir: package,
                 scratchDir: scratch,
                 cacheRoot: cacheRoot,
-                disableSandbox: cli.disableSandbox
+                mirrors: mirrors,
+                disableSandbox: cli.disableSandbox,
+                scmToRegistryTransformation: try scmToRegistryTransformation(cli)
             )
         }
 
@@ -667,6 +675,7 @@ enum CLIRunner {
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,
                 cache: cache,
+                mirrors: mirrors,
                 resolved: resolved
             )
             try await WorkspaceRestorer.cacheNativeRegistryDownloads(
@@ -688,6 +697,7 @@ enum CLIRunner {
             scratchDir: scratch,
             cache: cache,
             registryConfig: registryConfig,
+            mirrors: mirrors,
             registryConfigurationPath: paths.resolve(cli.configPath),
             defaultRegistryURL: cli.defaultRegistryURL,
             disableSandbox: cli.disableSandbox,
@@ -705,13 +715,15 @@ enum CLIRunner {
         if shouldRestore(restore: restore, printOnly: printOnly) {
             try await WorkspaceRestorer.restorePackage(
                 scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: mirrors,
                 resolved: resolved,
                 progress: cli.quiet ? nil : RestoreProgressReporter(),
                 disableSandbox: cli.disableSandbox)
             try await maybeWritePackageInfoCache(
-                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved)
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
+                mirrors: mirrors)
             try await WorkspaceRestorer.writeWorkspaceState(
-                packageDir: package, scratchDir: scratch, resolved: resolved,
+                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
                 disableSandbox: cli.disableSandbox)
 
             // With the pins restored, confirm they still satisfy the manifest the
@@ -732,7 +744,8 @@ enum CLIRunner {
     }
 
     private static func maybeWritePackageInfoCache(
-        cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL, resolved: ResolvedPins
+        cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL, resolved: ResolvedPins,
+        mirrors: MirrorConfig
     ) async throws {
         if cli.disablePackageInfoCache {
             return
@@ -741,6 +754,7 @@ enum CLIRunner {
             packageDir: package,
             scratchDir: scratch,
             resolved: resolved,
+            mirrors: mirrors,
             cacheDir: paths.resolve(cli.packageInfoCachePath),
             disableSandbox: cli.disableSandbox,
             quiet: cli.quiet

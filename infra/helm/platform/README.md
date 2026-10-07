@@ -8,6 +8,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
+| `grpc-ingress-nginx` | Ingress controller (`nginx-grpc` class) for in-cluster gRPC backends, such as the Once events listener. Keeps upstream keepalive on, which the main controller turns off for its HTTP backends, so no `Connection` header reaches strict HTTP/2 servers |
 | `kura-*-ingress-nginx` | Regional Kura gateways on host-network DaemonSets or shared cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |

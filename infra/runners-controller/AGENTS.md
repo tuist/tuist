@@ -1267,7 +1267,7 @@ the `apk add` on every Pod startup goes away.
 ## Linux cache volumes
 
 Local reflink image clones are implemented in
-[`internal/cachevolumes`](internal/cachevolumes/AGENTS.md) and `cmd/cache-volumes`.
+[`../runner-cache`](../runner-cache/AGENTS.md) and `cmd/cache-volumes`.
 They reuse macOS HEAD arbitration and object storage; custom volumes remain
 Linux-only. The agent image includes ext4/loop tooling, with no Ceph dependency.
 See [host setup and rollout](cache-volumes.md).

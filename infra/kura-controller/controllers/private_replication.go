@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -30,8 +31,8 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 	provider, network, err := privateReplicationDomain(nodes.Items)
 	if err != nil || provider == "" {
 		// Qualification gates topology publication, not unrelated workload
-		// reconciliation. In particular, never move existing local volumes to
-		// a qualified subset of a mixed pool or silently withdraw their policy.
+		// reconciliation. Preserve policy through observation gaps only while
+		// the requested placement is unchanged; an explicit move withdraws it.
 		preservePrivateReplication(template, previous)
 		log.FromContext(ctx).V(1).Info("Private topology publication pending", "reason", err)
 		return nil
@@ -62,6 +63,13 @@ func (r *KuraInstanceReconciler) configurePrivateReplication(ctx context.Context
 
 func preservePrivateReplication(template, previous *corev1.PodTemplateSpec) {
 	if previous == nil || previous.Annotations[managedTopologyAnnotation] != "true" {
+		return
+	}
+	requestedSelector := maps.Clone(template.Spec.NodeSelector)
+	previousSelector := maps.Clone(previous.Spec.NodeSelector)
+	delete(requestedSelector, privateNetworkLabel)
+	delete(previousSelector, privateNetworkLabel)
+	if !maps.Equal(requestedSelector, previousSelector) {
 		return
 	}
 	template.Spec.NodeSelector = previous.DeepCopy().Spec.NodeSelector

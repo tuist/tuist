@@ -248,6 +248,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftProtobuf"),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
                     .target(name: Module.config.targetName),
                     .target(name: "TuistCacheEE"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -259,6 +260,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
+                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -342,7 +344,7 @@ public enum Module: String, CaseIterable {
                 target(
                     name: unitTestsTargetName,
                     product: .unitTests,
-                    dependencies: unitTestDependencies,
+                    dependencies: unitTestDependencies + [.external(name: "TestCoverageAttribution")],
                     isTestingTarget: false
                 )
             )
@@ -1645,7 +1647,7 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting,
                  .constants, .environment, .nooraTesting, .loggerTesting, .swifterPMCore,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
@@ -1666,7 +1668,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .xcodeGraph:
                 []
-            case .testSupport, .logging:
+            case .testSupport, .logging, .process:
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -2099,6 +2101,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: "TuistProcess"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),

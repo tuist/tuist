@@ -3,6 +3,7 @@
 This directory contains database migrations and other private assets.
 
 ## Responsibilities
+- REAPI module-cache upload concurrency and admission retry settings are documented in `docs/en/guides/features/cache/module-cache.md`; keep them aligned with `cli/Sources/TuistREAPI` and Kura's upload sizing guidance.
 - Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
@@ -18,7 +19,9 @@ This directory contains database migrations and other private assets.
   1200px wide while retaining their aspect ratio.
 
 ## Demo Data
+- Runner job steps use weighted durations that sum to the job duration, reserving at least one second for each remaining step in the seeded jobs.
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
+- Coverage seeds give `tuist/tuist` a commit graph in `git_repositories` (a month of `main`, a merged branch with its merge commit, and an open pull request), a file listing per commit, runs carrying coverage for two schemes, and the published `coverage_commits`. They start from a clean graph on every run, so the trend is never two seedings deep, and they deliberately leave one commit unmeasured, one measured by a single scheme and the newest ones unsignalled, so the history shows a gap, a commit off the trend and a commit still waiting for its completion signal.
 - The standard `repo/seeds.exs` creates `tuist/xcode-comparison` and `tuist/bazel-comparison` with matching test histories, including healthy, flaky, muted, and skipped cases. Keep their scenarios aligned for visual comparison; rerunning seeds preserves existing comparison runs.
 
 ## Guardrails
