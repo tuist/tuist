@@ -8,6 +8,8 @@ import TuistAlert
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLoader
 import TuistRootDirectoryLocator
 import TuistServer
@@ -153,6 +155,39 @@ struct XcodeBuildTestCommandServiceTests {
             .called(1)
 
         await #expect(RunMetadataStorage.current.buildRunId == activityLogPath.basenameWithoutExt)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies(), arguments: [true, false])
+    func bumpsCoverageCountersAtomicallyWhenCoverageIsUploaded(uploadsCoverage: Bool) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn("unique-id")
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: temporaryDirectory.appending(component: "DerivedData")))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        try await subject.run(passthroughXcodebuildArguments: ["test", "-scheme", "MyAppTests"])
+
+        let resultBundlePath = temporaryDirectory.appending(components: "cache", "unique-id.xcresult").pathString
+        let arguments = ["test", "-scheme", "MyAppTests", "-resultBundlePath", resultBundlePath]
+        verify(xcodeBuildController)
+            .run(arguments: .value(uploadsCoverage ? AtomicCoverageCounters.adding(to: arguments) : arguments))
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

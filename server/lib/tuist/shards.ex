@@ -28,6 +28,7 @@ defmodule Tuist.Shards do
   @timing_quantile 0.90
   @min_parallelism_factor 0.5
   @max_parallelism_factor 16.0
+  @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params) do
     granularity = Map.get(params, :granularity, "module")
@@ -39,6 +40,7 @@ defmodule Tuist.Shards do
     units_with_durations =
       units
       |> assign_durations(timing_data, granularity)
+      |> fold_nested_classes(granularity)
       |> scale_by_module_parallelism(project, params, granularity)
 
     shard_count =
@@ -723,6 +725,37 @@ defmodule Tuist.Shards do
     {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     Map.new(rows, fn [name, duration] -> {name, round_timing_duration(duration)} end)
+  end
+
+  # JVM test runs record a nested class (`Outer$Inner`) as a suite of its own, but a test filter that
+  # selects or excludes a class also selects or excludes its nested classes. Planning them as separate
+  # units would run the nested class on two shards, so they are folded into their top-level class with
+  # their durations summed. Only names shaped like JVM binary class names are folded: a Swift type name
+  # cannot contain `$`, so Xcode suites keep their names.
+  defp fold_nested_classes(units_with_durations, "suite") do
+    {names, durations} =
+      Enum.reduce(units_with_durations, {[], %{}}, fn {name, duration}, {names, durations} ->
+        top_level = top_level_suite(name)
+
+        if Map.has_key?(durations, top_level) do
+          {names, Map.update!(durations, top_level, &(&1 + duration))}
+        else
+          {[top_level | names], Map.put(durations, top_level, duration)}
+        end
+      end)
+
+    names |> Enum.reverse() |> Enum.map(&{&1, Map.fetch!(durations, &1)})
+  end
+
+  defp fold_nested_classes(units_with_durations, _granularity), do: units_with_durations
+
+  defp top_level_suite(name) do
+    with [module, suite] <- String.split(name, "/", parts: 2),
+         %{"class" => class} <- Regex.named_captures(@nested_jvm_class_regex, suite) do
+      module <> "/" <> class
+    else
+      _ -> name
+    end
   end
 
   defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()

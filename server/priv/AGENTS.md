@@ -76,7 +76,8 @@ This directory contains database migrations and other private assets.
 
 - Keep Grafana documentation organized around metric tables, with build-system differences, query options, and setup in separate sections. Document where shared failure categories and Gradle cache estimates also appear in native dashboards.
 
-- The cache-volume platform expansion retains the legacy seven-column unique
-  index for rolling Linux deployments and image rollback. Drop it concurrently
-  in a separate macOS enablement migration only after old server pods and the
-  rollback window are gone; keep the macOS custom-volume gate off until then.
+- The platform expansion initially retains the legacy seven-column unique
+  index. `20261007150000_enable_macos_cache_volumes.exs` removes it concurrently
+  after platform-aware server rollout. Its rollback requires macOS allocations
+  disabled, jobs drained and macOS data/metadata reclaimed before recreating the
+  legacy index. Do not roll back to pre-platform server images after enablement.

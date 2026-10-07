@@ -11,9 +11,10 @@ pricing and provider coordination.
 ## Kubernetes ownership and merge activation
 
 `capi.vultrPrivateNetwork` declares each region's VPC description, CIDR and
-physical qualification in Helm. Production declares `tuist-kura-production-ord`
+qualification gate in Helm. Production declares `tuist-kura-production-ord`
 (`172.30.244.0/24`, qualified) and `tuist-kura-production-scl`
-(`172.30.245.0/24`, unqualified). Self-hosting defaults to disabled.
+(`172.30.245.0/24`, enabled with a single-host qualification limit). Self-hosting
+defaults to disabled.
 
 `VultrMachineReconciler` manages networks for enrolled cache fleets in its
 configured namespace. It adopts an exact existing VPC or creates the missing
@@ -58,10 +59,12 @@ MTU and DF-probe options are explicit renderer parameters.
 
 The merge deployment therefore enables Chicago private replication after this
 convergence gate. Normal managed rollout and existing OnDelete holds still
-apply; merge does not instantly restart every runtime. Santiago's VPC is managed,
-but its host attachment and runtime topology remain disabled pending regional
-qualification. The existing Santiago canonical mTLS link remains compatible
-with Chicago's enabled topology because Santiago advertises no topology.
+apply; merge does not instantly restart every runtime. Santiago also enables
+managed host configuration and runtime topology. Its single host passed manual
+attachment without reboot and isolated regional runtime checks. Same-host
+replication cannot prove a physical VPC path between hosts: repeat the physical
+path/MTU checks when the second Santiago host arrives. Chicago–Santiago traffic
+uses the reciprocal canonical mTLS policy below.
 
 ## Regional replication policy
 
@@ -88,22 +91,22 @@ a private failure never triggers a public retry. Only same-VPC peers receive
 private donor preference. Cross-provider and topology-free compatibility are
 unchanged.
 
-Deploy the policy-capable runtime and both controllers first, with Santiago
-still `qualified: false`. Publishing the new Node policy changes
-`KURA_PEER_TOPOLOGY` and triggers the normal Chicago StatefulSet rollout, even
+When adding another regional domain, deploy the policy-capable runtime and both
+controllers first, with that region still `qualified: false`. Publishing the new
+Node policy changes `KURA_PEER_TOPOLOGY` and triggers the normal StatefulSet rollout, even
 if the runtime image is unchanged. Node patches are not atomic across hosts:
 the Kura controller preserves existing topology until every candidate agrees.
 Ready Vultr Machines normally reconcile every ten minutes (20 seconds on
 private-network errors); Kura instances normally requeue every 30 seconds. A
 values-only update can therefore take a full resync interval plus queue time to
 converge. Observe the Node annotations and rollout completion instead of assuming
-simultaneous patches. Verify all Chicago runtimes advertise Santiago's VPC
-ID before qualifying Santiago: older runtimes ignore the additive policy field
-and would reject the second advertised domain. Existing production values stage
-the reciprocal approvals without attaching Santiago. Then qualify the Santiago
-host through the procedure below and enable `qualified: true`. A single host can
-validate attachment and runtime behavior, but physical host-to-host private
-replication must be tested when a second host arrives. Future Santiago hosts
+simultaneous patches. Verify all existing runtimes advertise the new region's VPC
+ID before qualifying it: older runtimes ignore the additive policy field
+and would reject the second advertised domain. Production has completed
+this policy-capable runtime prerequisite and enables `qualified: true` for both
+regions. For another region, qualify its host through the procedure below before
+enabling it. A single host can validate attachment and runtime behavior, but
+physical host-to-host private replication must be tested when a second host arrives. Future Santiago hosts
 join the same region's membership/route convergence gate automatically.
 
 For rollback, withdraw Santiago topology before rolling back to a runtime that
@@ -122,7 +125,8 @@ controller adoption. The [PR validation record](https://github.com/tuist/tuist/p
 contains the tested revisions, capture counts and measured results.
 
 This qualified the Chicago path. It did not establish saturation throughput,
-N-1 capacity, Santiago transport or persistence across a production reboot.
+N-1 capacity, a physical Santiago host pair or persistence across a production
+reboot.
 The new Vultr controller was tested locally, not deployed in that qualification
 window. New hosts and controller changes still need appropriate validation.
 

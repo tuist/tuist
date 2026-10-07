@@ -10,7 +10,8 @@ Their private host configuration is already installed and qualified within the
 limits recorded below. Canary and production managed runtime templates will
 activate through the normal deployment after matching route attestations.**
 Chicago Vultr now also has a qualified private path and Kubernetes-owned network
-reconciliation. Its merge activation and Santiago limitation are described in
+reconciliation. Santiago enables the same controller-managed topology with a
+single-host qualification limit. Their activation and limits are described in
 [Vultr private networking](vultr-private-networking.md).
 
 ## Operational inventory
@@ -40,7 +41,7 @@ required on every path.
   Separate ORD and SCL VPCs are provisioned. See
   [Vultr provisioning and qualification](vultr-private-networking.md) for the
   completed Chicago attachment, MTU and E2E qualification, Kubernetes ownership,
-  and the remaining Santiago/cross-domain gate.
+  and Santiago attachment/runtime qualification with its physical host-pair limit.
 - Cross-provider: retain the existing reachable peer gateway and account mTLS.
   Provider preference never removes the remote origin-region links, published
   gateways, or same-region sibling feeds.
@@ -129,7 +130,8 @@ enables both host reconciliation and automatic runtime publication after its
 physical qualification. Canary and production also enable both settings; their
 merge deployment publishes topology after the CAPI provider verifies the prepared
 hosts. Vultr Chicago follows the same publication boundary after its qualified
-host routes converge; Santiago retains canonical mTLS. Other unqualified
+host routes converge. Santiago also enables regional topology, with canonical
+mTLS explicitly approved between ORD and SCL. Other unqualified
 placements retain their existing behavior. See the provider-specific guide.
 
 Provider-only configuration is rejected at startup: opting in requires both
