@@ -106,9 +106,7 @@
             patch={TuistWeb.XcodeBuildRunsLive.column_patch_sort(assigns, "failure-category")}
             sort_order={@build_runs_sort_by == "failure-category" && @build_runs_sort_order}
           >
-            <.text_cell label={
-              TuistWeb.Components.BuildHealth.category_label(build_run.failure_category)
-            } />
+            <TuistWeb.Components.BuildHealth.category_cell category={build_run.failure_category} />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
             <.text_cell

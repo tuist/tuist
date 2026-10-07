@@ -600,9 +600,7 @@ defmodule TuistWeb.BazelInvocationsLive do
                 patch={TuistWeb.BazelInvocationsLive.column_patch_sort(assigns, "failure-category")}
                 sort_order={@invocations_sort_by == "failure-category" && @invocations_sort_order}
               >
-                <.text_cell label={
-                  TuistWeb.Components.BuildHealth.category_label(invocation.failure_category)
-                } />
+                <TuistWeb.Components.BuildHealth.category_cell category={invocation.failure_category} />
               </:col>
               <:col
                 :let={invocation}

@@ -915,9 +915,7 @@
           />
         </:col>
         <:col :let={build} label={dgettext("dashboard_builds", "Failure category")}>
-          <.text_cell label={
-            TuistWeb.Components.BuildHealth.category_label(build.failure_category)
-          } />
+          <TuistWeb.Components.BuildHealth.category_cell category={build.failure_category} />
         </:col>
         <:col :let={build} label={dgettext("dashboard_builds", "Xcode version")}>
           <.text_cell label={

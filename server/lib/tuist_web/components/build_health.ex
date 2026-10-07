@@ -69,6 +69,23 @@ defmodule TuistWeb.Components.BuildHealth do
     """
   end
 
+  attr :category, :string, required: true
+
+  def category_cell(assigns) do
+    ~H"""
+    <.badge_cell
+      :if={@category in ["verification", "infrastructure_tooling", "unknown"]}
+      label={category_label(@category)}
+      color="neutral"
+      style="light-fill"
+    />
+    <.text_cell
+      :if={@category not in ["verification", "infrastructure_tooling", "unknown"]}
+      label="—"
+    />
+    """
+  end
+
   def category_filter do
     %Noora.Filter.Filter{
       id: "failure_category",
