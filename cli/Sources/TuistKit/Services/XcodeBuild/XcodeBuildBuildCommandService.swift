@@ -87,9 +87,19 @@ struct XcodeBuildBuildCommandService {
             }
         }
 
+        var buildArguments = passthroughXcodebuildArguments
+        if passthroughXcodebuildArguments.contains("build-for-testing"),
+           let config = try? await configLoader.loadConfig(
+               path: path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+           ),
+           UploadResultBundleService.uploadsCoverage(config: config)
+        {
+            buildArguments = AtomicCoverageCounters.adding(to: buildArguments)
+        }
+
         let buildStartedAt = Date()
         do {
-            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+            try await xcodeBuildController.run(arguments: buildArguments)
         } catch {
             await captureBuildRunReport(
                 succeeded: false,
