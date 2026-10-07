@@ -1,0 +1,42 @@
+{{- /*
+Keeps the HAProxy gateways' controller ports off the internet. The gateways run
+host-network, so their stats/metrics (1024), health (1042) and admin (6060)
+listeners bind the box's public address. In-cluster scrapes and probes arrive
+with cluster identities and stay allowed.
+
+Selecting a host endpoint switches it to enforcement, so the policy allows all
+ingress and only denies these ports from `world`. Host endpoints carry only the
+node.cluster.x-k8s.io/* labels, so the selector is the gateway pools.
+*/ -}}
+{{- $pools := list }}
+{{- range $region := list "eu-west" "ca-east" "us-east" "us-west" "ap-southeast" "sa-west" "eu-east" "us-central" "runners" }}
+{{- $gateway := index $.Values (printf "kura-%s-haproxy" $region) }}
+{{- if $gateway.enabled }}
+{{- $pools = append $pools (index $gateway.controller.nodeSelector "node.cluster.x-k8s.io/pool") }}
+{{- end }}
+{{- end }}
+{{- if $pools }}
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: kura-haproxy-gateway-ports-no-world
+spec:
+  nodeSelector:
+    matchExpressions:
+      - key: node.cluster.x-k8s.io/pool
+        operator: In
+        values:
+          {{- toYaml ($pools | uniq) | nindent 10 }}
+  ingress:
+    - fromEntities: [all]
+  ingressDeny:
+    - fromEntities: [world]
+      toPorts:
+        - ports:
+            - port: "1024"
+              protocol: TCP
+            - port: "1042"
+              protocol: TCP
+            - port: "6060"
+              protocol: TCP
+{{- end }}

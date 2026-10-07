@@ -1012,6 +1012,52 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(manifest["metadata"]["annotations"], "tuist.dev/kura-gateway")
     end
 
+    test "renders the HAProxy gateway class only for regions that joined it" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      joined =
+        KubernetesController.manifest(
+          "kura-tuist-us-east-1",
+          "0.5.2",
+          %{name: "tuist"},
+          us_east_region(%{gateway: :host_network, haproxy_ingress_class_name: "kura-us-east-haproxy"}),
+          %Server{}
+        )
+
+      nginx_only =
+        KubernetesController.manifest(
+          "kura-tuist-us-east-1",
+          "0.5.2",
+          %{name: "tuist"},
+          us_east_region(%{gateway: :host_network}),
+          %Server{}
+        )
+
+      assert joined["spec"]["haproxyIngressClassName"] == "kura-us-east-haproxy"
+      assert joined["spec"]["ingressClassName"] == "kura-us-east"
+      refute Map.has_key?(nginx_only["spec"], "haproxyIngressClassName")
+    end
+
+    test "moves the revision when a region joins or leaves the HAProxy gateway" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+      account = %Account{id: 1, name: "tuist"}
+
+      joined =
+        KubernetesController.manifest_revision(
+          %Server{account: account},
+          us_east_region(%{haproxy_ingress_class_name: "kura-us-east-haproxy"})
+        )
+
+      nginx_only = KubernetesController.manifest_revision(%Server{account: account}, us_east_region())
+
+      assert String.ends_with?(joined, "+haproxy-gw")
+      refute String.contains?(nginx_only, "+haproxy-gw")
+    end
+
     test "uses the region-configured Tuist server URL for managed eu-west Kura instances" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

@@ -105,6 +105,10 @@ spec:
                   maxLength: 253
                 ingressClassName:
                   type: string
+                # Region's HAProxy gateway class. Rendered alongside
+                # ingressClassName while a region moves off ingress-nginx.
+                haproxyIngressClassName:
+                  type: string
                 # Host-network customer gateway (bare-metal regions, no LB):
                 # publish the account's publicHost via a per-account DNSEndpoint
                 # targeting the box its pods run on, so each account resolves to

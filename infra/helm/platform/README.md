@@ -10,6 +10,8 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
 | `grpc-ingress-nginx` | Ingress controller (`nginx-grpc` class) for in-cluster gRPC backends, such as the Once events listener. Keeps upstream keepalive on, which the main controller turns off for its HTTP backends, so no `Connection` header reaches strict HTTP/2 servers |
 | `kura-*-ingress-nginx` | Regional Kura gateways on host-network DaemonSets or shared cloud LoadBalancers |
+| `kura-*-haproxy` | Regional Kura gateways that route on their own `/ready` checks, replacing `kura-*-ingress-nginx` region by region |
+| `kura-haproxy-gateway-ports-no-world` | Keeps the HAProxy gateways' stats, health and admin ports unreachable from the internet |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
@@ -45,6 +47,30 @@ Those gateways are host-network DaemonSets, one nginx per cache box. A region
 running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
 gateway can only serve the Kura pods that happen to share its box and answers
 504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
+
+## HAProxy Kura gateways
+
+The `kura-<region>-haproxy` gateways replace the nginx ones. nginx routes on
+Kubernetes readiness, which the control plane withdraws from every pod on a box
+that loses its heartbeat, so a box partitioned from the control plane answered
+503 for healthy Kura pods. HAProxy health-checks each instance's primary on
+`/ready` every second and keeps serving it through a partition. The
+kura-controller renders its Ingresses (`<instance>-haproxy`,
+`<instance>-grpc-haproxy`) onto a `<instance>-haproxy` Service that publishes the
+primary regardless of Kubernetes readiness.
+
+A region moves in two steps:
+
+1. **Side by side.** Enable `kura-<region>-haproxy` in the environment overlay
+   and set `haproxy_gateway: true` on the region in
+   `server/lib/tuist/kura/regions.ex`. HAProxy serves on `:8443` next to nginx's
+   `:443`. Check it with `curl https://<host>:8443/ready`.
+2. **Serving.** Set the region's `controller.containerPort.https: 443` and
+   `controller.allowPrivilegeEscalation: true`, and disable
+   `kura-<region>-ingress-nginx`. The box refuses connections for a few seconds
+   while the port changes hands.
+
+Today ca-east (staging, canary) and sa-west (production) run side by side.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
