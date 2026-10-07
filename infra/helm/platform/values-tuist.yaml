@@ -210,6 +210,11 @@ kura-sa-west-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
+# Side by side with the nginx gateway above (HAProxy on :8443); see the
+# kura-<region>-haproxy notes in values.yaml for the cutover.
+kura-sa-west-haproxy:
+  enabled: true
+
 # EU East (Warsaw, OVHcloud). Same host-network shape as the other bare-metal
 # regions: the region's gateway binds the box's public IP, and OVH has no cloud
 # LoadBalancer to put in front of it.

@@ -92,6 +92,11 @@ kura-ca-east-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
+# Side by side with the nginx gateway above (HAProxy on :8443); see the
+# kura-<region>-haproxy notes in values.yaml for the cutover.
+kura-ca-east-haproxy:
+  enabled: true
+
 kura-runners-ingress-nginx:
   enabled: true
 

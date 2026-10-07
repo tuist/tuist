@@ -68,6 +68,51 @@ dependencies:
     version: 4.11.3
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-us-central-ingress-nginx.enabled
+  - name: kubernetes-ingress
+    alias: kura-eu-west-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-eu-west-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-ca-east-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-ca-east-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-us-east-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-us-east-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-us-west-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-us-west-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-ap-southeast-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-ap-southeast-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-sa-west-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-sa-west-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-eu-east-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-eu-east-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-us-central-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-us-central-haproxy.enabled
+  - name: kubernetes-ingress
+    alias: kura-runners-haproxy
+    version: 1.54.2
+    repository: https://haproxytech.github.io/helm-charts
+    condition: kura-runners-haproxy.enabled
   - name: external-dns
     version: 1.15.0
     repository: https://kubernetes-sigs.github.io/external-dns

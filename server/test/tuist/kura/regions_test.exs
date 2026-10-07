@@ -590,6 +590,19 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "HAProxy gateway" do
+    test "routes the regions that joined it through their HAProxy class" do
+      assert Regions.get("ca-east").provisioner_config.haproxy_ingress_class_name == "kura-ca-east-haproxy"
+      assert Regions.get("sa-west").provisioner_config.haproxy_ingress_class_name == "kura-sa-west-haproxy"
+    end
+
+    test "leaves every other region on its nginx gateway" do
+      for id <- ["eu-west", "us-east", "us-west", "ap-southeast", "eu-east", "us-central", "scw-fr-par-runners"] do
+        assert Regions.get(id).provisioner_config.haproxy_ingress_class_name == nil
+      end
+    end
+  end
+
   describe "private runner-cache regions" do
     test "the scaleway runner region is registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")

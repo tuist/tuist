@@ -374,6 +374,182 @@ kura-us-central-ingress-nginx:
     metrics:
       enabled: true
 
+# HAProxy regional Kura gateways, replacing the ingress-nginx ones above one
+# region at a time. ingress-nginx routes on Kubernetes readiness, so when a box
+# loses its heartbeat to the control plane the node lifecycle controller marks
+# every pod on it NotReady and the box's own gateway answers 503 for healthy
+# Kura pods. HAProxy routes on its own /ready checks against a Service that
+# publishes the primary whatever Kubernetes thinks of it (kura-controller's
+# reconcileHAProxyGateway). A region moves in two values steps:
+#
+# 1. Side by side: enable `kura-<region>-haproxy` here and set
+#    `haproxy_gateway: true` on the region in server/lib/tuist/kura/regions.ex.
+#    HAProxy serves on :8443 next to nginx's :443, so it can be checked with
+#    real hostnames before any client reaches it.
+# 2. Serving: in the environment's values, set the region's
+#    `controller.containerPort.https: 443` and
+#    `controller.allowPrivilegeEscalation: true` (the image's haproxy binary
+#    carries the cap_net_bind_service file capability, which applies only with
+#    privilege escalation allowed), and disable `kura-<region>-ingress-nginx`.
+#    Expect a few seconds of refused connections on the box while the port
+#    changes hands.
+kura-eu-west-haproxy:
+  enabled: false
+  controller: &kuraHAProxyGateway
+    kind: DaemonSet
+    daemonset:
+      useHostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    ingressClass: kura-eu-west-haproxy
+    ingressClassResource:
+      name: kura-eu-west-haproxy
+    podLabels:
+      tuist.dev/kura-haproxy-gateway: "true"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-dedibox
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    # Customer DNS comes from the kura-controller's DNSEndpoints, so there is
+    # no Service and nothing to publish into Ingress status.
+    publishService:
+      enabled: false
+    service:
+      enabled: false
+      enablePorts:
+        quic: false
+    pprof:
+      enabled: false
+    # Kura pods bin-pack CPU requests on these boxes, so keep the gateway's
+    # reservation close to what the nginx gateway reserves.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    # The chart's generated default certificate is a pre-install hook, which
+    # never runs on this already-installed release.
+    defaultTLSSecret:
+      enabled: true
+      secretNamespace: kura
+      secret: kura-public-wildcard-tls
+    extraArgs:
+      - --disable-http
+      - --disable-quic
+    logging:
+      traffic:
+        address: stdout
+        format: raw
+        facility: daemon
+    config:
+      timeout-client: "3600s"
+      timeout-server: "3600s"
+      timeout-tunnel: "3600s"
+      # The same 4m HTTP/2 upload window and 32-stream bound as the nginx
+      # gateways (http2_body_preread_size), so worst-case buffered upload memory
+      # per client connection stays at 128MB.
+      global-config-snippet: |
+        tune.h2.fe.initial-window-size 4194304
+        tune.h2.fe.max-concurrent-streams 32
+      # Close the connection right after the handshake for a name this gateway
+      # does not route, the counterpart of nginx's ssl-reject-handshake. The
+      # wildcard certificate matches every name, so strict SNI cannot do it.
+      # A client holding a stale DNS answer sees a connection failure and
+      # re-resolves; a 404 on a healthy connection would pin it to this region.
+      # The map is the controller's host map (--config-dir default).
+      frontend-config-snippet: |
+        tcp-request content reject if { ssl_fc } !{ ssl_fc_sni,lower,map(/tmp/haproxy-ingress/etc/maps/host.map) -m found }
+
+kura-ca-east-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-ca-east-haproxy
+    ingressClassResource:
+      name: kura-ca-east-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-ca-east
+
+kura-us-east-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-us-east-haproxy
+    ingressClassResource:
+      name: kura-us-east-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-east
+
+kura-us-west-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-us-west-haproxy
+    ingressClassResource:
+      name: kura-us-west-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-west
+
+kura-ap-southeast-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-ap-southeast-haproxy
+    ingressClassResource:
+      name: kura-ap-southeast-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-ap-southeast
+
+kura-sa-west-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-sa-west-haproxy
+    ingressClassResource:
+      name: kura-sa-west-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-sa-west
+
+kura-eu-east-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-eu-east-haproxy
+    ingressClassResource:
+      name: kura-eu-east-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-eu-east
+
+kura-us-central-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-us-central-haproxy
+    ingressClassResource:
+      name: kura-us-central-haproxy
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-central
+
+# The private runner gateway. Instances restrict clients with
+# haproxy.org/allow-list, and client_gateway.go discovers the gateway by the
+# tuist.dev/kura-ingress-class label it shares with the nginx gateway.
+kura-runners-haproxy:
+  enabled: false
+  controller:
+    <<: *kuraHAProxyGateway
+    ingressClass: kura-runners-haproxy
+    ingressClassResource:
+      name: kura-runners-haproxy
+    podLabels:
+      tuist.dev/kura-haproxy-gateway: "true"
+      tuist.dev/kura-ingress-class: kura-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+
 # Lets the regional Kura gateways above reach Kura pods on the other boxes of a
 # multi-box region. Enable it wherever a `kura-*-ingress-nginx` gateway runs
 # host-network; see templates/kura-gateway-network-policy.yaml for why the

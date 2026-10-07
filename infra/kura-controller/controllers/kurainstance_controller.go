@@ -548,6 +548,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileHAProxyGateway(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcilePublicDNSEndpoint(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -1890,36 +1893,47 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		ingress.Labels = labels(instance)
 		ingress.Annotations = clientIngressAnnotations(instance, publicIngressAnnotations())
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
-		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      clientHosts(instance),
-			SecretName: r.publicIngressTLSSecretName(ctx, instance),
-		}}
-
-		for _, host := range stableClientHosts(instance)[len(clientHosts(instance)):] {
-			secret := publicTLSSecretName(instance)
-			if r.sharedTLSCoversHost(ctx, instance, host) {
-				secret = r.PublicTLSSecretName
-			}
-			ingress.Spec.TLS = append(ingress.Spec.TLS, networkingv1.IngressTLS{Hosts: []string{host}, SecretName: secret})
-		}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: clientHost(instance),
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{{
-					Path:     "/",
-					PathType: ptr(networkingv1.PathTypePrefix),
-					Backend:  ingressBackend(instance.Name, "http"),
-				}},
-			}},
-		}}
-		for _, host := range stableClientHosts(instance)[1:] {
-			rule := *ingress.Spec.Rules[0].DeepCopy()
-			rule.Host = host
-			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
-		}
+		ingress.Spec.TLS = r.clientIngressTLS(ctx, instance)
+		ingress.Spec.Rules = clientIngressRules(instance, []networkingv1.HTTPIngressPath{{
+			Path:     "/",
+			PathType: ptr(networkingv1.PathTypePrefix),
+			Backend:  ingressBackend(instance.Name, "http"),
+		}})
 		return nil
 	})
 	return err
+}
+
+// clientIngressTLS is the TLS every gateway terminates for the client hosts,
+// whichever controller serves it.
+func (r *KuraInstanceReconciler) clientIngressTLS(ctx context.Context, instance *kurav1alpha1.KuraInstance) []networkingv1.IngressTLS {
+	tls := []networkingv1.IngressTLS{{
+		Hosts:      clientHosts(instance),
+		SecretName: r.publicIngressTLSSecretName(ctx, instance),
+	}}
+	for _, host := range stableClientHosts(instance)[len(clientHosts(instance)):] {
+		secret := publicTLSSecretName(instance)
+		if r.sharedTLSCoversHost(ctx, instance, host) {
+			secret = r.PublicTLSSecretName
+		}
+		tls = append(tls, networkingv1.IngressTLS{Hosts: []string{host}, SecretName: secret})
+	}
+	return tls
+}
+
+// clientIngressRules routes the same paths on every client host.
+func clientIngressRules(instance *kurav1alpha1.KuraInstance, paths []networkingv1.HTTPIngressPath) []networkingv1.IngressRule {
+	first := networkingv1.IngressRule{
+		Host:             clientHost(instance),
+		IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{Paths: paths}},
+	}
+	rules := []networkingv1.IngressRule{first}
+	for _, host := range stableClientHosts(instance)[1:] {
+		rule := *first.DeepCopy()
+		rule.Host = host
+		rules = append(rules, rule)
+	}
+	return rules
 }
 
 // grpcPublicPathPrefixes are the disjoint, stable URL prefixes of the gRPC
@@ -2009,17 +2023,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Backend:  ingressBackend(instance.Name, servicePort),
 			})
 		}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: clientHost(instance),
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: paths,
-			}},
-		}}
-		for _, host := range stableClientHosts(instance)[1:] {
-			rule := *ingress.Spec.Rules[0].DeepCopy()
-			rule.Host = host
-			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
-		}
+		ingress.Spec.Rules = clientIngressRules(instance, paths)
 		return nil
 	})
 	return err
