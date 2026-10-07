@@ -60,6 +60,7 @@ defmodule TuistEx.Analytics.Coverage do
       |> Enum.group_by(fn {{module, _line}, _count} -> module end, fn {{_module, line}, count} ->
         {line, count}
       end)
+      |> Enum.map(fn {module, lines} -> {original(module), lines} end)
       |> Enum.reject(fn {module, _lines} -> ignored?(module, ignored) end)
       |> Enum.flat_map(fn {module, lines} ->
         case locate(source(module), project_dir) do
@@ -96,13 +97,30 @@ defmodule TuistEx.Analytics.Coverage do
     end)
   end
 
+  # Mimic, the mocking library most suites use, swaps a copied module for a
+  # proxy and keeps the original's code under another name, cover-compiled
+  # from its binary, so the counters a test moves in it are the original
+  # module's lines.
+  @mimic_original ".Mimic.Original.Module"
+
+  defp original(module) do
+    name = Atom.to_string(module)
+
+    if String.ends_with?(name, @mimic_original),
+      do: name |> String.replace_suffix(@mimic_original, "") |> String.to_atom(),
+      else: module
+  end
+
+  # A module cover-compiled from a binary names no source, so it is read off
+  # the module's own build, which does.
   defp source(module) do
-    case module.module_info(:compile)[:source] do
-      nil -> nil
-      source -> to_string(source)
+    with path when is_list(path) <- :code.where_is_file(~c"#{module}.beam"),
+         {:ok, {_module, [compile_info: info]}} <- :beam_lib.chunks(path, [:compile_info]),
+         source when is_list(source) <- info[:source] do
+      to_string(source)
+    else
+      _ -> nil
     end
-  rescue
-    _ -> nil
   end
 
   defp application(module) do

@@ -164,6 +164,31 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert lines == %{3 => 1, 7 => 0, 11 => 0}
     end
 
+    test "counts a module Mimic copied under its original's source", %{
+      directory: directory,
+      source: source
+    } do
+      case :cover.start() do
+        {:ok, _} -> :ok
+        {:error, {:already_started, _}} -> :ok
+      end
+
+      [ok: _, ok: _] =
+        :cover.compile_beam_directory(String.to_charlist(Path.join(directory, "ebin")))
+
+      Code.prepend_path(Path.join(directory, "ebin"))
+      on_exit(fn -> Code.delete_path(Path.join(directory, "ebin")) end)
+
+      # What `Mimic.copy/1` does to a cover-compiled module: the original moves
+      # under another name, cover-compiled from its binary, which names no source.
+      Mimic.Module.replace!(TuistExCoverFixture.Calculator, [])
+      on_exit(fn -> Mimic.Module.clear!(TuistExCoverFixture.Calculator) end)
+      3 = apply(Mimic.Module.original(TuistExCoverFixture.Calculator), :add, [1, 2])
+
+      assert %{lines: %{3 => 1, 7 => 0}} =
+               directory |> Coverage.snapshot(app: :calculator) |> Enum.find(&(&1.path == source))
+    end
+
     test "leaves out the modules the project's coverage configuration ignores", %{
       directory: directory,
       source: source
