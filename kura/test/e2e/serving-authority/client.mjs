@@ -8,7 +8,9 @@ const [mode, primaryURL, standbyURL, primaryPod, standbyPod] = process.argv.slic
 if (!['handover','partition'].includes(mode) || !standbyPod) throw new Error('usage: client.mjs handover|partition PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD');
 const context = process.env.KURA_SPEC98_CONTEXT;
 if (!context) throw new Error('KURA_SPEC98_CONTEXT must explicitly identify the isolated staging context');
-const kube = (...args) => execFileSync('kubectl',['--context',context,'-n','kura-spec98',...args],{encoding:'utf8'});
+const instance = process.env.KURA_SPEC98_INSTANCE ?? 'kura-spec98';
+const namespace = process.env.KURA_SPEC98_NAMESPACE ?? 'kura-spec98';
+const kube = (...args) => execFileSync('kubectl',['--context',context,'-n',namespace,...args],{encoding:'utf8'});
 const sessions = [http2.connect(primaryURL),http2.connect(standbyURL)];
 const vint = value => {const out=[]; do {let b=value&127;value=Math.floor(value/128);if(value)b|=128;out.push(b);} while(value);return Buffer.from(out);};
 const field = (id,data) => {data=Buffer.from(data);return Buffer.concat([vint(id*8+2),vint(data.length),data]);};
@@ -33,6 +35,10 @@ let policyInstalled=false;
 try {
   const before=await report(primaryURL),target=await report(standbyURL);
   assert.equal(before.valid,true);assert.equal(target.valid,false);
+  if(process.env.KURA_E2E_MISSING_HASH) {
+    const missing=await request(sessions[0],'/google.bytestream.ByteStream/Read','POST',frame(field(1,`e2e/blobs/${process.env.KURA_E2E_MISSING_HASH}/${process.env.KURA_E2E_MISSING_SIZE}`)),true);
+    assert.equal(missing.grpc,'5','rejected late write appeared on the promoted replica');
+  }
   assert.equal((await write(sessions[0])).status,204);
   assert.equal((await capabilities(sessions[0])).grpc,'0');
   const blob=Buffer.from(`grpc-persistent-${key}`);
@@ -43,7 +49,7 @@ try {
   assert.equal(upload.grpc,'0');
   if(mode==='handover') {
     const id=`persistent-${Date.now()}`;
-    kube('patch','kurainstance','kura-spec98','--type=merge','-p',JSON.stringify({spec:{plannedHandover:{id,podName:standbyPod,podUID:target.identity.pod_uid,incarnation:target.identity.incarnation}}}));
+    kube('patch','kurainstance',instance,'--type=merge','-p',JSON.stringify({spec:{plannedHandover:{id,podName:standbyPod,podUID:target.identity.pod_uid,incarnation:target.identity.incarnation}}}));
     let after;
     for(let i=0;i<120;i++){await sleep(1000);after=await report(standbyURL);if(after.valid&&after.epoch>before.epoch)break;}
     assert.equal(after.valid,true);assert.equal(after.epoch,before.epoch+1);

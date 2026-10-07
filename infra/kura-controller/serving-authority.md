@@ -143,3 +143,11 @@ the test waits for observed expiry and sustained rejection rather than treating
 the label write as proof of a partition. Keep physical host power-off tests on
 dedicated hosts; process termination on shared staging hosts does not qualify
 physical host-loss recovery.
+
+Set `KURA_SPEC98_CONTEXT` explicitly. `KURA_SPEC98_INSTANCE` and
+`KURA_SPEC98_NAMESPACE` select a fresh fixture without changing the default
+`kura-spec98` names. After a successful partition case, preserve its reported
+`lateHash`/`lateSize`; pass them as `KURA_E2E_MISSING_HASH` and
+`KURA_E2E_MISSING_SIZE` to the next handover case after positive fencing and
+rebuild. It requires ByteStream `NOT_FOUND` on the promoted primary before
+starting another handover, verifying that the rejected late write did not appear.
