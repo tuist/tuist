@@ -80,3 +80,6 @@ not enable cache volumes on the fleet; storage rollout is independent.
 Paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
 Each action call attaches one directory; use a different key for each directory.
+In jobs without `container:`, containers you start later with `docker run -v`
+see directories inside the workspace; paths outside it, such as `~/.gradle`, are
+visible to job steps only.

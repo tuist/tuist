@@ -63,6 +63,14 @@ jobs:
             -e TUIST_TEST_BIND_MOUNTS=1 \
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
             ubuntu:22.04 /cache-volume.test -test.v
+      - name: Test cache volumes in Docker child containers
+        working-directory: infra/linux-runner-image
+        env:
+          GOWORK: "off"
+          CGO_ENABLED: "0"
+        run: |
+          go build -o "$RUNNER_TEMP/tuist-cache-volume" ./cmd/tuist-cache-volume
+          ./cache-volume-docker-e2e.sh "$RUNNER_TEMP/tuist-cache-volume"
   build:
     needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
