@@ -15,7 +15,7 @@
 //!   makes cross-process upload dedup server-side) -> UpdateActionResult
 //!   LAST, so a reader can never observe an entry whose graph is incomplete.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -127,6 +127,22 @@ const PRESSURE_BACKOFF_MS: u64 = 30_000;
 // blocking on it, it is the proxy's 10s sweep: at 5s every sweep re-probes, so
 // a node that recovers is picked up on the next one rather than waited out.
 const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
+// How long a `Remote` whose endpoint does not serve the cache API answers its
+// lookups and publications with `REMOTE_UNUSABLE` instead of sending them. The
+// first UNAVAILABLE that survives the retry ladder opens the base window, and
+// each one after a window lapses doubles it up to the cap. UNIMPLEMENTED on a
+// core RPC opens the cap at once: no REAPI server answers that, so the host is
+// not a cache (a 404 from a plain HTTP server maps to it) and will not become
+// one within seconds. The base is short so a node restarting costs seconds of
+// misses. The cap bounds how long a remote that starts answering waits to be
+// used again; an endpoint change drops the `Remote` and its window with it.
+const UNUSABLE_BACKOFF_BASE_MS: u64 = 1_000;
+const UNUSABLE_BACKOFF_MAX_MS: u64 = 300_000;
+
+/// The error a `Remote` inside its unusable window returns without sending the
+/// call. Callers compare against it to keep their per-call logging quiet: the
+/// window's opening is logged once.
+pub const REMOTE_UNUSABLE: &str = "remote not serving the cache API; backing off";
 
 pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -233,6 +249,41 @@ fn arm_write_pressure_backoff(breaker: &AtomicU64) {
          for {}s (their records are kept and the next sweep retries)",
         WRITE_PRESSURE_BACKOFF_MS / 1000
     ));
+}
+
+/// Opens the next unusable window if none is open, returning its length when
+/// this call opened it. A call that fails while a window is already open (one
+/// issued before it opened) neither extends it nor counts toward the next, so
+/// concurrent failures of one outage escalate once, not once per thread.
+fn arm_unusable(until: &AtomicU64, streak: &AtomicU32, code: tonic::Code) -> Option<u64> {
+    let now = now_ms();
+    let current = until.load(Ordering::Relaxed);
+    if current > now {
+        return None;
+    }
+    let failures = streak.load(Ordering::Relaxed).saturating_add(1);
+    let window = if code == tonic::Code::Unimplemented {
+        UNUSABLE_BACKOFF_MAX_MS
+    } else {
+        UNUSABLE_BACKOFF_BASE_MS
+            .saturating_mul(1 << (failures - 1).min(16))
+            .min(UNUSABLE_BACKOFF_MAX_MS)
+    };
+    until
+        .compare_exchange(current, now + window, Ordering::Relaxed, Ordering::Relaxed)
+        .ok()?;
+    streak.store(failures, Ordering::Relaxed);
+    Some(window)
+}
+
+/// Closes the window after the server answered, returning whether one had been
+/// opened since the last answer.
+fn clear_unusable(until: &AtomicU64, streak: &AtomicU32) -> bool {
+    if streak.swap(0, Ordering::Relaxed) == 0 {
+        return false;
+    }
+    until.store(0, Ordering::Relaxed);
+    true
 }
 
 /// Async counterpart of `retry_call`, for calls issued from within a tokio task
@@ -441,6 +492,14 @@ pub struct Remote {
     // flat because publishing is healthy from one that is flat because almost
     // nothing was published.
     shed_writes: AtomicU64,
+    // Epoch-ms until which lookups and publications fail fast because the
+    // endpoint is not serving the cache API (see `UNUSABLE_BACKOFF_BASE_MS`),
+    // and how many windows have opened since it last answered. Without it a
+    // proxy whose endpoint answers every call with UNIMPLEMENTED or UNAVAILABLE
+    // sends each spooled record's probe and missing-blob query on every 10s
+    // sweep, for as long as the records exist, which is forever.
+    unusable_until_ms: AtomicU64,
+    unusable_streak: AtomicU32,
 }
 
 const CAPABILITIES_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
@@ -805,7 +864,56 @@ impl Remote {
             pressure_backoff_until_ms: AtomicU64::new(0),
             write_pressure_backoff_until_ms: AtomicU64::new(0),
             shed_writes: AtomicU64::new(0),
+            unusable_until_ms: AtomicU64::new(0),
+            unusable_streak: AtomicU32::new(0),
         })
+    }
+
+    /// Whether the endpoint was just seen not serving the cache API, in which
+    /// case lookups and publications return `REMOTE_UNUSABLE` without a call.
+    pub fn unusable(&self) -> bool {
+        now_ms() < self.unusable_until_ms.load(Ordering::Relaxed)
+    }
+
+    fn fail_fast_if_unusable(&self) -> Result<(), String> {
+        if self.unusable() {
+            Err(REMOTE_UNUSABLE.into())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Records what a core call's retry ladder ended with. UNIMPLEMENTED and
+    /// UNAVAILABLE say nothing at the endpoint serves the cache API. Any other
+    /// status the server sent is an answer and closes the window. Outcomes that
+    /// may be the client's own (a deadline, a cancelled or broken connection,
+    /// an unmapped HTTP status) leave it as it is.
+    fn observe<T>(&self, result: Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+        let code = result.as_ref().err().map(tonic::Status::code);
+        match code {
+            Some(code @ (tonic::Code::Unimplemented | tonic::Code::Unavailable)) => {
+                if let Some(window) =
+                    arm_unusable(&self.unusable_until_ms, &self.unusable_streak, code)
+                {
+                    crate::log_line(&format!(
+                        "remote {} not serving the cache API ({:?}); failing lookups and \
+                         publications fast for {}s (records are kept)",
+                        self.config.grpc_url,
+                        code,
+                        window / 1000
+                    ));
+                }
+            }
+            Some(tonic::Code::Cancelled | tonic::Code::DeadlineExceeded | tonic::Code::Unknown) => {
+            }
+            Some(tonic::Code::Internal) if result.as_ref().err().is_some_and(transport_caused) => {}
+            _ => {
+                if clear_unusable(&self.unusable_until_ms, &self.unusable_streak) {
+                    crate::log_line(&format!("remote {} answering again", self.config.grpc_url));
+                }
+            }
+        }
+        result
     }
 
     /// Whether this `Remote` is inside a window in which the server was last
@@ -993,6 +1101,7 @@ impl Remote {
         key: &[u8],
         inline_outputs: bool,
     ) -> Result<Option<Vec<ManifestEntry>>, String> {
+        self.fail_fast_if_unusable()?;
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
@@ -1016,9 +1125,9 @@ impl Remote {
                 },
                 ..Default::default()
             };
-            let response = retry_call(|| {
+            let response = self.observe(retry_call(|| {
                 runtime().block_on(client.get_action_result(self.authed(request.clone())))
-            });
+            }));
             match response {
                 Ok(response) => {
                     let manifest = response
@@ -1451,6 +1560,7 @@ impl Remote {
 
     /// Returns the subset of digests the server does not have.
     pub fn find_missing(&self, blobs: Vec<reapi::Digest>) -> Result<Vec<reapi::Digest>, String> {
+        self.fail_fast_if_unusable()?;
         let started = Instant::now();
         let result = (|| {
             let mut client = self.cas_client()?;
@@ -1459,10 +1569,11 @@ impl Remote {
                 blob_digests: blobs,
                 ..Default::default()
             };
-            let response = retry_call(|| {
-                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
-            })
-            .map_err(|status| format!("find_missing: {status}"))?;
+            let response = self
+                .observe(retry_call(|| {
+                    runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
+                }))
+                .map_err(|status| format!("find_missing: {status}"))?;
             Ok(response.into_inner().missing_blob_digests)
         })();
         self.get_stats.record(started.elapsed());
@@ -1471,6 +1582,7 @@ impl Remote {
 
     /// Uploads blobs in size-bounded batches.
     pub fn batch_update(&self, items: Vec<(reapi::Digest, Vec<u8>)>) -> Result<(), String> {
+        self.fail_fast_if_unusable()?;
         if !items
             .iter()
             .any(|(_, bytes)| bytes.len() >= 2 * 1024 * 1024)
@@ -1753,12 +1865,13 @@ impl Remote {
                     .filter_map(|entry| entry.digest.as_ref())
                     .map(|digest| (digest.hash.clone(), digest.size_bytes))
                     .collect();
-                let response = retry_write(&self.write_pressure_backoff_until_ms, || {
-                    self.uploaded_blob_bytes
-                        .fetch_add(size as u64, Ordering::Relaxed);
-                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
-                })
-                .map_err(|status| format!("batch_update: {status}"))?;
+                let response = self
+                    .observe(retry_write(&self.write_pressure_backoff_until_ms, || {
+                        self.uploaded_blob_bytes
+                            .fetch_add(size as u64, Ordering::Relaxed);
+                        runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
+                    }))
+                    .map_err(|status| format!("batch_update: {status}"))?;
                 for entry in response.into_inner().responses {
                     if validate_responses {
                         let digest = entry
@@ -1812,6 +1925,7 @@ impl Remote {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<(), String> {
+        self.fail_fast_if_unusable()?;
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
@@ -1832,7 +1946,7 @@ impl Remote {
                 action_result: Some(action_result),
                 ..Default::default()
             };
-            retry_write(&self.write_pressure_backoff_until_ms, || {
+            self.observe(retry_write(&self.write_pressure_backoff_until_ms, || {
                 // The trunk rides the write too: kura keeps trunk-baseline
                 // keys sticky against feature-branch republishes.
                 let mut request = self.authed_with(
@@ -1851,7 +1965,7 @@ impl Remote {
                     );
                 }
                 runtime().block_on(client.update_action_result(request))
-            })
+            }))
             .map_err(|status| format!("update_action: {status}"))?;
             Ok(())
         })();
@@ -2356,6 +2470,36 @@ mod tests {
         assert_eq!(served.get("dd"), Some(&vec![1]));
         assert_eq!(calls, 2);
         assert_eq!(breaker.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn unavailable_windows_double_up_to_the_cap_and_unimplemented_opens_the_cap() {
+        use super::UNUSABLE_BACKOFF_MAX_MS as MAX;
+        use super::{arm_unusable, clear_unusable, UNUSABLE_BACKOFF_BASE_MS as BASE};
+        let until = AtomicU64::new(0);
+        let streak = std::sync::atomic::AtomicU32::new(0);
+        let unavailable = tonic::Code::Unavailable;
+
+        let mut windows = Vec::new();
+        for _ in 0..12 {
+            windows.push(arm_unusable(&until, &streak, unavailable).unwrap());
+            // Only a failure after the window lapsed counts toward the next.
+            assert_eq!(arm_unusable(&until, &streak, unavailable), None);
+            until.store(0, Ordering::Relaxed);
+        }
+        assert_eq!(&windows[..4], &[BASE, 2 * BASE, 4 * BASE, 8 * BASE]);
+        assert_eq!(*windows.last().unwrap(), MAX);
+
+        assert!(clear_unusable(&until, &streak));
+        assert!(!clear_unusable(&until, &streak), "nothing to clear twice");
+        assert_eq!(arm_unusable(&until, &streak, unavailable), Some(BASE));
+
+        until.store(0, Ordering::Relaxed);
+        clear_unusable(&until, &streak);
+        assert_eq!(
+            arm_unusable(&until, &streak, tonic::Code::Unimplemented),
+            Some(MAX)
+        );
     }
 
     #[test]
