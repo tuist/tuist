@@ -1636,6 +1636,11 @@ func (in *RackNodeConfig) DeepCopyInto(out *RackNodeConfig) {
 		*out = make([]RackNodeSysctl, len(*in))
 		copy(*out, *in)
 	}
+	if in.Nftables != nil {
+		in, out := &in.Nftables, &out.Nftables
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	out.Containerd = in.Containerd
 	out.Kubelet = in.Kubelet
 }

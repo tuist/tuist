@@ -100,19 +100,25 @@ fleet_is_ipv4() { [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1
 # Whether an address is inside a prefix: 10.10.0.101 is in 10.10.0.1/24.
 fleet_in_network() { [ "$(fleet_network "$1/${2#*/}")" = "$(fleet_network "$2")" ]; }
 
-# The machines on the site's machines segment, one per line: node, the MAC of
-# its data link, and its address, which is its RackHost's. A machine is a node
-# whose role is on the segment; one still planned is left out until it is
-# racked.
+# The machines on the site's machines segment, one per line, fields split by
+# the unit separator so an empty one keeps its place: node, the MAC of its data
+# link, its address, and what declares it. A Mac mini is its RackHost
+# (rackFleet.hosts, by the node's rack_host) and a rack Linux node its
+# RackLinuxHost (rackLinuxFleet.hosts, by hostname), and the address is theirs.
+# A machine is a node whose role is on the segment; one still planned is left
+# out until it is racked.
 fleet_edge_machines() {
-  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" hosts
+  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" hosts linux
   hosts="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || hosts=''
   [ -n "$hosts" ] || hosts='{}'
-  jq -r --argjson hosts "$hosts" '
+  linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
+  [ -n "$linux" ] || linux='{}'
+  jq -r --argjson hosts "$hosts" --argjson linux "$linux" '
     ([(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]) as $roles |
     .nodes[]? | select((.role as $r | $roles | index($r)) and .status != "planned") |
     [.name, ([.links[] | select(.purpose == "data") | .mac // empty] | first // ""),
-     ($hosts[.rack_host // ""] // "")] | join("\t")
+     (if .rack_host != null then ($hosts[.rack_host] // "") else ($linux[.name] // "") end),
+     (if .rack_host != null then "RackHost" elif (.name as $n | $linux | has($n)) then "RackLinuxHost" else "" end)] | join("\u001f")
   ' "$site_file"
 }
 
@@ -134,9 +140,10 @@ fleet_edge_check_machines() {
     ([.management.edge.machines.members[]?.node] | sort) as $members |
     (if $members != $edges
      then "management.edge.machines.members are \($members | join(", ")), but the site'"'"'s edges are \($edges | join(", "))" else empty end),
-    (.nodes[]? | select(.rack_host == null and (.role as $r | $roles | index($r))) |
-      "\(.name) is on the machines segment and names no RackHost")
-  ' --argjson roles "$(jq '[(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]' "$site_file")" "$site_file")"
+    (.nodes[]? | select(.rack_host == null and .status != "planned" and (.role as $r | $roles | index($r)) and (.name as $n | $linux | any(. == $n) | not)) |
+      "\(.name) is on the machines segment and is neither a RackHost nor a RackLinuxHost")
+  ' --argjson roles "$(jq '[(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]' "$site_file")" \
+    --argjson linux "$(yq -o=json '[.rackLinuxFleet.hosts[]?.hostname]' "$values" 2>/dev/null || echo '[]')" "$site_file")"
   while IFS=$'\t' read -r node address; do
     [ -n "$node" ] || continue
     if ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$gateway"; then
@@ -150,13 +157,14 @@ fleet_edge_check_machines() {
     fleet_is_ipv4 "$address" || bad="${bad:+$bad$'\n'}machines DNS server $address is not an address"
   done
   local -a macs=()
-  while IFS=$'\t' read -r node mac address; do
+  while IFS=$'\x1f' read -r node mac address kind; do
     [ -n "$node" ] || continue
+    [ -n "$kind" ] || continue
     if ! [[ "$mac" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]]; then
       bad="${bad:+$bad$'\n'}$node has no MAC on its data link, in lower case, to reserve its address against"
     fi
     if [ -z "$address" ]; then
-      bad="${bad:+$bad$'\n'}$node's RackHost has no address in $(basename "$values")"
+      bad="${bad:+$bad$'\n'}$node's $kind has no address in $(basename "$values")"
     elif ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$gateway"; then
       bad="${bad:+$bad$'\n'}$node's address $address is not in the machines segment $gateway"
     elif [[ " ${used[*]} " == *" $address "* ]]; then
@@ -549,7 +557,7 @@ dhcp-option=tag:machines,option:router,${gateway%/*}
 CONF
   dns="$(jq -r '[.management.edge.machines.dns[]?] | join(",")' "$site_file")"
   [ -n "$dns" ] && echo "dhcp-option=tag:machines,option:dns-server,$dns"
-  while IFS=$'\t' read -r node mac address; do
+  while IFS=$'\x1f' read -r node mac address _kind; do
     [ -n "$node" ] && echo "dhcp-host=$mac,$address,$node,infinite"
   done < <(fleet_edge_machines "$site_file")
   return 0
@@ -632,8 +640,9 @@ CONF
 }
 
 # The tailnet routes the edges advertise, through the node's own tailscaled.
-# Both edges advertise the machines' addresses, so the tailnet fails over
-# between the edges the way the gateway does. A /32 per machine rather than
+# Both edges advertise the Mac minis' addresses, so the tailnet fails over
+# between the edges the way the gateway does. A rack Linux node on the segment
+# is on the tailnet itself and gets no route. A /32 per machine rather than
 # the segment's prefix, so the tailnet reaches the machines the site has and
 # nothing else on the segment: not the edges' own addresses, not one nothing is
 # reserved at. Each power device behind the edge is a /32 too, advertised only
@@ -645,7 +654,7 @@ fleet_edge_routes() {
   local site_file="$1" routes="" power interface edge_address
   fleet_edge_check "$site_file" || return 1
   if [ -n "$(jq -r '.management.edge.machines.vlan // empty' "$site_file")" ]; then
-    routes="$(fleet_edge_machines "$site_file" | awk -F'\t' '$3 != "" {print $3 "/32"}' | paste -sd, -)"
+    routes="$(fleet_edge_machines "$site_file" | awk -F'\037' '$3 != "" && $4 == "RackHost" {print $3 "/32"}' | paste -sd, -)"
   fi
   power="$(fleet_edge_power "$site_file" | awk '{print $1 "/32"}' | paste -sd, -)"
   interface="$(jq -r '.management.edge.interface' "$site_file")"

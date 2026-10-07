@@ -415,14 +415,15 @@
 			"ip":  ["tcp:29811-29817", "tcp:8044", "udp:29810", "udp:19810"],
 		},
 
-		// The BER1 edge node → the staging Alloy receiver's loki.source.api.
-		// The node's pod logs (alloy-rack-edge in infra/helm/k8s-monitoring)
-		// have no other way into Loki: the node has no route to cluster
-		// Services.
+		// BER1's Linux nodes → the staging Alloy receiver: pod logs to its
+		// loki.source.api (3100) and node-local Kura metrics to its
+		// prometheus.receive_http (9009), both from alloy-rack in
+		// infra/helm/k8s-monitoring, and Kura's traces to its OTLP HTTP
+		// intake (4318). A rack node has no route to cluster Services.
 		{
-			"src": ["tag:tuist-rack-edge"],
+			"src": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
 			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:3100"],
+			"ip":  ["tcp:3100", "tcp:9009", "tcp:4318"],
 		},
 
 		// Admins → the Omada controller's web UI and Open API in staging. The
@@ -735,10 +736,14 @@
 			"src": "tag:tuist-macmini-production",
 			"accept": ["tag:tuist-k8s-production:3100"],
 		},
-		// The rack edge node's pod logs, the same receiver port.
+		// The rack's Linux nodes: pod logs, node-local Kura metrics and traces.
 		{
 			"src": "tag:tuist-rack-edge",
-			"accept": ["tag:tuist-k8s-staging:3100"],
+			"accept": ["tag:tuist-k8s-staging:3100", "tag:tuist-k8s-staging:9009", "tag:tuist-k8s-staging:4318"],
+		},
+		{
+			"src": "tag:tuist-rack-node",
+			"accept": ["tag:tuist-k8s-staging:3100", "tag:tuist-k8s-staging:9009", "tag:tuist-k8s-staging:4318"],
 		},
 		// Note: no test entries with autogroup-based src. Tailscale's
 		// test engine doesn't resolve `autogroup:*` as a concrete

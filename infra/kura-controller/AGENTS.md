@@ -129,6 +129,16 @@ Runner instances share the managed StatefulSet rollout, preferred co-location, d
 
 Runner sizing uses the existing account disk policy and plan memory/CPU profiles. Legacy unpinned claims adopt the account budget during enrollment, capped at 50Gi. After a smaller StatefulSet template is observed, unscheduled Pending pods with larger disk requests are recreated with resource-version preconditions; scheduled pods and PVCs remain, and operator OnDelete/partition pauses are respected. A missing StatefulSet and conflicted/already-gone pod deletions are benign races. Missing or duplicate Kura template containers fail closed without pod deletion; only successful deletes emit replacement logs. Keep the private runner extended memory-ceiling request disabled until its hosts advertise that resource. See the resource-sizing section in [private-runner-rollouts.md](private-runner-rollouts.md).
 
+## Node-local pod networks
+
+`spec.nodeLocalNetwork` marks an instance whose pods run on nodes with a pod network the cluster cannot route to, such as BER1 rack nodes (bridge CNI, masquerade, `cilium.io/no-schedule=true`). Those pods reach the internet through the node's NAT but not cluster DNS, ClusterIPs or other pods, and the controller cannot reach their pod IPs.
+
+- The pod template gets `dnsPolicy: None` with `nodeLocalNetwork.nameservers` and `ndots:1`. Unset leaves the template unchanged; setting it rolls the pods like any other template change.
+- `/status/rollout` is sampled through the API server's pod port-forward (`NodeLocalRuntimeStatusClient`, upgraded over SPDY within a two-second budget), which reaches the pod through its kubelet. Its connection lives no longer than the sample: the dial and an upgrade the API server accepts and never answers both end at the deadline. Everything built on those samples (rollout health, primary selection, the private endpoint observation, evacuation settling) works unchanged. A node-local instance never falls back to dialing the pod IP. The controller Role grants `pods/portforward` `create`.
+- Nothing else the controller dials targets a pod: peer path probes and peer DNS checks go to the public peer host (mesh only), and the stable endpoint probe goes to the public gateway.
+- Outside the mesh a node-local instance has no peer to find, so `KURA_DISCOVERY_DNS_NAME` is empty and Kura looks up none. Its OTLP endpoint is whatever the server puts in `extraEnv` (a collector at a tailnet name, or none), never the in-cluster default.
+- Its pods carry `tuist.dev/node-local-network=true`. `alloy-metrics` skips them, since it cannot reach them, and `alloy-rack` on their node scrapes them instead (`infra/helm/k8s-monitoring`).
+
 ## Stable cache DNS
 
 Stable HTTP/gRPC routes and per-instance certificate names include retained
