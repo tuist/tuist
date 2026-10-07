@@ -1562,7 +1562,7 @@ defmodule Tuist.VCSTest do
                  """
                  #### Tests 🧪
 
-                 | Scheme | Status | Tests | Commit |
+                 | Test run | Status | Tests | Commit |
                  |:-:|:-:|:-:|:-:|
                  """
 

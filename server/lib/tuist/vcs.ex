@@ -35,7 +35,7 @@ defmodule Tuist.VCS do
     {"xcode", "Xcode", "Scheme"},
     {"gradle", "Gradle", "Project"},
     {"bazel", "Bazel", "Target patterns"},
-    {"mix", "Mix", "Scheme"}
+    {"mix", "Mix", "Test run"}
   ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
