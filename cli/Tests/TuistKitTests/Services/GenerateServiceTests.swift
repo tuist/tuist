@@ -416,6 +416,58 @@ struct GenerateServiceTests {
         }
     }
 
+    @Test func warnsThatRequestedTargetsDoNotScopeTheProjectWhenSourceTargetsAreKept() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(cacheOptions: .test(keepSourceTargets: true))))
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [.named("MyTarget")],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        #expect(
+            alertController.warnings().map(\.message).map { $0.plain() } == [
+                "The targets you passed don't scope the generated project.",
+            ]
+        )
+    }
+
+    @Test func doesNotWarnAboutRequestedTargetsWhenSourceTargetsAreNotKept() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(cacheOptions: .test(keepSourceTargets: false))))
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+        let alertController = AlertController()
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [.named("MyTarget")],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        #expect(alertController.warnings().isEmpty)
+    }
+
     @Test func usesLocalCacheStorageWhenRemoteCacheHasTransientServerFailure() async throws {
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
