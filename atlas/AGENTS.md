@@ -80,8 +80,8 @@ Do not add README entries for internal operational details such as env var names
 
 ## Model relay and support classification
 
-- When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures.
-- Support classification failures must still notify `#support`. Persist and log a bounded explanation based on the failure status; never inspect the raw error into a support reason or log, because it can contain the full request and inbound email body.
+- When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures. Assemble tool-call deltas by index, concatenating function-name and argument fragments and preserving the initial id/type. Remove stream-only indexes from the completed calls. Dropping these fragments makes native agents fail with `:no_result_submitted` even when the model requested tools.
+- Support classification failures must still notify `#support`. Persist and log a bounded explanation based on the failure status; never inspect the raw error into a support reason or log, because it can contain the full request and inbound email body. Condukt returns atom-keyed results when schema property keys are atoms; classifier normalization must accept these as well as string-keyed results. Keep allowed category/urgency atoms explicit and map validated strings against that finite set, rather than assuming `String.to_existing_atom/1` can find atoms created by some other module.
 
 ## Tasks
 
