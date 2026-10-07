@@ -233,10 +233,10 @@
 
         & > [data-part="metadata"] {
           display: flex;
-          min-width: 0;
           flex-direction: column;
           align-items: flex-start;
           gap: var(--noora-spacing-4);
+          min-width: 0;
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);
