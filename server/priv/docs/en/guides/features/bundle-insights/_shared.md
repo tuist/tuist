@@ -97,6 +97,8 @@ Choose **Install size** or **Download size**, then select a **Threshold type**:
 - **Percentage (%)**: limit growth relative to the baseline size. Fractional percentages such as `0.47` are supported. Existing percentage thresholds keep their configured values and behavior.
 - **Absolute size (MB)**: limit growth by a fixed amount, independent of the baseline size. Enter `1.5` to allow up to 1.5 MB of growth. MB uses decimal units: 1 MB = 1,000,000 bytes. Values must resolve to a positive whole number of bytes.
 
+![Absolute bundle size growth threshold configuration](/images/guides/features/bundle-size/absolute-size-threshold.png)
+
 Both types compare against the latest matching bundle on the configured **Baseline branch**. The optional **Bundle name** restricts a rule to that bundle. A check fails only when growth is **more than** the limit; equal growth, unchanged sizes, and decreases pass. Without a matching baseline or a recorded size for the chosen metric, the rule is skipped. A zero-size baseline is supported for absolute limits; percentage limits keep skipping it because percentage growth is undefined.
 
 ### Restricting who can accept {#size-thresholds-approvals}
