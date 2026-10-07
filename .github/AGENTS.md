@@ -4,6 +4,9 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+UI evidence for pull request discussions lives in `screenshots/`. Capture the
+actual UI with demo data and link images using immutable commit URLs.
+
 The app's device-build job generates with `--configuration Release` to match its
 Release archive. Default Debug binary-cache hits cannot be optimized by the
 archive's Release setting and make the bundle-size check depend on cache warmth.
