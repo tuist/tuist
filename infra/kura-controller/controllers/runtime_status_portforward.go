@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -63,17 +65,14 @@ func (c *portForwardRuntimeStatusClient) Status(ctx context.Context, pod corev1.
 		Name(pod.Name).
 		SubResource("portforward").
 		URL()
-	dialer, err := c.dialer(target)
+	connection, err := c.dial(ctx, target)
 	if err != nil {
-		return runtimeStatus{}, err
-	}
-	connection, err := dialStreamConnection(ctx, dialer)
-	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return runtimeStatus{}, fmt.Errorf("port-forward to %s/%s: %w", pod.Namespace, pod.Name, err)
 	}
 	defer connection.Close()
-	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
-	defer stop()
 
 	status, err := requestRuntimeStatusOverStream(ctx, connection, httpPort)
 	if err != nil && ctx.Err() != nil {
@@ -82,46 +81,42 @@ func (c *portForwardRuntimeStatusClient) Status(ctx context.Context, pod corev1.
 	return status, err
 }
 
-// dialer prefers the WebSocket transport and falls back to SPDY on an API
-// server that does not upgrade port-forward over WebSockets, as kubectl does.
-func (c *portForwardRuntimeStatusClient) dialer(target *url.URL) (httpstream.Dialer, error) {
-	transport, upgrader, err := spdy.RoundTripperFor(c.config)
+// dial upgrades a port-forward request over SPDY on a connection that lives
+// no longer than ctx: its transport closes the connection when ctx ends, which
+// also ends an upgrade the API server accepted and never answered.
+func (c *portForwardRuntimeStatusClient) dial(ctx context.Context, target *url.URL) (httpstream.Connection, error) {
+	tlsConfig, err := rest.TLSConfigFor(c.config)
 	if err != nil {
 		return nil, err
 	}
-	spdyDialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, target)
-	websocketDialer, err := portforward.NewSPDYOverWebsocketDialer(target, c.config)
+	var dialer net.Dialer
+	upgrader, err := httpstreamspdy.NewRoundTripperWithConfig(httpstreamspdy.RoundTripperConfig{
+		UpgradeTransport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+			DialContext: func(_ context.Context, network, address string) (net.Conn, error) {
+				conn, err := dialer.DialContext(ctx, network, address)
+				if err != nil {
+					return nil, err
+				}
+				context.AfterFunc(ctx, func() { _ = conn.Close() })
+				return conn, nil
+			},
+		},
+		PingPeriod: 5 * time.Second,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return portforward.NewFallbackDialer(websocketDialer, spdyDialer, func(err error) bool {
-		return httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err)
-	}), nil
-}
-
-// dialStreamConnection bounds a dial that takes no context. A connection that
-// arrives after the deadline is closed.
-func dialStreamConnection(ctx context.Context, dialer httpstream.Dialer) (httpstream.Connection, error) {
-	type dialResult struct {
-		connection httpstream.Connection
-		err        error
+	wrapper, err := rest.HTTPWrappersForConfig(c.config, upgrader)
+	if err != nil {
+		return nil, err
 	}
-	done := make(chan dialResult, 1)
-	go func() {
-		connection, _, err := dialer.Dial(portforward.PortForwardProtocolV1Name)
-		done <- dialResult{connection: connection, err: err}
-	}()
-	select {
-	case result := <-done:
-		return result.connection, result.err
-	case <-ctx.Done():
-		go func() {
-			if result := <-done; result.connection != nil {
-				_ = result.connection.Close()
-			}
-		}()
-		return nil, ctx.Err()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), nil)
+	if err != nil {
+		return nil, err
 	}
+	connection, _, err := spdy.Negotiate(upgrader, &http.Client{Transport: wrapper}, request, portforward.PortForwardProtocolV1Name)
+	return connection, err
 }
 
 // requestRuntimeStatusOverStream sends one GET /status/rollout over a

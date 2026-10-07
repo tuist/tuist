@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -312,5 +314,44 @@ func TestNodeLocalPodsAreLabelledSo(t *testing.T) {
 	instance.Spec.NodeLocalNetwork = nil
 	if _, ok := labels(instance)[nodeLocalNetworkLabel]; ok {
 		t.Fatal("a cluster-network instance is labelled node-local")
+	}
+}
+
+// A port-forward whose API server accepts the upgrade request and never
+// answers is given up at the sample's deadline, and its connection with it:
+// a reconcile loop sampling through an API outage must not pile up
+// half-open connections.
+func TestRuntimeStatusOverPortForwardClosesAStalledHandshakeAtItsDeadline(t *testing.T) {
+	closed := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.Close()
+		_, _ = io.Copy(io.Discard, conn)
+		close(closed)
+	}))
+	defer server.Close()
+
+	statusClient, err := NewPortForwardRuntimeStatusClient(&rest.Config{Host: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusClient.(*portForwardRuntimeStatusClient).timeout = 200 * time.Millisecond
+
+	started := time.Now()
+	_, err = statusClient.Status(context.Background(), corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-ber1-0", Namespace: "kura"}})
+	if err == nil {
+		t.Fatal("a stalled handshake returned a status")
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("returned after %v, want the 200ms deadline", elapsed)
+	}
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the stalled connection is still open after the sample gave up")
 	}
 }
