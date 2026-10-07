@@ -12,6 +12,7 @@ defmodule TuistWeb.MixBuildLive do
   alias Tuist.Projects
   alias TuistWeb.BuildTimelineLoader
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @breakdown_page_size 20
@@ -46,7 +47,15 @@ defmodule TuistWeb.MixBuildLive do
      |> assign(:selected_project, Tuist.Repo.preload(project, :vcs_connection))
      |> assign(:files?, Mix.compiled_files?(run))
      |> assign(:selected_tab, "overview")
-     |> assign(:head_title, "#{dgettext("dashboard_builds", "Mix Build")} · #{slug} · Tuist")}
+     |> assign(:head_title, "#{dgettext("dashboard_builds", "Mix Build")} · #{slug} · Tuist")
+     |> assign(
+       OpenGraph.project_image_assigns(project,
+         title: dgettext("dashboard_builds", "mix compile"),
+         subtitle: Enum.join(Enum.reject([run.mix_env, run.git_branch], &(&1 in [nil, ""])), " · "),
+         badge: run.status |> to_string() |> String.capitalize(),
+         fallback: "build-runs"
+       )
+     )}
   end
 
   @impl true

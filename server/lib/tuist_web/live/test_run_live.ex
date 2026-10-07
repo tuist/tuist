@@ -119,7 +119,11 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:has_binary_cache_data, not is_nil(binary_cache_event))
       |> assign(
         OpenGraph.project_image_assigns(project,
-          title: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme),
+          title:
+            if(project.build_system == :mix,
+              do: test_run_label(project, run.scheme),
+              else: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme)
+            ),
           subtitle: run.git_branch,
           badge: run.status |> to_string() |> String.capitalize()
         )

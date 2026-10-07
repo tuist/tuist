@@ -21,48 +21,17 @@ struct GitHubRepo {
     }
 }
 
-private actor GitHubTokenCache {
-    private var loaded = false
-    private var cachedToken: String?
-
-    func token() async -> String? {
-        if loaded {
-            return cachedToken
-        }
-        loaded = true
-
-        if let token = GitHubAuth.envToken(from: ProcessInfo.processInfo.environment) {
-            cachedToken = token
-            return token
-        }
-
-        guard let output = try? await SystemProcess.output("/usr/bin/env", ["gh", "auth", "token"])
-        else {
-            return nil
-        }
-        let token = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        cachedToken = token.isEmpty ? nil : token
-        return cachedToken
-    }
-}
-
-private let githubTokenCache = GitHubTokenCache()
-
 enum GitHubAuth {
-    private static let envKeys = ["SWIFTERPM_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]
-
+    /// Explicit opt-in for provider API optimizations only, never Git or artifacts.
     static func envToken(from environment: [String: String]) -> String? {
-        for key in envKeys {
-            if let value = environment[key] {
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { return trimmed }
-            }
-        }
-        return nil
+        guard let value = environment["SWIFTERPM_GITHUB_TOKEN"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty
+        else { return nil }
+        return value
     }
 
     static func token() async -> String? {
-        await githubTokenCache.token()
+        envToken(from: Environment.current)
     }
 
     static func hasSession() async -> Bool {
@@ -91,32 +60,9 @@ enum SourceControlLocations {
     }
 
     static func fetchCandidates(_ location: String) -> [String] {
-        var locations = [location]
-        appendGitHubLocations(for: location, to: &locations)
-        appendGitLabLocations(for: location, to: &locations)
-        return locations
-    }
-
-    /// Offer both the HTTPS and SSH forms regardless of how the location was originally
-    /// declared. The original is tried first, so SSH-declared dependencies keep using
-    /// ssh-agent locally while still falling back to HTTPS in environments (typically CI)
-    /// that only have a token-based `git config insteadOf` rewrite or anonymous HTTPS access.
-    private static func appendGitHubLocations(for location: String, to locations: inout [String]) {
-        guard let repo = try? GitHubRepo(location: location) else { return }
-        appendUnique("https://github.com/\(repo.owner)/\(repo.repo).git", to: &locations)
-        appendUnique("git@github.com:\(repo.owner)/\(repo.repo).git", to: &locations)
-    }
-
-    private static func appendGitLabLocations(for location: String, to locations: inout [String]) {
-        guard let repo = try? GitLabRepo(location: location) else { return }
-        appendUnique("https://\(repo.host)/\(repo.pathWithNamespace).git", to: &locations)
-        appendUnique("git@\(repo.host):\(repo.pathWithNamespace).git", to: &locations)
-    }
-
-    private static func appendUnique(_ location: String, to locations: inout [String]) {
-        if !locations.contains(location) {
-            locations.append(location)
-        }
+        // Preserve the declared transport, including mirrors: switching HTTPS and SSH
+        // also switches credential sources and differs from native SwiftPM.
+        [location]
     }
 
     fileprivate static func canonicalProviderPath(_ path: String) -> String {
@@ -130,48 +76,6 @@ enum SourceControlLocations {
     fileprivate static func canonicalizesProviderPath(host: String) -> Bool {
         let host = host.lowercased()
         return host == "github.com" || GitLabRepo.isKnownHost(host)
-    }
-}
-
-/// Authenticates the HTTPS git fallback with the same token swifterpm discovers for the
-/// provider's API. Without this, the HTTPS candidate added by `fetchCandidates` only works
-/// when an ambient credential (a `url.insteadOf` token rewrite, a credential helper, or
-/// ~/.netrc) is configured, so an SSH-declared private dependency keeps failing in CI even
-/// with a usable `SWIFTERPM_GITHUB_TOKEN`/`GITHUB_TOKEN`/`GH_TOKEN`. Emitting an `http.<base>.extraheader` via `-c`
-/// mirrors what `actions/checkout` does and keeps the token out of the on-disk git config.
-/// SSH candidates return no arguments so ssh-agent stays in charge, and when no token is
-/// available we add nothing so configured ambient credentials keep working unchanged.
-enum GitTransportAuth {
-    static func configArguments(for location: String) async -> [String] {
-        guard location.hasPrefix("https://") else { return [] }
-        if (try? GitHubRepo(location: location)) != nil {
-            guard let token = await GitHubAuth.token() else { return [] }
-            return gitHubArguments(token: token)
-        }
-        if let repo = try? GitLabRepo(location: location) {
-            guard let token = await GitLabAuth.token(host: repo.host) else { return [] }
-            return gitLabArguments(host: repo.host, token: token)
-        }
-        return []
-    }
-
-    static func gitHubArguments(token: String) -> [String] {
-        extraHeaderArguments(
-            base: "https://github.com/",
-            authorization: "Basic \(basicCredential(user: "x-access-token", token: token))"
-        )
-    }
-
-    static func gitLabArguments(host: String, token: GitLabAuth.Token) -> [String] {
-        extraHeaderArguments(base: "https://\(host)/", authorization: token.gitHTTPAuthorization)
-    }
-
-    private static func extraHeaderArguments(base: String, authorization: String) -> [String] {
-        ["-c", "http.\(base).extraheader=Authorization: \(authorization)"]
-    }
-
-    private static func basicCredential(user: String, token: String) -> String {
-        Data("\(user):\(token)".utf8).base64EncodedString()
     }
 }
 

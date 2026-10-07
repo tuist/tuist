@@ -1285,6 +1285,7 @@ defmodule Tuist.Runners do
              workflow_job_id: candidate.workflow_job_id,
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
+             fleet_site: Catalog.fleet_site(fleet_name),
              # Per-account cache-signing grant — trusted jobs only. nil for an
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
