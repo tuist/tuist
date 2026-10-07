@@ -805,9 +805,10 @@ struct REAPICacheClientTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, arguments: [0, -1]) func rejectsNonPositiveDownloadConcurrency(value: Int) async throws {
+    @Test(.inTemporaryDirectory, arguments: [0, -1], [false, true])
+    func rejectsNonPositiveTransferConcurrency(value: Int, upload: Bool) async throws {
         var guards = REAPICacheClient.TransferGuards.default
-        guards.downloadConcurrency = value
+        if upload { guards.uploadConcurrency = value } else { guards.downloadConcurrency = value }
         // 0 would make `transfer` enqueue nothing and silently return an empty set (100% miss);
         // negative would trap on `0 ..< maxConcurrentTasks`. Reject at construction time so the
         // misconfiguration surfaces before any work begins.
@@ -912,6 +913,431 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test(.inTemporaryDirectory, arguments: [Int32(4), Int32(14)])
+    func batchTransportFailuresKeepTheirShortRetryBudget(status: Int32) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Data("blob".utf8)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        await state.planUpdates(Array(repeating: .reject(status: status), count: 10))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(maximumRetryCount: 0)
+            ) { "token" }
+            let result = try await client.uploadAvailableBlobs([REAPI.digest(body): source])
+            #expect(result.available.isEmpty)
+            #expect(result.failures.count == 1)
+            #expect(await state.updateCalls == (status == 4 ? 2 : 3))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func retriesUploadAdmissionBeyondTwoAttemptsAndKeepsACap(stream: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(stream ? 3 * 1024 * 1024 : 1024)
+        let digest = REAPI.digest(body)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        if stream {
+            await state.planWrites(Array(repeating: .reject, count: 3))
+        } else {
+            await state.planUpdates(Array(repeating: .reject(status: 8), count: 3))
+        }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireBytes(state: state)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(maximumRetryCount: 3, baseDelayMilliseconds: 1)
+            ) { "token" }
+            try await client.uploadBlobs([digest: source])
+            #expect(await state.blobs[digest] == body)
+            #expect(await (stream ? state.writeAttempts : state.updateCalls) == 4)
+
+            let rejectedBody = Self.blob(body.count)
+            let rejectedDigest = REAPI.digest(rejectedBody)
+            try rejectedBody.write(to: source)
+            if stream {
+                await state.planWrites(Array(repeating: .reject, count: 10))
+            } else {
+                await state.planUpdates(Array(repeating: .reject(status: 8), count: 10))
+            }
+            let result = try await client.uploadAvailableBlobs([rejectedDigest: source])
+            #expect(result.available.isEmpty)
+            #expect(result.failures[rejectedDigest] != nil)
+            #expect(await (stream ? state.writeAttempts : state.updateCalls) == 8)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [1, 2, 4], [false, true])
+    func uploadConcurrencyBoundsMixedBatchAndStreamTasks(limit: Int, overrideGuards: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        var blobs: [REAPI.Digest: URL] = [:]
+        for index in 0 ..< 8 {
+            let body = Data(repeating: UInt8(index), count: index % 2 == 0 ? 3 * 1024 * 1024 : 1024 * 1024 + 1)
+            let source = directory.appending(component: "upload-\(index)").url
+            try body.write(to: source)
+            blobs[REAPI.digest(body)] = source
+        }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, uploadDelay: .milliseconds(50)),
+            WireBytes(state: state, uploadDelay: .milliseconds(50)),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            var guards = REAPICacheClient.TransferGuards.default
+            if overrideGuards { guards.uploadConcurrency = limit }
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project", guards: guards,
+                environment: ["TUIST_CACHE_CONCURRENCY_LIMIT": overrideGuards ? "8" : String(limit)]
+            ) { "token" }
+            try await client.uploadBlobs(blobs)
+            #expect(state.uploadActivity.withLock { $0.peak } <= limit)
+            #expect(state.uploadActivity.withLock { $0.active } == 0)
+            #expect(await state.writeAttempts == 4)
+            #expect(await state.updateCalls == 4)
+            #expect(await state.blobs.count == 8)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func honorsRetryInfoFromWriteTrailers() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(3 * 1024 * 1024)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        await state.planWrites([.reject])
+        let rejection = try REAPIBackpressureRetryPolicyTests.error(seconds: 0, nanos: 500_000_000)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state, admissionError: rejection),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 0)
+            ) { "token" }
+            try await client.uploadBlobs([REAPI.digest(body): source])
+            let starts = await state.writeAttemptTimes
+            #expect(starts.count == 2)
+            let first = try #require(starts.first)
+            let last = try #require(starts.last)
+            #expect(last - first >= .milliseconds(500))
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func cancelsUploadDuringAdmissionBackoff() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(3 * 1024 * 1024)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        await state.planWrites(Array(repeating: .reject, count: 10))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireBytes(state: state)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 30000)
+            ) { "token" }
+            let upload = Task { try await client.uploadBlobs([REAPI.digest(body): source]) }
+            defer { upload.cancel() }
+            let deadline = ContinuousClock.now + .seconds(5)
+            while await state.writeAttempts == 0 {
+                try #require(ContinuousClock.now < deadline)
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            upload.cancel()
+            do {
+                try await upload.value
+                Issue.record("A cancelled upload must not finish successfully")
+            } catch {
+                #expect(error is CancellationError || (error as? RPCError)?.code == .cancelled)
+            }
+            #expect(await state.writeAttempts == 1)
+        }
+    }
+
+    @Test(arguments: ["0", "-1", "none", "not-an-integer"])
+    func invalidSharedConcurrencyKeepsTheDefaults(value: String) async throws {
+        _ = try await REAPICacheClient(
+            endpoint: .init(host: "127.0.0.1", explicitPort: 1, isTLS: false),
+            accountHandle: "account", instanceName: "project",
+            environment: ["TUIST_CACHE_CONCURRENCY_LIMIT": value]
+        ) { "token" }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func readAdmissionKeepsTheShortPolicyAndDoesNotRetryBeforeLongHints(hint: Bool) async throws {
+        let state = WireCache()
+        let failure = hint ? try REAPIBackpressureRetryPolicyTests.error(seconds: 5)
+            : RPCError(code: .resourceExhausted, message: "busy")
+        let digest = REAPI.digest(Data("action".utf8))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireActions(state: state, failure: failure)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 30000)
+            ) { "token" }
+            await #expect(throws: RPCError.self) { try await client.actionResult(for: digest) }
+            #expect(await state.actionQueries[digest] == (hint ? 1 : 3))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func uploadDoesNotRetryWhenTheRequiredDelayExceedsItsBudget(longHint: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(3 * 1024 * 1024)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        await state.planWrites(Array(repeating: .reject, count: 10))
+        let failure = longHint ? try REAPIBackpressureRetryPolicyTests.error(seconds: 300)
+            : RPCError(code: .resourceExhausted, message: "busy")
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state, admissionError: failure),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(maximumCumulativeDelay: longHint ? .seconds(60) : .zero)
+            ) { "token" }
+            let digest = REAPI.digest(body)
+            let result = try await client.uploadAvailableBlobs([digest: source])
+            #expect(result.available.isEmpty)
+            #expect(result.failures[digest]?.contains("retry wait budget exhausted") == true)
+            #expect(await state.writeAttempts == 1)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func streamReadDoesNotResumeBeforeLongRetryHints() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(3 * 1024 * 1024)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        await state.plan([.reject(try REAPIBackpressureRetryPolicyTests.error(seconds: 5)), .complete], for: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireBytes(state: state)])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            await #expect(throws: RPCError.self) {
+                try await client.downloadBlob(digest, to: directory.appending(component: "download").url)
+            }
+            #expect(await state.readOffsets[digest] == [0])
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func uploadAdmissionHasACumulativeWaitBudget() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(3 * 1024 * 1024)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        await state.planWrites(Array(repeating: .reject, count: 10))
+        let failure = try REAPIBackpressureRetryPolicyTests.error(seconds: 0, nanos: 50_000_000)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state, admissionError: failure),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 0, maximumCumulativeDelay: .milliseconds(120))
+            ) { "token" }
+            let digest = REAPI.digest(body)
+            let result = try await client.uploadAvailableBlobs([digest: source])
+            #expect(result.available.isEmpty)
+            #expect(result.failures[digest]?.contains("retry wait budget exhausted") == true)
+            #expect(await state.writeAttempts == 3)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [2, 8, 80], [false, true])
+    func refusedUploadRoundsShareOneWaitBudget(blobCount: Int, stream: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        var blobs: [REAPI.Digest: URL] = [:]
+        for index in 0 ..< blobCount {
+            let body = Data(repeating: UInt8(index), count: stream ? 3 * 1024 * 1024 : 1024 * 1024 + 1)
+            let source = directory.appending(component: "upload-\(index)").url
+            try body.write(to: source)
+            blobs[REAPI.digest(body)] = source
+        }
+        await state.planWrites(Array(repeating: .reject, count: 1000))
+        let failure = try REAPIBackpressureRetryPolicyTests.error(seconds: 0, nanos: 100_000_000)
+        await state.planUpdates(Array(repeating: .fail(failure), count: 1000))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state, admissionError: failure),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            var guards = REAPICacheClient.TransferGuards.default
+            guards.uploadConcurrency = 2
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project", guards: guards,
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 0, maximumCumulativeDelay: .milliseconds(600))
+            ) { "token" }
+            let result = try await client.uploadAvailableBlobs(blobs)
+            #expect(result.available.isEmpty)
+            #expect(result.failures.count == blobCount)
+            #expect(result.failures.values.allSatisfy { $0.contains("retry wait budget exhausted") })
+            let attempts = await (stream ? state.writeAttempts : state.updateCalls)
+            // Each retry must spend at least 100 ms from one 600 ms budget, regardless of rounds.
+            #expect(attempts > blobCount)
+            #expect(attempts <= blobCount + 6)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func presenceChecksAndWritesShareTheUploadWaitBudget() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(3 * 1024 * 1024)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        let state = WireCache()
+        let failure = try REAPIBackpressureRetryPolicyTests.error(seconds: 0, nanos: 50_000_000)
+        await state.planMissingFailures([failure])
+        await state.planWrites(Array(repeating: .reject, count: 10))
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state, admissionError: failure),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 0, maximumCumulativeDelay: .milliseconds(75))
+            ) { "token" }
+            let digest = REAPI.digest(body)
+            let result = try await client.uploadAvailableBlobs([digest: source])
+            #expect(result.available.isEmpty)
+            #expect(result.failures[digest]?.contains("retry wait budget exhausted") == true)
+            #expect(await state.missingQueries == 2)
+            #expect(await state.writeAttempts == 1)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func exhaustedBudgetKeepsHealthyTransfersAndResetsForTheNextOperation() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        var blobs: [REAPI.Digest: URL] = [:]
+        var healthy = Set<REAPI.Digest>()
+        for index in 0 ..< 8 {
+            let stream = index % 2 == 0
+            let body = Data(repeating: UInt8(index), count: stream ? 3 * 1024 * 1024 : 1024 * 1024 + 1)
+            let source = directory.appending(component: "upload-\(index)").url
+            try body.write(to: source)
+            let digest = REAPI.digest(body)
+            blobs[digest] = source
+            if !stream { healthy.insert(digest) }
+        }
+        await state.planWrites(Array(repeating: .reject, count: 100))
+        let failure = try REAPIBackpressureRetryPolicyTests.error(seconds: 0, nanos: 50_000_000)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, uploadDelay: .milliseconds(150)), WireBytes(state: state, admissionError: failure),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            var guards = REAPICacheClient.TransferGuards.default
+            guards.uploadConcurrency = 2
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project", guards: guards,
+                backpressureRetryPolicy: .init(baseDelayMilliseconds: 0, maximumCumulativeDelay: .milliseconds(120))
+            ) { "token" }
+            let result = try await client.uploadAvailableBlobs(blobs)
+            #expect(result.available == healthy)
+            #expect(result.failures.count == 4)
+            #expect(result.failures.values.allSatisfy { $0.contains("retry wait budget exhausted") })
+            #expect(await state.blobs.count == 4)
+
+            await state.planWrites([.reject])
+            let digest = try #require(Set(blobs.keys).subtracting(healthy).first)
+            try await client.uploadBlobs([digest: try #require(blobs[digest])])
+            #expect(await state.blobs[digest] != nil)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func retriesAnUploadThatStalls() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let state = WireCache()
@@ -967,6 +1393,7 @@ struct REAPICacheClientTests {
 }
 
 private actor WireCache {
+    nonisolated let uploadActivity = Mutex((active: 0, peak: 0))
     var blobs: [REAPI.Digest: Data] = [:]
     var actions: [REAPI.Digest: REAPI.ActionResult] = [:]
     var actionQueries: [REAPI.Digest: Int] = [:]
@@ -982,7 +1409,13 @@ private actor WireCache {
     }
 
     var missingQueries = 0
-    func recordMissingQuery() { missingQueries += 1 }
+    private var missingFailures: [RPCError] = []
+    func planMissingFailures(_ failures: [RPCError]) { missingFailures = failures }
+    func recordMissingQuery() throws {
+        missingQueries += 1
+        if !missingFailures.isEmpty { throw missingFailures.removeFirst() }
+    }
+
     var compressedUpdates = 0
     var compressedWrites = 0
     var compressedReads = 0
@@ -1040,9 +1473,11 @@ private actor WireCache {
     /// What each successive ByteStream write does, consumed in order.
     private var writePlans: [WritePlan] = []
     var writeAttempts = 0
+    var writeAttemptTimes: [ContinuousClock.Instant] = []
     func planWrites(_ plans: [WritePlan]) { writePlans = plans }
     func nextWritePlan() -> WritePlan {
         writeAttempts += 1
+        writeAttemptTimes.append(.now)
         guard let plan = writePlans.first else { return .complete }
         writePlans.removeFirst()
         return plan
@@ -1088,12 +1523,16 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     let state: WireCache
     var compressReads = true
     var readDelay: Duration = .zero
+    var uploadDelay: Duration = .zero
     /// Like Kura before it served the empty blob: reported present by convention, but never stored.
     var reportsEmptyBlobWithoutStoringIt = false
     func batchUpdateBlobs(
         request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
         context _: ServerContext
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse {
+        state.uploadActivity.withLock { $0.active += 1; $0.peak = max($0.peak, $0.active) }
+        defer { state.uploadActivity.withLock { $0.active -= 1 } }
+        if uploadDelay != .zero { try await Task.sleep(for: uploadDelay) }
         try await state.beginUpdate(bytes: request.requests.reduce(0) { $0 + $1.data.count })
         switch await state.nextUpdateStep() {
         case let .reject(status):
@@ -1154,7 +1593,7 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     ) async throws -> Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse {
         #expect(request.instanceName == "project")
         #expect(request.digestFunction == .sha256)
-        await state.recordMissingQuery()
+        try await state.recordMissingQuery()
         let present = await state.blobs
         return .with { $0.missingBlobDigests = request.blobDigests.filter {
             present[$0] == nil && !(reportsEmptyBlobWithoutStoringIt && $0 == REAPI.emptyBlob)
@@ -1164,6 +1603,7 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
 
 /// How a scripted ByteStream read ends.
 private enum ReadPlan: Sendable {
+    case reject(RPCError)
     /// Serves the rest of the blob.
     case complete
     /// Serves this many bytes, then fails the stream the way a dropped connection does.
@@ -1176,6 +1616,7 @@ private enum ReadPlan: Sendable {
 
 /// How a scripted ByteStream write ends.
 private enum WritePlan: Sendable {
+    case reject
     /// Accepts the whole blob.
     case complete
     /// Accepts this many bytes, then stops reading the request.
@@ -1184,6 +1625,8 @@ private enum WritePlan: Sendable {
 
 private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
     let state: WireCache
+    var uploadDelay: Duration = .zero
+    var admissionError: RPCError?
     func read(
         request: Google_Bytestream_ReadRequest,
         response: RPCWriter<Google_Bytestream_ReadResponse>,
@@ -1207,6 +1650,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         switch plan {
         case .complete, .delayFirstMessage: served = data.count
         case let .cut(after), let .hang(after): served = min(after, data.count)
+        case let .reject(error): throw error
         }
         let payload = Data(data.prefix(served))
         for offset in stride(from: 0, to: payload.count, by: 16384) {
@@ -1216,6 +1660,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         switch plan {
         case .complete, .delayFirstMessage: return
         case .cut: throw RPCError(code: .unavailable, message: "Injected mid-stream failure")
+        case let .reject(error): throw error
         case .hang: try await Task.sleep(for: .seconds(30))
         }
     }
@@ -1224,7 +1669,13 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         request: RPCAsyncSequence<Google_Bytestream_WriteRequest, any Error>,
         context _: ServerContext
     ) async throws -> Google_Bytestream_WriteResponse {
+        state.uploadActivity.withLock { $0.active += 1; $0.peak = max($0.peak, $0.active) }
+        defer { state.uploadActivity.withLock { $0.active -= 1 } }
+        if uploadDelay != .zero { try await Task.sleep(for: uploadDelay) }
         let plan = await state.nextWritePlan()
+        if case .reject = plan {
+            throw admissionError ?? RPCError(code: .resourceExhausted, message: "Injected staging rejection")
+        }
         var data = Data()
         var digest: REAPI.Digest?
         var finished = false

@@ -382,6 +382,29 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. Kura uses `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` as the Sentry environment, so set it to values such as `production`, `staging`, or `canary` when separating events by deployment. In the standalone Helm chart, inject the DSN via `extraEnv` or `extraEnvFrom`. In controller-managed Tuist deployments, set `kuraController.telemetry.deploymentEnvironment` and sync the DSN into `kura-shared-secrets` with `kuraController.sentry.externalSecret`.
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
 
+### Upload admission and sizing
+
+`memory_pressure_state=0` does not guarantee upload admission: the byte budget bounds admitted work independently of measured memory use. Concurrent writers can fill it without an OOM or a pressure transition.
+
+HTTP upload staging can wait up to 30 seconds **before** owning its reservation. ByteStream Write already owns a decode reservation when the blob size becomes known, so staging growth remains nonblocking. Waiting while holding part of the shared pool can deadlock competing writers and stall shared HTTP/2 flow control. Decode and staging refusals return `RESOURCE_EXHAUSTED` with a standard `google.rpc.RetryInfo` detail recommending a randomized delay of 1–10 seconds. Clients that do not understand the detail retain the same status and message; clients must restart a rejected write from byte zero. The hint adds no queue or payload reservation and does not lift the memory ceiling.
+
+For Tuist's 1 MiB ByteStream messages, a large upload reserves approximately **34 MiB**: twice the 16 MiB staging window, plus twice the largest encoded message (protobuf overhead adds a small amount). Smaller uploads reserve less; other clients can send larger messages and incur larger decode charges. Plan for the sum of concurrent uploads across **all** warm jobs reaching a pod, not the total artifact size:
+
+```text
+upload reservation demand ≈ concurrent warms × uploads per warm × 34 MiB
+pod limit lower bound ≈ upload reservation demand / 0.25
+```
+
+The second estimate applies to default 60%/85% watermarks without a limiting memory floor, and is an upload-only lower bound, not a production guarantee. Leave headroom in the transient pool for reads, batch decoding, materialization, and peer work, and validate CPU, disk throughput/capacity, and egress under sustained mixed load too.
+
+- Three warms × eight uploads need approximately 816 MiB of reservations. Dividing by 25% gives roughly 3.2 GiB; a **4 GiB** pod is a reasonable starting point with additional margin.
+- On a **1 GiB** pod the default gap is approximately 256 MiB. Three warms × two uploads need approximately 204 MiB, so `TUIST_CACHE_CONCURRENCY_LIMIT=2` is a useful starting point when increasing memory is not desirable. This is not a guarantee if other traffic consumes the remaining capacity.
+- With `KURA_MEMORY_FLOOR_BYTES`, inspect the base and elastic capacities instead of assuming the full 25% is always available. Elastic borrowing stops above normal pressure; queued HTTP uploads use the base pool. Increasing only the ceiling need not increase guaranteed admission capacity.
+
+Prefer reducing client concurrency or increasing pod memory before overriding `KURA_MEMORY_SOFT_LIMIT_BYTES` / `KURA_MEMORY_HARD_LIMIT_BYTES`. Lowering the soft watermark sheds optional work earlier; raising the hard watermark reduces the safety reserve beneath the container limit. Neither creates physical memory. Use explicit watermarks only after measuring the application's baseline and mixed-load peaks.
+
+Watch `kura_memory_transient_{capacity,reserved}_bytes`, `kura_memory_elastic_transient_{capacity,reserved}_bytes`, pressure state, and `kura_memory_actions_total_total{action="bytestream_staging_admission_rejected"}` / `grpc_write_decode_admission_rejected`, together with `kura_capacity_sheds_total_total`. Short bursts can be absorbed by bounded client retries, including against older Kura versions without RetryInfo. Persistent refusals mean the offered concurrency exceeds capacity or requests exceed an individual budget; longer retries alone do not fix that.
+
 ## 📊 Observability
 
 Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header

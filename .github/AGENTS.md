@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The app's device-build job generates with `--configuration Release` to match its
+Release archive. Default Debug binary-cache hits cannot be optimized by the
+archive's Release setting and make the bundle-size check depend on cache warmth.
+Keep simulator build/test generation on its normal configuration.
+
 Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
@@ -91,3 +96,9 @@ vendored evaluator and rubric license notices. Validate with
 `actionlint .github/workflows/pr-quality.yml` from the repository root.
 
 Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects.
+
+## CodeQL
+
+`workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
+must stay disabled in the repository settings, or uploads from this workflow
+are rejected.
