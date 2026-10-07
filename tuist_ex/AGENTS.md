@@ -17,8 +17,7 @@ only their own options), so projects alias them as `test` and `compile`.
 `Args.run_wrapped/3` exists because of that alias: called by its own name, a
 Tuist task would follow the alias back to itself and Mix would do nothing.
 `mix tuist.compile` must never write the shared `:analytics_options`; under
-the alias it runs inside `mix tuist.test`, which owns them. A compile where
-every compiler returned `:noop` is not reported. Retries (`--retries`,
+the alias it runs inside `mix tuist.test`, which owns them. A compile with no profiled files is not reported unless a compiler or diagnostic indicates failure, since compilers can return `:ok` without doing any work. Retries (`--retries`,
 `TUIST_TEST_RETRIES`, `tuist: [test_retries:]`) rerun failed tests with
 `mix tuist.test --failed` in a child process whose formatter writes outcomes
 to a file instead of submitting; the parent runs the suite with `--raise` so
