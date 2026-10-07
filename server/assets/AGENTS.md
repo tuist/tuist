@@ -68,6 +68,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
 
+- The GitHub integration card uses equal-width description and form columns on desktop. Enterprise fields fill the right column, actions remain right-aligned, and the columns stack at 768px and below.
 - Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.
 - Runner step rails shrink with the viewport and hide below 900px. When rails are visible, duration slots retain equal widths even without timestamps; minimum-width ticks stay within the track. Only the recorded offset and width are supplied inline as custom properties.
 - Runner step logs and the Logs-tab viewport contain vertical overscroll so reaching a log boundary does not scroll the surrounding page.
