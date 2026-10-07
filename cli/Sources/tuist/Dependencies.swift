@@ -114,7 +114,10 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
         #if canImport(TuistCacheEE)
             try await Extension.$cacheService
                 .withValue(CacheWarmCommandService()) {
-                    try await action()
+                    try await Extension.$cachePullService
+                        .withValue(CachePullCommandService()) {
+                            try await action()
+                        }
                 }
         #else
             try await action()
