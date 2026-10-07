@@ -25,9 +25,11 @@ a passing retry can turn the exit code green, merges the attempts as
 repetitions and submits once. Sharding (`Shards`, `mix tuist.test.build`) plans with ExUnit modules, since
 that is what runs report timings for, discovered by parsing the test files
 without loading them, and runs test files, since that is what Mix can
-select. The build archive materializes application `priv` directories whose
+select. The build archive materializes dependency `deps/*/priv` directories whose
 real paths stay inside the checkout, including native libraries generated in
-`deps/` that are absent on cold workers. Other symbolic links travel as a list,
+`deps/` that are absent on cold workers. Preserve project `priv` links so nested
+checkout-relative resources (such as published agent skills) keep their original
+base directory. Other symbolic links travel as a list,
 because `:erl_tar` refuses escaping links; links are recreated only when they
 stay inside the checkout. Do not follow nested or ancestor symlinks when
 materializing `priv`, which could package files outside the checkout. A shard that cannot fetch its plan fails rather than

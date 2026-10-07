@@ -233,6 +233,29 @@ defmodule TuistEx.Analytics.ShardsTest do
       assert File.lstat(Path.join(restored, "lib/lumis/priv/native/outside")) == {:error, :enoent}
     end
 
+    test "preserves project priv links and their checkout-relative resources", %{
+      checkout: checkout,
+      archive: archive
+    } do
+      project = Path.join(checkout, "project")
+      build = Path.join(project, "_build/test")
+      File.mkdir_p!(Path.join(project, "priv/static"))
+      File.mkdir_p!(Path.join(checkout, "skills/skills"))
+      File.write!(Path.join(checkout, "skills/skills/SKILL.md"), "published skill")
+      File.ln_s!("../../../skills/skills", Path.join(project, "priv/static/skills"))
+      File.mkdir_p!(Path.join(build, "lib/project"))
+      File.ln_s!("../../../../priv", Path.join(build, "lib/project/priv"))
+
+      assert :ok = Shards.archive(build, archive)
+      File.rm_rf!(build)
+      assert :ok = Shards.extract(archive, build)
+
+      assert File.read_link!(Path.join(build, "lib/project/priv")) == "../../../../priv"
+
+      assert File.read!(Path.join(build, "lib/project/priv/static/skills/SKILL.md")) ==
+               "published skill"
+    end
+
     test "does not package priv through an ancestor symlink leaving the checkout", %{
       checkout: checkout,
       directory: directory,

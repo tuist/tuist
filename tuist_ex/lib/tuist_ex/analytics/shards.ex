@@ -288,9 +288,9 @@ defmodule TuistEx.Analytics.Shards do
 
   @links ".tuist-links"
 
-  # Mix links application `priv` directories into the checkout. Package their
-  # contents too: native libraries generated in deps/ are absent on cold workers.
-  # Other links travel as a list because erl_tar refuses escaping links.
+  # Dependency priv directories contain generated native libraries absent on
+  # cold workers. Package those contents, but preserve project priv links so
+  # checkout-relative resources keep resolving from their original location.
   @doc false
   def archive(build_path, archive) do
     {files, links} = walk(build_path, "")
@@ -316,7 +316,7 @@ defmodule TuistEx.Analytics.Shards do
           target = File.read_link!(source)
           resolved = Path.expand(target, Path.dirname(source))
 
-          if application_priv?(path, resolved) do
+          if dependency_priv?(path, resolved) do
             {inner_files, inner_links} = walk(resolved, path)
             {inner_files ++ files, inner_links ++ links}
           else
@@ -336,10 +336,11 @@ defmodule TuistEx.Analytics.Shards do
     end)
   end
 
-  defp application_priv?(path, resolved) do
+  defp dependency_priv?(path, resolved) do
     checkout = Path.expand(File.cwd!())
 
     match?(["lib", _, "priv"], Path.split(path)) and
+      match?(["deps", _, "priv"], Enum.take(Path.split(resolved), -3)) and
       String.starts_with?(resolved, checkout <> "/") and File.dir?(resolved) and
       real_directories?(checkout, Path.split(Path.relative_to(resolved, checkout)))
   end
