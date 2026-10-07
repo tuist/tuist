@@ -29,7 +29,7 @@ class TuistTestShardFunctionalTest {
     private lateinit var server: MockWebServer
     private val cacheEntries = ConcurrentHashMap<String, ByteArray>()
     private val shards = ConcurrentHashMap<Int, Map<String, Any>>()
-    private val catchAllRequests = CopyOnWriteArrayList<String?>()
+    private val shardRequestPluginVersions = CopyOnWriteArrayList<String?>()
 
     @BeforeEach
     fun setUp() {
@@ -47,7 +47,7 @@ class TuistTestShardFunctionalTest {
                         cacheEntries[path]?.let { MockResponse().setBody(Buffer().write(it)) }
                             ?: MockResponse().setResponseCode(404)
                     shardIndex != null -> {
-                        catchAllRequests.add(request.requestUrl?.queryParameter("catch_all"))
+                        shardRequestPluginVersions.add(request.getHeader(PluginVersion.HEADER_NAME))
                         MockResponse().setResponseCode(200).setBody(Gson().toJson(shards.getValue(shardIndex.toInt())))
                     }
                     path.endsWith("/gradle/builds") ->
@@ -114,12 +114,13 @@ class TuistTestShardFunctionalTest {
     }
 
     @Test
-    fun `asks the server for a catch-all final shard`() {
+    fun `sends the plugin version the server enables the catch-all final shard for`() {
         shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
 
         runShard(0, "test")
 
-        assertEquals(listOf<String?>("true"), catchAllRequests)
+        assertEquals(listOf(PluginVersion.current), shardRequestPluginVersions)
+        assertTrue(PluginVersion.current != null)
     }
 
     @Test

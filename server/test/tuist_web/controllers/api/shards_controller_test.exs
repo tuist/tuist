@@ -480,7 +480,11 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["skip"] == ["AppTests/LoginTests"]
     end
 
-    test "passes suite catch-all support when the client requests it", %{conn: conn, user: user, project: project} do
+    test "passes suite catch-all support for supported Gradle plugin versions", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
       stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
         assert Keyword.fetch!(opts, :suite_catch_all?)
 
@@ -498,14 +502,15 @@ defmodule TuistWeb.API.ShardsControllerTest do
       conn =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1?catch_all=true")
+        |> put_req_header(Headers.gradle_plugin_version_header(), "0.17.0")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
 
       response = json_response(conn, :ok)
       assert response["modules"] == []
       assert response["skip"] == [":app/com.example.LoginTest"]
     end
 
-    test "does not pass suite catch-all support when the client declines it", %{
+    test "does not pass suite catch-all support for older Gradle plugin versions", %{
       conn: conn,
       user: user,
       project: project
@@ -516,20 +521,21 @@ defmodule TuistWeb.API.ShardsControllerTest do
         {:ok,
          %{
            shard_plan_id: Ecto.UUID.generate(),
-           modules: ["AppTests"],
-           suites: %{},
+           modules: [":app"],
+           suites: %{":app" => ["com.example.LoginTest"]},
            skip: [],
-           download_url: "https://download.example.com",
-           download_urls: ["https://download.example.com"]
+           download_url: "",
+           download_urls: []
          }}
       end)
 
       conn =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1?catch_all=false")
+        |> put_req_header(Headers.gradle_plugin_version_header(), "0.16.2")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
 
-      assert json_response(conn, :ok)["modules"] == ["AppTests"]
+      assert json_response(conn, :ok)["modules"] == [":app"]
     end
 
     test "returns not found for nonexistent plan", %{conn: conn, user: user, project: project} do

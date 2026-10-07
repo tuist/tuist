@@ -71,7 +71,7 @@ class TuistTestShardingService(
     }
 
     fun getShard(reference: String, shardIndex: Int): Shard {
-        val response = shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex, catchAll = true).execute()
+        val response = shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex).execute()
         if (!response.isSuccessful) {
             throw org.gradle.api.GradleException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
