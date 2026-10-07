@@ -94,12 +94,11 @@ defmodule Atlas.SupportInbox.Classifier do
         {:ok, wrap_classifier_decision(decision)}
 
       {:error, reason} ->
-        Logger.warning(
-          "SupportInbox classifier failed for thread #{thread.id}: #{inspect(reason)}. " <>
-            "Falling back to #support ping."
-        )
+        decision = fallback_decision(reason)
 
-        {:ok, fallback_decision(reason)}
+        Logger.warning("SupportInbox classifier failed for thread #{thread.id}: #{decision.reason}")
+
+        {:ok, decision}
     end
   end
 
@@ -144,11 +143,22 @@ defmodule Atlas.SupportInbox.Classifier do
       action_needed: true,
       urgency: :normal,
       confidence: 0.0,
-      reason: "Classifier failed (#{inspect(reason)}); defaulted to #support.",
+      reason: "Classifier unavailable: #{failure_summary(reason)}; defaulted to #support.",
       source: :fallback,
       low_confidence?: true
     }
   end
+
+  defp failure_summary(%{status: 402}), do: "provider credits or billing need attention"
+
+  defp failure_summary(%{status: status}) when status in [401, 403],
+    do: "provider credentials or permissions need attention"
+
+  defp failure_summary(%{status: status}) when is_integer(status) and status in 100..599,
+    do: "provider returned status #{status}"
+
+  defp failure_summary(:llm_not_configured), do: "no model provider is configured"
+  defp failure_summary(_reason), do: "classification failed"
 
   defp persist(%Thread{} = thread, %{} = decision) do
     thread

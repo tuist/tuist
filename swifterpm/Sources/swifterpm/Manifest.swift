@@ -122,7 +122,7 @@ enum ManifestLoader {
         let cache = cacheFilePath(packageDir: packageDir)
         try? await fileSystem.atomicWrite(result.stdout, to: cache)
         if let cachePath = try? cache.absolutePath {
-            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cachePath)
+            try? await ManifestEnvironmentFingerprint.write(forCacheFile: cachePath, packageDir: packageDir)
         }
         return result.stdout
     }
@@ -194,7 +194,7 @@ enum ManifestLoader {
         // unknown. Treat that as a miss and re-dump rather than blessing unknown contents
         // with the current environment, otherwise a legacy cache that was already stale
         // at upgrade time would stay stale indefinitely.
-        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cachePath) {
+        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: cachePath, packageDir: packageDir) {
         case .matching:
             return try await fileSystem.readFile(at: cachePath)
         case .mismatching, .missing:

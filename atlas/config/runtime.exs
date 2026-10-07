@@ -3,6 +3,7 @@ import Config
 alias Atlas.Config.DevInstance
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
+alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
@@ -175,6 +176,30 @@ if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
     base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
 end
 
+allowed_email_domain =
+  case System.get_env("ATLAS_ALLOWED_EMAIL_DOMAIN") do
+    nil ->
+      if config_env() == :prod and System.get_env("GOOGLE_CLIENT_ID") do
+        IO.puts(
+          :stderr,
+          "ATLAS_ALLOWED_EMAIL_DOMAIN is unset; sign-in retains the configured Tuist domain. Set it explicitly for your organization."
+        )
+      end
+
+      Application.fetch_env!(:atlas, :allowed_email_domain)
+
+    value ->
+      domain = value |> String.trim() |> String.downcase()
+
+      if Regex.match?(~r/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\z/, domain) do
+        domain
+      else
+        raise "ATLAS_ALLOWED_EMAIL_DOMAIN must be a non-empty email domain"
+      end
+  end
+
+config :atlas, :allowed_email_domain, allowed_email_domain
+
 # Atlas uses a dedicated Finch pool for all Req traffic so production can tune
 # connection checkout behaviour independently of Req's shared defaults.
 config :atlas, :http,
@@ -188,6 +213,8 @@ config :atlas, :http,
       start_pool_metrics?: true
     ]
   }
+
+config :ueberauth, Ueberauth, providers: [google: {Google, [default_scope: "email profile", hd: allowed_email_domain]}]
 
 # Configure Google OAuth if env vars are set
 if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
@@ -464,6 +491,9 @@ end
 # optional headers, bearer_token or OAuth fields, and receive_timeout.
 case System.get_env("MCP_PROXY_SERVERS") do
   value when value in [nil, ""] ->
+    config :atlas, :mcp_proxy, servers: []
+
+  "tuist-managed" ->
     if config_env() in [:dev, :prod] do
       grafana_headers =
         case System.get_env("GRAFANA_MCP_STACK_URL") do

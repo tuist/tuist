@@ -509,10 +509,93 @@
           }
         }
 
+        & > [data-part="step-timeline"] {
+          display: flex;
+          flex-shrink: 0;
+          align-items: center;
+          width: clamp(160px, 30vw, 400px);
+
+          & > [data-part="step-timeline-cap"] {
+            flex-shrink: 0;
+            background: var(--noora-surface-border-primary);
+            width: 10px;
+            height: 20px;
+          }
+
+          & > [data-part="step-timeline-track"] {
+            display: flex;
+            position: relative;
+            flex: 1;
+            align-items: center;
+            margin: 0 4px;
+            min-width: 0;
+            height: 20px;
+
+            &::before {
+              position: absolute;
+              right: -4px;
+              left: -4px;
+              background: var(--noora-surface-border-primary);
+              height: 1px;
+              content: "";
+            }
+
+            & > [data-part="step-timeline-bar"] {
+              --step-offset: 0%;
+              --step-width: 0%;
+
+              position: absolute;
+              top: 3px;
+              left: min(var(--step-offset), calc(100% - var(--noora-spacing-4)));
+              box-sizing: border-box;
+              border: 1px solid var(--noora-chart-primary);
+              background: var(--noora-chart-legend-primary-translucent);
+              width: var(--step-width);
+              min-width: var(--noora-spacing-4);
+              height: 14px;
+            }
+
+            & > [data-part="step-timeline-bar"][data-kind="failure"] {
+              border-color: var(--noora-chart-destructive);
+              background: var(--noora-icon-destructive-background);
+            }
+
+            & > [data-part="step-timeline-bar"][data-kind="warning"] {
+              border-color: var(--noora-icon-warning-label);
+              background: var(--noora-icon-warning-background);
+            }
+
+            & > [data-part="step-timeline-bar"][data-kind="processing"] {
+              border-color: var(--noora-surface-label-secondary);
+              background: var(--noora-surface-background-secondary);
+            }
+          }
+
+          @media (max-width: 900px) {
+            display: none;
+          }
+        }
+
+        & > [data-part="step-duration"] {
+          flex-shrink: 0;
+          width: 11ch;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          font-variant-numeric: tabular-nums;
+          text-align: right;
+          white-space: nowrap;
+
+          @media (max-width: 900px) {
+            width: auto;
+            min-width: 48px;
+          }
+        }
+
         & > [data-part="step-meta"] {
           display: flex;
           flex-shrink: 0;
           flex-direction: row;
+          justify-content: flex-end;
           align-items: center;
           gap: var(--noora-spacing-4);
 
@@ -575,6 +658,7 @@
     padding: var(--noora-spacing-5) var(--noora-spacing-7);
     max-height: 480px;
     overflow: auto;
+    overscroll-behavior-y: contain;
   }
 
   /* Two attribute selectors so this beats the `display: flex` above —

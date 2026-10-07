@@ -50,11 +50,22 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // settings carry no default, for staged adoption), so opt in explicitly.
         // Enabling them changes every key, but only ever at a boundary where the
         // compiler version already invalidated the cache.
+        //
+        // The compiler writes the mapped paths (`/^src/…`, `/^root/…`) into the
+        // coverage mapping too, and nothing maps them back, so xccov drops every
+        // source compiled with them from the report. A coverage build therefore
+        // compiles unmapped: `SWIFT_ENABLE_PREFIX_MAPPING` and
+        // `CLANG_ENABLE_PREFIX_MAPPING` gate every other mapping, and they resolve
+        // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
+        // that gather coverage.
         if await Self.isPrefixMappingSupported() {
-            baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = "YES"
+            baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
-            baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = "YES"
+            baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
             baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] = "NO"
         }
 
         var casPluginOptions: [String] = []
@@ -135,6 +146,10 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
 
         return (project, [])
     }
+
+    private static let prefixMappingForCoverageSetting = "TUIST_PREFIX_MAPPING_FOR_COVERAGE"
+    private static let prefixMappingUnlessCoverage: SettingValue =
+        "$(\(prefixMappingForCoverageSetting)_$(CLANG_COVERAGE_MAPPING))"
 
     /// Whether the selected Xcode's build system implements the source/build
     /// directory prefix mappings that make compilation-cache keys path-independent

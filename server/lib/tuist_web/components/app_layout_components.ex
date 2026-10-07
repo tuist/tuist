@@ -48,7 +48,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_group
         :if={
           Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
-            once?
+            Project.mix_project?(@selected_project) or once?
         }
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
@@ -74,7 +74,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_group
         :if={
           Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
-            once?
+            Project.mix_project?(@selected_project) or once?
         }
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
@@ -112,6 +112,21 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={
+            Project.xcode_project?(@selected_project) and
+              Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
+          }
+          label={dgettext("dashboard", "Code Coverage")}
+          icon="umbrella"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -134,7 +149,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
+          :if={Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)}
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}

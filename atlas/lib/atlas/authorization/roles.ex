@@ -100,8 +100,8 @@ defmodule Atlas.Authorization.Roles do
   end
 
   @doc """
-  Ensure the seeded `executive` role exists and carries every scope. Used both
-  by the roles migration and as a safety net at boot.
+  Ensure the `executive` role exists and carries every scope. Used by demo
+  seeds and the operator's first-administrator initialization.
   """
   def ensure_executive_role! do
     scopes = Authorization.executive_scopes()

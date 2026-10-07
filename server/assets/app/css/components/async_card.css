@@ -1,0 +1,50 @@
+.noora-card__section[data-chart-frame] {
+  min-height: 320px;
+
+  &[data-chart-frame="small"] {
+    min-height: 168px;
+
+    &[data-empty] {
+      padding-top: var(--noora-spacing-5);
+      padding-bottom: var(--noora-spacing-5);
+
+      & > [data-part="image"] {
+        height: 64px;
+      }
+    }
+  }
+
+  &[data-chart-frame="compact"] {
+    min-height: 264px;
+  }
+
+  &[data-chart-frame="large"] {
+    min-height: 344px;
+  }
+
+  &[data-empty] {
+    justify-content: center;
+    padding-top: var(--noora-spacing-7);
+    padding-bottom: var(--noora-spacing-7);
+
+    & > [data-part="image"] {
+      height: 112px;
+    }
+  }
+}
+
+.noora-card[data-async-card][data-state="refreshing"]
+  :is(.noora-chart, .noora-table, .tuist-widget, [data-part="legends"]),
+#gradle-tasks[data-state="refreshing"] :is(.noora-chart, .noora-table, .tuist-widget, [data-part="legends"]) {
+  animation: tuist-chart-refresh 0s linear 200ms forwards;
+}
+
+@keyframes tuist-chart-refresh {
+  to {
+    opacity: 0.65;
+  }
+}
+
+.noora-card__section[data-chart-frame] .noora-card__section[data-chart-frame][data-empty] {
+  min-height: 0;
+}

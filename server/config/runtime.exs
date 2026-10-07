@@ -703,14 +703,18 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Kura instances coming up for a client that asked for its cache: bringing one
 # up and polling its endpoint twice a second, kept off :default so a busy queue
 # cannot delay either.
+# Coverage file deltas: a project's writes take turns on an advisory lock, so a
+# burst for one project would otherwise hold :default's slots while it waits.
 base_queues = [
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
   vcs_comments: 20,
   webhooks: 20,
+  mcp_events: 5,
   storage_retention: 1,
-  kura_provisioning: 10
+  kura_provisioning: 10,
+  coverage_deltas: 2
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}

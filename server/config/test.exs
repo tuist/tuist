@@ -14,6 +14,8 @@ config :ex_aws,
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+config :open_api_spex, :cache_adapter, TuistTestSupport.OpenApiSpexCache
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

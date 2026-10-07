@@ -203,6 +203,68 @@ fleet_check_sensor_chains() {
   fi
 }
 
+# Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. A node or
+# switch names the device its cord goes into, `ats` or `pdu`, never both, and a
+# PDU names its ATS, so everything resolves to exactly one transfer switch: the
+# unit of failure. The pairs that exist so one of them survives (edges, storage,
+# ToRs) must resolve to different ones, or one ATS takes both.
+fleet_check_power() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    ([.nodes[]? | select(.hardware == "eats16n") | .name]) as $atses |
+    ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    [.nodes[]?, .devices[]] as $all |
+    def feeder: if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end;
+    [
+      $all[] | select(.ats != null and .pdu != null) |
+        "\(.name): names both ats and pdu; a cord goes into one of them"
+    ] + [
+      $all[] | select(.ats != null and (.ats as $a | $atses | index($a) | not)) |
+        "\(.name): ats \(.ats) is not a transfer switch in this site"
+    ] + [
+      $all[] | select(.pdu != null and (.pdu as $p | $pdus | has($p) | not)) |
+        "\(.name): pdu \(.pdu) is not a PDU in this site"
+    ] + [
+      $all[] | select(.hardware == "evmafc20a" and (.ats == null or .pdu != null)) |
+        "\(.name): a PDU is fed by a transfer switch, so it names an ats and no pdu"
+    ] + [
+      $all[] | select(.hardware == "eats16n" and (.ats != null or .pdu != null)) |
+        "\(.name): a transfer switch takes the facility feeds, not another power device"
+    ] + [
+      $all[] | select(.hardware == "eats16n" and (.preferred_source | IN(1, 2) | not)) |
+        "\(.name): preferred_source is \(.preferred_source // "missing"); a transfer switch prefers source 1 (feed A) or 2 (feed B)"
+    ] + [
+      $all[] | select(.hardware != "eats16n" and .preferred_source != null) |
+        "\(.name): only a transfer switch has a preferred_source"
+    ] + [
+      ([$all[] | select(.role == "edge")], [$all[] | select(.role == "storage")],
+       [$all[] | select(.role == "tor")]) |
+      [.[] | {name, role, ats: feeder} | select(.ats != null)] |
+      select(length == 2 and .[0].ats == .[1].ats) |
+        "\(.[0].name) and \(.[1].name) both resolve to \(.[0].ats), so one transfer switch takes the pair"
+    ] + [
+      $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null) |
+        "\(.name): one of the \(.role) pair, but names no ats or pdu, so which transfer switch it shares cannot be checked"
+    ] + [
+      # The feed cords into a transfer switch are cables like any other, so
+      # each source names the feed behind it, once.
+      select([$all[] | select(.hardware == "eats16n")] | length > 0) |
+      (1, 2) as $source | [(.feeds // [])[] | select(.source == $source)] |
+      if length == 0 then "the site has transfer switches but names no feed for source \($source)"
+      elif length > 1 then "source \($source) has more than one feed: \(map(.name) | join(", "))"
+      else empty end
+    ] + [
+      [$all[] | select(.mgmt_address != null)] | group_by(.mgmt_address)[] | select(length > 1) |
+        "\(map(.name) | join(" and ")) share management address \(.[0].mgmt_address)"
+    ] | .[]
+  ' "$site_file")" || return 1
+  if [ -n "$bad" ]; then
+    echo "error: power chain is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
+}
+
 # Every link has to point at a switch the site actually has.
 fleet_check_nodes() {
   local site_file="$1" bad
@@ -379,6 +441,7 @@ fleet_render() {
   fleet_check_node_interfaces "$site_file" || return 1
   fleet_check_management_links "$site_file" || return 1
   fleet_check_sensor_chains "$site_file" || return 1
+  fleet_check_power "$site_file" || return 1
   fleet_check_port_map "$site_file" "$name" "$spec" || return 1
   fleet_check_lags "$site_file" || return 1
 
@@ -649,6 +712,29 @@ fleet_check_rack_hosts() {
   done < <(jq -r '.nodes[]? | select(.rack_host != null) | "\(.name)\t\(.rack_host)"' "$site_file")
   rm -f "$known"
 
+  # A mini's outlet is its RackHost's and its ToR port is this file's, so this
+  # is the one place both halves meet. They have to resolve to the same
+  # transfer switch: crossed, any one ATS failure takes the whole fleet, half
+  # the minis losing power and the other half their ToR.
+  local outlets crossed
+  outlets="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.power.pdu // "")}] | from_entries' "$values" 2>/dev/null)" || outlets='{}'
+  crossed="$(jq -r --argjson outlets "$outlets" '
+    ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    ([.nodes[]?, .devices[]] | map({key: .name, value: (if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end)}) | from_entries) as $feeder |
+    .nodes[]? | select(.rack_host != null) | . as $node |
+    ($outlets[$node.rack_host] // "") as $pdu | select($pdu != "") |
+    if ($pdus | has($pdu) | not) then
+      "\($node.name): RackHost \($node.rack_host) is on \($pdu), which is not a PDU in this site"
+    else
+      $pdus[$pdu] as $ats |
+      $node.links[]? | select(.purpose == "data" and .switch != null) |
+      .switch as $tor | $feeder[$tor] as $tor_ats |
+      select($tor_ats != null and $tor_ats != $ats) |
+        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats); a mini and its ToR must lose power together"
+    end
+  ' "$site_file")"
+  [ -n "$crossed" ] && bad="$bad$crossed"$'\n'
+
   if [ -n "$bad" ]; then
     echo "error: node references into the cluster inventory are wrong:" >&2
     printf '%s' "$bad" | sed '/^$/d;s/^/  /' >&2
@@ -726,6 +812,50 @@ fleet_render_k8s() {
     }' | yq -P -
 }
 
+# The site's switched PDUs that have a management address, one name per line.
+fleet_pdus() {
+  jq -r '.nodes[]? | select(.hardware == "evmafc20a" and (.mgmt_address // "") != "") | .name' "$1"
+}
+
+# The site's transfer switches that have a management address, one name per
+# line.
+fleet_atses() {
+  jq -r '.nodes[]? | select(.hardware == "eats16n" and (.mgmt_address // "") != "") | .name' "$1"
+}
+
+# A PDU as a RackPDU object, which the CAPI provider's RackPDU controller
+# adopts once it is installed (managedBy: controller). Spec only, like the
+# RackSwitch objects.
+fleet_render_pdu() {
+  fleet_render_power "$1" "$2" RackPDU
+}
+
+# A transfer switch as a RackATS object, which the CAPI provider's RackATS
+# controller adopts, keeps on its preferred source and observes once it is
+# installed.
+fleet_render_ats() {
+  fleet_render_power "$1" "$2" RackATS
+}
+
+fleet_render_power() {
+  local site_file="$1" name="$2" kind="$3"
+  jq -r --arg n "$name" --arg kind "$kind" '
+    .site as $site |
+    .nodes[] | select(.name == $n) |
+    (.status == "installed") as $managed |
+    {
+      apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
+      kind: $kind,
+      metadata: { name: .name, labels: { "tuist.dev/site": $site, "tuist.dev/role": "power" } },
+      spec: ({ site: $site, model: .hardware }
+        + (if .mac then { mac: .mac } else {} end)
+        + { address: .mgmt_address }
+        + (if $kind == "RackPDU" and .ats then { chain: .ats } else {} end)
+        + { managedBy: (if $managed then "controller" else "standalone" end) }
+        + (if $kind == "RackPDU" then { outletStateOnStartup: "on" } else { preferredSource: .preferred_source } end))
+    }
+  ' "$site_file" | yq -P -p=json '(select(.kind == "RackPDU") | .spec.outletStateOnStartup) style="double"' -
+}
 
 # Which terminal line is this connection, from `show users` output. The firmware
 # names each connection's task tSshNN with N only ever increasing, so the newest
@@ -820,9 +950,14 @@ HEADER
       (.nodes[]? as $n | $n.links[] |
         {from: .switch, port, to: $n.name, nic: (.nic // ""), media: (.media // ""),
          purpose: (.purpose // "data"), status: (.status // $n.status // "")}),
-      (.nodes[]? | select(.ats != null) |
-        {from: .ats, port: null, to: .name, nic: "psu", media: "power", purpose: "power",
-         status: (if $status[.ats] == "planned" or .status == "planned" then "planned" else .status end)})
+      ((.nodes[]?, (.devices[] | .status = "installed")) | select((.ats // .pdu) != null) |
+        (.ats // .pdu) as $from |
+        {from: $from, port: null, to: .name, nic: (if .role == "power" then "inlet" else "psu" end),
+         media: "power", purpose: "power",
+         status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)}),
+      ((.feeds // []) as $feeds | .nodes[]? | select(.hardware == "eats16n") | . as $ats | $feeds[] |
+        {from: .name, port: null, to: $ats.name, nic: "source-\(.source)", media: "power", purpose: "feed",
+         status: ($ats.status // "")})
     ] |
     sort_by(.from, (.port == null), .port, .to) | .[] |
     "| \(.from) | \(.port // "") | \(.to) | \(.nic) | \(.media) | \(.purpose) | \(.status) |"

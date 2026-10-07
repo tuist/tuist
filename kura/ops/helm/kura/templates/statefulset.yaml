@@ -90,6 +90,13 @@ spec:
               value: "{{ ternary "https" "http" .Values.peerTls.enabled }}://$(POD_NAME).{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local:{{ int .Values.peerTls.internalPort }}"
             - name: KURA_PEERS
               value: {{ include "kura.seedPeers" . | quote }}
+            {{- with .Values.peerTopology }}
+            {{- if not $.Values.peerTls.enabled }}
+            {{- fail "peerTopology requires peerTls.enabled" }}
+            {{- end }}
+            - name: KURA_PEER_TOPOLOGY
+              value: {{ . | toJson | quote }}
+            {{- end }}
             - name: KURA_INTERNAL_PORT
               value: {{ printf "%d" (int .Values.peerTls.internalPort) | quote }}
             {{- if .Values.config.discovery.enabled }}

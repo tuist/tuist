@@ -2024,6 +2024,64 @@ No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
 
+### Kura receiving no REAPI requests
+
+```promql
+sum(increase(kura_public_request_latency_seconds_count{cluster="tuist-production", transport="grpc",
+  route=~"/build.bazel.remote.execution.v2.(ActionCache/GetActionResult|ContentAddressableStorage/(FindMissingBlobs|BatchReadBlobs|BatchUpdateBlobs))"}[10m]))
+```
+
+- Threshold: `< 1`
+- Pending period: none. The ten-minute window is the grace period.
+- Severity: warning, to be promoted to critical once it has run clean for a
+  while.
+- Production only (the `cluster` matcher). Folder `Alerts`, group `Cache`.
+  No contact point on the rule; the policy tree routes it. **No Data:
+  Alerting**, because an empty result is the condition: `sum()` over no
+  series returns nothing. **Error: Error**.
+- Summary: `No REAPI requests reached the production Kura fleet in the last 10 minutes`
+- **Not created yet.** The rule definition is
+  `kura-no-reapi-requests-alert-rules.json` next to this file once it lands;
+  create it with the provisioning API (`X-Disable-Provenance: true`,
+  `ruleGroup: Cache`), not `gcx resources push`.
+
+The four routes are the ones `tuist-cas-proxy` uses for the Xcode cache.
+Bazel and, from CLI 4.211, the module cache use the same REAPI routes, and
+Kura has no client label, so the rule watches every REAPI client at once
+rather than the Xcode lane alone. The floor is what makes it usable: an idle
+proxy polls `GetActionResult` for its snapshot refresh about once a minute,
+so even at night and on weekends the fleet sees one or two of these requests
+every five minutes. Over the 28 days to 2026-10-03 no ten-minute window was
+empty; the quietest held one request (2026-09-05 to 2026-09-10, when the
+fleet was smaller) and since 2026-09-11 none held fewer than nine. Five- and
+two-minute windows do go empty, so ten is the shortest interval the history
+supports. `kura_usage_events` in ClickHouse is not a substitute: it is
+flushed in batches of about five minutes, so it shows gaps that Prometheus
+does not.
+
+**What it catches.** Every client stopping at once: an endpoint answer that
+sends clients elsewhere (the legacy cache nodes, an empty list, a host that
+does not resolve), or a REAPI ingress that is down across regions. It does
+not catch one account's proxies being pinned to the wrong server, which is
+what happened in September (tuist/tuist#13715); that needs the proxy to
+report its endpoint in the build report, which is a CLI change.
+
+**When it fires.** Check the Kura availability alerts first: if instances
+are unready, this is the client-facing symptom of that. If they are healthy,
+the clients are going elsewhere:
+
+1. `curl -sS -H "Authorization: Bearer $TUIST_TOKEN" "https://tuist.dev/api/cache/endpoints?account_handle=<handle>"`
+   for an account with an active instance should answer that instance's
+   `*.kura.tuist.dev` host (or its `*.cache.tuist.dev` stable host). A legacy
+   `cache-*.tuist.dev` host or an empty list is the fault.
+2. Look for REAPI arriving at the wrong place: on the legacy nodes
+   `{job="cache-nginx", stream="access"} |~ "build\\.bazel\\.remote"` (nginx
+   answers 404), and on the Tuist server ingress
+   `{service_name="ingress-nginx"} |~ "build\\.bazel\\.remote"`.
+3. If nothing arrives anywhere, the clients cannot resolve or reach the Kura
+   hosts: check external DNS for the `kura.tuist.dev` records and the region
+   ingress controllers.
+
 ### Kura egress budget almost entirely consumed
 
 ```promql
@@ -6609,6 +6667,38 @@ Triage follows the payload:
 
 Content blockers cannot explain a total outage; the collector is same-origin
 precisely so no blocklist matches it.
+
+### Metrics samples rejected as duplicate timestamps
+
+Unlike every other rule here, this one queries the `grafanacloud-usage` data
+source, which carries Grafana Cloud's own metering of the stack.
+
+```promql
+sum(
+  grafanacloud_instance_samples_discarded_per_second{
+    id="1774467",
+    reason="new-value-for-timestamp"
+  }
+) > 500
+```
+
+- Pending period: 1 hour
+- Summary: `Grafana Cloud is rejecting {{ $values.A.Value }} metric samples per second as duplicate timestamps`
+
+Mimir keeps one sample per series and timestamp and rejects the rest, but
+Grafana Cloud bills every data point it receives. The healthy baseline is
+about 100 per second. From 2026-09-30 to 2026-10-05 it ran at about 2,500 per
+second, which doubled billable series from about 240k to 447k without any
+change in active series.
+
+The usual cause is the Adaptive Metrics dependency described in "The apiserver
+request rules are load-bearing for cost" in `README.md`: the rule for
+`apiserver_request_total` or `apiserver_request_duration_seconds_bucket` is
+gone, so the control-plane collector's colliding series reach storage. Read
+the colliding series from the `err-mimir-sample-duplicate-timestamp` lines in
+the `grafanacloud-tuist-usage-insights` Loki data source, then restore the
+rule. Any other series named there means a new relabel rule in this chart is
+collapsing distinct series into one label set.
 
 ## Useful investigation queries
 

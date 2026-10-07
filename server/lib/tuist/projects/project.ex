@@ -35,7 +35,7 @@ defmodule Tuist.Projects.Project do
     # window independently of oban_jobs retention. Set internally, not via the
     # public changeset.
     field :last_reported_at, :utc_datetime
-    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1, bazel: 2, once: 3], default: :xcode
+    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1, bazel: 2, once: 3, mix: 4], default: :xcode
 
     field :bundle_size_approval_policy, Ecto.Enum,
       values: [everyone: 0, selected: 1],
@@ -54,6 +54,9 @@ defmodule Tuist.Projects.Project do
     # the project has none. The suffix (`.png` / `.jpg` / `.webp`) doubles as
     # the content-type hint when serving.
     field :logo_storage_key, :string
+    # Git history overrides; nil means the server default (see `Tuist.GitHistory.settings/1`).
+    field :git_history_window_days, :integer
+    field :git_history_window_commits, :integer
 
     belongs_to :account, Account
 
@@ -85,7 +88,7 @@ defmodule Tuist.Projects.Project do
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
-    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once])
+    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix])
   end
 
   def update_changeset(project, attrs) do
@@ -111,15 +114,19 @@ defmodule Tuist.Projects.Project do
       :auto_mark_flaky_threshold,
       :flaky_cooldown_days,
       :build_system,
-      :bundle_size_approval_policy
+      :bundle_size_approval_policy,
+      :git_history_window_days,
+      :git_history_window_commits
     ])
+    |> validate_number(:git_history_window_days, greater_than: 0)
+    |> validate_number(:git_history_window_commits, greater_than: 0)
     |> validate_name()
     |> validate_length(:default_branch, max: 255)
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
     |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
-    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once])
+    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix])
     |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :selected])
   end
 
@@ -137,6 +144,9 @@ defmodule Tuist.Projects.Project do
 
   def bazel_project?(%__MODULE__{build_system: :bazel}), do: true
   def bazel_project?(_), do: false
+
+  def mix_project?(%__MODULE__{build_system: :mix}), do: true
+  def mix_project?(_), do: false
 
   def once_project?(%__MODULE__{build_system: :once}), do: true
   def once_project?(_), do: false

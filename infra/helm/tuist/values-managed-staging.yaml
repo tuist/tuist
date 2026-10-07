@@ -31,7 +31,15 @@ pdcAgent:
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
+capi:
+  ovhPrivateNetwork:
+    enabled: true
+    vrackID: pn-2023588
+    cidr: 172.30.241.0/24
+
 kuraController:
+  privateReplication:
+    enabled: true
   stableDNS:
     enabled: true
     hostedZoneId: Z046862130S1WUMPV7Z3P
@@ -294,10 +302,16 @@ server:
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  bazelEvents:
+  events:
     enabled: true
-    host: build-staging.tuist.dev
-    tlsSecretName: tuist-tls-cloudflare-origin
+    host: events-staging.tuist.dev
+
+  # Starts the `once.events.v1` gRPC listener on the server pod and routes
+  # the events ingress at events-staging.tuist.dev as GRPC end-to-end, so
+  # Once CLIs that discover the host via `/.well-known/once` can stream
+  # live run events (build, test, cache, exec) to this deployment.
+  eventsGrpc:
+    enabled: true
 
   autoscaling:
     enabled: false
@@ -646,6 +660,30 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
+  # Staging capacity for physical vRack/Cilium validation. The public ca-east
+  # cache and existing runner fleet retain their placement.
+  #
+  # At 0 until its box is prepped: ns3220989 carries the adoption marker but
+  # refuses OVH_FLEET_SSH, so its Machine never became available and every
+  # staging deploy failed Helm's wait from 2026-10-05. Releasing the Machine
+  # reinstalls the box with the fleet key; once it is up (or after
+  # `PREP_NAMESPACE=tuist-staging mise run baremetal:prep-ovh
+  # ns3220989.ip-162-19-86.eu tuist-tuist-ovh-fleet-gra-runners-cache`), set
+  # this back to 1.
+  gra-runners-cache:
+    enabled: true
+    replicas: 0
+    endpoint: ovh-us
+    nodePool: kura-ovh-gra-runners
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-staging-gra-runners
+      offer: rise-1
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
   # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
   # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
@@ -700,16 +738,12 @@ ovhFleets:
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
-# BER1 rack fleet: the prototype M1 mini, the first hardware we own to join a
-# cluster, on ber1-tor-b behind the rack's two edges. Staging only.
+# BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
+# 10GbE, 2 TB), one three-up tray on chain B (ber1-tor-b and ber1-pdu-b) in the
+# home prep bay, behind the rack's two edges. Staging only.
 #
 # Each host is its own Machine, so the fleet is the hosts listed here; set a
 # host's `parked` to take it out.
-#
-# Every remaining difference from the rack is marked FORCED and names the
-# physical fact that causes it: a refurb M1 with 16 GB and a 256 GB disk, not
-# racked and with no PDU. None of them is a preference, and none should be
-# copied into the rack's values.
 rackFleet:
   enabled: true
   site: ber1
@@ -721,59 +755,59 @@ rackFleet:
   sshIngressAllowCIDRs:
     - 10.10.0.2/32
     - 10.10.0.3/32
+  # Each address is the host's reservation on the machines segment, which the
+  # edges' DHCP hands it against the MAC recorded in the site definition, and
+  # which both edges advertise to the tailnet as a /32. Each outlet is on the
+  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
+  # definition and its controller adopts. A host's outlet and its ToR port are
+  # on the same chain, which the site's render checks.
   hosts:
-    - name: ber1-proto-01
-      serial: C07FC05JQ6NY
-      # Its reservation on the machines segment, which the edges' DHCP hands it
-      # against the MAC recorded in the site definition, and which both edges
-      # advertise to the tailnet as a /32.
+    - name: ber1-runner-b01
+      serial: K9YLWQHQM2
       address: 10.10.0.101
-      # FORCED (no rack): no shelf or positionU. In the rack these carry the
-      # physical location a hands-on tech needs to find the box.
-      rack: proto
-      # FORCED (no PDU): no `power` block at all. The Shelly plug has not been
-      # delivered, so this host has no outlet: PowerReachable reports False with
-      # PowerNotConfigured, the bootstrap-failure ladder skips its reboot tier
-      # and escalates straight to quarantine, and `tuist.dev/power-action` is
-      # refused. That is correct behaviour for a box nobody can power-cycle
-      # remotely, and it is visible rather than silent, which is the point.
-      #
-      # The rack does not use a Shelly. A Shelly is a home and office prototype
-      # stand-in; the rack runs per-outlet-switched PDUs on the management VLAN,
-      # with their own driver, one credential Secret per PDU shared by every
-      # host plugged into it.
-      #
-      # KNOWN GAP for whoever adds the first `power` block: the controller dials
-      # `power.host` directly from its Pod, with no egress Service in front of
-      # it, unlike the host's SSH address. A Pod has no route to a subnet-routed
-      # address, so a PDU on a LAN or a management VLAN is unreachable the same
-      # way the minis were, and it surfaces as a connection error on
-      # PowerReachable rather than as anything naming a route.
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "1"
+    - name: ber1-runner-b02
+      serial: CRXK0M2VFY
+      address: 10.10.0.102
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "2"
+    - name: ber1-runner-b03
+      serial: JC332QMX73
+      address: 10.10.0.103
+      rack: prep
+      shelf: tray-b1
+      power:
+        pdu: ber1-pdu-b
+        outlet: "3"
   machine:
-    # FORCED (M1, 16 GB): a refurb M1 bought to prove the plumbing. The rack is
-    # leased M5 Pro minis at 18 cores / 64 GB / 2 TB, so every number in this
-    # block goes up and guestCapacity stops being 1.
-    #
-    # M1, 8 cores / 16 GB. The advertised memory is the box's RAM minus the
-    # ~2 GB Virtualization.framework reserves for the host, below which
-    # `tart run` fails with `memorySize > maximumAllowedMemorySize`.
-    hostCPU: 8
-    hostMemoryMB: 14336
-    guestCapacity: 1
+    # The production M4 Pro hosts' shape (macosFleet.machineGroups m4 in
+    # values-managed-production.yaml), so a rack runner is the runner customers
+    # already get: two 6 vCPU / 14 GB guests, both dimensions binding at two.
+    # Apple's licence caps a host at two macOS guests, so the rest of the
+    # mini goes to the host.
+    hostCPU: 12
+    hostMemoryMB: 28672
+    guestCapacity: 2
     # guests x 2 + 1: a Pod stays bound to its Node after it finishes, so each
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
-    maxPods: 3
-    # FORCED (256 GB disk): cache volumes OFF. A 2 TB rack mini runs the fleet's
-    # normal quota; this is only zero because the prototype's disk is 256 GB.
-    # The goldens alone do not leave
-    # room for the fleet's normal quota, and the point of this host is to
-    # validate the plumbing, not runner shapes. An explicit 0 is distinguishable
-    # from unset, which would inherit the fleet's non-zero global.
-    runnerCacheVolumeGiB: 0
+    maxPods: 5
+    runnerCacheVolumeGiB: 240
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
+  # The root key the rack's PDU and transfer switch cards' passwords are
+  # derived from.
+  cardRootKey:
+    enabled: true
+    item: BER1_RACK_CARD_ROOT
 
 rackLinuxFleet:
   enabled: true
@@ -1044,19 +1078,20 @@ runnersFleet:
   # would be silently discarded, because YAML resolves duplicate keys last-wins
   # and Helm never warns.
   #
-  # A fixed replica rather than autoscaling: the fleet allocator apportions
-  # guest slots across the macOS pools of ONE fleet, and this pool deliberately
-  # sits in another, so an explicit count keeps it out of that arithmetic. It
-  # costs the rack's single guest slot, which nothing else competes for.
+  # A fixed count rather than autoscaling: the fleet allocator apportions guest
+  # slots across the macOS pools of ONE fleet, and this pool deliberately sits
+  # in another, so an explicit count keeps it out of that arithmetic. Six is
+  # every guest slot in the rack, two per host, which nothing else competes
+  # for, so a load run reaches every slot at once.
   #
-  # The image is the 26.6 runner because the prototype host runs macOS 26.6 and
-  # a Tart guest cannot be newer than its host.
+  # A Tart guest cannot be newer than its host. The rack's hosts run macOS 27,
+  # so the 26.6 runner fits.
   pools:
     - name: ber1
       runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
       dispatchLabel: tuist-ber1-smoke
       fleetSelector: tuist-tuist-rack-fleet
-      replicas: 1
+      replicas: 6
       pod:
         cpuMilli: 6000
         memoryMB: 14336

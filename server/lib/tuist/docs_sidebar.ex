@@ -209,6 +209,11 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_gradle"
               },
               %Item{
+                label: "Elixir project",
+                slug: "/en/guides/get-started/elixir-project",
+                icon: "brand_elixir"
+              },
+              %Item{
                 label: "Bazel project",
                 slug: "/en/guides/get-started/bazel-project",
                 icon: "brand_bazel"
@@ -243,7 +248,8 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_apple"
               },
               %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "brand_gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"}
+              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"},
+              %Item{label: "Elixir", slug: "/en/guides/features/build-insights/elixir", icon: "brand_elixir"}
             ]
           }
         ]
@@ -270,7 +276,8 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
               %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "brand_gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"}
+              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"},
+              %Item{label: "Elixir", slug: "/en/guides/features/test-insights/elixir", icon: "brand_elixir"}
             ]
           },
           %Item{
@@ -296,6 +303,11 @@ defmodule Tuist.Docs.Sidebar do
                 label: "Bazel",
                 slug: "/en/guides/features/test-insights/flaky-tests/bazel",
                 icon: "brand_bazel"
+              },
+              %Item{
+                label: "Elixir",
+                slug: "/en/guides/features/test-insights/flaky-tests/elixir",
+                icon: "brand_elixir"
               }
             ]
           },
@@ -309,7 +321,8 @@ defmodule Tuist.Docs.Sidebar do
                 slug: "/en/guides/features/test-sharding/generated-xcode-project",
                 icon: "brand_apple"
               },
-              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"},
+              %Item{label: "Elixir", slug: "/en/guides/features/test-sharding/elixir", icon: "brand_elixir"}
             ]
           }
         ]
@@ -639,6 +652,12 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "From v3 to v4", slug: "/en/references/migrations/from-v3-to-v4"}
             ]
           }
+        ]
+      },
+      %Group{
+        label: "Libraries",
+        items: [
+          %Item{label: "Elixir", url: "https://hexdocs.pm/tuist_ex", icon: "brand_elixir"}
         ]
       }
     ]
