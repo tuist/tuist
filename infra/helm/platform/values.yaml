@@ -456,9 +456,9 @@ kura-eu-west-haproxy:
       # wildcard certificate matches every name, so strict SNI cannot do it.
       # A client holding a stale DNS answer sees a connection failure and
       # re-resolves; a 404 on a healthy connection would pin it to this region.
-      # The map is the controller's host map (--config-dir default).
+      # The map is the controller's host map, which it keeps under /etc/haproxy.
       frontend-config-snippet: |
-        tcp-request content reject if { ssl_fc } !{ ssl_fc_sni,lower,map(/tmp/haproxy-ingress/etc/maps/host.map) -m found }
+        tcp-request content reject if { ssl_fc } !{ ssl_fc_sni,lower,map(/etc/haproxy/maps/host.map) -m found }
 
 kura-ca-east-haproxy:
   enabled: false
