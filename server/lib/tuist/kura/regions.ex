@@ -564,7 +564,9 @@ defmodule Tuist.Kura.Regions do
       data_plane: :private_gateway,
       # The rack's machines segment, where the minis sit.
       client_cidrs: ["10.10.0.0/24"],
-      node_local_network: %{nameservers: ["1.1.1.1", "8.8.8.8"]},
+      # Tailscale's resolver answers the tailnet, where the trace collector
+      # is, and fails other names over to the public resolvers.
+      node_local_network: %{nameservers: ["100.100.100.100", "1.1.1.1", "8.8.8.8"]},
       tolerations: [
         %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
       ],
@@ -1124,6 +1126,7 @@ defmodule Tuist.Kura.Regions do
             else: Tuist.Environment.kura_tuist_base_url()
           ),
         node_local_network: node_local_network,
+        otlp_traces_endpoint: if(node_local_network, do: Tuist.Environment.kura_node_local_otlp_traces_endpoint()),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the
         # runner hot path remains node-local over the Private Network). A

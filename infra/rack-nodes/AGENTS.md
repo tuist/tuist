@@ -370,6 +370,28 @@ because the rack's networks at home sit inside staging's pod CIDR. A storage nod
 that serves pods through Services needs the cluster's CNI, which is a
 `RackLinuxMachine` change to make once the rack's networks no longer overlap.
 
+### Pods on a rack node
+
+A pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
+is its default gateway and masquerades it behind the node, so it reaches what
+the node reaches: the internet, the rack's segments and the tailnet. It reaches
+no cluster Service, no cluster DNS and no pod on another node, and nothing in
+the cluster reaches it.
+
+- **The API server.** The node translates the kubernetes Service's ClusterIP
+  to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
+  which the node agent loads on every apply), so an in-cluster client on the
+  node, host network or not, reaches the API at the address it is given.
+- **Names.** A pod that needs them sets its own nameservers. Kura's
+  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
+  answers tailnet names and fails others over, then public resolvers.
+- **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
+  ships its pods' logs and scrapes its node-local Kura pods, and pushes both to
+  the Alloy receiver at its tailnet name. Kura exports its traces there too.
+- **Being reached.** A pod the cluster has to read from is reached through the
+  API server: the Kura controller samples node-local pods through a
+  port-forward, which goes through the kubelet.
+
 ## Production
 
 The rack moves to production by moving its inventory: the hosts and

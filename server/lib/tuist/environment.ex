@@ -2030,6 +2030,19 @@ defmodule Tuist.Environment do
     |> parse_runners_site_pools()
   end
 
+  @doc """
+  Where Kura instances on a node-local pod network export traces
+  (`TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT`): a collector they reach from
+  their node, such as the Alloy receiver at its tailnet name. Unset, they
+  export none.
+  """
+  def kura_node_local_otlp_traces_endpoint do
+    case System.get_env("TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT") do
+      endpoint when is_binary(endpoint) and endpoint != "" -> endpoint
+      _ -> nil
+    end
+  end
+
   @doc false
   def parse_runners_site_pools(value) do
     value

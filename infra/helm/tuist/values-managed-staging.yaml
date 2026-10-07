@@ -152,6 +152,11 @@ server:
       # Preserve the Scaleway private cache beside the Mac mini fleet, and the
       # BER1 rack's cache on ber1-store-a beside the rack's minis.
       value: scw-fr-par-runners,ber1-runners,ca-east
+    # Kura on a rack node exports traces to the Alloy receiver at its tailnet
+    # name (infra/helm/k8s-monitoring values-staging.yaml): it reaches no
+    # cluster Service.
+    - name: TUIST_KURA_NODE_LOCAL_OTLP_TRACES_ENDPOINT
+      value: http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.

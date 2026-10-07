@@ -2158,6 +2158,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "places the BER1 rack's cache on its storage node, off the cluster network" do
       stub(Tuist.Environment, :env, fn -> :stag end)
       stub(Tuist.Environment, :app_url, fn -> "https://staging.tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_node_local_otlp_traces_endpoint, fn ->
+        "http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces"
+      end)
+
       region = Regions.get("ber1-runners")
       account = %Account{id: 1, name: "tuist", subscriptions: []}
       spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
@@ -2173,14 +2178,29 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
              ]
 
-      assert spec["nodeLocalNetwork"] == %{"nameservers" => ["1.1.1.1", "8.8.8.8"]}
+      # Tailscale's resolver answers the tailnet and fails anything else over
+      # to the public resolvers.
+      assert spec["nodeLocalNetwork"] == %{"nameservers" => ["100.100.100.100", "1.1.1.1", "8.8.8.8"]}
 
       # The pod reaches no Service: the server and analytics through the
-      # public URL, and no trace collector at all.
+      # public URL, and traces to the collector at its tailnet name.
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_CONTROL_PLANE_URL"] == "https://staging.tuist.dev"
       assert env["KURA_AUTH_TUIST_URL"] == "https://staging.tuist.dev"
       assert env["KURA_ANALYTICS_SERVER_URL"] == "https://staging.tuist.dev"
+
+      assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] ==
+               "http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces"
+    end
+
+    test "turns traces off for a node-local instance in an environment with no collector to reach" do
+      stub(Tuist.Environment, :app_url, fn -> "https://staging.tuist.dev" end)
+      stub(Tuist.Environment, :kura_node_local_otlp_traces_endpoint, fn -> nil end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == ""
     end
 

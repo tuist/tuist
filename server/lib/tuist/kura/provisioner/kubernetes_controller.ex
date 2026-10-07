@@ -663,7 +663,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "node-port=#{config[:expose_node_port]}"
         ] ++
           Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}") ++
-          Enum.map(get_in(config, [:node_local_network, :nameservers]) || [], &"nameserver=#{&1}")
+          Enum.map(get_in(config, [:node_local_network, :nameservers]) || [], &"nameserver=#{&1}") ++
+          if(config[:node_local_network] && config[:otlp_traces_endpoint],
+            do: ["otlp=#{config[:otlp_traces_endpoint]}"],
+            else: []
+          )
 
       digest = revision_digest(inputs)
       "+replicas#{replicas(region)}+endpoint#{digest}"
@@ -1049,20 +1053,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp node_local_network(_), do: nil
 
-  # Such a pod reaches no Service: analytics go to the server's public URL,
-  # and traces stay off rather than queueing for a collector it cannot reach.
+  # Such a pod reaches no Service: analytics go to the server's public URL.
+  # Its traces go where the environment points node-local instances
+  # (telemetry_env/1), and stay off without one rather than queueing for the
+  # in-cluster collector, which it cannot reach.
   defp node_local_env(%Regions{} = region) do
     case node_local_network(region) do
-      nil ->
-        []
-
-      _ ->
-        [
-          env_var("KURA_ANALYTICS_SERVER_URL", tuist_base_url(region)),
-          env_var("KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
-        ]
+      nil -> []
+      _ -> [env_var("KURA_ANALYTICS_SERVER_URL", tuist_base_url(region))] ++ node_local_traces_off(region)
     end
   end
+
+  defp node_local_traces_off(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
+       when is_binary(endpoint) and endpoint != "", do: []
+
+  defp node_local_traces_off(_), do: [env_var("KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")]
 
   defp env_var(name, value), do: %{"name" => name, "value" => value}
   defp maybe_env_var(_name, nil), do: []
