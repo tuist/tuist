@@ -124,7 +124,7 @@ defmodule TuistEx.Analytics.CompileReporter do
         :millisecond
       )
 
-    if nothing_compiled?(state.statuses, files) do
+    if nothing_compiled?(state, files) do
       :ok
     else
       state = %{state | files: files, steps: steps}
@@ -195,13 +195,12 @@ defmodule TuistEx.Analytics.CompileReporter do
   defp thin(samples, max) when length(samples) <= max, do: samples
   defp thin(samples, max), do: Enum.take_every(samples, ceil(length(samples) / max))
 
-  # Every compiler reported there was nothing to do: the code was already
-  # compiled. That is not a build. It matters once `mix compile` is aliased
-  # to the Tuist task, because `mix test`, `mix run` and the like all compile
-  # first and would each report an empty build.
-  # No compiler ran at all, as with `mix test --no-compile`, is the same.
-  defp nothing_compiled?(statuses, files) do
-    files == [] and Enum.all?(statuses, &(&1 == :noop))
+  # Some compilers return :ok even when no files changed. The profile, not
+  # those statuses, tells us whether an aliased compile did real work.
+  # Failures still need reporting even when compilation produced no files.
+  defp nothing_compiled?(state, files) do
+    files == [] and :error not in state.statuses and
+      not Enum.any?(state.diagnostics, &(&1.severity == "error"))
   end
 
   @impl true

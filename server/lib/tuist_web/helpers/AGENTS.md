@@ -4,6 +4,7 @@ This area owns helper functions for views, forms, and UI utilities.
 
 ## Responsibilities
 - Provide helpers for formatting, rendering, and UI convenience.
+- `TestLabels.test_run_label/2` keeps Mix execution variants visible as `mix test · <label>`, with `mix test` for absent labels. Scheme filtering remains disabled for Mix.
 - `ModuleCache.analytics_period_assigns/2` reuses the relative period already displayed by the picker across presentation-only patches. Passing empty assigns explicitly refreshes the snapshot, including reapplying the same preset; custom bounds always come from DatePicker. `with_hit_rates/1` shares daily percentage formatting between both module-cache pages.
 - Build deterministic signed Open Graph image URLs from template variables supplied by controllers and LiveViews. Project tokens bind the project ID and handle, rotate weekly, expire after 400 days, and fall back to generic cards if their path exceeds 2,000 bytes. Marketing/docs tokens stay stable and non-expiring; keep verification of already-published separate-variable signatures.
 

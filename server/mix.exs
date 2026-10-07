@@ -12,6 +12,7 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
       aliases: aliases(),
+      tuist: [project: "tuist/server"],
       deps: deps(),
       compilers: compilers(Mix.env()),
       phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
@@ -169,7 +170,7 @@ defmodule Tuist.MixProject do
       {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
-      {:tuist_ex, path: "../tuist_ex", only: :test, runtime: false},
+      {:tuist_ex, path: "../tuist_ex", runtime: false},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:peep, "4.2.1", override: true},
@@ -238,7 +239,8 @@ defmodule Tuist.MixProject do
         "run priv/repo/timezone.exs",
         "ecto.migrate"
       ],
-      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
+      compile: "tuist.compile",
+      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "tuist.test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"
