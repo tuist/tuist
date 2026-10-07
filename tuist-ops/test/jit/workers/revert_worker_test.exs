@@ -16,6 +16,7 @@ defmodule TuistOps.JIT.Workers.RevertWorkerTest do
   use Mimic
 
   alias TuistOps.Repo
+  alias TuistOps.GitHub.OrgMembership
   alias TuistOps.JIT.Elevation
   alias TuistOps.JIT.Request
   alias TuistOps.JIT.SlackClient
@@ -40,7 +41,8 @@ defmodule TuistOps.JIT.Workers.RevertWorkerTest do
       %Request{
         requester_email: "marek@tuist.dev",
         requester_slack_id: "U_M",
-        target_group: "group:tuist-staging-write",
+        target_group: Keyword.get(opts, :target_group, "group:tuist-staging-write"),
+        github_login: Keyword.get(opts, :github_login),
         intent: "test",
         ttl_seconds: 60,
         slack_channel_id: "C_TEST",
@@ -54,6 +56,7 @@ defmodule TuistOps.JIT.Workers.RevertWorkerTest do
       request_id: request.id,
       requester_email: request.requester_email,
       target_group: request.target_group,
+      github_login: request.github_login,
       status: Keyword.get(opts, :status, "active"),
       expires_at: expires_at,
       reverted_at: Keyword.get(opts, :reverted_at)
@@ -61,9 +64,14 @@ defmodule TuistOps.JIT.Workers.RevertWorkerTest do
     |> Repo.insert!()
   end
 
-  defp run_worker(elevation_id) do
-    %Oban.Job{args: %{"elevation_id" => elevation_id}}
+  defp run_worker(elevation_id, job_overrides \\ []) do
+    %Oban.Job{args: %{"elevation_id" => elevation_id}, attempt: 1, max_attempts: 5}
+    |> struct!(job_overrides)
     |> RevertWorker.perform()
+  end
+
+  defp insert_github_elevation! do
+    insert_active_elevation!(target_group: "github:org-admin", github_login: "esnunes")
   end
 
   describe "perform/1" do
@@ -128,6 +136,62 @@ defmodule TuistOps.JIT.Workers.RevertWorkerTest do
       # Slack update is cosmetic.
       assert :ok = run_worker(elev.id)
       assert Repo.get!(Elevation, elev.id).status == "reverted"
+    end
+  end
+
+  describe "perform/1 — GitHub admin elevation" do
+    test "demotes the login back to member, then flips the row" do
+      elev = insert_github_elevation!()
+
+      stub(OrgMembership, :membership, fn "esnunes" ->
+        {:ok, %{state: "active", role: "admin"}}
+      end)
+
+      expect(OrgMembership, :set_role, fn "esnunes", "member" ->
+        {:ok, %{state: "active", role: "member"}}
+      end)
+
+      assert :ok = run_worker(elev.id)
+      assert Repo.get!(Elevation, elev.id).status == "reverted"
+    end
+
+    test "a login already demoted or gone from the org only flips the row" do
+      reject(&OrgMembership.set_role/2)
+
+      for membership <- [{:ok, %{state: "active", role: "member"}}, {:error, :not_member}] do
+        elev = insert_github_elevation!()
+        stub(OrgMembership, :membership, fn _ -> membership end)
+
+        assert :ok = run_worker(elev.id)
+        assert Repo.get!(Elevation, elev.id).status == "reverted"
+      end
+    end
+
+    test "a failed demote returns an error so Oban retries, leaving the row active" do
+      elev = insert_github_elevation!()
+      stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "admin"}} end)
+      stub(OrgMembership, :set_role, fn _, _ -> {:error, {:github_status, 502, %{}}} end)
+      reject(&SlackClient.update_message/3)
+
+      assert {:error, {:github_status, 502, _}} = run_worker(elev.id)
+      assert Repo.get!(Elevation, elev.id).status == "active"
+    end
+
+    test "the last failed attempt marks the row revert_failed and flags the Slack card" do
+      elev = insert_github_elevation!()
+      stub(OrgMembership, :membership, fn _ -> {:error, {:github_status, 502, %{}}} end)
+
+      expect(SlackClient, :update_message, fn _, _, [%{text: %{text: text}}] ->
+        assert text =~ "revert failed"
+        assert text =~ "esnunes"
+        :ok
+      end)
+
+      assert {:error, _} = run_worker(elev.id, attempt: 5)
+
+      reloaded = Repo.get!(Elevation, elev.id)
+      assert reloaded.status == "revert_failed"
+      assert reloaded.revert_failure_reason =~ "502"
     end
   end
 

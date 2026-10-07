@@ -417,11 +417,38 @@ defmodule Tuist.Release do
     {:ok, _, _} =
       Ecto.Migrator.with_repo(IngestRepo, fn _repo ->
         for {table, days} <- Coverage.apply_retention() do
-          Logger.info("#{table}: rows expire #{days} days after insertion")
+          Logger.info("#{table}: rows expire after #{days} days")
         end
       end)
 
     :ok
+  end
+
+  @doc """
+  Writes the coverage file deltas of every complete commit whose runs' rows
+  are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for one project
+  or every project, each ref's oldest commit first. The migration that
+  ships the tables queues it on its own
+  (`Tuist.Tests.Coverage.Workers.DeltaBackfillWorker`); this runs it again
+  by hand. It reads through the application's repositories and caches, so
+  it runs on a live node, and repeating it rewrites nothing that is current:
+
+      bin/tuist rpc "Tuist.Release.backfill_coverage_deltas()"
+      bin/tuist rpc "Tuist.Release.backfill_coverage_deltas(<project id>)"
+  """
+  def backfill_coverage_deltas(project_id \\ nil) do
+    counts =
+      case project_id && Tuist.Projects.get_project_by_id(project_id) do
+        nil when is_nil(project_id) -> Coverage.Deltas.backfill_all()
+        nil -> %{}
+        project -> %{project.id => Coverage.Deltas.backfill(project)}
+      end
+
+    for {id, %{written: written, unavailable: unavailable}} <- counts do
+      Logger.info("Coverage deltas of project #{id}: #{written} commits written, #{unavailable} without their runs' rows")
+    end
+
+    counts
   end
 
   def seed do
@@ -737,12 +764,18 @@ defmodule Tuist.Release do
       "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
       # Table-level REVOKE does not remove column-level privileges.
       "REVOKE ALL (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads FROM #{role}",
+      "REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions FROM #{role}",
       "GRANT CONNECT ON DATABASE #{database} TO #{role}",
       "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
       "GRANT SELECT ON TABLE #{read_tables} TO #{role}",
-      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}"
+      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}",
+      # Event publishing only checks whether an agent is subscribed and records
+      # fan-out dedup keys. Columns, not the table, so callback URLs and signing
+      # secrets stay out of reach.
+      "GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions TO #{role}",
+      "GRANT SELECT, INSERT ON TABLE #{quoted_schema}.mcp_event_job_keys TO #{role}"
     ]
   end
 

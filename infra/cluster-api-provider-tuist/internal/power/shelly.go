@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,11 +18,9 @@ const DriverShelly = "shelly"
 //
 // Scope: home and office prototypes only. This is the BER1 prototype's PDU
 // stand-in, validating the power path on a desk before a rack exists. It is not
-// a rack driver: a colo rack runs switched PDUs whose management interface is
-// nothing like this one, and those get their own driver rather than being
-// forced through this one. It is still implemented properly rather than
-// stubbed, because a stand-in that only half works proves nothing about the
-// path it stands in for.
+// a rack driver: the rack's switched PDUs are Eaton's, driven by Eaton. It is
+// still implemented properly rather than stubbed, because a stand-in that only
+// half works proves nothing about the path it stands in for.
 //
 // Two generations of firmware are in the wild and they share no endpoint:
 // Gen2+ (Plus/Pro, and everything Shelly currently sells) exposes a JSON-RPC
@@ -197,19 +196,41 @@ func (o Outlet) channel() string {
 // endpoint builds the absolute URL for a path on this outlet's host,
 // defaulting a bare host to plain HTTP.
 func (o Outlet) endpoint(path string, query url.Values) (string, error) {
+	return o.endpointWithScheme("http", path, query)
+}
+
+// origin parses Host, defaulting a bare value to scheme.
+func (o Outlet) origin(scheme string) (*url.URL, error) {
 	host := strings.TrimSpace(o.Host)
 	if host == "" {
-		return "", fmt.Errorf("power outlet has no host")
+		return nil, fmt.Errorf("power outlet has no host")
 	}
 	if !strings.Contains(host, "://") {
-		host = "http://" + host
+		host = scheme + "://" + host
 	}
 	base, err := url.Parse(host)
 	if err != nil {
-		return "", fmt.Errorf("parse power host %q: %w", o.Host, err)
+		return nil, fmt.Errorf("parse power host %q: %w", o.Host, err)
 	}
 	if base.Host == "" {
-		return "", fmt.Errorf("power host %q has no host part", o.Host)
+		return nil, fmt.Errorf("power host %q has no host part", o.Host)
+	}
+	return &url.URL{Scheme: base.Scheme, Host: base.Host}, nil
+}
+
+// endpointWithScheme builds the absolute URL for a path, dialling Dial in
+// place of Host's hostname when it is set.
+func (o Outlet) endpointWithScheme(scheme, path string, query url.Values) (string, error) {
+	base, err := o.origin(scheme)
+	if err != nil {
+		return "", err
+	}
+	if dial := strings.TrimSpace(o.Dial); dial != "" {
+		if port := base.Port(); port != "" {
+			base.Host = net.JoinHostPort(dial, port)
+		} else {
+			base.Host = dial
+		}
 	}
 	// Discard anything past the origin. The field is documented as an
 	// endpoint, and silently honouring a path someone put there would build

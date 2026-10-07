@@ -691,8 +691,84 @@ struct GitControllerTests {
         ]))
     }
 
-    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_a_shallow_clones_boundary_commits() async throws {
-        // `git log` lists a shallow clone's boundary commit with no parents, which it has.
+    @Test(.inTemporaryDirectory) func gitHistory_reads_a_shallow_clones_boundary_parents_from_the_commit_objects() async throws {
+        // `git log` lists a shallow clone's boundary commits with no parents, which they have.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("boundary\nside\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head mid side 1700000200\nmid boundary 1700000100\nside  1700000050\nboundary  1700000000\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--no-walk", "--no-decorate", "--format=raw", "side", "boundary"],
+            output: """
+            commit side
+            tree t
+            parent fork
+            author A <a@tuist.dev> 1700000050 +0000
+            committer A <a@tuist.dev> 1700000050 +0000
+            gpgsig -----BEGIN PGP SIGNATURE-----
+             parent signature
+             -----END PGP SIGNATURE-----
+
+                parent message
+
+            commit boundary
+            tree t
+            parent outside
+            parent other
+            author A <a@tuist.dev> 1700000000 +0000
+            committer A <a@tuist.dev> 1700000000 +0000
+
+                merge
+
+            """
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits.map(\.sha) == ["head", "mid", "side", "boundary"])
+        #expect(history.commits.map(\.parents) == [["mid", "side"], ["boundary"], ["fork"], ["outside", "other"]])
+        #expect(history.commits.map(\.committedAt.timeIntervalSince1970) == [
+            1_700_000_200,
+            1_700_000_100,
+            1_700_000_050,
+            1_700_000_000,
+        ])
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_keeps_a_depth_one_clones_head_with_its_parent() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("head\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head  1700000000\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--no-walk", "--no-decorate", "--format=raw", "head"],
+            output: "commit head (grafted, HEAD -> main)\ntree t\nparent previous\nauthor A <a@tuist.dev> 1700000000 +0000\n\n    message\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits == [
+            GitHistoryCommit(sha: "head", parents: ["previous"], committedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_boundary_commits_whose_parents_cannot_be_read() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
         try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
@@ -701,15 +777,15 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
         commandRunner.succeedCommand(
             git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
-            output: "head mid 1700000200\nmid boundary 1700000100\nboundary  1700000000\n"
+            output: "head boundary 1700000100\nboundary  1700000000\n"
         )
+        commandRunner.errorCommand(git + ["log", "--no-walk", "--no-decorate", "--format=raw", "boundary"])
 
         let history = try await subject.gitHistory(
             workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
         )
 
-        #expect(history.commits.map(\.sha) == ["head", "mid"])
-        #expect(history.commits.map(\.parents) == [["mid"], ["boundary"]])
+        #expect(history.commits.map(\.sha) == ["head"])
     }
 
     /// A remote that stops answering leaves `git fetch` waiting forever. The stand-in's fetch

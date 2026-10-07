@@ -2,7 +2,9 @@
   id="marketing-globe"
   phx-hook="CacheGlobe"
   data-snapshot={JSON.encode!(@snapshot)}
+  data-server-now={@server_now}
   data-demo={to_string(@demo)}
+  data-illustrative-arcs="true"
 >
   <%!-- A display page for a screen: the layout is authored on the Figma's
   1920×1080 frame (72px gutters around an outlined stage) and scaled to fill
@@ -27,7 +29,10 @@
       <div data-part="toolbar">
         <div id="globe-status" data-part="status" phx-update="ignore" role="status">
           <span data-part="dot" aria-hidden="true"></span>
-          <span data-status="live" hidden>{dgettext("marketing", "Live activity")}</span>
+          <span data-status="live" hidden>{dgettext(
+            "marketing",
+            "Cache activity"
+          )}</span>
           <span data-status="demo" hidden>{dgettext("marketing", "Demo · illustrative data")}</span>
           <span data-status="waiting">{dgettext("marketing", "Waiting for cache activity")}</span>
           <span data-status="idle" hidden>{dgettext("marketing", "Waiting for new cache activity")}</span>
@@ -145,7 +150,7 @@
         <p data-part="copy">
           {dgettext(
             "marketing",
-            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
+            "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
           )}
         </p>
       </div>
@@ -177,7 +182,6 @@
           data-emit-life="5"
           data-emit-opacity="75"
           data-emit-direction="radial"
-          data-arc-busy="5"
           data-offset-x="0"
           data-offset-y="0"
           data-markers={@markers}
@@ -231,9 +235,14 @@
     </section>
 
     <%!-- Bottom row: one label cell, then a cell per serving region with its
-  five-minute request count. Recent activity shows on the globe's markers. --%>
+  request count since midnight UTC, estimated between reports using recent activity.
+  Recent activity also shows on the globe's markers. --%>
     <section
       data-part="regions"
+      hidden={
+        not @demo and
+          (@snapshot.downloads == nil or not Enum.any?(@snapshot.regions, &(&1.downloads > 0)))
+      }
       role="list"
       aria-label={dgettext("marketing", "Cache serving regions")}
     >
@@ -247,6 +256,7 @@
         role="listitem"
         data-region={region.id}
         id={"globe-region-#{region.id}"}
+        hidden={not @demo and (@snapshot.downloads == nil or region.downloads == 0)}
         phx-update="ignore"
       >
         <span data-part="name">{region.id}</span>

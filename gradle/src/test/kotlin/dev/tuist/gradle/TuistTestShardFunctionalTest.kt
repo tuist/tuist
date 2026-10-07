@@ -29,7 +29,7 @@ class TuistTestShardFunctionalTest {
     private lateinit var server: MockWebServer
     private val cacheEntries = ConcurrentHashMap<String, ByteArray>()
     private val shards = ConcurrentHashMap<Int, Map<String, Any>>()
-    private val catchAllRequests = CopyOnWriteArrayList<String?>()
+    private val shardRequestPluginVersions = CopyOnWriteArrayList<String?>()
 
     @BeforeEach
     fun setUp() {
@@ -47,7 +47,7 @@ class TuistTestShardFunctionalTest {
                         cacheEntries[path]?.let { MockResponse().setBody(Buffer().write(it)) }
                             ?: MockResponse().setResponseCode(404)
                     shardIndex != null -> {
-                        catchAllRequests.add(request.requestUrl?.queryParameter("catch_all"))
+                        shardRequestPluginVersions.add(request.getHeader(PluginVersion.HEADER_NAME))
                         MockResponse().setResponseCode(200).setBody(Gson().toJson(shards.getValue(shardIndex.toInt())))
                     }
                     path.endsWith("/gradle/builds") ->
@@ -158,12 +158,13 @@ class TuistTestShardFunctionalTest {
     }
 
     @Test
-    fun `asks the server for a catch-all final shard`() {
+    fun `sends the plugin version the server enables the catch-all final shard for`() {
         shards[0] = assigned(mapOf(":app" to listOf("com.example.FooTest")))
 
         runShard(0, "test")
 
-        assertEquals(listOf<String?>("true"), catchAllRequests)
+        assertEquals(listOf(PluginVersion.current), shardRequestPluginVersions)
+        assertTrue(PluginVersion.current != null)
     }
 
     @Test
@@ -199,6 +200,51 @@ class TuistTestShardFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, catchAll.task(":app:test")?.outcome, catchAll.output)
         assertEquals(setOf("com.example.BarTest"), executedSuites("app"))
+    }
+
+    @Test
+    fun `runs a nested class on the shard its outer class is assigned to`() {
+        writeNestedTestClass()
+        shards[0] = assigned(mapOf(":app" to listOf("com.example.OuterTest")))
+
+        runShard(0, "test")
+
+        assertEquals(setOf("com.example.OuterTest", "com.example.OuterTest\$Inner"), executedSuites("app"))
+    }
+
+    @Test
+    fun `catch-all shard excludes the nested classes of a suite assigned to another shard`() {
+        writeNestedTestClass()
+        shards[1] = catchAll(":app/com.example.OuterTest")
+
+        runShard(1, "test")
+
+        assertEquals(setOf("com.example.FooTest", "com.example.BarTest"), executedSuites("app"))
+    }
+
+    private fun writeNestedTestClass() {
+        val source = File(projectDir, "app/src/test/java/com/example/OuterTest.java")
+        source.writeText(
+            """
+            package com.example;
+
+            import org.junit.jupiter.api.Nested;
+            import org.junit.jupiter.api.Test;
+
+            public class OuterTest {
+                @Test
+                public void passes() {
+                }
+
+                @Nested
+                class Inner {
+                    @Test
+                    public void passes() {
+                    }
+                }
+            }
+            """.trimIndent()
+        )
     }
 
     private fun assigned(suites: Map<String, List<String>>): Map<String, Any> =

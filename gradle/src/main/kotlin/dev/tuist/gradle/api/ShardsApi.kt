@@ -92,11 +92,10 @@ interface ShardsApi {
      * @param reference The shard plan reference.
      * @param shardIndex The zero-based shard index.
      * @param shardPlanId The exact shard plan identifier. When present, it takes precedence over the reference. (optional)
-     * @param catchAll Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in &#x60;skip&#x60;, so it runs every suite outside them. (optional)
      * @return [Call]<[Shard]>
      */
     @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}")
-    fun getShard(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Path("reference") reference: kotlin.String, @Path("shard_index") shardIndex: kotlin.Int, @Query("shard_plan_id") shardPlanId: java.util.UUID? = null, @Query("catch_all") catchAll: kotlin.Boolean? = null): Call<Shard>
+    fun getShard(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Path("reference") reference: kotlin.String, @Path("shard_index") shardIndex: kotlin.Int, @Query("shard_plan_id") shardPlanId: java.util.UUID? = null): Call<Shard>
 
     /**
      * POST api/projects/{account_handle}/{project_handle}/tests/shards/upload/start

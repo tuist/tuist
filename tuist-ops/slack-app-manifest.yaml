@@ -1,5 +1,5 @@
 # Source-of-truth Slack app manifest for the "Tuist Ops" app that
-# fronts JIT elevation (`/elevate`), preview requests (`/preview`), and
+# fronts JIT elevation (`/elevate`, `/elevate-github`), preview requests (`/preview`), and
 # any other operational slash commands we add later. The app used to be
 # scoped to JIT only — renamed to reflect the wider surface.
 #
@@ -30,6 +30,11 @@ features:
       url: https://ops.tuist.dev/webhooks/slack/slash
       description: Request just-in-time elevation for a cluster
       usage_hint: <env> [duration] <intent>
+      should_escape: false
+    - command: /elevate-github
+      url: https://ops.tuist.dev/webhooks/slack/slash
+      description: Request temporary GitHub organization admin
+      usage_hint: <login> [duration] <intent>
       should_escape: false
     - command: /preview
       url: https://ops.tuist.dev/webhooks/slack/slash

@@ -94,6 +94,7 @@ RUN mkdir config
 
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
+COPY tuist_ex /tuist_ex
 COPY noora /noora
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty

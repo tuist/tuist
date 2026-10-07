@@ -305,6 +305,16 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       page = History.commit_cursor_page(project, "main")
       assert Enum.map(page.commits, &{&1.git_commit_sha, &1.change}) == [{"c2", 25.0}, {"c1", nil}, {"c0", nil}]
+      assert Enum.map(page.commits, &Commits.status/1) == [:complete, :incomplete, :complete]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "incomplete").commits, & &1.git_commit_sha) == [
+               "c1"
+             ]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) == [
+               "c2",
+               "c0"
+             ]
     end
   end
 

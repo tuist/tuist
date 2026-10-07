@@ -92,6 +92,36 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
+  test "built-in volumes use the same presentation and measured sizes without a type label" do
+    assigns = assigns(true)
+
+    volume = %{
+      assigns.selected
+      | builtin_name: "tuist-cache",
+        key: "tuist-cache",
+        platform: "macos",
+        architecture: "arm64"
+    }
+
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
+    data = %{data | volumes: [volume], stats: stats}
+    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
+    detail = render_component(&RunnerVolumesLive.render/1, assigns)
+    assert detail =~ "tuist-cache"
+    assert detail =~ "macOS"
+    assert detail =~ "20.0 GB"
+    refute detail =~ "Automatic"
+    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
+    assert badges =~ "macOS"
+    refute badges =~ "Custom"
+    refute detail =~ "phx-click=\"request_delete\""
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
+    assert inventory =~ "tuist-cache"
+    assert inventory =~ "20.0 GB"
+    assert inventory =~ "/runners/volumes/#{volume.id}"
+  end
+
   test "account overview shows storage totals with missing measurement coverage" do
     html = render_component(&RunnerVolumesLive.render/1, %{assigns(true) | selected: nil})
     refute html =~ "7-day inactivity eviction"
@@ -356,12 +386,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert jobs =~ "Continuous integration"
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: nil}) == "Unknown"
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: ""}) == "Unknown"
-    assert jobs =~ "Cache status"
-    assert jobs =~ "Saved"
-    assert jobs =~ "Changes from this job were saved to the volume for future job runs."
-    assert jobs =~ ~s(id="volume-use-status-#{usage.id}")
-    assert jobs =~ ~s(data-type="status_badge")
-    refute jobs =~ "Published"
+    assert jobs =~ "Hit"
+    refute jobs =~ "Cache status"
+    refute jobs =~ ~s(id="volume-use-status-#{usage.id}")
     assert RunnerVolumesLive.job_label(%{usage | job_name: nil}) == "# 1024"
     assert RunnerVolumesLive.job_label(%{usage | job_name: ""}) == "# 1024"
     assert jobs =~ ~s(id="volume-history")

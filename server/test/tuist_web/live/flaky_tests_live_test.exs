@@ -44,6 +44,28 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       assert has_element?(lv, "#flaky-tests-table", "testFlakyExample")
     end
 
+    test "links the last flaky run by its UUID", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      # A leading 0x09 byte percent-encodes to `/%09` if the id leaks as raw bytes.
+      test_run_id = "09f6b50d-6c85-4541-a214-f06bf12f676c"
+      create_flaky_test_case(project, "testFlakyExample", test_run_id: test_run_id)
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+      # Then
+      assert has_element?(
+               lv,
+               ~s([data-part="last-flaky-run-link"][href="/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run_id}"])
+             )
+    end
+
     test "filters flaky tests by search term", %{
       conn: conn,
       organization: organization,

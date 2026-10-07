@@ -43,3 +43,11 @@ underlay. Run the host capture and fault sequence in
 [`private-replication.md`](../../../../infra/kura-controller/private-replication.md)
 before enabling a managed routing domain. The normal ShellSpec mTLS suite also
 exercises all three origins with the topology override.
+
+The regional ShellSpec fixtures use `private-proxy.mjs` on an ORD-only Docker
+network to record successful mTLS body requests. Canonical discovery remains on
+the shared network; SCL private aliases are unreachable from ORD. The approved
+and unapproved scenarios have independent setup and teardown. The latter leaves
+SCL approval empty, verifies replication to a healthy SCL sibling, and
+observes missing cross-domain replication for 30 seconds after all four peers
+have joined. These are protocol/path tests, not physical VPC tests.

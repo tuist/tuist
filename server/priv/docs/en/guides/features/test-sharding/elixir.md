@@ -48,7 +48,7 @@ This task:
 
 Every other argument is forwarded to `mix compile`.
 
-The shard reference is automatically derived from CI environment variables (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, `CIRCLE_WORKFLOW_ID`, `BUILDKITE_BUILD_ID`) or can be set explicitly via the `TUIST_SHARD_REFERENCE` environment variable. Outside those providers you have to set it, to a value that the build phase and the shards of one pipeline run share.
+The shard reference is automatically derived from CI environment variables (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, `CIRCLE_WORKFLOW_ID`, `BUILDKITE_BUILD_ID`) or can be set explicitly via the `TUIST_SHARD_REFERENCE` environment variable. Outside those providers you have to set it, to a value that the build phase and the shards of one pipeline run share. On GitHub Actions, references also include the run attempt: when rerunning only failed jobs, pass the original build job's reference rather than deriving a new one in the shard jobs.
 
 ## Test phase {#test-phase}
 
@@ -61,6 +61,22 @@ TUIST_SHARD_INDEX=0 mix test
 Any test files or directories you pass narrow the shard further: only the files that are both in the shard and in your selection run. A shard that ends up with no tests exits successfully.
 
 The results of all the shards arrive on the dashboard as a single test run, and its **Shards** section shows how long each one took.
+
+If setup must run before the tests, download the build first without starting the application:
+
+```sh
+MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.compile tuist_ex + tuist.test --prepare-only
+```
+
+Run your setup in a separate process, then execute the shard without downloading the build again:
+
+```sh
+TUIST_SHARD_INDEX=0 mix tuist.test --no-download
+```
+
+Both commands need the same shard reference. `--prepare-only` requires an uploaded build, and `--no-download` fails if the prepared application artifact is missing. Keeping database migrations in a separate process also avoids module-redefinition warnings when migration regression tests load those modules themselves.
+
+When testing different environments, pass a stable `--scheme` label, such as `--scheme clickhouse-current` or `--scheme clickhouse-floor`. Results with different labels are not treated as flaky reruns of the same configuration.
 
 ### What the shards need {#what-the-shards-need}
 

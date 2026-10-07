@@ -359,6 +359,41 @@ struct XCActivityLogParserTests {
         }
     }
 
+    // MARK: - Local-Only Compilation Cache
+    //
+    // `xcode_27_local_cache_misses` rebuilds a small package against a local-only CAS
+    // (`COMPILATION_CACHE_ENABLE_PLUGIN` with the toolchain plugin, no remote service,
+    // diagnostic remarks on) after editing one Swift and one C file. No caching steps run,
+    // so every task is a hit or miss note on its compile step. Each batch-mode Swift job
+    // names three keys but counts as one task.
+
+    @Test func localOnlyCaching_countsEveryTaskXcodeReports() async throws {
+        let result = try await parseFixture("xcode_27_local_cache_misses")
+        let summary = try xcodeCacheSummary(inFixture: "xcode_27_local_cache_misses")
+
+        #expect(result.cacheable_tasks.count == summary.cacheable)
+        #expect(result.cacheable_tasks.filter { $0.status != "miss" }.count == summary.hits)
+        #expect(Set(result.cacheable_tasks.map(\.key)).count == result.cacheable_tasks.count)
+    }
+
+    @Test func localOnlyCaching_classifiesHitAndMissNotes() async throws {
+        let result = try await parseFixture("xcode_27_local_cache_misses")
+        let statuses = Dictionary(grouping: result.cacheable_tasks) { "\($0.type) \($0.status)" }
+            .mapValues { Set($0.compactMap(\.description)) }
+
+        #expect(statuses == [
+            "swift hit_local": [
+                "Emitting module for CacheMiss",
+                "Compiling Alpha.swift, Bravo.swift, Charlie.swift",
+                "Compiling Delta.swift, Echo.swift, Foxtrot.swift",
+            ],
+            "swift miss": ["Emitting module for CacheMissEdited", "Compiling Edited.swift"],
+            "clang hit_local": ["Compile Untouched.c (arm64)", "Compiling Clang module CCacheMiss"],
+            "clang miss": ["Compile CCacheMiss.c (arm64)"],
+        ])
+        #expect(result.cacheable_tasks.allSatisfy { $0.read_duration == nil && $0.write_duration == nil })
+    }
+
     private func xcodeCacheSummary(inFixture name: String) throws -> (hits: Int, cacheable: Int) {
         let log = String(decoding: try gunzip(try fixtureURL(name)), as: UTF8.self)
         let regex = try NSRegularExpression(pattern: "(\\d+) hits / (\\d+) cacheable tasks")

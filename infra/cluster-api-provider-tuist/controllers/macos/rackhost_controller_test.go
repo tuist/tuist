@@ -366,14 +366,15 @@ func (erroringDriver) Set(context.Context, power.Outlet, bool) error {
 
 type credentialRecordingDriver struct {
 	username, password string
+	outlet             power.Outlet
 }
 
 func (d *credentialRecordingDriver) State(_ context.Context, o power.Outlet) (power.State, error) {
-	d.username, d.password = o.Username, o.Password
+	d.username, d.password, d.outlet = o.Username, o.Password, o
 	return power.StateOn, nil
 }
 func (d *credentialRecordingDriver) Set(_ context.Context, o power.Outlet, _ bool) error {
-	d.username, d.password = o.Username, o.Password
+	d.username, d.password, d.outlet = o.Username, o.Password, o
 	return nil
 }
 

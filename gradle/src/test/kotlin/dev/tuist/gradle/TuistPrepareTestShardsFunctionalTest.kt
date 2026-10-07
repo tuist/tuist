@@ -134,6 +134,24 @@ class TuistPrepareTestShardsFunctionalTest {
     }
 
     @Test
+    fun `plans the shards when the configuration cache is stored and reused`() {
+        val stored = runner("tuistPrepareTestShards", "--configuration-cache").build()
+        val reused = runner("tuistPrepareTestShards", "--configuration-cache").build()
+
+        assertTrue(stored.output.contains("Configuration cache entry stored"), stored.output)
+        assertTrue(reused.output.contains("Configuration cache entry reused"), reused.output)
+        assertEquals(TaskOutcome.SUCCESS, reused.task(":tuistPrepareTestShards")?.outcome, reused.output)
+        val requests = shardPlanRequests.map { JsonParser.parseString(it).asJsonObject }
+        assertEquals(2, requests.size)
+        requests.forEach { request ->
+            assertEquals(listOf(":app", ":lib"), request.getAsJsonArray("modules").map { it.asString })
+            assertTrue(request.has("gradle_build_id"), request.toString())
+        }
+        assertTrue(requests[0].get("gradle_build_id") != requests[1].get("gradle_build_id"), requests.toString())
+        assertTrue(File(projectDir, ".tuist-shard-matrix.json").exists())
+    }
+
+    @Test
     fun `fails when no project has the selected test task`() {
         val result = runner("tuistPrepareTestShards", "-PtuistShardTestTask=missingTest").buildAndFail()
 

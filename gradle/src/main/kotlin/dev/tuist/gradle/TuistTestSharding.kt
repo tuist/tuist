@@ -9,9 +9,11 @@ import okhttp3.OkHttpClient
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.services.BuildService
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
@@ -69,7 +71,7 @@ class TuistTestShardingService(
     }
 
     fun getShard(reference: String, shardIndex: Int): Shard {
-        val response = shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex, catchAll = true).execute()
+        val response = shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex).execute()
         if (!response.isSuccessful) {
             throw org.gradle.api.GradleException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
@@ -167,6 +169,16 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:Optional
     abstract val gitBranch: Property<String>
 
+    @get:Internal
+    abstract val rootDirectory: DirectoryProperty
+
+    /** Directory the shard matrix files are written to. */
+    @get:Internal
+    abstract val outputDirectory: DirectoryProperty
+
+    @get:Internal
+    abstract val buildInsightsService: Property<BuildService<*>>
+
     @TaskAction
     fun execute() {
         val shardingService = createShardingService()
@@ -180,9 +192,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         val modules = modules.get()
         logger.lifecycle("Tuist: Planning the test suites of ${modules.size} module(s): ${modules.joinToString(", ")}")
 
-        val gradleBuildId = project.gradle.sharedServices.registrations
-            .findByName("tuistBuildInsights")?.service?.orNull
-            ?.let { (it as? TuistBuildInsightsService)?.buildId }
+        val gradleBuildId = (buildInsightsService.orNull as? TuistBuildInsightsService)?.buildId
 
         val response = shardingService.createShardPlan(
             reference = reference,
@@ -227,7 +237,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                         appendLine()
                     }
                 }
-                val outputFile = project.projectDir.resolve(".tuist-shard-child-pipeline.yml")
+                val outputFile = outputDirectory.get().asFile.resolve(".tuist-shard-child-pipeline.yml")
                 outputFile.writeText(yaml)
                 logger.lifecycle("Tuist: GitLab CI child pipeline written to ${outputFile.path}")
             }
@@ -236,7 +246,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                     "shard-indices" to indices.joinToString(","),
                     "shard-count" to indices.size
                 )
-                val outputFile = project.projectDir.resolve(".tuist-shard-continuation.json")
+                val outputFile = outputDirectory.get().asFile.resolve(".tuist-shard-continuation.json")
                 outputFile.writeText(Gson().toJson(parameters))
                 logger.lifecycle("Tuist: CircleCI continuation parameters written to ${outputFile.path}")
             }
@@ -250,7 +260,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                         appendLine()
                     }
                 }
-                val outputFile = project.projectDir.resolve(".tuist-shard-pipeline.yml")
+                val outputFile = outputDirectory.get().asFile.resolve(".tuist-shard-pipeline.yml")
                 outputFile.writeText(yaml)
                 logger.lifecycle("Tuist: Buildkite pipeline written to ${outputFile.path}")
             }
@@ -277,7 +287,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                         )
                     }
                 )
-                val outputFile = project.projectDir.resolve(".tuist-shard-matrix.json")
+                val outputFile = outputDirectory.get().asFile.resolve(".tuist-shard-matrix.json")
                 outputFile.writeText(Gson().toJson(matrix))
                 logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
             }
@@ -289,7 +299,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         val configProvider = DefaultConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
-            projectDir = project.rootDir,
+            projectDir = rootDirectory.get().asFile,
             httpClients = httpClients
         )
         val config = configProvider.getConfiguration()
@@ -346,6 +356,12 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             serverUrl = config.url
             tuistProject = config.project
             useEnvironmentProxy = config.network.proxy
+            rootDirectory.set(project.rootProject.layout.projectDirectory)
+            outputDirectory.set(project.layout.projectDirectory)
+            project.gradle.sharedServices.registrations.findByName("tuistBuildInsights")?.service?.let { service ->
+                buildInsightsService.set(service)
+                usesService(service)
+            }
 
             // Subprojects are evaluated first because configuration on demand leaves them
             // unconfigured when the task is requested by path. The modules are resolved when the

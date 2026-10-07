@@ -12,6 +12,7 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+  @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -264,12 +265,6 @@ defmodule TuistWeb.API.ShardsController do
         in: :query,
         schema: %Schema{type: :string, format: :uuid},
         description: "The exact shard plan identifier. When present, it takes precedence over the reference."
-      ],
-      catch_all: [
-        in: :query,
-        type: :boolean,
-        description:
-          "Whether the client runs the final shard of a suite plan as a catch-all. When true, that shard returns no modules and lists the suites assigned to the other shards in `skip`, so it runs every suite outside them."
       ],
       shard_index: [
         in: :path,
@@ -587,12 +582,11 @@ defmodule TuistWeb.API.ShardsController do
     end
   end
 
-  defp suite_catch_all_supported?(%{params: %{catch_all: catch_all}}) when is_boolean(catch_all), do: catch_all
-
   defp suite_catch_all_supported?(conn) do
-    case Headers.get_cli_version(conn) do
-      nil -> false
-      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
-    end
+    version_at_least?(Headers.get_cli_version(conn), @suite_catch_all_minimum_cli_version) or
+      version_at_least?(Headers.get_gradle_plugin_version(conn), @suite_catch_all_minimum_gradle_plugin_version)
   end
+
+  defp version_at_least?(nil, _minimum), do: false
+  defp version_at_least?(version, minimum), do: Version.compare(version, minimum) != :lt
 end

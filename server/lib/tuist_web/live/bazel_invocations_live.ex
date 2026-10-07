@@ -30,7 +30,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:bazel_invocation_commands, socket.assigns[:bazel_invocation_commands])
       |> assign(:bazel_show_analytics, socket.assigns[:bazel_show_analytics] != false)
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(OpenGraph.project_image_assigns(project, title: resource))
       |> assign(:available_filters, define_filters(resource_kind))
 
     {:ok, socket}

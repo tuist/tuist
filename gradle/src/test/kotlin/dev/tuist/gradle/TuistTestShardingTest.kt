@@ -46,7 +46,9 @@ class TuistTestShardingTest {
         val project = org.gradle.testfixtures.ProjectBuilder.builder()
             .withProjectDir(projectDir)
             .build()
-        return project.tasks.register("testShards", TuistPrepareTestShardsTask::class.java).get()
+        return project.tasks.register("testShards", TuistPrepareTestShardsTask::class.java) {
+            outputDirectory.set(project.layout.projectDirectory)
+        }.get()
     }
 
     private fun shardPlan(shardCount: Int = 2) = ShardPlan(
@@ -129,7 +131,13 @@ class TuistTestShardingTest {
 
     @Test
     fun `getShard returns shard with modules and suites`() {
-        val service = createService()
+        val service = TuistTestShardingService(
+            baseUrl = mockWebServer.url("/").toString().trimEnd('/'),
+            token = "test-token",
+            accountHandle = "test-account",
+            projectHandle = "test-project",
+            httpClients = TuistHttpClients(pluginVersion = "0.17.0")
+        )
 
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(
             Shard(
@@ -144,7 +152,7 @@ class TuistTestShardingTest {
 
         assertEquals(listOf("AppModule"), result.modules)
         assertEquals(listOf("com.example.LoginTest", "com.example.LogoutTest"), result.suites["AppModule"])
-        assertEquals("true", mockWebServer.takeRequest().requestUrl?.queryParameter("catch_all"))
+        assertEquals("0.17.0", mockWebServer.takeRequest().getHeader(PluginVersion.HEADER_NAME))
     }
 
     @Test
