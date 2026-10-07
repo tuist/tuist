@@ -2092,7 +2092,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 	// than joining it in being down.
 	t.Run("waits while a sibling is not serving", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, false),
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, false),
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
@@ -2105,6 +2105,114 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		}
 		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
 			t.Fatal("expected ordinal 0 to be left alone while its sibling is down")
+		}
+	})
+
+	// A replica that is not serving can be stuck on the volume being replaced: a
+	// pod recreated at the grown ephemeral-storage request is pinned by its old
+	// local PV to a box that cannot fit it. Only rebuilding that volume unpins
+	// it, and it takes nothing out of service, so it goes first.
+	t.Run("rebuilds a replica that is not serving before one that is", func(t *testing.T) {
+		pinned := pod(1, false)
+		pinned.Status.Phase = corev1.PodPending
+		pinned.Status.Conditions = append(pinned.Status.Conditions, corev1.PodCondition{
+			Type:    corev1.PodScheduled,
+			Status:  corev1.ConditionFalse,
+			Reason:  corev1.PodReasonUnschedulable,
+			Message: "0/2 nodes are available: 1 Insufficient ephemeral-storage, 1 node(s) didn't match PersistentVolume's node affinity.",
+		})
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pinned,
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, claim(1, "20Gi")) || exists(t, c, pod(1, false)) {
+			t.Fatal("expected the replica that is not serving to be taken for rebuild")
+		}
+		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
+			t.Fatal("ordinal 0 must keep serving while ordinal 1 rebuilds")
+		}
+	})
+
+	t.Run("rebuilds the serving replica once the rebuilt one serves", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, claim(0, "20Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("the rebuilt ordinal 1 must be left serving")
+		}
+	})
+
+	// With nothing serving, rebuilding a second volume while the first is still
+	// coming back would discard the copy that could have recovered first.
+	t.Run("rebuilds one replica that is not serving at a time", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "40Gi"), claim(1, "20Gi"), pod(0, false), pod(1, false),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to keep requeuing while it waits")
+		}
+		if !exists(t, c, claim(1, "20Gi")) || !exists(t, c, pod(1, false)) {
+			t.Fatal("expected ordinal 1 to wait for the rebuilt ordinal 0")
+		}
+	})
+
+	// The re-template orphans the pods and claims and the next pass recreates
+	// the StatefulSet. Until it exists again the old claims are still below the
+	// claim, so the resize is in flight rather than finished.
+	t.Run("stays in flight while the re-templated StatefulSet is absent", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, claim(1, "20Gi")) {
+			t.Fatal("no volume is rebuilt before the StatefulSet exists again")
+		}
+	})
+
+	t.Run("is not in flight for a new instance", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance("40Gi")).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a new instance has nothing to resize")
 		}
 	})
 
