@@ -8,11 +8,13 @@ defmodule TuistWeb.TestRunLiveTest do
 
   alias Tuist.CommandEvents
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
   alias Tuist.Xcode
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -80,6 +82,39 @@ defmodule TuistWeb.TestRunLiveTest do
       end
 
       assert Xcode.has_binary_cache_data?(test_event) == (@source == :test)
+    end
+  end
+
+  for {scheme, title} <- [{"", "mix test"}, {"integration", "mix test · integration"}] do
+    @scheme scheme
+    @card_title title
+    test "uses #{@card_title} on public Mix test-run cards", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: :mix, visibility: :public})
+
+      {:ok, run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          build_system: "mix",
+          scheme: @scheme,
+          git_branch: "feature/elixir-og",
+          status: "failure"
+        )
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+      html = conn |> get(path) |> html_response(:ok)
+      [image] = html |> Floki.parse_document!() |> Floki.attribute("meta[property='og:image']", "content")
+      %{"token" => token} = URI.decode_query(URI.parse(image).query)
+
+      assert {:ok, params} = OpenGraph.verify_image_token(token)
+      assert params["template"] == "project"
+      assert params["project_id"] == to_string(project.id)
+      assert params["title"] == @card_title
+      assert params["subtitle"] == "feature/elixir-og"
+      assert params["badge"] == "Failure"
     end
   end
 
