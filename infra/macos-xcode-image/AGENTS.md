@@ -211,7 +211,11 @@ fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
 - `:27-2-beta` (channel `:27-2-beta`)
-- `:27-1-rc` (channel `:27-1-rc`; RC 1 was built as `:27-1-release-candidate` and copied to it)
+- `:27-1-rc` (channel `:27-1-rc`). RC 1 predates the `rc` slug: its
+  .xip is mirrored only as `xcode-xips:27.1-release-candidate`, so
+  rebuild it with `xcode_version=27.1-release-candidate` and then
+  `oras cp` `:27-1-release-candidate` to `:27-1-rc`. A dispatch with
+  `27.1-rc` fails to pull, and the long slug alone never moves `:27-1-rc`.
 - `:27-0`
 - `:26-6`
 - `:26-5`
