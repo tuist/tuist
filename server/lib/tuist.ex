@@ -140,6 +140,7 @@ defmodule Tuist do
       Tests.Enumeration,
       Tests.Coverage,
       Tests.Coverage.Commits,
+      Tests.Coverage.Deltas,
       Tests.Coverage.Evidence,
       Tests.Coverage.ExcludedPaths,
       Tests.Coverage.History,

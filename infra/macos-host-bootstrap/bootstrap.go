@@ -346,6 +346,15 @@ type Config struct {
 	// to a network MITM (kubeconfig + tart-kubelet binary injection).
 	KnownHostFingerprint string
 
+	// ExpectedSerial, when set, is the hardware serial the host must report
+	// before anything is pushed to it, and before its host key is pinned. A
+	// host we own is dialled at an address its inventory records, and an
+	// address answered by the wrong box (a swapped tray, a lease another box
+	// still holds) would otherwise be bootstrapped under this host's name and
+	// providerID, with its key pinned as this host's. Rented hosts leave it
+	// empty: their provider hands out the address with the box.
+	ExpectedSerial string
+
 	// GHActionsRunner, when non-nil, installs a GitHub Actions
 	// self-hosted runner agent on the host as the final step of
 	// bootstrap, after tart-kubelet is up. Used for the bare-metal
@@ -435,6 +444,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		return "", err
 	}
 	defer client.Close()
+
+	// No fingerprint on this path: the key belongs to whichever box answered,
+	// and pinning it would refuse the right one when it takes the address.
+	if err := verifyHostSerial(ctx, client, cfg.ExpectedSerial); err != nil {
+		return "", err
+	}
 
 	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
@@ -672,6 +687,7 @@ type PerHost struct {
 	VNCRelayHost         string
 	VMCachePNVLAN        uint32
 	KnownHostFingerprint string
+	ExpectedSerial       string
 	NodeLabels           map[string]string
 	GHActionsRunner      *GHActionsRunnerConfig
 	// DisableVMGC is a per-host role signal (builder hosts set it); the
@@ -698,6 +714,7 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.VNCRelayHost = p.VNCRelayHost
 	c.VMCachePNVLAN = p.VMCachePNVLAN
 	c.KnownHostFingerprint = p.KnownHostFingerprint
+	c.ExpectedSerial = p.ExpectedSerial
 	c.NodeLabels = p.NodeLabels
 	c.GHActionsRunner = p.GHActionsRunner
 	c.DisableVMGC = p.DisableVMGC

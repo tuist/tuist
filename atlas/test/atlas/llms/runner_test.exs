@@ -1,8 +1,73 @@
 defmodule Atlas.LLMs.RunnerTest do
   use ExUnit.Case, async: true
 
+  alias Atlas.Documents.Agents.DocumentClassifierAgent
   alias Atlas.LLMs.LocalTransport
   alias Atlas.LLMs.Runner
+  alias Atlas.Slack.ConversationAgent
+  alias Condukt.AgentRuntimes.Native
+  alias Condukt.AnonymousAgent
+  alias Condukt.Sandbox.Local
+  alias Condukt.Tool
+  alias Condukt.Tools.Command
+
+  test "configuration does not override Condukt execution in any environment" do
+    config_glob = Path.join(Path.dirname(Mix.Project.project_file()), "config/**/*.exs")
+
+    for path <- Path.wildcard(config_glob) do
+      ast = path |> File.read!() |> Code.string_to_quoted!()
+
+      {_ast, configured?} =
+        Macro.prewalk(ast, false, fn
+          {:config, _meta, [:condukt | _args]} = node, _configured? -> {node, true}
+          {{:., _meta, [_module, :config]}, _call_meta, [:condukt | _args]} = node, _configured? -> {node, true}
+          node, configured? -> {node, configured?}
+        end)
+
+      refute configured?, "#{path} must not implicitly configure Condukt execution"
+    end
+  end
+
+  test "built-in agent callbacks use in-process execution without coding tools or remote sandboxes" do
+    for key <- [:runtime, :sandbox, :tools, :subagents, :mcp_servers] do
+      assert Application.get_env(:condukt, key) == nil, "global Condukt #{key} overrides the agent callbacks"
+    end
+
+    {:ok, modules} = :application.get_key(:atlas, :modules)
+
+    agents =
+      Enum.filter(modules, fn module ->
+        Code.ensure_loaded?(module) and
+          not String.starts_with?(Atom.to_string(module), "Elixir.Atlas.TestSupport.") and
+          Condukt in List.flatten(Keyword.get_values(module.__info__(:attributes), :behaviour))
+      end)
+
+    assert ConversationAgent in agents
+    assert DocumentClassifierAgent in agents
+
+    coding_tool_names = Enum.map(Condukt.Tools.coding_tools(), &Tool.name/1)
+
+    for agent <- [AnonymousAgent | agents] do
+      assert agent.runtime() == Native, "#{inspect(agent)} needs an external runtime"
+      assert agent.sandbox() in [nil, Local], "#{inspect(agent)} needs a remote sandbox"
+      assert agent.mcp_servers() == [], "#{inspect(agent)} starts a separate MCP transport"
+      assert_disjoint_tools(agent.tools(), coding_tool_names)
+
+      for {_name, opts} <- agent.subagents() do
+        assert Keyword.get(opts, :runtime) in [nil, Native]
+        assert Keyword.get(opts, :sandbox) in [nil, Local]
+        assert_disjoint_tools(Keyword.get(opts, :tools, []), coding_tool_names)
+      end
+    end
+  end
+
+  defp assert_disjoint_tools(tools, coding_tool_names) do
+    for tool <- tools do
+      refute tool == Command
+      refute match?({Command, _opts}, tool)
+      refute Tool.name(tool) in coding_tool_names
+    end
+  end
 
   describe "client_opts/1" do
     test "builds provider model specs from configured provider strings" do

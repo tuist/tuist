@@ -102,4 +102,10 @@ vendored evaluator and rubric license notices. Validate with
 `npm test --prefix .github/scripts/pr-quality` and
 `actionlint .github/workflows/pr-quality.yml` from the repository root.
 
-Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials.
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects.
+
+## CodeQL
+
+`workflows/codeql.yml` replaces GitHub's CodeQL default setup. Default setup
+must stay disabled in the repository settings, or uploads from this workflow
+are rejected.

@@ -364,10 +364,9 @@ driver, a wedged mini in the colo has no remote recovery at all. Having the data
 say the hardware declares no out-of-band interface keeps that dependency
 visible.
 
-There are no minis in the site definition yet and there will eventually be forty
-or more, split A/B across the ToRs. They are the bulk of this rack, so the tests
-pin this rule down with a fixture mini rather than waiting for the first real
-one.
+There will eventually be forty or more minis, split A/B across the ToRs. They
+are the bulk of this rack, so the tests pin this rule down with a fixture mini
+as well as the site's own.
 
 Separate trap, same port: a host OS that bridges the LM port or changes its MAC
 kills AMT silently. That is not something this repository can check, but it does
@@ -436,9 +435,34 @@ cable schedule shows each hop as its own row. `rack:fleet render` removes, and
 device the site no longer has, since the workflow applies the whole directory
 and a renamed device would otherwise leave two objects driving one card.
 
+The hops start at the site's `feeds`: one per source, `feed-a` behind every
+transfer switch's source 1 and `feed-b` behind source 2 (the house sockets at
+home, the A and B whips in the colo). Each transfer switch therefore has two
+feed rows, `feed-b → ber1-ats-3 source-2` and so on, and the cord is labelled
+`feed-b ↔ ber1-ats-3:source-2` like every other cable. A chain drill pulls
+exactly those cords; before they had rows, the drill on 2026-10-06 pulled the
+minis' own cords twice. `fleet_check_power` refuses a site with transfer
+switches that names no feed for a source, or two.
+
 The prep bay runs `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
 critical layer plus one chain: enough to fail a chain and watch the rest of the
 rack report it. `ber1-ats-2` and `ber1-pdu-a` are `planned` until the colo.
+
+The drill was run on 2026-10-06 with the three M5 Pro minis on chain B and
+two CI jobs running:
+
+- **One feed pulled**, on `ber1-ats-3` and then on `ber1-ats-1`: each switch
+  moved the load to its other source and back to its preferred one on restore,
+  reported as `Transferred` and `RedundancyLost`/`RedundancyRestored`. Nothing
+  downstream noticed: no mini, ToR or edge rebooted, VRRP did not move, and both
+  jobs completed.
+- **Chain B dark** (both of `ber1-ats-3`'s feeds out for about five minutes):
+  the minis, ToR B and edge-b went down. The critical layer kept reporting,
+  edge-a kept the power routes, and the MachineHealthCheck flagged the three
+  Machines without remediating any. After restore the PDU card answered in
+  about three minutes on its pinned certificate, and the minis came back
+  together in about 3.5 minutes, the time ToR B takes to boot, with no
+  re-bootstrap. edge-b took about 5.5 minutes.
 
 Keep more loads off the critical ATS over time rather than adding to it: gear
 bought with two power supplies goes one cord to each chain's PDU and needs no
@@ -464,14 +488,27 @@ disagree.
 
 Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
 provider (see "RackPDU objects" below), and a RackHost names its outlet as
-`power: {pdu: <name>, outlet: "<n>"}`; `ber1-proto-01` is on outlet 1 of
-`ber1-pdu-b`. And whoever extends the chart side
-should carry the A/B property across: a mini's outlet and its ToR must land on
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b03` are on
+outlets 1 to 3 of `ber1-pdu-b`. And a mini's outlet and its ToR must land on
 the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
 its switch lose power together. Crossed, any one ATS failure takes the whole
 fleet: half the minis lose power and the other half lose their ToR. This file
 records which chain a node is on (`ats`/`pdu`), but not the outlet, which stays
-the RackHost's.
+the RackHost's, so `fleet_check_rack_hosts` checks it where the two meet: a
+node whose RackHost's `power.pdu` resolves to another transfer switch than its
+data link's ToR, or names a PDU the site does not have, fails the render. An
+outlet that is not on a RackPDU (a desk plug) is not held to a chain.
+
+An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`), and
+it is the printed label's: outlet `n` reports `identification.physicalName`
+`An`, read off `ber1-pdu-b` on 2026-10-05, the letter being the PDU's one
+input. Its `measures` give each outlet's draw, which tells which outlets have
+a load without switching anything. The even outlets are hybrid C13/C19
+sockets, so every outlet takes the minis' C14 cord.
+
+**Cord colour is the chain.** Chain B's mini cords are blue, and chain A's are
+another colour, so a mini with one chain's cord on the other chain's ToR is
+visible at a glance.
 
 ### RackPDU objects
 
@@ -547,8 +584,9 @@ stale, because the controller acts on the other.
 
 So a racked mini has a node here for its cable, its ToR port and the MAC its
 address is reserved against, pointing at its `RackHost` for everything else,
-its address included. Not a second description of the machine. `ber1-proto-01`
-is the first.
+its address included. Not a second description of the machine.
+`ber1-runner-b01` to `b03`, one three-up tray of M5 Pro minis on ToR B ports
+2 to 4, are the first.
 
 ## The switches as Kubernetes objects
 
@@ -854,8 +892,11 @@ files no longer match it:
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
   is not authoritative, since both edges answer there (see "The machines
   segment" below). Each serves one interface, which is what lets the two share
-  port 67.
-- `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
+  port 67. It keeps no lease file (`leasefile-ro`): every lease there is an
+  infinite reservation, and a kept one holds an address against a MAC the site
+  no longer reserves it for, so dnsmasq refuses it to the MAC that now has it
+  (a mini replaced on its predecessor's address would get none).
+- `tailnet-routes.sh`, run every 15 seconds by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
   /32 per machine on the machines segment, the same on both edges, and on the
   edge holding the edge address, a /32 per power device behind the edge (see
@@ -952,7 +993,9 @@ tailnet too. Three things make that path work, all rendered from the site:
   management prefix leads to the house network. `tailnet-routes.sh` adds the
   power /32s only when the node holds the edge address on the switch port, so
   after a failover they follow the master on the script's next run, within
-  five minutes.
+  15 seconds (`routesReapplySeconds`). At the management path's five minutes,
+  an edge deploy left the cluster with no remote power for that long
+  (measured 2026-10-05).
 - **The master translates what it forwards to them.** A power device
   configured by hand has whatever gateway it was given (`ber1-pdu-b`'s is the
   house router), so its reply to a tailnet address would leave on the wrong

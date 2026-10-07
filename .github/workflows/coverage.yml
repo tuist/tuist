@@ -153,8 +153,11 @@ jobs:
         run: tuist install --force-resolved-versions
       # Every test runs, and every target is built from sources: selective
       # testing would skip tests and cached binaries carry no coverage.
+      # Counters are bumped atomically: tests run in parallel in one process,
+      # and plain increments lose counts, which xccov turns into negative,
+      # wrapped region counts and lines reported covered that never ran.
       - name: Run tests with coverage
-        run: tuist test TuistUnitTests --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
+        run: tuist test TuistUnitTests --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES 'OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all'
 
   app-tests:
     name: App Tests
@@ -203,8 +206,9 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      # Atomic counters for the same reason as the CLI's run.
       - name: Run tests with coverage
-        run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES 'OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all' CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   # Only a complete commit joins the coverage trend. A CLI release older than
   # `tuist coverage complete` skips the signal, and the commit stays in progress.

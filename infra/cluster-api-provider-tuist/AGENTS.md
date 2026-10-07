@@ -422,6 +422,20 @@ advertise it to the tailnet (see "The machines segment" in
 the first dial and every drift push into the rack survive losing an edge: the
 tailnet fails over between them.
 
+**Bootstrap checks it reached the right box.** An address only names a box
+through the edges' DHCP, so anything that answers at it (a tray whose units
+were swapped against the inventory, a box still holding the address on an old
+lease) would otherwise be bootstrapped under this host's name and providerID,
+with its host key pinned as this host's. So before pushing anything, bootstrap
+reads the host's serial (`ioreg`) and stops unless it is `RackHost.spec.serial`,
+returning no fingerprint, so the wrong box's key is not pinned
+(`HostIdentityMismatchError` in `infra/macos-host-bootstrap`). It counts as a
+failed attempt, and the recovery power-cycle after three of them reboots this
+host's own outlet, which is what makes the right box ask for its address
+again. A RackHost without a serial is not checked. On 2026-10-05 a recreated
+Machine bootstrapped the wrong mini of the first BER1 tray this way, under the
+other's serial, before this check existed.
+
 **Advertise a /32 per host, not the rack's prefix**, for as long as the
 catch-all `*->*` grant at the top of that ACL file still exists. A catch-all
 subsumes every narrowing below it, so what an advertised route actually exposes
@@ -660,7 +674,11 @@ or upgrading can) keeps `Adopted=True` and is `Ready=False`, reason
 `capt_rackpdu_certificate_changed`, each 1 or 0. The alerts worth having:
 
 - `capt_rackpdu_ready == 0` for 15 minutes: every host on the PDU has lost its
-  remote reboot. The RackPDU's `Ready` reason says why.
+  remote reboot. The RackPDU's `Ready` reason says why. `Ready` is re-read
+  every 10 minutes, so a shorter outage can pass without it moving: a
+  six-minute chain failure on 2026-10-06 fell between two reads. The hosts'
+  own `PowerReachable` (`capt_rackhost_power_reachable`) caught it within a
+  minute, so alert on that for "remote power is gone now".
 - `capt_rackpdu_certificate_changed == 1`: something else answers at the
   card's address, or the card was replaced or reset; nothing is written to it
   until someone accepts the certificate.
@@ -2160,6 +2178,14 @@ Release (`reconcileDelete`) drops the Node + identity + TOFU pin and **reinstall
 the box back into the pool**. It stays a monthly contract (release is not a contract
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
+
+**A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
+machine kinds ignore their own status writes (`ignoreOwnStatusWrites`), since
+every pass patches status (a bootstrap attempt counted, a phase set) and that
+patch would otherwise trigger the next pass at once, skipping the
+`RequeueAfter`. Spec, labels, annotations, finalizers, owner references and a
+started deletion still wake them. Before it, the staging GRA box that refused
+the fleet key took 30,043 SSH logins in about 11 hours (2026-10-05).
 
 **A reinstall already in flight is a completed release, not a failure.** OVH and Elastic Metal
 reach the provider before dropping the finalizer, so a controller restart

@@ -73,6 +73,14 @@ attempts got each one wrong:
 - **Target.** `indirect_object_code_identity` must hold Finder's
   code requirement. A row with it NULL is ignored.
 
+The write itself races tccd, which is still writing the database
+right after login. Without a busy timeout, `sqlite3` failed with
+`database is locked` on some boots and the job then hit
+`-1712` (prompt shown) or `-1743` (immediate deny). The guest logs
+`Finder automation approved` or `WARNING could not approve …`; for VMs
+whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
+`runner log` lines for it.
+
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
 leaves them pointed at `/Users/admin` and they assert against the
@@ -564,14 +572,18 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
 mirror + base image tags `xcode-xips:27.2-beta`,
 `macos-tahoe-xcode:27-2-beta`), so `runs-on: tuist-macos-27-2-beta`
 resolves to a runner pool sized by
-`runnersFleet.xcodeOverrides["27.2-beta"]`.
+`runnersFleet.xcodeOverrides["27.2-beta"]`. Release candidates use
+`rc` (`27.1 Release Candidate` → `27.1-rc`), which is also the
+channel a later `Release Candidate 2` moves. The longer
+`release-candidate` would push the 12 vCPU shape pool's
+`tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;

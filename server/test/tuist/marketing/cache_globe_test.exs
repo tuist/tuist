@@ -9,9 +9,51 @@ defmodule Tuist.Marketing.CacheGlobeTest do
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
   alias Tuist.Marketing.CacheGlobe
+  alias Tuist.Marketing.CacheGlobeOrigins
   alias Tuist.ReapiCache.CacheEvent
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
+
+  setup do
+    stub(CacheGlobeOrigins, :snapshot, fn _now, _regions -> [] end)
+    :ok
+  end
+
+  test "only released origins contribute observation status without changing measured totals" do
+    origins = [
+      %{
+        location: [51.17, 10.45],
+        region: "eu-west",
+        downloads: 100.0,
+        window_start: "1999-12-31T23:59:00Z",
+        window_seconds: 60
+      }
+    ]
+
+    expect(CacheGlobeOrigins, :snapshot, fn now, regions ->
+      assert now == ~U[2000-01-01 00:01:00Z]
+      assert regions == Enum.map(CacheGlobe.empty().regions, & &1.id)
+      origins
+    end)
+
+    snapshot = CacheGlobe.snapshot(~U[2000-01-01 00:01:00.123456Z])
+    assert snapshot.origins == origins
+    assert snapshot.playback_delay_seconds == 300
+    assert snapshot.status == :waiting
+    assert snapshot.observed_at == nil
+    assert snapshot.downloads == 0
+    assert Enum.all?(snapshot.regions, &(&1.downloads == 0))
+
+    withheld = CacheGlobe.with_origins(snapshot, [])
+    assert withheld.status == :waiting
+    assert withheld.observed_at == nil
+
+    released = CacheGlobe.with_origins(snapshot, origins)
+    assert released.status == :available
+    assert released.observed_at == "2000-01-01T00:00:00Z"
+    assert released.downloads == 0
+    assert Enum.all?(released.regions, &(&1.downloads == 0))
+  end
 
   test "counts delivered requests, deduplicates retries, and exposes only public regional totals" do
     event = %{

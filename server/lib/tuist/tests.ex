@@ -3525,7 +3525,9 @@ defmodule Tuist.Tests do
       marked_flaky_at: row.marked_flaky_at,
       flaky_runs_count: row.flaky_runs_count,
       last_flaky_at: row.last_flaky_at,
-      last_flaky_run_id: row.last_flaky_run_id
+      # The untyped fragment decodes the UUID as its raw 16 bytes, which
+      # breaks the run links built from it.
+      last_flaky_run_id: row.last_flaky_run_id && Ecto.UUID.cast!(row.last_flaky_run_id)
     }
   end
 

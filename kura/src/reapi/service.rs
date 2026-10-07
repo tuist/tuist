@@ -40,7 +40,8 @@ use super::{
     admission::*,
     chunking::{
         ChunkedBlobRecipe, FAST_CDC_AVERAGE_CHUNK_BYTES, PresenceBudget, fetch_chunk_manifests,
-        fetch_recipe, is_presence_budget_error, manifest_presence_keys, presence_keys, recipe_key,
+        fetch_recipe, is_presence_budget_error, manifest_presence_keys, presence_keys,
+        push_recipe_key, recipe_key, recipe_presence_keys,
     },
     snapshot::*,
 };
@@ -55,7 +56,7 @@ use crate::{
         response_stream_chunk_bytes,
     },
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
-    io::is_fd_pool_exhausted_error,
+    io::{PersistentFile, is_fd_pool_exhausted_error, run_blocking_file_operation},
     memory::MemoryPressure,
     metrics::shed_kind,
     state::SharedState,
@@ -63,9 +64,7 @@ use crate::{
         ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
         try_allocate_exact_vec,
     },
-    utils::{
-        TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
-    },
+    utils::{TempFileCleanup, action_cache_key, blob_key, temp_file_path},
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
@@ -96,6 +95,12 @@ fn over_budget_shed_kind(state: &SharedState) -> &'static str {
 // timer resets on every chunk received, so an actively transferring upload is
 // never interrupted, while a stalled or vanished client is reclaimed promptly.
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
+/// Blobs of one BatchUpdateBlobs request persisted concurrently; matches the
+/// store's positioned segment write slots.
+const BATCH_UPDATE_PERSIST_CONCURRENCY: usize = 32;
+/// Staged ByteStream uploads coalesce wire chunks up to this many bytes per
+/// temp-file write.
+pub(super) const REAPI_STAGING_WRITE_BUFFER_BYTES: u64 = 1024 * 1024;
 const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
 const MAX_CONCURRENT_SPLICE_VERIFICATIONS: usize = 4;
 static ACTIVE_SPLICE_VERIFICATIONS: AtomicUsize = AtomicUsize::new(0);
@@ -277,6 +282,12 @@ impl std::io::Write for BoundedZstdDecoderSink {
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
+}
+
+fn fill_staging_window(buffer: &mut Vec<u8>, window: usize, data: &[u8]) -> usize {
+    let consumed = data.len().min(window - buffer.len());
+    buffer.extend_from_slice(&data[..consumed]);
+    consumed
 }
 
 impl ReapiService {
@@ -562,11 +573,104 @@ impl ReapiService {
             ));
         }
         self.state
+            .store
+            .acknowledge_existing_client_manifest()
+            .await
+            .map_err(Status::internal)?;
+        self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "already_present", 0);
         Ok(Response::new(bytestream::WriteResponse {
             committed_size: wire_received as i64,
         }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn coalesce_staging(
+        &self,
+        mut data: &[u8],
+        buffer: &mut Vec<u8>,
+        window: usize,
+        temp_file: &PersistentFile,
+        file_cache_policy: FileCachePolicy,
+        cache_drop_interval: u64,
+        staged_on_disk: &mut u64,
+        advised_through: &mut u64,
+    ) -> Result<(), Status> {
+        while !data.is_empty() {
+            if buffer.is_empty() && data.len() >= window {
+                return self.write_staging(
+                    data,
+                    temp_file,
+                    file_cache_policy,
+                    cache_drop_interval,
+                    staged_on_disk,
+                    advised_through,
+                );
+            }
+            let consumed = fill_staging_window(buffer, window, data);
+            data = &data[consumed..];
+            if buffer.len() == window {
+                self.write_staging(
+                    buffer,
+                    temp_file,
+                    file_cache_policy,
+                    cache_drop_interval,
+                    staged_on_disk,
+                    advised_through,
+                )?;
+                buffer.clear();
+            }
+        }
+        Ok(())
+    }
+
+    /// Writes the coalesced staging bytes at the staged length with positioned
+    /// writes straight from the caller's buffer: no second copy is queued on a
+    /// detached writer, so the bytes never outlive the upload's admission. In
+    /// page-cache drop intervals, completed ranges are synced and released
+    /// through the same handle so a bounded staging window stays bounded.
+    #[allow(clippy::too_many_arguments)]
+    fn write_staging(
+        &self,
+        staged: &[u8],
+        temp_file: &PersistentFile,
+        file_cache_policy: FileCachePolicy,
+        cache_drop_interval: u64,
+        staged_on_disk: &mut u64,
+        advised_through: &mut u64,
+    ) -> Result<(), Status> {
+        let mut remaining = staged;
+        while !remaining.is_empty() {
+            let to_boundary = cache_drop_interval - *staged_on_disk % cache_drop_interval;
+            let count = remaining.len().min(to_boundary as usize);
+            let (data, rest) = remaining.split_at(count);
+            remaining = rest;
+            let offset = *staged_on_disk;
+            run_blocking_file_operation(|| temp_file.write_all_at(data, offset))
+                .map_err(|error| Status::internal(format!("failed to write temp blob: {error}")))?;
+            *staged_on_disk = staged_on_disk.saturating_add(data.len() as u64);
+            if file_cache_policy.should_drop(
+                self.state.memory.should_reclaim_file_cache(),
+                self.state.memory.foreground_transient_reserved_bytes(),
+            ) && staged_on_disk.saturating_sub(*advised_through) >= cache_drop_interval
+            {
+                let (offset, length) = (*advised_through, *staged_on_disk - *advised_through);
+                run_blocking_file_operation(|| {
+                    temp_file.sync_data()?;
+                    temp_file.drop_cached_pages(offset, length)
+                })
+                .map_err(|error| {
+                    Status::internal(format!("failed to release temp blob file cache: {error}"))
+                })?;
+                self.state
+                    .io
+                    .metrics()
+                    .record_memory_action("staging_file_cache_drop");
+                *advised_through = *staged_on_disk;
+            }
+        }
+        Ok(())
     }
 
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
@@ -589,7 +693,7 @@ impl ReapiService {
         let memory_admission = extensions
             .remove::<GrpcWriteAdmission>()
             .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
-        let mut temp_file = None;
+        let mut temp_file = None::<PersistentFile>;
         let mut memory_payload = None;
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
@@ -602,6 +706,10 @@ impl ReapiService {
         let mut stored_written = 0_u64;
         let mut wire_received = 0_u64;
         let mut advised_through = 0_u64;
+        let mut staged_on_disk = 0_u64;
+        let mut staging_buffer = Vec::new();
+        let mut staging_buffer_bytes = 0_usize;
+        let mut cache_drop_interval = FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES;
         let mut hasher = Sha256::new();
         let mut finished = false;
         // Set after the first chunk once the resource is parsed; a compressed
@@ -657,8 +765,11 @@ impl ReapiService {
                         .discard_stored_write(&mut stream, chunk, parsed_resource)
                         .await;
                 }
-                file_cache_policy =
+                let (policy, admitted_window) =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
+                file_cache_policy = policy;
+                cache_drop_interval =
+                    admitted_window.clamp(1, FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES);
                 memory_payload = (parsed_resource.size_bytes <= SEGMENT_COPY_BUFFER_BYTES as u64
                     && matches!(file_cache_policy, FileCachePolicy::Foreground { .. })
                     && self.state.store.direct_small_uploads_enabled())
@@ -691,10 +802,17 @@ impl ReapiService {
                     temp_file = Some(
                         self.state
                             .io
-                            .create_file(temp_path)
+                            .create_new_persistent_file(temp_path)
                             .await
                             .map_err(Status::internal)?,
                     );
+                    // Bounded by the staging window admitted above, which
+                    // already charges the staged bytes as resident. Staging
+                    // writes go straight from this buffer to the file, so it
+                    // is the upload's only heap copy of staged bytes.
+                    staging_buffer_bytes =
+                        admitted_window.min(REAPI_STAGING_WRITE_BUFFER_BYTES) as usize;
+                    staging_buffer = Vec::with_capacity(staging_buffer_bytes);
                 }
                 if parsed_resource.compressor == BlobCompressor::Zstd {
                     zstd_decoder = Some(
@@ -764,45 +882,30 @@ impl ReapiService {
                     ));
                 }
                 if !decoded.is_empty() {
+                    hasher.update(decoded);
+                    stored_written = stored_written.saturating_add(decoded.len() as u64);
                     if let Some(payload) = memory_payload.as_mut() {
                         payload.extend_from_slice(decoded);
-                        hasher.update(decoded);
-                        stored_written = stored_written.saturating_add(decoded.len() as u64);
                     } else {
-                        for data in
-                            decoded.chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
-                        {
-                            let file = temp_file
-                                .as_mut()
-                                .expect("file-backed uploads initialize their staging file");
-                            tokio::io::AsyncWriteExt::write_all(file, data)
-                                .await
-                                .map_err(|error| {
-                                    Status::internal(format!("failed to write temp blob: {error}"))
-                                })?;
-                            hasher.update(data);
-                            stored_written = stored_written.saturating_add(data.len() as u64);
-                            if file_cache_policy.should_drop(
-                                self.state.memory.should_reclaim_file_cache(),
-                                self.state.memory.foreground_transient_reserved_bytes(),
-                            ) && stored_written.saturating_sub(advised_through)
-                                >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
-                            {
-                                temp_file = Some(
-                                    drop_staging_cache_range(
-                                        temp_file.take().expect(
-                                            "file-backed uploads initialize their staging file",
-                                        ),
-                                        temp_path,
-                                        advised_through,
-                                        stored_written - advised_through,
-                                        &self.state.io,
-                                    )
-                                    .await
-                                    .map_err(Status::internal)?,
-                                );
-                                advised_through = stored_written;
-                            }
+                        // Coalesce wire chunks (Bazel sends 16 KiB) into one
+                        // staging write per buffer: each write leaves the
+                        // worker for a blocking file operation, and one per
+                        // wire chunk would pay that hand-off per 16 KiB.
+                        if decoded.len() < staging_buffer_bytes - staging_buffer.len() {
+                            fill_staging_window(&mut staging_buffer, staging_buffer_bytes, decoded);
+                        } else {
+                            self.coalesce_staging(
+                                decoded,
+                                &mut staging_buffer,
+                                staging_buffer_bytes,
+                                temp_file
+                                    .as_ref()
+                                    .expect("file-backed uploads initialize their staging file"),
+                                file_cache_policy,
+                                cache_drop_interval,
+                                &mut staged_on_disk,
+                                &mut advised_through,
+                            )?;
                         }
                     }
                 }
@@ -854,25 +957,40 @@ impl ReapiService {
                         "compressed write decompressed past the declared blob size (possible bomb)",
                     ));
                 }
+                hasher.update(&trailing);
+                stored_written = stored_written.saturating_add(trailing.len() as u64);
                 if let Some(payload) = memory_payload.as_mut() {
                     payload.extend_from_slice(&trailing);
-                    hasher.update(&trailing);
-                    stored_written = stored_written.saturating_add(trailing.len() as u64);
                 } else {
-                    let file = temp_file
-                        .as_mut()
-                        .expect("file-backed uploads initialize their staging file");
-                    tokio::io::AsyncWriteExt::write_all(file, &trailing)
-                        .await
-                        .map_err(|error| {
-                            Status::internal(format!("failed to write temp blob: {error}"))
-                        })?;
-                    hasher.update(&trailing);
-                    stored_written = stored_written.saturating_add(trailing.len() as u64);
+                    self.coalesce_staging(
+                        &trailing,
+                        &mut staging_buffer,
+                        staging_buffer_bytes,
+                        temp_file
+                            .as_ref()
+                            .expect("file-backed uploads initialize their staging file"),
+                        file_cache_policy,
+                        cache_drop_interval,
+                        &mut staged_on_disk,
+                        &mut advised_through,
+                    )?;
                 }
             }
             trailing.clear();
         }
+        if let Some(file) = temp_file.as_ref()
+            && !staging_buffer.is_empty()
+        {
+            self.write_staging(
+                &staging_buffer,
+                file,
+                file_cache_policy,
+                cache_drop_interval,
+                &mut staged_on_disk,
+                &mut advised_through,
+            )?;
+        }
+        drop(staging_buffer);
         if stored_written != resource.size_bytes {
             return Err(Status::invalid_argument(
                 "uploaded blob size did not match digest",
@@ -884,14 +1002,9 @@ impl ReapiService {
             ));
         }
 
-        // Flush a file-backed upload before the store opens that path on another
-        // descriptor. Memory-backed uploads already expose their complete bytes.
-        if let Some(mut file) = temp_file.take() {
-            tokio::io::AsyncWriteExt::flush(&mut file)
-                .await
-                .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
-            drop(file);
-        }
+        // Staging writes completed synchronously, so the file already holds
+        // every byte; release its descriptor before the store opens the path.
+        drop(temp_file.take());
 
         // The persist reports `already_present` from under the store's
         // per-artifact write lock, which decides billing below: a re-uploaded
@@ -933,6 +1046,13 @@ impl ReapiService {
                 Status::internal(format!("failed to persist CAS blob: {error}"))
             }
         })?;
+        if persisted.already_present {
+            self.state
+                .store
+                .acknowledge_existing_client_manifest()
+                .await
+                .map_err(Status::internal)?;
+        }
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
@@ -2086,49 +2206,33 @@ impl ContentAddressableStorage for ReapiService {
         self.authorize_request(&request, auth).await?;
         let message = request.into_inner();
         let namespace_id = namespace_from_instance(&message.instance_name);
-        let mut missing = Vec::new();
-        let aging = self.state.store.segment_ring_is_aging();
+        let mut digests = message.blob_digests;
+        let mut is_missing = vec![false; digests.len()];
         let mut presence_budget = PresenceBudget::for_request();
-        // "Servers SHOULD increase the lifetimes of the referenced blobs if
-        // necessary and applicable": a client told a blob is present skips
-        // uploading it and relies on it staying present, so the answer has to
-        // keep it alive the same way a served action result does. The request's
-        // digest count is client-controlled up to the 64 MiB decode ceiling, so
-        // extension happens inside the presence lookup rather than over a
-        // collected key set: no per-digest allocation is retained, and a
-        // present blob costs one manifest lookup rather than two. When no
-        // segment has aged there is nothing to promote, so the plain existence
-        // check keeps its existence-cache short-circuit.
-        for digest in message.blob_digests {
-            // The empty blob is present by REAPI convention even when it was
-            // never uploaded; reporting it missing would push clients to upload
-            // a zero-byte blob they otherwise synthesize.
-            if is_empty_blob(&digest) {
-                continue;
+        // The digest count is client-controlled up to the 64 MiB decode
+        // ceiling, and a batch of segment-backed blobs is answered without an
+        // await point, so yield between batches rather than hold a runtime
+        // worker for the whole request.
+        for (batch, (digests, is_missing)) in digests
+            .chunks(FIND_MISSING_BATCH_DIGESTS)
+            .zip(is_missing.chunks_mut(FIND_MISSING_BATCH_DIGESTS))
+            .enumerate()
+        {
+            if batch > 0 {
+                tokio::task::yield_now().await;
             }
-            digest_key(&digest)?;
-            if presence_keys(
+            find_missing_in_batch(
                 &self.state,
                 namespace_id,
-                &digest,
-                RefreshTrigger::FindMissing,
-                aging,
+                digests,
+                is_missing,
                 &mut presence_budget,
             )
-            .await
-            .map_err(|error| {
-                chunk_presence_status(
-                    &self.state,
-                    "find_missing_blobs",
-                    "failed to inspect CAS blob",
-                    error,
-                )
-            })?
-            .is_none()
-            {
-                missing.push(digest);
-            }
+            .await?;
         }
+        let mut is_missing = is_missing.into_iter();
+        digests.retain(|_| is_missing.next().unwrap_or(false));
+        let missing = digests;
 
         let mut response = Response::new(reapi::FindMissingBlobsResponse {
             missing_blob_digests: missing,
@@ -2159,7 +2263,6 @@ impl ContentAddressableStorage for ReapiService {
             .expect("write decode admission was checked before authorization");
         let namespace_id = namespace_from_instance(&message.instance_name);
         let analytics_context = self.reapi_cache_event_context(&metadata, namespace_id);
-        let mut responses = Vec::with_capacity(message.requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
         // request per call), and so already-present blobs are not billed —
@@ -2168,82 +2271,45 @@ impl ContentAddressableStorage for ReapiService {
         let mut stored_bytes = 0_u64;
         let mut stored_any = false;
 
-        for item in message.requests {
-            let analytics_started_at = Instant::now();
-            let digest = match item.digest {
-                Some(digest) => digest,
-                None => {
-                    responses.push(reapi::batch_update_blobs_response::Response {
-                        digest: None,
-                        status: Some(rpc_status(3, "missing digest")),
-                    });
-                    continue;
-                }
-            };
-            // The digest is always the uncompressed content's digest, so
-            // decompression bounds are the same as an identity upload. The
-            // decoded Vec is preallocated to the declared size; the streaming
-            // decoder aborts if the payload would grow past that, so a bomb
-            // never allocates more than `digest.size_bytes` regardless of the
-            // compressed input.
-            let decoded = match item.compressor {
-                0 => std::borrow::Cow::Borrowed(item.data.as_slice()),
-                c if c == reapi::compressor::Value::Zstd as i32 => {
-                    match decompress_zstd_batch_item(&item.data, digest.size_bytes) {
-                        Ok(bytes) => std::borrow::Cow::Owned(bytes),
-                        Err(status) => {
-                            responses.push(reapi::batch_update_blobs_response::Response {
-                                digest: Some(digest),
-                                status: Some(rpc_status_from_grpc_status(&status)),
-                            });
-                            continue;
-                        }
-                    }
-                }
-                other => {
-                    responses.push(reapi::batch_update_blobs_response::Response {
-                        digest: Some(digest),
-                        status: Some(rpc_status(
-                            12,
-                            format!(
-                                "compressor {other} is not supported; only IDENTITY and ZSTD are advertised"
-                            ),
-                        )),
-                    });
-                    continue;
-                }
-            };
-            let stored_size = decoded.len() as u64;
-            match persist_cas_blob(&self.state, namespace_id, &digest, decoded.as_ref()).await {
-                Ok(newly_stored) => {
-                    if newly_stored {
-                        // Bill the uncompressed size (what the store holds and
-                        // what an identity read of the same blob transfers), so
-                        // usage accounting does not change when a client turns
-                        // wire compression on.
-                        stored_bytes = stored_bytes.saturating_add(stored_size);
-                        stored_any = true;
-                        self.record_reapi_cache_event_with_context(
-                            analytics_context.as_ref(),
-                            ReapiCacheObservation {
-                                operation: "cas",
-                                outcome: "write",
-                                digest: &digest.hash,
-                                size: stored_size,
-                                duration: analytics_started_at.elapsed(),
-                            },
-                        );
-                    }
-                    responses.push(reapi::batch_update_blobs_response::Response {
-                        digest: Some(digest),
-                        status: Some(rpc_status(0, "")),
-                    })
-                }
-                Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
-                    digest: Some(digest),
-                    status: Some(rpc_status(13, error)),
-                }),
+        // Items decode and persist concurrently: each blob still returns only
+        // once its own bytes and manifest are durable, but a sequential await
+        // per blob made the batch pay one group-commit round per blob. An item
+        // future does nothing until the bounded window first polls it, so
+        // decoded bytes are only ever held by in-flight items. Response order
+        // matches request order.
+        let pending: Vec<_> = message
+            .requests
+            .iter()
+            .map(|item| update_batch_blob(&self.state, namespace_id, item))
+            .collect();
+        let items: Vec<BatchUpdateItem> = futures_util::stream::iter(pending)
+            .buffered(BATCH_UPDATE_PERSIST_CONCURRENCY)
+            .collect()
+            .await;
+
+        let mut responses = Vec::with_capacity(items.len());
+        for item in items {
+            if let (Some((size, duration)), Some(digest)) =
+                (item.stored, item.response.digest.as_ref())
+            {
+                // Bill the uncompressed size (what the store holds and what an
+                // identity read of the same blob transfers), so usage
+                // accounting does not change when a client turns wire
+                // compression on.
+                stored_bytes = stored_bytes.saturating_add(size);
+                stored_any = true;
+                self.record_reapi_cache_event_with_context(
+                    analytics_context.as_ref(),
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome: "write",
+                        digest: &digest.hash,
+                        size,
+                        duration,
+                    },
+                );
             }
+            responses.push(item.response);
         }
 
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
@@ -2898,53 +2964,80 @@ impl ByteStream for ReapiService {
                     "server is limiting concurrent ByteStream reads; retry shortly",
                 )
             })?;
-        // Tolerates a concurrent background promotion relocating the blob
-        // between the manifest fetch above and this open (see
-        // `Store::open_artifact_reader_range_tolerating_promotion_reader_only`);
-        // a genuine eviction is a NOT_FOUND miss, not an internal error.
-        let Some(reader) = self
-            .state
-            .store
-            .open_artifact_reader_range_tolerating_promotion_reader_only(
-                &manifest,
-                read_offset,
-                read_limit,
-            )
-            .await
-            .map_err(|error| {
-                self.state
-                    .metrics
-                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-                Status::internal(format!("failed to stream blob: {error}"))
-            })?
-        else {
+        // Page-cache-resident whole-blob identity reads are served from a
+        // mapping of the artifact, the way the HTTP path serves them: copying
+        // out of the mapping on the async worker avoids a blocking-pool
+        // hand-off per chunk. The residency gate keeps disk faults off the
+        // workers, and any miss falls back to the streaming reader with
+        // identical bytes. A ranged read streams only its range instead of
+        // mapping and charging the whole blob.
+        let whole_blob = read_offset == 0 && bytes_to_read == manifest.size;
+        let mapped = if resource.compressor == BlobCompressor::Zstd || !whole_blob {
+            None
+        } else {
+            match self.state.store.try_mmap_artifact_bytes(&manifest).await {
+                Ok(Some(bytes)) if bytes.len() as u64 == manifest.size => Some(bytes),
+                _ => None,
+            }
+        };
+        let stream: Self::ReadStream = if let Some(bytes) = mapped {
             self.state
                 .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
-            self.record_reapi_cache_event(
-                request.metadata(),
-                &resource.namespace_id,
-                ReapiCacheObservation {
-                    operation: "cas",
-                    outcome: "miss",
-                    digest: resource.hash(),
-                    size: 0,
-                    duration: analytics_started_at.elapsed(),
-                },
-            );
-            return Err(Status::not_found("blob not found"));
-        };
-        self.state
-            .metrics
-            .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
-        self.state.metrics.record_artifact_serving_path("streaming");
-        let stream: Self::ReadStream = if resource.compressor == BlobCompressor::Zstd {
-            Box::pin(compressed_bytestream_read_response_stream(
-                reader,
+                .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
+            self.state.metrics.record_artifact_serving_path("mmap");
+            Box::pin(mapped_bytestream_read_response_stream(
+                bytes,
                 stream_chunk_bytes,
             ))
         } else {
-            Box::pin(bytestream_read_response_stream(reader, stream_chunk_bytes))
+            // Tolerates a concurrent background promotion relocating the blob
+            // between the manifest fetch above and this open (see
+            // `Store::open_artifact_reader_range_tolerating_promotion_reader_only`);
+            // a genuine eviction is a NOT_FOUND miss, not an internal error.
+            let Some(reader) = self
+                .state
+                .store
+                .open_artifact_reader_range_tolerating_promotion_reader_only(
+                    &manifest,
+                    read_offset,
+                    read_limit,
+                )
+                .await
+                .map_err(|error| {
+                    self.state
+                        .metrics
+                        .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+                    Status::internal(format!("failed to stream blob: {error}"))
+                })?
+            else {
+                self.state
+                    .metrics
+                    .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+                self.record_reapi_cache_event(
+                    request.metadata(),
+                    &resource.namespace_id,
+                    ReapiCacheObservation {
+                        operation: "cas",
+                        outcome: "miss",
+                        digest: resource.hash(),
+                        size: 0,
+                        duration: analytics_started_at.elapsed(),
+                    },
+                );
+                return Err(Status::not_found("blob not found"));
+            };
+            self.state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
+            self.state.metrics.record_artifact_serving_path("streaming");
+            if resource.compressor == BlobCompressor::Zstd {
+                Box::pin(compressed_bytestream_read_response_stream(
+                    reader,
+                    stream_chunk_bytes,
+                ))
+            } else {
+                Box::pin(bytestream_read_response_stream(reader, stream_chunk_bytes))
+            }
         };
 
         let mut response = Response::new(stream);
@@ -3017,6 +3110,11 @@ impl ByteStream for ReapiService {
 
         match manifest {
             Some(manifest) => {
+                self.state
+                    .store
+                    .acknowledge_existing_client_manifest()
+                    .await
+                    .map_err(Status::internal)?;
                 let response = Response::new(bytestream::QueryWriteStatusResponse {
                     committed_size: manifest.size as i64,
                     complete: true,
@@ -3048,6 +3146,11 @@ impl ByteStream for ReapiService {
                 })?
                 .is_some()
                 {
+                    self.state
+                        .store
+                        .acknowledge_existing_client_manifest()
+                        .await
+                        .map_err(Status::internal)?;
                     Ok(Response::new(bytestream::QueryWriteStatusResponse {
                         committed_size: resource.size_bytes as i64,
                         complete: true,
@@ -3063,6 +3166,21 @@ impl ByteStream for ReapiService {
             }
         }
     }
+}
+
+fn mapped_bytestream_read_response_stream(
+    bytes: bytes::Bytes,
+    chunk_bytes: usize,
+) -> impl tokio_stream::Stream<Item = Result<bytestream::ReadResponse, Status>> + Send {
+    let chunk_bytes = chunk_bytes.max(1);
+    futures_util::stream::unfold((bytes, 0_usize), move |(bytes, position)| async move {
+        if position >= bytes.len() {
+            return None;
+        }
+        let end = position.saturating_add(chunk_bytes).min(bytes.len());
+        let data = bytes[position..end].to_vec();
+        Some((Ok(bytestream::ReadResponse { data }), (bytes, end)))
+    })
 }
 
 fn bytestream_read_response_stream(
@@ -3750,6 +3868,113 @@ async fn blob_evicted(
     Ok(true)
 }
 
+/// Digests per `FindMissingBlobs` store pass. Large enough to amortize the
+/// manifest-cache lock and RocksDB multi-get, small enough that the pass holds
+/// that lock, shared with every serving read, for well under a millisecond.
+const FIND_MISSING_BATCH_DIGESTS: usize = 1024;
+/// Room for `blob/<64 hex>/<size>` or its recipe counterpart without regrowing.
+const BLOB_KEY_CAPACITY: usize = 96;
+
+/// Marks the digests `FindMissingBlobs` must report missing. Direct blobs are
+/// resolved for the whole batch in one store pass, which also extends the
+/// lifetime of present blobs sitting in an aged segment: "Servers SHOULD
+/// increase the lifetimes of the referenced blobs if necessary and
+/// applicable", since a client told a blob is present skips uploading it and
+/// relies on it staying. Composite blobs then cost one batched recipe probe,
+/// and only digests that have a recipe take the per-digest chunk walk.
+async fn find_missing_in_batch(
+    state: &SharedState,
+    namespace_id: &str,
+    digests: &[reapi::Digest],
+    is_missing: &mut [bool],
+    presence_budget: &mut PresenceBudget,
+) -> Result<(), Status> {
+    use std::fmt::Write as _;
+
+    let presence_status = |error| {
+        chunk_presence_status(
+            state,
+            "find_missing_blobs",
+            "failed to inspect CAS blob",
+            error,
+        )
+    };
+    let mut keys = String::with_capacity(digests.len() * BLOB_KEY_CAPACITY);
+    let mut lookups = Vec::with_capacity(digests.len());
+    for (index, digest) in digests.iter().enumerate() {
+        // The empty blob is present by REAPI convention even when it was never
+        // uploaded; reporting it missing would push clients to upload a
+        // zero-byte blob they otherwise synthesize.
+        if is_empty_blob(digest) {
+            continue;
+        }
+        validate_digest(digest)?;
+        let start = keys.len();
+        write!(keys, "blob/{}/{}", digest.hash, digest.size_bytes)
+            .expect("writing to a String cannot fail");
+        lookups.push((index, start..keys.len()));
+    }
+    let direct_keys: Vec<&str> = lookups
+        .iter()
+        .map(|(_, range)| &keys[range.clone()])
+        .collect();
+    let present = state
+        .store
+        .artifacts_exist_extending_lifetime(
+            ArtifactProducer::Reapi,
+            namespace_id,
+            &direct_keys,
+            RefreshTrigger::FindMissing,
+        )
+        .await
+        .map_err(presence_status)?;
+    let absent: Vec<usize> = lookups
+        .iter()
+        .zip(present)
+        .filter_map(|((index, _), present)| (!present).then_some(*index))
+        .collect();
+    if absent.is_empty() {
+        return Ok(());
+    }
+
+    let mut recipe_keys = String::with_capacity(absent.len() * BLOB_KEY_CAPACITY);
+    let mut recipe_ranges = Vec::with_capacity(absent.len());
+    for &index in &absent {
+        let start = recipe_keys.len();
+        push_recipe_key(&mut recipe_keys, &digests[index]);
+        recipe_ranges.push(start..recipe_keys.len());
+    }
+    let recipe_keys: Vec<&str> = recipe_ranges
+        .into_iter()
+        .map(|range| &recipe_keys[range])
+        .collect();
+    let has_recipe = state
+        .store
+        .manifests_stored(ArtifactProducer::Reapi, namespace_id, &recipe_keys)
+        .map_err(presence_status)?;
+    let mut aging = None;
+    for (index, has_recipe) in absent.into_iter().zip(has_recipe) {
+        if has_recipe {
+            let aging = *aging.get_or_insert_with(|| state.store.segment_ring_is_aging());
+            if recipe_presence_keys(
+                state,
+                namespace_id,
+                &digests[index],
+                RefreshTrigger::FindMissing,
+                aging,
+                presence_budget,
+            )
+            .await
+            .map_err(presence_status)?
+            .is_some()
+            {
+                continue;
+            }
+        }
+        is_missing[index] = true;
+    }
+    Ok(())
+}
 fn chunk_presence_status(state: &SharedState, route: &str, context: &str, error: String) -> Status {
     if is_presence_budget_error(&error) {
         state
@@ -3786,8 +4011,9 @@ fn decompress_zstd_batch_item(
     let mut decoder = zstd::stream::read::Decoder::with_buffer(compressed)
         .map_err(|error| Status::internal(format!("failed to build zstd decoder: {error}")))?;
     // 64 KiB per read keeps syscall overhead low while capping the largest
-    // single allocation the growing Vec can request; the total footprint is
-    // bounded by `declared`, which the batch admission has already accepted.
+    // single allocation the growing Vec can request. Growth stays geometric
+    // but never reserves past `declared`, which the batch admission has
+    // already accepted, so the allocation stays within that admission.
     const READ_CHUNK_BYTES: usize = 64 * 1024;
     let mut decoded: Vec<u8> = Vec::new();
     let mut buffer = [0_u8; READ_CHUNK_BYTES];
@@ -3795,7 +4021,17 @@ fn decompress_zstd_batch_item(
         let take = buffer.len().min(declared - decoded.len());
         match std::io::Read::read(&mut decoder, &mut buffer[..take]) {
             Ok(0) => return Ok(decoded),
-            Ok(count) => decoded.extend_from_slice(&buffer[..count]),
+            Ok(count) => {
+                if decoded.capacity() - decoded.len() < count {
+                    let capacity = decoded
+                        .capacity()
+                        .saturating_mul(2)
+                        .max(decoded.len() + count)
+                        .min(declared);
+                    decoded.reserve_exact(capacity - decoded.len());
+                }
+                decoded.extend_from_slice(&buffer[..count]);
+            }
             Err(error) => {
                 return Err(Status::invalid_argument(format!(
                     "failed to decode zstd payload: {error}"
@@ -3860,6 +4096,98 @@ fn i64_to_usize_bounded(value: i64) -> Result<usize, Status> {
         .map_err(|_| Status::out_of_range("declared blob size does not fit in usize"))
 }
 
+/// One BatchUpdateBlobs item's response, and the uncompressed bytes it newly
+/// stored together with how long the item took.
+struct BatchUpdateItem {
+    response: reapi::batch_update_blobs_response::Response,
+    stored: Option<(u64, Duration)>,
+}
+
+/// Decodes and persists one BatchUpdateBlobs item.
+///
+/// A compressed item admits its declared decoded length before decoding and
+/// keeps that permit until its persist returns, so the batch never holds more
+/// decoded bytes than the transient pool admitted. Admission is try-only: the
+/// request already holds its decode reservation from the same pool, so waiting
+/// here would be hold-and-wait. An item that cannot be admitted fails alone
+/// with RESOURCE_EXHAUSTED; identity items borrow the admitted request.
+async fn update_batch_blob(
+    state: &SharedState,
+    namespace_id: &str,
+    item: &reapi::batch_update_blobs_request::Request,
+) -> BatchUpdateItem {
+    let started_at = Instant::now();
+    let rejected = |digest: Option<reapi::Digest>, status: RpcStatus| BatchUpdateItem {
+        response: reapi::batch_update_blobs_response::Response {
+            digest,
+            status: Some(status),
+        },
+        stored: None,
+    };
+    let Some(digest) = item.digest.clone() else {
+        return rejected(None, rpc_status(3, "missing digest"));
+    };
+    // The digest is always the uncompressed content's digest, so decompression
+    // bounds are the same as an identity upload: the decoder never grows past
+    // `digest.size_bytes`, whatever the compressed input.
+    let (decoded, _decoded_admission) = match item.compressor {
+        0 => (std::borrow::Cow::Borrowed(item.data.as_slice()), None),
+        c if c == reapi::compressor::Value::Zstd as i32 => {
+            let declared = match i64_to_usize_bounded(digest.size_bytes) {
+                Ok(declared) => declared,
+                Err(status) => {
+                    return rejected(Some(digest), rpc_status_from_grpc_status(&status));
+                }
+            };
+            let admission = match state.memory.try_acquire_reapi_materialization(declared) {
+                Ok(admission) => admission,
+                Err(()) => {
+                    let kind = if declared > state.memory.reapi_materialization_limit_bytes() {
+                        shed_kind::REAPI_REQUEST_BUDGET
+                    } else {
+                        shed_kind::REAPI_MATERIALIZATION
+                    };
+                    record_materialization_rejection(state, kind);
+                    return rejected(
+                        Some(digest),
+                        rpc_status(
+                            8,
+                            "compressed blob was rejected because the concurrent REAPI materialization pool cannot hold its decoded size",
+                        ),
+                    );
+                }
+            };
+            match decompress_zstd_batch_item(&item.data, digest.size_bytes) {
+                Ok(bytes) => (std::borrow::Cow::Owned(bytes), admission),
+                Err(status) => {
+                    return rejected(Some(digest), rpc_status_from_grpc_status(&status));
+                }
+            }
+        }
+        other => {
+            return rejected(
+                Some(digest),
+                rpc_status(
+                    12,
+                    format!(
+                        "compressor {other} is not supported; only IDENTITY and ZSTD are advertised"
+                    ),
+                ),
+            );
+        }
+    };
+    match persist_cas_blob(state, namespace_id, &digest, decoded.as_ref()).await {
+        Ok(newly_stored) => BatchUpdateItem {
+            stored: newly_stored.then(|| (decoded.len() as u64, started_at.elapsed())),
+            response: reapi::batch_update_blobs_response::Response {
+                digest: Some(digest),
+                status: Some(rpc_status(0, "")),
+            },
+        },
+        Err(error) => rejected(Some(digest), rpc_status(13, error)),
+    }
+}
+
 async fn persist_cas_blob(
     state: &SharedState,
     namespace_id: &str,
@@ -3878,6 +4206,9 @@ async fn persist_cas_blob(
             bytes,
         )
         .await?;
+    if persisted.already_present {
+        state.store.acknowledge_existing_client_manifest().await?;
+    }
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -4176,6 +4507,11 @@ fn is_empty_blob(digest: &reapi::Digest) -> bool {
 }
 
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
+    validate_digest(digest)?;
+    Ok(format!("{}/{}", digest.hash, digest.size_bytes))
+}
+
+fn validate_digest(digest: &reapi::Digest) -> Result<(), Status> {
     if digest.size_bytes < 0 {
         return Err(Status::invalid_argument("digest size must be non-negative"));
     }
@@ -4191,7 +4527,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
             "digest hash must be a 64-character hex SHA-256",
         ));
     }
-    Ok(format!("{}/{}", digest.hash, digest.size_bytes))
+    Ok(())
 }
 
 pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
@@ -4716,6 +5052,123 @@ mod tests {
     use std::{convert::Infallible, time::Duration};
     use tonic::codegen::{Service, http};
     use tower::{Layer, ServiceExt};
+
+    #[test]
+    fn staging_prefix_fill_never_grows_the_admitted_window() {
+        let window = 1024;
+        let mut buffer = Vec::with_capacity(window);
+        buffer.extend_from_slice(&vec![0xa5; window - 7]);
+        let data = vec![0x5a; 16 * window];
+        assert_eq!(fill_staging_window(&mut buffer, window, &data), 7);
+        assert_eq!(buffer.len(), window);
+        assert_eq!(buffer.capacity(), window);
+        assert_eq!(&buffer[..window - 7], &vec![0xa5; window - 7]);
+        assert_eq!(&buffer[window - 7..], &[0x5a; 7]);
+        buffer.clear();
+        assert_eq!(fill_staging_window(&mut buffer, window, &data), window);
+        assert_eq!(buffer.capacity(), window);
+    }
+
+    // Current-thread runtimes take the direct file-operation fallback.
+    #[tokio::test]
+    async fn staging_coalescer_preserves_ragged_bytes_without_growing_its_window() {
+        assert_staging_coalescer_preserves_ragged_bytes(FileCachePolicy::Foreground {
+            reservation_bytes: u64::MAX,
+        })
+        .await;
+    }
+
+    // The multithreaded runtime isolates each write, sync and cache release
+    // with `block_in_place`; a bounded policy releases completed ranges
+    // through the same staging handle as it goes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bounded_staging_releases_completed_ranges_through_its_handle() {
+        assert_staging_coalescer_preserves_ragged_bytes(FileCachePolicy::Bounded).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn clamped_staging_bounds_both_coalescing_and_file_cache_windows() {
+        assert_staging_coalescer_with_window(
+            FileCachePolicy::Bounded,
+            REAPI_STAGING_WRITE_BUFFER_BYTES as usize,
+            REAPI_STAGING_WRITE_BUFFER_BYTES,
+        )
+        .await;
+    }
+
+    async fn assert_staging_coalescer_preserves_ragged_bytes(policy: FileCachePolicy) {
+        assert_staging_coalescer_with_window(
+            policy,
+            REAPI_STAGING_WRITE_BUFFER_BYTES as usize,
+            FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES,
+        )
+        .await;
+    }
+
+    async fn assert_staging_coalescer_with_window(
+        policy: FileCachePolicy,
+        window: usize,
+        cache_drop_interval: u64,
+    ) {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService::new(context.state.clone());
+        let blob: Vec<_> = (0..9 * window + 19).map(|i| (i * 31) as u8).collect();
+        let path = context.state.config.tmp_dir.join("bounded-coalescer");
+        let file = context
+            .state
+            .io
+            .create_new_persistent_file(&path)
+            .await
+            .unwrap();
+        let mut buffer = Vec::with_capacity(window);
+        let mut staged = 0;
+        let mut advised = 0;
+        let mut offset = 0;
+        for size in [window - 7, 3 * window + 17, 1, window - 1, 9, 4 * window] {
+            let end = (offset + size).min(blob.len());
+            service
+                .coalesce_staging(
+                    &blob[offset..end],
+                    &mut buffer,
+                    window,
+                    &file,
+                    policy,
+                    cache_drop_interval,
+                    &mut staged,
+                    &mut advised,
+                )
+                .unwrap();
+            offset = end;
+            assert!(buffer.len() < window);
+            assert_eq!(buffer.capacity(), window);
+            if policy == FileCachePolicy::Bounded {
+                assert!(staged - advised < cache_drop_interval);
+            }
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().len(),
+                staged,
+                "every flushed byte is in the file at its staged offset"
+            );
+        }
+        assert_eq!(offset, blob.len());
+        service
+            .write_staging(
+                &buffer,
+                &file,
+                policy,
+                cache_drop_interval,
+                &mut staged,
+                &mut advised,
+            )
+            .unwrap();
+        assert_eq!(staged as usize, blob.len());
+        if policy == FileCachePolicy::Bounded {
+            assert!(advised >= cache_drop_interval);
+        } else {
+            assert_eq!(advised, 0);
+        }
+        assert_eq!(tokio::fs::read(&path).await.unwrap(), blob);
+    }
 
     fn grpc_message(encoded_message_bytes: usize, byte: u8) -> Vec<u8> {
         let mut framed = Vec::with_capacity(GRPC_MESSAGE_HEADER_BYTES + encoded_message_bytes);
@@ -7041,6 +7494,245 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn find_missing_blobs_batches_match_the_per_digest_answer() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let mut version = 0;
+        let mut store_blob = async |bytes: &[u8]| {
+            version += 1;
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&digest(bytes)).unwrap()),
+                    "application/octet-stream",
+                    bytes,
+                    version,
+                )
+                .await
+                .expect("blob should be stored");
+        };
+        let present = b"present".to_vec();
+        store_blob(&present).await;
+
+        // A composite whose chunks are all stored, and one missing a chunk.
+        let mut composites = Vec::new();
+        for (fill, store_last_chunk) in [(0x31, true), (0x51, false)] {
+            let first = vec![fill; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
+            let last = vec![fill + 1; 17];
+            store_blob(&first).await;
+            if store_last_chunk {
+                store_blob(&last).await;
+            }
+            let composite = digest(&[first.clone(), last.clone()].concat());
+            let recipe = ChunkedBlobRecipe::new(
+                &composite,
+                vec![digest(&first), digest(&last)],
+                reapi::chunking_function::Value::FastCdc2020 as i32,
+            )
+            .expect("recipe should be valid");
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &recipe_key(&digest_key(&composite).unwrap()),
+                    "application/x-protobuf",
+                    &recipe.encode(),
+                    100 + composites.len() as u64,
+                    None,
+                    None,
+                )
+                .await
+                .expect("recipe should be stored");
+            composites.push(composite);
+        }
+        let [complete, incomplete] = <[reapi::Digest; 2]>::try_from(composites).unwrap();
+        let empty = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let absent = |index: usize| digest(format!("absent-{index}").as_bytes());
+
+        // Span several store passes, with duplicates on both sides of a
+        // batch boundary.
+        let mut request = vec![
+            empty.clone(),
+            digest(&present),
+            absent(0),
+            complete.clone(),
+            incomplete.clone(),
+            absent(0),
+            digest(&present),
+        ];
+        for index in 1..2 * FIND_MISSING_BATCH_DIGESTS {
+            request.push(if index % 7 == 0 {
+                digest(&present)
+            } else {
+                absent(index)
+            });
+        }
+        request.extend([complete.clone(), incomplete.clone(), empty, absent(0)]);
+
+        let mut expected = Vec::new();
+        let mut presence_budget = PresenceBudget::for_request();
+        for blob in &request {
+            if is_empty_blob(blob) {
+                continue;
+            }
+            if presence_keys(
+                &context.state,
+                "ios",
+                blob,
+                RefreshTrigger::FindMissing,
+                false,
+                &mut presence_budget,
+            )
+            .await
+            .expect("per-digest presence should succeed")
+            .is_none()
+            {
+                expected.push(blob.clone());
+            }
+        }
+        assert!(expected.contains(&incomplete) && !expected.contains(&complete));
+        assert_eq!(
+            expected.iter().filter(|blob| **blob == absent(0)).count(),
+            3,
+            "duplicates are reported once per occurrence"
+        );
+
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: request,
+                digest_function: 0,
+            }))
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+        assert_eq!(missing, expected);
+    }
+
+    #[tokio::test]
+    async fn find_missing_blobs_extends_aged_direct_and_chunk_lifetimes() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let digest = |bytes: &[u8]| reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let artifact_id = |key: &str| {
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", key)
+                .unwrap()
+                .expect("manifest should exist")
+                .artifact_id
+        };
+        let direct = b"direct".to_vec();
+        let first = vec![0x61; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
+        let last = vec![0x62; 17];
+        for (version, bytes) in [&direct, &first, &last].into_iter().enumerate() {
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(&digest(bytes)).unwrap()),
+                    "application/octet-stream",
+                    bytes,
+                    version as u64 + 1,
+                )
+                .await
+                .expect("blob should be stored");
+        }
+        let composite = digest(&[first.clone(), last.clone()].concat());
+        let recipe = ChunkedBlobRecipe::new(
+            &composite,
+            vec![digest(&first), digest(&last)],
+            reapi::chunking_function::Value::FastCdc2020 as i32,
+        )
+        .expect("recipe should be valid");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &recipe_key(&digest_key(&composite).unwrap()),
+                "application/x-protobuf",
+                &recipe.encode(),
+                10,
+                None,
+                None,
+            )
+            .await
+            .expect("recipe should be stored");
+        store.age_every_segment_for_test();
+        assert!(store.segment_ring_is_aging());
+        let absent = digest(b"absent");
+
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: vec![digest(&direct), composite, absent.clone()],
+                digest_function: 0,
+            }))
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+
+        assert_eq!(missing, vec![absent]);
+        for bytes in [&direct, &first, &last] {
+            let key = blob_key(&digest_key(&digest(bytes)).unwrap());
+            assert_eq!(
+                store.pending_promotion_for_test(&artifact_id(&key)),
+                Some(RefreshTrigger::FindMissing),
+                "a blob reported present from an Old segment is queued for copy-forward"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn find_missing_blobs_rejects_an_invalid_digest_in_any_batch() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let mut blob_digests: Vec<reapi::Digest> = (0..FIND_MISSING_BATCH_DIGESTS + 1)
+            .map(|index| reapi::Digest {
+                hash: hex::encode(Sha256::digest(index.to_le_bytes())),
+                size_bytes: 8,
+            })
+            .collect();
+        blob_digests.push(reapi::Digest {
+            hash: "not-a-sha256".into(),
+            size_bytes: 8,
+        });
+
+        let status = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests,
+                digest_function: 0,
+            }))
+            .await
+            .expect_err("an invalid digest must fail the request");
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
     async fn replicated_recipe_waits_for_every_chunk_and_remains_readable_when_disabled() {
         let context = test_context(|config| config.reapi_blob_chunking_enabled = false).await;
         let service = ReapiService {
@@ -8576,6 +9268,17 @@ mod tests {
     // concurrent multi-chunk uploads and asserts each persists and reads back intact.
     #[tokio::test]
     async fn bytestream_writes_persist_completely_under_concurrency() {
+        assert_concurrent_bytestream_writes_persist(false).await;
+    }
+
+    // Wire chunks that straddle the staging window, including one larger than
+    // the window after a partial fill, must reach the staged file in order.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn ragged_bytestream_writes_cross_staging_windows() {
+        assert_concurrent_bytestream_writes_persist(true).await;
+    }
+
+    async fn assert_concurrent_bytestream_writes_persist(ragged: bool) {
         use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
 
         let context = test_context(|_| {}).await;
@@ -8609,7 +9312,7 @@ mod tests {
         }
         let channel = channel.expect("gRPC server should accept connections");
 
-        let concurrency = 24u32;
+        let concurrency = if ragged { 2u32 } else { 24u32 };
         let chunk_size = 32 * 1024;
         let mut writers = Vec::new();
         for index in 0..concurrency {
@@ -8617,7 +9320,12 @@ mod tests {
             writers.push(tokio::spawn(async move {
                 // Per-blob-distinct, multi-chunk content so each upload spans many
                 // `write_all` calls (leaving buffered bytes for the flush to race).
-                let blob: Vec<u8> = (0..384 * 1024u32)
+                let blob_size = if ragged {
+                    3 * REAPI_STAGING_WRITE_BUFFER_BYTES as u32 + 17
+                } else {
+                    384 * 1024u32
+                };
+                let blob: Vec<u8> = (0..blob_size)
                     .map(|byte| byte.wrapping_mul(31).wrapping_add(index) as u8)
                     .collect();
                 let hash = hex::encode(Sha256::digest(&blob));
@@ -8625,7 +9333,17 @@ mod tests {
                 let mut requests = Vec::new();
                 let mut offset = 0usize;
                 while offset < blob.len() {
-                    let end = (offset + chunk_size).min(blob.len());
+                    let next_size = if ragged {
+                        let window = REAPI_STAGING_WRITE_BUFFER_BYTES as usize;
+                        match requests.len() {
+                            0 => window - 7,
+                            1 => 2 * window + 17,
+                            _ => chunk_size,
+                        }
+                    } else {
+                        chunk_size
+                    };
+                    let end = (offset + next_size).min(blob.len());
                     requests.push(bytestream::WriteRequest {
                         resource_name: if offset == 0 {
                             resource.clone()
@@ -8667,6 +9385,145 @@ mod tests {
             }
             assert_eq!(roundtrip, blob, "persisted blob must match the upload");
         }
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    fn chunked_write_requests(
+        resource: &str,
+        data: &[u8],
+        finish_write: bool,
+    ) -> Vec<bytestream::WriteRequest> {
+        let chunk_size = 64 * 1024;
+        let chunk_count = data.len().div_ceil(chunk_size);
+        data.chunks(chunk_size)
+            .enumerate()
+            .map(|(index, chunk)| bytestream::WriteRequest {
+                resource_name: if index == 0 {
+                    resource.to_owned()
+                } else {
+                    String::new()
+                },
+                write_offset: (index * chunk_size) as i64,
+                finish_write: finish_write && index + 1 == chunk_count,
+                data: chunk.to_vec(),
+            })
+            .collect()
+    }
+
+    // Rejected, unfinished and cancelled uploads end before anything is
+    // appended: they consume no live segment space and return their staging
+    // budget, while a valid upload of the same blob afterwards appends once.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn rejected_bytestream_uploads_never_consume_segment_space() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ByteStreamClient::new(channel);
+
+        // Larger than the in-memory upload limit, so every attempt stages to
+        // a budgeted temporary file.
+        let blob: Vec<u8> = (0..3 * REAPI_STAGING_WRITE_BUFFER_BYTES as u32 + 17)
+            .map(|byte| byte.wrapping_mul(31) as u8)
+            .collect();
+        assert!(blob.len() > SEGMENT_COPY_BUFFER_BYTES);
+        let hash = hex::encode(Sha256::digest(&blob));
+        let resource = format!("uploads/rejected/blobs/{hash}/{}", blob.len());
+        let budget = context.state.tmp_staging_budget.clone();
+        let ring_bytes = context.state.store.storage_snapshot().live_segment_bytes;
+
+        let mut corrupted = blob.clone();
+        corrupted[0] ^= 0xff;
+        let mut oversized = blob.clone();
+        oversized.push(0);
+        let rejected = [
+            (
+                "wrong digest",
+                chunked_write_requests(&resource, &corrupted, true),
+            ),
+            (
+                "oversized",
+                chunked_write_requests(&resource, &oversized, true),
+            ),
+            (
+                "unfinished",
+                chunked_write_requests(&resource, &blob[..blob.len() / 2], false),
+            ),
+        ];
+        for (case, requests) in rejected {
+            let status = client
+                .write(tokio_stream::iter(requests))
+                .await
+                .expect_err("a rejected upload must fail");
+            assert_eq!(status.code(), tonic::Code::InvalidArgument, "{case}");
+            assert_eq!(budget.reserved_bytes(), 0, "{case}");
+            assert_eq!(
+                context.state.store.storage_snapshot().live_segment_bytes,
+                ring_bytes,
+                "{case}"
+            );
+        }
+
+        // Cancel mid-stream once the server has admitted and started staging
+        // the upload.
+        let (sender, receiver) = tokio::sync::mpsc::channel(4);
+        let requests = futures_util::stream::unfold(receiver, |mut receiver| async move {
+            receiver.recv().await.map(|request| (request, receiver))
+        });
+        let mut cancelled_client = client.clone();
+        let cancelled = tokio::spawn(async move { cancelled_client.write(requests).await });
+        sender
+            .send(chunked_write_requests(&resource, &blob, true).remove(0))
+            .await
+            .expect("cancelled upload should accept its first chunk");
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while budget.reserved_bytes() == 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the server should start staging the cancelled upload");
+        cancelled.abort();
+        let _ = cancelled.await;
+        drop(sender);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while budget.reserved_bytes() != 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("a cancelled upload should release its staging budget");
+        assert_eq!(
+            context.state.store.storage_snapshot().live_segment_bytes,
+            ring_bytes
+        );
+
+        let status = client
+            .read(bytestream::ReadRequest {
+                resource_name: format!("blobs/{hash}/{}", blob.len()),
+                read_offset: 0,
+                read_limit: 0,
+            })
+            .await
+            .expect_err("no rejected upload may publish the blob");
+        assert_eq!(status.code(), tonic::Code::NotFound);
+
+        let committed = client
+            .write(tokio_stream::iter(chunked_write_requests(
+                &resource, &blob, true,
+            )))
+            .await
+            .expect("a valid upload should persist")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed as usize, blob.len());
+        assert_eq!(budget.reserved_bytes(), 0);
+        assert_eq!(
+            context.state.store.storage_snapshot().live_segment_bytes,
+            ring_bytes + blob.len() as u64
+        );
 
         let _ = shutdown_tx.send(());
         let _ = server.await;
@@ -11378,6 +12235,222 @@ mod tests {
             .await
             .expect_err("read_limit is not supported on compressed-blobs");
         assert_eq!(limit_error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    async fn connect_test_routes(
+        state: SharedState,
+    ) -> (
+        tonic::transport::Channel,
+        tokio::sync::oneshot::Sender<()>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server = tokio::spawn(serve_routes(listener, state, async move {
+            let _ = shutdown_rx.await;
+        }));
+        let channel = tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
+            .expect("valid endpoint")
+            .connect_lazy();
+        (channel, shutdown_tx, server)
+    }
+
+    fn digest_of(bytes: &[u8]) -> reapi::Digest {
+        reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        }
+    }
+
+    // Compressed BatchUpdateBlobs items admit their declared decoded size
+    // before decoding. An item no request may materialize is refused alone,
+    // before its payload is decoded, while every other item keeps its own
+    // status in request order and every permit is returned afterwards.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn batch_update_admits_decoded_size_per_item_in_request_order() {
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|_| {}).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ContentAddressableStorageClient::new(channel);
+        let memory = &context.state.memory;
+        let reserved_before = memory.transient_reserved_bytes();
+
+        let identity = b"identity batch blob".to_vec();
+        let compressed = vec![0x42_u8; 64 * 1024];
+        let encoded = zstd::stream::encode_all(compressed.as_slice(), 3).expect("encode");
+        let unadmittable = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"never decoded")),
+            size_bytes: memory.reapi_materialization_limit_bytes() as i64 + 1,
+        };
+        let mut mismatched = digest_of(&compressed);
+        mismatched.hash = hex::encode(Sha256::digest(b"other content"));
+        let zstd = reapi::compressor::Value::Zstd as i32;
+        let item = |digest: Option<reapi::Digest>, data: &[u8], compressor: i32| {
+            reapi::batch_update_blobs_request::Request {
+                digest,
+                data: data.to_vec(),
+                compressor,
+            }
+        };
+        let response = client
+            .batch_update_blobs(reapi::BatchUpdateBlobsRequest {
+                instance_name: "ios".into(),
+                requests: vec![
+                    item(Some(digest_of(&identity)), &identity, 0),
+                    item(Some(unadmittable.clone()), &encoded, zstd),
+                    item(None, &identity, 0),
+                    item(Some(digest_of(&compressed)), &encoded, zstd),
+                    item(Some(mismatched.clone()), &encoded, zstd),
+                    item(Some(digest_of(&identity)), &identity, 99),
+                    item(Some(digest_of(&compressed)), &encoded, zstd),
+                ],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            })
+            .await
+            .expect("batch update should answer per item")
+            .into_inner();
+        let outcomes: Vec<_> = response
+            .responses
+            .iter()
+            .map(|response| {
+                (
+                    response.digest.as_ref().map(|digest| digest.hash.clone()),
+                    response.status.as_ref().map(|status| status.code),
+                )
+            })
+            .collect();
+        assert_eq!(
+            outcomes,
+            vec![
+                (Some(digest_of(&identity).hash), Some(0)),
+                (
+                    Some(unadmittable.hash),
+                    Some(tonic::Code::ResourceExhausted as i32)
+                ),
+                (None, Some(tonic::Code::InvalidArgument as i32)),
+                (Some(digest_of(&compressed).hash), Some(0)),
+                (Some(mismatched.hash), Some(tonic::Code::Internal as i32)),
+                (
+                    Some(digest_of(&identity).hash),
+                    Some(tonic::Code::Unimplemented as i32)
+                ),
+                (Some(digest_of(&compressed).hash), Some(0)),
+            ]
+        );
+        for blob in [&identity, &compressed] {
+            let key = blob_key(&digest_key(&digest_of(blob)).expect("digest key"));
+            assert!(
+                context
+                    .state
+                    .store
+                    .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+                    .expect("manifest lookup")
+                    .is_some()
+            );
+        }
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains(REAPI_MATERIALIZATION_REJECTED_ACTION)
+        );
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while memory.transient_reserved_bytes() != reserved_before {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("every decode permit should be released with the response");
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    #[test]
+    fn zstd_batch_item_decoder_never_reserves_past_the_declared_size() {
+        let source = vec![0x17_u8; 3 * 64 * 1024 + 5];
+        let compressed = zstd::stream::encode_all(source.as_slice(), 3).unwrap();
+        let decoded = decompress_zstd_batch_item(&compressed, source.len() as i64)
+            .expect("a payload of exactly the declared size decodes");
+        assert_eq!(decoded, source);
+        assert!(
+            decoded.capacity() <= source.len(),
+            "capacity {} must stay within the admitted {} bytes",
+            decoded.capacity(),
+            source.len()
+        );
+    }
+
+    async fn read_bytestream(
+        client: &mut bytestream::byte_stream_client::ByteStreamClient<tonic::transport::Channel>,
+        resource_name: &str,
+        read_offset: i64,
+        read_limit: i64,
+    ) -> Vec<u8> {
+        let mut stream = client
+            .read(bytestream::ReadRequest {
+                resource_name: resource_name.to_owned(),
+                read_offset,
+                read_limit,
+            })
+            .await
+            .expect("blob should be readable")
+            .into_inner();
+        let mut received = Vec::new();
+        while let Some(chunk) = stream.message().await.expect("read chunk") {
+            received.extend_from_slice(&chunk.data);
+        }
+        received
+    }
+
+    // A ranged identity read streams only its range: it must not map, and
+    // charge the mapped pool for, the whole blob. Full reads may map.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_ranged_identity_reads_stream_only_their_range() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (channel, shutdown_tx, server) = connect_test_routes(context.state.clone()).await;
+        let mut client = ByteStreamClient::new(channel);
+        let blob: Vec<u8> = (0..200_000_u32)
+            .map(|byte| byte.wrapping_mul(17) as u8)
+            .collect();
+        let hash = hex::encode(Sha256::digest(&blob));
+        client
+            .write(tokio_stream::iter(chunked_write_requests(
+                &format!("uploads/ranged/blobs/{hash}/{}", blob.len()),
+                &blob,
+                true,
+            )))
+            .await
+            .expect("upload should persist");
+        let resource = format!("blobs/{hash}/{}", blob.len());
+
+        assert_eq!(
+            read_bytestream(&mut client, &resource, 5, 100).await,
+            blob[5..105]
+        );
+        assert_eq!(
+            read_bytestream(&mut client, &resource, 150_000, 0).await,
+            blob[150_000..]
+        );
+        assert_eq!(
+            read_bytestream(&mut client, &resource, 0, 1_000).await,
+            blob[..1_000]
+        );
+        assert!(
+            !context.state.metrics.render().contains("path=\"mmap\""),
+            "ranged reads must take the streaming reader"
+        );
+        assert_eq!(read_bytestream(&mut client, &resource, 0, 0).await, blob);
 
         let _ = shutdown_tx.send(());
         let _ = server.await;

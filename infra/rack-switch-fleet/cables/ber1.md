@@ -36,9 +36,17 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | ber1-tor-a | 31 | ber1-tor-b |  | dac | isl | planned |
 | ber1-tor-a | 32 | ber1-tor-b |  | dac | isl | installed |
 | ber1-tor-a |  | ber1-store-a | sfp28-1 | dac | data | planned |
-| ber1-tor-b | 1 | ber1-proto-01 | en0 | copper | data | installed |
+| ber1-tor-b | 2 | ber1-runner-b01 | en0 | copper | data | installed |
+| ber1-tor-b | 3 | ber1-runner-b02 | en0 | copper | data | installed |
+| ber1-tor-b | 4 | ber1-runner-b03 | en0 | copper | data | installed |
 | ber1-tor-b | 25 | ber1-edge-a | sfp28-1 | dac | data | installed |
 | ber1-tor-b | 26 | ber1-edge-b | sfp28-1 | dac | data | installed |
 | ber1-tor-b | 31 | ber1-tor-a |  | dac | isl | planned |
 | ber1-tor-b | 32 | ber1-tor-a |  | dac | isl | installed |
 | ber1-tor-b |  | ber1-store-b | sfp28-1 | dac | data | planned |
+| feed-a |  | ber1-ats-1 | source-1 | power | feed | installed |
+| feed-a |  | ber1-ats-2 | source-1 | power | feed | planned |
+| feed-a |  | ber1-ats-3 | source-1 | power | feed | installed |
+| feed-b |  | ber1-ats-1 | source-2 | power | feed | installed |
+| feed-b |  | ber1-ats-2 | source-2 | power | feed | planned |
+| feed-b |  | ber1-ats-3 | source-2 | power | feed | installed |
