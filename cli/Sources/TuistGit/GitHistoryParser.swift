@@ -16,6 +16,24 @@ enum GitHistoryParser {
         }
     }
 
+    /// The parents of each commit in a `git log --format=raw` listing, as their commit objects
+    /// store them. Headers start at the line's first column; the message and multi-line header
+    /// values are indented.
+    static func parseRawParents(_ output: String) -> [String: [String]] {
+        var parents: [String: [String]] = [:]
+        var current: String?
+        for line in output.split(whereSeparator: \.isNewline) {
+            if line.hasPrefix("commit ") {
+                let sha = String(line.dropFirst("commit ".count).prefix { $0 != " " })
+                current = sha
+                parents[sha] = []
+            } else if line.hasPrefix("parent "), let current {
+                parents[current]?.append(String(line.dropFirst("parent ".count)))
+            }
+        }
+        return parents
+    }
+
     /// The files of a `git diff --raw -z -M` listing joined with the hunks of the matching
     /// `git diff -U0`. Returns the files kept and how many were dropped past the limit.
     static func parseChangedFiles(raw: String, unified: String, limits: GitHistoryLimits) -> ([GitChangedFile], Int) {

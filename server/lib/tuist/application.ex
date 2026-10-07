@@ -557,8 +557,15 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
+          # Accounts with custom S3 storage talk to origins without a named
+          # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
-            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            size:
+              max(
+                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+                Environment.s3_pool_size()
+              ),
+            count: Environment.s3_pool_count(),
             start_pool_metrics?: true
           ],
           "https://api.github.com" => [

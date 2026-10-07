@@ -9,7 +9,8 @@ ARG ALPINE_VERSION=3.22
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
 
-WORKDIR /src
+WORKDIR /src/runners-controller
+COPY infra/runner-cache /src/runner-cache
 COPY infra/runners-controller/go.mod infra/runners-controller/go.sum ./
 RUN go mod download
 

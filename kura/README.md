@@ -248,7 +248,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem. Actual free-space pressure may lower the effective ring to preserve rotation and metadata headroom; the minimum ring remains five segments. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
 | `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
-| `KURA_PEER_TOPOLOGY` | Optional JSON requiring all of `provider`, `private_network` and `private_url` when enabled; provider-only configuration is rejected. Requires peer mTLS. Matching providers require the same verified private routing domain; failed or unsupported private routes never fall back publicly. Unknown legacy peers retain HTTPS compatibility. See [private replication rollout](../infra/kura-controller/private-replication.md). | Yes | disabled |
+| `KURA_PEER_TOPOLOGY` | Optional JSON requiring all of `provider`, `private_network` and `private_url` when enabled; provider-only configuration is rejected. Requires peer mTLS. Same-domain peers use private transport only. Different same-provider domains require reciprocal `canonical_networks` allowlists of exact remote IDs to use canonical mTLS; failed private routes never fall back publicly. Unknown legacy peers retain HTTPS compatibility. See [private replication rollout](../infra/kura-controller/private-replication.md). | Yes | disabled |
 | `KURA_PEERS` | Static seed peer list. Immutable for the process lifetime, so it should carry only platform-stable peers (enrollment seeds it with the managed regions' public peer gateways); volatile self-hosted membership flows through the mesh heartbeat instead. | Yes | empty |
 | `KURA_MESH_PEERS_SYNC` | When `true` on a non-enrolled (managed) node, fetches the account's dynamic peer list from `{KURA_CONTROL_PLANE_URL}/_internal/kura/mesh/peers` at boot and on cadence, using the control-plane client credentials. Serving is gated on the first successful fetch, so a pod booting blind never accepts writes without enqueuing replication for peers it cannot see. | Yes | `false` |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
@@ -381,6 +381,29 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 
 Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. Kura uses `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` as the Sentry environment, so set it to values such as `production`, `staging`, or `canary` when separating events by deployment. In the standalone Helm chart, inject the DSN via `extraEnv` or `extraEnvFrom`. In controller-managed Tuist deployments, set `kuraController.telemetry.deploymentEnvironment` and sync the DSN into `kura-shared-secrets` with `kuraController.sentry.externalSecret`.
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
+
+### Upload admission and sizing
+
+`memory_pressure_state=0` does not guarantee upload admission: the byte budget bounds admitted work independently of measured memory use. Concurrent writers can fill it without an OOM or a pressure transition.
+
+HTTP upload staging can wait up to 30 seconds **before** owning its reservation. ByteStream Write already owns a decode reservation when the blob size becomes known, so staging growth remains nonblocking. Waiting while holding part of the shared pool can deadlock competing writers and stall shared HTTP/2 flow control. Decode and staging refusals return `RESOURCE_EXHAUSTED` with a standard `google.rpc.RetryInfo` detail recommending a randomized delay of 1–10 seconds. Clients that do not understand the detail retain the same status and message; clients must restart a rejected write from byte zero. The hint adds no queue or payload reservation and does not lift the memory ceiling.
+
+For Tuist's 1 MiB ByteStream messages, a large upload reserves approximately **34 MiB**: twice the 16 MiB staging window, plus twice the largest encoded message (protobuf overhead adds a small amount). Smaller uploads reserve less; other clients can send larger messages and incur larger decode charges. Plan for the sum of concurrent uploads across **all** warm jobs reaching a pod, not the total artifact size:
+
+```text
+upload reservation demand ≈ concurrent warms × uploads per warm × 34 MiB
+pod limit lower bound ≈ upload reservation demand / 0.25
+```
+
+The second estimate applies to default 60%/85% watermarks without a limiting memory floor, and is an upload-only lower bound, not a production guarantee. Leave headroom in the transient pool for reads, batch decoding, materialization, and peer work, and validate CPU, disk throughput/capacity, and egress under sustained mixed load too.
+
+- Three warms × eight uploads need approximately 816 MiB of reservations. Dividing by 25% gives roughly 3.2 GiB; a **4 GiB** pod is a reasonable starting point with additional margin.
+- On a **1 GiB** pod the default gap is approximately 256 MiB. Three warms × two uploads need approximately 204 MiB, so `TUIST_CACHE_CONCURRENCY_LIMIT=2` is a useful starting point when increasing memory is not desirable. This is not a guarantee if other traffic consumes the remaining capacity.
+- With `KURA_MEMORY_FLOOR_BYTES`, inspect the base and elastic capacities instead of assuming the full 25% is always available. Elastic borrowing stops above normal pressure; queued HTTP uploads use the base pool. Increasing only the ceiling need not increase guaranteed admission capacity.
+
+Prefer reducing client concurrency or increasing pod memory before overriding `KURA_MEMORY_SOFT_LIMIT_BYTES` / `KURA_MEMORY_HARD_LIMIT_BYTES`. Lowering the soft watermark sheds optional work earlier; raising the hard watermark reduces the safety reserve beneath the container limit. Neither creates physical memory. Use explicit watermarks only after measuring the application's baseline and mixed-load peaks.
+
+Watch `kura_memory_transient_{capacity,reserved}_bytes`, `kura_memory_elastic_transient_{capacity,reserved}_bytes`, pressure state, and `kura_memory_actions_total_total{action="bytestream_staging_admission_rejected"}` / `grpc_write_decode_admission_rejected`, together with `kura_capacity_sheds_total_total`. Short bursts can be absorbed by bounded client retries, including against older Kura versions without RetryInfo. Persistent refusals mean the offered concurrency exceeds capacity or requests exceed an individual budget; longer retries alone do not fix that.
 
 ## 📊 Observability
 
@@ -604,22 +627,52 @@ helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
 ```
 
-Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together:
+Enable `grpcIngress` when the Remote Execution API should be reachable outside the cluster. The Tuist CLI uses it for the module cache and Bazel, and it dials gRPC on the same host and port as the HTTP cache endpoint, so give `grpcIngress` the same host as `ingress` and route the gRPC service paths to it. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together. With ingress-nginx, only the HTTP ingress declares TLS for the shared host:
 
 ```yaml
 service:
   gatewayGrpcPort: 4001
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.example.com
+      secretName: kura-tls
 
 grpcIngress:
   enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: kura-grpc.example.com
+    - host: kura.example.com
       paths:
-        - path: /
-          pathType: Prefix
+        - path: /build\.bazel\.remote\.execution\.v2\.
+          pathType: ImplementationSpecific
+        - path: /google\.bytestream\.
+          pathType: ImplementationSpecific
+        - path: /build\.bazel\.remote\.asset\.v1\.
+          pathType: ImplementationSpecific
+        - path: /google\.devtools\.build\.v1\.
+          pathType: ImplementationSpecific
 ```
 
 Install it on a generic cluster:

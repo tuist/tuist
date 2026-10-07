@@ -757,6 +757,7 @@ mod tests {
         let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
         let ctx = test_context(|config| {
             config.peer_topology = Some(crate::peer_topology::PeerTopology {
+                canonical_networks: Vec::new(),
                 provider: "ovh".into(),
                 private_network: Some("test".into()),
                 private_url: Some("https://private.example".into()),

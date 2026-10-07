@@ -17,8 +17,7 @@ only their own options), so projects alias them as `test` and `compile`.
 `Args.run_wrapped/3` exists because of that alias: called by its own name, a
 Tuist task would follow the alias back to itself and Mix would do nothing.
 `mix tuist.compile` must never write the shared `:analytics_options`; under
-the alias it runs inside `mix tuist.test`, which owns them. A compile where
-every compiler returned `:noop` is not reported. Retries (`--retries`,
+the alias it runs inside `mix tuist.test`, which owns them. A compile with no profiled files is not reported unless a compiler or diagnostic indicates failure, since compilers can return `:ok` without doing any work. Retries (`--retries`,
 `TUIST_TEST_RETRIES`, `tuist: [test_retries:]`) rerun failed tests with
 `mix tuist.test --failed` in a child process whose formatter writes outcomes
 to a file instead of submitting; the parent runs the suite with `--raise` so
@@ -26,10 +25,14 @@ a passing retry can turn the exit code green, merges the attempts as
 repetitions and submits once. Sharding (`Shards`, `mix tuist.test.build`) plans with ExUnit modules, since
 that is what runs report timings for, discovered by parsing the test files
 without loading them, and runs test files, since that is what Mix can
-select. The build archive lists symbolic links instead of storing them,
-because `:erl_tar` refuses to extract a link that leaves the directory and
-every dependency's `priv` does; links are recreated only when they stay
-inside the checkout. A shard that cannot fetch its plan fails rather than
+select. The build archive materializes dependency `deps/*/priv` directories whose
+real paths stay inside the checkout, including native libraries generated in
+`deps/` that are absent on cold workers. Preserve project `priv` links so nested
+checkout-relative resources (such as published agent skills) keep their original
+base directory. Other symbolic links travel as a list,
+because `:erl_tar` refuses escaping links; links are recreated only when they
+stay inside the checkout. Do not follow nested or ancestor symlinks when
+materializing `priv`, which could package files outside the checkout. A shard that cannot fetch its plan fails rather than
 running everything. The downloaded build is unpacked beside the build
 directory and swapped in whole, and a link is recreated only below real
 directories and pointing inside the checkout. Retries never recover a suite
@@ -88,5 +91,6 @@ dashboard presentation belong in `server/`.
   an option, an environment variable or what a task prints belongs there too,
   and every command on those pages was run before it was written down: run it
   again before you change it.
+- `mix tuist.test --prepare-only` downloads a shard's uploaded build without starting the app or tests. Run any database setup in a separate process, then `--no-download` uses the prepared build (and fails when the application artifact is absent). Both flags require a shard index and cannot be combined. Keep `MIX_ENV=test` on cold bootstrap commands. `--scheme LABEL` identifies execution variants in the existing test-run scheme field, keeping different environments out of cross-run flakiness comparisons. Flags remain local to the wrapper, never forwarded to `mix test`.
 - Releases use the `tuist-ex` conventional commit scope and `tuist-ex@` tags.
   See `.github/workflows/tuist-ex-release.yml` and the shared release component registry.

@@ -14,6 +14,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
   use TuistOps.DataCase, async: true
   use Mimic
 
+  alias TuistOps.GitHub.OrgMembership
   alias TuistOps.JIT.Approvals
   alias TuistOps.Previews
   alias TuistOps.JIT.Request
@@ -163,6 +164,115 @@ defmodule TuistOpsWeb.SlackControllerTest do
         assert text =~ "production"
         refute text =~ "staging"
       end
+    end
+
+    test "/elevate-github <login> [duration] <intent> → GitHub admin Request" do
+      stub(OrgMembership, :membership, fn "esnunes" ->
+        {:ok, %{state: "active", role: "member"}}
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(
+          build_conn(),
+          %{
+            "command" => "/elevate-github",
+            "user_id" => "U_MAREK",
+            "text" => "esnunes 30m fix branch protection"
+          }
+        )
+
+      assert {:ok, %{"response_type" => "ephemeral"}} = JSON.decode(conn.resp_body)
+
+      assert %Request{
+               target_group: "github:org-admin",
+               github_login: "esnunes",
+               ttl_seconds: 1800,
+               intent: "fix branch protection"
+             } = Repo.one!(Request)
+    end
+
+    test "/elevate-github without a duration uses the default TTL" do
+      stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "member"}} end)
+
+      TuistOpsWeb.SlackController.slash(
+        build_conn(),
+        %{
+          "command" => "/elevate-github",
+          "user_id" => "U_MAREK",
+          "text" => "esnunes fix branch protection"
+        }
+      )
+
+      assert %Request{ttl_seconds: ttl, intent: "fix branch protection"} = Repo.one!(Request)
+      assert ttl == Approvals.default_ttl_seconds()
+    end
+
+    test "/elevate-github with a missing login, intent, or invalid login → ephemeral error, no Request" do
+      reject(&OrgMembership.membership/1)
+
+      for text <- ["", "-bad- fix branch protection", "esnunes"] do
+        conn =
+          TuistOpsWeb.SlackController.slash(build_conn(), %{
+            "command" => "/elevate-github",
+            "user_id" => "U_MAREK",
+            "text" => text
+          })
+
+        assert {:ok, %{"response_type" => "ephemeral", "text" => message}} =
+                 JSON.decode(conn.resp_body)
+
+        refute message =~ "Internal error"
+      end
+
+      assert Repo.aggregate(Request, :count) == 0
+    end
+
+    test "/elevate-github for an existing admin explains there is nothing to elevate" do
+      stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "admin"}} end)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(
+          build_conn(),
+          %{
+            "command" => "/elevate-github",
+            "user_id" => "U_MAREK",
+            "text" => "esnunes fix branch protection"
+          }
+        )
+
+      assert JSON.decode!(conn.resp_body)["text"] =~ "already a GitHub organization admin"
+    end
+
+    test "/elevate no longer treats github as an env" do
+      reject(&OrgMembership.membership/1)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(build_conn(), %{
+          "command" => "/elevate",
+          "user_id" => "U_MAREK",
+          "text" => "github esnunes fix branch protection"
+        })
+
+      assert JSON.decode!(conn.resp_body)["text"] =~ "`/elevate-github <login>"
+      assert Repo.aggregate(Request, :count) == 0
+    end
+
+    test "/elevate-github explains a GitHub API failure instead of an internal error" do
+      stub(OrgMembership, :membership, fn _ ->
+        {:error, {:github_status, 403, %{"message" => "Resource not accessible by integration"}}}
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(build_conn(), %{
+          "command" => "/elevate-github",
+          "user_id" => "U_MAREK",
+          "text" => "esnunes fix branch protection"
+        })
+
+      text = JSON.decode!(conn.resp_body)["text"]
+      assert text =~ "GitHub returned 403 (Resource not accessible by integration)"
+      assert text =~ "Members permission"
+      refute text =~ "Internal error"
     end
 
     test "/elevate without args → usage message" do
@@ -345,6 +455,35 @@ defmodule TuistOpsWeb.SlackControllerTest do
         })
 
       assert conn.status == 200
+    end
+
+    test "a failed GitHub promotion tells the approver why" do
+      request =
+        insert_pending_request!(%{target_group: "github:org-admin", github_login: "esnunes"})
+
+      stub(OrgMembership, :membership, fn _ -> {:ok, %{state: "active", role: "member"}} end)
+
+      stub(OrgMembership, :set_role, fn _, _ ->
+        {:error, {:github_status, 403, %{"message" => "Resource not accessible by integration"}}}
+      end)
+
+      expect(SlackClient, :ephemeral, fn "C_APPROVALS", "U_PEDRO", msg ->
+        assert msg =~ "Promoting the GitHub account failed: GitHub returned 403"
+        :ok
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.interactive(build_conn(), %{
+          "payload" =>
+            JSON.encode!(%{
+              "user" => %{"id" => "U_PEDRO"},
+              "channel" => %{"id" => "C_APPROVALS"},
+              "actions" => [%{"action_id" => "approve", "value" => "#{request.id}:U_MAREK"}]
+            })
+        })
+
+      assert conn.status == 200
+      assert Repo.get!(Request, request.id).status == "failed"
     end
 
     test "deny action dispatches to Approvals.deny and 200s" do

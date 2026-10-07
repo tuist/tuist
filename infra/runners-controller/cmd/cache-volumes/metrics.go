@@ -9,7 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 type volumeMetrics struct {

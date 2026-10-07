@@ -411,10 +411,12 @@ capi:
     enabled: true
     regions:
       ord:
+        canonicalPeers: [scl]
         description: tuist-kura-production-ord
         cidr: 172.30.244.0/24
         qualified: true
       scl:
+        canonicalPeers: [ord]
         description: tuist-kura-production-scl
         cidr: 172.30.245.0/24
         qualified: false
@@ -1132,7 +1134,7 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1167,7 +1169,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 2
+    replicas: 3
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1710,6 +1712,11 @@ runnersFleet:
   # pool mix is unpredictable in advance.
   xcodeOverrides:
     "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "27.1-rc":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

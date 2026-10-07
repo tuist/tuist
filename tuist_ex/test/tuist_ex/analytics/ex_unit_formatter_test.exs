@@ -209,6 +209,24 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
            ] = ExUnitFormatter.take_deferred()
   end
 
+  test "reports the execution variant as the run scheme" do
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        scheme: "clickhouse-floor",
+        mode: {:defer, self()}
+      )
+
+    send_lifecycle(pid, [
+      {:suite_started, []},
+      {:test_finished, new_test([])},
+      {:suite_finished, %{run: 1_000}}
+    ])
+
+    :ok = GenServer.stop(pid)
+    assert [{%{scheme: "clickhouse-floor"}, _, false}] = ExUnitFormatter.take_deferred()
+  end
+
   test "keeps the run for the caller in defer mode and writes outcomes to a file in collect mode" do
     parent = self()
     submit = fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end

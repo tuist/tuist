@@ -276,7 +276,8 @@ type VolumeManager struct {
 	// reserved holds the branch directories admission has reserved CapGiB for:
 	// branches materialized and not yet finalized. A warm standby's branch is
 	// not in it, because it writes nothing until it has a job.
-	reserved map[string]bool
+	reserved       map[string]bool
+	CustomReserved func() uint64
 
 	// converging is the space the in-flight convergence download still needs, or
 	// nil. Admission counts it, so a job admitted mid-download is not promised
@@ -574,6 +575,9 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 		return nil
 	}
 	want := m.capBytes() * uint64(len(m.reserved)+1)
+	if m.CustomReserved != nil {
+		want += m.CustomReserved()
+	}
 	free, err := m.admitBesideConvergenceLocked(want, keep)
 	if errors.Is(err, errNoRoom) && m.dropConvergeStagingLocked() {
 		free, err = m.ensureFreeLocked(want, keep)
@@ -1435,8 +1439,12 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	custom := uint64(0)
+	if m.CustomReserved != nil {
+		custom = m.CustomReserved()
+	}
 	headroom := watermark
-	if admission := m.capBytes() * uint64(len(m.reserved)+1); admission > headroom {
+	if admission := m.capBytes()*uint64(len(m.reserved)+1) + custom; admission > headroom {
 		headroom = admission
 	}
 	// Two states must fit. While it downloads, the transfer must leave every
@@ -1445,7 +1453,7 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 	// the new master would be the evictor's first victim. Requiring the headroom
 	// on top of both images at once would refuse every refresh of a master
 	// larger than a third of what the watermark leaves (22 GiB on an M2-L).
-	want := remaining + m.capBytes()*uint64(len(m.reserved))
+	want := remaining + m.capBytes()*uint64(len(m.reserved)) + custom
 	if afterInstall := saturatingSub(remaining+headroom, m.refreshCreditLocked(key)); afterInstall > want {
 		want = afterInstall
 	}

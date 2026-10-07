@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -24,9 +25,41 @@ import (
 )
 
 type vultrPrivateRegion struct {
-	Description string `json:"description"`
-	CIDR        string `json:"cidr"`
-	Qualified   bool   `json:"qualified"`
+	Description    string   `json:"description"`
+	CIDR           string   `json:"cidr"`
+	Qualified      bool     `json:"qualified"`
+	CanonicalPeers []string `json:"canonicalPeers,omitempty"`
+}
+
+const privateCanonicalNetworks = "tuist.dev/private-network-canonical-peers"
+
+func validateVultrCanonicalPeers(regions map[string]vultrPrivateRegion) error {
+	for name, region := range regions {
+		if len(region.CanonicalPeers) > 32 {
+			return fmt.Errorf("region %s permits at most 32 canonical peers", name)
+		}
+		seen := map[string]bool{}
+		for _, peer := range region.CanonicalPeers {
+			remote, exists := regions[peer]
+			switch {
+			case !exists:
+				return fmt.Errorf("region %s: canonical peer %q is not configured", name, peer)
+			case peer == name:
+				return fmt.Errorf("region %s: canonical peer %q refers to itself", name, peer)
+			case seen[peer]:
+				return fmt.Errorf("region %s: canonical peer %q is duplicated", name, peer)
+			case !slices.Contains(remote.CanonicalPeers, name):
+				return fmt.Errorf("region %s: canonical peer %q does not approve %s", name, peer, name)
+			}
+			seen[peer] = true
+		}
+		for peer, remote := range regions {
+			if peer != name && region.Qualified && remote.Qualified && !seen[peer] {
+				return fmt.Errorf("qualified regions %s and %s require an explicit cross-domain policy", name, peer)
+			}
+		}
+	}
+	return nil
 }
 
 type vultrNetworkState struct {
@@ -55,7 +88,7 @@ type vultrPrivateNICCacheEntry struct {
 func (r *VultrMachineReconciler) ensurePrivateVPC(ctx context.Context, region string, desired vultrPrivateRegion) (*vultr.VPC, error) {
 	r.privateNetworkMu.Lock()
 	defer r.privateNetworkMu.Unlock()
-	if cached, ok := r.privateVPCCache[region]; ok && cached.desired == desired && time.Now().Before(cached.expires) {
+	if cached, ok := r.privateVPCCache[region]; ok && cached.desired.Description == desired.Description && cached.desired.CIDR == desired.CIDR && time.Now().Before(cached.expires) {
 		network := cached.network
 		return &network, nil
 	}
@@ -121,6 +154,54 @@ func (r *VultrMachineReconciler) ensurePrivateVPC(ctx context.Context, region st
 	state.ID = network.ID
 	if err = save(); err != nil {
 		return nil, err
+	}
+	if r.privateVPCCache == nil {
+		r.privateVPCCache = map[string]vultrPrivateVPCCacheEntry{}
+	}
+	for key, cached := range r.privateVPCCache {
+		if time.Now().After(cached.expires) {
+			delete(r.privateVPCCache, key)
+		}
+	}
+	r.privateVPCCache[region] = vultrPrivateVPCCacheEntry{desired: desired, network: *network, expires: time.Now().Add(vultrPrivateInventoryTTL)}
+	return network, nil
+}
+
+// Canonical approval never provisions another region. Require retained identity
+// even on cache hits, then confirm provider inventory using the same bounded cache.
+func (r *VultrMachineReconciler) existingPrivateVPC(ctx context.Context, region string, desired vultrPrivateRegion) (*vultr.VPC, error) {
+	r.privateNetworkMu.Lock()
+	defer r.privateNetworkMu.Unlock()
+	cm := &corev1.ConfigMap{}
+	if err := r.reader().Get(ctx, types.NamespacedName{Namespace: r.PrivateNetworkNamespace, Name: r.PrivateNetworkConfigName + "-state"}, cm); err != nil {
+		return nil, fmt.Errorf("canonical peer region %s: read retained VPC: %w", region, err)
+	}
+	var state vultrNetworkState
+	if raw := cm.Data[region]; raw != "" {
+		if err := json.Unmarshal([]byte(raw), &state); err != nil {
+			return nil, fmt.Errorf("canonical peer region %s: invalid retained VPC: %w", region, err)
+		}
+	}
+	if state.ID == "" {
+		return nil, fmt.Errorf("canonical peer region %s has no retained VPC ID; provision that region first", region)
+	}
+	if state.Desired.Description != desired.Description || state.Desired.CIDR != desired.CIDR {
+		return nil, fmt.Errorf("canonical peer region %s: configuration differs from retained VPC definition", region)
+	}
+	if cached, ok := r.privateVPCCache[region]; ok && cached.network.ID == state.ID && cached.desired.Description == desired.Description && cached.desired.CIDR == desired.CIDR && time.Now().Before(cached.expires) {
+		network := cached.network
+		return &network, nil
+	}
+	prefix, err := privateNetworkPrefix(desired.CIDR)
+	if err != nil {
+		return nil, fmt.Errorf("canonical peer region %s: %w", region, err)
+	}
+	network, err := r.VultrClient.EnsureVPC(ctx, vultr.VPC{Region: region, Description: desired.Description, Subnet: prefix.Addr().String(), Mask: prefix.Bits()}, false)
+	if err != nil {
+		return nil, fmt.Errorf("canonical peer region %s: read provider VPC: %w", region, err)
+	}
+	if network.ID != state.ID {
+		return nil, fmt.Errorf("canonical peer region %s: retained VPC %q disappeared or changed identity", region, state.ID)
 	}
 	if r.privateVPCCache == nil {
 		r.privateVPCCache = map[string]vultrPrivateVPCCacheEntry{}
@@ -236,14 +317,8 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 	if err = json.Unmarshal([]byte(config.Data["regions.json"]), &regions); err != nil {
 		return err
 	}
-	qualified := 0
-	for _, region := range regions {
-		if region.Qualified {
-			qualified++
-		}
-	}
-	if qualified > 1 {
-		return fmt.Errorf("multiple qualified Vultr regions require an explicit cross-domain runtime policy")
+	if err = validateVultrCanonicalPeers(regions); err != nil {
+		return err
 	}
 	region := firstNonEmpty(machine.Spec.Region, r.DefaultRegion)
 	desired, exists := regions[region]
@@ -364,12 +439,34 @@ func (r *VultrMachineReconciler) reconcilePrivateNetwork(ctx context.Context, ma
 			return fmt.Errorf("waiting for converged private routes on %s", name)
 		}
 	}
-	if node.Labels[privateNetworkAnnotation] != network.ID {
+	// Repair local attachment and routes before resolving cross-region policy.
+	// Resolution failures preserve the published annotation and retry normally.
+	canonicalNetworks := []string{}
+	for _, peer := range desired.CanonicalPeers {
+		remote, e := r.existingPrivateVPC(ctx, peer, regions[peer])
+		if e != nil {
+			return e
+		}
+		if remote.ID == network.ID || slices.Contains(canonicalNetworks, remote.ID) {
+			return fmt.Errorf("cross-domain policy requires distinct provider VPC identities")
+		}
+		canonicalNetworks = append(canonicalNetworks, remote.ID)
+	}
+	sort.Strings(canonicalNetworks)
+	canonicalJSON, err := json.Marshal(canonicalNetworks)
+	if err != nil {
+		return err
+	}
+	if node.Labels[privateNetworkAnnotation] != network.ID || node.Annotations[privateCanonicalNetworks] != string(canonicalJSON) {
 		before := node.DeepCopy()
 		if node.Labels == nil {
 			node.Labels = map[string]string{}
 		}
 		node.Labels[privateNetworkAnnotation] = network.ID
+		if node.Annotations == nil {
+			node.Annotations = map[string]string{}
+		}
+		node.Annotations[privateCanonicalNetworks] = string(canonicalJSON)
 		if err = r.Patch(ctx, node, client.MergeFrom(before)); err != nil {
 			return err
 		}
