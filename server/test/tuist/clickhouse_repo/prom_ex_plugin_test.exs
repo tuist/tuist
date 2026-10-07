@@ -57,7 +57,8 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
     event_name = [:tuist, :click_house_repo, :query]
     event_ref = TelemetryCapture.attach_event_handlers([event_name])
 
-    Task.async(fn -> :telemetry.execute(event_name, %{}, %{result: {:ok, %Ch.Result{}}}) end)
+    fn -> :telemetry.execute(event_name, %{}, %{result: {:ok, %Ch.Result{}}}) end
+    |> Task.async()
     |> Task.await()
 
     refute_received {^event_name, ^event_ref, _measurements, _metadata}
