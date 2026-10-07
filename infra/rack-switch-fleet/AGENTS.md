@@ -971,7 +971,7 @@ The pod's logs are also in Loki like any other pod's:
 {cluster="tuist-staging", namespace="omada", container="vrrp"}
 ```
 
-They get there through `alloy-rack-edge` in
+They get there through `alloy-rack` in
 [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring), an Alloy collector on
 the node's host network that reads `/var/log/pods` and pushes to the cluster's
 Alloy receiver at its tailnet name. Each line carries the time the receiver got

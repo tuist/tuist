@@ -133,7 +133,7 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 	// Anything already moved has to be serving AND caught up before the next
 	// replica goes, or the move that follows destroys the peer it would have
 	// refilled from.
-	if settling, reason := r.movesStillSettling(ctx, pods.Items, leaving); settling {
+	if settling, reason := r.movesStillSettling(ctx, instance, pods.Items, leaving); settling {
 		logger.V(1).Info("waiting for the previous move to settle before evacuating another replica",
 			"instance", instance.Name, "reason", reason)
 		return nil
@@ -327,11 +327,8 @@ func nodeReady(node *corev1.Node) bool {
 // When the runtime status cannot be read at all, this reports settling rather
 // than proceeding. An unreachable pod is not evidence that a move finished, and
 // guessing wrong costs the region's cache rather than a requeue.
-func (r *KuraInstanceReconciler) movesStillSettling(ctx context.Context, pods []corev1.Pod, leaving map[string]bool) (bool, string) {
-	statusClient := r.RuntimeStatusClient
-	if statusClient == nil {
-		statusClient = defaultRuntimeStatusClient()
-	}
+func (r *KuraInstanceReconciler) movesStillSettling(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, leaving map[string]bool) (bool, string) {
+	statusClient := r.runtimeStatusClient(instance)
 
 	for i := range pods {
 		pod := &pods[i]

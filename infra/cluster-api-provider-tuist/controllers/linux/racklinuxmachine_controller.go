@@ -394,7 +394,24 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 		ManagementMAC:  host.Status.BootMAC,
 		APIServerURL:   server,
 		KubernetesAPI:  server,
+		// Best effort, like the cluster DNS: without it the node keeps no
+		// translation for the kubernetes Service, and only in-cluster clients
+		// on the node lose the API.
+		KubernetesServiceIP: discoverKubernetesService(ctx, r.APIReader),
 	}, "", nil
+}
+
+// discoverKubernetesService is the kubernetes Service's ClusterIP, or empty
+// when it cannot be read.
+func discoverKubernetesService(ctx context.Context, reader client.Reader) string {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	svc := &corev1.Service{}
+	if err := reader.Get(ctx, types.NamespacedName{Namespace: "default", Name: "kubernetes"}, svc); err != nil {
+		log.FromContext(ctx).Info("could not read the kubernetes Service; rack nodes keep no translation for it", "err", err.Error())
+		return ""
+	}
+	return svc.Spec.ClusterIP
 }
 
 func parseControlPlaneVersion(v string) (kubelet, minor string, ok bool) {

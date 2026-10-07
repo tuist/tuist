@@ -402,6 +402,15 @@ mode behind it:
   `tailscale-device-reaper`, once out of dry-run, still deletes a device
   unseen for its `graceHours` (7 days), so the router entry in the guard, not
   the standard device, is what reaches a box that was off for longer.
+- **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
+  every private destination, and a rack's Kura gateway sits on the machines
+  segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
+  `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
+  The traffic leaves on the host's default route, so the VM NAT's general leg
+  translates it. The value is in the hash, so changing it re-pushes the
+  firewall to running hosts through the drift loop. The rented fleets never
+  get it.
 - **Delete stops.** No reinstall, no wipe: no API can do either to hardware in
   our own rack. That makes Stage 1 of the delete path (dropping the node
   identity) matter *more* than on rented capacity, not less: nothing wipes the
@@ -1309,10 +1318,16 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`), the exact
-kubelet release the control plane runs and the hostname, into the
-`RackLinuxMachine`'s `status.nodeConfig`, hashed. `rack-node` applies one: it
-writes only files whose content or mode differs, loads modules and sysctls,
+the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+translation of the kubernetes Service to the API server in
+`/etc/tuist/kubernetes-service.nft`), the exact kubelet release the control
+plane runs and the hostname, into the `RackLinuxMachine`'s `status.nodeConfig`,
+hashed. The translation needs the kubernetes Service's ClusterIP, which the
+operator reads like the cluster DNS (a Role on `default/kubernetes` alone), and
+an API server address that is an IP; without either it is removed. `rack-node`
+applies one: it writes only files whose content or mode differs, loads modules
+and sysctls, loads its nftables files on every apply (each recreates its own
+table, which undoes a flush),
 installs containerd with its default configuration on the systemd cgroup
 driver, installs exactly the named kubelet from pkgs.k8s.io and never
 downgrades it, sets the hostname, restarts containerd or the kubelet when

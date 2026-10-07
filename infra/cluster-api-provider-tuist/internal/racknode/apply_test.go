@@ -332,3 +332,24 @@ func TestApplyTurnsSwapOff(t *testing.T) {
 		t.Fatalf("fstab %q", h.files["/etc/fstab"].data)
 	}
 }
+
+// An nftables file defines a table of its own and recreates it when loaded,
+// so loading it on every apply undoes anything that flushed it since.
+func TestApplyLoadsItsNftablesFilesOnEveryApply(t *testing.T) {
+	h := newFakeHost()
+	h.withIdentity(t, testNow.Add(24*time.Hour))
+	cfg := testConfig()
+	cfg.Files = append(cfg.Files, infrav1.RackNodeFile{Path: "/etc/tuist/kubernetes-service.nft", Mode: "0644", Content: "table ip tuist_kubernetes_service {}\n"})
+	cfg.Nftables = []string{"/etc/tuist/kubernetes-service.nft"}
+
+	apply(t, h, Request{Config: cfg})
+	if !h.ranAny("nft -f /etc/tuist/kubernetes-service.nft") {
+		t.Fatalf("did not load the nftables file; ran %v", h.ran)
+	}
+
+	h.ran = nil
+	apply(t, h, Request{Config: cfg})
+	if !h.ranAny("nft -f /etc/tuist/kubernetes-service.nft") {
+		t.Fatalf("an apply with nothing changed did not load the nftables file again; ran %v", h.ran)
+	}
+}
