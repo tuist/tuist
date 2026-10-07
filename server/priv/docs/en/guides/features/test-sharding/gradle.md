@@ -54,7 +54,7 @@ The shard reference is automatically derived from CI environment variables (`GIT
 
 ## Test phase {#test-phase}
 
-Each shard runner executes its assigned tests using the standard `test` task. When `TUIST_SHARD_INDEX` is set, the plugin automatically fetches the shard assignment from the server and filters the test execution to include only the assigned test suites.
+Each shard runner executes its assigned tests using the standard `test` task. When `TUIST_SHARD_INDEX` is set, the plugin automatically fetches the shard assignment from the server and filters the test execution to include only the assigned test suites. Test tasks in projects with no suites assigned to the shard are skipped.
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test

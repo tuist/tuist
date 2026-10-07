@@ -7,6 +7,7 @@ defmodule TuistWeb.DocsLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias TuistWeb.Helpers.OpenGraph
 
   setup do
     stub(Req, :get, fn _url, _opts ->
@@ -189,13 +190,13 @@ defmodule TuistWeb.DocsLiveTest do
       {:ok, document} = Floki.parse_document(html)
       [image] = Floki.attribute(document, "meta[property='og:image']", "content")
       uri = URI.parse(image)
-      params = URI.decode_query(uri.query)
+      %{"token" => token} = URI.decode_query(uri.query)
 
       assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
+      assert {:ok, params} = OpenGraph.verify_image_token(token)
       assert params["template"] == "docs"
       assert params["title"] == "Install Tuist"
       assert params["category"] == "Guides"
-      assert is_binary(params["signature"])
     end
 
     test "marks the page up as a TechArticle alongside its breadcrumbs", %{conn: conn} do

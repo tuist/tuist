@@ -70,7 +70,7 @@ class TuistPrepareTestShardsFunctionalTest {
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileTestJava")?.outcome, result.output)
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
         assertEquals(TaskOutcome.SUCCESS, result.task(":tuistPrepareTestShards")?.outcome, result.output)
-        assertEquals(listOf("com.example.FooTest", "com.example.OtherTest"), plannedTestSuites())
+        assertEquals(listOf(":app/com.example.FooTest", ":app/com.example.OtherTest"), plannedTestSuites())
     }
 
     @Test
@@ -79,7 +79,7 @@ class TuistPrepareTestShardsFunctionalTest {
 
         assertEquals(null, result.task(":app:compileTestJava"), result.output)
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
-        assertEquals(listOf("com.example.OtherTest"), plannedTestSuites())
+        assertEquals(listOf(":app/com.example.OtherTest"), plannedTestSuites())
     }
 
     @Test
@@ -90,7 +90,7 @@ class TuistPrepareTestShardsFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":tuistPrepareTestShards")?.outcome, result.output)
         assertTrue(result.output.contains("Configured :docs"), result.output)
-        assertEquals(listOf("com.example.FooTest", "com.example.OtherTest"), plannedTestSuites())
+        assertEquals(listOf(":app/com.example.FooTest", ":app/com.example.OtherTest"), plannedTestSuites())
     }
 
     @Test
@@ -100,7 +100,7 @@ class TuistPrepareTestShardsFunctionalTest {
         val result = runner(":tuistPrepareTestShards", "-PtuistShardTestTask=otherTest").build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":app:compileOtherTestJava")?.outcome, result.output)
-        assertEquals(listOf("com.example.OtherTest"), plannedTestSuites())
+        assertEquals(listOf(":app/com.example.OtherTest"), plannedTestSuites())
     }
 
     @Test

@@ -111,6 +111,14 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
       assert TestLabels.test_run_label(%Project{build_system: :mix}, nil) == "mix test"
     end
 
+    test "includes the Mix execution variant when present" do
+      assert TestLabels.test_run_label(%Project{build_system: :mix}, "clickhouse-current") ==
+               "mix test · clickhouse-current"
+
+      assert TestLabels.test_run_label(%Project{build_system: :mix}, "clickhouse-floor") ==
+               "mix test · clickhouse-floor"
+    end
+
     test "names other runs by their scheme, or Unknown without one" do
       assert TestLabels.test_run_label(%Project{build_system: :xcode}, "App") == "App"
       assert TestLabels.test_run_label(%Project{build_system: :xcode}, "") == "Unknown"

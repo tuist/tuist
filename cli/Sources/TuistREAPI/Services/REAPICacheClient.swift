@@ -34,6 +34,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private let token: @Sendable () async throws -> String
     private let guards: TransferGuards
     private let stats: REAPIStats?
+    private let backpressureRetryPolicy: REAPIBackpressureRetryPolicy
 
     public init(
         endpoint: GRPCEndpoint,
@@ -42,8 +43,18 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         fileSystem: FileSysteming = FileSystem(),
         guards: TransferGuards = .default,
         stats: REAPIStats? = nil,
+        backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
+        environment: [String: String] = Environment.current.variables,
         token: @escaping @Sendable () async throws -> String
     ) async throws {
+        var guards = guards
+        if let raw = environment["TUIST_CACHE_CONCURRENCY_LIMIT"], let value = Int(raw), value > 0 {
+            if guards.uploadConcurrency == nil { guards.uploadConcurrency = value }
+            if guards.downloadConcurrency == nil { guards.downloadConcurrency = value }
+        }
+        if let value = guards.uploadConcurrency, value <= 0 {
+            throw REAPICacheError.invalidTransferGuards(reason: "uploadConcurrency must be positive, got \(value)")
+        }
         if let value = guards.downloadConcurrency, value <= 0 {
             throw REAPICacheError.invalidTransferGuards(reason: "downloadConcurrency must be positive, got \(value)")
         }
@@ -73,6 +84,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         self.fileSystem = fileSystem
         self.guards = guards
         self.stats = stats
+        self.backpressureRetryPolicy = backpressureRetryPolicy ?? .init()
     }
 
     deinit {
@@ -134,6 +146,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         /// setting this must have validated the value is positive; invalid values are rejected at
         /// the config boundary, not silently clamped.
         public var downloadConcurrency: Int?
+
+        /// Upload slots shared by batch and ByteStream tasks within an upload operation.
+        /// Defaults to 8; explicit values override the environment configuration.
+        public var uploadConcurrency: Int?
 
         public init() {}
 
@@ -264,7 +280,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     public func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
         try REAPI.validate(digest)
-        _ = try await retry {
+        _ = try await retry(uploadBudget: .init(maximumDelay: backpressureRetryPolicy.maximumCumulativeDelay)) {
             try await withClient { client in
                 try await Build_Bazel_Remote_Execution_V2_ActionCache.Client(wrapping: client).updateActionResult(
                     .with {
@@ -319,20 +335,46 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     /// three times the load from each client.
     private func retry<T>(
         retryingDeadlineExceeded: Bool = true,
+        uploadBudget: REAPIUploadRetryBudget? = nil,
         _ operation: () async throws -> T
     ) async throws -> T {
         var attempt = 0
         var deadlineAttempts = 0
+        var backpressureAttempts = 0
+        var backpressureDelay: Duration = .zero
         while true {
             do { return try await operation() } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
+                if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                    guard backpressureAttempts < backpressureRetryPolicy.maximumRetryCount else { throw error }
+                    let delay = backpressureRetryPolicy.delay(for: backpressureAttempts, error: rpcError)
+                    guard uploadBudget.consume(delay) else {
+                        throw RPCError(
+                            code: .resourceExhausted,
+                            message: "\(rpcError.message) (upload admission retry wait budget exhausted)",
+                            metadata: rpcError.metadata,
+                            cause: rpcError
+                        )
+                    }
+                    try await Task.sleep(for: delay)
+                    backpressureAttempts += 1
+                    continue
+                }
                 if (error as? RPCError)?.code == .deadlineExceeded {
                     if !retryingDeadlineExceeded { throw error }
                     deadlineAttempts += 1
                     if deadlineAttempts >= 2 { throw error }
                 }
                 guard attempt < 2, Self.isRetryable(error) else { throw error }
-                try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
+                var delay: Duration = .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100))
+                if let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                    if let hinted = REAPIBackpressureRetryPolicy.retryInfoDelay(rpcError) {
+                        delay = max(delay, hinted)
+                    }
+                    guard delay <= .seconds(1) - backpressureDelay else { throw error }
+                    backpressureDelay += delay
+                }
+                try await Task.sleep(for: delay)
                 attempt += 1
             }
         }
@@ -344,6 +386,20 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
         guard let error = error as? RPCError else { return false }
         return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
+    }
+
+    private static func batchFailure(codes: [Int32]) -> RPCError? {
+        let code: RPCError.Code
+        if codes.contains(8) {
+            code = .resourceExhausted
+        } else if codes.contains(4) {
+            code = .deadlineExceeded
+        } else if codes.contains(14) {
+            code = .unavailable
+        } else {
+            return nil
+        }
+        return RPCError(code: code, message: "Cache batch temporarily rejected")
     }
 
     private func batches(_ digests: [REAPI.Digest]) -> [[REAPI.Digest]] {
@@ -371,6 +427,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
+        let uploadBudget = REAPIUploadRetryBudget(maximumDelay: backpressureRetryPolicy.maximumCumulativeDelay)
         let failures = Mutex<[REAPI.Digest: String]>([:])
         // Missing-blob requests contain only digests, so batch by metadata count, not file size.
         let digests = Array(blobs.keys)
@@ -378,9 +435,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             Array(digests[$0 ..< min($0 + 1024, digests.count)])
         }
         let missingBlobs = Mutex<Set<REAPI.Digest>>([])
-        let existing = try await transfer(queries) { batch in
+        let concurrency = guards.uploadConcurrency ?? 8
+        let existing = try await transfer(queries, maxConcurrentTasks: concurrency) { batch in
             do {
-                let response = try await self.retry {
+                let response = try await self.retry(uploadBudget: uploadBudget) {
                     try await self.withClient { client in
                         try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client)
                             .findMissingBlobs(.with {
@@ -400,11 +458,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 return []
             }
         }
-        let uploaded = try await transfer(batches(missingBlobs.withLock { Array($0) })) { batch in
+        let uploaded = try await transfer(
+            batches(missingBlobs.withLock { Array($0) }), maxConcurrentTasks: concurrency
+        ) { batch in
             var successful = Set<REAPI.Digest>()
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 do {
-                    try await self.retry { try await self.uploadBlob(digest, from: blobs[digest]!) }
+                    try await self.retry(uploadBudget: uploadBudget) { try await self.uploadBlob(digest, from: blobs[digest]!) }
                     successful.insert(digest)
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
@@ -415,7 +475,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 var rejections: [REAPI.Digest: String] = [:]
                 var batchFailure: String?
                 do {
-                    try await self.retry {
+                    try await self.retry(uploadBudget: uploadBudget) {
                         rejections = [:]
                         let pending = Set(batch).subtracting(successful)
                         var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
@@ -449,8 +509,8 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             rejections[response.digest] = "\(REAPICall.batchUpdateBlobs.rawValue) rejected the blob "
                                 + "with status \(response.status.code): \(response.status.message)"
                         }
-                        if result.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
-                            throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
+                        if let error = Self.batchFailure(codes: result.responses.map(\.status.code)) {
+                            throw error
                         }
                     }
                 } catch {
@@ -575,8 +635,8 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             if error is CancellationError || Task.isCancelled { throw error }
                         }
                     }
-                    if response.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
-                        throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
+                    if let error = Self.batchFailure(codes: response.responses.map(\.status.code)) {
+                        throw error
                     }
                 }
             } catch {
@@ -681,6 +741,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             let progress = ReadProgress()
             let startedReading = ContinuousClock.now
             var stalledAttempts = 0
+            var backpressureDelay: Duration = .zero
             var failure: (any Error)?
             while true {
                 let before = progress.received
@@ -709,7 +770,15 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         throw failure ?? REAPICacheError.corruptBlob
                     }
                 }
-                try await Task.sleep(for: .milliseconds(200 + Int.random(in: 0 ... 100)))
+                var delay: Duration = .milliseconds(200 + Int.random(in: 0 ... 100))
+                if let rpcError = failure as? RPCError, rpcError.code == .resourceExhausted {
+                    if let hinted = REAPIBackpressureRetryPolicy.retryInfoDelay(rpcError) {
+                        delay = max(delay, hinted)
+                    }
+                    guard delay <= .seconds(1) - backpressureDelay else { throw rpcError }
+                    backpressureDelay += delay
+                }
+                try await Task.sleep(for: delay)
             }
             let hash = progress.hash
             guard hash == digest.hash else { throw REAPICacheError.corruptBlob }

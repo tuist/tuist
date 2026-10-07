@@ -358,6 +358,7 @@ func (w *ConvergeWorker) Start(ctx context.Context) error {
 	t := time.NewTicker(w.poll())
 	defer t.Stop()
 	for {
+		w.reportUsage(ctx)
 		for w.step(ctx) {
 		}
 		select {

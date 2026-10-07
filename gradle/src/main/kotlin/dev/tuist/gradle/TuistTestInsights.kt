@@ -642,7 +642,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             subproject.tasks.withType(Test::class.java).configureEach {
                 val testTask = this
                 testTask.usesService(serviceProvider)
-                val moduleName = if (subproject.path == ":") subproject.name else subproject.path
+                val moduleName = testModuleName(subproject)
                 testTask.addTestListener(object : TestListener {
                     override fun beforeSuite(suite: TestDescriptor) {}
                     override fun afterSuite(suite: TestDescriptor, result: TestResult) {}

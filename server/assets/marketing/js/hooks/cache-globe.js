@@ -1,15 +1,16 @@
 // Page controller for the cache globe page (/globe). It draws nothing
 // itself: the globe is the shared DitherGlobe canvas, which this hook feeds
 // with serving-region markers (active when the region served downloads in
-// the last five minutes), with request origins (places requests come from,
-// each launching arcs to its serving region at its measured rate), and
-// holds when motion is paused. Everything else is bookkeeping — the
-// counters, the region rows (which count arriving arcs between snapshots),
+// the last five minutes), delayed estimated request origins, and an optional
+// illustrative animation layer independent of measured metrics. Motion
+// pauses both layers. Everything else is bookkeeping — the
+// counters, the region rows (live totals never count estimated arcs),
 // the status line, and the demo ticker.
-// Illustrative request origins for the demo: cities, the region that
-// serves them, and their share of that region's traffic. Live data carries
-// real origins once the usage rollups record a request's country.
-const DEMO_ORIGINS = [
+// The demo uses these city-to-region shares. Live illustrative arcs use
+// only the city coordinates, not these fictional regional traffic shares.
+// Reported live origin shares remain backend estimates.
+const ILLUSTRATIVE_ARCS_PER_SECOND = 3;
+const ILLUSTRATIVE_ORIGINS = [
   { location: [37.77, -122.42], region: "us-west", share: 0.3 },
   { location: [21.31, -157.86], region: "us-west", share: 0.2 },
   { location: [61.22, -149.9], region: "us-west", share: 0.15 },
@@ -43,6 +44,7 @@ export const CacheGlobe = {
   mounted() {
     this.demo = this.el.dataset.demo === "true";
     this.snapshot = JSON.parse(this.el.dataset.snapshot);
+    this.syncClock();
     this.globe = this.el.querySelector('[data-part="globe"]');
     this.motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
     this.paused = this.motionPreference.matches;
@@ -80,15 +82,16 @@ export const CacheGlobe = {
       options,
     );
 
-    // An arc landing on a region counts toward that region's cell until
-    // the next snapshot re-syncs it to the measured value.
+    // Demo arrivals carry its illustrative totals forward. Live arcs estimate
+    // origins and replay older windows, so must never change measured totals.
     this.globe?.addEventListener(
       "dither-globe:arrival",
       (event) => {
         const { region, weight } = event.detail;
-        if (this.regionLive?.[region] == null) return;
+        if (!this.demo || this.regionLive?.[region] == null) return;
         this.regionLive[region] += weight;
         this.renderRegion(region);
+        this.sizeRegions();
       },
       options,
     );
@@ -102,6 +105,7 @@ export const CacheGlobe = {
 
   updated() {
     this.el.dataset.paused = this.paused;
+    this.syncClock();
     this.snapshot = JSON.parse(this.el.dataset.snapshot);
     this.updateSnapshot();
   },
@@ -116,6 +120,19 @@ export const CacheGlobe = {
     this.updateStatus();
   },
 
+  // Anchor playback and freshness to server time, advanced by a monotonic
+  // browser clock. A kiosk's wall-clock skew or adjustment cannot skip windows.
+  syncClock() {
+    const source = this.el.dataset.serverNow;
+    if (this.clock?.source === source) return;
+    const at = Date.parse(source);
+    if (Number.isFinite(at)) this.clock = { source, at, received: performance.now() };
+  },
+
+  serverNow() {
+    return this.clock ? this.clock.at + performance.now() - this.clock.received : Date.now();
+  },
+
   updateSnapshot() {
     if (this.demo) {
       this.demoTick = (this.demoTick || 0) + 1;
@@ -125,13 +142,14 @@ export const CacheGlobe = {
         downloads: 1482903 + this.demoTick * 137,
         bytes: 8400000000000 + this.demoTick * 928000000,
         recent_downloads: 13720,
+        recent_bytes: 92800000000,
         breakdown: this.demoRates(),
         regions: this.snapshot.regions.map((region, index) => ({
           ...region,
           downloads: Math.round((1482903 + this.demoTick * 137) * weights[index]),
           recent_downloads: Math.round(13720 * weights[index]),
         })),
-        origins: DEMO_ORIGINS.map((origin) => ({
+        origins: ILLUSTRATIVE_ORIGINS.map((origin) => ({
           ...origin,
           recent_downloads: Math.round(
             13720 * weights[this.snapshot.regions.findIndex((r) => r.id === origin.region)] * origin.share,
@@ -142,53 +160,96 @@ export const CacheGlobe = {
       this.data = this.snapshot;
     }
     const format = new Intl.NumberFormat(document.documentElement.lang || "en");
-    this.sync();
-    this.setReel(this.el.querySelector("#globe-bytes"), this.formatBytes(this.data.bytes));
     this.el.querySelector("#globe-region-count").textContent = format.format(this.data.regions.length);
-    // Region cells re-sync to the measured five-minute counts; arrivals
-    // then carry them forward until the next snapshot.
+    // Snapshots anchor daily totals; recent measured rates carry the
+    // counters forward between batches, independently of arc arrivals.
     this.regionLive = {};
     for (const region of this.data.regions) {
-      this.regionLive[region.id] = this.data.downloads == null ? null : region.recent_downloads;
-      this.renderRegion(region.id);
+      this.regionLive[region.id] = this.data.downloads == null ? null : region.downloads;
     }
+    this.updateRegionVisibility();
+    this.sync();
+    this.renderBytes(this.byteLive ? Math.floor(this.byteLive.value) : this.data.bytes);
+    for (const region of this.data.regions) this.renderRegion(region.id);
+    this.sizeRegions();
     this.renderBreakdown();
     this.updateStatus();
   },
 
-  // The counter is carried forward between snapshots: the last five minutes
-  // give a per-minute rate, and every second the counter advances by that
-  // much, the rate easing toward each new measurement instead of jumping.
-  // Snapshots land every 30 seconds. Nothing is invented:
-  // the counter only ever moves at the measured rate, and a snapshot that
-  // is ahead pulls it up straight away, while one that is behind lets the
-  // measurement catch up rather than winding the counter back.
+  // Extrapolate daily counters from the last five minutes, easing toward
+  // new rates. These are estimates between measured batches, not transfers
+  // counted by the animation. Do not rewind within a day; reset at midnight.
   sync() {
-    const downloads = this.data.downloads;
-    const rate = this.data.recent_downloads == null ? null : this.data.recent_downloads / 5;
-    if (downloads == null || rate == null) {
-      this.live = null;
-      this.renderDigits(downloads);
-      return;
+    this.live = this.syncCounter(this.data.downloads, this.data.recent_downloads, this.live);
+    this.byteLive = this.syncCounter(this.data.bytes, this.data.recent_bytes, this.byteLive);
+    const previous = this.regionCounters || {};
+    this.regionCounters = {};
+    for (const region of this.data.regions) {
+      this.regionCounters[region.id] = this.syncCounter(
+        this.data.downloads == null ? null : region.downloads,
+        region.recent_downloads,
+        previous[region.id],
+      );
     }
-    const now = performance.now();
-    this.live = {
-      value: Math.max(downloads, this.live?.value ?? 0),
-      rate: this.live?.rate ?? rate,
-      target: rate,
-      at: now,
-    };
+    if (!this.live) this.renderDigits(this.data.downloads);
     this.advance();
   },
 
+  syncCounter(value, recent, previous) {
+    if (value == null || recent == null) return null;
+    const day = this.data.updated_at?.slice(0, 10);
+    if (previous?.day !== day) previous = null;
+    const rate = recent / 300;
+    return {
+      day,
+      value: Math.max(value, previous?.value ?? 0),
+      rate: previous?.rate ?? rate,
+      target: rate,
+      at: performance.now(),
+    };
+  },
+
+  advanceCounter(counter, now) {
+    const seconds = (now - counter.at) / 1000;
+    counter.at = now;
+    // Do not extrapolate disconnected, failed, stale or quiet observations,
+    // or extend yesterday's totals beyond the UTC boundary.
+    const updated = Date.parse(this.data.updated_at);
+    const observed = Date.parse(this.data.observed_at);
+    const serverNow = this.serverNow();
+    if (
+      !this.demo &&
+      (this.offline ||
+        this.data.status === "unavailable" ||
+        !Number.isFinite(updated) ||
+        !Number.isFinite(observed) ||
+        serverNow - updated > 180000 ||
+        serverNow - observed > 300000 ||
+        new Date(serverNow).toISOString().slice(0, 10) !== counter.day)
+    )
+      return;
+    counter.rate += (counter.target - counter.rate) * Math.min(1, 0.12 * seconds);
+    counter.value += counter.rate * seconds;
+  },
+
   advance() {
-    if (!this.live) return;
     const now = performance.now();
-    const seconds = (now - this.live.at) / 1000;
-    this.live.at = now;
-    this.live.rate += (this.live.target - this.live.rate) * Math.min(1, 0.12 * seconds);
-    this.live.value += (this.live.rate / 60) * seconds;
-    this.renderDigits(Math.floor(this.live.value));
+    if (this.live) {
+      this.advanceCounter(this.live, now);
+      this.renderDigits(Math.floor(this.live.value));
+    }
+    if (this.byteLive) {
+      this.advanceCounter(this.byteLive, now);
+      this.renderBytes(Math.floor(this.byteLive.value));
+    }
+    for (const [id, counter] of Object.entries(this.regionCounters || {})) {
+      if (!counter) continue;
+      this.advanceCounter(counter, now);
+      this.regionLive[id] = Math.floor(counter.value);
+      this.renderRegion(id);
+    }
+    this.sizeRegions();
+    this.pushMarkers();
   },
 
   // The counter: at least seven digits, zero-padded, handed to the SplitFlap
@@ -298,6 +359,28 @@ export const CacheGlobe = {
     this.setReel(row.querySelector('[data-part="value"]'), value == null ? "\u2014" : format.format(Math.round(value)));
   },
 
+  updateRegionVisibility() {
+    this.visibleRegions = new Set();
+    for (const region of this.data.regions) {
+      const visible = this.data.downloads != null && region.downloads > 0;
+      const row = this.el.querySelector(`[data-region="${region.id}"]`);
+      if (row) row.hidden = !visible;
+      if (visible) this.visibleRegions.add(region.id);
+    }
+    this.el.querySelector('[data-part="regions"]').hidden = this.visibleRegions.size === 0;
+  },
+
+  sizeRegions() {
+    const format = new Intl.NumberFormat(document.documentElement.lang || "en");
+    const length = Math.max(
+      1,
+      ...Object.entries(this.regionLive || {})
+        .filter(([id]) => this.visibleRegions?.has(id) ?? true)
+        .map(([_id, value]) => (value == null ? 1 : format.format(Math.round(value)).length)),
+    );
+    this.el.querySelector('[data-part="regions"]').style.setProperty("--count-length", String(length));
+  },
+
   // Hit rate per cache. Missing observations keep a dash and an empty bar.
   renderBreakdown() {
     const shares = this.data.breakdown || {};
@@ -312,14 +395,19 @@ export const CacheGlobe = {
 
   formatBytes(bytes) {
     if (bytes == null) return "—";
-    const units = ["byte", "kilobyte", "megabyte", "gigabyte", "terabyte", "petabyte"];
-    const index = bytes > 0 ? Math.min(5, Math.floor(Math.log10(bytes) / 3)) : 0;
     return new Intl.NumberFormat(document.documentElement.lang || "en", {
       style: "unit",
-      unit: units[index],
-      unitDisplay: "short",
-      maximumFractionDigits: 1,
-    }).format(bytes / 1000 ** index);
+      unit: "byte",
+      unitDisplay: "long",
+      maximumFractionDigits: 0,
+    }).format(bytes);
+  },
+
+  renderBytes(value) {
+    const element = this.el.querySelector("#globe-bytes");
+    const text = this.formatBytes(value);
+    element?.style.setProperty("--count-length", String(text.length));
+    this.setReel(element, text);
   },
 
   updateStatus() {
@@ -331,8 +419,10 @@ export const CacheGlobe = {
     else if (this.offline) state = "offline";
     else if (this.snapshot.status === "unavailable") state = "unavailable";
     else if (!Number.isFinite(updated) || !Number.isFinite(observed)) state = "waiting";
-    else if (Date.now() - updated > 90000) state = "stale";
-    else if (Date.now() - observed > 300000) state = "idle";
+    // Allow minute refreshes, bounded queries and the 30-second web poll.
+    else if (this.serverNow() - updated > 180000) state = "stale";
+    else if (this.serverNow() - observed > 300000 && !this.data?.origins?.some((origin) => this.originRate(origin) > 0))
+      state = "idle";
     status.dataset.state = state;
     this.active = state === "live" || state === "demo";
     for (const label of status.querySelectorAll("[data-status]")) label.hidden = label.dataset.status !== state;
@@ -341,6 +431,14 @@ export const CacheGlobe = {
       if (row) row.dataset.active = this.active && region.recent_downloads > 0;
     }
     this.pushMarkers();
+  },
+
+  originRate(origin) {
+    if (this.demo) return origin.recent_downloads / 300;
+    const delay = origin.playback_delay_seconds ?? this.data.playback_delay_seconds;
+    const at = this.serverNow() - delay * 1000;
+    const start = Date.parse(origin.window_start);
+    return at >= start && at < start + origin.window_seconds * 1000 ? origin.downloads / origin.window_seconds : 0;
   },
 
   // Region coordinates are [lat, lon] in the snapshot. The list is written
@@ -354,23 +452,59 @@ export const CacheGlobe = {
       lon: region.location[1],
       active: this.active && region.recent_downloads > 0,
     }));
-    this.globe.dataset.markers = JSON.stringify(markers);
-    this.globe.dispatchEvent(new CustomEvent("dither-globe:markers", { detail: { markers } }));
-    // Origins: where requests come from, each pointed at its serving
-    // region with its five-minute count as a per-second rate. Live data
-    // carries none until the rollups record a request's country.
+    const markerData = JSON.stringify(markers);
+    if (this.globe.dataset.markers !== markerData) {
+      this.globe.dataset.markers = markerData;
+      this.globe.dispatchEvent(new CustomEvent("dither-globe:markers", { detail: { markers } }));
+    }
+    // Play complete windows behind their measured timestamps, buffered for
+    // flush/refresh/poll latency. Long windows need a longer closing-time buffer.
+    // Each batch emits steadily over its duration; there is no catch-up burst,
+    // replay restart on a patch, or invented volume in the reported layer.
     const byRegion = Object.fromEntries(this.data.regions.map((region) => [region.id, region.location]));
     const origins = (this.data.origins || [])
-      .filter((origin) => byRegion[origin.region] && origin.recent_downloads > 0)
-      .map((origin) => ({
+      .filter((origin) => byRegion[origin.region])
+      .map((origin) => {
+        const rate = this.originRate(origin);
+        return {
+          lat: origin.location[0],
+          lon: origin.location[1],
+          to: { lat: byRegion[origin.region][0], lon: byRegion[origin.region][1] },
+          region: origin.region,
+          rate: this.active ? rate : 0,
+        };
+      })
+      .filter((origin) => Number.isFinite(origin.rate) && origin.rate > 0);
+    if (!this.demo && this.active && this.el.dataset.illustrativeArcs === "true") {
+      const reportedRate = origins.reduce((sum, origin) => sum + origin.rate, 0);
+      origins.push(...this.illustrativeOrigins(Math.max(0, ILLUSTRATIVE_ARCS_PER_SECOND - reportedRate)));
+    }
+    // DitherGlobe mounts after this hook: retain the initial origins as well
+    // as dispatching updates, otherwise a fresh page waits for the next tick.
+    const originData = JSON.stringify(origins);
+    if (this.globe.dataset.origins !== originData) {
+      this.globe.dataset.origins = originData;
+      this.globe.dispatchEvent(new CustomEvent("dither-globe:origins", { detail: { origins } }));
+    }
+  },
+
+  // A bounded visual baseline, not an estimate of requests or their routes.
+  // Only recently serving regions receive it; global illustrative cities keep
+  // some paths visible as the globe rotates, even with one active region.
+  illustrativeOrigins(rate) {
+    const regions = this.data.regions.filter((region) => region.recent_downloads > 0);
+    const total = regions.reduce((sum, region) => sum + region.recent_downloads, 0);
+    if (!(rate > 0) || !(total > 0)) return [];
+    return regions.flatMap((region) =>
+      ILLUSTRATIVE_ORIGINS.map((origin) => ({
         lat: origin.location[0],
         lon: origin.location[1],
-        to: { lat: byRegion[origin.region][0], lon: byRegion[origin.region][1] },
-        region: origin.region,
-        rate: this.active ? origin.recent_downloads / 300 : 0,
-      }))
-      .filter((origin) => origin.rate > 0);
-    this.globe.dispatchEvent(new CustomEvent("dither-globe:origins", { detail: { origins } }));
+        to: { lat: region.location[0], lon: region.location[1] },
+        region: region.id,
+        rate: (rate * region.recent_downloads) / total / ILLUSTRATIVE_ORIGINS.length,
+        illustrative: true,
+      })),
+    );
   },
 
   updateMotion() {

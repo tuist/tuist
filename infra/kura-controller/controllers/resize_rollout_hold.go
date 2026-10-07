@@ -31,7 +31,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSetDuringResize(ctx context.Co
 	if err != nil || !held {
 		return err
 	}
-	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+	if err := r.applyStatefulSet(ctx, instance, true); err != nil {
 		return err
 	}
 	if err := r.replacePodsStrandedOnCPU(ctx, instance); err != nil {
@@ -45,14 +45,15 @@ func (r *KuraInstanceReconciler) reconcileStatefulSetDuringResize(ctx context.Co
 
 // holdRolloutForResize switches the StatefulSet to OnDelete and marks the
 // switch as the resize's. It reports whether the template can be reconciled
-// without rolling a running pod: the StatefulSet exists, is not being
-// replaced, and is on OnDelete, whoever set it. A positive rolling partition
-// is an operator's pause and is left alone.
+// without rolling a running pod: the StatefulSet is on OnDelete, whoever set
+// it, or is absent after the re-template and gets created held. One still
+// being replaced is not. A positive rolling partition is an operator's pause
+// and is left alone.
 func (r *KuraInstanceReconciler) holdRolloutForResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	sts := &appsv1.StatefulSet{}
 	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
 		if apierrors.IsNotFound(err) {
-			return false, nil
+			return true, nil
 		}
 		return false, err
 	}
@@ -183,4 +184,18 @@ func rolloutPausedByOperator(sts *appsv1.StatefulSet) bool {
 		return !held
 	}
 	return rollingPartitioned(sts)
+}
+
+// holdNewStatefulSetForResize puts a StatefulSet that is about to be created
+// on the resize's hold. The re-template recreates the StatefulSet with a pod
+// template whose ephemeral-storage request already follows the grown claim, and
+// the API's default RollingUpdate would replace the highest ordinal at that
+// request before a later pass could hold it, keeping the pod's old volume and
+// with it the box that volume is pinned to.
+func holdNewStatefulSetForResize(sts *appsv1.StatefulSet) {
+	sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
+	if sts.Annotations == nil {
+		sts.Annotations = map[string]string{}
+	}
+	sts.Annotations[resizeRolloutHoldAnnotation] = "true"
 }

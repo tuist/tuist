@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"

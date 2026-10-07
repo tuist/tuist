@@ -3,6 +3,7 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseRepo.PromExPlugin
+  alias TuistTestSupport.TelemetryCapture
 
   describe "tag_values/1" do
     test "labels a successful query" do
@@ -53,19 +54,14 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
   end
 
   test "a query ClickHouse stops at max_execution_time is labelled as a ClickHouse timeout" do
-    handler_id = {__MODULE__, make_ref()}
-    test_pid = self()
+    event_name = [:tuist, :click_house_repo, :query]
+    event_ref = TelemetryCapture.attach_event_handlers([event_name])
 
-    :telemetry.attach(
-      handler_id,
-      [:tuist, :click_house_repo, :query],
-      fn _event, measurements, metadata, _config ->
-        if metadata.query =~ "sleep(0.5)", do: send(test_pid, {:query, measurements, metadata})
-      end,
-      nil
-    )
+    fn -> :telemetry.execute(event_name, %{}, %{result: {:ok, %Ch.Result{}}}) end
+    |> Task.async()
+    |> Task.await()
 
-    on_exit(fn -> :telemetry.detach(handler_id) end)
+    refute_received {^event_name, ^event_ref, _measurements, _metadata}
 
     previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
     ClickHouseRepo.put_dynamic_repo(ClickHouseRepo)
@@ -75,7 +71,7 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
     ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
 
     assert {:error, %Ch.Error{code: 159}} = result
-    assert_receive {:query, %{total_time: total_time}, metadata}
+    assert_received {^event_name, ^event_ref, %{total_time: total_time}, %{query: "SELECT sleep(0.5)"} = metadata}
     assert PromExPlugin.tag_values(metadata) == %{repo: "clickhouse_read", result: "clickhouse_159"}
     assert System.convert_time_unit(total_time, :native, :millisecond) >= 100
   end

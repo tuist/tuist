@@ -16,7 +16,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   data (it depends on the pipeline and on what the changed files trigger), so
   the client says so with `signal_complete/2`, which pull request gates wait
   for. Totals are republished (`recompute/2`) a few seconds after each run
-  reports and on the signal, rewriting the commit's row one version up.
+  reports and on the signal, rewriting the commit's row one version up. A
+  complete commit's per-file figures are then stored as deltas
+  (`Tuist.Tests.Coverage.Deltas`).
 
   The row lives in PostgreSQL beside the commit graph. Folding a commit also
   advances the refs its runs reported (`Tuist.GitHistory.advance_ref/5`):
@@ -31,6 +33,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.GapReasons
   alias Tuist.Tests.Coverage.Reported
@@ -113,7 +116,9 @@ defmodule Tuist.Tests.Coverage.Commits do
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
       advance_refs(project, sha, runs)
-      summary(project.id, sha)
+      summary = summary(project.id, sha)
+      if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
+      summary
     end
   end
 
@@ -1038,9 +1043,11 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc "The commit's files with the runs' reports merged, without line data, by path."
   def merged_files(project_id, sha, opts \\ []) do
+    settings = if Keyword.get(opts, :consistent, false), do: [settings: [select_sequential_consistency: 1]], else: []
+
     case run_ids(project_id, sha) do
       [] -> []
-      ids -> ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path))
+      ids -> ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path), settings)
     end
   end
 
@@ -1051,16 +1058,33 @@ defmodule Tuist.Tests.Coverage.Commits do
   The commit's targets with their file count and line totals, least covered
   first. On a commit whose skipped tests were all carried forward they are
   over its reported coverage, as its files are (`measured: true` keeps to
-  what its runs measured).
+  what its runs measured). A complete commit's are read as stored
+  (`Tuist.Tests.Coverage.Deltas.targets/2`) when they are current.
   """
   def targets(project_id, sha, opts \\ []) do
-    case carried_files(project_id, sha, opts) do
-      nil -> measured_targets(project_id, sha, opts)
-      files -> targets_of(files)
+    with true <- deltas?(project_id, opts),
+         targets when is_list(targets) <- Deltas.targets(project_id, sha) do
+      targets
+    else
+      _ ->
+        case carried_files(project_id, sha, opts) do
+          nil -> measured_targets(project_id, sha, opts)
+          files -> targets_of(files)
+        end
     end
   end
 
-  defp targets_of(files) do
+  # A complete commit's figures are stored (`Tuist.Tests.Coverage.Deltas`)
+  # as the pages show them: carried coverage applied, the project's excluded
+  # paths left out. Other readings, commits whose stored figures are not
+  # current, and `stored: false` read the runs' rows.
+  defp deltas?(project_id, opts),
+    do:
+      Keyword.get(opts, :stored, true) and not Keyword.get(opts, :measured, false) and
+        Coverage.excluded(project_id, opts) == ExcludedPaths.pattern_for_project(project_id)
+
+  @doc false
+  def targets_of(files) do
     files
     |> Enum.flat_map(fn file -> Enum.map(file.targets, &{&1, file}) end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
@@ -1104,9 +1128,19 @@ defmodule Tuist.Tests.Coverage.Commits do
   coverage on a commit whose skipped tests were all carried forward, as
   `targets/3`. `search:` keeps the paths containing it, ignoring case, and
   `sort:` orders them as `{:coverage | :path, :asc | :desc}`, least covered
-  first by default.
+  first by default. A complete commit's files are read from their stored
+  deltas (`Tuist.Tests.Coverage.Deltas.list_files/5`) when they are current.
   """
   def list_files(project_id, sha, page, page_size, opts \\ []) do
+    with true <- deltas?(project_id, opts),
+         {_files, _count} = listed <- Deltas.list_files(project_id, sha, page, page_size, opts) do
+      listed
+    else
+      _ -> list_raw_files(project_id, sha, page, page_size, opts)
+    end
+  end
+
+  defp list_raw_files(project_id, sha, page, page_size, opts) do
     case carried_files(project_id, sha, opts) do
       nil ->
         list_measured_files(project_id, sha, page, page_size, opts)
@@ -1126,17 +1160,28 @@ defmodule Tuist.Tests.Coverage.Commits do
   `previous_executable_lines`) and `change`, in percentage points. Read as
   `list_files/5` reads a commit's files: in ClickHouse, keeping only the
   top of the list, unless coverage was carried into either commit, whose
-  files are then compared here.
+  files are then compared here. Two complete commits whose stored deltas are
+  current are compared over those instead
+  (`Tuist.Tests.Coverage.Deltas.changed_files/4`), carried coverage included.
   """
   def changed_files(project_id, from_sha, to_sha, count, opts \\ []) do
+    with true <- deltas?(project_id, opts),
+         changed when is_list(changed) <- Deltas.changed_files(project_id, from_sha, to_sha, count) do
+      changed
+    else
+      _ -> raw_changed_files(project_id, from_sha, to_sha, count, opts)
+    end
+  end
+
+  defp raw_changed_files(project_id, from_sha, to_sha, count, opts) do
     excluded = Coverage.excluded(project_id, opts)
     opts = Keyword.put(opts, :excluded, excluded)
 
     if carried_commit?(project_id, from_sha, opts) or carried_commit?(project_id, to_sha, opts) do
-      before = Map.new(commit_files(project_id, from_sha, opts), &{&1.path, &1})
+      before = Map.new(final_files(project_id, from_sha, opts), &{&1.path, &1})
 
       project_id
-      |> commit_files(to_sha, opts)
+      |> final_files(to_sha, opts)
       |> Enum.flat_map(fn file ->
         case Map.get(before, file.path) do
           %{executable_lines: executable} = previous when executable > 0 and file.executable_lines > 0 ->
@@ -1202,8 +1247,15 @@ defmodule Tuist.Tests.Coverage.Commits do
       end
   end
 
-  defp commit_files(project_id, sha, opts),
-    do: carried_files(project_id, sha, opts) || merged_files(project_id, sha, excluded: Keyword.get(opts, :excluded))
+  @doc """
+  The commit's files as its pages show them, by path: what its runs measured
+  or, when coverage was carried into it (`carried?/1`), with that coverage
+  applied, as `list_files/5` reads them. `consistent: true` reads the runs'
+  rows as of every write so far (`select_sequential_consistency`).
+  """
+  def final_files(project_id, sha, opts \\ []),
+    do:
+      carried_files(project_id, sha, opts) || merged_files(project_id, sha, Keyword.take(opts, [:excluded, :consistent]))
 
   defp measured_changed_files(_project_id, [], _to_ids, _count, _excluded), do: []
   defp measured_changed_files(_project_id, _from_ids, [], _count, _excluded), do: []
@@ -1267,7 +1319,8 @@ defmodule Tuist.Tests.Coverage.Commits do
          true <- carried?(summary),
          %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
       excluded = Coverage.excluded(project_id, opts)
-      Reported.merged_files(project, sha, merged_files(project_id, sha, excluded: excluded), excluded: excluded)
+      measured = merged_files(project_id, sha, excluded: excluded, consistent: Keyword.get(opts, :consistent, false))
+      Reported.merged_files(project, sha, measured, excluded: excluded)
     else
       _ -> nil
     end
@@ -1328,14 +1381,16 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  defp search_paths(query, ""), do: from(f in query)
+  @doc false
+  def search_paths(query, ""), do: from(f in query)
 
-  defp search_paths(query, search),
+  def search_paths(query, search),
     do: from(f in query, where: fragment("positionCaseInsensitiveUTF8(?, ?) > 0", f.path, ^search))
 
-  defp files_order({:path, direction}), do: [{direction, dynamic([f], f.path)}]
+  @doc false
+  def files_order({:path, direction}), do: [{direction, dynamic([f], f.path)}]
 
-  defp files_order({:coverage, direction}),
+  def files_order({:coverage, direction}),
     do: [
       {direction, dynamic([f], fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines))},
       {direction, dynamic([f], f.path)}

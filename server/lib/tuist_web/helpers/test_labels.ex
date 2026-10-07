@@ -33,9 +33,8 @@ defmodule TuistWeb.Helpers.TestLabels do
   def test_suites_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Test Classes")
   def test_suites_label(_), do: dgettext("dashboard_tests", "Test Suites")
 
-  # Mix has nothing like a scheme: a test run is the whole project's suite. Its
-  # runs are named after the command instead, as its builds are, and nothing
-  # offers to filter or group by scheme (see `schemes?/1`).
+  # Mix names runs after the command, with an optional execution-variant label.
+  # It does not offer scheme-based filtering or grouping (see `schemes?/1`).
   def scheme_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Command")
   def scheme_label(%Project{build_system: :bazel}), do: dgettext("dashboard_tests", "Invocation")
   def scheme_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Project")
@@ -47,6 +46,8 @@ defmodule TuistWeb.Helpers.TestLabels do
   def test_run_label(%Project{build_system: :bazel}, scheme) when scheme not in [nil, ""], do: "bazel test #{scheme}"
 
   def test_run_label(%Project{build_system: :bazel}, _scheme), do: "bazel test"
+  def test_run_label(%Project{build_system: :mix}, scheme) when scheme not in [nil, ""], do: "mix test · #{scheme}"
+
   def test_run_label(%Project{build_system: :mix}, _scheme), do: "mix test"
   def test_run_label(_project, scheme) when scheme not in [nil, ""], do: scheme
   def test_run_label(_project, _scheme), do: dgettext("dashboard_tests", "Unknown")
