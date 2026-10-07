@@ -441,6 +441,9 @@ The archive contains everything needed to understand the account's complete data
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
   SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
   project ID. Digests encode identity, not anonymization. Kept until account deletion.
+  The macOS enablement migration removes the older platform-independent uniqueness
+  constraint; identical keys can coexist on Linux and macOS. Existing records,
+  account-scoped exports and retention are unchanged.
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
   generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,

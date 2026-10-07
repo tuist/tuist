@@ -66,15 +66,24 @@ the APFS mount; no macOS container-volume support is implied.
 
 ## Rollout and rollback
 
+Managed canary and production enable custom volumes fleet-wide through
+`runnersFleet.customCacheVolumes.enabled`. Workflows opt in per directory with
+`tuist/cache-volume@v1`; no project or account allowlist is required. The chart's
+self-hosted default remains disabled. Staging also stays disabled: its 40 GiB
+cache quota cannot fit the built-in reservation plus the custom admission floor.
+Enabling staging requires a separately planned capacity change; setting the flag
+alone does not make that fleet capable of retaining custom volumes.
+
 1. Deploy the platform migration and matching server code while macOS custom
    volumes remain disabled. Linux rows retain `platform=linux` and their existing
    identity. Keep both the seven-column legacy index and the platform-aware
    index so old pods can still allocate during rollout and an image rollback.
    The legacy index intentionally prevents identical cross-platform identities
    until enablement. After all server pods use the new conflict target and the
-   rollback window closes, **ship a separate enablement migration** that drops
-   `runner_cache_volumes_provider_identity` concurrently. Do not enable macOS
-   custom volumes before that migration. This PR does not drop that index.
+   rollback window closes, `20261007150000_enable_macos_cache_volumes.exs` drops
+   `runner_cache_volumes_provider_identity` concurrently. The managed deployment's
+   pre-upgrade migration hook runs this before switching the server/host gate on.
+   Do not enable custom volumes with pre-platform server replicas still running.
    After enablement, downgrading to pre-platform code requires disabling new
    allocations, draining jobs, reclaiming macOS data/metadata, and running the
    guarded rollback to recreate the legacy index. The rollback refuses any
@@ -84,9 +93,10 @@ the APFS mount; no macOS container-volume support is implied.
    Update the client before the host verification change: publication now requires
    its lease-bound `.usage` report. Older custom-volume clients without that report
    can still read caches, but their branches are discarded after teardown.
-3. Release the CAPI provider/tart-kubelet with the APFS backend. Keep
-   `runnersFleet.customCacheVolumes.enabled=false` until staging validation.
-4. Enable that value in staging. Helm renders the server gate and shared agent
+3. Release the CAPI provider/tart-kubelet with the APFS backend and ensure the
+   deployment resolves a runner-image release containing the macOS volume client
+   and clean-detach hook, rather than the older guest image already on the fleet.
+4. Deploy the managed canary then production overlays. Helm renders the server gate and shared agent
    ServiceAccount, and passes the endpoint/namespace/SA through the existing host
    bootstrap configuration. Its normal drift mechanism rolls the host binary
    and launchd flags. Only newly booted VMs receive the custom share.
@@ -94,8 +104,10 @@ the APFS mount; no macOS container-volume support is implied.
    failures, cancellation, concurrent writers, clear during a running job,
    host restart, unavailable object storage and quota pressure. Verify the
    built-in caches still warm existing jobs without workflow edits.
-6. Enable other environments only after these checks. This implementation does
-   not change managed production values.
+6. Keep self-hosted and additional environment enablement explicit. Unavailable
+   capacity falls back to a job-local directory, so successful jobs alone are not
+   proof of persistence: require a real APFS mount on the seed run and a cache hit
+   with retained contents after publication on the verification run.
 
 For rollback, disable new server allocations first and let active jobs and
 agent journals drain before removing host enablement or rolling back binaries.
@@ -104,6 +116,13 @@ Disabling allocation leaves existing report/image cleanup endpoints available.
 Old built-in volume code and images remain compatible throughout.
 
 ## Validation record
+
+For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
+on `main` with a fresh key and phase `seed`. After successful teardown and host
+publication, dispatch `verify` with the same key: it requires a warm APFS volume
+with the original file contents, symlink and xattr. Run `fail` and then `verify`
+to prove failed-job writes are discarded. Clear that dedicated volume and run
+`seed` again to check invalidation. Do not use a key belonging to a build cache.
 
 The PR description records executed tests and outstanding staging checks.
 Local real APFS coverage creates a 20 GB image, attaches cold and warm copies,

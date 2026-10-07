@@ -123,6 +123,9 @@ This node covers Helm assets under `infra/helm/`.
 - macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
   shared runner-cache lifecycle with an APFS backend; rollout and compatibility
   are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+  Canary and production enable them fleet-wide after the platform-index
+  enablement migration. Self-hosting and staging stay off by default; staging's
+  40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
 - Cache-volume agents expose phase/source/result telemetry on a separate port
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.

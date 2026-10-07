@@ -72,7 +72,8 @@ This directory contains database migrations and other private assets.
 - Kura identity backfill is forward-only: audit historical provisioner references and reservation collisions before deployment. Unknown/conflicting references abort; never guess a live volume namespace. See `kura/docs/account-renames.md` at repository root.
 
 - Kura client URL expiry is separate from handle ownership: `client_url_expires_at` is set to 90 days when a name is retired, cleared on rename-back, and never deletes its reservation. Historical names with unknown rename dates get 90 days from the expiry migration. Both migrations are forward-only.
-- The cache-volume platform expansion retains the legacy seven-column unique
-  index for rolling Linux deployments and image rollback. Drop it concurrently
-  in a separate macOS enablement migration only after old server pods and the
-  rollback window are gone; keep the macOS custom-volume gate off until then.
+- The platform expansion initially retains the legacy seven-column unique
+  index. `20261007150000_enable_macos_cache_volumes.exs` removes it concurrently
+  after platform-aware server rollout. Its rollback requires macOS allocations
+  disabled, jobs drained and macOS data/metadata reclaimed before recreating the
+  legacy index. Do not roll back to pre-platform server images after enablement.
