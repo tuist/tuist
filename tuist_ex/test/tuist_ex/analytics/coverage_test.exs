@@ -36,12 +36,19 @@ defmodule TuistEx.Analytics.CoverageTest do
   describe "report/4" do
     test "keeps the repository's files, relative to its root, with their blobs and lines" do
       snapshot = [
-        %{path: "/repo/app/lib/a.ex", app: "app", test?: false, lines: %{5 => 0, 2 => 3, 3 => 1}},
+        %{
+          path: "/repo/app/lib/a.ex",
+          app: "app",
+          test?: false,
+          lines: %{5 => 0, 2 => 3, 3 => 1},
+          functions: [%{name: "run/1", line: 1, calls: 3, covered: 2, executable: 3}]
+        },
         %{
           path: "/repo/app/test/support/case.ex",
           app: "app",
           test?: true,
-          lines: %{1 => 2, 4 => 0}
+          lines: %{1 => 2, 4 => 0},
+          functions: [%{name: "setup/1", line: 1, calls: 2, covered: 1, executable: 2}]
         },
         %{path: "/elixir/lib/enum.ex", app: "elixir", test?: false, lines: %{1 => 1}}
       ]
@@ -62,7 +69,15 @@ defmodule TuistEx.Analytics.CoverageTest do
                  executable_lines: 3,
                  line_numbers: [2, 3, 5],
                  execution_counts: [3, 1, 0],
-                 functions: []
+                 functions: [
+                   %{
+                     name: "run/1",
+                     line_number: 1,
+                     execution_count: 3,
+                     covered_lines: 2,
+                     executable_lines: 3
+                   }
+                 ]
                },
                %{
                  path: "app/test/support/case.ex",
@@ -102,6 +117,10 @@ defmodule TuistEx.Analytics.CoverageTest do
         defmodule Inner do
           def hi, do: :hi
         end
+
+        def kind(0), do: :zero
+        def kind(n), do: n
+        def greet(name \\\\ "you"), do: name
       end
       """)
 
@@ -131,6 +150,11 @@ defmodule TuistEx.Analytics.CoverageTest do
         end
       end)
 
+      # Mix puts the build on the code path, where sources and function
+      # clauses are read from.
+      Code.prepend_path(Path.join(directory, "ebin"))
+      on_exit(fn -> Code.delete_path(Path.join(directory, "ebin")) end)
+
       %{directory: directory, source: source, cover_running?: cover_running?}
     end
 
@@ -157,11 +181,27 @@ defmodule TuistEx.Analytics.CoverageTest do
         :cover.compile_beam_directory(String.to_charlist(Path.join(directory, "ebin")))
 
       3 = apply(TuistExCoverFixture.Calculator, :add, [1, 2])
+      :zero = apply(TuistExCoverFixture.Calculator, :kind, [0])
+      5 = apply(TuistExCoverFixture.Calculator, :kind, [5])
+      "you" = apply(TuistExCoverFixture.Calculator, :greet, [])
 
-      assert %{app: "calculator", test?: false, lines: lines} =
+      assert %{app: "calculator", test?: false, lines: lines, functions: functions} =
                directory |> Coverage.snapshot(app: :calculator) |> Enum.find(&(&1.path == source))
 
-      assert lines == %{3 => 1, 7 => 0, 11 => 0}
+      assert lines == %{3 => 1, 7 => 0, 11 => 0, 14 => 1, 15 => 1, 16 => 2}
+
+      # Each function with the line it starts at, how many times it was
+      # called, and its lines; the generated `__info__/1` is left out.
+      # A function with several clauses counts the calls of each. A default
+      # argument adds a function on the same line, which owns no line of its
+      # own and is left out.
+      assert functions == [
+               %{name: "add/2", line: 2, calls: 1, covered: 1, executable: 1},
+               %{name: "unused/1", line: 6, calls: 0, covered: 0, executable: 1},
+               %{name: "hi/0", line: 11, calls: 0, covered: 0, executable: 1},
+               %{name: "kind/1", line: 14, calls: 2, covered: 2, executable: 2},
+               %{name: "greet/1", line: 16, calls: 1, covered: 1, executable: 1}
+             ]
     end
 
     test "counts a module Mimic copied under its original's source", %{
@@ -176,16 +216,23 @@ defmodule TuistEx.Analytics.CoverageTest do
       [ok: _, ok: _] =
         :cover.compile_beam_directory(String.to_charlist(Path.join(directory, "ebin")))
 
-      Code.prepend_path(Path.join(directory, "ebin"))
-      on_exit(fn -> Code.delete_path(Path.join(directory, "ebin")) end)
-
       # What `Mimic.copy/1` does to a cover-compiled module: the original moves
       # under another name, cover-compiled from its binary, which names no source.
-      Mimic.Module.replace!(TuistExCoverFixture.Calculator, [])
-      on_exit(fn -> Mimic.Module.clear!(TuistExCoverFixture.Calculator) end)
+      # Calls before the copy stay in the module's own counters.
+      3 = apply(TuistExCoverFixture.Calculator, :add, [1, 2])
+      3 = apply(TuistExCoverFixture.Calculator, :add, [1, 2])
+      3 = apply(TuistExCoverFixture.Calculator, :add, [1, 2])
+
+      {_beam, coverdata} = Mimic.Module.replace!(TuistExCoverFixture.Calculator, [])
+
+      on_exit(fn ->
+        Mimic.Module.clear!(TuistExCoverFixture.Calculator)
+        File.rm(coverdata)
+      end)
+
       3 = apply(Mimic.Module.original(TuistExCoverFixture.Calculator), :add, [1, 2])
 
-      assert %{lines: %{3 => 1, 7 => 0}} =
+      assert %{lines: %{3 => 3, 7 => 0}, functions: [%{name: "add/2", calls: 3, covered: 1} | _]} =
                directory |> Coverage.snapshot(app: :calculator) |> Enum.find(&(&1.path == source))
     end
 
@@ -206,7 +253,7 @@ defmodule TuistEx.Analytics.CoverageTest do
       assert %{lines: lines} =
                directory |> Coverage.snapshot(ignored) |> Enum.find(&(&1.path == source))
 
-      assert Map.keys(lines) == [3, 7]
+      assert Map.keys(lines) == [3, 7, 14, 15, 16]
 
       ignored = [
         app: :calculator,
