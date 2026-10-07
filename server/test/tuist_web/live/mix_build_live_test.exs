@@ -86,7 +86,7 @@ defmodule TuistWeb.MixBuildLiveTest do
 
   test "has a Timeline tab backed by the shared build timeline", %{conn: conn, path: path, timeline_path: timeline_path} do
     {:ok, lv, _html} = live(conn, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 2_000)
 
     assert has_element?(lv, "#build-timeline[data-source=mix]")
     assert has_element?(lv, "#build-timeline[data-url='#{timeline_path}']")

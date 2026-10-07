@@ -84,7 +84,8 @@ defmodule Tuist.Runners.CacheVolumes.BuiltinTest do
     assert Repo.aggregate(Usage, :count) == 1
     assert Repo.aggregate(Measurement, :count) == 2
     period = {DateTime.add(DateTime.utc_now(), -120), DateTime.utc_now()}
-    assert %{uses: 1, hit_rate: 0.0} = CacheVolumes.usage_analytics(account.id, id, period)
+    assert %{uses: 1, hit_rate: hit_rate} = CacheVolumes.usage_analytics(account.id, id, period)
+    assert hit_rate === 0.0
 
     assert %{used_bytes: 4096, capacity_bytes: 20_000_000_000} =
              List.last(CacheVolumes.storage_history(account.id, period))
