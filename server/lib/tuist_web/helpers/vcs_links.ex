@@ -124,13 +124,16 @@ defmodule TuistWeb.Helpers.VCSLinks do
 
     ~H"""
     <%= if has_github_vcs?(@project) and valid_repository_path?(@path) and @valid_source_ref do %>
-      <a
+      <.link_button
         href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}/blob/#{@encoded_source_ref}/#{@encoded_path}"}
+        label={@path}
+        variant="primary"
+        size="medium"
+        underline
         target="_blank"
+        rel="noopener noreferrer"
         {@rest}
-      >
-        {@path}
-      </a>
+      />
     <% else %>
       <span {@rest}>{@path}</span>
     <% end %>

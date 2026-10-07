@@ -97,6 +97,10 @@ defmodule TuistWeb.Helpers.VCSLinksTest do
       html = render_component(&VCSLinks.source_file_link/1, assigns)
 
       assert html =~ ~s(href="https://github.example.com/org/repo/blob/abc123/Sources/App/main.swift")
+      assert html =~ ~s(class="noora-link-button")
+      assert html =~ ~s(data-variant="primary")
+      assert html =~ ~s(data-underline)
+      assert html =~ ~s(rel="noopener noreferrer")
     end
 
     test "encodes repository filenames and supports hidden directories" do
