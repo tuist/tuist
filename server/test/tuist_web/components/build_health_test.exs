@@ -16,31 +16,65 @@ defmodule TuistWeb.Components.BuildHealthTest do
     assert BuildHealth.category_label("") == "—"
   end
 
-  test "missing and zero cache savings remain distinct, and coverage includes zero reports" do
+  test "missing and zero task time estimates remain distinct" do
     missing =
-      render_component(&BuildHealth.cache_card/1,
+      render_component(&BuildHealth.cache_widget/1,
         health:
           AsyncResult.ok(%{totals: %{"cache_work_avoided" => nil, "cache_work_avoided_samples" => 0, "builds" => 4}})
       )
 
     assert missing =~ "Not reported"
-    assert missing =~ "0 of 4 builds"
+    refute missing =~ "Reporting coverage"
 
     zero =
-      render_component(&BuildHealth.cache_card/1,
+      render_component(&BuildHealth.cache_widget/1,
         health: AsyncResult.ok(%{totals: %{"cache_work_avoided" => 0, "cache_work_avoided_samples" => 1, "builds" => 4}})
       )
 
     refute zero =~ "Not reported"
-    assert zero =~ "1 of 4 builds"
+    assert zero =~ "0ms"
     assert zero =~ "not elapsed build time saved"
+  end
+
+  test "task time chart preserves gaps and recorded zero estimates" do
+    health =
+      AsyncResult.ok(%{
+        totals: %{"cache_work_avoided" => 0},
+        dates: [1_700_000_000, 1_700_086_400],
+        series: %{"cache_work_avoided" => [nil, 0]}
+      })
+
+    html = render_component(&BuildHealth.cache_chart/1, health: health)
+    assert html =~ "gradle-task-time-saved-chart"
+    options = html |> Floki.parse_fragment!() |> Floki.find("[data-part=data]") |> Floki.text() |> JSON.decode!()
+    assert Enum.map(hd(options["series"])["data"], &List.last/1) == [nil, 0]
+    assert html =~ "Estimated task time saved"
+    refute html =~ "No task time estimates reported"
+
+    missing =
+      render_component(&BuildHealth.cache_chart/1, health: AsyncResult.ok(%{totals: %{"cache_work_avoided" => nil}}))
+
+    assert missing =~ "No task time estimates reported"
+    refute missing =~ "gradle-task-time-saved-chart"
+  end
+
+  test "failure category badges explain the classification and are keyboard focusable" do
+    for category <- ["verification", "infrastructure_tooling", "unknown"] do
+      html = render_component(&BuildHealth.category_cell/1, category: category, id: "build-123")
+      assert html =~ "build-123-failure-category"
+      assert html =~ "tabindex=\"0\""
+      assert html =~ "recorded build data"
+    end
   end
 
   test "loading and failure states never masquerade as no failures or zero cache savings" do
     for health <- [AsyncResult.loading(), AsyncResult.failed(AsyncResult.loading(), {:exit, :timeout})] do
-      cache = render_component(&BuildHealth.cache_card/1, health: health)
+      cache = render_component(&BuildHealth.cache_widget/1, health: health)
       refute cache =~ "0 of"
       refute cache =~ "Not reported"
+      chart = render_component(&BuildHealth.cache_chart/1, health: health)
+      refute chart =~ "No task time estimates reported"
+      refute chart =~ "gradle-task-time-saved-chart"
     end
   end
 end

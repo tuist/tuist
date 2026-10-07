@@ -101,3 +101,5 @@ This area owns LiveView pages and components for the web UI.
 
 
 - Existing build tables show shared failure categories for Gradle, Xcode, Bazel and Once. Build Runs pages sort and filter this virtual column in the database before pagination; successful, cancelled and unfinished runs leave it empty. `BuildHealth` shares category labels/filter options and the Gradle cache savings card. Preserve missing versus zero estimates and source-specific navigation. Gradle detail fields use the same responsive metadata grid and duration icon.
+
+- Gradle estimated task time saved belongs in the existing Cache Analytics card as a fourth selectable widget with its own time-series chart. Reporting coverage remains available through Grafana metrics, without a prominent native widget. Keep its async failure independent of existing cache metrics, and preserve missing versus recorded zero estimates.

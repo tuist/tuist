@@ -118,7 +118,6 @@
       </:actions>
     </.date_picker>
   </div>
-  <TuistWeb.Components.BuildHealth.cache_card health={@build_health} />
   <.async_card
     :let={ready?}
     results={[
@@ -273,12 +272,21 @@
         selected={@analytics_selected_widget == "cache_uploads"}
         empty={ready? && @cache_events.result.uploads.total_size == 0}
       />
+      <TuistWeb.Components.BuildHealth.cache_widget
+        health={@build_health}
+        selected={@analytics_selected_widget == "cache_work_avoided"}
+      />
     </div>
+    <TuistWeb.Components.BuildHealth.cache_chart
+      :if={@analytics_selected_widget == "cache_work_avoided"}
+      health={@build_health}
+      preset={@analytics_preset}
+    />
     <.card_section
       :if={
         (@analytics_selected_widget == "cache_hit_rate" and
            !ready?) or
-          (@analytics_selected_widget != "cache_hit_rate" and !ready?)
+          (@analytics_selected_widget not in ["cache_hit_rate", "cache_work_avoided"] and !ready?)
       }
       data-chart-frame="standard"
     >
@@ -452,7 +460,7 @@
     </.card_section>
     <.card_section
       :if={
-        @analytics_selected_widget != "cache_hit_rate" and
+        @analytics_selected_widget not in ["cache_hit_rate", "cache_work_avoided"] and
           ready? and
           (@hit_rate_analytics.result.has_data or
              @cache_events.result.downloads.total_size != 0 or
@@ -528,7 +536,8 @@
     </.card_section>
     <.empty_card_section
       :if={
-        (ready? && !@hit_rate_analytics.result.has_data) and
+        @analytics_selected_widget != "cache_work_avoided" and
+          (ready? && !@hit_rate_analytics.result.has_data) and
           @cache_events.result.downloads.total_size == 0 and
           @cache_events.result.uploads.total_size == 0
       }

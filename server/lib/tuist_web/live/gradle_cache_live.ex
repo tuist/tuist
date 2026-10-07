@@ -68,7 +68,7 @@ defmodule TuistWeb.GradleCacheLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.hit_rate_analytics.ok? do
+    if widget != "cache_work_avoided" && socket.assigns.hit_rate_analytics.ok? do
       chart_data =
         analytics_chart_data(
           widget,

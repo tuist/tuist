@@ -13,7 +13,7 @@ defmodule TuistWeb.GradleCacheLiveTest do
     %{project: project, conn: Plug.Conn.assign(conn, :selected_project, project)}
   end
 
-  test "cache savings and reporting coverage follow the selected environment", %{conn: conn, project: project} do
+  test "task time saved widget and chart follow the selected environment", %{conn: conn, project: project} do
     inserted_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.truncate(:second) |> DateTime.to_naive()
 
     for {is_ci, metadata} <- [
@@ -33,15 +33,26 @@ defmodule TuistWeb.GradleCacheLiveTest do
     {:ok, view, _} = live(conn, path)
     render_async(view, 5_000)
     assert has_element?(view, "#cache-work-avoided", "151ms")
-    assert has_element?(view, "#cache-savings-coverage", "2 of 3 builds")
+    refute has_element?(view, "#cache-savings-coverage")
+    refute has_element?(view, "#gradle-cache-savings")
+    view |> element("[phx-value-widget=cache_work_avoided]") |> render_click()
+    assert has_element?(view, "#gradle-task-time-saved-chart")
+    refute has_element?(view, "#gradle-analytics-chart")
 
     render_patch(view, path <> "?analytics-environment=ci")
     render_async(view, 5_000)
-    assert has_element?(view, "#cache-savings-coverage", "1 of 1 builds")
+    assert has_element?(view, "#cache-work-avoided", "151ms")
+    refute has_element?(view, "#cache-savings-coverage")
 
     render_patch(view, path <> "?analytics-environment=local")
     render_async(view, 5_000)
     assert has_element?(view, "#cache-work-avoided", "0ms")
-    assert has_element?(view, "#cache-savings-coverage", "1 of 2 builds")
+    refute has_element?(view, "#cache-savings-coverage")
+    render_patch(view, path <> "?analytics-environment=local&analytics-selected-widget=cache_work_avoided")
+    render_async(view, 5_000)
+    assert has_element?(view, "#gradle-task-time-saved-chart")
+
+    render_click(view, "select_widget", %{"widget" => "cache_downloads"})
+    refute has_element?(view, "#gradle-task-time-saved-chart")
   end
 end

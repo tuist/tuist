@@ -4,86 +4,167 @@ defmodule TuistWeb.Components.BuildHealth do
   use Noora
 
   import TuistWeb.Components.AsyncCard
+  import TuistWeb.Components.EmptyCardSection
 
   alias Tuist.Utilities.DateFormatter
 
   attr :health, :any, required: true
+  attr :selected, :boolean, default: false
 
-  def cache_card(assigns) do
+  def cache_widget(assigns) do
     ~H"""
-    <.async_card
-      :let={ready?}
-      icon="chart_arcs"
-      title={dgettext("dashboard_gradle", "Cache savings")}
-      results={[@health]}
-      id="gradle-cache-savings"
-      data-part="analytics-card"
-    >
-      <div data-part="widgets">
-        <.widget
-          id="cache-work-avoided"
-          title={dgettext("dashboard_gradle", "Estimated cache work avoided")}
-          description={
-            dgettext(
-              "dashboard_gradle",
-              "Cumulative task execution time avoided by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-            )
+    <.widget
+      id="cache-work-avoided"
+      title={dgettext("dashboard_gradle", "Estimated task time saved")}
+      legend_color="p90"
+      description={
+        dgettext(
+          "dashboard_gradle",
+          "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
+        )
+      }
+      loading={!@health.ok?}
+      value={
+        if @health.ok? && !is_nil(@health.result.totals["cache_work_avoided"]),
+          do:
+            DateFormatter.format_duration_from_milliseconds(
+              @health.result.totals["cache_work_avoided"]
+            ),
+          else: ""
+      }
+      empty={@health.ok? && is_nil(@health.result.totals["cache_work_avoided"])}
+      empty_label={dgettext("dashboard_gradle", "Not reported")}
+      phx_click="select_widget"
+      phx_value_widget="cache_work_avoided"
+      selected={@selected}
+    />
+    """
+  end
+
+  attr :health, :any, required: true
+
+  attr :preset, :string, default: "last-30-days"
+
+  def cache_chart(assigns) do
+    ~H"""
+    <.async_section :let={ready?} results={[@health]}>
+      <.card_section
+        :if={!ready? || !is_nil(@health.result.totals["cache_work_avoided"])}
+        data-chart-frame="standard"
+      >
+        <TuistWeb.Components.Skeleton.skeleton_chart :if={!ready?} />
+        <.chart
+          :if={ready? && !is_nil(@health.result.totals["cache_work_avoided"])}
+          id="gradle-task-time-saved-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
+              xAxis: %{
+                type: "category",
+                boundaryGap: false,
+                axisLabel: %{
+                  formatter:
+                    if(@preset == "last-24-hours", do: "fn:toLocaleDateHour", else: "fn:toLocaleDate")
+                }
+              },
+              yAxis: %{axisLabel: %{formatter: "fn:formatMilliseconds"}},
+              tooltip: %{
+                valueFormat: "fn:formatMilliseconds",
+                dateFormat: if(@preset == "last-24-hours", do: "hour", else: "date")
+              },
+              legend: %{show: false}
+            }
           }
-          loading={!ready?}
-          value={
-            if ready? && !is_nil(@health.result.totals["cache_work_avoided"]),
-              do:
-                DateFormatter.format_duration_from_milliseconds(
-                  @health.result.totals["cache_work_avoided"]
+          series={[
+            %{
+              name: dgettext("dashboard_gradle", "Estimated task time saved"),
+              data:
+                Enum.zip_with(
+                  @health.result.dates,
+                  @health.result.series["cache_work_avoided"],
+                  fn date, value ->
+                    [date |> DateTime.from_unix!() |> DateTime.to_iso8601(), value]
+                  end
                 ),
-              else: ""
-          }
-          empty={ready? && is_nil(@health.result.totals["cache_work_avoided"])}
-          empty_label={dgettext("dashboard_gradle", "Not reported")}
+              type: "line",
+              smooth: 0.1,
+              symbol: "circle",
+              symbolSize: 6,
+              color: "var:noora-chart-p90"
+            }
+          ]}
+          y_axis_min={0}
         />
-        <.widget
-          id="cache-savings-coverage"
-          title={dgettext("dashboard_gradle", "Reporting coverage")}
-          description={
-            dgettext(
-              "dashboard_gradle",
-              "Builds that reported an estimate, including recorded zero savings."
-            )
-          }
-          loading={!ready?}
-          value={
-            if ready?,
-              do:
-                dgettext("dashboard_gradle", "%{reported} of %{total} builds",
-                  reported:
-                    TuistWeb.CldrHelpers.format_number(
-                      @health.result.totals["cache_work_avoided_samples"]
-                    ),
-                  total: TuistWeb.CldrHelpers.format_number(@health.result.totals["builds"])
-                ),
-              else: ""
-          }
-        />
-      </div>
-    </.async_card>
+      </.card_section>
+      <.empty_card_section
+        :if={ready? && is_nil(@health.result.totals["cache_work_avoided"])}
+        title={dgettext("dashboard_gradle", "No task time estimates reported for this period.")}
+        data-chart-frame="standard"
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </.async_section>
     """
   end
 
   attr :category, :string, required: true
+  attr :id, :string, required: true
 
   def category_cell(assigns) do
     ~H"""
-    <.badge_cell
+    <.tooltip
       :if={@category in ["verification", "infrastructure_tooling", "unknown"]}
-      label={category_label(@category)}
-      color="neutral"
-      style="light-fill"
-    />
+      id={@id <> "-failure-category"}
+      size="large"
+      title={dgettext("dashboard_builds", "Failure category")}
+      description={category_description(@category)}
+    >
+      <:trigger :let={attrs}>
+        <span {attrs} tabindex="0">
+          <.badge_cell label={category_label(@category)} color="neutral" style="light-fill" />
+        </span>
+      </:trigger>
+    </.tooltip>
     <.text_cell
       :if={@category not in ["verification", "infrastructure_tooling", "unknown"]}
       label="—"
     />
     """
+  end
+
+  defp category_description("verification") do
+    dgettext(
+      "dashboard_builds",
+      "Tuist classifies failures using recorded build data. Verification includes compilation, test, lint and check errors."
+    )
+  end
+
+  defp category_description("infrastructure_tooling") do
+    dgettext(
+      "dashboard_builds",
+      "Tuist classifies failures using recorded build data. Infrastructure and tooling includes configuration, dependency resolution and execution infrastructure errors."
+    )
+  end
+
+  defp category_description("unknown") do
+    dgettext(
+      "dashboard_builds",
+      "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
+    )
   end
 
   def category_filter do

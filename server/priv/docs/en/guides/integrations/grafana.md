@@ -41,7 +41,7 @@ Test duration metrics use the test runs recorded in Tuist. The slow-build thresh
 
 | Metric | Identifier | What it measures |
 | --- | --- | --- |
-| Estimated cache work avoided (Gradle) | `cache_work_avoided` | Sum of estimated task execution time avoided by cache hits. |
+| Estimated task time saved (Gradle) | `cache_work_avoided` | Sum of estimated task execution time avoided by cache hits. |
 | Builds reporting estimated work avoided | `cache_work_avoided_samples` | Builds with a complete estimate. |
 | Reported cache time saved | `cache_time_saved` | Sum of reported elapsed savings. |
 | Builds reporting cache time saved | `cache_time_saved_samples` | Builds with a valid savings value. |
@@ -68,7 +68,7 @@ Recent failures include start time, duration, user, branch, and requested tasks.
 
 Workload summaries and branch/workload value lists return up to 1000 values. Build-health variable queries use the last 90 days; legacy Gradle variable queries keep their existing history window. Bazel shows the build user reported by the tool. Other integrations show the account associated with the reporting credential. Historical Bazel and Once runs, and Once runs reported with project credentials, appear as Unknown when no user was recorded.
 
-Tuist’s build tables also show failure categories. On the Build Runs page, use the Failure category column to sort runs, or the filter menu to show a category. Successful and cancelled builds have no failure category. For Gradle, the cache insights page shows estimated cache work avoided and reporting coverage, and each build’s details show its recorded estimate.
+Tuist’s build tables also show failure categories. On the Build Runs page, use the Failure category column to sort runs, or the filter menu to show a category. Successful and cancelled builds have no failure category. For Gradle, the cache insights page includes an Estimated task time saved widget and chart in the Analytics card. Each build’s details show its recorded estimate. Hover over a failure category badge, or focus it with the keyboard, to see how Tuist classified the failure.
 
 ## Standard dashboard {#what-you-can-query}
 

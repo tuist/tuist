@@ -898,7 +898,10 @@ defmodule TuistWeb.OnceRunsLive do
                 patch={TuistWeb.OnceRunsLive.column_patch_sort(assigns, "failure-category")}
                 sort_order={@invocations_sort_by == "failure-category" && @invocations_sort_order}
               >
-                <TuistWeb.Components.BuildHealth.category_cell category={invocation.failure_category} />
+                <TuistWeb.Components.BuildHealth.category_cell
+                  category={invocation.failure_category}
+                  id={"once_runs_live-#{invocation.invocation_id}"}
+                />
               </:col>
               <:col :let={invocation} label={dgettext("dashboard_builds", "Branch")}>
                 <.text_cell

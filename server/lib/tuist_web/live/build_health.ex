@@ -58,6 +58,6 @@ defmodule TuistWeb.BuildHealth do
   end
 
   defp query_health(project_id, opts, :cache) do
-    BuildMetrics.query(project_id, Keyword.put(opts, :view, "total"))
+    BuildMetrics.query(project_id, Keyword.put(opts, :view, "series"))
   end
 end
