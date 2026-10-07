@@ -82,6 +82,7 @@
           </h3>
           <.modal
             id="create-threshold-modal"
+            data-threshold-modal
             title={dgettext("dashboard_projects", "Create size threshold")}
             header_size="large"
             on_dismiss="close_create_threshold_modal"
@@ -175,6 +176,7 @@
                 <.text_input
                   type="basic"
                   id="create-threshold-deviation"
+                  hint={deviation_hint(@create_form_unit)}
                   name="deviation"
                   value={@create_form_deviation}
                   placeholder="5.0"
@@ -271,6 +273,7 @@
                 <% form = Map.get(@edit_threshold_forms, threshold.id, %{}) %>
                 <.modal
                   id={"update-threshold-modal-#{threshold.id}"}
+                  data-threshold-modal
                   title={dgettext("dashboard_projects", "Update size threshold")}
                   header_size="large"
                   on_dismiss={JS.push("close_edit_threshold_modal", value: %{id: threshold.id})}
@@ -361,6 +364,7 @@
                       <.text_input
                         type="basic"
                         id={"edit-threshold-deviation-#{threshold.id}"}
+                        hint={deviation_hint(form[:unit] || threshold_unit(threshold))}
                         name="deviation"
                         value={form[:deviation] || threshold_value(threshold)}
                         phx-keyup="update_edit_form_deviation"

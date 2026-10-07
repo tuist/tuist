@@ -186,9 +186,9 @@ msgstr ""
 #: lib/tuist_web/live/once_overview_live.ex:368
 #: lib/tuist_web/live/once_runs_live.ex:379
 #: lib/tuist_web/live/project_automations_live.html.heex:1082
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:220
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:407
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:559
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:222
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:411
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:563
 #: lib/tuist_web/live/project_notifications_live.html.heex:172
 #: lib/tuist_web/live/project_notifications_live.html.heex:499
 #: lib/tuist_web/live/project_notifications_live.html.heex:844
@@ -346,9 +346,9 @@ msgstr ""
 #: lib/tuist_web/live/create_project_live.ex:83
 #: lib/tuist_web/live/project_automations_live.html.heex:88
 #: lib/tuist_web/live/project_automations_live.html.heex:1140
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:119
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:246
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:303
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:120
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:248
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:306
 #: lib/tuist_web/live/project_notifications_live.html.heex:282
 #: lib/tuist_web/live/project_notifications_live.html.heex:430
 #: lib/tuist_web/live/project_notifications_live.html.heex:524
@@ -665,7 +665,7 @@ msgid "Never"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1099
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:416
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:420
 #: lib/tuist_web/live/project_notifications_live.html.heex:180
 #: lib/tuist_web/live/project_settings_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -723,9 +723,9 @@ msgstr ""
 msgid "Get notified when metrics regress"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:133
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:249
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:317
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:134
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:251
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:320
 #: lib/tuist_web/live/project_notifications_live.html.heex:325
 #: lib/tuist_web/live/project_notifications_live.html.heex:530
 #: lib/tuist_web/live/project_notifications_live.html.heex:639
@@ -869,7 +869,7 @@ msgid "tests"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1102
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:228
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:230
 #: lib/tuist_web/live/project_notifications_live.html.heex:507
 #: lib/tuist_web/live/projects_live.ex:430
 #, elixir-autogen, elixir-format
@@ -881,7 +881,7 @@ msgstr ""
 msgid "Create alert rule"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:252
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:254
 #: lib/tuist_web/live/project_notifications_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Deviation"
@@ -1004,8 +1004,8 @@ msgstr ""
 msgid "Scheme"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:208
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:394
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:210
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:398
 #: lib/tuist_web/live/project_notifications_live.html.heex:423
 #: lib/tuist_web/live/project_notifications_live.html.heex:437
 #: lib/tuist_web/live/project_notifications_live.html.heex:753
@@ -1037,19 +1037,19 @@ msgstr ""
 msgid "local"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:91
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Add threshold"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:265
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:187
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:255
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:373
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:189
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:257
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Baseline branch"
 msgstr ""
@@ -1059,19 +1059,19 @@ msgstr ""
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:201
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:258
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:387
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:203
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:260
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Bundle name"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:452
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:85
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Create size threshold"
 msgstr ""
@@ -1081,7 +1081,7 @@ msgstr ""
 msgid "Deviation %"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:450
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
 msgstr ""
@@ -1091,7 +1091,7 @@ msgstr ""
 msgid "Size thresholds"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:126
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Threshold name"
 msgstr ""
@@ -1101,7 +1101,7 @@ msgstr ""
 msgid "Thresholds"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:274
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:277
 #, elixir-autogen, elixir-format
 msgid "Update size threshold"
 msgstr ""
@@ -1789,13 +1789,13 @@ msgstr ""
 msgid "Show more"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:567
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:515
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:527
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:519
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:531
 #, elixir-autogen, elixir-format
 msgid "Add approver"
 msgstr ""
@@ -1810,17 +1810,17 @@ msgstr ""
 msgid "Anyone with write access to the repository."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:467
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "Approvals"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:512
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Approvers"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:469
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:473
 #, elixir-autogen, elixir-format
 msgid "Choose who can accept a bundle size increase that exceeded a threshold."
 msgstr ""
@@ -1835,8 +1835,8 @@ msgstr ""
 msgid "Enter a valid GitHub username that isn't already on the list."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:539
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:582
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:543
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:586
 #, elixir-autogen, elixir-format
 msgid "GitHub username"
 msgstr ""
@@ -1846,12 +1846,12 @@ msgstr ""
 msgid "No GitHub user with that username."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:603
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:607
 #, elixir-autogen, elixir-format
 msgid "No approvers"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:605
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
 msgstr ""
@@ -1872,12 +1872,12 @@ msgstr ""
 msgid "The approver could not be added."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:521
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:480
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Who can accept"
 msgstr ""
@@ -3280,19 +3280,14 @@ msgstr ""
 msgid "Absolute size (MB)"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:413
+#: lib/tuist_web/live/project_bundle_settings_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:421
+#: lib/tuist_web/live/project_bundle_settings_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
-msgstr ""
-
-#: lib/tuist_web/live/project_bundle_settings_live.ex:378
-#, elixir-autogen, elixir-format
-msgid "Deviation MB (1 MB = 1,000,000 bytes)"
 msgstr ""
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:362
@@ -3310,8 +3305,18 @@ msgstr ""
 msgid "The size threshold could not be saved. Check the name and baseline branch."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:155
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:340
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:156
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Threshold type"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:380
+#, elixir-autogen, elixir-format
+msgid "1 MB = 1,000,000 bytes"
+msgstr ""
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:378
+#, elixir-autogen, elixir-format
+msgid "Deviation (MB)"
 msgstr ""

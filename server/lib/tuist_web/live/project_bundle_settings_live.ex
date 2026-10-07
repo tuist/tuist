@@ -375,7 +375,10 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
   defp unit_label("megabytes"), do: dgettext("dashboard_projects", "Absolute size (MB)")
 
   defp deviation_label("percentage"), do: dgettext("dashboard_projects", "Deviation %")
-  defp deviation_label("megabytes"), do: dgettext("dashboard_projects", "Deviation MB (1 MB = 1,000,000 bytes)")
+  defp deviation_label("megabytes"), do: dgettext("dashboard_projects", "Deviation (MB)")
+
+  defp deviation_hint("megabytes"), do: dgettext("dashboard_projects", "1 MB = 1,000,000 bytes")
+  defp deviation_hint(_unit), do: nil
 
   defp valid_limit?(unit, value), do: match?({:ok, _}, limit_attrs(unit, value))
 

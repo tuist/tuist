@@ -12,6 +12,26 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create threshold" do
+    test "shows MB unit help below the input, only for absolute limits", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      render_hook(lv, "open_create_threshold_modal")
+      refute render(lv) =~ "1 MB = 1,000,000 bytes"
+
+      html = render_hook(lv, "update_create_form_unit", %{"unit" => "megabytes"})
+      assert html =~ "Deviation (MB)"
+      assert html =~ "1 MB = 1,000,000 bytes"
+      assert html =~ ~s(class="noora-hint-text")
+      refute html =~ "Deviation MB (1 MB ="
+
+      html = render_hook(lv, "update_create_form_unit", %{"unit" => "percentage"})
+      assert html =~ "Deviation %"
+      refute html =~ "1 MB = 1,000,000 bytes"
+    end
+
     for metric <- ["install_size", "download_size"] do
       @metric metric
       test "creates an absolute #{@metric} limit in decimal MB", %{
@@ -95,6 +115,27 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
   end
 
   describe "update threshold" do
+    test "shows compact labels and updates unit help when editing a limit", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 1_500_000)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      html = render(lv)
+      assert html =~ "Deviation (MB)"
+      assert html =~ "1 MB = 1,000,000 bytes"
+      assert html =~ ~s(class="noora-hint-text")
+      refute html =~ "Deviation MB (1 MB ="
+
+      html = render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "percentage"})
+      assert html =~ "Deviation %"
+      refute html =~ "1 MB = 1,000,000 bytes"
+
+      html = render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "megabytes"})
+      assert html =~ "1 MB = 1,000,000 bytes"
+    end
+
     test "preserves percentages and switches units in both directions", %{
       conn: conn,
       organization: organization,
