@@ -70,6 +70,8 @@ Provider API optimizations (tag listing and source archive downloads) require an
 
 If you previously relied on automatic provider-token discovery, configure Git authentication as you would for native SwiftPM. Use the explicit SwifterPM variables only to opt into API optimizations; use host-scoped netrc, the keychain, or `SWIFTPM_SOURCE_CONTROL_TOKEN` for private binary artifacts.
 
+`swifterpm restore`, used by the Buck2 and Bazel helpers, never delegates to native SwiftPM. These changes therefore change restore behavior, unlike cold `resolve` or `tuist install`, which already delegate to native SwiftPM. With a cold cache and no SSH access, an SSH-declared dependency now fails instead of restoring through automatic `GH_TOKEN` discovery or an anonymous HTTPS fallback, even when the repository is public. Configure Git access for the declared transport, or explicitly use a mirror or Git URL rewrite if HTTPS is required. `SWIFTERPM_GITHUB_TOKEN` can still enable source archives, but does not authenticate Git. For deploy keys previously configured through `core.sshCommand` or `GIT_SSH`, set `GIT_SSH_COMMAND` explicitly so the native-style default does not override the custom command.
+
 By default, `swifterpm` copies cached directories into the project scratch directory during [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) (CI) and symlinks them elsewhere. Pass `--cached-directory-materialization=symlink` to preserve global-cache symlinks during continuous integration. The accepted values are `automatic`, `copy`, and `symlink`.
 
 > [!NOTE]
