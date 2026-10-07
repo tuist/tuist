@@ -510,6 +510,45 @@ defmodule Tuist.ShardsTest do
       assert outer_shard["estimated_duration_ms"] == 6_000
     end
 
+    test "resolves the suites of a previous plan with more shards than the inventory reads runs" do
+      project = ProjectsFixtures.project_fixture()
+      suites = Enum.map(1..10, &"com.example.Suite#{&1}Test")
+      previous_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 10, granularity: "suite")
+
+      # Each shard uploads its own report, and the reports of a plan are merged into one test run.
+      for {suite, shard_index} <- Enum.with_index(suites) do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: project.default_branch,
+          shard_plan_id: previous_plan.id,
+          shard_index: shard_index,
+          test_modules: [
+            %{
+              name: ":app",
+              status: "success",
+              duration: 1_000,
+              test_cases: [],
+              test_suites: [%{name: suite, status: "success", duration: 1_000}]
+            }
+          ]
+        )
+      end
+
+      RunsFixtures.optimize_test_runs()
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "more-shards-than-inventory-runs",
+          modules: [":app"],
+          granularity: "suite",
+          shard_max: 10
+        })
+
+      assert result.shard_count == 10
+      assert planned_targets(result) == MapSet.new(suites, &":app/#{&1}")
+    end
+
     test "keeps suite names that are not JVM class names as they are" do
       project = ProjectsFixtures.project_fixture()
 
