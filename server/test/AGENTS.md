@@ -64,3 +64,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Shared Grafana build-health regression coverage lives in `tuist/build_metrics_test.exs`, alongside the legacy Gradle tests. Exercise both database sources, terminal status semantics, source-specific links, missing evidence, and project/range isolation.
 
 - Native build-health regression coverage checks database source dimensions, Xcode overview scheme/environment wiring, Gradle cache environment/coverage wiring, and missing versus zero detail estimates. Component tests check category labels, source-specific navigation and loading/failure states.
+
+- Native failure-category listing coverage checks project isolation, filtering before pagination, ascending and descending ordering, tied Xcode cursors, historical compiler/task evidence, and empty categories for non-failures. Keep native and Grafana categories aligned.

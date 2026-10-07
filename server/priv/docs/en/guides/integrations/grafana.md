@@ -68,7 +68,7 @@ Recent failures include start time, duration, user, branch, and requested tasks.
 
 Workload summaries and branch/workload value lists return up to 1000 values. Build-health variable queries use the last 90 days; legacy Gradle variable queries keep their existing history window. Bazel shows the build user reported by the tool. Other integrations show the account associated with the reporting credential. Historical Bazel and Once runs, and Once runs reported with project credentials, appear as Unknown when no user was recorded.
 
-Failure categories are also available on Tuist’s build overview pages. For Gradle, the cache insights page shows estimated cache work avoided and reporting coverage, and each build’s details show its recorded estimate.
+Tuist’s build tables also show failure categories. On the Build Runs page, use the Failure category column to sort runs, or the filter menu to show a category. Successful and cancelled builds have no failure category. For Gradle, the cache insights page shows estimated cache work avoided and reporting coverage, and each build’s details show its recorded estimate.
 
 ## Standard dashboard {#what-you-can-query}
 

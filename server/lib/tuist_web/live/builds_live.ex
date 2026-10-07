@@ -71,7 +71,7 @@ defmodule TuistWeb.BuildsLive do
           {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
       end
 
-    {:noreply, TuistWeb.BuildHealth.assign_health(socket)}
+    {:noreply, socket}
   end
 
   def handle_info(_event, socket) do

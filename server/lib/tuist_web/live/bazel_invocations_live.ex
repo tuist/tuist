@@ -12,6 +12,7 @@ defmodule TuistWeb.BazelInvocationsLive do
   alias Tuist.Bazel
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.BuildHealth
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -39,6 +40,9 @@ defmodule TuistWeb.BazelInvocationsLive do
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     page = parse_page(params["page"])
     sort_by = params["invocations-sort-by"] || "ran-at"
+
+    sort_by = listing_sort_by(sort_by, socket.assigns.bazel_resource_kind)
+
     sort_order = params["invocations-sort-order"] || "desc"
     uri = URI.new!("?" <> URI.encode_query(params))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
@@ -68,13 +72,13 @@ defmodule TuistWeb.BazelInvocationsLive do
         project.id,
         %{
           filters: filters,
-          order_by: [sort_field(sort_by)],
-          order_directions: [sort_direction(sort_order)],
+          order_by: sort_fields(sort_by),
+          order_directions: List.duplicate(sort_direction(sort_order), length(sort_fields(sort_by))),
           page: page,
           page_size: @page_size,
           commands: socket.assigns.bazel_invocation_commands
         },
-        list_opts
+        Keyword.put(list_opts, :failure_category, socket.assigns.bazel_resource_kind == :builds)
       )
 
     commands = socket.assigns.bazel_invocation_commands
@@ -486,12 +490,6 @@ defmodule TuistWeb.BazelInvocationsLive do
           </:image>
         </.empty_card_section>
       </.async_card>
-      <TuistWeb.Components.BuildHealth.failure_card
-        :if={assigns[:build_health]}
-        health={@build_health}
-        account={@selected_account}
-        project={@selected_project}
-      />
       <.card
         title={@bazel_resource}
         icon="subtask"
@@ -504,12 +502,22 @@ defmodule TuistWeb.BazelInvocationsLive do
               id="bazel-invocations-sort-by"
               label={
                 case @invocations_sort_by do
+                  "failure-category" -> dgettext("dashboard_builds", "Failure category")
                   "duration" -> dgettext("dashboard_builds", "Duration")
                   _ -> dgettext("dashboard_builds", "Ran at")
                 end
               }
               secondary_text={dgettext("dashboard_builds", "Sort by:")}
             >
+              <.dropdown_item
+                :if={@bazel_resource_kind == :builds}
+                value="failure-category"
+                label={dgettext("dashboard_builds", "Failure category")}
+                patch={column_patch_sort(assigns, "failure-category")}
+                data-selected={@invocations_sort_by == "failure-category"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
               <.dropdown_item
                 value="duration"
                 label={dgettext("dashboard_builds", "Duration")}
@@ -584,6 +592,17 @@ defmodule TuistWeb.BazelInvocationsLive do
                   }
                   status={if invocation.status == "success", do: "success", else: "error"}
                 />
+              </:col>
+              <:col
+                :let={invocation}
+                :if={@bazel_resource_kind == :builds}
+                label={dgettext("dashboard_builds", "Failure category")}
+                patch={TuistWeb.BazelInvocationsLive.column_patch_sort(assigns, "failure-category")}
+                sort_order={@invocations_sort_by == "failure-category" && @invocations_sort_order}
+              >
+                <.text_cell label={
+                  TuistWeb.Components.BuildHealth.category_label(invocation.failure_category)
+                } />
               </:col>
               <:col
                 :let={invocation}
@@ -911,6 +930,12 @@ defmodule TuistWeb.BazelInvocationsLive do
     ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/invocations/#{invocation_id}"
   end
 
+  defp listing_sort_by("failure-category", kind) when kind != :builds, do: "ran-at"
+  defp listing_sort_by(value, _kind), do: value
+  defp sort_fields("failure-category"), do: [:failure_category, :finished_at, :invocation_id]
+  defp sort_fields(value), do: [sort_field(value)]
+
+  defp sort_field("failure-category"), do: :failure_category
   defp sort_field("command"), do: :command
   defp sort_field("status"), do: :status
   defp sort_field("duration"), do: :duration_ms
@@ -1002,7 +1027,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       }
 
     if resource_kind == :builds,
-      do: [status_filter, environment_filter],
+      do: [BuildHealth.category_filter(), status_filter, environment_filter],
       else: [status_filter, command_filter, environment_filter]
   end
 end

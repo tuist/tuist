@@ -26,12 +26,21 @@
           id="gradle-build-runs-sort-by"
           label={
             case @build_runs_sort_by do
+              "failure-category" -> dgettext("dashboard_builds", "Failure category")
               "duration" -> dgettext("dashboard_gradle", "Duration")
               _ -> dgettext("dashboard_gradle", "Ran at")
             end
           }
           secondary_text={dgettext("dashboard_gradle", "Sort by:")}
         >
+          <.dropdown_item
+            value="failure-category"
+            label={dgettext("dashboard_builds", "Failure category")}
+            patch={TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "failure-category")}
+            data-selected={@build_runs_sort_by == "failure-category"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
           <.dropdown_item
             value="duration"
             label={dgettext("dashboard_gradle", "Duration")}
@@ -93,6 +102,16 @@
               label={dgettext("dashboard_gradle", "Cancelled")}
               status="warning"
             />
+          </:col>
+          <:col
+            :let={build}
+            label={dgettext("dashboard_builds", "Failure category")}
+            patch={TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "failure-category")}
+            sort_order={@build_runs_sort_by == "failure-category" && @build_runs_sort_order}
+          >
+            <.text_cell label={
+              TuistWeb.Components.BuildHealth.category_label(build.failure_category)
+            } />
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Branch")}>
             <.text_cell

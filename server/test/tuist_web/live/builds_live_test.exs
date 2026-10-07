@@ -148,14 +148,14 @@ defmodule TuistWeb.BuildsLiveTest do
     path = "/#{project.account.name}/#{project.name}/builds"
     {:ok, view, _} = live(conn, path)
     render_async(view, 5_000)
-    assert has_element?(view, "#build-category-failures a", "App")
-    assert has_element?(view, "#build-category-failures a", "Other")
+    assert has_element?(view, "#build-runs-table", "App")
+    assert has_element?(view, "#build-runs-table", "Other")
     render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=ci")
     render_async(view, 5_000)
-    assert has_element?(view, "#build-category-failures a", "App")
-    refute has_element?(view, "#build-category-failures a", "Other")
+    assert has_element?(view, "#build-runs-table", "App")
+    refute has_element?(view, "#build-runs-table", "Other")
     render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=local")
     render_async(view, 5_000)
-    assert has_element?(view, "#build-failure-categories", "No failed builds")
+    refute has_element?(view, "#build-runs-table", "Verification")
   end
 end

@@ -19,3 +19,5 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 - Refuse a call through `refuse!/3` in `RunEventService`, never a bare `raise GRPC.RPCError`. It counts the refusal (`tuist_once_events_refused_total` by call, stage and status), and `Tuist.OnceEvents.GRPCExceptionFilter` keeps `unauthenticated`, `permission_denied` and `resource_exhausted` out of error reporting, because elixir-grpc's Cowboy adapter logs every `GRPC.RPCError`, raised or returned, at error level. Alert on the counter, not on error issues.
 
 - Record the authenticated credential account on the first RunStarted in nullable `once_runs.account_id`; project credentials and historical runs remain unattributed. Replays must never replace the original actor, including with a different credential. This is server attribution and does not change the client event protocol.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.

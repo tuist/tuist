@@ -125,6 +125,61 @@ defmodule Tuist.BuildMetrics do
     """
   end
 
+  # Use the same classification as Grafana, exposing a virtual column before
+  # database filtering, ordering and pagination. No category is stored on a run.
+  defmacro with_failure_category(query, system, project_id) do
+    if system == "once" do
+      expression = once_failure_category_sql(view: "failures")
+      expression = String.replace(expression, "once_runs.id", "?")
+      expression = String.replace(expression, "{project_id:Int64}", "?")
+      expression = String.replace(expression, "failed_test_cases", "?")
+      expression = "CASE WHEN ? = 'finalized' AND ? <> 0 AND coalesce(?, '') = '' THEN " <> expression <> " ELSE '' END"
+
+      quote do
+        _ = unquote(project_id)
+
+        classified =
+          Ecto.Query.from(b in unquote(query),
+            select_merge: %{
+              failure_category:
+                fragment(
+                  unquote(expression),
+                  b.finalization,
+                  b.exit_status,
+                  b.cancellation_reason,
+                  b.id,
+                  b.project_id,
+                  b.failed_test_cases,
+                  b.id,
+                  b.project_id
+                )
+            }
+          )
+
+        Ecto.Query.from(b in subquery(classified))
+      end
+    else
+      expression = system |> failure_category_sql(view: "listing") |> String.replace("?", "\\?")
+      parameter_count = length(String.split(expression, "{project_id:Int64}")) - 1
+      expression = String.replace(expression, "{project_id:Int64}", "?")
+
+      guard =
+        if system == "bazel",
+          do: "status = 'failure' AND NOT (command != 'run' AND exit_code = 8)",
+          else: "status = 'failure'"
+
+      expression = "if(" <> guard <> ", " <> expression <> ", '')"
+      parameters = List.duplicate(quote(do: ^unquote(project_id)), parameter_count)
+      fragment = {:fragment, [], [expression | parameters]}
+
+      quote do
+        _ = unquote(project_id)
+        classified = Ecto.Query.from(b in unquote(query), select_merge: %{failure_category: unquote(fragment)})
+        Ecto.Query.from(b in subquery(classified))
+      end
+    end
+  end
+
   defp failure_category_sql(system, opts) do
     evidence = failure_evidence_sql(system, opts)
 
@@ -142,12 +197,12 @@ defmodule Tuist.BuildMetrics do
   end
 
   defp failure_evidence_sql("gradle", opts) do
-    if Keyword.get(opts, :view) in ["failures", "recent_failures"] do
+    if Keyword.get(opts, :view) in ["failures", "recent_failures", "listing"] do
       """
-      id IN (SELECT toString(gradle_build_id) FROM gradle_tasks
+      toString(id) IN (SELECT toString(gradle_build_id) FROM gradle_tasks
         WHERE project_id = {project_id:Int64} AND outcome = 'failed'
-          AND inserted_at >= {start_datetime:DateTime64(6)}
-          AND inserted_at < {end_datetime:DateTime64(6)}
+          AND gradle_build_id IN (SELECT id FROM gradle_builds WHERE project_id = {project_id:Int64} AND status = 'failure')
+          #{evidence_period(opts)}
           AND match(task_type, '(^|[.])(Test|Checkstyle|Pmd|CodeNarc|AndroidLint[^.]*|Lint[^.]*|JavaCompile|GroovyCompile|ScalaCompile|KotlinCompile|KotlinJvmCompile|KotlinNativeCompile|SwiftCompile|CppCompile|CCompile|LinkExecutable|LinkSharedLibrary)(_Decorated)?$'))
       """
     else
@@ -156,19 +211,18 @@ defmodule Tuist.BuildMetrics do
   end
 
   defp failure_evidence_sql("xcode", opts) do
-    if Keyword.get(opts, :view) in ["failures", "recent_failures"] do
+    if Keyword.get(opts, :view) in ["failures", "recent_failures", "listing"] do
       # Issues have no project column: restrict them through the authorized,
       # time-bounded build identifiers rather than scanning other tenants.
       """
-      id IN (SELECT toString(build_run_id) FROM build_issues
+      toString(id) IN (SELECT toString(build_run_id) FROM build_issues
         WHERE type = 'error'
           AND step_type IN ('c_compilation', 'swift_compilation', 'swift_aggregated_compilation',
             'linker', 'compile_assets_catalog', 'compile_storyboard', 'xib_compilation',
             'precompile_bridging_header', 'merge_swift_module', 'link_storyboards')
           AND build_run_id IN (SELECT id FROM build_runs FINAL
-            WHERE project_id = {project_id:Int64}
-              AND inserted_at >= {start_datetime:DateTime64(6)}
-              AND inserted_at < {end_datetime:DateTime64(6)}))
+            WHERE project_id = {project_id:Int64} AND status = 'failure'
+              #{evidence_period(opts)}))
       """
     else
       "false"
@@ -177,21 +231,30 @@ defmodule Tuist.BuildMetrics do
 
   defp failure_evidence_sql("bazel", _opts), do: "command IN ('test', 'coverage') AND exit_code = 3"
 
+  defp evidence_period(opts) do
+    if Keyword.get(opts, :view) == "listing",
+      do: "",
+      else: "AND inserted_at >= {start_datetime:DateTime64(6)} AND inserted_at < {end_datetime:DateTime64(6)}"
+  end
+
+  defp once_failure_category_sql(opts) do
+    if Keyword.get(opts, :view) in ["failures", "recent_failures", "listing"] do
+      """
+      CASE WHEN EXISTS (SELECT 1 FROM once_actions a WHERE a.once_run_id = once_runs.id
+          AND a.project_id = {project_id:Int64} AND a.result = 'infrastructure_error')
+        THEN 'infrastructure_tooling'
+        WHEN failed_test_cases > 0 OR EXISTS (SELECT 1 FROM once_actions a
+          WHERE a.once_run_id = once_runs.id AND a.project_id = {project_id:Int64}
+            AND a.result = 'failed' AND a.capability IN ('compile', 'link', 'test', 'lint', 'check'))
+        THEN 'verification' ELSE 'unknown' END
+      """
+    else
+      "'unknown'"
+    end
+  end
+
   defp once_source(opts) do
-    failure_category =
-      if Keyword.get(opts, :view) in ["failures", "recent_failures"] do
-        """
-        CASE WHEN EXISTS (SELECT 1 FROM once_actions a WHERE a.once_run_id = once_runs.id
-            AND a.project_id = {project_id:Int64} AND a.result = 'infrastructure_error')
-          THEN 'infrastructure_tooling'
-          WHEN failed_test_cases > 0 OR EXISTS (SELECT 1 FROM once_actions a
-            WHERE a.once_run_id = once_runs.id AND a.project_id = {project_id:Int64}
-              AND a.result = 'failed' AND a.capability IN ('compile', 'link', 'test', 'lint', 'check'))
-          THEN 'verification' ELSE 'unknown' END
-        """
-      else
-        "'unknown'"
-      end
+    failure_category = once_failure_category_sql(opts)
 
     """
     SELECT run_id AS id, wall_ms AS duration_ms, started_at, started_at AS inserted_at,

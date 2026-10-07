@@ -780,11 +780,6 @@
       </:image>
     </.empty_card_section>
   </.async_card>
-  <TuistWeb.Components.BuildHealth.failure_card
-    health={@build_health}
-    account={@selected_account}
-    project={@selected_project}
-  />
   <.async_card
     :let={ready?}
     results={[
@@ -918,6 +913,11 @@
             label={dgettext("dashboard_builds", "Failed")}
             status="error"
           />
+        </:col>
+        <:col :let={build} label={dgettext("dashboard_builds", "Failure category")}>
+          <.text_cell label={
+            TuistWeb.Components.BuildHealth.category_label(build.failure_category)
+          } />
         </:col>
         <:col :let={build} label={dgettext("dashboard_builds", "Xcode version")}>
           <.text_cell label={

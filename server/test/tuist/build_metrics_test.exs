@@ -3,17 +3,108 @@ defmodule Tuist.BuildMetricsTest do
 
   alias Tuist.Bazel
   alias Tuist.BuildMetrics
+  alias Tuist.Builds
   alias Tuist.Builds.BuildIssue
+  alias Tuist.Gradle
   alias Tuist.IngestRepo
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Action
+  alias Tuist.OnceEvents.Analytics
   alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     start_at = DateTime.new!(Date.utc_today(), ~T[00:00:00.000000])
     %{start_at: start_at, opts: [start_datetime: start_at, end_datetime: DateTime.add(start_at, 1, :day)]}
+  end
+
+  defp listing("gradle", project, params), do: Gradle.list_builds(project.id, params, failure_category: true)
+
+  defp listing("xcode", project, params), do: Builds.list_build_runs(params, failure_category_project_id: project.id)
+
+  defp listing("bazel", project, params), do: Bazel.list_invocations(project.id, params, failure_category: true)
+
+  defp listing("once", project, params), do: Analytics.list_invocations(project.id, params, failure_category: true)
+
+  test "native category sorting and filtering cover the full cohort before pagination", %{start_at: start_at} do
+    for system <- ~w(gradle xcode bazel once) do
+      project = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+      other = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+
+      for i <- 1..23 do
+        build(system, project, DateTime.add(start_at, i), status: "failure", exit_status: 1, exit_code: 1)
+      end
+
+      attrs = [
+        status: "failure",
+        exit_status: 1,
+        exit_code: 1,
+        failed_test_cases: 1,
+        custom_values: %{"tuist.detected_failure_category" => "verification"}
+      ]
+
+      build(system, project, start_at, attrs)
+      build(system, other, start_at, attrs)
+
+      build(system, project, DateTime.add(start_at, 30),
+        status: "success",
+        exit_status: 0,
+        custom_values: %{"tuist.failure_category" => "verification"}
+      )
+
+      filters = [%{field: :project_id, op: :==, value: project.id}]
+      params = %{filters: filters, order_by: [:failure_category], order_directions: [:desc], page: 1, page_size: 2}
+      {rows, _} = listing(system, project, params)
+      assert Enum.map(rows, & &1.failure_category) == ["verification", "unknown"]
+
+      {rows, meta} =
+        listing(system, project, %{
+          params
+          | filters: filters ++ [%{field: :failure_category, op: :==, value: "verification"}]
+        })
+
+      assert length(rows) == 1
+      assert meta.total_count == 1
+
+      {rows, meta} =
+        listing(system, project, %{
+          params
+          | filters: filters ++ [%{field: :failure_category, op: :!=, value: "verification"}]
+        })
+
+      assert meta.total_count == 24
+      refute Enum.any?(rows, &(&1.failure_category == "verification"))
+      {rows, _} = listing(system, project, %{params | order_directions: [:asc]})
+      assert hd(rows).failure_category == ""
+    end
+  end
+
+  test "Xcode category cursors preserve tied builds without duplication", %{start_at: start_at} do
+    project = ProjectsFixtures.project_fixture()
+    for _ <- 1..5, do: build("xcode", project, start_at, status: "failure")
+
+    params = %{
+      first: 2,
+      filters: [%{field: :project_id, op: :==, value: project.id}],
+      order_by: [:failure_category, :inserted_at, :id],
+      order_directions: [:asc, :asc, :asc]
+    }
+
+    {first, meta} = listing("xcode", project, params)
+    {second, meta} = listing("xcode", project, Map.put(params, :after, meta.end_cursor))
+    {third, _} = listing("xcode", project, Map.put(params, :after, meta.end_cursor))
+    assert length(Enum.uniq_by(first ++ second ++ third, & &1.id)) == 5
+  end
+
+  defp build("gradle", project, start_at, attrs) do
+    GradleFixtures.build_fixture(
+      Keyword.merge(
+        [project_id: project.id, inserted_at: start_at |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)],
+        attrs
+      )
+    )
   end
 
   defp build("xcode", project, start_at, attrs) do
@@ -296,6 +387,20 @@ defmodule Tuist.BuildMetricsTest do
 
     assert %{category: "verification", builds: 1} in rows
     assert %{category: "all", builds: 1} in rows
+
+    {[native], _} =
+      listing("xcode", project, %{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :failure_category, op: :==, value: "verification"}
+        ],
+        first: 20,
+        order_by: [:inserted_at],
+        order_directions: [:desc]
+      })
+
+    assert native.id == failed.id
+
     assert Enum.sum(for row <- rows, row.category != "all", do: row.builds) == 1
   end
 

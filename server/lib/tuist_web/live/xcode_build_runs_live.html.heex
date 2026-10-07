@@ -10,12 +10,21 @@
           id="build-runs-sort-by"
           label={
             case @build_runs_sort_by do
+              "failure-category" -> dgettext("dashboard_builds", "Failure category")
               "duration" -> dgettext("dashboard_builds", "Duration")
               _ -> dgettext("dashboard_builds", "Ran at")
             end
           }
           secondary_text={dgettext("dashboard_builds", "Sort by:")}
         >
+          <.dropdown_item
+            value="failure-category"
+            label={dgettext("dashboard_builds", "Failure category")}
+            patch={TuistWeb.XcodeBuildRunsLive.column_patch_sort(assigns, "failure-category")}
+            data-selected={@build_runs_sort_by == "failure-category"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
           <.dropdown_item
             value="duration"
             label={dgettext("dashboard_builds", "Duration")}
@@ -90,6 +99,16 @@
               label={dgettext("dashboard_builds", "Failed processing")}
               status="warning"
             />
+          </:col>
+          <:col
+            :let={build_run}
+            label={dgettext("dashboard_builds", "Failure category")}
+            patch={TuistWeb.XcodeBuildRunsLive.column_patch_sort(assigns, "failure-category")}
+            sort_order={@build_runs_sort_by == "failure-category" && @build_runs_sort_order}
+          >
+            <.text_cell label={
+              TuistWeb.Components.BuildHealth.category_label(build_run.failure_category)
+            } />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
             <.text_cell

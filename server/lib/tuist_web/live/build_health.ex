@@ -6,7 +6,7 @@ defmodule TuistWeb.BuildHealth do
 
   alias Tuist.BuildMetrics
 
-  def assign_health(socket, mode \\ :failures)
+  def assign_health(socket, mode \\ :cache)
 
   def assign_health(%{assigns: %{selected_project: %{build_system: system}}} = socket, mode)
       when system in [:gradle, :xcode, :bazel, :once] do
@@ -59,12 +59,5 @@ defmodule TuistWeb.BuildHealth do
 
   defp query_health(project_id, opts, :cache) do
     BuildMetrics.query(project_id, Keyword.put(opts, :view, "total"))
-  end
-
-  defp query_health(project_id, opts, :failures) do
-    %{
-      categories: BuildMetrics.query(project_id, Keyword.put(opts, :view, "failures")).rows,
-      failures: BuildMetrics.query(project_id, Keyword.put(opts, :view, "recent_failures")).rows
-    }
   end
 end

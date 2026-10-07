@@ -202,6 +202,14 @@ defmodule Tuist.Gradle.MetricsTest do
              %{category: "infrastructure_tooling", builds: 0},
              %{category: "unknown", builds: 1}
            ]
+
+    {native, _} =
+      Tuist.Gradle.list_builds(
+        project.id,
+        %{filters: [%{field: :failure_category, op: :==, value: "verification"}], page_size: 20}, failure_category: true)
+
+    assert length(native) == 2
+    assert Enum.all?(native, &(&1.failure_category == "verification"))
   end
 
   test "recent failures include recorded metadata and never leak other projects", %{
