@@ -288,43 +288,60 @@ defmodule TuistEx.Analytics.Shards do
 
   @links ".tuist-links"
 
-  # A build links out of itself: a dependency's `priv` directory points into
-  # `deps/`, and the project's own into the checkout. The archive tool
-  # refuses to extract links that leave the directory, so they travel as a
-  # list instead and are recreated after extraction.
+  # Mix links application `priv` directories into the checkout. Package their
+  # contents too: native libraries generated in deps/ are absent on cold workers.
+  # Other links travel as a list because erl_tar refuses escaping links.
   @doc false
   def archive(build_path, archive) do
     {files, links} = walk(build_path, "")
 
     entries =
       [{String.to_charlist(@links), :erlang.term_to_binary(links)}] ++
-        Enum.map(files, &{String.to_charlist(&1), String.to_charlist(Path.join(build_path, &1))})
+        Enum.map(files, fn {path, source} ->
+          {String.to_charlist(path), String.to_charlist(source)}
+        end)
 
     :erl_tar.create(String.to_charlist(archive), entries, [:compressed])
   end
 
   defp walk(root, relative) do
     root
-    |> Path.join(relative)
     |> File.ls!()
     |> Enum.reduce({[], []}, fn entry, {files, links} ->
       path = Path.join(relative, entry)
+      source = Path.join(root, entry)
 
-      case File.lstat!(Path.join(root, path)) do
+      case File.lstat!(source) do
         %File.Stat{type: :symlink} ->
-          {files, [{path, File.read_link!(Path.join(root, path))} | links]}
+          target = File.read_link!(source)
+          resolved = Path.expand(target, Path.dirname(source))
+
+          if application_priv?(path, resolved) do
+            {inner_files, inner_links} = walk(resolved, path)
+            {inner_files ++ files, inner_links ++ links}
+          else
+            {files, [{path, target} | links]}
+          end
 
         %File.Stat{type: :directory} ->
-          {inner_files, inner_links} = walk(root, path)
+          {inner_files, inner_links} = walk(source, path)
           {inner_files ++ files, inner_links ++ links}
 
         %File.Stat{type: :regular} ->
-          {[path | files], links}
+          {[{path, source} | files], links}
 
         _other ->
           {files, links}
       end
     end)
+  end
+
+  defp application_priv?(path, resolved) do
+    checkout = Path.expand(File.cwd!())
+
+    match?(["lib", _, "priv"], Path.split(path)) and
+      String.starts_with?(resolved, checkout <> "/") and File.dir?(resolved) and
+      real_directories?(checkout, Path.split(Path.relative_to(resolved, checkout)))
   end
 
   # The build is unpacked next to the build directory and takes its place
