@@ -74,6 +74,7 @@ defmodule TuistWeb.GradleBuildLive do
     cacheable = build.cacheable_tasks_count || 0
 
     socket
+    |> assign(:cache_work_avoided, Tuist.BuildMetrics.cache_work_avoided(build))
     |> assign(:build, build)
     |> assign(:test_run, test_run)
     |> assign(:build_started_at, build_started_at)

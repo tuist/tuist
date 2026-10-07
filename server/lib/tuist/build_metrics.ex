@@ -121,7 +121,7 @@ defmodule Tuist.BuildMetrics do
         AND length(custom_values['tuist.cache_work_avoided_ms']) <= 11
         AND toUInt64OrNull(custom_values['tuist.cache_work_avoided_ms']) <= 31536000000,
         toUInt64OrNull(custom_values['tuist.cache_work_avoided_ms']), NULL) AS cache_work_avoided_ms
-    FROM #{table} WHERE project_id = {project_id:Int64} #{extra}
+    FROM #{table} WHERE project_id = {project_id:Int64} #{extra} #{source_filters(system, opts)}
     """
   end
 
@@ -203,8 +203,39 @@ defmodule Tuist.BuildMetrics do
       NULL::bigint AS cache_time_saved_ms, NULL::bigint AS cache_work_avoided_ms
     FROM once_runs WHERE project_id = {project_id:Int64}
       AND finalization = 'finalized' AND (exit_status IS NOT NULL OR nullif(cancellation_reason, '') IS NOT NULL)
-      AND kind IN ('build', 'test', 'generic')
+      AND kind IN ('build', 'test', 'generic') #{source_filters("once", opts)}
     """
+  end
+
+  defp source_filters(system, opts) do
+    keys =
+      case system do
+        "xcode" -> [:scheme, :configuration, :category]
+        "bazel" -> [:command]
+        "once" -> [:kind]
+        _ -> []
+      end
+
+    filters =
+      Enum.flat_map(keys, fn key ->
+        if Keyword.has_key?(opts, key), do: ["AND #{key} = {#{key}:String}"], else: []
+      end)
+
+    filters =
+      if system == "xcode" && Keyword.has_key?(opts, :tag),
+        do: ["AND has(custom_tags, {tag:String})" | filters],
+        else: filters
+
+    Enum.join(filters, " ")
+  end
+
+  def cache_work_avoided(build) do
+    value = (build.custom_values || %{})["tuist.cache_work_avoided_ms"]
+
+    if is_binary(value) && Regex.match?(~r/^[0-9]{1,11}$/, value) do
+      milliseconds = String.to_integer(value)
+      if milliseconds <= 31_536_000_000, do: milliseconds
+    end
   end
 
   defp workload_sql do

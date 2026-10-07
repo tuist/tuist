@@ -62,3 +62,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Gradle Grafana metric coverage verifies project/filter isolation, half-open ranges, direct period statistics, cancellation handling, failed-or-slow attention counts, missing/invalid cache observations, workload overrides, evidence-based failure categories, and build-read authorization. Use dates within the 90-day retention window.
 
 - Shared Grafana build-health regression coverage lives in `tuist/build_metrics_test.exs`, alongside the legacy Gradle tests. Exercise both database sources, terminal status semantics, source-specific links, missing evidence, and project/range isolation.
+
+- Native build-health regression coverage checks database source dimensions, Xcode overview scheme/environment wiring, Gradle cache environment/coverage wiring, and missing versus zero detail estimates. Component tests check category labels, source-specific navigation and loading/failure states.

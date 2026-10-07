@@ -1,0 +1,11 @@
+#build-failure-categories {
+  & h3 {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & p {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+}

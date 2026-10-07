@@ -79,3 +79,5 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - The cache globe renders measured daily hit rates from the snapshot breakdown. Keep missing rates distinct from measured zeroes; illustrative rates belong only to explicit demo mode.
 
 - Treat request timing and layout movement as separate problems. Measure card geometry across loading, ready, empty and failed states, including wrapped widget titles and chart legends. Reserve the same chart frame for each state without imposing that height on tables or timelines.
+
+- Native build-health cards use shared Noora typography for failure-table headings, loading text and classification notes. Scope these styles to the card to preserve existing overview layouts.

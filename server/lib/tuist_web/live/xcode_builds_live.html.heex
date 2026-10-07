@@ -780,6 +780,11 @@
       </:image>
     </.empty_card_section>
   </.async_card>
+  <TuistWeb.Components.BuildHealth.failure_card
+    health={@build_health}
+    account={@selected_account}
+    project={@selected_project}
+  />
   <.async_card
     :let={ready?}
     results={[

@@ -159,3 +159,5 @@ This directory contains the core business logic and domain modules for the serve
 - Build-health classification shares verification/infrastructure_tooling/unknown across toolchains. Explicit category metadata overrides detected evidence. Only generic failure queries include the all-failures row; legacy Gradle rows remain unchanged. Xcode issue lookups must first restrict build identifiers by authorized project and time range.
 
 Generic build-health dimension lists read the last 90 days and cap output at 1000 values. The legacy Gradle compatibility entry point retains its existing history window. Bazel infrastructure exit codes take precedence over detected verification; explicit customer category overrides still win.
+
+- Build metrics also power native build-health cards. Source-specific overview dimensions are bound in `BuildMetrics` before aggregation; estimates use the same bounded metadata validation in native build details and Grafana.

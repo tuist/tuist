@@ -372,4 +372,83 @@ defmodule Tuist.BuildMetricsTest do
       assert hd(original.dates) < hd(visible.dates)
     end
   end
+
+  test "native overview dimensions filter categories and linked failures", %{start_at: start_at, opts: opts} do
+    project = ProjectsFixtures.project_fixture(build_system: :xcode)
+
+    build("xcode", project, start_at,
+      status: "failure",
+      scheme: "App",
+      configuration: "Debug",
+      category: "clean",
+      custom_tags: ["release"],
+      custom_values: %{"tuist.detected_failure_category" => "verification"}
+    )
+
+    build("xcode", project, start_at,
+      status: "failure",
+      scheme: "Other",
+      configuration: "Release",
+      category: "incremental",
+      custom_values: %{"tuist.detected_failure_category" => "infrastructure_tooling"}
+    )
+
+    opts =
+      Keyword.merge(opts, build_system: "xcode", scheme: "App", configuration: "Debug", category: "clean", tag: "release")
+
+    assert %{rows: [%{category: "verification", builds: 1}, %{builds: 0}, %{builds: 0}]} =
+             BuildMetrics.query(project.id, Keyword.put(opts, :view, "failures"))
+
+    assert %{rows: [%{requested_tasks: ["App"]}]} =
+             BuildMetrics.query(project.id, Keyword.put(opts, :view, "recent_failures"))
+
+    assert %{rows: []} = BuildMetrics.query(project.id, Keyword.merge(opts, view: "recent_failures", tag: "missing"))
+  end
+
+  test "Bazel and Once build overviews exclude test invocations", %{start_at: start_at, opts: opts} do
+    for system <- ["bazel", "once"] do
+      project = ProjectsFixtures.project_fixture(build_system: String.to_existing_atom(system))
+
+      {key, attrs} =
+        if system == "bazel", do: {:command, [status: "failure", exit_code: 1]}, else: {:kind, [exit_status: 1]}
+
+      build(system, project, start_at, Keyword.put(attrs, key, "build"))
+      build(system, project, start_at, Keyword.put(attrs, key, "test"))
+
+      result =
+        BuildMetrics.query(
+          project.id,
+          Keyword.merge(opts, [{:build_system, system}, {:view, "failures"}, {key, "build"}])
+        )
+
+      assert Enum.sum(Enum.map(result.rows, & &1.builds)) == 1
+    end
+  end
+
+  test "native Gradle cache estimates reject invalid metadata and retain recorded zero" do
+    for invalid <- [nil, "-1", "1.5", "abc", "31536000001", "000000000000"] do
+      assert is_nil(BuildMetrics.cache_work_avoided(%{custom_values: %{"tuist.cache_work_avoided_ms" => invalid}}))
+    end
+
+    assert BuildMetrics.cache_work_avoided(%{custom_values: %{}}) == nil
+    assert BuildMetrics.cache_work_avoided(%{custom_values: %{"tuist.cache_work_avoided_ms" => "0"}}) == 0
+    assert BuildMetrics.cache_work_avoided(%{custom_values: %{"tuist.cache_work_avoided_ms" => "151"}}) == 151
+  end
+
+  test "Bazel build commands use collected compiler verification evidence", %{start_at: start_at, opts: opts} do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+
+    build("bazel", project, start_at,
+      command: "build",
+      status: "failure",
+      exit_code: 1,
+      custom_values: %{"tuist.detected_failure_category" => "verification"}
+    )
+
+    assert %{rows: [%{category: "verification", builds: 1}, %{builds: 0}, %{builds: 0}]} =
+             BuildMetrics.query(
+               project.id,
+               Keyword.merge(opts, build_system: "bazel", command: "build", view: "failures")
+             )
+  end
 end

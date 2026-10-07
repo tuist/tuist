@@ -73,4 +73,4 @@ This directory contains database migrations and other private assets.
 
 - Kura client URL expiry is separate from handle ownership: `client_url_expires_at` is set to 90 days when a name is retired, cleared on rename-back, and never deletes its reservation. Historical names with unknown rename dates get 90 days from the expiry migration. Both migrations are forward-only.
 
-- Keep Grafana documentation organized around metric tables, with build-system differences, query options, and setup in separate sections.
+- Keep Grafana documentation organized around metric tables, with build-system differences, query options, and setup in separate sections. Document where shared failure categories and Gradle cache estimates also appear in native dashboards.

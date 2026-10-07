@@ -486,6 +486,12 @@ defmodule TuistWeb.BazelInvocationsLive do
           </:image>
         </.empty_card_section>
       </.async_card>
+      <TuistWeb.Components.BuildHealth.failure_card
+        :if={assigns[:build_health]}
+        health={@build_health}
+        account={@selected_account}
+        project={@selected_project}
+      />
       <.card
         title={@bazel_resource}
         icon="subtask"

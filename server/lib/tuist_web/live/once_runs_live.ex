@@ -192,8 +192,15 @@ defmodule TuistWeb.OnceRunsLive do
         end
       )
 
+    socket = assign_build_health(socket)
+
     {:noreply, socket}
   end
+
+  defp assign_build_health(%{assigns: %{once_summary_card: true}} = socket),
+    do: TuistWeb.BuildHealth.assign_health(socket)
+
+  defp assign_build_health(socket), do: assign(socket, :build_health, nil)
 
   defp analytics_period(socket, date_params, new_period) do
     if socket.assigns[:analytics_date_params] == date_params,
@@ -246,6 +253,7 @@ defmodule TuistWeb.OnceRunsLive do
       socket
       |> assign(:refresh_scheduled?, false)
       |> assign(:analytics_load_keys, %{})
+      |> assign(:build_health_key, nil)
       |> assign(:analytics_date_params, nil)
 
     handle_params(URI.decode_query(socket.assigns.uri.query || ""), nil, socket)
@@ -708,6 +716,12 @@ defmodule TuistWeb.OnceRunsLive do
         </.empty_card_section>
       </.async_card>
 
+      <TuistWeb.Components.BuildHealth.failure_card
+        :if={assigns[:build_health]}
+        health={@build_health}
+        account={@selected_account}
+        project={@selected_project}
+      />
       <.card
         title={@once_table_title}
         icon="subtask"
