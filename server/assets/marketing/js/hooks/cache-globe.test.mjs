@@ -13,6 +13,7 @@ function fixture(lang = "en") {
   const events = [];
   const listeners = new Map();
   const cells = new Map();
+  const rows = new Map();
   const strip = { style: { setProperty: (name, value) => (strip[name] = value) } };
   let now = 0;
   let wallTime = Date.parse("2026-10-05T12:00:00Z");
@@ -42,6 +43,7 @@ function fixture(lang = "en") {
       downloads: 1200,
       bytes: 1024,
       recent_downloads: 12,
+      recent_bytes: 3000,
       updated_at: "2026-10-05T12:00:00Z",
       observed_at: "2026-10-05T11:59:00Z",
       status: "available",
@@ -56,11 +58,13 @@ function fixture(lang = "en") {
       dataset: {},
       querySelector: (selector) => {
         if (selector === "#globe-status") return status;
+        if (selector === "#globe-bytes") return { id: "bytes", style: { setProperty() {} } };
         if (selector.startsWith('[data-region="')) {
           const id = selector.match(/data-region="([^"]+)"/)[1];
           if (!cells.has(id))
             cells.set(id, { id, style: { setProperty: (name, value) => (cells.get(id)[name] = value) } });
-          return { dataset: {}, querySelector: () => cells.get(id) };
+          if (!rows.has(id)) rows.set(id, { dataset: {}, querySelector: () => cells.get(id) });
+          return rows.get(id);
         }
         return { addEventListener() {} };
       },
@@ -95,6 +99,7 @@ function fixture(lang = "en") {
     rendered,
     events,
     cells,
+    rows,
     strip,
     status,
     advanceClock: (milliseconds) => (now += milliseconds),
@@ -217,6 +222,159 @@ test("mounted illustration seeds the canvas immediately and stays stable through
   assert.equal(hook.snapshot.origins.length, 0);
 });
 
+test("byte totals retain individual bytes instead of rounding to TB, in each locale", () => {
+  for (const lang of ["en", "de", "fr", "ar"]) {
+    const { hook, rendered } = fixture(lang);
+    hook.snapshot.bytes = 8400000000001;
+    hook.updateSnapshot();
+    assert.equal(
+      rendered.bytes,
+      new Intl.NumberFormat(lang, {
+        style: "unit",
+        unit: "byte",
+        unitDisplay: "long",
+        maximumFractionDigits: 0,
+      }).format(8400000000001),
+    );
+    assert.equal(hook.formatBytes(null), "—");
+    assert.equal(
+      hook.formatBytes(0),
+      new Intl.NumberFormat(lang, {
+        style: "unit",
+        unit: "byte",
+        unitDisplay: "long",
+        maximumFractionDigits: 0,
+      }).format(0),
+    );
+  }
+});
+
+function enableCounters(hook) {
+  hook.sync = Object.getPrototypeOf(hook).sync;
+}
+
+test("bytes and active regional counts advance each second at their own measured rates", () => {
+  const { hook, rendered, advanceClock } = fixture();
+  enableCounters(hook);
+  hook.snapshot.regions[1].recent_downloads = 600;
+  hook.updateSnapshot();
+  advanceClock(1000);
+  hook.advance();
+  assert.equal(rendered.bytes, "1,034 bytes");
+  assert.equal(rendered["eu-west"], "202");
+  assert.equal(rendered["us-west"], "1,000");
+  hook.updateSnapshot();
+  assert.equal(rendered.bytes, "1,034 bytes");
+  assert.equal(rendered["eu-west"], "202");
+
+  hook.snapshot.bytes = 2000;
+  hook.snapshot.regions[1].downloads = 500;
+  hook.updateSnapshot();
+  assert.equal(rendered.bytes, "2,000 bytes");
+  assert.equal(rendered["eu-west"], "500");
+});
+
+test("bytes and regions reset on a new UTC day, with no extrapolation of unavailable values", () => {
+  const { hook, rendered, advanceClock } = fixture();
+  enableCounters(hook);
+  hook.updateSnapshot();
+  advanceClock(60000);
+  hook.advance();
+  assert.equal(rendered.bytes, "1,624 bytes");
+  assert.equal(rendered["eu-west"], "202");
+
+  hook.snapshot.updated_at = "2026-10-06T00:00:30Z";
+  hook.snapshot.bytes = 0;
+  hook.snapshot.recent_bytes = 0;
+  hook.snapshot.downloads = 0;
+  hook.snapshot.regions = hook.snapshot.regions.map((region) => ({
+    ...region,
+    downloads: 0,
+    recent_downloads: 0,
+  }));
+  hook.updateSnapshot();
+  assert.equal(rendered.bytes, "0 bytes");
+  assert.equal(rendered["eu-west"], "0");
+  assert.equal(hook.byteLive.rate, 0);
+
+  hook.snapshot.bytes = null;
+  hook.snapshot.downloads = null;
+  hook.updateSnapshot();
+  advanceClock(1000);
+  hook.advance();
+  assert.equal(rendered.bytes, "—");
+  assert.equal(rendered["eu-west"], "—");
+});
+
+test("regional extrapolation preserves complete totals and shared sizing across digit boundaries", () => {
+  const { hook, rendered, strip, advanceClock } = fixture();
+  enableCounters(hook);
+  hook.snapshot.regions[1].downloads = 999999;
+  hook.snapshot.regions[1].recent_downloads = 300;
+  hook.updateSnapshot();
+  assert.equal(strip["--count-length"], "7");
+  advanceClock(1000);
+  hook.advance();
+  assert.equal(rendered["eu-west"], "1,000,000");
+  assert.equal(strip["--count-length"], "9");
+});
+
+test("all counters freeze at midnight until the new day's snapshot arrives", () => {
+  const { hook, rendered, advanceClock } = fixture();
+  enableCounters(hook);
+  hook.el.dataset.serverNow = "2026-10-05T23:59:59Z";
+  hook.syncClock();
+  hook.snapshot.updated_at = "2026-10-05T23:59:59Z";
+  hook.snapshot.observed_at = "2026-10-05T23:59:59Z";
+  hook.updateSnapshot();
+  advanceClock(1000);
+  hook.advance();
+  assert.equal(rendered.counter, 1200);
+  assert.equal(rendered.bytes, "1,024 bytes");
+  assert.equal(rendered["eu-west"], "200");
+});
+
+test("old snapshots without recent bytes keep the full measured total without estimating a rate", () => {
+  const { hook, rendered, advanceClock } = fixture();
+  enableCounters(hook);
+  delete hook.snapshot.recent_bytes;
+  hook.updateSnapshot();
+  advanceClock(1000);
+  hook.advance();
+  assert.equal(rendered.bytes, "1,024 bytes");
+  assert.equal(hook.byteLive, null);
+});
+
+test("extrapolation freezes for offline, unavailable, stale, quiet and previous-day snapshots", () => {
+  for (const change of [
+    (hook) => {
+      hook.offline = true;
+    },
+    (hook) => {
+      hook.snapshot.status = "unavailable";
+    },
+    (hook) => {
+      hook.snapshot.updated_at = "2026-10-05T11:56:00Z";
+    },
+    (hook) => {
+      hook.snapshot.observed_at = "2026-10-05T11:54:00Z";
+    },
+    (hook) => {
+      hook.snapshot.updated_at = "2026-10-04T23:59:00Z";
+    },
+  ]) {
+    const { hook, rendered, advanceClock } = fixture();
+    enableCounters(hook);
+    change(hook);
+    hook.updateSnapshot();
+    advanceClock(60000);
+    hook.advance();
+    assert.equal(rendered.counter, 1200);
+    assert.equal(rendered.bytes, "1,024 bytes");
+    assert.equal(rendered["eu-west"], "200");
+  }
+});
+
 test("regional rows show daily downloads even when recent activity is zero", () => {
   const { hook, rendered } = fixture();
   hook.updateSnapshot();
@@ -226,6 +384,53 @@ test("regional rows show daily downloads even when recent activity is zero", () 
   hook.snapshot.regions[0].downloads = 1100;
   hook.updateSnapshot();
   assert.equal(rendered["us-west"], "1,100");
+});
+
+test("regional rows hide measured zeroes but retain quiet regions with daily downloads", () => {
+  const { hook, rows, strip } = fixture();
+  hook.snapshot.regions[1].downloads = 0;
+  hook.snapshot.regions[1].recent_downloads = 0;
+  hook.updateSnapshot();
+  assert.equal(rows.get("us-west").hidden, false);
+  assert.equal(rows.get("eu-west").hidden, true);
+  assert.equal(strip.hidden, false);
+
+  hook.snapshot.regions[1].downloads = 10;
+  hook.el.dataset.snapshot = JSON.stringify(hook.snapshot);
+  hook.updated();
+  assert.equal(rows.get("eu-west").hidden, false);
+
+  hook.snapshot.regions = hook.snapshot.regions.map((region) => ({ ...region, downloads: 0 }));
+  hook.updateSnapshot();
+  assert.equal(rows.get("us-west").hidden, true);
+  assert.equal(rows.get("eu-west").hidden, true);
+  assert.equal(strip.hidden, true);
+});
+
+test("the regional strip hides while totals are unavailable and returns when data arrives", () => {
+  const { hook, rows, strip } = fixture();
+  hook.snapshot.downloads = null;
+  hook.updateSnapshot();
+  assert.equal(strip.hidden, true);
+  assert.equal(rows.get("us-west").hidden, true);
+  assert.equal(rows.get("eu-west").hidden, true);
+
+  hook.snapshot.downloads = 1200;
+  hook.updateSnapshot();
+  assert.equal(strip.hidden, false);
+  assert.equal(rows.get("us-west").hidden, false);
+  assert.equal(rows.get("eu-west").hidden, false);
+});
+
+test("demo mode shows the regional strip even when the live snapshot has no data", () => {
+  const { hook, rows, strip } = fixture();
+  hook.snapshot.downloads = null;
+  hook.snapshot.regions = hook.snapshot.regions.map((region) => ({ ...region, downloads: 0 }));
+  hook.demo = true;
+  hook.updateSnapshot();
+  assert.equal(strip.hidden, false);
+  assert.equal(rows.get("us-west").hidden, false);
+  assert.equal(rows.get("eu-west").hidden, false);
 });
 
 test("regional rows distinguish unavailable totals from measured zero", () => {

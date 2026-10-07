@@ -142,6 +142,7 @@ export const CacheGlobe = {
         downloads: 1482903 + this.demoTick * 137,
         bytes: 8400000000000 + this.demoTick * 928000000,
         recent_downloads: 13720,
+        recent_bytes: 92800000000,
         breakdown: this.demoRates(),
         regions: this.snapshot.regions.map((region, index) => ({
           ...region,
@@ -159,57 +160,95 @@ export const CacheGlobe = {
       this.data = this.snapshot;
     }
     const format = new Intl.NumberFormat(document.documentElement.lang || "en");
-    this.sync();
-    this.setReel(this.el.querySelector("#globe-bytes"), this.formatBytes(this.data.bytes));
     this.el.querySelector("#globe-region-count").textContent = format.format(this.data.regions.length);
-    // Region cells show measured totals since midnight UTC. Only demo
-    // arrivals carry them forward until the next snapshot.
+    // Snapshots anchor daily totals; recent measured rates carry the
+    // counters forward between batches, independently of arc arrivals.
     this.regionLive = {};
     for (const region of this.data.regions) {
       this.regionLive[region.id] = this.data.downloads == null ? null : region.downloads;
-      this.renderRegion(region.id);
     }
+    this.updateRegionVisibility();
+    this.sync();
+    this.renderBytes(this.byteLive ? Math.floor(this.byteLive.value) : this.data.bytes);
+    for (const region of this.data.regions) this.renderRegion(region.id);
     this.sizeRegions();
     this.renderBreakdown();
     this.updateStatus();
   },
 
-  // The counter is carried forward between snapshots: the last five minutes
-  // give a per-minute rate, and every second the counter advances by that
-  // much, the rate easing toward each new measurement instead of jumping.
-  // Snapshots land every 30 seconds. Nothing is invented:
-  // the counter only ever moves at the measured rate, and a snapshot that
-  // is ahead pulls it up straight away, while one that is behind lets the
-  // measurement catch up rather than winding the counter back within a UTC day.
+  // Extrapolate daily counters from the last five minutes, easing toward
+  // new rates. These are estimates between measured batches, not transfers
+  // counted by the animation. Do not rewind within a day; reset at midnight.
   sync() {
-    const downloads = this.data.downloads;
-    const rate = this.data.recent_downloads == null ? null : this.data.recent_downloads / 5;
-    if (downloads == null || rate == null) {
-      this.live = null;
-      this.renderDigits(downloads);
-      return;
+    this.live = this.syncCounter(this.data.downloads, this.data.recent_downloads, this.live);
+    this.byteLive = this.syncCounter(this.data.bytes, this.data.recent_bytes, this.byteLive);
+    const previous = this.regionCounters || {};
+    this.regionCounters = {};
+    for (const region of this.data.regions) {
+      this.regionCounters[region.id] = this.syncCounter(
+        this.data.downloads == null ? null : region.downloads,
+        region.recent_downloads,
+        previous[region.id],
+      );
     }
-    const day = this.data.updated_at?.slice(0, 10);
-    if (this.live?.day !== day) this.live = null;
-    const now = performance.now();
-    this.live = {
-      day,
-      value: Math.max(downloads, this.live?.value ?? 0),
-      rate: this.live?.rate ?? rate,
-      target: rate,
-      at: now,
-    };
+    if (!this.live) this.renderDigits(this.data.downloads);
     this.advance();
   },
 
+  syncCounter(value, recent, previous) {
+    if (value == null || recent == null) return null;
+    const day = this.data.updated_at?.slice(0, 10);
+    if (previous?.day !== day) previous = null;
+    const rate = recent / 300;
+    return {
+      day,
+      value: Math.max(value, previous?.value ?? 0),
+      rate: previous?.rate ?? rate,
+      target: rate,
+      at: performance.now(),
+    };
+  },
+
+  advanceCounter(counter, now) {
+    const seconds = (now - counter.at) / 1000;
+    counter.at = now;
+    // Do not extrapolate disconnected, failed, stale or quiet observations,
+    // or extend yesterday's totals beyond the UTC boundary.
+    const updated = Date.parse(this.data.updated_at);
+    const observed = Date.parse(this.data.observed_at);
+    const serverNow = this.serverNow();
+    if (
+      !this.demo &&
+      (this.offline ||
+        this.data.status === "unavailable" ||
+        !Number.isFinite(updated) ||
+        !Number.isFinite(observed) ||
+        serverNow - updated > 180000 ||
+        serverNow - observed > 300000 ||
+        new Date(serverNow).toISOString().slice(0, 10) !== counter.day)
+    )
+      return;
+    counter.rate += (counter.target - counter.rate) * Math.min(1, 0.12 * seconds);
+    counter.value += counter.rate * seconds;
+  },
+
   advance() {
-    if (!this.live) return;
     const now = performance.now();
-    const seconds = (now - this.live.at) / 1000;
-    this.live.at = now;
-    this.live.rate += (this.live.target - this.live.rate) * Math.min(1, 0.12 * seconds);
-    this.live.value += (this.live.rate / 60) * seconds;
-    this.renderDigits(Math.floor(this.live.value));
+    if (this.live) {
+      this.advanceCounter(this.live, now);
+      this.renderDigits(Math.floor(this.live.value));
+    }
+    if (this.byteLive) {
+      this.advanceCounter(this.byteLive, now);
+      this.renderBytes(Math.floor(this.byteLive.value));
+    }
+    for (const [id, counter] of Object.entries(this.regionCounters || {})) {
+      if (!counter) continue;
+      this.advanceCounter(counter, now);
+      this.regionLive[id] = Math.floor(counter.value);
+      this.renderRegion(id);
+    }
+    this.sizeRegions();
     this.pushMarkers();
   },
 
@@ -320,13 +359,24 @@ export const CacheGlobe = {
     this.setReel(row.querySelector('[data-part="value"]'), value == null ? "\u2014" : format.format(Math.round(value)));
   },
 
+  updateRegionVisibility() {
+    this.visibleRegions = new Set();
+    for (const region of this.data.regions) {
+      const visible = this.data.downloads != null && region.downloads > 0;
+      const row = this.el.querySelector(`[data-region="${region.id}"]`);
+      if (row) row.hidden = !visible;
+      if (visible) this.visibleRegions.add(region.id);
+    }
+    this.el.querySelector('[data-part="regions"]').hidden = this.visibleRegions.size === 0;
+  },
+
   sizeRegions() {
     const format = new Intl.NumberFormat(document.documentElement.lang || "en");
     const length = Math.max(
       1,
-      ...Object.values(this.regionLive || {}).map((value) =>
-        value == null ? 1 : format.format(Math.round(value)).length,
-      ),
+      ...Object.entries(this.regionLive || {})
+        .filter(([id]) => this.visibleRegions?.has(id) ?? true)
+        .map(([_id, value]) => (value == null ? 1 : format.format(Math.round(value)).length)),
     );
     this.el.querySelector('[data-part="regions"]').style.setProperty("--count-length", String(length));
   },
@@ -345,14 +395,19 @@ export const CacheGlobe = {
 
   formatBytes(bytes) {
     if (bytes == null) return "—";
-    const units = ["byte", "kilobyte", "megabyte", "gigabyte", "terabyte", "petabyte"];
-    const index = bytes > 0 ? Math.min(5, Math.floor(Math.log10(bytes) / 3)) : 0;
     return new Intl.NumberFormat(document.documentElement.lang || "en", {
       style: "unit",
-      unit: units[index],
-      unitDisplay: "short",
-      maximumFractionDigits: 1,
-    }).format(bytes / 1000 ** index);
+      unit: "byte",
+      unitDisplay: "long",
+      maximumFractionDigits: 0,
+    }).format(bytes);
+  },
+
+  renderBytes(value) {
+    const element = this.el.querySelector("#globe-bytes");
+    const text = this.formatBytes(value);
+    element?.style.setProperty("--count-length", String(text.length));
+    this.setReel(element, text);
   },
 
   updateStatus() {

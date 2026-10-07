@@ -150,7 +150,7 @@
         <p data-part="copy">
           {dgettext(
             "marketing",
-            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
+            "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
           )}
         </p>
       </div>
@@ -235,9 +235,14 @@
     </section>
 
     <%!-- Bottom row: one label cell, then a cell per serving region with its
-  request count since midnight UTC. Recent activity shows on the globe's markers. --%>
+  request count since midnight UTC, estimated between reports using recent activity.
+  Recent activity also shows on the globe's markers. --%>
     <section
       data-part="regions"
+      hidden={
+        not @demo and
+          (@snapshot.downloads == nil or not Enum.any?(@snapshot.regions, &(&1.downloads > 0)))
+      }
       role="list"
       aria-label={dgettext("marketing", "Cache serving regions")}
     >
@@ -251,6 +256,7 @@
         role="listitem"
         data-region={region.id}
         id={"globe-region-#{region.id}"}
+        hidden={not @demo and (@snapshot.downloads == nil or region.downloads == 0)}
         phx-update="ignore"
       >
         <span data-part="name">{region.id}</span>

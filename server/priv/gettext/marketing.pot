@@ -2684,7 +2684,7 @@ msgstr ""
 msgid "Cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:242
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Cache serving regions"
 msgstr ""
@@ -2724,12 +2724,12 @@ msgstr ""
 msgid "Reconnecting · showing last update"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:245
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:246
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -2791,5 +2791,5 @@ msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:151
 #, elixir-autogen, elixir-format
-msgid "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
+msgid "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
 msgstr ""
