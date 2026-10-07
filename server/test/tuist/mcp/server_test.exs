@@ -90,16 +90,26 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.34.0"
-      assert server.instructions =~ "agent_auth.skill"
-      assert server.instructions =~ "identity-assertion exchange"
-      assert server.instructions =~ "enter the code on the Tuist page"
-      assert server.instructions =~ "explicitly ask the user to confirm the email address"
+      assert server.version == "1.34.1"
+
+      assert server.instructions =~
+               "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
+
+      assert server.instructions =~ "Never invent credentials."
+      refute server.instructions =~ "auth_md"
+      refute server.instructions =~ "agent_auth.skill"
+      refute server.instructions =~ "anonymous registration"
+      refute server.instructions =~ "identity-assertion exchange"
+      refute server.instructions =~ "six-digit code"
+      refute server.instructions =~ "confirm the email address"
 
       assert server.instructions =~
                "The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows"
 
+      assert server.instructions =~ "Use `list_accounts` when an account handle is unknown."
       assert server.instructions =~ "Gradle and Bazel require separate `tuist auth whoami --url` authentication"
+      assert server.instructions =~ "Never continue a verification build after that check fails."
+      assert server.instructions =~ "Verify integrations through Tuist read-back tools before reporting success."
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
@@ -213,7 +223,9 @@ defmodule Tuist.MCP.ServerTest do
       stub(Environment, :codebase_search_enabled?, fn -> false end)
       instructions = Server.server().instructions
       refute instructions =~ "Use the relevant Tuist tool"
-      assert instructions =~ "agent_auth.skill"
+      assert instructions =~ "OAuth 2.0 with dynamic client registration"
+      refute instructions =~ "auth_md"
+      refute instructions =~ "agent_auth.skill"
     end
 
     test "tool descriptions state their capability without steering tool selection" do
