@@ -44,6 +44,8 @@ This directory contains ExUnit tests for the Tuist Server.
   history, retry deduplication, deletion acknowledgements and cascading retention.
   Controller coverage must distinguish orphan deletion instructions from the
   final `forget` acknowledgement for an authenticated deleted-state report.
+  Platform isolation must use the real migrated schema, including the removal
+  of the legacy identity index; do not simulate enablement with shadow tables.
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
 
 - Stable cache hostname regressions cover environment collisions, distinct AWS metro tags, private exclusion, all-region readiness, stale generations/timestamps, account opt-in, flag withdrawal, demotion, and drain intent. Staging and production require the same account/global `kura_stable_hostname` opt-in for both intent and hand-out; canary enables automatically. Do not reintroduce server environment rollout toggles or account allowlists. Readiness must survive a reader's empty process-local cache through the shared PostgreSQL projection, and archival/cold return must clear that projection. Controller tests separately exercise gateway/provider publication gates and withdrawal through failures and restart.

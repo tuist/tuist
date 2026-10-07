@@ -33,13 +33,3 @@ func TestVolumeMetricsClassifyCancellationWithoutLeakingErrors(t *testing.T) {
 		t.Fatal(logs.String())
 	}
 }
-func TestTransferErrorsRetainCancellationWithoutURLs(t *testing.T) {
-	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
-		if !errors.Is(transferError(err), err) {
-			t.Fatal(err)
-		}
-	}
-	if strings.Contains(transferError(errors.New("https://secret")).Error(), "secret") {
-		t.Fatal("leaked URL")
-	}
-}

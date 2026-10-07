@@ -15,7 +15,9 @@
   root/MTU/probe options explicitly, without rewriting another provider's script.
   Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
-  is qualified; Santiago remains VPC-only. Require reciprocal `canonicalPeers`
+  is physically qualified; Santiago enables attachment and runtime topology with
+  a single-host qualification limit. Validate the physical host pair when another
+  Santiago host arrives. Require reciprocal `canonicalPeers`
   for every qualified regional pair before provider calls. Resolve approvals to
   retained VPC IDs through read-only inventory checks after local routes converge.
   Missing remote state must never provision that region or block local attachment
@@ -2672,3 +2674,7 @@ pick it up:
 ```bash
 scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 ```
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

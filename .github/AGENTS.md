@@ -55,6 +55,14 @@ Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
 
+The optional `custom_cache_apfs` staging smoke input runs the candidate shared
+cache lifecycle and real APFS tests in a staging macOS runner. It validates native
+filesystem behavior, not a deployed host/mailbox/server rollout. Keep that
+limitation explicit when reporting smoke results.
+`macos-cache-volumes-smoke.yml` exercises the deployed action, guest APFS mount
+and teardown/publication path on main. Run seed, then verify with the same key
+after publication; fail then verify checks that failed-job writes are discarded.
+Require the symlink/APFS mount and warm hit so a cold fallback cannot pass.
 ## Bazel and Mix cache volumes
 
 Kura's `.bazelrc` configures repository downloads and disk action caching under

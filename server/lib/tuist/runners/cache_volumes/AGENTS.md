@@ -1,4 +1,4 @@
-# Linux cache volume metadata
+# Runner cache volume metadata
 
 `../cache_volumes.ex` owns allocation, publication, invalidation and analytics;
 these schemas persist volume identities and per-job uses.
@@ -9,7 +9,7 @@ these schemas persist volume identities and per-job uses.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope
   and trust for GitHub, Buildkite and GitLab. Never authorize from job variables.
-  Provider/instance/immutable scope join account/key/architecture/UID in identity.
+  Provider/instance/immutable scope join account/key/platform/architecture/UID in identity.
   PRs can read private clones; publication requires a successful eligible job
   and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
   See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
@@ -21,7 +21,7 @@ these schemas persist volume identities and per-job uses.
 - GitLab's verified job response supplies trigger type in `pipeline.source`.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
-- An open Linux session awaiting its verified execution binding returns pending
+- An open Linux or macOS session awaiting its verified execution binding returns pending
   (425 to the authenticated agent). The agent retries for at most 30 seconds;
   unknown/closed sessions and denied provider identities remain unavailable.
 - Logical invalidation and acknowledged physical deletion are distinct states.
@@ -63,15 +63,16 @@ these schemas persist volume identities and per-job uses.
 - Public inventory filters use exact name (key) and repository equality, combined
   with AND before counting and paginating. The dashboard retains its free-text search.
 
-- Linux image publication reuses `VolumeHeads` and `Runners`' immutable master
+- Custom image publication reuses `VolumeHeads` and `Runners`' immutable master
   URLs, checksum signing, compare-and-swap and delayed object reclamation.
   `base_generation` is the shared HEAD version; `generation` is the independent
   custom-volume clear/expiry epoch. Lock the custom volume through publication
   and clearing so a cleared lineage cannot be resurrected. Publication is
   idempotent by usage ID and both digests. A sealed report alone never publishes.
-- `linux-<scope>` names are valid for storage only. Keep macOS dispatch validation
-  restricted to built-in repository/account caches; this does not enable custom
-  volumes on macOS. Export includes the new image digests/generation fields.
+- `linux-<scope>` and `macos-<scope>` names are valid for custom storage only.
+  Keep macOS dispatch validation restricted to built-in repository/account caches;
+  custom attachment uses the separate authenticated host agent. Export includes
+  image digests/generation fields.
 - `Schemas` owns the shared OpenAPI/MCP contracts inside the Tuist boundary.
   Keep `CacheVolumes`, `Query` and `Schemas` exported from `Tuist`; MCP must not
   depend on `TuistWeb`. Validate with the Boundary compiler, which dev skips.
@@ -79,3 +80,20 @@ these schemas persist volume identities and per-job uses.
 - Public byte sums are integers, never Decimal strings. Serialize timestamps at
   whole-second precision for the generated Swift client's default ISO8601 decoder.
   Test measured PostgreSQL rows through JSON schema validation, not only empty fixtures.
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
+  host-audience endpoint. Resolve job/account/repository from the executed session
+  on the authenticated node. `builtin_name` selects the existing storage identity;
+  never run the custom allocation, image, clear or seven-day expiry protocol on it.
+  Rows use the same inventory, job history and analytics without a UI type label.
+- Built-in measurements describe mounted images and the current canonical saved
+  image. `superseded_at` / measurement `retired` withdraw an older canonical
+  observation; they are not physical deletion acknowledgements. Keep them distinct
+  from `deleted_at` / `deleted`. Superseded telemetry expires after 90 days.
+
+- Allocation resolves execution binding and platform in one session query. Apply
+  the platform rollout flag to that same result, including pending (425) sessions.

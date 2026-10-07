@@ -82,6 +82,7 @@
           </h3>
           <.modal
             id="create-threshold-modal"
+            data-threshold-modal
             title={dgettext("dashboard_projects", "Create size threshold")}
             header_size="large"
             on_dismiss="close_create_threshold_modal"
@@ -101,10 +102,18 @@
               {threshold_description(
                 @create_form_metric,
                 @create_form_deviation,
+                @create_form_unit,
                 @create_form_baseline_branch,
                 @create_form_bundle_name
               )}
             </p>
+            <.alert
+              :if={@create_form_error}
+              status="error"
+              type="secondary"
+              size="small"
+              title={@create_form_error}
+            />
             <div data-part="alert-form">
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
@@ -144,11 +153,30 @@
               </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Deviation %")}
+                  {dgettext("dashboard_projects", "Threshold type")}
+                </label>
+                <.dropdown
+                  id="create-threshold-unit-dropdown"
+                  label={unit_label(@create_form_unit)}
+                >
+                  <.dropdown_item
+                    :for={unit <- ["percentage", "megabytes"]}
+                    value={unit}
+                    label={unit_label(unit)}
+                    phx-click="update_create_form_unit"
+                    phx-value-unit={unit}
+                    data-selected={@create_form_unit == unit}
+                  />
+                </.dropdown>
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {deviation_label(@create_form_unit)}
                 </label>
                 <.text_input
                   type="basic"
                   id="create-threshold-deviation"
+                  hint={deviation_hint(@create_form_unit)}
                   name="deviation"
                   value={@create_form_deviation}
                   placeholder="5.0"
@@ -203,7 +231,7 @@
                     variant="primary"
                     disabled={
                       @create_form_name == "" || @create_form_baseline_branch == "" ||
-                        @create_form_deviation <= 0
+                        !valid_limit?(@create_form_unit, @create_form_deviation)
                     }
                     phx-click="create_threshold"
                   />
@@ -224,7 +252,7 @@
             <.tag_cell label={metric_label(threshold.metric)} />
           </:col>
           <:col :let={threshold} label={dgettext("dashboard_projects", "Deviation")}>
-            <.text_cell label={"#{threshold.deviation_percentage}%"} />
+            <.text_cell label={BundleThreshold.limit_label(threshold)} />
           </:col>
           <:col :let={threshold} label={dgettext("dashboard_projects", "Baseline branch")}>
             <.badge_cell label={threshold.baseline_branch} color="information" style="light-fill" />
@@ -245,6 +273,7 @@
                 <% form = Map.get(@edit_threshold_forms, threshold.id, %{}) %>
                 <.modal
                   id={"update-threshold-modal-#{threshold.id}"}
+                  data-threshold-modal
                   title={dgettext("dashboard_projects", "Update size threshold")}
                   header_size="large"
                   on_dismiss={JS.push("close_edit_threshold_modal", value: %{id: threshold.id})}
@@ -258,11 +287,19 @@
                   <p data-part="alert-description">
                     {threshold_description(
                       form[:metric] || threshold.metric,
-                      form[:deviation] || threshold.deviation_percentage,
+                      form[:deviation] || threshold_value(threshold),
+                      form[:unit] || threshold_unit(threshold),
                       form[:baseline_branch] || threshold.baseline_branch,
                       form[:bundle_name] || threshold.bundle_name
                     )}
                   </p>
+                  <.alert
+                    :if={form[:error]}
+                    status="error"
+                    type="secondary"
+                    size="small"
+                    title={form[:error]}
+                  />
                   <div data-part="alert-form">
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
@@ -303,13 +340,33 @@
                     </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
-                        {dgettext("dashboard_projects", "Deviation %")}
+                        {dgettext("dashboard_projects", "Threshold type")}
+                      </label>
+                      <.dropdown
+                        id={"edit-threshold-unit-dropdown-#{threshold.id}"}
+                        label={unit_label(form[:unit] || threshold_unit(threshold))}
+                      >
+                        <.dropdown_item
+                          :for={unit <- ["percentage", "megabytes"]}
+                          value={unit}
+                          label={unit_label(unit)}
+                          phx-click="update_edit_form_unit"
+                          phx-value-id={threshold.id}
+                          phx-value-unit={unit}
+                          data-selected={(form[:unit] || threshold_unit(threshold)) == unit}
+                        />
+                      </.dropdown>
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {deviation_label(form[:unit] || threshold_unit(threshold))}
                       </label>
                       <.text_input
                         type="basic"
                         id={"edit-threshold-deviation-#{threshold.id}"}
+                        hint={deviation_hint(form[:unit] || threshold_unit(threshold))}
                         name="deviation"
-                        value={form[:deviation] || threshold.deviation_percentage}
+                        value={form[:deviation] || threshold_value(threshold)}
                         phx-keyup="update_edit_form_deviation"
                         phx-value-id={threshold.id}
                         phx-debounce="300"
@@ -362,6 +419,14 @@
                           type="button"
                           label={dgettext("dashboard_projects", "Save")}
                           variant="primary"
+                          disabled={
+                            (form[:name] || threshold.name) == "" ||
+                              (form[:baseline_branch] || threshold.baseline_branch) == "" ||
+                              !valid_limit?(
+                                form[:unit] || threshold_unit(threshold),
+                                form[:deviation] || threshold_value(threshold)
+                              )
+                          }
                           phx-click="update_threshold"
                           phx-value-id={threshold.id}
                         />

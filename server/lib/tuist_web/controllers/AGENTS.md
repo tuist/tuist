@@ -51,3 +51,8 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
+
+- `RunnerCacheMastersController.report_usage` accepts only the per-machine
+  `tuist-runner-host` audience, derives the node from its ServiceAccount, and
+  delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
+  body-supplied account/node/repository fields cannot authorize these reports.

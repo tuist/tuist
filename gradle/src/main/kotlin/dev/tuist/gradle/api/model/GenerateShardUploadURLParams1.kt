@@ -22,8 +22,10 @@ import com.google.gson.annotations.SerializedName
  * 
  *
  * @param partNumber The part number.
- * @param reference The shard plan reference.
  * @param uploadId The multipart upload ID.
+ * @param artifact The artifact being uploaded (\"shared\" or \"module:<name>\"). Matches the start-upload artifact.
+ * @param reference The shard plan reference.
+ * @param shardPlanId The shard plan id returned by createShardPlan.
  */
 
 
@@ -33,13 +35,21 @@ data class GenerateShardUploadURLParams1 (
     @SerializedName("part_number")
     val partNumber: kotlin.Int,
 
-    /* The shard plan reference. */
-    @SerializedName("reference")
-    val reference: kotlin.String,
-
     /* The multipart upload ID. */
     @SerializedName("upload_id")
-    val uploadId: kotlin.String
+    val uploadId: kotlin.String,
+
+    /* The artifact being uploaded (\"shared\" or \"module:<name>\"). Matches the start-upload artifact. */
+    @SerializedName("artifact")
+    val artifact: kotlin.String? = null,
+
+    /* The shard plan reference. */
+    @SerializedName("reference")
+    val reference: kotlin.String? = null,
+
+    /* The shard plan id returned by createShardPlan. */
+    @SerializedName("shard_plan_id")
+    val shardPlanId: java.util.UUID? = null
 
 ) {
 

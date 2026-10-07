@@ -1,43 +1,50 @@
-# Linux local cache images
+# Shared runner cache lifecycle
 
-Local reflink branches of sparse ext4 images, with the same object storage and
-HEAD publication protocol as the macOS cache. See [runbook](../runners-controller/cache-volumes.md).
+Linux and macOS custom volumes share the durable Store journal, HTTPTransfer,
+immutable object uploads, HEAD compare-and-swap, bounded checksummed archives,
+and seven-day master eviction. The server owns scope, trust and clear epochs.
 
-- Never expose host images, masters, journals or signed URLs to workflows.
-  Guests see only `pods/<pod UID>` through kubelet SubPathExpr.
-- Bind requests to source IP, node and UID; resolve scope/trust on the server.
-- Journal before creation; format only an unexposed temporary image and atomically
-  rename it before mount. Retries never format an existing branch.
-- Seal/delete require API pod absence AND host CRI proof that the pod UID has no
-  ready sandbox or non-exited container. Runtime errors fail closed. Waiting for
-  kubelet-directory absence before unmounting deadlocks on propagated SubPath
-  child mounts; directory cleanup still waits for kubelet after unmounting.
-  A webhook, terminal phase, timeout or failed API request is not a writer fence.
-- Before sealing, persist a `.checking` guard, run syncfs and inspect ext4 errors,
-  then fence/unmap the device and durably rename the guard to `.verified`. A failed
-  or interrupted check permanently discards the branch; never retry a consumed
-  kernel error as healthy. Verified images may retry failed uploads.
-- Publish synchronously: detach, compress, preflight, upload, fast-forward, then
-  install the accepted master. Failed/rejected uploads never become masters.
+- Linux LocalImages uses ext4 and reflinks. Preserve syncfs/error verification,
+  durable checking guards, CRI plus API writer fences and no-follow cleanup.
+- APFSImages uses private APFS sparse images. Guests mount an image hard link
+  through their own virtio-fs share. Host image paths and masters stay private.
+  Require clean guest detach, API absence AND stopped Tart VM before verifying
+  and publishing. Never mount guest-written APFS on the host; use an unmounted read-only device
+  and userspace fsck. Validate lease-bound guest usage separately from admission.
+- Only accepted publication becomes a master. Failed upload retries and restart
+  recovery retain the same journal identity. Clear conflicts discard the branch.
+- Default custom capacity is 20 decimal GB. Built-in Tuist/CAS macOS caches keep
+  their existing separate identities, capacity and retention policy.
+- Unknown measurements remain unknown; never report unavailable usage as zero.
+- Run `go test -race ./...` here, the Linux agent/client suites, and macOS podagent
+  suites. Real APFS and real ext4 tests complement mocked command tests.
+- Do not move provider trust or publication decisions into workflow wrappers.
+
+- Journal before creation; format only an unexposed temporary image and rename
+  it durably before exposure. Retrying an existing branch never reformats it.
+- Linux transport binds requests to source IP, node and UID. Its writer fence
+  requires no ready CRI sandbox or non-exited container. Kubelet directory
+  absence is only a cleanup fence: waiting for it before unmounting deadlocks
+  on propagated SubPath mounts. Terminal phase and timeouts are not fences.
+- Publish synchronously after verification: compress, preflight, upload,
+  fast-forward, then install the accepted master. Bound compressed and expanded
+  downloads and verify checksums. Require reflinks without byte-copy fallback.
+- Reconcile generation/digest master sidecars against HEAD and evict stale or
+  idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
+
 - Acquisition uses the request context with a 25-second host budget and a
   30-second client timeout. Propagate cancellation through downloads, expansion,
-  commands and shared-master/admission waits. Incomplete restores remain allocated
-  and cannot publish; reclaim only after the existing writer fences pass.
-- Local masters use generation/digest filenames; checksummed downloads are
-  restored sparsely, with bounds on compressed and expanded input.
-- Require reflinks with no byte-copy fallback. Use actual filesystem free space
-  for admission/LRU; shared extents make summed file sizes misleading.
-- Reconcile local master metadata against the shared HEAD, and evict stale or
-  idle masters. An acknowledged sealed journal allows private image reclamation.
-- Use no-follow mount operations and os.Root for job-controlled tree cleanup.
-- Keep the fleet disabled until deployed Kata and provider smoke validation.
-- Run `go test -race ./...` here and `go test -race ./cmd/cache-volumes` in runners-controller and
-  `../runners-controller/scripts/test-cache-filesystem.sh` (real Linux loop mounts/reflinks in Docker).
-- New images default to 20 decimal GB. Configurable per-volume capacity and
-  macOS custom volumes remain follow-ups.
-- Emit bounded operation/source/result metrics and structured phase timings without
-  cache keys, filesystem paths or signed URLs. Metrics are scraped on port 9091,
-  separate from the runner acquisition endpoint.
-- A timed-out warm acquisition may start one immutable-master prefetch per node,
-  bounded to two minutes with no queue and the same disk reserve. It must never
-  create/mount a private branch, publish, or extend the foreground job's budget.
+  commands and shared-master/admission waits. Incomplete restores cannot publish;
+  reclaim their journals only after the existing writer fences pass.
+- Emit bounded operation/source/result metrics without keys, paths or signed URLs.
+  Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
+- Linux and macOS may prefetch one immutable master after a timed-out warm acquisition,
+  bounded to two minutes with no queue and the same disk reserve. Never create
+  a private branch, publish, or extend the foreground budget from prefetch.
+
+- APFS admission records a reservation under the built-in lock, then releases it
+  before downloads or formatting. Reserve remaining growth only for running VMs;
+  retain journal recovery and bounded, separately reserved prefetch work.
+- Per-pod cleanup errors must not prevent cleanup of other fenced pods.
+- Pod cleanup checks external writer fences outside the global allocation lock,
+  then rechecks the durable lease under that lock before removing a mailbox.
