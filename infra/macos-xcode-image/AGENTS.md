@@ -211,7 +211,7 @@ fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
 - `:27-2-beta` (channel `:27-2-beta`)
-- `:27-1-rc` (channel `:27-1-rc`)
+- `:27-1-rc` (channel `:27-1-rc`; RC 1 was built as `:27-1-release-candidate` and copied to it)
 - `:27-0`
 - `:26-6`
 - `:26-5`
