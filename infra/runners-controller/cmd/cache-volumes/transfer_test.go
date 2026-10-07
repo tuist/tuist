@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tuist/tuist/infra/runner-cache"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 func TestPublicationPreflightChecksumAndRetry(t *testing.T) {
