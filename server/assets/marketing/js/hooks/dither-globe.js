@@ -62,10 +62,12 @@
  *                   marker may carry an id (its region) for arc routing
  *   dither-globe:origins  detail.origins replaces the request origins: a
  *                   list of {lon, lat, to: {lon, lat}, region, rate}, each a
- *                   place requests come from, the serving region it reaches
- *                   and its requests per second. Origins draw as small
- *                   white dots on the surface and launch arcs to their
- *                   region at their rate; when an arc lands the canvas
+ *                   route. Optional illustrative: true marks decorative arcs
+ *                   which never dispatch arrivals or represent request volume.
+ *                   Reported routes carry an origin, its serving region and
+ *                   its requests per second. Only reported origins draw small
+ *                   white dots on the surface; both kinds launch arcs to their
+ *                   region at their rate; when a reported arc lands the canvas
  *                   dispatches dither-globe:arrival with detail {region,
  *                   weight} (the requests the arc stood for).
  *   dither-globe:motion   detail.paused holds or resumes the spin
@@ -345,7 +347,8 @@ function originsFrom(list, previous = []) {
     const toLat = Number(origin?.to?.lat);
     const rate = Number(origin?.rate);
     if (![lon, lat, toLon, toLat].every(Number.isFinite) || !(rate > 0)) continue;
-    const key = `${origin.region}:${lat}:${lon}:${toLat}:${toLon}`;
+    const illustrative = origin.illustrative === true;
+    const key = `${illustrative ? "illustrative" : "reported"}:${origin.region}:${lat}:${lon}:${toLat}:${toLon}`;
     if (origins.has(key)) {
       origins.get(key).rate += rate;
       continue;
@@ -355,6 +358,7 @@ function originsFrom(list, previous = []) {
       point: ll2xyz(lon, lat),
       to: ll2xyz(toLon, toLat),
       region: origin.region,
+      illustrative,
       rate,
       acc: phases.get(key) ?? Math.random(),
     });
@@ -729,8 +733,9 @@ export const DitherGlobe = {
     this.renderMarkers(rad, cx, cy);
   },
 
-  /* Request origins: small white dots on the surface, drawn in the tangent
-     plane like the markers so they hug the sphere and fade at the limb. */
+  /* Reported request origins: small white dots on the surface, drawn in the
+     tangent plane so they hug the sphere and fade at the limb. Decorative
+     routes have no persistent origin dots. */
   renderOrigins(rad, cx, cy) {
     const origins = this.origins;
     if (!origins.length) return;
@@ -740,6 +745,7 @@ export const DitherGlobe = {
     const [or, og, ob] = this.originShade || [255, 255, 255];
     ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
     for (let i = 0; i < origins.length; i++) {
+      if (origins[i].illustrative) continue;
       const surface = this.surface(R, origins[i].point, rad, cx, cy);
       if (!surface) continue;
       ctx.save();
@@ -760,9 +766,9 @@ export const DitherGlobe = {
      grows with the distance. It draws itself from the origin to the region
      over arcLife seconds, its head easing along the path while the line
      behind it stays, then holds complete for a moment and fades away.
-     Parts of the path behind the sphere are hidden. Landing dispatches an
-     arrival event so the page can count it. Nothing launches under reduced
-     motion. */
+     Parts of the path behind the sphere are hidden. Reported landings dispatch
+     an arrival event so the page can count them. Decorative bows fit the canvas
+     and never dispatch arrivals. Nothing launches under reduced motion. */
   renderArcs(rad, cx, cy, dt) {
     const arcs = this.arcs;
     const origins = this.origins;
@@ -802,7 +808,8 @@ export const DitherGlobe = {
             from: a,
             to: b,
             region,
-            weight,
+            illustrative: origin.illustrative,
+            weight: origin.illustrative ? 0 : weight,
             age: 0,
             life: Math.max(0.4, this.opts.arcLife) * (0.85 + Math.random() * 0.3),
             fade: 1.1,
@@ -827,6 +834,12 @@ export const DitherGlobe = {
       const hidden = wz < 0 && wx * wx + wy * wy < 1;
       return [cx + wx * rad, cy - wy * rad, hidden];
     };
+    const headRadius = Math.max(1.2, rad * 0.008);
+    // Global decorative routes can span nearly half the planet. Fit their bow
+    // inside the nearest canvas edge, including the head and antialias margin,
+    // on every repaint so an in-flight arc also fits after a resize.
+    const edge = Math.min(cx, this.w - cx, cy, this.h - cy);
+    const maxIllustrativeBow = Math.max(0, (edge - headRadius - 1) / rad - 1);
     ctx.lineCap = "round";
     ctx.lineWidth = Math.max(1, rad * 0.007);
     const steps = 28;
@@ -835,12 +848,14 @@ export const DitherGlobe = {
       if (dt > 0) arc.age += dt;
       if (!arc.landed && arc.age >= arc.life) {
         arc.landed = true;
-        this.canvas.dispatchEvent(
-          new CustomEvent("dither-globe:arrival", {
-            bubbles: true,
-            detail: { region: arc.region, weight: arc.weight },
-          }),
-        );
+        if (!arc.illustrative) {
+          this.canvas.dispatchEvent(
+            new CustomEvent("dither-globe:arrival", {
+              bubbles: true,
+              detail: { region: arc.region, weight: arc.weight },
+            }),
+          );
+        }
       }
       if (arc.age >= arc.life + arc.fade) {
         arcs[i] = arcs[arcs.length - 1];
@@ -855,10 +870,11 @@ export const DitherGlobe = {
       // gradient from a dim tail to a bright head: one stroke per run, so
       // no joints stack up and show through the alpha.
       const points = [];
+      const bow = arc.illustrative ? Math.min(arc.bow, maxIllustrativeBow) : arc.bow;
       for (let k = 0; k <= steps; k++) {
         const t = (head * k) / steps;
         const s = slerp(arc.from, arc.to, t);
-        const lift = 1 + arc.bow * Math.sin(Math.PI * t);
+        const lift = 1 + bow * Math.sin(Math.PI * t);
         points.push(project([s[0] * lift, s[1] * lift, s[2] * lift]));
       }
       ctx.lineJoin = "round";
@@ -889,7 +905,7 @@ export const DitherGlobe = {
         ctx.fillStyle = `rgb(${or}, ${og}, ${ob})`;
         ctx.globalAlpha = 0.9;
         ctx.beginPath();
-        ctx.arc(last[0], last[1], Math.max(1.2, rad * 0.008), 0, Math.PI * 2);
+        ctx.arc(last[0], last[1], headRadius, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
       }

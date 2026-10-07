@@ -13,7 +13,10 @@ defmodule TuistWeb.Marketing.MarketingGlobeLiveTest do
     {:ok, view, html} = live(conn, ~p"/globe")
 
     assert html =~ "Cache download requests today"
-    assert has_element?(view, "#marketing-globe[data-demo=false]")
+    assert has_element?(view, "#marketing-globe[data-demo=false][data-illustrative-arcs=true]")
+    assert has_element?(view, "#globe-status [data-status=live]", "Cache activity")
+    assert html =~ "Cache downloads served today, including repeated and partial requests."
+    refute html =~ "Arcs estimate request origins and replay reported activity"
     assert has_element?(view, "#marketing-globe-canvas[phx-hook=DitherGlobe]")
     assert has_element?(view, "#marketing-globe [data-part=navbar] a[href='/']")
     assert has_element?(view, "#globe-flaps[phx-hook=SplitFlap]")

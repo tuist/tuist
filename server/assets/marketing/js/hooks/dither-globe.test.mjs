@@ -11,6 +11,226 @@ runInNewContext(source, context);
 
 const origin = { lat: 51.17, lon: 10.45, to: { lat: 48.86, lon: 2.35 }, region: "eu-west", rate: 1 };
 
+function arcFixture(illustrative = false) {
+  const arrivals = [];
+  const hook = Object.assign(Object.create(context.hook), {
+    origins: context.originsFrom([{ ...origin, illustrative }]),
+    arcs: [],
+    markers: [],
+    reduced: false,
+    w: 800,
+    h: 800,
+    opts: { arcRate: 12, arcMax: 60, arcLife: 1.6, arcBusy: 0 },
+    markerShade: [120, 80, 255],
+    rotation: () => [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    ctx: {
+      createLinearGradient: () => ({ addColorStop() {} }),
+      save() {},
+      restore() {},
+      transform() {},
+      beginPath() {},
+      moveTo() {},
+      lineTo() {},
+      stroke() {},
+      arc() {},
+      fill() {},
+    },
+    canvas: { dispatchEvent: (event) => arrivals.push(event) },
+  });
+  hook.origins[0].acc = 1;
+  return { hook, arrivals };
+}
+
+context.CustomEvent = class {
+  constructor(type, options) {
+    this.type = type;
+    this.detail = options.detail;
+  }
+};
+
+test("illustrative and reported routes never merge their rates or emission progress", () => {
+  const routes = context.originsFrom([origin, { ...origin, illustrative: true, rate: 2 }]);
+  assert.equal(routes.length, 2);
+  routes[0].acc = 0.75;
+  routes[1].acc = 0.25;
+  const updated = context.originsFrom([origin, { ...origin, illustrative: true, rate: 3 }], routes);
+  assert.equal(updated[0].rate, 1);
+  assert.equal(updated[0].acc, 0.75);
+  assert.equal(updated[1].rate, 3);
+  assert.equal(updated[1].acc, 0.25);
+  assert.equal(updated[1].illustrative, true);
+});
+
+for (const illustrative of [false, true]) {
+  test(`${illustrative ? "illustrative" : "reported"} arcs animate, but only reported arcs dispatch arrivals`, () => {
+    const { hook, arrivals } = arcFixture(illustrative);
+    hook.renderArcs(100, 100, 100, 0.1);
+    assert.equal(hook.arcs.length, 1);
+    assert.equal(hook.arcs[0].illustrative, illustrative);
+    assert.equal(hook.arcs[0].weight, illustrative ? 0 : 1);
+    hook.origins = [];
+    hook.renderArcs(100, 100, 100, 1.9);
+    assert.equal(hook.arcs[0].landed, true);
+    assert.equal(arrivals.length, illustrative ? 0 : 1);
+    if (!illustrative) assert.equal(arrivals[0].detail.weight, 1);
+    hook.renderArcs(100, 100, 100, 2);
+    assert.equal(hook.arcs.length, 0);
+  });
+}
+
+test("illustrative arcs do not launch on static repaints or under reduced motion", () => {
+  const { hook } = arcFixture(true);
+  hook.renderArcs(100, 100, 100, 0);
+  assert.equal(hook.arcs.length, 0);
+  hook.reduced = true;
+  hook.renderArcs(100, 100, 100, 0.1);
+  assert.equal(hook.arcs.length, 0);
+});
+
+function illustrativeRoutes(regions) {
+  const controllerContext = {};
+  const controllerSource = readFileSync(new URL("./cache-globe.js", import.meta.url), "utf8").replace(
+    "export const CacheGlobe =",
+    "globalThis.hook =",
+  );
+  runInNewContext(controllerSource, controllerContext);
+  const controller = Object.assign(Object.create(controllerContext.hook), { data: { regions } });
+  return context.originsFrom(controller.illustrativeOrigins(3));
+}
+
+test("illustrative arcs and heads stay inside the canvas across rotation and resizing", () => {
+  const { hook } = arcFixture(true);
+  hook.origins = illustrativeRoutes([
+    { id: "us-west", location: [45.52, -122.99], recent_downloads: 12 },
+    { id: "us-central", location: [41.88, -87.63], recent_downloads: 12 },
+    { id: "us-east", location: [38.75, -77.67], recent_downloads: 12 },
+    { id: "sa-west", location: [-33.45, -70.67], recent_downloads: 12 },
+    { id: "eu-west", location: [48.86, 2.35], recent_downloads: 12 },
+    { id: "eu-east", location: [52.23, 21.01], recent_downloads: 12 },
+    { id: "ap-southeast", location: [1.35, 103.82], recent_downloads: 12 },
+  ]);
+  hook.origins.forEach((route) => {
+    route.acc = 1;
+  });
+  hook.opts.arcMax = 200;
+  hook.opts.tiltX = 0.12;
+  hook.opts.tiltZ = -0.26;
+  hook.drag = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  hook.spin = 0;
+  delete hook.rotation;
+  hook.w = 844;
+  hook.h = 856;
+  hook.renderArcs(422 * 0.86, 422, 428, 0.01);
+  assert.equal(hook.arcs.length, 189);
+  hook.origins = [];
+  for (const [w, h, offsetX, offsetY] of [
+    [844, 856, 0, 0],
+    [320, 480, 0, 0],
+    [1200, 600, 25, -20],
+    [300, 280, 0, 0],
+  ]) {
+    hook.w = w;
+    hook.h = h;
+    const rad = (Math.min(w, h) / 2) * 0.86;
+    const checkPoint = (x, y, radius = hook.ctx.lineWidth / 2) => {
+      assert.ok(x - radius >= 0 && x + radius <= w, `Horizontal clipping at ${w}x${h}: ${x} ± ${radius}`);
+      assert.ok(y - radius >= 0 && y + radius <= h, `Vertical clipping at ${w}x${h}: ${y} ± ${radius}`);
+    };
+    hook.ctx.moveTo = checkPoint;
+    hook.ctx.lineTo = checkPoint;
+    hook.ctx.arc = checkPoint;
+    for (const progress of [0.5, 1]) {
+      hook.arcs.forEach((arc) => {
+        arc.age = arc.life * progress;
+        arc.landed = progress === 1;
+      });
+      for (let step = 0; step < 72; step++) {
+        hook.spin = (step * Math.PI) / 36;
+        hook.renderArcs(rad, w / 2 + offsetX, h / 2 + offsetY, 0);
+      }
+    }
+  }
+});
+
+test("reported arc geometry is unchanged by decorative canvas fitting", () => {
+  const { hook } = arcFixture(false);
+  hook.w = 200;
+  hook.h = 200;
+  hook.renderArcs(86, 100, 100, 0.01);
+  const arc = hook.arcs[0];
+  arc.age = arc.life / 2;
+  hook.origins = [];
+  let head;
+  hook.ctx.arc = (x, y) => {
+    head = [x, y];
+  };
+  hook.renderArcs(86, 100, 100, 0);
+  const point = context.slerp(arc.from, arc.to, 0.5);
+  assert.ok(arc.bow > (100 - Math.max(1.2, 86 * 0.008) - 1) / 86 - 1);
+  assert.equal(head[0], 100 + point[0] * (1 + arc.bow) * 86);
+  assert.equal(head[1], 100 - point[1] * (1 + arc.bow) * 86);
+});
+
+test("illustrative routes have no persistent origin dots while reported origin dots retain their limb fade", () => {
+  for (const count of [1, 2, 7]) {
+    const { hook } = arcFixture(true);
+    const routes = illustrativeRoutes(
+      Array.from({ length: count }, (_, index) => ({
+        id: `region-${index}`,
+        location: [48.86, 2.35],
+        recent_downloads: 12,
+      })),
+    );
+    assert.equal(routes.length, 27 * count);
+    hook.origins = context.originsFrom([
+      origin,
+      ...Array.from({ length: count }, (_, index) => ({
+        ...origin,
+        region: `region-${index}`,
+        illustrative: true,
+      })),
+    ]);
+    hook.origins.push(...routes);
+    let dots = 0;
+    let opacity;
+    hook.ctx.fill = () => {
+      dots++;
+      opacity = hook.ctx.globalAlpha;
+    };
+    const cos = Math.cos(1.09);
+    const sin = Math.sin(1.09);
+    hook.rotation = () => [cos, 0, sin, 0, 1, 0, -sin, 0, cos];
+    const surface = hook.surface(hook.rotation(), hook.origins[0].point, 300, 400, 400);
+    assert.ok(surface.limb > 0 && surface.limb < 1);
+    hook.renderOrigins(300, 400, 400);
+    assert.equal(dots, 1);
+    assert.equal(opacity, 0.85 * surface.limb);
+  }
+});
+
+test("a single active region produces visible illustrative strokes from every quarter-turn of the globe", () => {
+  for (const spin of [0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2]) {
+    const { hook, arrivals } = arcFixture(true);
+    hook.origins = illustrativeRoutes([{ id: "us-west", location: [45.52, -122.99], recent_downloads: 12 }]);
+    hook.origins.forEach((route, index) => {
+      route.acc = (index * 0.618) % 1;
+    });
+    hook.w = 844;
+    hook.h = 856;
+    hook.opts.tiltX = 0.12;
+    hook.opts.tiltZ = -0.26;
+    hook.drag = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    hook.spin = spin;
+    delete hook.rotation;
+    let strokes = 0;
+    hook.ctx.stroke = () => strokes++;
+    for (let frame = 0; frame < 50; frame++) hook.renderArcs(422 * 0.86, 422, 428, 0.1);
+    assert.ok(strokes > 0, `No visible strokes at spin ${spin}`);
+    assert.ok(hook.arcs.length <= hook.opts.arcMax);
+    assert.equal(arrivals.length, 0);
+  }
+});
+
 test("origins present before canvas mounting are parsed without waiting for another update", () => {
   const origins = context.parseOrigins(JSON.stringify([origin]));
   assert.equal(origins.length, 1);

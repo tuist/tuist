@@ -4,6 +4,7 @@
   data-snapshot={JSON.encode!(@snapshot)}
   data-server-now={@server_now}
   data-demo={to_string(@demo)}
+  data-illustrative-arcs="true"
 >
   <%!-- A display page for a screen: the layout is authored on the Figma's
   1920×1080 frame (72px gutters around an outlined stage) and scaled to fill
@@ -30,7 +31,7 @@
           <span data-part="dot" aria-hidden="true"></span>
           <span data-status="live" hidden>{dgettext(
             "marketing",
-            "Activity replay · at least 5 minutes behind"
+            "Cache activity"
           )}</span>
           <span data-status="demo" hidden>{dgettext("marketing", "Demo · illustrative data")}</span>
           <span data-status="waiting">{dgettext("marketing", "Waiting for cache activity")}</span>
@@ -149,7 +150,7 @@
         <p data-part="copy">
           {dgettext(
             "marketing",
-            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time. Arcs estimate request origins and replay reported activity at least five minutes behind real time."
+            "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
           )}
         </p>
       </div>

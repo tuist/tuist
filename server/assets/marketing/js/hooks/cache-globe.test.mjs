@@ -102,6 +102,121 @@ function fixture(lang = "en") {
   };
 }
 
+function enableIllustration(hook) {
+  hook.el.dataset.illustrativeArcs = "true";
+  hook.updateStatus = Object.getPrototypeOf(hook).updateStatus;
+}
+
+test("opted-in live pages animate a bounded illustrative baseline without inventing metrics or reported origins", () => {
+  const { hook, events, rendered } = fixture();
+  enableIllustration(hook);
+  const snapshot = JSON.stringify(hook.snapshot);
+  hook.updateSnapshot();
+  const origins = latestOrigins(events);
+  assert.equal(origins.length, 27);
+  assert.ok(origins.every((origin) => origin.illustrative && origin.region === "eu-west"));
+  assert.ok(Math.abs(origins.reduce((sum, origin) => sum + origin.rate, 0) - 3) < 1e-9);
+  assert.ok(origins.some((origin) => origin.lon < -100));
+  assert.ok(origins.some((origin) => origin.lon > 100));
+  assert.equal(JSON.stringify(hook.snapshot), snapshot);
+  assert.equal(hook.data.origins.length, 0);
+  assert.equal(rendered["us-west"], "1,000");
+  assert.equal(rendered["eu-west"], "200");
+  assert.deepEqual(JSON.parse(hook.globe.dataset.origins), JSON.parse(JSON.stringify(origins)));
+});
+
+test("illustrative arcs supplement sparse playback without changing its timing, rate or serving region", () => {
+  const { hook, events } = fixture();
+  enableIllustration(hook);
+  hook.snapshot.origins = playbackWindows;
+  hook.updateSnapshot();
+  const origins = latestOrigins(events);
+  const reported = origins.filter((origin) => !origin.illustrative);
+  assert.equal(reported.length, 1);
+  assert.equal(reported[0].rate, 1);
+  assert.equal(reported[0].region, "eu-west");
+  assert.ok(Math.abs(origins.reduce((sum, origin) => sum + origin.rate, 0) - 3) < 1e-9);
+
+  hook.snapshot.origins = [{ ...playbackWindows[0], downloads: 600 }];
+  hook.updateSnapshot();
+  assert.equal(latestOrigins(events).length, 1);
+  assert.equal(latestOrigins(events)[0].rate, 10);
+  assert.equal(latestOrigins(events)[0].illustrative, undefined);
+});
+
+test("illustration distributes a fixed total across recently serving regions, never idle ones", () => {
+  const { hook, events } = fixture();
+  enableIllustration(hook);
+  hook.snapshot.regions[0].recent_downloads = 24;
+  hook.updateSnapshot();
+  const origins = latestOrigins(events);
+  assert.equal(origins.length, 54);
+  for (const [region, rate] of [
+    ["us-west", 2],
+    ["eu-west", 1],
+  ]) {
+    const routes = origins.filter((origin) => origin.region === region);
+    assert.ok(Math.abs(routes.reduce((sum, origin) => sum + origin.rate, 0) - rate) < 1e-9);
+    const destination = hook.snapshot.regions.find((entry) => entry.id === region).location;
+    assert.ok(routes.every((origin) => origin.to.lat === destination[0] && origin.to.lon === destination[1]));
+  }
+});
+
+test("illustration stops for offline, stale, unavailable, waiting and quiet snapshots", () => {
+  const { hook, events } = fixture();
+  enableIllustration(hook);
+  hook.updateSnapshot();
+  hook.disconnected();
+  assert.equal(latestOrigins(events).length, 0);
+  hook.reconnected();
+  assert.equal(latestOrigins(events).length, 27);
+  for (const change of [
+    { status: "unavailable" },
+    { observed_at: null },
+    { updated_at: "2026-10-05T11:56:00Z" },
+    { regions: hook.snapshot.regions.map((region) => ({ ...region, recent_downloads: 0 })) },
+  ]) {
+    const before = hook.snapshot;
+    hook.snapshot = { ...before, ...change };
+    hook.updateSnapshot();
+    assert.equal(latestOrigins(events).length, 0);
+    hook.snapshot = before;
+    hook.updateSnapshot();
+  }
+});
+
+test("illustrative updates are stable between snapshots, and opt-in never changes demo behavior", () => {
+  const { hook, events } = fixture();
+  enableIllustration(hook);
+  hook.updateSnapshot();
+  events.length = 0;
+  hook.updateSnapshot();
+  assert.equal(events.length, 0);
+  hook.demo = true;
+  hook.updateSnapshot();
+  assert.ok(latestOrigins(events).every((origin) => !origin.illustrative));
+});
+
+test("mounted illustration seeds the canvas immediately and stays stable through counter ticks and LiveView patches", () => {
+  const { hook, events, rendered, advanceClock } = fixture();
+  enableIllustration(hook);
+  hook.sync = Object.getPrototypeOf(hook).sync;
+  hook.el.dataset.snapshot = JSON.stringify(hook.snapshot);
+  hook.mounted();
+  assert.equal(latestOrigins(events).length, 27);
+  assert.equal(JSON.parse(hook.globe.dataset.origins).length, 27);
+  assert.equal(rendered.counter, 1200);
+  events.length = 0;
+  advanceClock(60000);
+  hook.advance();
+  assert.equal(events.length, 0);
+  assert.equal(rendered.counter, 1202);
+  hook.updated();
+  assert.equal(events.length, 0);
+  assert.equal(rendered.counter, 1202);
+  assert.equal(hook.snapshot.origins.length, 0);
+});
+
 test("regional rows show daily downloads even when recent activity is zero", () => {
   const { hook, rendered } = fixture();
   hook.updateSnapshot();
