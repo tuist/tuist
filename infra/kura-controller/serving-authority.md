@@ -127,13 +127,14 @@ still expires authority and requires positive fencing.
 
 ## Isolated staging validation
 
-Dispatch `Kura Controller Image` on the candidate branch with
-`staging_validation=true`. Its ordinary `server-k8s-staging` deployment identity
-adds only the new CRD fields and installs a controller scoped to `kura-spec98`.
-It neither replaces the shared controller nor activates production. The install
-script is `test/staging/install.sh`. Local human credentials intentionally cannot
-create the required RBAC/namespace; never retrieve admin credentials to work
-around that boundary.
+The isolated installation helper is `test/staging/install.sh`. Run it from the
+repository root with the candidate controller's `sha-<12-hex-commit>` image tag
+through an authorized staging deployment identity, with `KUBECONFIG` explicitly
+targeting staging. It adds only the new CRD fields and installs a controller
+scoped to `kura-spec98`; it does not replace the shared controller or activate
+production. The image-build workflow has no isolated-deployment dispatch option.
+Local human credentials intentionally cannot create the required RBAC/namespace;
+never retrieve admin credentials to work around that boundary.
 
 The opt-in ShellSpec harness in `kura/spec/e2e/serving_authority_spec.sh`
 exercises existing HTTP/2 and gRPC sessions. Its partition mode leaves the old
