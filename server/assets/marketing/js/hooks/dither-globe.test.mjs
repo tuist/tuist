@@ -282,3 +282,30 @@ test("distinct serving regions stay distinct, and removed or invalid routes emit
     0,
   );
 });
+
+// Last: it builds the module's land mask, which later origin parsing reuses.
+test("origins on ocean texels move to the nearest drawn land within three degrees", () => {
+  const MW = 1440;
+  const MH = 720;
+  // Land only between 0°–10° E and 0°–10° N.
+  const data = new Uint8ClampedArray(MW * MH * 4);
+  for (let y = 320; y < 360; y++) for (let x = 720; x < 760; x++) data[(y * MW + x) * 4 + 3] = 255;
+  context.Path2D = class {
+    moveTo() {}
+    lineTo() {}
+    closePath() {}
+  };
+  context.document = { createElement: () => ({ getContext: () => ({ fill() {}, getImageData: () => ({ data }) }) }) };
+  context.atob = (encoded) => Buffer.from(encoded, "base64").toString("latin1");
+  const toLonLat = ([x, y, z]) => [(Math.atan2(x, z) * 180) / Math.PI, (Math.asin(y) * 180) / Math.PI];
+
+  assert.deepEqual(context.landPoint(5, 5), context.ll2xyz(5, 5));
+  const [lon, lat] = toLonLat(context.landPoint(-1, 5));
+  assert.ok(Math.abs(lon - 0.125) < 1e-9 && Math.abs(lat - 4.875) < 1e-9, `snapped to ${lon}, ${lat}`);
+  assert.deepEqual(context.landPoint(-10, 5), context.ll2xyz(-10, 5));
+  assert.equal(context.landPoint(-1, 5), context.landPoint(-1, 5));
+
+  const [route] = context.originsFrom([{ lat: 5, lon: -1, to: { lat: 5, lon: 5 }, region: "eu-west", rate: 1 }]);
+  assert.deepEqual(route.point, context.landPoint(-1, 5));
+  assert.deepEqual(route.to, context.ll2xyz(5, 5));
+});
