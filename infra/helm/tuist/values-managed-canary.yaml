@@ -789,6 +789,11 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
+    "27.1-rc":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
     "27.0":
       autoscaling:
         enabled: true
