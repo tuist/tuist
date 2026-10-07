@@ -63,7 +63,22 @@ applications that are already running, and `Application.ensure_all_started/1`
 does not restore them. Put every OTP application used from a task back on the
 path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
 in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
-file and uses the command line tool's refresh lock path. `Git` and `Analytics.GitHistory` port the command line tool's Git history
+file and uses the command line tool's refresh lock path. With `--cover`, `mix tuist.test` reports line coverage (`Analytics.Coverage`)
+and the Git history with every run, so the formatter always runs in
+`{:defer, owner}` mode then. The formatter reads `cover`'s counters at
+`suite_finished`: every test has run, and Mix's coverage tool has neither
+written its report nor, in an umbrella, restarted `cover` for the next
+application. It never wraps or replaces the project's `test_coverage` tool,
+so `mix test`'s report, threshold and excoveralls keep working. A run is
+partial only when its own arguments pick tests; the files a shard appends are
+not counted. Paths are relative to the Git root, a build compiled elsewhere is
+matched by path suffix, the OTP application is the target, and files under the
+test paths are test code. Coverage that compresses past the server's inline
+threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
+`--cover`. `mix tuist.coverage.complete` signals the commit's coverage
+complete, as `tuist coverage complete` does. Tests that start or stop `cover`
+must leave a running cover server alone: under `mix test --cover` it is Mix's.
+`Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server
 compares what both report: the merge base with the CI provider's base branch

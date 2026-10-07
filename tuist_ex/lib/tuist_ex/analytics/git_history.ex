@@ -133,7 +133,7 @@ defmodule TuistEx.Analytics.GitHistory do
     shas = Enum.map(history.commits, & &1.sha)
 
     with {:ok, missing} <-
-           missing(shas, "/git-history/commits/missing", collected.repository_url, options) do
+           missing(shas, "/tests/git-history/commits/missing", collected.repository_url, options) do
       # `git log` lists children before their parents, so reversed, a stable
       # sort keeps parents first among commits made in the same second.
       to_upload =
@@ -178,7 +178,7 @@ defmodule TuistEx.Analytics.GitHistory do
           branch_heads: if(index == last, do: branch_heads, else: [])
         }
 
-        case HTTP.project_request(:post, "/git-history/commits", body, options) do
+        case HTTP.project_request(:post, "/tests/git-history/commits", body, options) do
           {:ok, _} -> {:cont, :ok}
           {:error, reason} -> {:halt, {:error, reason}}
         end
@@ -192,7 +192,7 @@ defmodule TuistEx.Analytics.GitHistory do
     with {:ok, missing} <-
            missing(
              [history.head_sha],
-             "/git-history/listings/missing",
+             "/tests/git-history/listings/missing",
              collected.repository_url,
              options
            ),
@@ -221,7 +221,7 @@ defmodule TuistEx.Analytics.GitHistory do
           files_count: length(files)
         }
 
-        case HTTP.project_request(:post, "/git-history/listings", body, options) do
+        case HTTP.project_request(:post, "/tests/git-history/listings", body, options) do
           {:ok, _} -> {:cont, :ok}
           {:error, reason} -> {:halt, {:error, reason}}
         end
@@ -250,7 +250,7 @@ defmodule TuistEx.Analytics.GitHistory do
   end
 
   defp settings(options) do
-    case HTTP.project_request(:get, "/git-history/settings", nil, options) do
+    case HTTP.project_request(:get, "/tests/git-history/settings", nil, options) do
       {:ok, body} when is_map(body) ->
         Map.new(@default_settings, fn {key, default} ->
           case Map.get(body, Atom.to_string(key)) do

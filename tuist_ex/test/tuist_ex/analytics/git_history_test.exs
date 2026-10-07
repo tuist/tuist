@@ -59,7 +59,7 @@ defmodule TuistEx.Analytics.GitHistoryTest do
   end
 
   defp stub_settings do
-    stub(HTTP, :project_request, fn :get, "/git-history/settings", nil, _options ->
+    stub(HTTP, :project_request, fn :get, "/tests/git-history/settings", nil, _options ->
       {:ok,
        %{
          "window_days" => 30,
@@ -118,18 +118,18 @@ defmodule TuistEx.Analytics.GitHistoryTest do
     test_pid = self()
 
     stub(HTTP, :project_request, fn
-      :post, "/git-history/commits/missing", %{shas: shas}, _ ->
+      :post, "/tests/git-history/commits/missing", %{shas: shas}, _ ->
         assert Enum.sort(shas) == Enum.sort([base, head])
         {:ok, %{"missing" => [base, head]}}
 
-      :post, "/git-history/commits", body, _ ->
+      :post, "/tests/git-history/commits", body, _ ->
         send(test_pid, {:commits, body})
         {:ok, %{}}
 
-      :post, "/git-history/listings/missing", %{shas: [^head]}, _ ->
+      :post, "/tests/git-history/listings/missing", %{shas: [^head]}, _ ->
         {:ok, %{"missing" => [head]}}
 
-      :post, "/git-history/listings", body, _ ->
+      :post, "/tests/git-history/listings", body, _ ->
         send(test_pid, {:listing, body})
         {:ok, %{}}
     end)
@@ -163,13 +163,13 @@ defmodule TuistEx.Analytics.GitHistoryTest do
     assert GitHistory.payload(collected).git_dirty
 
     stub(HTTP, :project_request, fn
-      :post, "/git-history/commits/missing", _, _ ->
+      :post, "/tests/git-history/commits/missing", _, _ ->
         {:ok, %{"missing" => []}}
 
-      :post, "/git-history/commits", _, _ ->
+      :post, "/tests/git-history/commits", _, _ ->
         {:ok, %{}}
 
-      :post, "/git-history/listings" <> _, _, _ ->
+      :post, "/tests/git-history/listings" <> _, _, _ ->
         flunk("a dirty checkout's listing was uploaded")
     end)
 
