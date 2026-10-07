@@ -45,17 +45,15 @@ defmodule Tuist.SentryEventFilter do
 
   # Build processing writes to ClickHouse, so its first attempts occasionally
   # land while the server sits at its total memory cap and fail with code 241.
-  # That condition is transient and the Oban retry recovers the build, so only
-  # the final attempt is reported; a ClickHouse that stays saturated still
-  # surfaces.
+  # That condition is transient and the first retry recovers the build, so the
+  # first attempt is not reported; a failure on any retry still surfaces.
   @process_build_worker inspect(Tuist.Builds.Workers.ProcessBuildWorker)
 
   def before_send(%Sentry.Event{
         original_exception: %Ch.Error{code: 241},
         tags: %{oban_worker: @process_build_worker},
-        extra: %{attempt: attempt, max_attempts: max_attempts}
-      })
-      when attempt < max_attempts do
+        extra: %{attempt: 1}
+      }) do
     false
   end
 

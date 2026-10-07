@@ -66,16 +66,19 @@ defmodule Tuist.SentryEventFilterTest do
       assert SentryEventFilter.before_send(event) == event
     end
 
-    test "drops ClickHouse memory limit errors from non-final build processing attempts" do
+    test "drops ClickHouse memory limit errors from the first build processing attempt" do
       event = clickhouse_memory_limit_event("Tuist.Builds.Workers.ProcessBuildWorker", attempt: 1, max_attempts: 5)
 
       assert SentryEventFilter.before_send(event) == false
     end
 
-    test "keeps ClickHouse memory limit errors from the final build processing attempt" do
-      event = clickhouse_memory_limit_event("Tuist.Builds.Workers.ProcessBuildWorker", attempt: 5, max_attempts: 5)
+    test "keeps ClickHouse memory limit errors from build processing retries" do
+      for attempt <- 2..5 do
+        event =
+          clickhouse_memory_limit_event("Tuist.Builds.Workers.ProcessBuildWorker", attempt: attempt, max_attempts: 5)
 
-      assert SentryEventFilter.before_send(event) == event
+        assert SentryEventFilter.before_send(event) == event
+      end
     end
 
     test "keeps ClickHouse memory limit errors from other workers" do
