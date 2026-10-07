@@ -5,6 +5,7 @@ Purpose-written English Markdown for all marketing landing pages: homepage, prod
 ## Content contract
 
 - Explain the problem, how Tuist addresses it, fit, requirements, first steps, and limitations. Prefer concrete, qualified claims to slogans or performance promises.
+- Whenever the content of an HTML marketing page changes, review and update its corresponding Markdown guide in the same change. Keep capabilities, toolchain support, prerequisites, availability, pricing guidance, limitations, and links consistent across both representations, while preserving the guide's concise, agent-oriented structure.
 - Keep facts aligned with the HTML marketing pages and `priv/docs/en/`. Feature support differs by toolchain; selective testing currently requires generated Xcode projects, and runners are invite-only.
 - Do not duplicate numeric pricing rates during the billing-model rollout. Link the live table and explain which usage and plan details to check.
 - Use root-relative Markdown links. `TuistWeb.Utilities.MarketingMarkdown` expands them to the configured app URL.
