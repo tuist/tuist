@@ -14,7 +14,7 @@
       <div data-part="volume-icon"><.database /></div>
       <h1>{@selected.key}</h1>
     </div>
-    <div :if={@can_manage} data-part="actions">
+    <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
       <.button
         variant="secondary"
         size="medium"
@@ -210,9 +210,9 @@
           >
             <.text_cell label={volume.repository} />
           </:col>
-          <:col label={dgettext("dashboard_runners", "Platform")}>
+          <:col :let={volume} label={dgettext("dashboard_runners", "Platform")}>
             <.badge_cell
-              label={dgettext("dashboard_runners", "Linux")}
+              label={TuistWeb.RunnersLive.platform_label(volume.platform)}
               color="attention"
               style="light-fill"
             />
@@ -308,7 +308,7 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge
-                label={"Linux · #{volume.architecture}"}
+                label={"#{TuistWeb.RunnersLive.platform_label(volume.platform)} · #{volume.architecture}"}
                 color="neutral"
                 style="light-fill"
                 size="large"
@@ -445,21 +445,6 @@
             </:col>
             <:col :let={usage} label={dgettext("dashboard_runners", "Workflow")}>
               <.text_cell label={workflow_label(usage)} />
-            </:col>
-            <:col :let={usage} label={dgettext("dashboard_runners", "Cache status")}>
-              <.tooltip
-                id={"volume-use-status-#{usage.id}"}
-                title={usage_description(usage.status)}
-              >
-                <:trigger :let={attrs}>
-                  <div {attrs} tabindex="0" aria-label={usage_status(usage.status)}>
-                    <.status_badge_cell
-                      label={usage_status(usage.status)}
-                      status={usage_badge_status(usage.status)}
-                    />
-                  </div>
-                </:trigger>
-              </.tooltip>
             </:col>
             <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
               <.badge_cell

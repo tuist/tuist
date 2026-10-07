@@ -248,6 +248,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftProtobuf"),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
                     .target(name: Module.config.targetName),
                     .target(name: "TuistCacheEE"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -396,7 +397,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .environmentTesting,
-             .constants, .environment, .swifterPMCore,
+             .constants, .environment,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
@@ -1644,9 +1645,12 @@ public enum Module: String, CaseIterable {
     }
 
     public var unitTestDependencies: [TargetDependency] {
+        if self == .swifterPMCore {
+            return sharedDependencies + [.target(name: targetName), .external(name: "FileSystem")]
+        }
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting,
                  .constants, .environment, .nooraTesting, .loggerTesting, .swifterPMCore,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
@@ -1667,7 +1671,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .xcodeGraph:
                 []
-            case .testSupport, .logging:
+            case .testSupport, .logging, .process:
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -2299,9 +2303,19 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
+            sources: self == .swifterPMCore && product == .unitTests ? [
+                "swifterpm/Tests/swifterpmTests/NetrcTests.swift",
+                "swifterpm/Tests/swifterpmTests/RegistryTests.swift",
+                "swifterpm/Tests/swifterpmTests/SupportTests.swift",
+                "swifterpm/Tests/swifterpmTests/HTTPClientTests.swift",
+                "swifterpm/Tests/swifterpmTests/GitHubTests.swift",
+                "swifterpm/Tests/swifterpmTests/GitLabTests.swift",
+                "swifterpm/Tests/swifterpmTests/TestSupport.swift",
+                "swifterpm/Tests/swifterpmTests/LocalHTTPServer.swift",
+            ] : nil,
             resources: self == .bazelCommand && product == .unitTests
                 ? [.folderReference(path: "cli/Tests/Fixtures/JUnitIdentity")] : nil,
-            buildableFolders: [
+            buildableFolders: self == .swifterPMCore && product == .unitTests ? [] : [
                 .folder(
                     buildableFolderPath,
                     exceptions: [.exception(excluded: excludedFiles)]

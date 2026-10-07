@@ -26,7 +26,12 @@ defmodule TuistWeb.TestsLive do
         :head_title,
         "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("tests"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Tests"),
+          fallback: "tests"
+        )
+      )
       |> assign_slowest_test_cases()
       |> assign_most_flaky_test_cases()
 
@@ -208,7 +213,10 @@ defmodule TuistWeb.TestsLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
-    duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
+
+    duration_scatter_group_by =
+      params["duration-scatter-group-by"] ||
+        if(schemes?(socket.assigns.selected_project), do: "scheme", else: "environment")
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -352,13 +360,9 @@ defmodule TuistWeb.TestsLive do
   end
 
   defp assign_slowest_test_cases(%{assigns: %{selected_project: project}} = socket) do
-    assign_async(socket, :slowest_test_cases, fn ->
-      # `:id` tiebreaker keeps the top-5 order deterministic when several
-      # test cases share the same duration. `:desc_nulls_last` sorts test cases
-      # with too few runs to rank behind the ranked ones, but sorting is not
-      # exclusion: a project with fewer than five ranked cases still fills the
-      # page with unranked ones, and the card would render each as "None". Drop
-      # them, and let the card be short or absent instead.
+    assign_async(socket, [:slowest_test_cases, :unranked_test_cases], fn ->
+      # Keep cases without enough timing samples visible without ranking them
+      # as slow tests or inventing a duration.
       {slowest_test_cases, _meta} =
         Tests.list_test_cases(
           project.id,
@@ -371,9 +375,14 @@ defmodule TuistWeb.TestsLive do
           preload: [:duration_p50_ms]
         )
 
-      slowest_test_cases = Enum.reject(slowest_test_cases, &is_nil(&1.duration_p50_ms))
+      {slowest_test_cases, unranked_test_cases} =
+        Enum.split_with(slowest_test_cases, &(not is_nil(&1.duration_p50_ms)))
 
-      {:ok, %{slowest_test_cases: slowest_test_cases}}
+      {:ok,
+       %{
+         slowest_test_cases: slowest_test_cases,
+         unranked_test_cases: if(slowest_test_cases == [], do: unranked_test_cases, else: [])
+       }}
     end)
   end
 
@@ -476,12 +485,18 @@ defmodule TuistWeb.TestsLive do
   defp scatter_name_label(value, _), do: scheme_value_label(value)
 
   defp test_run_tooltip_extra(meta, project) do
-    [
-      # Not "Scheme": Bazel, Gradle and Once each call this something else.
-      %{label: scheme_label(project), value: scheme_value_label(meta.scheme)},
-      %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
-      %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
-    ]
+    # Not "Scheme": Bazel, Gradle and Once each call this something else, and
+    # Mix has nothing of the kind, so its runs do not show one.
+    scheme =
+      if schemes?(project),
+        do: [%{label: scheme_label(project), value: scheme_value_label(meta.scheme)}],
+        else: []
+
+    scheme ++
+      [
+        %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
+        %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
+      ]
   end
 
   defp selective_testing_tooltip_extra(meta) do

@@ -204,6 +204,22 @@ rules:
     resources: ["rackswitches", "rackswitches/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
+# RackPDU and RackATS objects: a rack's PDUs and transfer switches, rendered
+# from the same site definition as RackSwitch and applied from git. Status is
+# the CAPI provider's alone, so only the objects themselves are writable here.
+# Deleting one leaves its credentials Secret behind, so it cannot strand a card.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-rackpower-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackpdus", "rackatses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
 # CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
 # CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env
 # equivalents) were invisible to every tier until now: `postgresql.cnpg.io` was
@@ -416,7 +432,10 @@ subjects:
 #     its Machine and infrastructure are already gone.
 #   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
 #     tuist.dev/os-update, tuist.dev/os-reinstall and tuist.dev/power-action
-#     annotations. Not /status: a rack host's quarantine clears by expiring.
+#     annotations, and park a host. Not /status: a rack host's quarantine
+#     clears by expiring. rackhosts delete: retire a host the chart no longer
+#     declares, which the chart keeps (helm.sh/resource-policy: keep), as for
+#     racklinuxhosts. No create: which boxes a rack has is the chart's.
 #   * racklinuxhosts update/patch — raise a rack Linux host's
 #     reinstallGeneration, which reinstalls it, set its online field or the
 #     tuist.dev/reboot annotation, and correct its bootMAC. delete — retire a
@@ -424,6 +443,10 @@ subjects:
 #     drops (helm.sh/resource-policy: keep), so without it a retired box's
 #     inventory and Machine stay behind. No create: which boxes a rack has is
 #     the chart's.
+#   * rackpdus and rackatses update/patch: the tuist.dev/accept-certificate
+#     annotation that pins a PDU or transfer switch card's new certificate. No
+#     create or delete: which power devices a rack has is the site
+#     definition's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -447,11 +470,17 @@ rules:
     resources: ["ovhdedicatedmachines"]
     verbs: ["patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
-    resources: ["rackapplesiliconmachines", "rackhosts"]
+    resources: ["rackapplesiliconmachines"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["racklinuxhosts"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackpdus", "rackatses"]
+    verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]

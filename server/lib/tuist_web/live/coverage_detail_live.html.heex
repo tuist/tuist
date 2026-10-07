@@ -35,38 +35,18 @@
       </div>
       <div data-part="badges">
         <.tooltip
-          :if={@subject.kind == :commit and not @summary.complete}
+          :if={@subject.kind == :commit and Commits.status(@summary) != :complete}
           id="coverage-status"
-          title={ref_status_label(@summary)}
-          description={head_status_title(@summary)}
+          title={commit_status_label(@summary)}
+          description={commit_status_title(@summary)}
           size="large"
         >
           <:trigger :let={attrs}>
             <span {attrs}>
               <span data-part="status">
                 <.badge
-                  label={ref_status_label(@summary)}
-                  color={ref_status_color(@summary)}
-                  style="light-fill"
-                  size="large"
-                />
-              </span>
-            </span>
-          </:trigger>
-        </.tooltip>
-        <.tooltip
-          :if={@subject.kind == :commit and Commits.incomplete?(@summary)}
-          id="coverage-incomplete"
-          title={dgettext("dashboard_tests", "Incomplete")}
-          description={incomplete_title(@summary)}
-          size="large"
-        >
-          <:trigger :let={attrs}>
-            <span {attrs}>
-              <span data-part="incomplete">
-                <.badge
-                  label={dgettext("dashboard_tests", "Incomplete")}
-                  color="neutral"
+                  label={commit_status_label(@summary)}
+                  color={commit_status_color(@summary)}
                   style="light-fill"
                   size="large"
                 />
@@ -430,10 +410,7 @@
               <.text_cell :if={not row.measured} label="—" />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Change")}>
-              <.commit_change_cell
-                id={"coverage-commit-change-#{row.git_commit_sha}"}
-                commit={row}
-              />
+              <.change_cell delta={row.change} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
               <.tooltip_badge_cell
@@ -536,7 +513,11 @@
               <.coverage_cell covered={run.covered_lines} executable={run.executable_lines} />
             </:col>
             <:col :let={run} label={dgettext("dashboard_tests", "Run")}>
-              <.run_kind_cell id={"coverage-run-kind-#{run.test_run_id}"} partial={run.partial} />
+              <.run_kind_cell
+                id={"coverage-run-kind-#{run.test_run_id}"}
+                partial={run.partial}
+                dirty={run.git_dirty}
+              />
             </:col>
             <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
               <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />

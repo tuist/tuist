@@ -336,6 +336,10 @@ defmodule Tuist.Application do
           Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
           Supervisor.child_spec(Buffer, id: Buffer),
           Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Build.Buffer, id: Tuist.Mix.Build.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
+          Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),
+          Supervisor.child_spec(Tuist.Mix.Step.Buffer, id: Tuist.Mix.Step.Buffer),
           Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
           Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
           Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
@@ -553,8 +557,15 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
+          # Accounts with custom S3 storage talk to origins without a named
+          # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
-            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            size:
+              max(
+                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+                Environment.s3_pool_size()
+              ),
+            count: Environment.s3_pool_count(),
             start_pool_metrics?: true
           ],
           "https://api.github.com" => [

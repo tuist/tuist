@@ -22,7 +22,7 @@ For clients that support plugin installation, use the <.localized_link href="/gu
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. Tuist advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md`.
+Add `https://tuist.dev/mcp` as a remote Model Context Protocol server in your client. The server's initialization instructions and public server card describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline, without asking agents to fetch or follow external authentication documents. These server-wide instructions keep workflow guidance generic: tool authentication does not authenticate local command-line tools or build-system integrations, and agents should verify requested changes through the relevant Tuist tools. Build-system-specific setup and authentication checks are documented in the integration guides and prompts. Tuist still advertises both [Open Authorization](https://oauth.net/2/) discovery metadata and the current [auth.md protocol](https://workos.com/auth-md) at `https://tuist.dev/auth.md` separately.
 
 The endpoint accepts the stateless `2026-07-28` Model Context Protocol request lifecycle, including `server/discover`, alongside the older session-based lifecycle. Existing clients can continue using their current connection method.
 

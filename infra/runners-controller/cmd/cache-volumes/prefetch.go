@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 // One bounded attempt per node, with no waiting queue. This gives a cold host a

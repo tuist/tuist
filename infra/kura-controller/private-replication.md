@@ -10,7 +10,8 @@ Their private host configuration is already installed and qualified within the
 limits recorded below. Canary and production managed runtime templates will
 activate through the normal deployment after matching route attestations.**
 Chicago Vultr now also has a qualified private path and Kubernetes-owned network
-reconciliation. Its merge activation and Santiago limitation are described in
+reconciliation. Santiago enables the same controller-managed topology with a
+single-host qualification limit. Their activation and limits are described in
 [Vultr private networking](vultr-private-networking.md).
 
 ## Operational inventory
@@ -35,12 +36,12 @@ required on every path.
   ORD–SCL has **no established provider-private path**. A WireGuard tunnel over
   public addresses encrypts traffic but does not satisfy the private-underlay
   requirement. Do not label both locations as one domain or enable a silent WAN
-  exception. Resolve that policy/topology gap before enabling strict routing
-  across a mesh containing both locations.
+  exception. Reciprocal `canonicalPeers` approvals explicitly allow canonical
+  mTLS between regional VPCs; within each VPC replication remains private-only.
   Separate ORD and SCL VPCs are provisioned. See
   [Vultr provisioning and qualification](vultr-private-networking.md) for the
   completed Chicago attachment, MTU and E2E qualification, Kubernetes ownership,
-  and the remaining Santiago/cross-domain gate.
+  and Santiago attachment/runtime qualification with its physical host-pair limit.
 - Cross-provider: retain the existing reachable peer gateway and account mTLS.
   Provider preference never removes the remote origin-region links, published
   gateways, or same-region sibling feeds.
@@ -129,13 +130,16 @@ enables both host reconciliation and automatic runtime publication after its
 physical qualification. Canary and production also enable both settings; their
 merge deployment publishes topology after the CAPI provider verifies the prepared
 hosts. Vultr Chicago follows the same publication boundary after its qualified
-host routes converge; Santiago retains canonical mTLS. Other unqualified
+host routes converge. Santiago also enables regional topology, with canonical
+mTLS explicitly approved between ORD and SCL. Other unqualified
 placements retain their existing behavior. See the provider-specific guide.
 
 Provider-only configuration is rejected at startup: opting in requires both
-`private_network` and `private_url`. Same-provider peers advertising absent or
-different private domains fail visibly in
-replication errors and private-probe logs. Failed private requests never retry
+`private_network` and `private_url`. Different same-provider domains require
+reciprocal exact-ID approval in `canonical_networks` to use canonical mTLS;
+absent or unapproved domains fail visibly in replication errors and private-probe
+logs. The allowlist is limited to 32 distinct remote IDs. Same-domain traffic
+always uses the private URL. Failed private requests never retry
 publicly. Listings, forward reads, batches and individual bodies all use the same
 selector; canonical peer identities and watermarks remain unchanged. Disabling
 redirects and environment proxies in topology mode prevents a selected private

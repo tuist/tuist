@@ -1,6 +1,7 @@
 <div id="tests">
   <div data-part="filters">
     <.dropdown
+      :if={schemes?(@selected_project)}
       id="tests-analytics-scheme-dropdown"
       label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
       secondary_text={"#{scheme_label(@selected_project)}:"}
@@ -271,10 +272,15 @@
         id="test-duration"
         chart_type={@duration_chart_type}
         chart_type_event="select_duration_chart_type"
-        group_by_options={[
-          %{value: "scheme", label: scheme_label(@selected_project)},
-          %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
-        ]}
+        group_by_options={
+          Enum.filter(
+            [
+              %{value: "scheme", label: scheme_label(@selected_project)},
+              %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
+            ],
+            &(&1.value != "scheme" or schemes?(@selected_project))
+          )
+        }
         selected_group_by={@duration_scatter_group_by}
         group_by_query_param="duration-scatter-group-by"
         uri={@uri}
@@ -974,9 +980,7 @@
         }
       >
         <:col :let={test_run} label={scheme_label(@selected_project)}>
-          <.text_and_description_cell label={
-            (test_run.scheme !== "" && test_run.scheme) || dgettext("dashboard_tests", "Unknown")
-          } />
+          <.text_and_description_cell label={test_run_label(@selected_project, test_run.scheme)} />
         </:col>
         <:col :let={test_run} label="Status">
           <.status_badge_cell
@@ -1046,7 +1050,7 @@
 
   <.async_card
     :let={ready?}
-    results={[@slowest_test_cases, @most_flaky_test_cases]}
+    results={[@slowest_test_cases, @unranked_test_cases, @most_flaky_test_cases]}
     title={dgettext("dashboard_tests", "Test Cases")}
     icon="exchange"
     data-part="test-cases"
@@ -1055,6 +1059,7 @@
       :if={
         !ready? or
           not Enum.empty?(@slowest_test_cases.result) or
+          not Enum.empty?(@unranked_test_cases.result) or
           not Enum.empty?(@most_flaky_test_cases.result)
       }
       data-part="test-cases-sections"
@@ -1067,11 +1072,18 @@
         <.skeleton_chart />
       </.card_section>
       <.card_section
-        :if={ready? and not Enum.empty?(@slowest_test_cases.result)}
+        :if={
+          ready? and
+            (@slowest_test_cases.result != [] or @unranked_test_cases.result != [])
+        }
         data-part="slowest-test-cases-section"
       >
         <div data-part="header">
-          <span data-part="title">{dgettext("dashboard_tests", "Slowest test cases")}</span>
+          <span data-part="title">
+            {if @slowest_test_cases.result == [],
+              do: dgettext("dashboard_tests", "Test cases"),
+              else: dgettext("dashboard_tests", "Slowest test cases")}
+          </span>
           <.button
             variant="secondary"
             label={dgettext("dashboard_tests", "View more")}
@@ -1082,7 +1094,13 @@
           />
         </div>
         <div data-part="slowest-test-cases-list">
-          <div :for={test_case <- Enum.take(@slowest_test_cases.result, 4)} class="test-case-card">
+          <div
+            :for={
+              test_case <-
+                Enum.take(@slowest_test_cases.result ++ @unranked_test_cases.result, 4)
+            }
+            class="test-case-card"
+          >
             <div data-part="header">
               <div data-part="icon">
                 <.clock_hour_4 />
@@ -1096,7 +1114,7 @@
                   {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
                 </span>
               </div>
-              <span data-part="duration">
+              <span :if={not is_nil(test_case.duration_p50_ms)} data-part="duration">
                 <.clock_hour_4 />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   test_case.duration_p50_ms
@@ -1105,13 +1123,13 @@
             </div>
           </div>
           <div
-            :if={Enum.count(@slowest_test_cases.result) > 4}
+            :if={Enum.count(@slowest_test_cases.result ++ @unranked_test_cases.result) > 4}
             data-part="more-card"
             data-index="two"
           >
           </div>
           <div
-            :if={Enum.count(@slowest_test_cases.result) > 4}
+            :if={Enum.count(@slowest_test_cases.result ++ @unranked_test_cases.result) > 4}
             data-part="more-card"
             data-index="one"
           >
@@ -1184,7 +1202,7 @@
     <.empty_card_section
       :if={
         ready? and Enum.empty?(@slowest_test_cases.result) and
-          Enum.empty?(@most_flaky_test_cases.result)
+          Enum.empty?(@unranked_test_cases.result) and Enum.empty?(@most_flaky_test_cases.result)
       }
       title={dgettext("dashboard_tests", "No test cases yet")}
       get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"

@@ -900,6 +900,10 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
+        scope "/mix" do
+          post "/builds", MixController, :create_build
+        end
+
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
@@ -1008,6 +1012,7 @@ defmodule TuistWeb.Router do
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/cache-masters", RunnerCacheMastersController, :index
+    post "/runners/cache-masters/usage", RunnerCacheMastersController, :report_usage
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
@@ -1507,6 +1512,7 @@ defmodule TuistWeb.Router do
 
       live "/builds/build-runs/:build_run_id", BuildRunLive, metadata: @public_project_route_metadata
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
+      live "/builds/mix-builds/:build_id", MixBuildLive, metadata: @public_project_route_metadata
       live "/previews", PreviewsLive, metadata: @public_project_route_metadata
       live "/runs/:run_id", RunDetailLive, metadata: @public_project_route_metadata
       get "/runs/:run_id/download", RunsController, :download

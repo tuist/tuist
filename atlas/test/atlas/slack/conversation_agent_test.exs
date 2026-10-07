@@ -13,6 +13,7 @@ defmodule Atlas.Slack.ConversationAgentTest do
   alias Atlas.Slack.User, as: SlackUser
   alias Atlas.Users.User
   alias Condukt.Tool
+  alias Condukt.Tools.Command
 
   test "creates an account through the Slack conversation tool" do
     tool = conversation_tool!("create_account")
@@ -456,6 +457,33 @@ defmodule Atlas.Slack.ConversationAgentTest do
     assert "create_social_post_revision" in tool_names
     assert "update_social_post_revision" in tool_names
     assert tool_names == Enum.uniq(tool_names)
+  end
+
+  test "call-time Slack sessions and systems investigators need no remote execution" do
+    mcp_user_email = "slack-native-#{System.unique_integer([:positive])}@example.com"
+
+    %User{}
+    |> User.changeset(%{email: mcp_user_email, name: "Slack Native Agent"})
+    |> Repo.insert!()
+
+    channel = %Channel{slack_app: :company, channel_id: "C_NATIVE", channel_name: "eng"}
+    opts = ConversationAgent.slack_session_options(:company, channel, mcp_user_email: mcp_user_email)
+    subagents = Keyword.fetch!(opts, :subagents)
+
+    assert [_ | _] = subagents |> Keyword.fetch!(:systems_investigator) |> Keyword.fetch!(:tools)
+    coding_tool_names = Enum.map(Condukt.Tools.coding_tools(), &Tool.name/1)
+
+    for session_opts <- [opts | Keyword.values(subagents)] do
+      refute Keyword.has_key?(session_opts, :runtime)
+      refute Keyword.has_key?(session_opts, :sandbox)
+      assert Keyword.get(session_opts, :mcp_servers, []) == []
+
+      for tool <- Keyword.fetch!(session_opts, :tools) do
+        refute tool == Command
+        refute match?({Command, _opts}, tool)
+        refute Tool.name(tool) in coding_tool_names
+      end
+    end
   end
 
   test "systems investigator prompt leaves finance summaries to the main agent" do

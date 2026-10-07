@@ -69,6 +69,20 @@ defmodule TuistWeb.ProjectsLiveTest do
     assert project.build_system == :bazel
   end
 
+  test "creates a Mix project", %{conn: conn, account: account} do
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    render_hook(view, "select_build_system", %{"value" => ["mix"]})
+
+    view
+    |> form("#create-project-form", project: %{name: "my-mix-project"})
+    |> render_submit()
+
+    project = Projects.get_project_by_account_and_project_handles(account.name, "my-mix-project")
+
+    assert project.build_system == :mix
+  end
+
   test "shows why a reserved project name cannot be created", %{conn: conn, account: account} do
     {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
 

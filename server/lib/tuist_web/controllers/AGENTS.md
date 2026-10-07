@@ -10,6 +10,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Deployment-credential mesh registration and peer discovery require the permanent Kura tenant. After credential verification, a retained/current handle that differs from that tenant yields 409 `tenant_mismatch` with `expected_tenant_id`, never a successful registration under another storage namespace. Invalid credentials and unknown tenants remain generic 401 responses. Keep the self-host guide and regression coverage aligned with this distinction.
 - `BuildController.timeline/2` returns full build step metadata without logs, scoped to the authorized project/build. Bandit negotiates HTTP compression; the response uses `private, no-store`.
 - Handle request/response flow and rendering for controller actions.
+- Open Graph project images recheck project identity and public visibility before storage reads or 304 responses. Use `no-cache` even for transient project cards; marketing/docs images remain immutable. Store project cards in their own retention prefix.
 - Google One Tap uses a same-origin start request and a CSRF-protected completion request in `AuthController`. Marketing HTML is shared-cached, so the start request cannot present the page's session-bound CSRF token; the router routes it through the `:same_origin_csrf_exemption` pipeline (`TuistWeb.Plugs.SameOriginCSRFExemptionPlug`), which accepts it when the browser-set `Sec-Fetch-Site` or `Origin` header proves same-origin, and its JSON returns a fresh `csrf_token` for the credential form alongside the nonce. Up to ten pending one-hour challenges support independent browser tabs. The submitted nonce selects and consumes only its matching session challenge before handling the verified identity through the existing sign-in flow. Preserve the Google Workspace hosted-domain claim when building the authentication result.
 - Delegate business logic to `server/lib/tuist` contexts.
 - Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.
@@ -30,7 +31,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Both runner log and finish endpoints select the provider from the verified report-token identity, retaining legacy Buildkite token compatibility.
 
 
-- Dashboard timeline JSON routes cover Xcode/Gradle build runs and Bazel invocations. Dispatch by the authorized project build system, scope the parent before reading metadata, omit machine samples and logs, and disable caching for every source.
+- Dashboard timeline JSON routes cover Xcode/Gradle/Mix build runs and Bazel invocations. Dispatch by the authorized project build system, scope the parent before reading metadata, omit machine samples and logs, and disable caching for every source.
 
 - Gradle timeline metadata requests disable sample-row loading at the source; dropping sample fields only after loading them does not avoid the query cost. Scalar bounds keep metadata aligned with bootstrap.
 
@@ -49,3 +50,8 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
+
+- `RunnerCacheMastersController.report_usage` accepts only the per-machine
+  `tuist-runner-host` audience, derives the node from its ServiceAccount, and
+  delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
+  body-supplied account/node/repository fields cannot authorize these reports.

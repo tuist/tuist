@@ -149,7 +149,9 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   defp request_action(socket, id, action) do
-    if socket.assigns.can_manage and CacheVolumes.get(socket.assigns.selected_account.id, id) do
+    volume = CacheVolumes.get(socket.assigns.selected_account.id, id)
+
+    if (socket.assigns.can_manage and volume) && is_nil(volume.builtin_name) do
       {:noreply,
        socket |> assign(:pending_action, {action, id}) |> push_event("open-modal", %{id: "volume-confirm-#{action}"})}
     else
@@ -494,11 +496,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   def workflow_label(%{workflow_name: name}) when is_binary(name) and name != "", do: name
   def workflow_label(_), do: dgettext("dashboard_runners", "Unknown")
 
-  def usage_badge_status("published"), do: "success"
-  def usage_badge_status("attached"), do: "in_progress"
-  def usage_badge_status("allocated"), do: "warning"
-  def usage_badge_status(_), do: "disabled"
-
   def storage_description(stats, field) do
     description =
       dgettext(
@@ -519,24 +516,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   def hit_rate(_), do: "—"
   def latency(%Decimal{} = value), do: "#{value |> Decimal.to_float() |> Float.round(0)} ms"
   def latency(_), do: "—"
-  def usage_status("allocated"), do: dgettext("dashboard_runners", "Preparing")
-  def usage_status("attached"), do: dgettext("dashboard_runners", "Attached")
-  def usage_status("published"), do: dgettext("dashboard_runners", "Saved")
-  def usage_status("discarded"), do: dgettext("dashboard_runners", "Discarded")
-  def usage_status(_), do: "—"
-
-  def usage_description("allocated"), do: dgettext("dashboard_runners", "The volume is being prepared for this job.")
-
-  def usage_description("attached"),
-    do: dgettext("dashboard_runners", "The volume is mounted for this job. Changes have not been saved yet.")
-
-  def usage_description("published"),
-    do: dgettext("dashboard_runners", "Changes from this job were saved to the volume for future job runs.")
-
-  def usage_description("discarded"),
-    do: dgettext("dashboard_runners", "Changes from this job were not saved for future job runs.")
-
-  def usage_description(_), do: dgettext("dashboard_runners", "The cache status is unavailable.")
 
   def status(volume, stats) do
     cond do

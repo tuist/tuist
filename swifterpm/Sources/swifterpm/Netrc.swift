@@ -2,7 +2,8 @@ import Foundation
 
 /// Where netrc credentials are read from when authenticating registry and HTTP downloads.
 public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
-    /// When false, no netrc source is consulted at all.
+    /// When false, HTTP downloads skip file netrc. Inline data and registry netrc
+    /// remain enabled, matching SwiftPM's separate authorization providers.
     public var isEnabled: Bool
     /// An explicit netrc file, as passed through `--netrc-file`. When nil the
     /// `SWIFTPM_NETRC_DATA` environment variable and `~/.netrc` are used.
@@ -32,8 +33,8 @@ public struct SwifterPMNetrcConfiguration: Equatable, Sendable {
     public static let `default` = SwifterPMNetrcConfiguration()
 }
 
-/// Where a set of parsed netrc entries came from. SwiftPM interleaves the keychain
-/// between the two for registry requests, so the distinction has to survive parsing.
+/// Where parsed netrc entries came from. SwiftPM selects registry providers and
+/// resolves duplicate machines differently for inline data and files.
 enum NetrcOrigin: Equatable, Sendable {
     /// `SWIFTPM_NETRC_DATA`.
     case environment
@@ -66,6 +67,8 @@ struct Netrc: Sendable {
     /// Skips the keychain for registry requests, SwiftPM's `forceNetrc`.
     var forcesNetrc: Bool { configuration.forcesNetrc }
 
+    var hasEnvironmentSource: Bool { sources.contains { $0.origin == .environment } }
+
     /// Skips the OS credential store entirely, SwiftPM's `--disable-keychain`.
     var keychainDisabled: Bool { configuration.disableKeychain }
 
@@ -77,11 +80,11 @@ struct Netrc: Sendable {
             if let path = configuration.path {
                 arguments.append(contentsOf: ["--netrc-file", path.path])
             }
-            if configuration.forcesNetrc {
-                arguments.append("--netrc")
-            }
         } else {
             arguments.append("--disable-netrc")
+        }
+        if configuration.forcesNetrc {
+            arguments.append("--netrc")
         }
         if configuration.disableKeychain {
             arguments.append("--disable-keychain")
@@ -98,13 +101,11 @@ struct Netrc: Sendable {
         if !configuration.isEnabled, configuration.path != nil {
             throw ToolError.message("'--disable-netrc' and '--netrc-file' are mutually exclusive")
         }
-        guard configuration.isEnabled else {
-            return Netrc(configuration: configuration, sources: [])
-        }
-
         var sources: [NetrcSource] = []
-        if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty {
-            sources.append(NetrcSource(origin: .environment, machines: NetrcParser.machines(in: data)))
+        if let data = environment["SWIFTPM_NETRC_DATA"], !data.isEmpty,
+           let machines = try? validatedMachines(in: data)
+        {
+            sources.append(NetrcSource(origin: .environment, machines: machines))
         }
 
         // An explicit `--netrc-file` replaces `~/.netrc`, and it has to be there.
@@ -116,18 +117,22 @@ struct Netrc: Sendable {
                 throw ToolError.message("did not find netrc file at \(path.path)")
             }
             sources.append(
-                NetrcSource(origin: .file, machines: NetrcParser.machines(in: try await contents(of: path))))
+                NetrcSource(origin: .file, machines: try validatedMachines(in: await contents(of: path), allowEmpty: true)))
         } else if let home = environment["HOME"] {
             let path = URL(fileURLWithPath: home).appendingPathComponent(".netrc")
-            if let content = try? await contents(of: path) {
-                sources.append(NetrcSource(origin: .file, machines: NetrcParser.machines(in: content)))
+            if let content = try? await contents(of: path),
+               let machines = try? validatedMachines(in: content)
+            {
+                sources.append(NetrcSource(origin: .file, machines: machines))
             }
         }
         return Netrc(configuration: configuration, sources: sources)
     }
 
     func credential(for url: URL) -> RegistryCredential? {
-        credential(for: url, in: sources)
+        credential(for: url, in: sources.filter {
+            $0.origin == .environment || configuration.isEnabled
+        })
     }
 
     func credential(for url: URL, from origin: NetrcOrigin) -> RegistryCredential? {
@@ -137,15 +142,28 @@ struct Netrc: Sendable {
     private func credential(for url: URL, in sources: [NetrcSource]) -> RegistryCredential? {
         guard let host = url.host?.lowercased() else { return nil }
         for source in sources {
-            // First match rather than last: SwiftPM and curl both resolve a duplicated
-            // host to the entry that appears first.
-            if let machine = source.machines.first(where: { $0.name == host })
-                ?? source.machines.first(where: \.isDefault)
+            // SwiftPM uses distinct providers: inline data selects the first match,
+            // while NetrcAuthorizationProvider selects the last match in a file.
+            let match = source.origin == .environment
+                ? source.machines.first(where: { $0.name == host })
+                : source.machines.last(where: { $0.name == host })
+            if let machine = match ?? source.machines.first(where: \.isDefault)
             {
                 return RegistryCredential(user: machine.login, password: machine.password)
             }
         }
         return nil
+    }
+
+    private static func validatedMachines(in content: String, allowEmpty: Bool = false) throws -> [NetrcMachine] {
+        let machines = NetrcParser.machines(in: content)
+        guard allowEmpty || !machines.isEmpty else {
+            throw ToolError.message("netrc contains no machines")
+        }
+        if let index = machines.firstIndex(where: \.isDefault), index != machines.count - 1 {
+            throw ToolError.message("netrc default entry must be last")
+        }
+        return machines
     }
 
     private static func contents(of path: URL) async throws -> String {
