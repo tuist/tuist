@@ -404,20 +404,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
             %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
             %{module: "TextKitTests", suite: "TextTests", name: "testTrim()"}
           ],
-          coverage_evidence: %{
-            paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"],
-            scopes: [
-              %{
-                kind: "test",
-                module: "AppTests",
-                suite: "MathTests",
-                name: "testAdd()",
-                files: [0, 2],
-                lines: [[1, 2], [1, 1]]
-              },
-              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [1], lines: [[1, 3]]}
-            ]
-          }
+          coverage_evidence: target_only_evidence(Keyword.get(opts, :untracked, false))
         }
       )
 
@@ -427,6 +414,36 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       :measured -> target_only_head(project, account, opts)
       :skipped -> skipped_head(project, account, [{"AppTests", :local, "app"}, {"TextKitTests", :local, "text"}])
     end
+  end
+
+  # With `untracked`, both tests also executed a file in a submodule: the
+  # repository's Git tracks none of its files, so no run reports it and no
+  # listing holds its blob.
+  defp target_only_evidence(untracked) do
+    {paths, extra, extra_lines} =
+      if untracked, do: {["Vendor/Private/Sources/Secret.swift"], [3], [[1, 1]]}, else: {[], [], []}
+
+    %{
+      paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"] ++ paths,
+      scopes: [
+        %{
+          kind: "test",
+          module: "AppTests",
+          suite: "MathTests",
+          name: "testAdd()",
+          files: [0, 2] ++ extra,
+          lines: [[1, 2], [1, 1]] ++ extra_lines
+        },
+        %{
+          kind: "target",
+          module: "TextKitTests",
+          suite: "",
+          name: "",
+          files: [1] ++ extra,
+          lines: [[1, 3]] ++ extra_lines
+        }
+      ]
+    }
   end
 
   # The scheme skipped whole at the head: its run measured nothing and listed
@@ -571,6 +588,21 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              carried_tests_count: 2,
              gap_files_count: 0,
              carried_from: ["base"]
+           } = Reported.compute(project, "head")
+  end
+
+  test "carries what executed a file the repository's Git does not track, such as a submodule's", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head: :skipped, untracked: true)
+
+    assert %{
+             kind: "reported",
+             covered_lines: 5,
+             executable_lines: 7,
+             carried_tests_count: 2,
+             gap_files_count: 0
            } = Reported.compute(project, "head")
   end
 

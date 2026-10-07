@@ -18,7 +18,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   - the test passed in that run;
   - every file the test executed there, and every file its suite's setup
     executed, has the same blob at the commit, and so does every tracked file
-    of the project;
+    of the project (a file the repository's Git does not track, such as a
+    submodule's, has no blob to compare and never counts);
   - the evidence holds lines, not only files, for every file that counts.
 
   A test target selective testing skipped carries whole, from the evidence
@@ -896,7 +897,9 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   # Why the evidence cannot be carried from its source, or nil when it can.
   defp failure(context, validity, source, rows, source_files) do
-    paths = rows |> Enum.map(& &1.path) |> Enum.uniq()
+    # A file the source run did not report is one its repository's Git does
+    # not track (a submodule's): nothing holds its blob, and it never counts.
+    paths = rows |> Enum.map(& &1.path) |> Enum.uniq() |> Enum.filter(&Map.has_key?(source_files, &1))
 
     cond do
       validity[source.sha] != :ok ->
