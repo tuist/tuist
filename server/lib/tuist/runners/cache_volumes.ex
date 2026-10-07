@@ -61,21 +61,7 @@ defmodule Tuist.Runners.CacheVolumes do
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
 
   defp executing_job(pod, node) do
-    binding =
-      Repo.one(
-        from(s in RunnerSession,
-          left_join: j in WorkflowJob,
-          on:
-            j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id and
-              j.provider in ["github", "buildkite", "gitlab"] and j.status == "running",
-          where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
-          order_by: [desc: s.started_at],
-          limit: 1,
-          select: {j, s.platform, s.executed_workflow_job_id}
-        )
-      )
-
-    case binding do
+    case execution_binding(pod, node) do
       {job, platform, executed_id} ->
         if Environment.runner_cache_volumes_enabled?(platform) do
           case {job, executed_id} do
@@ -90,6 +76,21 @@ defmodule Tuist.Runners.CacheVolumes do
       _ ->
         {:error, :unavailable}
     end
+  end
+
+  defp execution_binding(pod, node) do
+    Repo.one(
+      from(s in RunnerSession,
+        left_join: j in WorkflowJob,
+        on:
+          j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id and
+            j.provider in ["github", "buildkite", "gitlab"] and j.status == "running",
+        where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos],
+        order_by: [desc: s.started_at],
+        limit: 1,
+        select: {j, s.platform, s.executed_workflow_job_id}
+      )
+    )
   end
 
   defdelegate run_identity(job, run), to: Identity, as: :github_identity
