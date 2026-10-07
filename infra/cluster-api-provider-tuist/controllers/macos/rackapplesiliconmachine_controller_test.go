@@ -949,6 +949,12 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 	if perHost.SSHUser != "tuist" {
 		t.Fatalf("SSHUser = %q, want the host's service account", perHost.SSHUser)
 	}
+	// Whatever answers at the address is only this host if it reports this
+	// host's serial; otherwise another box would be bootstrapped, and its key
+	// pinned, under this host's name.
+	if perHost.ExpectedSerial != host.Spec.Serial {
+		t.Fatalf("ExpectedSerial = %q, want the RackHost's serial %q", perHost.ExpectedSerial, host.Spec.Serial)
+	}
 
 	// And the dial target must NOT reach the host-config hash, or two hosts
 	// with identical config would drift each other.

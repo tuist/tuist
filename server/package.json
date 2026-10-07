@@ -31,13 +31,15 @@
       "follow-redirects": "1.16.0",
       "protobufjs": "7.6.5",
       "postcss": "8.5.23",
-      "shell-quote": "1.9.0",
+      "shell-quote": "1.11.0",
       "form-data": "4.0.6",
       "@opentelemetry/core": "2.8.0",
       "ts-deepmerge": "8.0.0",
       "fflate": "0.4.9",
       "nanoid@^3.0.0": "3.3.18",
-      "nanoid@^5.0.0": "5.1.16"
+      "nanoid@^5.0.0": "5.1.16",
+      "vue": "3.5.42",
+      "source-map-js": "1.2.2"
     },
     "allowBuilds": {
       "core-js": true,

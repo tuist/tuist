@@ -519,6 +519,14 @@ CONF
 # over. dhcp-authoritative is global, hence a second process, which can share
 # port 67 with the first because each serves one interface. A site without the
 # segment renders a dnsmasq that serves nothing.
+#
+# It keeps no lease file. Every lease is a reservation of infinite length, so a
+# kept lease only ever records an address against a MAC the site no longer
+# reserves it for, and dnsmasq then refuses the address to the MAC that now
+# has it ("not using configured address ... because it is leased to"): a mini
+# replaced on its predecessor's address would get none. Measured on 2026-10-05
+# when ber1-runner-b01 took the retired M1's address. In memory, the leases go
+# with the pod, which every change to the reservations restarts.
 fleet_edge_machines_dhcp() {
   local site_file="$1" gateway dns node mac address
   fleet_edge_check "$site_file" || return 1
@@ -535,7 +543,7 @@ CONF
   cat <<CONF
 interface=machines0
 bind-dynamic
-dhcp-leasefile=/var/lib/misc/tuist-rack-machines.leases
+leasefile-ro
 dhcp-range=set:machines,$(fleet_network "$gateway" | cut -d/ -f1),static,$(fleet_prefix_mask "${gateway#*/}"),infinite
 dhcp-option=tag:machines,option:router,${gateway%/*}
 CONF

@@ -272,6 +272,9 @@ externalSecrets:
     item: "atlas-ghcr-pull"
     field: "notesPlain"
 
+# Retain legacy objects for a non-destructive upgrade, with no agent RBAC or
+# Kubernetes API token mount. Disable only after deploying namespace retention
+# and checking for workloads; see AGENTS.md. No Atlas workflow uses this namespace.
 agentSandboxes:
   enabled: true
   namespace: atlas-agents

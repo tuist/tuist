@@ -44,6 +44,7 @@
  *   data-markers:   JSON list of {lon, lat, active} region markers; when
  *                   absent the globe shows the default serving regions.
  *                   Inactive markers draw a dim core and no pulse.
+ *   data-origins:   initial origins, using the same shape as the event below.
  *   data-arc-life:  seconds an arc takes from origin to region (default 1.6)
  *   data-arc-rate:  most arcs launched per second across all origins; the
  *                   origins' request rates are scaled down to fit, and each
@@ -333,9 +334,10 @@ function markersFrom(list) {
   return markers;
 }
 
-function originsFrom(list) {
+function originsFrom(list, previous = []) {
   if (!Array.isArray(list)) return [];
-  const origins = [];
+  const phases = new Map(previous.map((origin) => [origin.key, origin.acc]));
+  const origins = new Map();
   for (const origin of list) {
     const lon = Number(origin?.lon);
     const lat = Number(origin?.lat);
@@ -343,15 +345,29 @@ function originsFrom(list) {
     const toLat = Number(origin?.to?.lat);
     const rate = Number(origin?.rate);
     if (![lon, lat, toLon, toLat].every(Number.isFinite) || !(rate > 0)) continue;
-    origins.push({
+    const key = `${origin.region}:${lat}:${lon}:${toLat}:${toLon}`;
+    if (origins.has(key)) {
+      origins.get(key).rate += rate;
+      continue;
+    }
+    origins.set(key, {
+      key,
       point: ll2xyz(lon, lat),
       to: ll2xyz(toLon, toLat),
       region: origin.region,
       rate,
-      acc: Math.random(),
+      acc: phases.get(key) ?? Math.random(),
     });
   }
-  return origins;
+  return Array.from(origins.values());
+}
+
+function parseOrigins(raw) {
+  try {
+    return originsFrom(JSON.parse(raw || "[]"));
+  } catch {
+    return [];
+  }
 }
 
 // Shortest great-circle interpolation between two unit vectors.
@@ -423,14 +439,14 @@ export const DitherGlobe = {
     this.drag = IDENTITY;
     this.specks = [];
     this.emitAcc = 0;
-    this.origins = [];
+    this.origins = parseOrigins(this.el.dataset.origins);
     this.arcs = [];
     this.dt = 0;
 
     this.markers = parseMarkers(this.el.dataset.markers);
     this.held = this.el.dataset.paused === "true";
     this.onOrigins = (event) => {
-      this.origins = originsFrom(event.detail && event.detail.origins);
+      this.origins = originsFrom(event.detail && event.detail.origins, this.origins);
       if (this.raf === null) this.render();
     };
     this.onMarkers = (event) => {

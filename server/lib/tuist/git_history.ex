@@ -50,6 +50,7 @@ defmodule Tuist.GitHistory do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
 
   @defaults %{
@@ -708,32 +709,46 @@ defmodule Tuist.GitHistory do
   # A commit's coverage keeps a copy of its place, so a branch's history
   # outlives the graph's window; it follows every move while the commit is in
   # the graph. Only the commits an advance touched can have moved; a rebuild
-  # may have moved any of them.
+  # may have moved any of them. A complete commit that moved has its file
+  # deltas moved with it (`Tuist.Tests.Coverage.Deltas`).
   defp sync_coverage(repository_id) do
-    Repo.query!(
-      """
-      UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
-      FROM git_commits c
-      WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
-        AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
-      """,
-      [repository_id]
-    )
+    %{rows: moved} =
+      Repo.query!(
+        """
+        UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
+        FROM git_commits c
+        WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+          AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
+        RETURNING cc.project_id, cc.git_commit_sha, cc.complete
+        """,
+        [repository_id]
+      )
+
+    move_deltas(moved)
   end
 
   defp sync_coverage(_repository_id, []), do: :ok
 
   defp sync_coverage(repository_id, shas) do
-    Repo.query!(
-      """
-      UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
-      FROM git_commits c
-      WHERE cc.repository_id = $1 AND cc.git_commit_sha = ANY ($2::varchar[])
-        AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
-        AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
-      """,
-      [repository_id, Enum.uniq(shas)]
-    )
+    %{rows: moved} =
+      Repo.query!(
+        """
+        UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
+        FROM git_commits c
+        WHERE cc.repository_id = $1 AND cc.git_commit_sha = ANY ($2::varchar[])
+          AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+          AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
+        RETURNING cc.project_id, cc.git_commit_sha, cc.complete
+        """,
+        [repository_id, Enum.uniq(shas)]
+      )
+
+    move_deltas(moved)
+  end
+
+  defp move_deltas(moved) do
+    for [project_id, sha, true] <- moved, do: Deltas.enqueue(project_id, sha)
+    :ok
   end
 
   defp now, do: DateTime.truncate(DateTime.utc_now(), :second)

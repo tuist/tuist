@@ -28,7 +28,12 @@ defmodule TuistWeb.GradleCacheLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_gradle", "Gradle Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("gradle-cache"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_gradle", "Gradle Cache"),
+          fallback: "gradle-cache"
+        )
+      )
 
     {:ok, socket}
   end

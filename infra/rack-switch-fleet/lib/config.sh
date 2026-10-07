@@ -246,6 +246,14 @@ fleet_check_power() {
       $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null) |
         "\(.name): one of the \(.role) pair, but names no ats or pdu, so which transfer switch it shares cannot be checked"
     ] + [
+      # The feed cords into a transfer switch are cables like any other, so
+      # each source names the feed behind it, once.
+      select([$all[] | select(.hardware == "eats16n")] | length > 0) |
+      (1, 2) as $source | [(.feeds // [])[] | select(.source == $source)] |
+      if length == 0 then "the site has transfer switches but names no feed for source \($source)"
+      elif length > 1 then "source \($source) has more than one feed: \(map(.name) | join(", "))"
+      else empty end
+    ] + [
       [$all[] | select(.mgmt_address != null)] | group_by(.mgmt_address)[] | select(length > 1) |
         "\(map(.name) | join(" and ")) share management address \(.[0].mgmt_address)"
     ] | .[]
@@ -704,6 +712,29 @@ fleet_check_rack_hosts() {
   done < <(jq -r '.nodes[]? | select(.rack_host != null) | "\(.name)\t\(.rack_host)"' "$site_file")
   rm -f "$known"
 
+  # A mini's outlet is its RackHost's and its ToR port is this file's, so this
+  # is the one place both halves meet. They have to resolve to the same
+  # transfer switch: crossed, any one ATS failure takes the whole fleet, half
+  # the minis losing power and the other half their ToR.
+  local outlets crossed
+  outlets="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.power.pdu // "")}] | from_entries' "$values" 2>/dev/null)" || outlets='{}'
+  crossed="$(jq -r --argjson outlets "$outlets" '
+    ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    ([.nodes[]?, .devices[]] | map({key: .name, value: (if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end)}) | from_entries) as $feeder |
+    .nodes[]? | select(.rack_host != null) | . as $node |
+    ($outlets[$node.rack_host] // "") as $pdu | select($pdu != "") |
+    if ($pdus | has($pdu) | not) then
+      "\($node.name): RackHost \($node.rack_host) is on \($pdu), which is not a PDU in this site"
+    else
+      $pdus[$pdu] as $ats |
+      $node.links[]? | select(.purpose == "data" and .switch != null) |
+      .switch as $tor | $feeder[$tor] as $tor_ats |
+      select($tor_ats != null and $tor_ats != $ats) |
+        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats); a mini and its ToR must lose power together"
+    end
+  ' "$site_file")"
+  [ -n "$crossed" ] && bad="$bad$crossed"$'\n'
+
   if [ -n "$bad" ]; then
     echo "error: node references into the cluster inventory are wrong:" >&2
     printf '%s' "$bad" | sed '/^$/d;s/^/  /' >&2
@@ -923,7 +954,10 @@ HEADER
         (.ats // .pdu) as $from |
         {from: $from, port: null, to: .name, nic: (if .role == "power" then "inlet" else "psu" end),
          media: "power", purpose: "power",
-         status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)})
+         status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)}),
+      ((.feeds // []) as $feeds | .nodes[]? | select(.hardware == "eats16n") | . as $ats | $feeds[] |
+        {from: .name, port: null, to: $ats.name, nic: "source-\(.source)", media: "power", purpose: "feed",
+         status: ($ats.status // "")})
     ] |
     sort_by(.from, (.port == null), .port, .to) | .[] |
     "| \(.from) | \(.port // "") | \(.to) | \(.nic) | \(.media) | \(.purpose) | \(.status) |"

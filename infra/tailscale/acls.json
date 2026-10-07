@@ -364,7 +364,7 @@
 		// (Talos node access, ops laptops) rather than rewriting them.
 		{
 			"src": ["tag:tuist-k8s-staging"],
-			"dst": ["10.10.0.101/32"],
+			"dst": ["10.10.0.101/32", "10.10.0.102/32", "10.10.0.103/32"],
 			"ip":  ["tcp:22"],
 		},
 
