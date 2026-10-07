@@ -351,12 +351,12 @@
       }
 
       & > [data-part="stat"] {
-        container-type: inline-size;
         display: flex;
         flex-direction: column;
         justify-content: center;
         gap: calc(16 * var(--u));
         box-sizing: border-box;
+        container-type: inline-size;
         background: var(--noora-surface-background-primary);
         padding: calc(24 * var(--u)) calc(16 * var(--u));
         min-width: 0;
