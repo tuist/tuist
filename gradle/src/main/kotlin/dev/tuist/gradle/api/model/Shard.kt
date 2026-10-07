@@ -21,18 +21,20 @@ import com.google.gson.annotations.SerializedName
 /**
  * A shard with its assigned modules, suites, and download URLs.
  *
- * @param downloadUrl Presigned URL to download the shared test products bundle.
+ * @param downloadUrls Presigned URLs to download the products this shard needs: the shared artifact plus one per assigned module (or the single legacy bundle).
  * @param modules The test modules assigned to this shard.
  * @param shardPlanId The UUID of the shard plan.
  * @param suites The test suites assigned to this shard, grouped by module name.
+ * @param downloadUrl Presigned URL to download the legacy single test products bundle. Present only for plans uploaded as one bundle; omitted when per-shard artifacts are used.
+ * @param skip Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
  */
 
 
 data class Shard (
 
-    /* Presigned URL to download the shared test products bundle. */
-    @SerializedName("download_url")
-    val downloadUrl: kotlin.String,
+    /* Presigned URLs to download the products this shard needs: the shared artifact plus one per assigned module (or the single legacy bundle). */
+    @SerializedName("download_urls")
+    val downloadUrls: kotlin.collections.List<kotlin.String>,
 
     /* The test modules assigned to this shard. */
     @SerializedName("modules")
@@ -44,7 +46,15 @@ data class Shard (
 
     /* The test suites assigned to this shard, grouped by module name. */
     @SerializedName("suites")
-    val suites: kotlin.collections.Map<kotlin.String, kotlin.collections.List<kotlin.String>>
+    val suites: kotlin.collections.Map<kotlin.String, kotlin.collections.List<kotlin.String>>,
+
+    /* Presigned URL to download the legacy single test products bundle. Present only for plans uploaded as one bundle; omitted when per-shard artifacts are used. */
+    @SerializedName("download_url")
+    val downloadUrl: kotlin.String? = null,
+
+    /* Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards. */
+    @SerializedName("skip")
+    val skip: kotlin.collections.List<kotlin.String>? = null
 
 ) {
 
