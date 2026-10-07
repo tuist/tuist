@@ -192,27 +192,8 @@ function ensureGeometry(count) {
 
   // Land classification via the mask: one native even-odd fill plus cheap
   // texel lookups, instead of point-in-polygon tests over the LAND rings
-  // (which took hundreds of milliseconds). The raster is kept for later
-  // rebuilds at another point count.
-  const MW = 1440;
-  const MH = 720;
-  if (!maskData) {
-    const mask = document.createElement("canvas");
-    mask.width = MW;
-    mask.height = MH;
-    const mctx = mask.getContext("2d", { willReadFrequently: true });
-    const path = new Path2D();
-    for (const r of getLand()) {
-      path.moveTo(((r[0] + 1800) / 3600) * MW, ((900 - r[1]) / 1800) * MH);
-      for (let i = 2; i < r.length; i += 2) {
-        path.lineTo(((r[i] + 1800) / 3600) * MW, ((900 - r[i + 1]) / 1800) * MH);
-      }
-      path.closePath();
-    }
-    mctx.fillStyle = "#fff";
-    mctx.fill(path, "evenodd");
-    maskData = mctx.getImageData(0, 0, MW, MH).data;
-  }
+  // (which took hundreds of milliseconds).
+  ensureLandMask();
   landFlag = new Uint8Array(STIP_N);
   for (let i = 0; i < STIP_N; i++) {
     const x = stip[i * 4];
@@ -222,8 +203,85 @@ function ensureGeometry(count) {
     const lon = Math.atan2(x, z);
     const mx = Math.min(MW - 1, ((lon / Math.PI + 1) / 2) * MW) | 0;
     const my = Math.min(MH - 1, (0.5 - lat / Math.PI) * MH) | 0;
-    landFlag[i] = maskData[(my * MW + mx) * 4 + 3] > 127 ? 1 : 0;
+    landFlag[i] = isLand(mx, my) ? 1 : 0;
   }
+}
+
+/* ---------- equirectangular land mask ------------------------------
+   Rasterized once per page (a quarter-degree texel) and kept for stipple
+   rebuilds at another point count and for placing origins. Built lazily
+   because origins are parsed before the geometry on mount. */
+const MW = 1440;
+const MH = 720;
+
+function ensureLandMask() {
+  if (maskData || typeof document === "undefined") return maskData;
+  const mask = document.createElement("canvas");
+  mask.width = MW;
+  mask.height = MH;
+  const mctx = mask.getContext("2d", { willReadFrequently: true });
+  const path = new Path2D();
+  for (const r of getLand()) {
+    path.moveTo(((r[0] + 1800) / 3600) * MW, ((900 - r[1]) / 1800) * MH);
+    for (let i = 2; i < r.length; i += 2) {
+      path.lineTo(((r[i] + 1800) / 3600) * MW, ((900 - r[i + 1]) / 1800) * MH);
+    }
+    path.closePath();
+  }
+  mctx.fillStyle = "#fff";
+  mctx.fill(path, "evenodd");
+  maskData = mctx.getImageData(0, 0, MW, MH).data;
+  return maskData;
+}
+
+function isLand(mx, my) {
+  return maskData[(my * MW + mx) * 4 + 3] > 127;
+}
+
+/* An origin coordinate can fall in the sea on the drawn map: a country
+   anchor between islands (New Zealand's sits in Cook Strait), a coastal
+   city just outside the simplified 110m coastline (New York, Mumbai), or
+   an island the map omits (Oahu). Requests then appear to come from the
+   ocean, so an origin on an ocean texel moves to the nearest drawn land
+   within SNAP_TEXELS texels (3°). Farther points keep their place — an
+   island the map lacks is still where it is. This is a rendering nudge of
+   coordinates that already stand for areas, not a location claim. */
+const SNAP_TEXELS = 12;
+const snapped = new Map();
+
+function landPoint(lon, lat) {
+  const key = `${lat}:${lon}`;
+  const cached = snapped.get(key);
+  if (cached) return cached;
+  let point = ll2xyz(lon, lat);
+  if (!ensureLandMask()) return point;
+  const mx = Math.min(MW - 1, Math.floor(((lon + 180) / 360) * MW));
+  const my = Math.min(MH - 1, Math.floor(((90 - lat) / 180) * MH));
+  if (!isLand(mx, my)) {
+    let best = Infinity;
+    let bx = -1;
+    let by = -1;
+    // Square rings outward; a ring can't beat a hit closer than its radius.
+    for (let ring = 1; ring <= SNAP_TEXELS && best > ring * ring; ring++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        const y = my + dy;
+        if (y < 0 || y >= MH) continue;
+        const step = Math.abs(dy) === ring ? 1 : ring * 2;
+        for (let dx = -ring; dx <= ring; dx += step) {
+          const d = dx * dx + dy * dy;
+          const x = (mx + dx + MW) % MW;
+          if (d < best && isLand(x, y)) {
+            best = d;
+            bx = x;
+            by = y;
+          }
+        }
+      }
+    }
+    if (bx >= 0) point = ll2xyz(((bx + 0.5) / MW) * 360 - 180, 90 - ((by + 0.5) / MH) * 180);
+  }
+  snapped.set(key, point);
+  return point;
 }
 
 /* ---------- world map (Natural Earth 110m land, quantized x10) ----
@@ -355,7 +413,7 @@ function originsFrom(list, previous = []) {
     }
     origins.set(key, {
       key,
-      point: ll2xyz(lon, lat),
+      point: landPoint(lon, lat),
       to: ll2xyz(toLon, toLat),
       region: origin.region,
       illustrative,
