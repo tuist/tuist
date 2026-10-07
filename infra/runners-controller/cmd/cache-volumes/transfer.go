@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 type imageTransfer struct {

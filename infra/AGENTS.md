@@ -299,3 +299,5 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   Host preparation and agent readiness precede volume attachment; runner scheduling
   only prefers ready hosts so ordinary jobs remain available. See
   [workflow setup and rollout](runners-controller/cache-volumes.md).
+
+- Shared runner-cache lifecycle and Linux image backend: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
