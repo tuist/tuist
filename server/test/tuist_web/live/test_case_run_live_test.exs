@@ -64,11 +64,13 @@ defmodule TuistWeb.TestCaseRunLiveTest do
   describe "mount" do
     for {build_system, scheme, label} <- [
           {:mix, "", "mix test"},
+          {:mix, "clickhouse-current", "mix test · clickhouse-current"},
+          {:mix, "clickhouse-floor", "mix test · clickhouse-floor"},
           {:bazel, "", "bazel test"},
           {:gradle, "root-project", "root-project"},
           {:xcode, "AppScheme", "AppScheme"}
         ] do
-      test "renders meaningful #{build_system} command and parent-run labels", %{
+      test "renders meaningful #{build_system} #{scheme} command and parent-run labels", %{
         conn: conn,
         account: account,
         project: project
@@ -97,6 +99,14 @@ defmodule TuistWeb.TestCaseRunLiveTest do
         assert has_element?(lv, "[data-part='back-button']", unquote(label))
         assert has_element?(lv, "[data-part='value-link']", unquote(label))
         assert has_element?(lv, "[data-part='metadata'] [data-part='value']", unquote(label))
+
+        {:ok, run_lv, _} =
+          live(
+            assign(conn, :selected_project, project),
+            ~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+          )
+
+        assert has_element?(run_lv, "h1", unquote(label))
       end
     end
 
