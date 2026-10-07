@@ -62,10 +62,12 @@
  *                   marker may carry an id (its region) for arc routing
  *   dither-globe:origins  detail.origins replaces the request origins: a
  *                   list of {lon, lat, to: {lon, lat}, region, rate}, each a
- *                   place requests come from, the serving region it reaches
- *                   and its requests per second. Origins draw as small
+ *                   route. Optional illustrative: true marks decorative arcs
+ *                   which never dispatch arrivals or represent request volume.
+ *                   Reported routes carry an origin, its serving region and
+ *                   its requests per second. Origins draw as small
  *                   white dots on the surface and launch arcs to their
- *                   region at their rate; when an arc lands the canvas
+ *                   region at their rate; when a reported arc lands the canvas
  *                   dispatches dither-globe:arrival with detail {region,
  *                   weight} (the requests the arc stood for).
  *   dither-globe:motion   detail.paused holds or resumes the spin
@@ -345,7 +347,8 @@ function originsFrom(list, previous = []) {
     const toLat = Number(origin?.to?.lat);
     const rate = Number(origin?.rate);
     if (![lon, lat, toLon, toLat].every(Number.isFinite) || !(rate > 0)) continue;
-    const key = `${origin.region}:${lat}:${lon}:${toLat}:${toLon}`;
+    const illustrative = origin.illustrative === true;
+    const key = `${illustrative ? "illustrative" : "reported"}:${origin.region}:${lat}:${lon}:${toLat}:${toLon}`;
     if (origins.has(key)) {
       origins.get(key).rate += rate;
       continue;
@@ -355,6 +358,7 @@ function originsFrom(list, previous = []) {
       point: ll2xyz(lon, lat),
       to: ll2xyz(toLon, toLat),
       region: origin.region,
+      illustrative,
       rate,
       acc: phases.get(key) ?? Math.random(),
     });
@@ -802,7 +806,8 @@ export const DitherGlobe = {
             from: a,
             to: b,
             region,
-            weight,
+            illustrative: origin.illustrative,
+            weight: origin.illustrative ? 0 : weight,
             age: 0,
             life: Math.max(0.4, this.opts.arcLife) * (0.85 + Math.random() * 0.3),
             fade: 1.1,
@@ -835,12 +840,14 @@ export const DitherGlobe = {
       if (dt > 0) arc.age += dt;
       if (!arc.landed && arc.age >= arc.life) {
         arc.landed = true;
-        this.canvas.dispatchEvent(
-          new CustomEvent("dither-globe:arrival", {
-            bubbles: true,
-            detail: { region: arc.region, weight: arc.weight },
-          }),
-        );
+        if (!arc.illustrative) {
+          this.canvas.dispatchEvent(
+            new CustomEvent("dither-globe:arrival", {
+              bubbles: true,
+              detail: { region: arc.region, weight: arc.weight },
+            }),
+          );
+        }
       }
       if (arc.age >= arc.life + arc.fade) {
         arcs[i] = arcs[arcs.length - 1];

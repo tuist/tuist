@@ -1,15 +1,16 @@
 // Page controller for the cache globe page (/globe). It draws nothing
 // itself: the globe is the shared DitherGlobe canvas, which this hook feeds
 // with serving-region markers (active when the region served downloads in
-// the last five minutes), with request origins (places requests come from,
-// each launching arcs to its serving region during delayed playback), and
-// holds when motion is paused. Everything else is bookkeeping — the
+// the last five minutes), delayed estimated request origins, and an optional
+// illustrative animation layer independent of measured metrics. Motion
+// pauses both layers. Everything else is bookkeeping — the
 // counters, the region rows (live totals never count estimated arcs),
 // the status line, and the demo ticker.
-// Illustrative request origins for the demo: cities, the region that
-// serves them, and their share of that region's traffic. Live origin shares
-// are estimated by the backend from existing country-level observations.
-const DEMO_ORIGINS = [
+// The demo uses these city-to-region shares. Live illustrative arcs use
+// only the city coordinates, not these fictional regional traffic shares.
+// Reported live origin shares remain backend estimates.
+const ILLUSTRATIVE_ARCS_PER_SECOND = 3;
+const ILLUSTRATIVE_ORIGINS = [
   { location: [37.77, -122.42], region: "us-west", share: 0.3 },
   { location: [21.31, -157.86], region: "us-west", share: 0.2 },
   { location: [61.22, -149.9], region: "us-west", share: 0.15 },
@@ -147,7 +148,7 @@ export const CacheGlobe = {
           downloads: Math.round((1482903 + this.demoTick * 137) * weights[index]),
           recent_downloads: Math.round(13720 * weights[index]),
         })),
-        origins: DEMO_ORIGINS.map((origin) => ({
+        origins: ILLUSTRATIVE_ORIGINS.map((origin) => ({
           ...origin,
           recent_downloads: Math.round(
             13720 * weights[this.snapshot.regions.findIndex((r) => r.id === origin.region)] * origin.share,
@@ -404,7 +405,7 @@ export const CacheGlobe = {
     // Play complete windows behind their measured timestamps, buffered for
     // flush/refresh/poll latency. Long windows need a longer closing-time buffer.
     // Each batch emits steadily over its duration; there is no catch-up burst,
-    // replay restart on a patch, or invented gap filling.
+    // replay restart on a patch, or invented volume in the reported layer.
     const byRegion = Object.fromEntries(this.data.regions.map((region) => [region.id, region.location]));
     const origins = (this.data.origins || [])
       .filter((origin) => byRegion[origin.region])
@@ -419,6 +420,10 @@ export const CacheGlobe = {
         };
       })
       .filter((origin) => Number.isFinite(origin.rate) && origin.rate > 0);
+    if (!this.demo && this.active && this.el.dataset.illustrativeArcs === "true") {
+      const reportedRate = origins.reduce((sum, origin) => sum + origin.rate, 0);
+      origins.push(...this.illustrativeOrigins(Math.max(0, ILLUSTRATIVE_ARCS_PER_SECOND - reportedRate)));
+    }
     // DitherGlobe mounts after this hook: retain the initial origins as well
     // as dispatching updates, otherwise a fresh page waits for the next tick.
     const originData = JSON.stringify(origins);
@@ -426,6 +431,25 @@ export const CacheGlobe = {
       this.globe.dataset.origins = originData;
       this.globe.dispatchEvent(new CustomEvent("dither-globe:origins", { detail: { origins } }));
     }
+  },
+
+  // A bounded visual baseline, not an estimate of requests or their routes.
+  // Only recently serving regions receive it; global illustrative cities keep
+  // some paths visible as the globe rotates, even with one active region.
+  illustrativeOrigins(rate) {
+    const regions = this.data.regions.filter((region) => region.recent_downloads > 0);
+    const total = regions.reduce((sum, region) => sum + region.recent_downloads, 0);
+    if (!(rate > 0) || !(total > 0)) return [];
+    return regions.flatMap((region) =>
+      ILLUSTRATIVE_ORIGINS.map((origin) => ({
+        lat: origin.location[0],
+        lon: origin.location[1],
+        to: { lat: region.location[0], lon: region.location[1] },
+        region: region.id,
+        rate: (rate * region.recent_downloads) / total / ILLUSTRATIVE_ORIGINS.length,
+        illustrative: true,
+      })),
+    );
   },
 
   updateMotion() {
