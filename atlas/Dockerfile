@@ -14,9 +14,14 @@ ARG OTP_VERSION=29.0.3
 # GNU C Library 2.38 or newer, so the runner uses Debian Trixie.
 ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 ARG DEBIAN_RUNNER_VERSION=trixie-slim
+# Base images are pinned by digest so Once can cache individual instructions
+# in CI without a moving tag serving a stale image. Update a digest together
+# with the tag it belongs to.
+ARG BUILDER_IMAGE_DIGEST=sha256:4ced3cb72e20ff8ad8315ec05af520c43431ea2ae459a205f5217670df45f2cf
+ARG RUNNER_IMAGE_DIGEST=sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}@${BUILDER_IMAGE_DIGEST}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}@${RUNNER_IMAGE_DIGEST}"
 
 # ========================================
 # Stage: noora asset builder
@@ -24,7 +29,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 # in the runtime image. Kept in a separate stage so the Elixir builder
 # doesn't need Node/aube in its layer.
 # ========================================
-FROM node:22-slim AS noora-assets
+FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS noora-assets
 
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"

@@ -9,6 +9,7 @@ on:
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
       - .github/workflows/atlas-deployment-validation.yml
+      - once.toml
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -17,6 +18,7 @@ on:
       - infra/k8s/atlas/**
       - .github/workflows/atlas.yml
       - .github/workflows/atlas-deployment-validation.yml
+      - once.toml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,20 +38,28 @@ jobs:
   deployment:
     uses: ./.github/workflows/atlas-deployment-validation.yml
 
+  # Build, lint, and test run through Once, which derives the graph from
+  # atlas/mix.exs and shares results through the tuist/atlas project. Forks
+  # can't mint an OIDC token, so they fall back to the local cache.
   build:
     name: Build
     runs-on: tuist-linux
-    defaults:
-      run:
-        working-directory: atlas
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node
+          install: erlang elixir node github:tuist/once
           working-directory: atlas
+
+      # Once runs from the repository root, where the workspace manifest lives,
+      # but the tool is pinned in atlas/mise.toml.
+      - name: Put Once on PATH
+        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -58,32 +68,56 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
           restore-keys: deps-${{ runner.os }}-
 
-      - name: Cache build
-        uses: actions/cache@v6
-        with:
-          path: atlas/_build
-          key: build-${{ runner.os }}-${{ env.MIX_ENV }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: build-${{ runner.os }}-${{ env.MIX_ENV }}-
+      - name: Materialize locked dependency sources
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get --check-locked
 
-      - run: mix deps.get
+      - name: Authenticate the Once cache
+        id: once-auth
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        working-directory: .
+        run: once auth login --provider tuist --no-browser
 
-      - run: mix compile --warnings-as-errors
+      - name: Build
+        working-directory: .
+        run: once build atlas/mix_application_test
+        env:
+          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
+
+      # Once persists compiler warnings as a build output, so this also
+      # catches warnings replayed from a cached compilation.
+      - name: Fail on compiler warnings
+        working-directory: .
+        run: |
+          warnings=.once/out/atlas/mix_application_test/mix-project-warnings.log
+          if [ -s "$warnings" ]; then
+            cat "$warnings"
+            exit 1
+          fi
 
   format:
     name: Format
     runs-on: tuist-linux
     needs: build
-    defaults:
-      run:
-        working-directory: atlas
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node
+          install: erlang elixir node github:tuist/once
           working-directory: atlas
+
+      # Once runs from the repository root, where the workspace manifest lives,
+      # but the tool is pinned in atlas/mise.toml.
+      - name: Put Once on PATH
+        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
 
       - name: Cache deps
         uses: actions/cache@v6
@@ -92,16 +126,25 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
           restore-keys: deps-${{ runner.os }}-
 
-      - name: Cache build
-        uses: actions/cache@v6
-        with:
-          path: atlas/_build
-          key: build-${{ runner.os }}-${{ env.MIX_ENV }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: build-${{ runner.os }}-${{ env.MIX_ENV }}-
+      - name: Materialize locked dependency sources
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get --check-locked
 
-      - run: mix deps.get
+      - name: Authenticate the Once cache
+        id: once-auth
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        working-directory: .
+        run: once auth login --provider tuist --no-browser
 
-      - run: mix format --check-formatted
+      # Runs `mix deps.unlock --check-unused` and `mix format --check-formatted`.
+      - name: Lint
+        working-directory: .
+        run: once run atlas/mix_lint
+        env:
+          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
 
   credo:
     name: Credo
@@ -141,9 +184,9 @@ jobs:
     name: Test
     runs-on: tuist-linux
     needs: build
-    defaults:
-      run:
-        working-directory: atlas
+    permissions:
+      contents: read
+      id-token: write
 
     services:
       postgres:
@@ -165,8 +208,13 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: erlang elixir node
+          install: erlang elixir node github:tuist/once
           working-directory: atlas
+
+      # Once runs from the repository root, where the workspace manifest lives,
+      # but the tool is pinned in atlas/mise.toml.
+      - name: Put Once on PATH
+        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
 
       - name: Install PDF text extraction tools
         run: sudo apt-get update -y && sudo apt-get install -y poppler-utils
@@ -178,16 +226,76 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('atlas/mix.lock') }}
           restore-keys: deps-${{ runner.os }}-
 
-      - name: Cache build
-        uses: actions/cache@v6
+      - name: Materialize locked dependency sources
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get --check-locked
+
+      - name: Authenticate the Once cache
+        id: once-auth
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        working-directory: .
+        run: once auth login --provider tuist --no-browser
+
+      # Discovered Mix tests run on every invocation and keep the project's
+      # `test` alias, so the database is created and migrated as before.
+      - name: Test
+        id: tests
+        working-directory: .
+        run: once test atlas/mix_tests
+        env:
+          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
+
+      - name: Upload test logs
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v7
         with:
-          path: atlas/_build
-          key: build-${{ runner.os }}-${{ env.MIX_ENV }}-${{ hashFiles('atlas/mix.lock') }}
-          restore-keys: build-${{ runner.os }}-${{ env.MIX_ENV }}-
+          name: atlas-test-logs
+          include-hidden-files: true
+          path: .once/out/atlas/mix_tests/test/
 
-      - run: mix deps.get
+  # Builds atlas/Dockerfile through Once. Instructions are cached individually
+  # in the tuist/atlas-oci project, separate from the Mix build. Publishing
+  # still happens in atlas-release.yml.
+  image:
+    name: Image
+    runs-on: tuist-linux
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: .
 
-      - run: mix test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/mise-install
+        with:
+          install: github:tuist/once
+          working-directory: atlas
+
+      # Once runs from the repository root, where the workspace manifest lives,
+      # but the tool is pinned in atlas/mise.toml.
+      - name: Put Once on PATH
+        working-directory: atlas
+        run: dirname "$(mise which once)" >> "$GITHUB_PATH"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate the Once cache
+        id: once-auth
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        working-directory: .
+        run: once auth login --provider tuist --no-browser
+
+      - name: Build image
+        run: once build atlas_image
+        env:
+          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist-oci' || 'local' }}
 
   inbox-worker:
     name: Inbox Worker
