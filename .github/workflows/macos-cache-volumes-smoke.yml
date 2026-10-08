@@ -8,9 +8,10 @@ on:
         type: string
         default: tuist-macos-27-0
       cache_key:
-        description: Fresh key for seed; reuse for verify and fail after publication
+        description: Key prefix; reuse for verify with the same runner and dependency files
         type: string
         required: true
+        default: cli-dependencies-v1
       phase:
         description: Seed a cold volume, verify retained contents, or reject failed-job writes
         type: choice
@@ -24,13 +25,17 @@ jobs:
   smoke:
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: 10
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - uses: actions/checkout@v4
       - uses: tuist/cache-volume@v1
         id: volume
         with:
-          key: ${{ inputs.cache_key }}
-          path: ${{ runner.temp }}/tuist-cache-volume-smoke
+          key: ${{ inputs.cache_key }}-${{ inputs.runner_label }}-${{ hashFiles('.xcode-version', 'Package.swift', 'Package.resolved') }}
+          path: .build
       - name: Verify mounted APFS and retained metadata
         shell: bash
         env:
@@ -38,33 +43,73 @@ jobs:
           CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
         run: |
           set -euo pipefail
-          target="$RUNNER_TEMP/tuist-cache-volume-smoke"
+          target=.build
           test -L "$target"
           mountpoint=$(cd "$target" && pwd -P)
           filesystem=$(diskutil info -plist "$mountpoint" | plutil -extract FilesystemType raw -)
           test "$filesystem" = apfs
           df -h "$target"
+          proof="$target/.tuist-volume-smoke"
           case "$PHASE" in
             seed)
               test "$CACHE_HIT" = false
-              test ! -e "$target/sentinel"
-              mkdir "$target/nested"
-              printf 'retained' > "$target/sentinel"
-              printf 'payload' > "$target/nested/file"
-              ln -s nested/file "$target/link"
-              xattr -w dev.tuist.volume-smoke retained "$target/nested/file"
+              test ! -e "$proof"
+              mkdir -p "$proof/nested"
+              printf 'retained' > "$proof/sentinel"
+              printf 'payload' > "$proof/nested/file"
+              ln -s nested/file "$proof/link"
+              xattr -w dev.tuist.volume-smoke retained "$proof/nested/file"
               ;;
             verify|fail)
               test "$CACHE_HIT" = true
-              test "$(cat "$target/sentinel")" = retained
-              test -L "$target/link"
-              test "$(cat "$target/link")" = payload
-              test "$(xattr -p dev.tuist.volume-smoke "$target/nested/file")" = retained
+              test "$(cat "$proof/sentinel")" = retained
+              test -L "$proof/link"
+              test "$(cat "$proof/link")" = payload
+              test "$(xattr -p dev.tuist.volume-smoke "$proof/nested/file")" = retained
+              test -s "$target/workspace-state.json"
+              test -s "$proof/dependencies.sha256"
+              shasum -a 256 -c "$proof/dependencies.sha256"
               ;;
           esac
           if [ "$PHASE" = fail ]; then
-            printf 'must-not-publish' > "$target/sentinel"
+            printf 'must-not-publish' > "$proof/sentinel"
             sync
             exit 1
           fi
+          sync
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate and configure Tuist
+        run: |
+          tuist auth login
+          tuist setup
+      - name: Install real CLI dependencies on the volume
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          before=$(du -sk .build/ | awk '{print $1}')
+          started=$SECONDS
+          tuist install --force-resolved-versions
+          elapsed=$((SECONDS - started))
+          test -L .build
+          test -s .build/workspace-state.json
+          proof=.build/.tuist-volume-smoke
+          find -H .build -type f -name Package.swift -print0 > "$RUNNER_TEMP/volume-dependency-manifests"
+          test -s "$RUNNER_TEMP/volume-dependency-manifests"
+          xargs -0 shasum -a 256 < "$RUNNER_TEMP/volume-dependency-manifests" > "$proof/dependencies.sha256"
+          packages=$(wc -l < "$proof/dependencies.sha256" | tr -d ' ')
+          after=$(du -sk .build/ | awk '{print $1}')
+          {
+            echo "### CLI dependency volume: $PHASE"
+            echo "- Snapshot hit: $CACHE_HIT"
+            echo "- Install duration: ${elapsed}s"
+            echo "- Retained dependency manifests: $packages"
+            echo "- Logical size before/after install: ${before}/${after} KiB"
+            echo "- Commit: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
           sync
