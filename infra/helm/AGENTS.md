@@ -11,6 +11,12 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 
+- Production enables the Kura authority controller independently of instance
+  activation. Keep it enabled once any instance has a serving rollback floor;
+  disabling it expires live grants. The first pilot is scoped to the public
+  Tuist EU-West instance, never the account-wide flag (the runner cache shares
+  that account). See [pilot migration](../kura-controller/production-pilot.md).
+
 - `capi.vultrPrivateNetwork` declares regional networks; the CAPI controller owns
   provider IDs and creation intent in a retained `-state` ConfigMap. Keep that
   state out of Helm-owned data. Production enables Chicago and Santiago; Santiago
