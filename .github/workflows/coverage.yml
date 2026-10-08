@@ -1,35 +1,22 @@
 name: Coverage
 
-# Gathers code coverage from full test runs on main, so the coverage trend has
-# complete runs to plot: Xcode coverage for the CLI and the app (project
-# tuist/tuist), and Mix coverage for the server (project tuist/server, which
-# dogfoods `mix tuist.test --cover`). Each half runs only when a commit
-# touched what it measures, and each signals its own project's commit
-# complete.
-#
-# Xcode: pull request runs use selective testing and the module cache, which
-# leave tests unrun and product code uninstrumented, so their coverage is
-# partial and stays out of the trend. The test targets link
+# Gathers Xcode code coverage from full test runs on main, so the coverage
+# trend has complete runs to plot. Pull request runs use selective testing and
+# the module cache, which leave tests unrun and product code uninstrumented, so
+# their coverage is partial and stays out of the trend. The test targets link
 # TestCoverageAttribution, so each run also records which files every test
 # executed, and the last job tells the server the commit's runs are all in.
-#
-# Mix: the server's suite runs sharded like server.yml's, against the current
-# ClickHouse only, with retries so a flaky test cannot leave the commit
-# incomplete; retries never carry --cover, so the coverage is the first pass.
-# --export-coverage makes Mix's own coverage step export its data instead of
-# failing the job under its 90% threshold.
 #
 # Nothing depends on this workflow: it only runs after changes land on main, it
 # is not a required check, no deploy or release workflow waits on it, and
 # notify-failure.yml does not list it.
 #
 # Dispatched with a `sha`, it collects an earlier commit on main instead, to
-# backfill commits that had no run, Xcode and server alike; the server half
-# only runs for commits whose tuist_ex reports coverage. Dispatch one at a
-# time: each holds two macOS runners for up to two hours. The commit's sources
-# are tested with this workflow's tools, because an older pin of the CLI may
-# not upload coverage at all, but its .xcode-version is its own, so commits
-# before the move to Xcode 27 (f834b57656) cannot run on this image.
+# backfill commits that had no run. Dispatch one at a time: each holds two
+# macOS runners for up to two hours. The commit's sources are tested with this
+# workflow's tools, because an older pin of the CLI may not upload coverage at
+# all, but its .xcode-version is its own, so commits before the move to Xcode 27
+# (f834b57656) cannot run on this image.
 on:
   push:
     branches:
@@ -53,10 +40,6 @@ on:
       - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
-      - "server/**"
-      - "tuist_ex/**"
-      - "tuist_common/**"
-      - ".github/actions/setup-server-mix/**"
   workflow_dispatch:
     inputs:
       sha:
@@ -77,13 +60,14 @@ env:
   # Collects per-test evidence from the linked TestCoverageAttribution package.
   TUIST_COVERAGE_EVIDENCE: "1"
 
-# The Xcode jobs run one at a time on main: a run in progress finishes so its
-# coverage lands; commits merged meanwhile queue behind it, and GitHub keeps
-# only the newest. A backfill gets a group of its own, or each one dispatched
-# would cancel the one queued before it. The groups are per job rather than
-# for the whole workflow, so a commit whose Xcode jobs are dropped from the
-# queue still gets its server coverage, which needs no queue: its jobs are
-# Linux ones and every commit measures in parallel.
+# One run at a time on main. A run in progress finishes so its coverage lands;
+# commits merged meanwhile queue behind it, and GitHub keeps only the newest.
+# A backfill gets a group of its own, or each one dispatched would cancel the
+# one queued before it.
+concurrency:
+  group: coverage-${{ inputs.sha || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # The commit to collect. A backfilled one must be on main: the CLI labels the
   # run with the branch it was dispatched from, so a commit from anywhere else
@@ -95,8 +79,6 @@ jobs:
     if: github.repository == 'tuist/tuist'
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
-      xcode: ${{ steps.changes.outputs.xcode }}
-      server: ${{ steps.changes.outputs.server }}
     steps:
       - id: resolve
         env:
@@ -118,45 +100,13 @@ jobs:
             exit 1
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-      # Which halves the commit concerns. A push compares with the commit
-      # before it, and anything the comparison cannot answer (a new branch, a
-      # push of more files than it lists, an API error) runs both. A backfill
-      # runs both, the server half only where the commit's tuist_ex can report
-      # coverage.
-      - id: changes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ steps.resolve.outputs.sha }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          xcode=true
-          server=true
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-            if files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$SHA" --jq '.files[].filename'); then
-              if [ "$(wc -l <<< "$files")" -lt 300 ]; then
-                shared='^(\.github/workflows/coverage\.yml|mise\.toml|mise\.lock)$'
-                grep -qE "$shared|^(cli/(TuistCacheEE|Sources|Tests|Templates)|cas-plugin/|swifterpm/|server/native/xcresult_nif/Sources/XCResultParser/|app/|Tuist/|\.swiftpm/|[^/]+\.swift$|\.xcode-version$|Package\.(swift|resolved)$)" <<< "$files" || xcode=false
-                grep -qE "$shared|^(server/|tuist_ex/|tuist_common/|\.github/actions/setup-server-mix/)" <<< "$files" || server=false
-              fi
-            fi
-          fi
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && \
-            ! gh api "repos/$GITHUB_REPOSITORY/contents/tuist_ex/lib/mix/tasks/tuist.coverage.complete.ex?ref=$SHA" --silent 2>/dev/null; then
-            echo "::notice::$SHA predates Mix coverage in tuist_ex; its server coverage is not collected."
-            server=false
-          fi
-          echo "xcode=$xcode" >> "$GITHUB_OUTPUT"
-          echo "server=$server" >> "$GITHUB_OUTPUT"
 
   cli-unit-tests:
     name: CLI Unit Tests
     needs: commit
     runs-on: tuist-macos-27-0
     timeout-minutes: 120
-    if: github.repository == 'tuist/tuist' && needs.commit.outputs.xcode == 'true'
-    concurrency:
-      group: coverage-cli-${{ inputs.sha || github.ref }}
-      cancel-in-progress: false
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write
@@ -214,10 +164,7 @@ jobs:
     needs: commit
     runs-on: tuist-macos-27-0
     timeout-minutes: 60
-    if: github.repository == 'tuist/tuist' && needs.commit.outputs.xcode == 'true'
-    concurrency:
-      group: coverage-app-${{ inputs.sha || github.ref }}
-      cancel-in-progress: false
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write
@@ -270,10 +217,7 @@ jobs:
     needs: [commit, cli-unit-tests, app-tests]
     runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && needs.commit.outputs.xcode == 'true'
-    concurrency:
-      group: coverage-complete-${{ inputs.sha || github.ref }}
-      cancel-in-progress: false
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write
@@ -309,138 +253,3 @@ jobs:
           else
             echo "::notice::$(tuist version) has no 'tuist coverage complete'; the commit stays in progress until a release with it is pinned."
           fi
-
-  server-build:
-    name: Build Server Test Shards
-    needs: commit
-    runs-on: tuist-linux-large
-    timeout-minutes: 30
-    if: github.repository == 'tuist/tuist' && needs.commit.outputs.server == 'true'
-    permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        working-directory: server
-    env:
-      MIX_ENV: test
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      TUIST_DEV_ALL_LOCALES: "1"
-    outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
-      reference: ${{ steps.plan.outputs.reference }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.commit.outputs.sha }}
-      - uses: ./.github/actions/setup-server-mix
-        with:
-          restore-mix-cache: "false"
-      - name: Restore CLDR locale cache
-        uses: actions/cache@v4
-        with:
-          path: server/_build/cldr/locales
-          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            cldr-locales-v1-
-      - name: Prefetch CLDR locale data
-        run: mise/tasks/cldr/prefetch-locale-data.sh
-      - name: Authenticate with Tuist
-        run: mix 'do' deps.compile tuist_ex + tuist.login
-      - name: Build and plan shards
-        id: plan
-        run: |
-          mix tuist.test.build --shard-total 4
-          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
-        env:
-          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-coverage-server
-
-  server-tests:
-    name: Server Tests
-    needs: [commit, server-build]
-    runs-on: tuist-linux-large
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.server-build.outputs.matrix) }}
-    defaults:
-      run:
-        working-directory: server
-    env:
-      MIX_ENV: test
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      TUIST_DEV_ALL_LOCALES: "1"
-      TUIST_SHARD_REFERENCE: ${{ needs.server-build.outputs.reference }}
-      TUIST_SHARD_INDEX: ${{ matrix.shard }}
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.commit.outputs.sha }}
-      - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
-          restore-mix-cache: "false"
-      - name: Start ClickHouse
-        run: mise run --no-deps clickhouse:start
-      - name: Authenticate and download the test build
-        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
-      - name: Setup database
-        run: mise run --no-deps db:reset
-      # A run from a dirty checkout measured code that is not the commit's,
-      # so the server leaves its coverage out of the commit. Installing Erlang
-      # and Elixir on a cold cache writes their checksums into mise.lock, and
-      # `mix deps.get` can rewrite mix.lock; neither changes the server's own
-      # code, which is all the coverage measures, so both are put back.
-      # Anything else that changed fails here, saying what.
-      - name: Check the checkout is clean
-        run: |
-          git checkout -- ../mise.lock mix.lock
-          if [ -n "$(git status --porcelain)" ]; then
-            git status --porcelain
-            echo "::error::The checkout changed before the tests ran, so its coverage would be discarded."
-            exit 1
-          fi
-      - name: Run shard ${{ matrix.shard }} with coverage
-        run: mix tuist.test --no-download --scheme clickhouse-current --retries 2 --cover --export-coverage shard-${{ matrix.shard }}
-
-  # The server's commit is complete once its shards reported, whatever the
-  # Xcode half does: completion is per project.
-  complete-server:
-    name: Complete Server Coverage
-    needs: [commit, server-tests]
-    runs-on: tuist-linux
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        working-directory: server
-    env:
-      MIX_ENV: test
-      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.commit.outputs.sha }}
-      - uses: ./.github/actions/setup-server-mix
-        with:
-          restore-mix-cache: "false"
-      - name: Signal that the commit's coverage is complete
-        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.coverage.complete

@@ -94,6 +94,11 @@ Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsha
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
 
+`server-coverage.yml` runs the same four shards on main with `mix tuist.test
+--cover` against `tuist/server`, then `mix tuist.coverage.complete`; Xcode
+coverage stays in `coverage.yml`. Each workflow's push `paths` decide when it
+runs, so keep their jobs independent of each other.
+
 ## Restore drills
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
