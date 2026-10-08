@@ -1,7 +1,9 @@
 defmodule TuistEx.Analytics.ShardsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Mix.Tasks.Tuist.Test.Build
+  alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Shards
 
   setup do
@@ -41,6 +43,30 @@ defmodule TuistEx.Analytics.ShardsTest do
     assert_raise Mix.Error, ~r/--shard-index expects a shard number/, fn ->
       Shards.index([shard_index: -1], environment(%{}))
     end
+  end
+
+  test "fetching a shard retries when the request times out" do
+    expect(HTTP, :project_request, 2, fn :get, "/tests/shards/github-1-1/0", nil, _options ->
+      case Process.get(:fetch_attempted) do
+        nil ->
+          Process.put(:fetch_attempted, true)
+          {:error, :timeout}
+
+        true ->
+          {:ok, %{"modules" => ["Demo.AccountsTest"]}}
+      end
+    end)
+
+    assert Shards.fetch("github-1-1", 0, []) == {:ok, %{"modules" => ["Demo.AccountsTest"]}}
+  end
+
+  test "fetching a shard does not retry a missing plan" do
+    expect(HTTP, :project_request, fn :get, _suffix, nil, _options ->
+      {:error, {:http, 404, %{"message" => "The shard plan was not found."}}}
+    end)
+
+    assert Shards.fetch("github-1-1", 0, []) ==
+             {:error, {:http, 404, %{"message" => "The shard plan was not found."}}}
   end
 
   test "plans each test file as one unit, read without loading it", %{directory: directory} do

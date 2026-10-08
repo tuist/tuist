@@ -19,6 +19,9 @@ defmodule TuistEx.Analytics.Shards do
   # Storage accepts parts of at least 5 MiB, except for the last one.
   @part_bytes 64 * 1024 * 1024
 
+  @fetch_attempts 3
+  @fetch_retry_delay_ms 1_000
+
   @doc """
   The name every machine of one pipeline run agrees on. Set explicitly, or
   derived from the continuous integration provider's run identifier.
@@ -206,13 +209,32 @@ defmodule TuistEx.Analytics.Shards do
   download the build from when one was uploaded.
   """
   def fetch(reference, index, options) do
-    HTTP.project_request(
-      :get,
-      "/tests/shards/#{URI.encode(reference, &URI.char_unreserved?/1)}/#{index}",
-      nil,
-      options
-    )
+    fetch(reference, index, options, @fetch_attempts)
   end
+
+  defp fetch(reference, index, options, attempts_left) do
+    result =
+      HTTP.project_request(
+        :get,
+        "/tests/shards/#{URI.encode(reference, &URI.char_unreserved?/1)}/#{index}",
+        nil,
+        options
+      )
+
+    if attempts_left > 1 and transient?(result) do
+      Process.sleep(@fetch_retry_delay_ms * (@fetch_attempts - attempts_left + 1))
+      fetch(reference, index, options, attempts_left - 1)
+    else
+      result
+    end
+  end
+
+  # Timeouts, dropped connections, and server errors, such as while the
+  # server is being deployed.
+  defp transient?({:error, {:http, status, _body}}), do: status >= 500
+  defp transient?({:error, reason}) when is_binary(reason), do: false
+  defp transient?({:error, _reason}), do: true
+  defp transient?({:ok, _body}), do: false
 
   @doc """
   Archives the build directory and uploads it for the plan's shards.
