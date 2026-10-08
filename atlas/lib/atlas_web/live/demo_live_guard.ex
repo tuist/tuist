@@ -15,7 +15,7 @@ defmodule AtlasWeb.DemoLiveGuard do
        |> attach_hook(:demo_events, :handle_event, &handle_event/3)
        |> attach_hook(:demo_paths, :handle_params, &handle_params/3), layout: {Layouts, :demo_dashboard}}
     else
-      {:halt, redirect(socket, to: "/demo")}
+      {:halt, redirect(socket, to: "/commercial/sales/accounts")}
     end
   end
 
@@ -31,7 +31,7 @@ defmodule AtlasWeb.DemoLiveGuard do
     if Demo.dashboard_path?(URI.parse(url).path) do
       {:cont, socket}
     else
-      {:halt, redirect(socket, to: "/demo")}
+      {:halt, redirect(socket, to: "/commercial/sales/accounts")}
     end
   end
 end

@@ -35,7 +35,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO atlas_demo_r
 SQL
 key="$(python3 -c 'import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())')"
 secret="$(python3 -c 'import secrets; print(secrets.token_hex(64))')"
-common=(env -i "PATH=$PATH" "HOME=$HOME" 'ERL_FLAGS=+S 2:2' ATLAS_DEMO_MODE=true CHROME_PATH= PHX_HOST=localhost
+common=(env -i "PATH=$PATH" "HOME=$HOME" 'ERL_FLAGS=+S 2:2' RELEASE_DISTRIBUTION=none ATLAS_DEMO_MODE=true CHROME_PATH= PHX_HOST=localhost
   "SECRET_KEY_BASE=$secret" "GUARDIAN_SECRET_KEY=$secret" "ENCRYPTION_KEY=$key" "PORT=$http_port")
 owner_url="ecto://$(id -un)@127.0.0.1:$pg_port/atlas_demo"
 reader_url="ecto://atlas_demo_reader@127.0.0.1:$pg_port/atlas_demo"
@@ -69,7 +69,12 @@ for _ in $(seq 1 150); do
   sleep 0.2
 done
 if [[ "$ready" != true ]]; then tail -100 "$work/server.log" >&2; exit 1; fi
-for path in /demo /commercial/sales/accounts /tasks /commercial/finance /commercial/finance/vendors /library/notes; do
+for path in / /demo; do
+  status="$(curl -sS -o /dev/null -D "$work/entry.headers" -w '%{http_code}' -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$http_port$path")"
+  test "$status" = 302
+  grep -qi '^location: /commercial/sales/accounts' "$work/entry.headers"
+done
+for path in /commercial/sales/accounts /tasks /commercial/finance /commercial/finance/vendors /library/notes; do
   curl -fsS -H 'X-Forwarded-Proto: https' "http://127.0.0.1:$http_port$path" > "$work/page.html"
   grep -q 'id="demo-badge"' "$work/page.html"
 done

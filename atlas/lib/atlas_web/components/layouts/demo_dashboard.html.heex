@@ -1,12 +1,19 @@
 <main class="layout" data-part="demo-layout">
   <header class="headerbar">
     <div data-part="left-section">
-      <.link navigate={~p"/demo"} class="headerbar__brand">
+      <.link navigate={~p"/commercial/sales/accounts"} class="headerbar__brand">
         <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
         <span class="headerbar__title">Atlas</span>
       </.link>
     </div>
     <div data-part="right-section">
+      <.link_button
+        id="demo-docs-link"
+        href="https://atlas.tuist.dev/docs"
+        label={gettext("Docs")}
+        variant="secondary"
+        size="small"
+      />
       <.tooltip
         id="demo-badge"
         title={gettext("Fictional data. Read-only.")}
@@ -41,12 +48,6 @@
         icon="chart_dots"
         collapsible={false}
       >
-        <.sidebar_item
-          label={gettext("Start here")}
-          icon="chart_dots"
-          navigate={~p"/demo"}
-          selected={@current_path == "/demo"}
-        />
         <.sidebar_item
           label={gettext("Accounts")}
           icon="building"
@@ -84,7 +85,6 @@
         <.link
           :for={
             {label, path} <- [
-              {gettext("Start here"), ~p"/demo"},
               {gettext("Accounts"), ~p"/commercial/sales/accounts"},
               {gettext("Tasks"), ~p"/tasks"},
               {gettext("Finance"), ~p"/commercial/finance"},

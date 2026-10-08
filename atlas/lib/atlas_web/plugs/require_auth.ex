@@ -9,8 +9,8 @@ defmodule AtlasWeb.Plugs.RequireAuth do
 
   def call(conn, opts) do
     if Demo.enabled?() do
-      if conn.request_path == "/" do
-        conn |> redirect(to: "/demo") |> halt()
+      if conn.request_path in ["/", "/demo"] do
+        conn |> redirect(to: "/commercial/sales/accounts") |> halt()
       else
         assign(conn, :current_user, Demo.user())
       end

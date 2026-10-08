@@ -24,14 +24,18 @@ defmodule AtlasWeb.DemoLiveTest do
     :ok
   end
 
-  test "anonymous visits redirect to the curated demo", %{conn: conn} do
-    assert conn |> get("/") |> redirected_to() == "/demo"
-    {:ok, view, _html} = live(build_conn(), "/demo")
+  test "anonymous entry points land directly on fictional accounts", %{conn: conn} do
+    Seeds.run!()
+    assert conn |> get("/") |> redirected_to() == "/commercial/sales/accounts"
+    assert conn |> recycle() |> get("/demo") |> redirected_to() == "/commercial/sales/accounts"
+    {:ok, view, _html} = live(build_conn(), "/commercial/sales/accounts")
     assert has_element?(view, "header #demo-badge [data-part='trigger'][tabindex='0']", "Demo")
     assert has_element?(view, "#demo-badge [data-part='content']", "Fictional data. Read-only.")
     refute has_element?(view, "#demo-banner")
-    assert has_element?(view, "#demo-accounts-link")
-    assert has_element?(view, "#demo-docs-link")
+    assert has_element?(view, "#accounts-table", "Helio Commerce")
+    assert has_element?(view, "header #demo-docs-link[href='https://atlas.tuist.dev/docs']")
+    refute has_element?(view, "a[href='/demo']")
+    refute has_element?(view, "#atlas-demo")
     refute has_element?(view, "#account-dropdown")
   end
 
@@ -209,7 +213,7 @@ defmodule AtlasWeb.DemoLiveTest do
   test "same-session navigation cannot mount an unreviewed page", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/library/notes")
     render_patch(view, "/library/notes/new")
-    assert_redirect(view, "/demo")
+    assert_redirect(view, "/commercial/sales/accounts")
   end
 
   test "serving refuses an owner credential" do

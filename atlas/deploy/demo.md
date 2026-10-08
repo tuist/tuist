@@ -70,8 +70,8 @@ object-storage bucket, or connector identity. Do not layer demo values over
   runway charts. Refresh with a weekly rollout so tasks and renewals stay current.
   Do not reuse the large development seed script.
 - No paid inference or writable visitor sandbox is included. Disabled actions
-  receive a read-only explanation, not a pretend success. The demo's home page
-  points visitors to the fuller documentation and self-hosting guide.
+  receive a read-only explanation, not a pretend success. Visitors land directly
+  on Accounts; the navbar links to the documentation and self-hosting guide.
 
 ## Validation
 

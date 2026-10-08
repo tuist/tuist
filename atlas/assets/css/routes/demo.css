@@ -52,58 +52,6 @@
   }
 }
 
-[data-part="demo-overview"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-7);
-
-  & > [data-part="demo-introduction"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-3);
-    max-width: 800px;
-
-    & > h1 {
-      margin: 0;
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-    }
-
-    & > p {
-      color: var(--noora-surface-label-secondary);
-    }
-  }
-
-  & > [data-part="demo-journeys"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-    gap: var(--noora-spacing-6);
-
-    & [data-part="demo-journey"] {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--noora-spacing-5);
-
-      & > p {
-        flex: 1;
-        color: var(--noora-surface-label-secondary);
-      }
-    }
-  }
-
-  & > [data-part="demo-footer"] {
-    max-width: 800px;
-    color: var(--noora-surface-label-secondary);
-  }
-}
-
-[data-part="demo-layout"] [data-part="demo-text-link"] {
-  color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 [data-part="note-reader"] [data-part="note-body"] > * + * {
   margin-top: var(--noora-spacing-5);
 }
