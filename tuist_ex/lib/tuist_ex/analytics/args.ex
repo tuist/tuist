@@ -1,6 +1,8 @@
 defmodule TuistEx.Analytics.Args do
   @moduledoc false
 
+  alias TuistEx.Analytics.Subprocess
+
   # Separates a Tuist task's own options from the arguments it forwards to the
   # Mix task it wraps. Everything it does not recognise is forwarded untouched
   # and in order, so `mix tuist.test` takes the same command line as
@@ -57,14 +59,7 @@ defmodule TuistEx.Analytics.Args do
         System.find_executable("mix") ||
           Mix.raise("Could not find the mix executable to run #{task}.")
 
-      {_output, status} =
-        System.cmd(mix, [task | args],
-          env: [{"MIX_ENV", Atom.to_string(env)}],
-          into: IO.stream(:stdio, :line),
-          stderr_to_stdout: true
-        )
-
-      {:reexecuted, status}
+      {:reexecuted, Subprocess.run(mix, [task | args], [{"MIX_ENV", Atom.to_string(env)}])}
     end
   end
 

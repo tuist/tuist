@@ -174,7 +174,7 @@ defmodule AtlasWeb.OverviewLiveTest do
     assert has_element?(view, "#overview-widget-organizations [data-part='value']", "56")
   end
 
-  test "redirects unauthenticated visitors to /docs", %{conn: conn} do
-    assert {:error, {:redirect, %{to: "/docs"}}} = live(conn, ~p"/")
+  test "redirects unauthenticated visitors to /login", %{conn: conn} do
+    assert {:error, {:redirect, %{to: "/login"}}} = live(conn, ~p"/")
   end
 end

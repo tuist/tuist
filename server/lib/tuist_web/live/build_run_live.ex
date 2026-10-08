@@ -78,6 +78,7 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
       |> assign(:timeline, AsyncResult.loading())
       |> assign(:timeline_version, 0)
       |> assign(:machine_metrics, run.machine_metrics)
@@ -245,6 +246,7 @@ defmodule TuistWeb.BuildRunLive do
       {:noreply,
        socket
        |> assign(:run, run)
+       |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
        |> assign(:machine_metrics, run.machine_metrics)
        |> assign_build_data(run)
        |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
@@ -544,6 +546,10 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply,
      socket
      |> assign(:run, refreshed_run)
+     |> assign(
+       :failure_category,
+       Tuist.BuildMetrics.failure_category(refreshed_run.project_id, "xcode", refreshed_run.id)
+     )
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
      |> assign_build_data(refreshed_run)
      |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)
@@ -1314,8 +1320,7 @@ defmodule TuistWeb.BuildRunLive do
   #
   # See `TuistWeb.TestRunLive.cached_run_query/4` for why the key is a
   # list with a SHA-256 flop_params fragment rather than a tuple with
-  # a phash2, and for why `locking: false` is required to keep the
-  # `:tuist` cache's Locksmith GenServer off the CLI-token auth path.
+  # a phash2.
   defp cached_build_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :build_run_flop,

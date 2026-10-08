@@ -40,7 +40,9 @@ that `--max-failures` cut short (the formatter notes `:max_failures_reached`),
 forwarded arguments are never deduplicated, and a Tuist task started outside
 the test environment re-executes itself in it (`Args.ensure_env/3`) because
 switching `Mix.env` after the task was found leaves `dev`'s dependency paths
-loaded. `CompileReporter` stops after each build and trims a build to the
+loaded. That process and the retries run through `Subprocess.run/3`, which
+hands them this process's terminal; do not relay their output through
+`System.cmd/3`, whose byte chunks can split a UTF-8 character and crash the run. `CompileReporter` stops after each build and trims a build to the
 server's limits (see `Tuist.Mix.limits/0`) rather than have it refused. The tracer also records every reference a file makes to another module,
 deduplicated in its own table because they arrive by the million, and
 `CompileProfile` turns them into the project's file dependency graph with
@@ -55,7 +57,12 @@ first compiler in the list has no known start and is not reported.
 monitor and network and disk throughput (bytes per second) from the
 machine-wide counters in `IOCounters`: `/proc` on Linux, `netstat` and `ioreg`
 on macOS, since Erlang has no direct binding for those. Always pass `-n` to
-`netstat`; without it the command resolves names and can take seconds. It shares the Tuist credential
+`netstat`; without it the command resolves names and can take seconds.
+While Mix compiles dependencies it prunes the OTP code paths, even for
+applications that are already running, and `Application.ensure_all_started/1`
+does not restore them. Put every OTP application used from a task back on the
+path with `Mix.ensure_application!/1` before starting it (`:inets` and `:ssl`
+in `TuistEx.HTTP`, `:os_mon` in `MachineMetrics`). It shares the Tuist credential
 file and uses the command line tool's refresh lock path. Server ingestion and
 dashboard presentation belong in `server/`.
 
@@ -84,11 +91,6 @@ dashboard presentation belong in `server/`.
   needs `async: false` is a sign that state leaked somewhere global, and
   `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
   VM's code path) are the places where it is expected.
-- `TuistEx.HTTP` puts `:inets` and `:ssl` back on the code path before every
-  request. When a task is looked up in a dependency on a cold build, Mix
-  compiles the dependencies first and prunes the code path to what the last
-  one declared, while `:inets` keeps running, so `:httpc` fails on modules it
-  loads lazily.
 - `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
   an OpenID Connect exchange on GitHub Actions, CircleCI or Bitrise, so CI needs
   no login step. The exchanged token is kept in memory for the VM and never

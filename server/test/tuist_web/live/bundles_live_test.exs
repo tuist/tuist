@@ -8,6 +8,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
   alias TuistTestSupport.Fixtures.BundlesFixtures
 
+  @render_async_timeout 1_000
+
   test "renders empty view when no bundles are available", %{
     conn: conn,
     organization: organization,
@@ -63,6 +65,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "0 MB")
@@ -132,6 +136,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles?bundle-size-branch=main")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "span", "2.0 KB")
   end
@@ -162,6 +168,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles?bundle-size-branch=any")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "span", "3.0 KB")
   end
@@ -181,6 +189,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    render_async(lv, @render_async_timeout)
 
     # Then - should show data from feature branch since no main branch bundles exist
     assert has_element?(lv, "span", "5.0 KB")
@@ -215,6 +225,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "#widget-download-size span", "No change")
   end
@@ -246,11 +258,13 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "#widget-download-size span", "No change")
   end
 
-  test "download is 0.0% when previous bundle download_size is 0", %{
+  test "shows a 100.0% trend when previous bundle download_size is 0", %{
     conn: conn,
     organization: organization,
     project: project
@@ -277,8 +291,10 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "+100.0%")
   end
 
   test "handles cursor mismatch when sort order changes", %{

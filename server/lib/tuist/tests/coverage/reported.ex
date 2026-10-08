@@ -288,9 +288,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   # the commit's published version settled, cached against that version: on a
   # suite of thousands a compute costs about a second and a page reads it more
   # than once. The settings that change the answer without a new version are
-  # part of the key. Unlocked: a locking read computes inside Cachex's single
-  # Locksmith process, which every other locking read on the node (the API's
-  # authentication among them) would queue behind for the whole compute.
+  # part of the key.
   defp settled(project, sha, opts) do
     case Commits.summary(project.id, sha) do
       %{version: version} ->

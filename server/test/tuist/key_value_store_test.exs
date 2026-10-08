@@ -200,5 +200,69 @@ defmodule Tuist.KeyValueStoreTest do
                fn -> flunk("a valid cached nil must not be rebuilt") end
              ) == nil
     end
+
+    test "a slow miss does not block callers of other keys" do
+      test_process = self()
+      slow_key = [:slow, System.unique_integer([:positive])]
+
+      slow =
+        Task.async(fn ->
+          KeyValueStore.get_or_update(slow_key, fn ->
+            send(test_process, {:slow_started, self()})
+
+            receive do
+              :release -> "slow"
+            end
+          end)
+        end)
+
+      assert_receive {:slow_started, worker}
+
+      other =
+        Task.async(fn ->
+          KeyValueStore.get_or_update([:other, System.unique_integer([:positive])], fn -> "other" end)
+        end)
+
+      assert Task.yield(other, 1_000) == {:ok, "other"}
+
+      send(worker, :release)
+      assert Task.await(slow) == "slow"
+    end
+
+    test "concurrent callers of one key run the function once" do
+      test_process = self()
+      key = [:shared, System.unique_integer([:positive])]
+
+      callers =
+        for _ <- 1..5 do
+          Task.async(fn ->
+            KeyValueStore.get_or_update(key, fn ->
+              send(test_process, :computed)
+              Process.sleep(100)
+              "value"
+            end)
+          end)
+        end
+
+      assert Enum.map(callers, &Task.await/1) == List.duplicate("value", 5)
+      assert_received :computed
+      refute_received :computed
+    end
+
+    test "caches the value the function returns, whatever its shape" do
+      for value <- [{:error, :unavailable}, {:ignore, "value"}] do
+        key = [:shape, System.unique_integer([:positive])]
+
+        assert KeyValueStore.get_or_update(key, fn -> value end) == value
+        assert KeyValueStore.get_or_update(key, fn -> flunk("#{inspect(value)} was not cached") end) == value
+      end
+    end
+
+    test "does not cache nil" do
+      key = [:uncached, System.unique_integer([:positive])]
+
+      assert KeyValueStore.get_or_update(key, fn -> nil end) == nil
+      assert KeyValueStore.get_or_update(key, fn -> "computed" end) == "computed"
+    end
   end
 end

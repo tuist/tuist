@@ -3,13 +3,16 @@ defmodule TuistWeb.API.MetricsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.BuildMetrics
   alias Tuist.Builds
   alias Tuist.Builds.Analytics, as: BuildAnalytics
+  alias Tuist.Gradle.Metrics, as: GradleMetrics
   alias Tuist.KeyValueStore
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestAnalytics
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
+  alias TuistWeb.API.Schemas.BuildMetrics, as: BuildMetricsSchema
   alias TuistWeb.API.Schemas.DurationMetrics
   alias TuistWeb.API.Schemas.Error
 
@@ -22,7 +25,16 @@ defmodule TuistWeb.API.MetricsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
 
-  plug AuthorizationPlug, :build when action in [:build_duration, :build_dimension_values]
+  plug AuthorizationPlug,
+       :build
+       when action in [
+              :build_duration,
+              :build_dimension_values,
+              :gradle_metrics,
+              :gradle_dimension_values,
+              :build_health,
+              :build_health_dimension_values
+            ]
 
   plug AuthorizationPlug, :test when action in [:test_duration, :test_dimension_values]
 
@@ -226,6 +238,200 @@ defmodule TuistWeb.API.MetricsController do
       _ ->
         bad_request(conn, "Unknown test dimension: #{dimension}.")
     end
+  end
+
+  operation(:gradle_metrics,
+    summary: "Gradle build health, duration metrics and failure tables.",
+    operation_id: "gradleBuildMetrics",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true],
+      project_handle: [in: :path, type: :string, required: true],
+      from: [in: :query, type: %Schema{type: :integer, format: :int64}, required: true],
+      to: [in: :query, type: %Schema{type: :integer, format: :int64}, required: true],
+      is_ci: [in: :query, type: :boolean],
+      git_branch: [in: :query, type: %Schema{type: :string, maxLength: 500}],
+      workload: [in: :query, type: %Schema{type: :string, maxLength: 500}],
+      status: [in: :query, type: %Schema{type: :string, enum: ["success", "failure", "cancelled"]}],
+      view: [
+        in: :query,
+        type: %Schema{type: :string, enum: ["series", "total", "workloads", "failures", "recent_failures"]}
+      ],
+      slow_build_threshold_ms: [
+        in: :query,
+        type: %Schema{type: :integer, minimum: 0, maximum: 31_536_000_000},
+        description: "Slow build threshold in milliseconds. Defaults to the cohort's 90th percentile."
+      ]
+    ],
+    responses: %{
+      ok: {"Gradle metrics", "application/json", BuildMetricsSchema},
+      bad_request: {"Invalid request", "application/json", Error},
+      forbidden: {"Not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def gradle_metrics(%{assigns: %{selected_project: project}} = conn, _params) do
+    case validate_range(conn.params) do
+      {:ok, start_datetime, end_datetime} ->
+        opts =
+          build_opts(start_datetime, end_datetime, conn.params, [
+            :is_ci,
+            :git_branch,
+            :workload,
+            :status,
+            :view,
+            :slow_build_threshold_ms
+          ])
+
+        # Preserve the exact range: flooring it can change percentile cards and
+        # the meaning of a threshold alert at the window boundary.
+        metrics =
+          KeyValueStore.get_or_update(
+            [:gradle_metrics, project.id, Base.encode16(:crypto.hash(:sha256, :erlang.term_to_binary(opts)))],
+            [ttl: to_timeout(second: @duration_cache_ttl_seconds)],
+            fn -> GradleMetrics.query(project.id, opts) end
+          )
+
+        json(conn, metrics)
+
+      {:error, message} ->
+        bad_request(conn, message)
+    end
+  end
+
+  operation(:gradle_dimension_values,
+    summary: "List Gradle branches or workload groups.",
+    operation_id: "gradleMetricDimensionValues",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true],
+      project_handle: [in: :path, type: :string, required: true],
+      dimension: [in: :path, required: true, type: %Schema{type: :string, enum: ["git_branch", "workload"]}]
+    ],
+    responses: %{
+      ok:
+        {"Dimension values", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{values: %Schema{type: :array, items: %Schema{type: :string}}},
+           required: [:values]
+         }},
+      bad_request: {"Invalid request", "application/json", Error},
+      forbidden: {"Not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def gradle_dimension_values(%{assigns: %{selected_project: project}} = conn, %{dimension: dimension}) do
+    values =
+      cached_dimension_values(:gradle, project.id, dimension, fn ->
+        GradleMetrics.dimension_values(project.id, dimension)
+      end)
+
+    json(conn, %{values: values})
+  end
+
+  operation(:build_health,
+    summary: "Build health, duration metrics and failure tables.",
+    operation_id: "buildHealthMetrics",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true],
+      project_handle: [in: :path, type: :string, required: true],
+      from: [in: :query, type: %Schema{type: :integer, format: :int64}, required: true],
+      to: [in: :query, type: %Schema{type: :integer, format: :int64}, required: true],
+      is_ci: [in: :query, type: :boolean],
+      git_branch: [in: :query, type: %Schema{type: :string, maxLength: 500}],
+      workload: [in: :query, type: %Schema{type: :string, maxLength: 500}],
+      status: [in: :query, type: %Schema{type: :string, enum: ["success", "failure", "cancelled"]}],
+      view: [
+        in: :query,
+        type: %Schema{type: :string, enum: ["series", "total", "workloads", "failures", "recent_failures"]}
+      ],
+      slow_build_threshold_ms: [
+        in: :query,
+        type: %Schema{type: :integer, minimum: 0, maximum: 31_536_000_000},
+        description: "Slow build threshold in milliseconds. Defaults to the cohort's 90th percentile."
+      ]
+    ],
+    responses: %{
+      ok: {"Build metrics", "application/json", BuildMetricsSchema},
+      bad_request: {"Invalid request", "application/json", Error},
+      forbidden: {"Not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def build_health(%{assigns: %{selected_project: project}} = conn, _params)
+      when project.build_system not in [:xcode, :gradle, :bazel, :once] do
+    bad_request(conn, "Build health metrics are not supported for this project's build system.")
+  end
+
+  def build_health(%{assigns: %{selected_project: project}} = conn, _params) do
+    case validate_range(conn.params) do
+      {:ok, start_datetime, end_datetime} ->
+        opts =
+          start_datetime
+          |> build_opts(end_datetime, conn.params, [
+            :is_ci,
+            :git_branch,
+            :workload,
+            :status,
+            :view,
+            :slow_build_threshold_ms
+          ])
+          |> Keyword.put(:build_system, Atom.to_string(project.build_system))
+          |> Keyword.put(:include_failure_total, true)
+          |> Keyword.put(:clip_series_start, true)
+
+        # Preserve the exact range: flooring it can change percentile cards and
+        # the meaning of a threshold alert at the window boundary.
+        metrics =
+          KeyValueStore.get_or_update(
+            [:build_health, project.id, Base.encode16(:crypto.hash(:sha256, :erlang.term_to_binary(opts)))],
+            [ttl: to_timeout(second: @duration_cache_ttl_seconds)],
+            fn -> BuildMetrics.query(project.id, opts) end
+          )
+
+        json(conn, metrics)
+
+      {:error, message} ->
+        bad_request(conn, message)
+    end
+  end
+
+  operation(:build_health_dimension_values,
+    summary: "List build branches or workload groups.",
+    operation_id: "buildHealthDimensionValues",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true],
+      project_handle: [in: :path, type: :string, required: true],
+      dimension: [in: :path, required: true, type: %Schema{type: :string, enum: ["git_branch", "workload"]}]
+    ],
+    responses: %{
+      ok:
+        {"Dimension values", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{values: %Schema{type: :array, items: %Schema{type: :string}}},
+           required: [:values]
+         }},
+      bad_request: {"Invalid request", "application/json", Error},
+      forbidden: {"Not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def build_health_dimension_values(%{assigns: %{selected_project: project}} = conn, _params)
+      when project.build_system not in [:xcode, :gradle, :bazel, :once] do
+    bad_request(conn, "Build health metrics are not supported for this project's build system.")
+  end
+
+  def build_health_dimension_values(%{assigns: %{selected_project: project}} = conn, %{dimension: dimension}) do
+    values =
+      cached_dimension_values("build_health_#{project.build_system}", project.id, dimension, fn ->
+        BuildMetrics.dimension_values(project.id, dimension, Atom.to_string(project.build_system))
+      end)
+
+    json(conn, %{values: values})
   end
 
   defp bad_request(conn, message) do

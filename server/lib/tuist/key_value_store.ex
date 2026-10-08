@@ -161,27 +161,45 @@ defmodule Tuist.KeyValueStore do
   end
 
   defp get_or_update_from_cachex(cache_key, opts, func) do
+    cache = cachex_cache(opts)
     cache_key = cache_key(cache_key)
 
-    read_or_update = fn cache ->
-      case read_from_cachex(cache, cache_key) do
-        nil ->
+    case read_from_cachex(cache, cache_key) do
+      nil ->
+        if Keyword.get(opts, :locking, true) do
+          fetch_from_cachex(cache, cache_key, opts, func)
+        else
           value = func.()
-
           Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
-
           value
+        end
 
-        value ->
-          value
-      end
+      value ->
+        value
     end
+  end
 
-    if Keyword.get(opts, :locking, true) do
-      run_cachex_transaction(cachex_cache(opts), [cache_key], read_or_update, func)
-    else
-      read_or_update.(cachex_cache(opts))
+  # `Cachex.fetch/3` runs the function in a worker process per key: concurrent callers of the key
+  # wait for that one computation, and callers of other keys are not queued behind it. A
+  # `Cachex.transaction/3` instead runs inside the cache's single Locksmith process, so one slow
+  # miss would stall every locked lookup on the node, including authentication on API requests.
+  defp fetch_from_cachex(cache, cache_key, opts, func) do
+    result =
+      Cachex.fetch(cache, cache_key, fn ->
+        case func.() do
+          nil -> {:ignore, nil}
+          value -> {:commit, value, expire: cachex_cache_ttl(opts)}
+        end
+      end)
+
+    case result do
+      {:commit, value} -> value
+      {:ignore, nil} -> nil
+      {:error, %Cachex.Error{message: message}} -> {:error, message}
+      value -> value
     end
+  rescue
+    _error in ArgumentError -> func.()
   end
 
   defp put_in_redis(cache_key, value, opts) do
@@ -224,23 +242,6 @@ defmodule Tuist.KeyValueStore do
 
   defp normalize_cachex_put(:ok), do: {:ok, true}
   defp normalize_cachex_put(result), do: result
-
-  defp run_cachex_transaction(cache, keys, operation, fallback) do
-    result = Cachex.transaction(cache, keys, operation)
-
-    if cachex_returns_wrapped_results?() do
-      case result do
-        {:ok, value} -> value
-        # If the cache is unavailable, we handle it gracefully by obtaining the value without caching it.
-        {:error, _reason} -> fallback.()
-        value -> value
-      end
-    else
-      result
-    end
-  rescue
-    _error in ArgumentError -> fallback.()
-  end
 
   defp cachex_returns_wrapped_results? do
     case Application.spec(:cachex, :vsn) do

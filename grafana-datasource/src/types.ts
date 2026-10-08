@@ -1,7 +1,17 @@
 import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 
-export type TuistQueryType = 'buildDuration' | 'testDuration';
+export type TuistQueryType =
+  | 'buildDuration'
+  | 'testDuration'
+  | 'buildHealth'
+  | 'buildWorkloads'
+  | 'buildFailureReasons'
+  | 'buildRecentFailures'
+  | 'gradleHealth'
+  | 'gradleWorkloads'
+  | 'gradleFailureReasons'
+  | 'gradleRecentFailures';
 
 export type TuistSeries = 'average' | 'p50' | 'p90' | 'p99';
 
@@ -19,6 +29,11 @@ export interface TuistQuery extends DataQuery {
   configuration?: string;
   category?: string;
   status?: string;
+  resultMode?: 'series' | 'total';
+  metric?: string;
+  gitBranch?: string;
+  workload?: string;
+  slowBuildThresholdMs?: number;
 }
 
 export const defaultQuery: Partial<TuistQuery> = {

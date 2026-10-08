@@ -98,26 +98,6 @@ Gradle fork fallbacks. The explicitly named unsharded fallback also runs both va
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
 
-## Pull request quality
-
-`workflows/pr-quality-tests.yml` runs evaluator security/publication tests on pull requests without provider credentials. Keep it separate from the privileged publishing workflow.
-
-`workflows/pr-quality.yml` runs `scripts/pr-quality/run.mjs` using Jev and
-updates one advisory GitHub comment per publishing identity. Manual runs update
-the authenticated user’s comment; workflow runs update the bot’s comment. Setup and limitations live in
-`PR_QUALITY.md`. Set `PR_QUALITY_INFERENCE_BASE_URL` and `PR_QUALITY_INFERENCE_MODEL` repository variables plus the `PR_QUALITY_INFERENCE_TOKEN` secret to route every evaluation through an Atlas profile. The base is `https://atlas.tuist.dev/inference` (the client adds `/v1/systemone`); the model is the profile name. Without a configured relay, resolve the Jev key with `op read` from
-`op://tuist/JEV_API_KEY/password` in its own step, mask it, and pass it through
-`$GITHUB_ENV`; never expose `OP_SERVICE_ACCOUNT_TOKEN` (or `op run`) to the
-evaluator step, since this is a `pull_request_target` job. Keep execution on trusted base code; contributor commits may
-be fetched and diffed but never checked out or executed. Low scores are advisory;
-provider and input failures must not reuse previous scores. Preserve typed, sanitized failure codes and validated HTTP status numbers in the comment and `pr-quality-error.json`; distinguish response/evidence validation, transport, timeout, and local input failures instead of collapsing them into request failures. Never publish arbitrary exception messages or provider bodies. The two focused
-security ratings run with the quality checks. A focused concern triggers a
-separate Jev request to select candidate evidence from actual changed lines. Keep the no-issue option, validate selected locations, and
-distinguish documentation and security tests from malicious behavior. Preserve the
-vendored evaluator and rubric license notices. Validate with
-`npm test --prefix .github/scripts/pr-quality` and
-`actionlint .github/workflows/pr-quality.yml` from the repository root.
-
 Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects.
 
 ## CodeQL
