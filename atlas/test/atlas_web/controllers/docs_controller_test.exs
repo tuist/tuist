@@ -28,8 +28,8 @@ defmodule AtlasWeb.DocsControllerTest do
     assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
   end
 
-  test "anonymous root visits reach documentation while application routes stay protected", %{conn: conn} do
-    assert redirected_to(get(conn, "/")) == "/docs"
+  test "anonymous application visits require login rather than redirecting to documentation", %{conn: conn} do
+    assert redirected_to(get(conn, "/")) == "/login"
     assert redirected_to(get(conn, "/admin/users")) == "/login"
     assert get_resp_header(get(conn, "/admin/users"), "x-tuist-public") == []
   end

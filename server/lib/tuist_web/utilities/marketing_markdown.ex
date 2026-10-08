@@ -1,6 +1,9 @@
 defmodule TuistWeb.Utilities.MarketingMarkdown do
   @moduledoc """
-  English decision guides for marketing pages, plus unchanged policy sources.
+  English marketing decision guides and unchanged policy sources.
+
+  Problem and comparison guides are Markdown-only documents, discovered through
+  the Markdown homepage and `/llms.txt`, not standalone browser pages.
 
   Keep capabilities and constraints aligned with the corresponding HTML and
   feature documentation. Individual articles retain HTML-to-Markdown negotiation;
@@ -14,9 +17,14 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
 
   @catalog_limit 20
 
-  @guide_pattern Path.expand("../../../priv/marketing/agents/[a-z]*.md", __DIR__)
+  @guide_directory Path.expand("../../../priv/marketing/agents", __DIR__)
+  @guide_patterns [
+    Path.join(@guide_directory, "[a-z]*.md"),
+    Path.join(@guide_directory, "solutions/[a-z]*.md"),
+    Path.join(@guide_directory, "compare/[a-z]*.md")
+  ]
   @policy_pattern Path.expand("../../../priv/marketing/pages/*.md", __DIR__)
-  @patterns [@policy_pattern, @guide_pattern]
+  @patterns [@policy_pattern | @guide_patterns]
   @paths @patterns |> Enum.flat_map(&Path.wildcard/1) |> Enum.sort()
   @paths_digest :erlang.md5(@paths)
 
@@ -35,12 +43,29 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
               {"/" <> Path.basename(path, ".md"), "# #{title}\n\n" <> body}
             end)
 
-  @guides Map.new(Path.wildcard(@guide_pattern), fn path ->
-            slug = Path.basename(path, ".md")
-            {if(slug == "home", do: "/", else: "/" <> slug), File.read!(path)}
+  @guides Map.new(Enum.flat_map(@guide_patterns, &Path.wildcard/1), fn path ->
+            slug = path |> Path.relative_to(@guide_directory) |> String.trim_trailing(".md")
+
+            route =
+              case slug do
+                "home" -> "/"
+                "compare/index" -> "/compare"
+                _ -> "/" <> slug
+              end
+
+            {route, File.read!(path)}
           end)
 
   @pages Map.merge(@policies, @guides)
+
+  @decision_guides @guides
+                   |> Enum.filter(fn {path, _markdown} ->
+                     path == "/compare" or String.starts_with?(path, ["/solutions/", "/compare/"])
+                   end)
+                   |> Map.new(fn {path, markdown} ->
+                     [heading, description | _rest] = String.split(markdown, "\n\n")
+                     {path, %{path: path, title: String.trim_leading(heading, "# "), description: description}}
+                   end)
 
   def __mix_recompile__? do
     @patterns |> Enum.flat_map(&Path.wildcard/1) |> Enum.sort() |> :erlang.md5() != @paths_digest
@@ -50,6 +75,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
 
   def paths, do: @pages |> Map.keys() |> Enum.sort()
   def guide_paths, do: @guides |> Map.keys() |> Enum.sort()
+
+  def decision_guides do
+    @decision_guides
+    |> Map.values()
+    |> Enum.sort_by(& &1.path)
+    |> Enum.map(fn page -> %{page | description: render(page.description)} end)
+  end
 
   def get(path) do
     case Map.fetch(@pages, path) do

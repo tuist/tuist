@@ -6,6 +6,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
   alias Tuist.Docs.CLI
   alias Tuist.Docs.Paths
   alias Tuist.KeyValueStore
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   setup do
     stub(CLI, :get_pages, fn -> [] end)
@@ -26,6 +27,31 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert String.starts_with?(body, "# Tuist\n")
       assert body =~ "\n> Tuist is build infrastructure for productive teams."
+    end
+
+    test "qualifies selective testing and optional runner availability", %{conn: conn} do
+      body = conn |> get("/llms.txt") |> response(200)
+
+      assert body =~ "Selective testing skips unchanged test targets in Tuist-generated Xcode projects"
+      assert body =~ "Managed runners are optional and currently invite-only"
+      refute body =~ "run only the tests a change can affect"
+    end
+
+    test "indexes problem and comparison guides with their explicit Markdown URLs", %{conn: conn} do
+      body = conn |> get("/llms.txt") |> response(200)
+      assert body =~ "## Solve a problem"
+      assert body =~ "## Comparisons"
+
+      for page <- MarketingMarkdown.decision_guides() do
+        url = Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))
+        assert body =~ "[#{page.title}](#{url})"
+        refute body =~ "(#{Tuist.Environment.app_url(path: page.path)})"
+      end
+
+      refute body =~ "](/"
+      refute body =~ "/compare/index"
+      refute body =~ "/solutions/AGENTS"
+      refute body =~ "/compare/AGENTS"
     end
 
     test "links documentation pages to their markdown twin", %{conn: conn} do

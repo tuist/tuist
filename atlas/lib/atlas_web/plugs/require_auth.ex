@@ -24,7 +24,7 @@ defmodule AtlasWeb.Plugs.RequireAuth do
       nil ->
         conn
         |> store_return_to()
-        |> redirect(to: if(conn.request_path == "/", do: "/docs", else: "/login"))
+        |> redirect(to: "/login")
         |> halt()
 
       user_id ->
@@ -33,7 +33,7 @@ defmodule AtlasWeb.Plugs.RequireAuth do
             conn
             |> configure_session(drop: true)
             |> store_return_to()
-            |> redirect(to: if(conn.request_path == "/", do: "/docs", else: "/login"))
+            |> redirect(to: "/login")
             |> halt()
 
           user ->
