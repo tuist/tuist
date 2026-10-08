@@ -270,11 +270,13 @@ export const CacheGlobe = {
 
   // A figure as an odometer: every digit is a clipped column holding a reel
   // of 0–9 twice over, slid to the digit on show; the other characters
-  // (thousands separators, units) sit still. A rising digit rolls the reel
-  // up, a falling one rolls it down, and when the reel would run off either
-  // end it snaps to the equivalent position on the other copy first, without
-  // a transition. Columns are rebuilt only when the figure's shape changes
-  // (a new digit, a different unit), and new columns roll in from zero.
+  // (thousands separators, units) sit still. The direction follows the
+  // whole figure: when it rises every changed digit rolls up (9 to 0 is one
+  // notch on, not nine back), when it falls every changed digit rolls down.
+  // When the reel would run off either end it snaps to the equivalent
+  // position on the other copy first, without a transition. Columns are
+  // rebuilt only when the figure's shape changes (a new digit, a different
+  // unit), and new columns roll in from zero.
   setReel(el, text) {
     if (!el) return;
     const chars = Array.from(text);
@@ -308,19 +310,23 @@ export const CacheGlobe = {
     }
     const reels = el.querySelectorAll('[data-part="reel"]');
     const digits = chars.filter((char) => /\d/.test(char));
+    const figure = digits.join("");
+    const previous = el.dataset.figure || "";
+    el.dataset.figure = figure;
+    const rising = figure.length !== previous.length ? figure.length > previous.length : figure >= previous;
     reels.forEach((reel, index) => {
       const target = Number(digits[index]);
       const current = Number(reel.style.getPropertyValue("--i")) || 0;
       const shown = current % 10;
       let next = current;
-      if (target > shown) {
-        next = current + (target - shown);
+      if (target !== shown && rising) {
+        next = current + ((target - shown + 10) % 10);
         if (next >= 20) {
           this.snapReel(reel, current - 10);
           next -= 10;
         }
-      } else if (target < shown) {
-        next = current - (shown - target);
+      } else if (target !== shown) {
+        next = current - ((shown - target + 10) % 10);
         if (next < 0) {
           this.snapReel(reel, current + 10);
           next += 10;
@@ -393,21 +399,20 @@ export const CacheGlobe = {
     }
   },
 
+  // Delivered bytes shown as whole kilobytes (1000 bytes), floored so the
+  // figure only ever climbs between snapshots.
   formatBytes(bytes) {
     if (bytes == null) return "—";
     return new Intl.NumberFormat(document.documentElement.lang || "en", {
       style: "unit",
-      unit: "byte",
-      unitDisplay: "long",
+      unit: "kilobyte",
+      unitDisplay: "short",
       maximumFractionDigits: 0,
-    }).format(bytes);
+    }).format(Math.floor(bytes / 1000));
   },
 
   renderBytes(value) {
-    const element = this.el.querySelector("#globe-bytes");
-    const text = this.formatBytes(value);
-    element?.style.setProperty("--count-length", String(text.length));
-    this.setReel(element, text);
+    this.setReel(this.el.querySelector("#globe-bytes"), this.formatBytes(value));
   },
 
   updateStatus() {
