@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -31,7 +32,12 @@ func acquireMac(key string) (string, string, bool, error) {
 func macCommandContext(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	if out, err := exec.CommandContext(ctx, "hdiutil", args...).CombinedOutput(); err != nil {
+	command := exec.CommandContext(ctx, "hdiutil", args...)
+	// The image helper must survive job cleanup until dispatch performs a clean detach.
+	command.Env = slices.DeleteFunc(command.Environ(), func(variable string) bool {
+		return strings.HasPrefix(variable, "RUNNER_TRACKING_ID=")
+	})
+	if out, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("hdiutil: %w (%s)", err, out)
 	}
 	return nil

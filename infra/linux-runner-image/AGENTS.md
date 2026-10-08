@@ -289,3 +289,6 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   attempt, remove completed request/response files, and retry busy clean detaches
   five times. Sample filesystem usage before detach, bind it to the lease, and
   write the detach proof only after both clean detach and the usage report succeed.
+  Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
+  kill the image helper before dispatch detaches it. Keep job process tracking
+  intact for all other commands and preserve the clean-detach publication gate.
