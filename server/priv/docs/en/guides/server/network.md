@@ -23,6 +23,8 @@ Tuist outbound network traffic that reaches customer infrastructure originates f
 > [!TIP]
 > Add all of the addresses above to your allowlist to ensure uninterrupted connectivity with Tuist services.
 
+Tuist only connects to your infrastructure over HTTPS, so you only need to allow HTTPS traffic (TCP port 443, or the port your HTTPS endpoint listens on) from these addresses. Tuist does not need SSH access.
+
 <!--
 MAINTAINERS: this table is the customer-facing contract for the reserved egress
 set. It must stay in lockstep with `ciliumEgressGateway.server.failoverController.egressIpAllowlist`
