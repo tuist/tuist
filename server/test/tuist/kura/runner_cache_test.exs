@@ -92,6 +92,33 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(macos_too) == ["scw-fr-par-runners"]
   end
 
+  test "a site's region holds nodes only for accounts on the site cache flag" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+    on_site = account_with_profiles([:macos])
+    off_site = account_with_profiles([:macos])
+    set_runner_availability([on_site.id, off_site.id])
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn account -> account.id == on_site.id end)
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(on_site) == ["ber1-runners", "scw-fr-par-runners"]
+    assert server_regions(off_site) == ["scw-fr-par-runners"]
+  end
+
+  test "tears down a site's node when the account leaves the site cache flag" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
+    account = account_with_profiles([:macos])
+    set_runner_availability([account.id])
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> true end)
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == ["ber1-runners"]
+
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(account) == []
+  end
+
   test "is inert without a private runner-cache region" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> [] end)
     reject(FunWithFlags, :get_flag, 1)

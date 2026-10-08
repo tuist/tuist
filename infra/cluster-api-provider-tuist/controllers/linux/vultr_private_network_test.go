@@ -130,8 +130,17 @@ func TestVultrPrivateNetworkRejectsMultipleQualifiedRegionsBeforeAPI(t *testing.
 }
 
 func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
-	for _, stale := range []bool{false, true} {
-		t.Run(fmt.Sprintf("stale-peer-%t", stale), func(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		stale, missingPeer bool
+	}{
+		{"converged", false, false},
+		{"stale boot", true, false},
+		{"missing peer preserves policy", false, true},
+		{"local convergence precedes peer lookup", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stale := tc.stale
 			ctx := context.Background()
 			machine := func(name, id, public string) *infrav1.VultrMachine {
 				return &infrav1.VultrMachine{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "test"}, Spec: infrav1.VultrMachineSpec{Region: "ord", NodeTaints: []corev1.Taint{{Key: "tuist.dev/kura-cache", Effect: corev1.TaintEffectNoSchedule}}}, Status: infrav1.VultrMachineStatus{InstanceID: id, Addresses: []clusterv1.MachineAddress{{Type: clusterv1.MachineExternalIP, Address: public}}}}
@@ -140,6 +149,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 			members := fmt.Sprintf("%x", sha256.Sum256([]byte("a/host-a/192.0.2.1/172.30.244.3\nb/host-b/192.0.2.2/172.30.244.4")))
 			script := renderVultrPrivateNetworkScript("02:00:00:00:00:01", "172.30.244.3", 24, "192.0.2.1", []privateNetworkPeer{{Public: "192.0.2.2", Private: "172.30.244.4"}}, privateNetworkOwners{"a/": "192.0.2.1", "b/": "192.0.2.2"})
 			local := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "a", Annotations: map[string]string{privateNetworkAnnotation: "vpc-test", privateNetworkMembers: members, privateNetworkRevision: fmt.Sprintf("%x:boot-a", sha256.Sum256([]byte(script)))}}, Status: corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{BootID: "boot-a"}}}
+			local.Annotations[privateCanonicalNetworks] = `["previous-id"]`
 			remote := local.DeepCopy()
 			remote.Name = "b"
 			remote.Status.NodeInfo.BootID = "boot-b"
@@ -147,7 +157,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 			if stale {
 				remote.Status.NodeInfo.BootID = "rebooted"
 			}
-			cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks", Namespace: "test"}, Data: map[string]string{"regions.json": `{"ord":{"description":"test-ord","cidr":"172.30.244.0/24","qualified":true}}`}}
+			cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks", Namespace: "test"}, Data: map[string]string{"regions.json": `{"ord":{"description":"test-ord","cidr":"172.30.244.0/24","qualified":true,"canonicalPeers":["scl"]},"scl":{"description":"test-scl","cidr":"172.30.245.0/24","qualified":true,"canonicalPeers":["ord"]}}`}}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				if req.Method != http.MethodGet {
 					t.Errorf("unexpected mutation %s %s", req.Method, req.URL)
@@ -156,7 +166,7 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 				}
 				switch req.URL.Path {
 				case "/vpcs":
-					_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test","description":"test-ord","region":"ord","v4_subnet":"172.30.244.0","v4_subnet_mask":24}]}`))
+					_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test","description":"test-ord","region":"ord","v4_subnet":"172.30.244.0","v4_subnet_mask":24},{"id":"scl-id","description":"test-scl","region":"scl","v4_subnet":"172.30.245.0","v4_subnet_mask":24}]}`))
 				case "/bare-metals/host-a/vpcs":
 					_, _ = w.Write([]byte(`{"vpcs":[{"id":"vpc-test","mac_address":"02:00:00:00:00:01","ip_address":"172.30.244.3"}]}`))
 				case "/bare-metals/host-b/vpcs":
@@ -167,17 +177,33 @@ func TestVultrPrivateNetworkPublishesOnlyConvergedHostMembership(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(a, b, local, remote, cm).Build()
+			retained := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks-state", Namespace: "test"}, Data: map[string]string{}}
+			if !tc.missingPeer {
+				retained.Data["scl"] = `{"id":"scl-id","desired":{"description":"test-scl","cidr":"172.30.245.0/24"}}`
+			}
+			c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(a, b, local, remote, cm, retained).Build()
 			r := &VultrMachineReconciler{Client: c, PrivateNetworkConfigName: "networks", PrivateNetworkNamespace: "test", VultrClient: &vultr.Client{HTTP: server.Client(), BaseURL: server.URL, APIKey: "test"}}
 			err := r.reconcilePrivateNetwork(ctx, a, local)
-			if (err != nil) != stale {
+			if (err != nil) != (stale || tc.missingPeer) {
 				t.Fatalf("convergence result: %v", err)
+			}
+			if stale && !strings.Contains(err.Error(), "waiting for converged private routes") {
+				t.Fatalf("local convergence was blocked by peer lookup: %v", err)
+			}
+			if tc.missingPeer && !stale && !strings.Contains(err.Error(), "canonical peer region scl has no retained") {
+				t.Fatalf("missing peer not reported: %v", err)
 			}
 			observed := &corev1.Node{}
 			if err := c.Get(ctx, types.NamespacedName{Name: "a"}, observed); err != nil {
 				t.Fatal(err)
 			}
-			if (observed.Labels[privateNetworkAnnotation] == "vpc-test") == stale {
+			if !stale && !tc.missingPeer && observed.Annotations[privateCanonicalNetworks] != `["scl-id"]` {
+				t.Fatal("resolved canonical VPC policy not published")
+			}
+			if tc.missingPeer && observed.Annotations[privateCanonicalNetworks] != `["previous-id"]` {
+				t.Fatal("lost previously published policy")
+			}
+			if (observed.Labels[privateNetworkAnnotation] == "vpc-test") == (stale || tc.missingPeer) {
 				t.Fatal("published topology without matching current peer boot")
 			}
 		})
@@ -242,5 +268,145 @@ func TestVultrPrivateInventoryReadsAreSharedAndExpire(t *testing.T) {
 	}
 	if gets != 11 {
 		t.Fatal("stale attachment never refreshed")
+	}
+}
+
+func TestVultrCanonicalRegionPolicy(t *testing.T) {
+	for _, tc := range []struct{ name, config, want string }{
+		{"approved", `{"ord":{"qualified":true,"canonicalPeers":["scl"]},"scl":{"qualified":true,"canonicalPeers":["ord"]}}`, ""},
+		{"prepare before qualification", `{"ord":{"qualified":true,"canonicalPeers":["scl"]},"scl":{"canonicalPeers":["ord"]}}`, ""},
+		{"one way", `{"ord":{"canonicalPeers":["scl"]},"scl":{}}`, `region ord: canonical peer "scl" does not approve ord`},
+		{"unknown", `{"ord":{"canonicalPeers":["typo"]}}`, `region ord: canonical peer "typo" is not configured`},
+		{"self", `{"ord":{"canonicalPeers":["ord"]}}`, `region ord: canonical peer "ord" refers to itself`},
+		{"duplicate", `{"ord":{"canonicalPeers":["scl","scl"]},"scl":{"canonicalPeers":["ord"]}}`, `region ord: canonical peer "scl" is duplicated`},
+		{"unapproved qualified pair", `{"ord":{"qualified":true},"scl":{"qualified":true}}`, "require an explicit cross-domain policy"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var regions map[string]vultrPrivateRegion
+			if err := json.Unmarshal([]byte(tc.config), &regions); err != nil {
+				t.Fatal(err)
+			}
+			err := validateVultrCanonicalPeers(regions)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("want %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+func TestCanonicalPeerLookupNeverProvisions(t *testing.T) {
+	for _, tc := range []struct {
+		name, retained, providerID string
+		providerFails              bool
+	}{
+		{"missing retained region", "", "scl-id", false},
+		{"unresolved create", `{"createRequested":true}`, "scl-id", false},
+		{"missing provider VPC", `{"id":"scl-id","desired":{"description":"test-scl","cidr":"172.30.245.0/24"}}`, "", false},
+		{"replaced provider VPC", `{"id":"old-id","desired":{"description":"test-scl","cidr":"172.30.245.0/24"}}`, "scl-id", false},
+		{"changed definition", `{"id":"scl-id","desired":{"description":"old-name","cidr":"172.30.245.0/24"}}`, "scl-id", false},
+		{"inventory failure", `{"id":"scl-id","desired":{"description":"test-scl","cidr":"172.30.245.0/24"}}`, "scl-id", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.Method != http.MethodGet {
+					t.Errorf("peer lookup mutated provider: %s", req.Method)
+				}
+				if tc.providerFails {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
+				networks := []vultr.VPC{}
+				if tc.providerID != "" {
+					networks = append(networks, vultr.VPC{ID: tc.providerID, Region: "scl", Description: "test-scl", Subnet: "172.30.245.0", Mask: 24})
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"vpcs": networks})
+			}))
+			defer server.Close()
+			cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks-state", Namespace: "test"}, Data: map[string]string{"scl": tc.retained}}
+			c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(cm).Build()
+			r := &VultrMachineReconciler{Client: c, PrivateNetworkConfigName: "networks", PrivateNetworkNamespace: "test", VultrClient: &vultr.Client{BaseURL: server.URL, HTTP: server.Client(), APIKey: "test"}}
+			_, err := r.existingPrivateVPC(context.Background(), "scl", vultrPrivateRegion{Description: "test-scl", CIDR: "172.30.245.0/24"})
+			if err == nil || !strings.Contains(err.Error(), "scl") {
+				t.Fatalf("missing actionable peer error: %v", err)
+			}
+			observed := &corev1.ConfigMap{}
+			if err := c.Get(context.Background(), types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, observed); err != nil {
+				t.Fatal(err)
+			}
+			if observed.ResourceVersion != cm.ResourceVersion || observed.Data["scl"] != tc.retained {
+				t.Fatal("peer lookup mutated retained state")
+			}
+		})
+	}
+}
+
+func TestLocalAttachmentPrecedesCanonicalPeerLookup(t *testing.T) {
+	attached := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch {
+		case req.Method == http.MethodGet && req.URL.Path == "/vpcs":
+			_, _ = w.Write([]byte(`{"vpcs":[{"id":"ord-id","region":"ord","description":"test-ord","v4_subnet":"172.30.244.0","v4_subnet_mask":24}]}`))
+		case req.Method == http.MethodGet && req.URL.Path == "/bare-metals/host/vpcs":
+			_, _ = w.Write([]byte(`{"vpcs":[]}`))
+		case req.Method == http.MethodPost && req.URL.Path == "/bare-metals/host/vpcs/attach":
+			attached = true
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected provider request: %s %s", req.Method, req.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks", Namespace: "test"}, Data: map[string]string{"regions.json": `{"ord":{"description":"test-ord","cidr":"172.30.244.0/24","qualified":true,"canonicalPeers":["scl"]},"scl":{"description":"test-scl","cidr":"172.30.245.0/24","canonicalPeers":["ord"]}}`}}
+	c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(cm).Build()
+	r := &VultrMachineReconciler{Client: c, PrivateNetworkConfigName: "networks", PrivateNetworkNamespace: "test", VultrClient: &vultr.Client{BaseURL: server.URL, HTTP: server.Client(), APIKey: "test"}}
+	machine := &infrav1.VultrMachine{ObjectMeta: metav1.ObjectMeta{Namespace: "test"}, Spec: infrav1.VultrMachineSpec{Region: "ord", NodeTaints: []corev1.Taint{{Key: "tuist.dev/kura-cache", Effect: corev1.TaintEffectNoSchedule}}}, Status: infrav1.VultrMachineStatus{InstanceID: "host"}}
+	err := r.reconcilePrivateNetwork(context.Background(), machine, &corev1.Node{})
+	if !attached || err == nil || !strings.Contains(err.Error(), "waiting for provider-assigned private NIC") {
+		t.Fatalf("peer state blocked local attachment: attached=%t err=%v", attached, err)
+	}
+}
+
+func TestCanonicalPeerLookupCachesInventoryButRequiresRetainedState(t *testing.T) {
+	gets := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet {
+			t.Errorf("unexpected mutation: %s", req.Method)
+		}
+		gets++
+		_, _ = w.Write([]byte(`{"vpcs":[{"id":"scl-id","region":"scl","description":"test-scl","v4_subnet":"172.30.245.0","v4_subnet_mask":24}]}`))
+	}))
+	defer server.Close()
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "networks-state", Namespace: "test"}, Data: map[string]string{"scl": `{"id":"scl-id","desired":{"description":"test-scl","cidr":"172.30.245.0/24"}}`}}
+	c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(cm).Build()
+	r := &VultrMachineReconciler{Client: c, PrivateNetworkConfigName: "networks", PrivateNetworkNamespace: "test", VultrClient: &vultr.Client{BaseURL: server.URL, HTTP: server.Client(), APIKey: "test"}}
+	desired := vultrPrivateRegion{Description: "test-scl", CIDR: "172.30.245.0/24"}
+	for i := 0; i < 10; i++ {
+		if network, err := r.existingPrivateVPC(context.Background(), "scl", desired); err != nil || network.ID != "scl-id" {
+			t.Fatalf("lookup: %v", err)
+		}
+	}
+	if gets != 1 {
+		t.Fatalf("uncached provider reads: %d", gets)
+	}
+	cached := r.privateVPCCache["scl"]
+	cached.expires = time.Time{}
+	r.privateVPCCache["scl"] = cached
+	if _, err := r.existingPrivateVPC(context.Background(), "scl", desired); err != nil {
+		t.Fatal(err)
+	}
+	if gets != 2 {
+		t.Fatal("expired inventory was not refreshed")
+	}
+	delete(cm.Data, "scl")
+	if err := c.Update(context.Background(), cm); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.existingPrivateVPC(context.Background(), "scl", desired); err == nil {
+		t.Fatal("cached inventory bypassed missing retained identity")
 	}
 }

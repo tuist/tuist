@@ -60,6 +60,9 @@ peerTopology: {}
 # provider: ovh
 # private_network: verified-vrack-id-and-vlan
 # private_url: https://$(POD_NAME).kura-headless.$(POD_NAMESPACE).svc.cluster.local:7443
+# canonical_networks: [another-verified-domain-id]
+# Optional: reciprocal exact-ID approval for canonical mTLS across domains.
+# Same-domain traffic stays private-only regardless of this list.
 
 headlessService:
   annotations: {}

@@ -650,6 +650,32 @@ func TestRackHostJoinsTheTailnetAsAStandardDevice(t *testing.T) {
 	}
 }
 
+// The rack's cache gateways reach a rack host through the same overlay as its
+// other rack-only settings, so both the push and the stamped hash carry them,
+// and the rented fleets sharing FleetConfig never pass them.
+func TestRackHostCarriesTheCacheGatewaysIntoItsFirewall(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{
+		FleetConfig:          bootstrap.Config{VMKuraEgressCIDR: "10.128.0.0/12"},
+		VMCacheGatewayCIDRs:  []string{"10.10.0.11/32"},
+		DefaultGuestCapacity: 1,
+	}
+	machine := rackMachine("m")
+	host := rackHost("mini-01")
+
+	pushed := r.hostConfig(machine, host, bootstrap.PerHost{})
+	if want := []string{"10.10.0.11/32"}; !slices.Equal(pushed.VMCacheGatewayCIDRs, want) {
+		t.Fatalf("pushed cache gateways = %v, want %v", pushed.VMCacheGatewayCIDRs, want)
+	}
+	if len(r.FleetConfig.VMCacheGatewayCIDRs) != 0 {
+		t.Fatalf("the rack overlay changed the shared fleet config to %v; rented minis would pass the rack's gateways", r.FleetConfig.VMCacheGatewayCIDRs)
+	}
+
+	without := &RackAppleSiliconMachineReconciler{FleetConfig: r.FleetConfig, DefaultGuestCapacity: 1}
+	if r.desiredHostConfigHash(machine, host) == without.desiredHostConfigHash(machine, host) {
+		t.Fatal("adding a cache gateway does not drift the host; an already bootstrapped mini would keep dropping it")
+	}
+}
+
 // --- egress + node binding --------------------------------------------------
 
 // Both macOS kinds must produce an identically-shaped egress Service: alloy

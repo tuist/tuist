@@ -25,6 +25,7 @@
     >
       <:actions>
         <.button
+          :if={@latest}
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"
@@ -56,6 +57,7 @@
     >
       <:actions>
         <.button
+          :if={@commit_rows != []}
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"
@@ -107,6 +109,7 @@
     >
       <:actions>
         <.button
+          :if={@run_rows != []}
           variant="secondary"
           label={dgettext("dashboard_tests", "View more")}
           size="medium"

@@ -113,6 +113,11 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                 baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
                     Environment.current.casProxySocketPathString()
                 )
+                // With a remote service, every local miss is followed by a key query
+                // task that asks the remote cache. On execution lanes only a few run
+                // at once, so a cold build waits on the cache round trips a lane at a
+                // time; detached, the queries overlap.
+                baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] = "YES"
             } else {
                 // The bundled dylib is absent, so the build silently falls back to
                 // local-only caching (no remote). Warn rather than let a cold cache

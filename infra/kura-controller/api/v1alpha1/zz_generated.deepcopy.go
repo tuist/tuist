@@ -118,6 +118,9 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 			out.MeshPublicPeerLoadBalancerAnnotations[key] = value
 		}
 	}
+	if in.NodeLocalNetwork != nil {
+		out.NodeLocalNetwork = in.NodeLocalNetwork.DeepCopy()
+	}
 }
 
 func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
@@ -222,6 +225,23 @@ func (in *KuraInstancePeerRole) DeepCopy() *KuraInstancePeerRole {
 		return nil
 	}
 	out := new(KuraInstancePeerRole)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *NodeLocalNetwork) DeepCopyInto(out *NodeLocalNetwork) {
+	*out = *in
+	if in.Nameservers != nil {
+		out.Nameservers = make([]string, len(in.Nameservers))
+		copy(out.Nameservers, in.Nameservers)
+	}
+}
+
+func (in *NodeLocalNetwork) DeepCopy() *NodeLocalNetwork {
+	if in == nil {
+		return nil
+	}
+	out := new(NodeLocalNetwork)
 	in.DeepCopyInto(out)
 	return out
 }

@@ -285,6 +285,19 @@ spec:
                 # provider). Only used when meshPeerHostNetwork is true.
                 meshPeerFailoverIp:
                   type: string
+                # Pods run on nodes whose pod network the cluster cannot route
+                # to (rack nodes): they resolve through these nameservers
+                # instead of cluster DNS, and the controller reads their status
+                # through the API server's pod port-forward.
+                nodeLocalNetwork:
+                  type: object
+                  required: [nameservers]
+                  properties:
+                    nameservers:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: string
                 storageClassName:
                   type: string
                 storageSize:

@@ -103,7 +103,7 @@ until an administrator removes them.
 - Kura fleet rollout wave assignments (`kura_rollout_wave_assignments` table): which wave of a fleet-wide Kura runtime rollout the account's servers were assigned to. The rollout records themselves (`kura_rollouts`, `kura_rollout_events`) and the per-server rollout scope (`kura_rollout_servers`: health baselines, soak eligibility, convergence timestamps, replication-queue depth extremes) are Tuist-internal fleet-operations state — they carry no customer content beyond the server/account references above, but the account-linked rows are exportable on request
 - Self-hosted Kura credentials (`kura_self_hosted_clients` table): tenant-scoped credentials a customer uses to run self-hosted Kura nodes, including the public `client_id`, friendly name, last-used timestamp, and `secret_last_four` (the trailing four characters of the secret, kept as a masked-preview hint). The `encrypted_secret_hash` (Bcrypt hash of the client secret) is excluded from exports as an authentication secret, and the plaintext secret is never stored.
 - Registered Kura endpoints (`kura_registered_endpoints` table): client-facing cache endpoints reported by a customer's self-hosted Kura nodes via registration heartbeats, including the node id, region label, advertised HTTP URL, readiness, runtime version, traffic state, last-heartbeat timestamp, and lease expiry. These rows are lease-based operational state, refreshed on each heartbeat and removed when a node stops heartbeating.
-- GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
+- GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server browser host), the optional server-side REST API base URL (`api_url`, e.g. an external proxy ending in `/api/v3`), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
 - Federated authentication identities (`oauth2_identities` table): provider, provider-side subject identifier, issuer or organization identifier when applicable, and the linked user relationship
 - Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for database-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage. The `run_session` cursor covers all run artifact blobs stored under an expired run's artifact prefix.
@@ -245,6 +245,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Legacy Xcode coverage totals** (`xcode_coverage_runs` table, no longer written; dropped by a later migration): Per-run line coverage for the coverage trend, counting each source file once across the targets that link it and merged across the run's shards. Columns: `project_id`, `test_run_id`, `covered_lines`, `executable_lines`, `partial` (whether the run skipped tests on purpose, or not every shard of its plan had reported coverage yet), `version` (how many shards the totals include, then the newest report they saw; readers keep the highest), and `inserted_at`. Each shard report adds a row. The table carries no time-to-live of its own; rows live as long as the `test_runs` row they belong to and are exported with it.
 - **Legacy Xcode coverage files** (`xcode_coverage_files` table, no longer written; dropped by a later migration): One row per source file a test run's coverage covers. Columns: `id`, `test_run_id`, `project_id`, `shard_index` (the shard that reported it, `0` for an unsharded run), `partial` (whether that shard skipped tests on purpose), `path` (relative to the repository's root when the file lives under it, otherwise the absolute path on the machine that ran the tests), `git_blob_id` (the Git blob object id of the file's contents, empty for untracked files), `targets` (the targets that compiled the file), `is_test` (whether only test bundles compiled it; test code is left out of coverage figures), `covered_lines`, `executable_lines`, `line_numbers` and `execution_counts` (per executable line, how many times it ran), `function_names`, `function_line_numbers`, `function_execution_counts`, `function_covered_lines`, `function_executable_lines`, and `inserted_at`. Paths, target names and function names come from the customer's project. A sharded run has a row per shard that reported the file. The table carries no time-to-live of its own; rows live as long as the `test_runs` row they belong to and are exported with it.
 - **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit).
+- **Bundle size thresholds** (Postgres `bundle_thresholds` table): Per-project bundle growth rules. Columns: `id`, `project_id`, `name`, `metric` (install or download size), `deviation_percentage` (relative growth limit) or `deviation_bytes` (absolute growth limit in bytes), `baseline_branch`, optional `bundle_name`, `inserted_at`, and `updated_at`. Exactly one limit is set per rule. Export with `SELECT * FROM bundle_thresholds WHERE project_id = ...`. Rules have no time-based retention and are deleted with the project.
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
 - **Bundle size approvers** (Postgres `bundle_size_approvers` table): Per-project allowlist of GitHub usernames permitted to accept a bundle size increase from a pull request check run. Columns: `id` (PK), `project_id`, `github_handle` (stored lowercased, kept for display), `github_id` (GitHub's numeric account id, what authorization compares), `inserted_at`, `updated_at`. Rows are only consulted while the project's `bundle_size_approval_policy` is the selected-users policy, but they are kept when it changes, so a project that switches away and back keeps the list it had.
 - **Bundle size approvals** (Postgres `bundle_size_approvals` table): Record of who accepted a bundle size increase that exceeded a threshold. Columns: `id` (PK), `bundle_id`, `project_id`, `approved_by_handle` (the GitHub username that pressed the button), `approved_by_user_id` (the Tuist user, when that GitHub account is linked to one; null otherwise), `inserted_at`, `updated_at`. Lives in Postgres rather than on the ClickHouse `bundles` row because updating a MergeTree row is an asynchronous mutation.
@@ -447,17 +448,20 @@ The archive contains everything needed to understand the account's complete data
 
 - **Pending Bazel profiles** (`bazel_profile_uploads`, PostgreSQL): One bounded gzip body (at most 32 MiB), state (`pending`, `processed`, `rejected`, or `failed`), rejection reason, project/invocation identifiers and timestamps per invocation. A job on the bounded Bazel artifact processor queue parses and sanitizes the raw profile; the request process only validates the envelope and digest. Raw bytes, which may include command lines, paths and credentials, are deleted after successful processing or terminal validation rejection, or exhausted processing retries. A new upload may replace a rejected or failed body and clear its error for another processing attempt; pending or processed duplicates leave the row unchanged. The existing batched daily Bazel ingestion cleanup removes staging/status rows older than 90 days. Export by `project_id`, including pending bodies and their invocation IDs.
 
-## Linux runner cache volumes (opt-in)
+## Runner cache volumes
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
-  repository or pipeline display name, user-chosen key, architecture,
-  execution UID, generation, published head use UUID,
+  repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
+  execution UID, generation, published head use UUID, optional built-in storage name,
   last use, logical deletion and creation/update timestamps. Identity is unique
-  per account/provider/instance/scope/key/architecture/UID. GitHub uses github.com
+  per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
   SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
   project ID. Digests encode identity, not anonymization. Kept until account deletion.
+  The macOS enablement migration removes the older platform-independent uniqueness
+  constraint; identical keys can coexist on Linux and macOS. Existing records,
+  account-scoped exports and retention are unchanged.
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, invalidation generation, parent use UUID, shared HEAD base/published
   generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
@@ -465,10 +469,10 @@ The archive contains everything needed to understand the account's complete data
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical
-  deletion; unacknowledged resources remain tracked.
+  deletion; unacknowledged resources remain tracked. Built-in canonical observations also carry a logical `superseded_at`; their history expires 90 days after supersession without claiming physical deletion.
 - **Size history** (`runner_cache_volume_measurements`, PostgreSQL): append-only
   observations linked to a use, containing logical filesystem used/capacity
-  bytes, server observation timestamp and a deletion acknowledgement flag.
+  bytes, observation timestamp, a deletion acknowledgement flag, and a separate logical `retired` flag for superseded built-in canonical observations.
   The first report and changes in size or capacity create entries; identical
   heartbeat reports do not. Unknown measurements remain null. Acknowledged
   removal records zero retained bytes and capacity, without rewriting earlier
@@ -477,23 +481,35 @@ The archive contains everything needed to understand the account's complete data
   deletion and with account deletion. These observations support storage
   visibility; they are not a billing ledger or measurements of unique physical
   allocation. Observation time is report receipt time, not the exact time data
-  was written, and changes before reporting cannot be reconstructed.
-- **Cache contents** (host-local images and object storage): private sparse ext4
+was written, and changes before reporting cannot be reconstructed. Built-in macOS
+observations additionally preserve the guest-measured mount timestamp and initial
+filesystem size, followed by the finalized snapshot measurement. The host reports
+through its own authenticated identity after finalization; the executed runner
+session supplies account and job scope. `builtin_name` maps these records to the
+existing `tuist-cache` / `repo-*` images and their unchanged retention lifecycle.
+Only the current canonical image contributes retained built-in snapshot bytes;
+host replicas and superseded S3 objects are not a physical-storage census.
+- **Cache contents** (host-local images and object storage): private sparse ext4 (Linux) or APFS (macOS)
   images in `images/<use UUID>.img`, immutable reflink masters under
   `masters/<scope>/<HEAD generation>-<content SHA-256>.img`, and gzip-compressed
-  images under `runner-volume-masters/<account ID>/linux-<scope>/<image SHA-1>-<content SHA-256>.image`
+  images under `runner-volume-masters/<account ID>/<platform>-<scope>/<image SHA-1>-<content SHA-256>.image`
   in the existing account object storage. The scope hashes volume UUID and clear
   generation. Contents include anything workflows write, such as dependencies,
   package metadata and inadvertently cached credentials. Logical filesystem usage
   is not unique physical usage because reflinks share blocks and host replicas are
   evictable; dashboard measurements are not an inventory of every host replica.
 - **Host journal and scratch** (`cacheVolumes.hostPath`, default
-  `/var/lib/tuist-runner-cache`): `state/<use UUID>.json` records account ID, opaque
+  `/var/lib/tuist-runner-cache` on Linux; `<runner-cache-root>/custom` on macOS):
+  `state/<use UUID>.json` records account ID, opaque
   scope, parent/use UUIDs, base generation, digests, pod identity, state, permission,
   execution UID and measurements. Master `.json` sidecars retain their source
   identity for validating eviction against the server. `pods/<pod UID>/<scope>`
   exposes the private mounted image. Arbitrary scratch files may exist beneath
-  the pod subtree. Tokens and presigned URLs are not persisted in these records.
+  the pod subtree. macOS also keeps host-only `owners/<pod UID>` pod names for
+  orphan cleanup, bounded per-pod key/UID requests and allocation responses,
+  mounted/detached lease markers, and host-only verification/usage sidecars.
+  Guest APFS contents are not measured while mounted; verified usage is captured
+  after teardown. Tokens and presigned URLs are not persisted in these records.
 
 Export joins volumes, uses and measurements by account ID and includes the
 account's `runner-volume-masters` prefix and local image/master/journal/scratch

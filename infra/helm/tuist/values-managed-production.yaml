@@ -411,13 +411,15 @@ capi:
     enabled: true
     regions:
       ord:
+        canonicalPeers: [scl]
         description: tuist-kura-production-ord
         cidr: 172.30.244.0/24
         qualified: true
       scl:
+        canonicalPeers: [ord]
         description: tuist-kura-production-scl
         cidr: 172.30.245.0/24
-        qualified: false
+        qualified: true
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2024093
@@ -1435,6 +1437,8 @@ macosFleet:
 # releases can safely bump all enabled managed environments.
 runnersFleet:
   enabled: true
+  customCacheVolumes:
+    enabled: true
   # Scaling this DOWN does not stop the bill. On Machine deletion the
   # controller renames the host back into the `tuist-pool-` pool and
   # reinstalls it — the mini stays alive and keeps billing, deliberately,

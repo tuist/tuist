@@ -41,6 +41,16 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Whether the account gets a node in the runner-cache region of each site its
+  runners are racked at (`Tuist.Kura.Regions.site/1`). A site's region serves
+  only that site's pools, so it holds nodes for the accounts the
+  `:runner_site_cache` flag enables, in every environment.
+  """
+  def runner_site_cache_enabled?(account) do
+    FunWithFlags.enabled?(:runner_site_cache, for: account)
+  end
+
+  @doc """
   Whether Xcode code coverage is ingested, processed and shown for the given
   account. Canary and production require an explicit `:xcode_coverage`
   FunWithFlags toggle for the account while the feature is in early access, so

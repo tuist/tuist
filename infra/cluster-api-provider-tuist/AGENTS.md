@@ -15,8 +15,14 @@
   root/MTU/probe options explicitly, without rewriting another provider's script.
   Attach/configure only qualified regions without a
   restart, and attest every peer on its current boot before publication. Chicago
-  is qualified; Santiago remains VPC-only. Reject multiple qualified Vultr
-  regions until explicit cross-domain runtime policy exists. `cmd/vultr-vpc`
+  is physically qualified; Santiago enables attachment and runtime topology with
+  a single-host qualification limit. Validate the physical host pair when another
+  Santiago host arrives. Require reciprocal `canonicalPeers`
+  for every qualified regional pair before provider calls. Resolve approvals to
+  retained VPC IDs through read-only inventory checks after local routes converge.
+  Missing remote state must never provision that region or block local attachment
+  and route repair; preserve the last published policy and report the error.
+  Never install private host routes across regional VPCs. `cmd/vultr-vpc`
   remains the empty-network bootstrap/planner. See
   [Vultr private networking](../kura-controller/vultr-private-networking.md).
 
@@ -396,6 +402,15 @@ mode behind it:
   `tailscale-device-reaper`, once out of dry-run, still deletes a device
   unseen for its `graceHours` (7 days), so the router entry in the guard, not
   the standard device, is what reaches a box that was off for longer.
+- **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
+  every private destination, and a rack's Kura gateway sits on the machines
+  segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
+  `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
+  The traffic leaves on the host's default route, so the VM NAT's general leg
+  translates it. The value is in the hash, so changing it re-pushes the
+  firewall to running hosts through the drift loop. The rented fleets never
+  get it.
 - **Delete stops.** No reinstall, no wipe: no API can do either to hardware in
   our own rack. That makes Stage 1 of the delete path (dropping the node
   identity) matter *more* than on rented capacity, not less: nothing wipes the
@@ -1303,10 +1318,16 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`), the exact
-kubelet release the control plane runs and the hostname, into the
-`RackLinuxMachine`'s `status.nodeConfig`, hashed. `rack-node` applies one: it
-writes only files whose content or mode differs, loads modules and sysctls,
+the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+translation of the kubernetes Service to the API server in
+`/etc/tuist/kubernetes-service.nft`), the exact kubelet release the control
+plane runs and the hostname, into the `RackLinuxMachine`'s `status.nodeConfig`,
+hashed. The translation needs the kubernetes Service's ClusterIP, which the
+operator reads like the cluster DNS (a Role on `default/kubernetes` alone), and
+an API server address that is an IP; without either it is removed. `rack-node`
+applies one: it writes only files whose content or mode differs, loads modules
+and sysctls, loads its nftables files on every apply (each recreates its own
+table, which undoes a flush),
 installs containerd with its default configuration on the systemd cgroup
 driver, installs exactly the named kubelet from pkgs.k8s.io and never
 downgrades it, sets the hostname, restarts containerd or the kubelet when
@@ -2668,3 +2689,7 @@ pick it up:
 ```bash
 scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 ```
+
+- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
+  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
+  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

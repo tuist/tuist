@@ -218,7 +218,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:692
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1191
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:29
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1024
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1026
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:579
@@ -524,7 +524,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:698
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1197
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:36
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1030
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1033
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:139
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:585
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:370
@@ -571,14 +571,14 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:179
-#: lib/tuist_web/marketing/layouts/root.html.heex:185
+#: lib/tuist_web/marketing/layouts/root.html.heex:197
+#: lib/tuist_web/marketing/layouts/root.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:194
-#: lib/tuist_web/marketing/layouts/root.html.heex:200
+#: lib/tuist_web/marketing/layouts/root.html.heex:212
+#: lib/tuist_web/marketing/layouts/root.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
@@ -2684,7 +2684,7 @@ msgstr ""
 msgid "Cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:242
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Cache serving regions"
 msgstr ""
@@ -2724,12 +2724,12 @@ msgstr ""
 msgid "Reconnecting · showing last update"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:245
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:246
+#: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -2791,5 +2791,5 @@ msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:151
 #, elixir-autogen, elixir-format
-msgid "Cache downloads served today, including repeated and partial requests. Totals reset at midnight in Coordinated Universal Time."
+msgid "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
 msgstr ""

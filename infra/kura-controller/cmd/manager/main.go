@@ -122,6 +122,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	nodeLocalStatusClient, err := controllers.NewPortForwardRuntimeStatusClient(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "build port-forward runtime status client")
+		os.Exit(1)
+	}
+
 	reconciler := &controllers.KuraInstanceReconciler{
 		Client:                           mgr.GetClient(),
 		APIReader:                        mgr.GetAPIReader(),
@@ -132,6 +138,7 @@ func main() {
 		Environment:                      deploymentEnvironment,
 		PrivateReplication:               privateReplication,
 		MetricsClient:                    metricsClient,
+		NodeLocalRuntimeStatusClient:     nodeLocalStatusClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
 	}
 	if stableZone != "" {

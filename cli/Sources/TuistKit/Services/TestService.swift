@@ -2270,7 +2270,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                    passthroughXcodeBuildArguments: UploadResultBundleService.uploadsCoverage(config: config)
+                        ? AtomicCoverageCounters.adding(to: passthroughXcodeBuildArguments)
+                        : passthroughXcodeBuildArguments
                 )
             }
             await recordCoverageEvidence()

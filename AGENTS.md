@@ -517,4 +517,5 @@ This documentation is critical for:
 **Failure to keep this documentation current could result in incomplete data exports for legal requests, potentially leading to compliance violations.**
 - Don't modify content in languages other than English (source language)
 
-- `infra/runner-cache/` — shared runner cache lifecycle and Linux image backend; see `infra/runner-cache/AGENTS.md`.
+- `infra/tart-kubelet/` — current macOS Pod-to-Tart runtime and APFS caches; see `infra/tart-kubelet/AGENTS.md`.
+- `infra/runner-cache/` — shared Linux/macOS custom-volume journal, image lifecycle and transfer; see `infra/runner-cache/AGENTS.md`.

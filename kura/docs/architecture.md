@@ -25,8 +25,10 @@ forward pages and local sibling donors never trigger that delay. Public status
 discovery retains its existing timeout and observation semantics. Private-probe
 health is separate from advertised serving/draining state, affects only remote
 donor ranking and preference, and never changes the local gateway election.
-Provider-only configuration is rejected; different same-provider domains remain
-fail-closed without public data fallback. See the
+Provider-only configuration is rejected. Different same-provider domains require
+reciprocal `canonical_networks` approval of exact domain IDs for canonical mTLS;
+they receive no private donor preference. Unapproved domains fail closed, and
+same-domain private failures never fall back publicly. See the
 [network qualification and rollout plan](../../infra/kura-controller/private-replication.md).
 
 ## What Kura Is

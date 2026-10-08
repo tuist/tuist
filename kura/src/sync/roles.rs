@@ -85,7 +85,7 @@ fn region_gateways(
         .min_by_key(|peer| {
             let preferred = prefer.is_some_and(|own| {
                 peer.topology.as_ref().is_some_and(|remote| {
-                    own.same_provider(remote)
+                    own.same_private_network(remote)
                         && crate::peer_topology::endpoint(Some(own), Some(remote), &peer.url)
                             .is_ok()
                 })
@@ -314,6 +314,7 @@ mod tests {
     #[test]
     fn provider_preference_preserves_siblings_origins_and_published_gateways() {
         let own = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified-vrack".into()),
             private_url: Some("https://private.example:7443".into()),
@@ -387,8 +388,39 @@ mod tests {
     }
 
     #[test]
+    fn approved_remote_domain_does_not_gain_gateway_preference() {
+        let own = crate::peer_topology::PeerTopology {
+            provider: "vultr".into(),
+            private_network: Some("ord".into()),
+            private_url: Some("https://private.ord:7443".into()),
+            canonical_networks: vec!["scl".into()],
+        };
+        let mut approved = peer("https://z.scl", "scl", true, false);
+        approved.topology = Some(crate::peer_topology::PeerTopology {
+            provider: "vultr".into(),
+            private_network: Some("scl".into()),
+            private_url: Some("https://private.scl:7443".into()),
+            canonical_networks: vec!["ord".into()],
+        });
+        assert!(
+            crate::peer_topology::endpoint(Some(&own), approved.topology.as_ref(), &approved.url)
+                .is_ok()
+        );
+        let peers = [approved, peer("https://a.scl", "scl", true, false)];
+        let roles = derive_roles(&RoleInputs {
+            own_topology: Some(&own),
+            ..inputs("https://a.ord", "ord", &peers, &[])
+        });
+        assert_eq!(
+            roles.remote_gateways,
+            vec![("https://a.scl".into(), "scl".into())]
+        );
+    }
+
+    #[test]
     fn asymmetric_private_probes_do_not_change_local_gateway_election() {
         let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
             provider: "ovh".into(),
             private_network: Some("verified-vrack".into()),
             private_url: Some("https://private.example:7443".into()),

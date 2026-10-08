@@ -109,6 +109,7 @@ defmodule TuistWeb.Coverage.Components do
           <div data-part="header">
             <span data-part="title">{title}</span>
             <.button
+              :if={items != []}
               variant="secondary"
               label={dgettext("dashboard_tests", "View more")}
               size="small"

@@ -177,8 +177,11 @@ struct XcodeBuildTestCommandService {
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
         let allQuarantinedTests = mutedTests + skippedTests
-        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
+        var xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
+        }
+        if UploadResultBundleService.uploadsCoverage(config: config) {
+            xcodeBuildArgumentsWithSkip = AtomicCoverageCounters.adding(to: xcodeBuildArgumentsWithSkip)
         }
         let parseSummary = mode == .local || stressNewTests != nil
 

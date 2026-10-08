@@ -1,7 +1,11 @@
 defmodule Tuist.Runners.CacheVolumesTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Mimic
+
+  alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Measurement
   alias Tuist.Runners.CacheVolumes.Usage
@@ -13,6 +17,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
+    stub(Environment, :runner_cache_volumes_enabled?, fn _ -> true end)
     account = AccountsFixtures.account_fixture()
 
     %{
@@ -65,15 +70,93 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
 
-  test "only an open Linux session waiting for execution attribution is retryable", %{account: account, job: job} do
+  test "Linux allocation remains idempotent with the platform conflict target", %{job: job} do
+    {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    volume = Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id)
+    fields = [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
+
+    row =
+      volume
+      |> Map.take(fields ++ [:repository_id, :repository, :inserted_at, :updated_at])
+      |> Map.put(:id, Ecto.UUID.generate())
+
+    assert {0, _} = Repo.insert_all(Volume, [row], on_conflict: :nothing, conflict_target: fields)
+    assert Repo.get!(Volume, volume.id).platform == "linux"
+  end
+
+  test "macOS identities are separate while existing Linux UUIDs and built-in heads survive", %{
+    job: job,
+    account: account
+  } do
+    {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    builtin = VolumeHeads.reserved_tuist_cache()
+    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, builtin)
+    {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs(), :platform, "macos"))
+    refute mac.scope == linux.scope
+    assert length(CacheVolumes.list(account.id).volumes) == 2
+    mac_volume = Repo.get!(Volume, Repo.get!(Usage, mac.id).volume_id)
+    assert mac_volume.platform == "macos"
+    assert String.starts_with?(CacheVolumes.storage_name(mac_volume), "macos-")
+    assert VolumeHeads.valid_storage_volume_name?(CacheVolumes.storage_name(mac_volume))
+    refute VolumeHeads.valid_volume_name?(CacheVolumes.storage_name(mac_volume))
+    {:ok, again} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    assert again.id == linux.id
+    assert {:ok, _} = CacheVolumes.report("node", mac.id, report())
+    complete(job)
+    assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", mac.id, report())
+    CacheVolumes.delete(account.id, mac_volume.id)
+
+    assert {:error, :conflict} =
+             CacheVolumes.image("node", mac.id, %{
+               "operation" => "publish",
+               "image_digest" => String.duplicate("b", 40),
+               "content_digest" => String.duplicate("c", 64)
+             })
+
+    assert VolumeHeads.get_head(account.id, builtin).generation == 1
+  end
+
+  test "allocation derives macOS from the executed session, ignoring guest platform", %{account: account, job: job} do
+    Repo.insert!(%Buildkite.Installation{
+      account_id: account.id,
+      organization_slug: "org",
+      stack_key: "mac-#{account.id}",
+      agent_token: "test"
+    })
+
+    Repo.insert!(%Buildkite.Job{
+      account_id: account.id,
+      job_uuid: Ecto.UUID.generate(),
+      workflow_job_id: job.workflow_job_id,
+      build_uuid: Ecto.UUID.generate(),
+      build_number: 42,
+      organization_slug: "org",
+      pipeline_slug: "pipeline",
+      queue_key: "queue",
+      cache_volume_identity: %{
+        "provider" => "buildkite",
+        "provider_instance" => "org-id",
+        "scope_id" => "pipeline-id",
+        "trusted" => true
+      }
+    })
+
+    Repo.insert!(
+      struct(
+        WorkflowJob,
+        Map.merge(job, %{provider: "buildkite", status: "running", fleet_name: "macos", enqueued_at: DateTime.utc_now()})
+      )
+    )
+
     session =
       Repo.insert!(%RunnerSession{
         account_id: account.id,
         workflow_job_id: job.workflow_job_id,
-        fleet_name: "linux",
-        pod_name: "pending-pod",
-        node_name: "node",
-        platform: :linux,
+        executed_workflow_job_id: job.workflow_job_id,
+        fleet_name: "macos",
+        pod_name: "mac-pod",
+        node_name: "mac-node",
+        platform: :macos,
         vcpus: 2,
         memory_gb: 8,
         billing_multiplier: 10_000,
@@ -81,21 +164,67 @@ defmodule Tuist.Runners.CacheVolumesTest do
       })
 
     params = %{
-      "pod_name" => "pending-pod",
-      "pod_uid" => "uid",
-      "node_name" => "node",
+      "pod_name" => "mac-pod",
+      "pod_uid" => "mac-uid",
+      "node_name" => "mac-node",
       "key" => "gradle",
-      "architecture" => "amd64",
-      "uid" => 1001
+      "architecture" => "arm64",
+      "uid" => 501,
+      "platform" => "linux"
     }
 
-    assert {:error, :pending} = CacheVolumes.allocate(params)
-    assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
-    assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})
-    assert CacheVolumes.list(account.id).volumes == []
-
+    expect(Environment, :runner_cache_volumes_enabled?, fn :macos -> false end)
+    assert {:error, :unavailable} = CacheVolumes.allocate(params)
+    expect(Environment, :runner_cache_volumes_enabled?, fn :macos -> true end)
+    assert {:ok, use} = CacheVolumes.allocate(params)
+    assert Repo.get!(Volume, Repo.get!(Usage, use.id).volume_id).platform == "macos"
     Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
     assert {:error, :unavailable} = CacheVolumes.allocate(params)
+  end
+
+  for platform <- [:linux, :macos] do
+    @session_platform platform
+    test "only an open #{@session_platform} session waiting for execution attribution is retryable", %{
+      account: account,
+      job: job
+    } do
+      session =
+        Repo.insert!(%RunnerSession{
+          account_id: account.id,
+          workflow_job_id: job.workflow_job_id,
+          fleet_name: "linux",
+          pod_name: "pending-pod",
+          node_name: "node",
+          platform: @session_platform,
+          vcpus: 2,
+          memory_gb: 8,
+          billing_multiplier: 10_000,
+          started_at: DateTime.utc_now()
+        })
+
+      params = %{
+        "pod_name" => "pending-pod",
+        "pod_uid" => "uid",
+        "node_name" => "node",
+        "key" => "gradle",
+        "architecture" => "amd64",
+        "uid" => 1001
+      }
+
+      expect(Environment, :runner_cache_volumes_enabled?, fn platform ->
+        assert platform == @session_platform
+        false
+      end)
+
+      assert {:error, :unavailable} = CacheVolumes.allocate(params)
+      assert {:error, :pending} = CacheVolumes.allocate(params)
+      assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
+      assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})
+      assert CacheVolumes.list(account.id).volumes == []
+
+      Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
+      assert {:error, :unavailable} = CacheVolumes.allocate(params)
+    end
   end
 
   test "custom Linux names never become valid macOS dispatch names", %{job: job, account: account} do

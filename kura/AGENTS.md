@@ -23,6 +23,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol and reader-first rollout. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
 - Xcode compiler restore coverage lives in `spec/e2e/xcode_chunking_spec.sh`, with readable fixture assets in `spec/fixtures/xcode-chunking/`. Generate the fixture with Tuist's `Project.swift` and `Tuist.swift` manifests, not another project generator. It runs on Apple silicon with `KURA_E2E_XCODE=1` and local Kura; it must skip without starting processes on other hosts. Keep end-to-end coverage in ShellSpec rather than standalone Python drivers.
 - Xcode transfer analytics coverage lives in `spec/e2e/xcode_analytics_spec.sh`, using the same compiler fixture and local Kura as the chunking spec. Build the server's `xcactivitylog-parser` first (its own AGENTS.md describes the SwiftPM command), or set `KURA_E2E_XCODE_PARSER` to that executable. `KURA_E2E_CAS_BIN` selects the built plugin/proxy directory. The spec matches actual compiler output ids through the analytics database and validates the production parser's upload/download records; retain this boundary so a successful cache restore cannot hide empty analytics.
+- Xcode lookup concurrency coverage lives in `spec/e2e/xcode_lookups_spec.sh`, with the fixture in `spec/fixtures/xcode-lookups/` (one target importing several SDK frameworks, so a cold build has dozens of independent keys). It puts `cas-plugin`'s `chunking_fault_gate` in `delay-lookups=<ms>` mode in front of local Kura and asserts that cold-miss and cold-hit builds overlap their action lookups rather than issuing them one at a time; same `KURA_E2E_XCODE=1` gating as the chunking spec.
 - Clang fault coverage lives in `spec/e2e/clang_chunking_spec.sh` and `spec/fixtures/clang-chunking/`. Its loopback-only Rust request gate forwards to real Kura, interrupts uploads, or holds chunk reads while ShellSpec deletes only the test's isolated namespace. This proves client fallback after remote dependency loss, not a server retention lease. Keep fault injection out of production handlers and assert that the fault actually occurred.
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
   - Request WAL sequence publication and writer enrollment belong to the detached blocking commit, not its awaiting caller. Cancellation must not leave a visible client manifest untracked. Existing-blob acknowledgements and completed-upload status join the pending WAL prefix before they acknowledge; unrelated cursor, usage, and backfill writes must not trigger extra client flushes.
@@ -60,12 +61,19 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
   Keep durable regression coverage in the Rust tests and ShellSpec mTLS suite;
   use `test/e2e/provider-topology/` for repeatable local resource comparisons.
+  Regional E2E private aliases must be isolated per domain. The fixture mTLS
+  proxies distinguish private body transfers from discovery probes; retain the
+  one-sided-approval negative case and independent suite lifecycles.
   Keep run-specific manifests, credentials, captures and dated results out of
   the repository; record deployment validation in the associated PR. Private-path
   fault tests must observe a real blackhole: changing a Service port can leave
   pooled connections alive. Scope fixture cleanup to its unique test label.
   Preserve qualification limits: a single-host canary is not a physical host
   pair, and Chicago does not qualify an ORD–SCL private interconnect.
+  Distinct same-provider domains require reciprocal exact-ID approval through
+  `canonical_networks` before using canonical mTLS. Same-domain traffic always
+  stays private-only. Canonically approved peers are not private donors. Roll
+  out policy-capable runtimes before advertising a newly qualified domain.
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.

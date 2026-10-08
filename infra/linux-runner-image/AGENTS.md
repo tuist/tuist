@@ -282,3 +282,8 @@ cache subtree. The broker bounds source resolution with os.Root and creates each
 mount in a short-lived worker. Validate with the privileged Linux bind-mount suite
 in linux-runner-image.yml, including a client without CAP_SYS_ADMIN in separate
 PID/mount namespaces. Roll out controller and runner image together on idle pods.
+
+- The shared cache client also supports macOS: use unique mailbox requests per
+  attempt, remove completed request/response files, and retry busy clean detaches
+  five times. Sample filesystem usage before detach, bind it to the lease, and
+  write the detach proof only after both clean detach and the usage report succeed.

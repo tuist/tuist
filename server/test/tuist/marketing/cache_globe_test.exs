@@ -78,6 +78,7 @@ defmodule Tuist.Marketing.CacheGlobeTest do
       event,
       %{event | inserted_at: ~N[2025-01-10 11:59:01]},
       %{event | event_id: "globe-old", window_start: ~N[2025-01-10 10:00:00]},
+      %{event | event_id: "globe-south-america", region: "sa-west"},
       %{event | event_id: "globe-yesterday", window_start: ~N[2025-01-09 23:59:00]},
       %{event | event_id: "globe-future", window_start: ~N[2025-01-10 12:01:00]},
       %{event | event_id: "globe-upload", operation: "upload", direction: "ingress"},
@@ -88,11 +89,14 @@ defmodule Tuist.Marketing.CacheGlobeTest do
 
     snapshot = CacheGlobe.snapshot(~U[2025-01-10 12:00:00.123456Z])
 
-    assert snapshot.downloads == 10
-    assert snapshot.bytes == 4096
-    assert snapshot.recent_downloads == 5
+    assert snapshot.downloads == 15
+    assert snapshot.bytes == 6144
+    assert snapshot.recent_downloads == 10
+    assert snapshot.recent_bytes == 4096
     assert snapshot.observed_at == "2025-01-10T11:59:00Z"
     assert Enum.find(snapshot.regions, &(&1.id == "eu-west")).downloads == 10
+    assert Enum.find(snapshot.regions, &(&1.id == "sa-west")).downloads == 5
+    assert Enum.find(snapshot.regions, &(&1.id == "sa-west")).recent_downloads == 5
     refute JSON.encode!(snapshot) =~ "private-node"
     refute JSON.encode!(snapshot) =~ "account_id"
     refute JSON.encode!(snapshot) =~ "project_id"
@@ -102,6 +106,7 @@ defmodule Tuist.Marketing.CacheGlobeTest do
     snapshot = CacheGlobe.snapshot(~U[2001-01-01 12:00:00Z])
     assert snapshot.status == :waiting
     assert snapshot.downloads == 0
+    assert snapshot.recent_bytes == 0
     assert snapshot.observed_at == nil
     assert Enum.all?(snapshot.regions, &(&1.recent_downloads == 0))
     assert snapshot.breakdown == %{"all" => nil, "module" => nil, "gradle" => nil, "bazel" => nil}
@@ -206,7 +211,7 @@ defmodule Tuist.Marketing.CacheGlobeTest do
 
   test "hit-rate query failures preserve delivery totals and enforce a row-read limit" do
     expect(ClickHouseRepo, :query!, fn _query, _params, _opts ->
-      %{rows: [["eu-west", 5, 2048, 5, ~N[2032-01-10 11:59:00]]]}
+      %{rows: [["eu-west", 5, 2048, 5, 2048, ~N[2032-01-10 11:59:00]]]}
     end)
 
     expect(ClickHouseRepo, :query, 3, fn _query, _params, opts ->

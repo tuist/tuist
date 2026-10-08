@@ -211,6 +211,22 @@ type KuraInstanceSpec struct {
 	// host-network peer DNSEndpoint targets (the CAPI provider keeps it routed to
 	// a healthy box of the region's pool). Only used when MeshPeerHostNetwork.
 	MeshPeerFailoverIP string `json:"meshPeerFailoverIp,omitempty"`
+
+	// NodeLocalNetwork marks an instance whose pods run on nodes with a pod
+	// network the rest of the cluster cannot route to, such as rack nodes
+	// with a bridge-only CNI. Their pods cannot reach cluster DNS, so they
+	// resolve through Nameservers instead, and the controller reads their
+	// /status/rollout through the API server's pod port-forward rather than
+	// the pod IP.
+	NodeLocalNetwork *NodeLocalNetwork `json:"nodeLocalNetwork,omitempty"`
+}
+
+// NodeLocalNetwork configures an instance whose pod network is local to its
+// node.
+type NodeLocalNetwork struct {
+	// Nameservers the pods resolve through instead of cluster DNS.
+	// +kubebuilder:validation:MinItems=1
+	Nameservers []string `json:"nameservers"`
 }
 
 // KuraInstanceRolloutHealth aggregates the per-pod `/status/rollout` reports

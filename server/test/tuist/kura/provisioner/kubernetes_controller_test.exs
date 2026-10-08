@@ -2169,6 +2169,85 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                "http://actual-ref.kura.svc.cluster.local:4000"
     end
 
+    test "places the BER1 rack's cache on its storage node, off the cluster network" do
+      stub(Tuist.Environment, :env, fn -> :stag end)
+      stub(Tuist.Environment, :app_url, fn -> "https://staging.tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_node_local_otlp_traces_endpoint, fn ->
+        "http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces"
+      end)
+
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      assert spec["replicas"] == 1
+      refute Map.has_key?(spec, "mesh")
+      assert spec["privateHost"] == "tuist-ber1-runners-staging.kura.tuist.dev"
+      assert spec["ingressClassName"] == "kura-ber1-runners"
+      assert spec["clientCIDRs"] == ["10.10.0.0/24"]
+      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"}
+
+      assert spec["tolerations"] == [
+               %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      # Tailscale's resolver answers the tailnet and fails anything else over
+      # to the public resolvers.
+      assert spec["nodeLocalNetwork"] == %{"nameservers" => ["100.100.100.100", "1.1.1.1", "8.8.8.8"]}
+
+      # The pod reaches no Service: the server and analytics through the
+      # public URL, and traces to the collector at its tailnet name.
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "https://staging.tuist.dev"
+      assert env["KURA_AUTH_TUIST_URL"] == "https://staging.tuist.dev"
+      assert env["KURA_ANALYTICS_SERVER_URL"] == "https://staging.tuist.dev"
+
+      assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] ==
+               "http://tuist-alloy-receiver-staging.taild6d7bb.ts.net:4318/v1/traces"
+    end
+
+    test "turns traces off for a node-local instance in an environment with no collector to reach" do
+      stub(Tuist.Environment, :app_url, fn -> "https://staging.tuist.dev" end)
+      stub(Tuist.Environment, :kura_node_local_otlp_traces_endpoint, fn -> nil end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == ""
+    end
+
+    test "keeps cluster-routed private regions on the cluster network" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      region = Regions.get("scw-fr-par-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", account, region, %Server{})["spec"]
+
+      refute Map.has_key?(spec, "nodeLocalNetwork")
+      assert spec["mesh"]
+      names = Enum.map(spec["extraEnv"], & &1["name"])
+      refute "KURA_ANALYTICS_SERVER_URL" in names
+      refute "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" in names
+    end
+
+    test "reapplies a node-local instance when its nameservers change" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      region = Regions.get("ber1-runners")
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+      revision = KubernetesController.manifest_revision(server, region)
+
+      changed = %{
+        region
+        | provisioner_config: Map.put(region.provisioner_config, :node_local_network, %{nameservers: ["9.9.9.9"]})
+      }
+
+      refute KubernetesController.manifest_revision(server, changed) == revision
+    end
+
     test "reapplies existing private instances when their replica count or entrance changes" do
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
