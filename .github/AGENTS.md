@@ -94,10 +94,11 @@ Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsha
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
 
-`server-coverage.yml` runs the same four shards on main with `mix tuist.test
---cover` against `tuist/server`, then `mix tuist.coverage.complete`; Xcode
-coverage stays in `coverage.yml`. Each workflow's push `paths` decide when it
-runs, so keep their jobs independent of each other.
+On push to main, the current ClickHouse shards also run with `--cover
+--export-coverage shard`, reporting the server's coverage to `tuist/server`,
+and `coverage-complete` then runs `mix tuist.coverage.complete`. Keep coverage
+off pull requests, the merge queue, the floor shards and the unsharded
+fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`.
 
 ## Restore drills
 
