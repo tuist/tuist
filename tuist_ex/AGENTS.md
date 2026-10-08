@@ -40,7 +40,9 @@ that `--max-failures` cut short (the formatter notes `:max_failures_reached`),
 forwarded arguments are never deduplicated, and a Tuist task started outside
 the test environment re-executes itself in it (`Args.ensure_env/3`) because
 switching `Mix.env` after the task was found leaves `dev`'s dependency paths
-loaded. `CompileReporter` stops after each build and trims a build to the
+loaded. That process and the retries run through `Subprocess.run/3`, which
+hands them this process's terminal; do not relay their output through
+`System.cmd/3`, whose byte chunks can split a UTF-8 character and crash the run. `CompileReporter` stops after each build and trims a build to the
 server's limits (see `Tuist.Mix.limits/0`) rather than have it refused. The tracer also records every reference a file makes to another module,
 deduplicated in its own table because they arrive by the million, and
 `CompileProfile` turns them into the project's file dependency graph with
