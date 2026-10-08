@@ -56,6 +56,12 @@ jobs:
           install: erlang elixir node github:tuist/once
           working-directory: atlas
 
+      # The Linux Once binary links against ALSA for its sound cues.
+      - name: Install Once runtime libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+
       # Once runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
       - name: Put Once on PATH
@@ -113,6 +119,12 @@ jobs:
         with:
           install: erlang elixir node github:tuist/once
           working-directory: atlas
+
+      # The Linux Once binary links against ALSA for its sound cues.
+      - name: Install Once runtime libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
       # Once runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
@@ -211,6 +223,12 @@ jobs:
           install: erlang elixir node github:tuist/once
           working-directory: atlas
 
+      # The Linux Once binary links against ALSA for its sound cues.
+      - name: Install Once runtime libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+
       # Once runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
       - name: Put Once on PATH
@@ -276,6 +294,12 @@ jobs:
         with:
           install: github:tuist/once
           working-directory: atlas
+
+      # The Linux Once binary links against ALSA for its sound cues.
+      - name: Install Once runtime libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
       # Once runs from the repository root, where the workspace manifest lives,
       # but the tool is pinned in atlas/mise.toml.
