@@ -4,6 +4,7 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 
 - Only `ActionCompleted` creates an action row. `TargetCompleted` is a target summary and must not create a substitute action or overwrite action zero.
 - An action is identified by run, target execution, capability, and action index. Replayed completion events must not increment run counters again.
+- `ActionCompleted.display_name` and `source_files` are presentation only. Keep `identifier` and action identity intact; missing/empty names fall back to legacy labels and missing files to an empty list. Action and cache-action search include both names and source paths; name sorting uses the display name with identifier fallback.
 - Accept both numeric and decoded enum forms of terminal results.
 - Keep durations and cache outcomes from the individual action events. Do not infer them from the enclosing target or command.
 - Regression coverage lives in `test/tuist/once_events_test.exs`.

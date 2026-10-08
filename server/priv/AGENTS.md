@@ -10,6 +10,7 @@ This directory contains database migrations and other private assets.
 - GitHub Enterprise split-host/proxy setup is documented in `docs/en/guides/integrations/gitforge/github.md`. The nullable installation `api_url` is transport metadata; it does not replace canonical `client_url`, webhook identity, or existing project connections. Its migration uses `20261007160000`; the prototype `20261006110000` collided with main's absolute bundle-threshold migration. Reconcile any locally applied prototype history against the actual columns before migrating.
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
+- Purpose-written agent marketing guides: `server/priv/marketing/agents`, see `marketing/agents/AGENTS.md` for content, discovery, and CDN rollout constraints.
 - All served raster images under `priv/static` are checked by
   `mise run marketing:image-budget` (requires ImageMagick).
   Signup artwork is WebP at twice its rendered width; keep replacements within
@@ -29,6 +30,7 @@ This directory contains database migrations and other private assets.
 ## Guardrails
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
+- REAPI cache output hints default to empty strings for historical rows and older Kura nodes. Append physical ClickHouse columns in schema order; these identifiers correlate profile descriptions and are never repository source links.
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
 - Runner cache migrations create indexes concurrently with DDL transactions and
   migration locks disabled; verify both forward migration and rollback.

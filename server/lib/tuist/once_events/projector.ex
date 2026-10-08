@@ -225,6 +225,8 @@ defmodule Tuist.OnceEvents.Projector do
       capability: safe_string(action.capability, "build"),
       action_index: action.action_index || 0,
       identifier: nil_if_empty(action.identifier),
+      display_name: nil_if_empty(action.display_name),
+      source_files: action.source_files || [],
       result: target_result(action.result),
       was_cached: action.was_cached,
       exit_code: action.exit_code || 0,
