@@ -263,8 +263,6 @@ jobs:
             cldr-locales-v1-
       - name: Prefetch CLDR locale data
         run: mise/tasks/cldr/prefetch-locale-data.sh
-      - name: Authenticate with Tuist
-        run: mix 'do' deps.compile tuist_ex + tuist.login
       - name: Build and plan current ClickHouse shards
         id: current
         run: |
@@ -316,8 +314,8 @@ jobs:
           restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
-      - name: Authenticate and download the test build
-        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
+      - name: Download the test build
+        run: mix 'do' deps.compile tuist_ex + tuist.test --prepare-only
       # Run migrations in another process so migration regression tests can
       # require their modules without triggering redefinition warnings.
       - name: Setup database
@@ -372,8 +370,8 @@ jobs:
           clickhouse --version
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
-      - name: Authenticate and download the test build
-        run: mix 'do' deps.compile tuist_ex + tuist.login + tuist.test --prepare-only
+      - name: Download the test build
+        run: mix 'do' deps.compile tuist_ex + tuist.test --prepare-only
       - name: Setup database
         run: mise run --no-deps db:reset
       - name: Run shard ${{ matrix.shard }}

@@ -45,6 +45,9 @@ you provide only `--email` or `--password`, it prompts for the missing value.
 On a continuous integration provider, it exchanges an
 [OpenID Connect](https://openid.net/developers/how-connect-works/) identity token
 from GitHub Actions, CircleCI, or Bitrise, matching the Tuist command line flow.
+On those providers a login step is optional: when no other credentials are
+available, the reporting tasks make the same exchange the first time they need
+a token. On GitHub Actions the job needs the `id-token: write` permission.
 
 Credentials are saved under the Tuist configuration directory. The task writes
 them atomically with access restricted to the current user. Refreshes take a
@@ -75,8 +78,9 @@ CI run.
 
 Analytics submission never changes the exit code of `mix test`. If a request
 fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
-reuses the credentials from `mix tuist.login`, or the `TUIST_TOKEN` environment
-variable if set.
+uses the `TUIST_TOKEN` environment variable if set, then the credentials from
+`mix tuist.login`, then an OpenID Connect exchange on a supported continuous
+integration provider.
 
 ## Keep using `mix test` and `mix compile`
 

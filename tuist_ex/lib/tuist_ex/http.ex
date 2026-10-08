@@ -2,8 +2,7 @@ defmodule TuistEx.HTTP do
   @moduledoc false
 
   def request(method, url, body \\ nil, headers \\ []) do
-    Application.ensure_all_started(:inets)
-    Application.ensure_all_started(:ssl)
+    start()
 
     headers =
       [
@@ -88,6 +87,7 @@ defmodule TuistEx.HTTP do
   end
 
   defp start do
+    if Code.ensure_loaded?(Mix), do: Enum.each([:inets, :ssl], &Mix.ensure_application!/1)
     Application.ensure_all_started(:inets)
     Application.ensure_all_started(:ssl)
   end

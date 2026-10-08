@@ -82,7 +82,19 @@ dashboard presentation belong in `server/`.
   it samples as options. Tests give payload builders a fixed environment so
   none of them asks git about the checkout. Keep it that way: a test that
   needs `async: false` is a sign that state leaked somewhere global, and
-  `compile_profile_install_test.exs` is the one place that is expected.
+  `compile_profile_install_test.exs` and `http_test.exs` (which prunes the
+  VM's code path) are the places where it is expected.
+- `TuistEx.HTTP` puts `:inets` and `:ssl` back on the code path before every
+  request. When a task is looked up in a dependency on a cold build, Mix
+  compiles the dependencies first and prunes the code path to what the last
+  one declared, while `:inets` keeps running, so `:httpc` fails on modules it
+  loads lazily.
+- `TuistEx.Auth.token/1` tries `TUIST_TOKEN`, then the stored credentials, then
+  an OpenID Connect exchange on GitHub Actions, CircleCI or Bitrise, so CI needs
+  no login step. The exchanged token is kept in memory for the VM and never
+  written to the shared credentials file: a runner that outlives the job would
+  otherwise hand it to the next repository's job. Every failure on that path is
+  an `{:error, message}`, never a raise, because reporting must stay silent.
 - Validate with `mix format --check-formatted`, `mix compile --warnings-as-errors`,
   `mix test --warnings-as-errors`, `mix hex.build`, and `mix docs --warnings-as-errors`.
 - The user guides are the Elixir pages under `server/priv/docs/en/guides/`
