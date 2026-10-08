@@ -1,11 +1,11 @@
 {{- $appSecret := include "atlas.appSecretName" . -}}
 {{- $pgSecret := include "atlas.postgresAppSecret" . -}}
+{{- if ne (toString .Values.env.ATLAS_DEMO_MODE) (toString .Values.demo.enabled) -}}
+{{- fail "Atlas env.ATLAS_DEMO_MODE must match demo.enabled (true or false)" -}}
+{{- end -}}
 {{- if .Values.demo.enabled -}}
 {{- if or .Values.postgres.enabled .Values.tuistServer.enabled .Values.externalSecrets.enabled .Values.clickhouse.enabled .Values.vector.enabled .Values.agentSandboxes.enabled -}}
 {{- fail "Atlas demo must use isolated external PostgreSQL and no managed integrations" -}}
-{{- end -}}
-{{- if ne (toString .Values.env.ATLAS_DEMO_MODE) "true" -}}
-{{- fail "Atlas demo requires env.ATLAS_DEMO_MODE=true" -}}
 {{- end -}}
 {{- if or (not .Values.migrationJob.appSecretName) (eq .Values.migrationJob.appSecretName $appSecret) -}}
 {{- fail "Atlas demo requires a separate migrationJob.appSecretName and a read-only application Secret" -}}
