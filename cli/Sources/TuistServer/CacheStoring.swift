@@ -109,9 +109,21 @@
             _ items: [CacheStorableItem: [AbsolutePath]],
             cacheCategory: RemoteCacheCategory
         ) async throws -> [CacheStorableItem]
+        /// Uploads the items `fetch` served from the local cache, keyed by the path it returned for them,
+        /// that the remote cache no longer has.
+        func republish(
+            _ items: [CacheStorableItem: AbsolutePath],
+            cacheCategory: RemoteCacheCategory
+        ) async throws
     }
 
     extension CacheStoring {
+        /// A storage without a remote has nothing to republish.
+        public func republish(
+            _: [CacheStorableItem: AbsolutePath],
+            cacheCategory _: RemoteCacheCategory
+        ) async throws {}
+
         /// A storage that never evicts has nothing to preserve.
         public func fetch(
             _ items: Set<CacheStorableItem>,

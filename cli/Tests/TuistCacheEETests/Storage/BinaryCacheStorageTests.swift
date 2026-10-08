@@ -461,6 +461,54 @@ struct BinaryCacheStorageTests {
         #expect(restored.count == (missingDelayedBlob ? 1 : 2))
     }
 
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func republishRestoresLocalHitsTheRemoteEvicted(sliced: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact: AbsolutePath
+        if sliced {
+            artifact = directory.appending(component: "Shared.xcframework")
+            try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        } else {
+            artifact = directory.appending(component: "Shared.bundle")
+            try await FileSystem().makeDirectory(at: artifact)
+            try await FileSystem().writeText("payload", at: artifact.appending(component: "contents"))
+        }
+        let target = item("evicted", sliced ? fingerprints : [:])
+        _ = try await producer.store([target: [artifact]], cacheCategory: .binaries)
+        let hits = try await producer.fetch([target], cacheCategory: .binaries)
+        #expect(hits.keys.map(\.source) == [.local])
+        await remote.evictAll()
+
+        try await producer.republish([target: try #require(hits.values.first)], cacheCategory: .binaries)
+
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        #expect(try await reader.fetch([target], cacheCategory: .binaries).keys.map(\.source) == [.remote])
+    }
+
+    @Test(.inTemporaryDirectory) func republishLeavesPublishedLocalHitsUntouched() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let target = item("published", fingerprints)
+        _ = try await producer.store([target: [artifact]], cacheCategory: .binaries)
+        let hits = try await producer.fetch([target], cacheCategory: .binaries)
+        let uploads = await remote.uploads
+        let actions = await remote.actions
+
+        try await producer.republish([target: try #require(hits.values.first)], cacheCategory: .binaries)
+
+        #expect(await remote.uploads == uploads)
+        #expect(await remote.actions == actions)
+        for (variant, fingerprint) in fingerprints {
+            let action = try BinaryCacheAction(name: target.name, variant: variant, fingerprint: fingerprint)
+            #expect(await remote.queries[action.digest] == 1)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func blobPublicationRefreshesRecencyAndRepairsCorruption() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
@@ -529,6 +577,11 @@ actor MemoryREAPICache: REAPICacheStoring {
     private var fail = false
     func failUploads() { fail = true }
     func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data("corrupt".utf8) }
+    func evictAll() {
+        actions = [:]
+        blobs = [:]
+    }
+
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         queries[digest, default: 0] += 1
         activeLookups += 1

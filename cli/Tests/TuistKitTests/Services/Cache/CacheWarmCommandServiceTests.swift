@@ -129,6 +129,7 @@
                 )
                 .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(cacheStorage).republish(.any, cacheCategory: .value(.binaries)).willReturn()
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .any,
@@ -178,6 +179,42 @@
                 .called(0)
             verify(cacheStorageFactory)
                 .cacheLocalStorage()
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory) func run_republishesLocalHits_whenUploading() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+            let fingerprints = ["ios-simulator": "simulator-hash"]
+
+            try await run(
+                noUpload: false,
+                fingerprints: fingerprints,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path]
+            )
+
+            verify(cacheStorage)
+                .republish(
+                    .matching { items in
+                        items.count == 1 && items.first?.key.hash == "fixtures-hash"
+                            && items.first?.key.metadata.binaryCacheFingerprints == fingerprints && items.first?.value == path
+                    },
+                    cacheCategory: .value(.binaries)
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_doesNotRepublishLocalHits_whenNoUpload() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let path = temporaryDirectory.appending(components: "Binaries", "Fixtures.bundle")
+
+            try await run(
+                noUpload: true,
+                fetched: [CacheItem(name: "Fixtures", hash: "fixtures-hash", source: .local, cacheCategory: .binaries): path]
+            )
+
+            verify(cacheStorage)
+                .republish(.any, cacheCategory: .any)
                 .called(0)
         }
 
@@ -539,7 +576,8 @@
             storeError: Error? = nil,
             fingerprints: [String: String] = [:],
             targetProduct: Product = .bundle,
-            projectSettings: Settings = .test()
+            projectSettings: Settings = .test(),
+            fetched: [CacheItem: AbsolutePath] = [:]
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
@@ -590,7 +628,10 @@
                 .willReturn([graphTarget: targetHash])
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
-                .willReturn([:])
+                .willReturn(fetched)
+            given(cacheStorage)
+                .republish(.any, cacheCategory: .value(.binaries))
+                .willReturn()
             given(generatorFactory)
                 .binaryCacheWarming(
                     config: .value(config),
