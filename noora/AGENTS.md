@@ -33,7 +33,7 @@ Web component metadata and documentation are generated from `components/*.json` 
 Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
 
 ## Conventions
-- Phoenix text inputs forward the native `readonly` attribute so canonical values can remain selectable without being editable. Their suffix-help tooltip triggers are keyboard-focusable.
+- Phoenix text inputs forward the native `readonly` attribute so canonical values can remain selectable without being editable. Their suffix-help tooltip triggers are keyboard-focusable and use `bottom-end` placement to open inward from the field's right edge. Keep tooltip content in normal flow inside its positioner so Zag can measure its full size for viewport collision handling.
 - Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
