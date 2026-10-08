@@ -46,11 +46,13 @@ public struct RefreshOAuthTokenService: RefreshOAuthTokenServicing {
         request.addRequestIDHeader()
         ClientFeatureFlags.addHeader(to: &request)
 
+        let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
+        let clientID = credentials?.refreshToken == refreshToken ? credentials?.oauthClientID : nil
         var body = URLComponents()
         body.queryItems = [
             URLQueryItem(name: "grant_type", value: "refresh_token"),
             URLQueryItem(name: "refresh_token", value: refreshToken),
-            URLQueryItem(name: "client_id", value: serverEnvironmentService.oauthClientId()),
+            URLQueryItem(name: "client_id", value: clientID ?? serverEnvironmentService.oauthClientId()),
         ]
         request.httpBody = body.percentEncodedQuery?
             .replacingOccurrences(of: "+", with: "%2B")
